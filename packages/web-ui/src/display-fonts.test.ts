@@ -237,7 +237,7 @@ describe('font sizes', () => {
   // app.css keys its rules off these exact ids. A size added here without a
   // matching rule would be storable, selectable, and do nothing.
   it('every non-default size has a rule in app.css', () => {
-    const css = readFileSync(fileURLToPath(new URL('../styles/app.css', import.meta.url)), 'utf8');
+    const css = readFileSync(fileURLToPath(new URL('../../node_modules/@mantle/share-ui/styles/app.css', import.meta.url)), 'utf8');
     for (const s of FONT_SIZES) {
       if (s.id === DEFAULT_FONT_SIZE) continue;
       for (const attr of ['data-font-size', 'data-logo-size', 'data-title-size', 'data-prose-size'])
