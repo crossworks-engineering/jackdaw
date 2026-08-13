@@ -1,0 +1,14 @@
+packages:
+  - "client/*"
+  - "packages/*"
+  - "e2e"
+
+# pnpm 11 requires explicit approval for packages with build scripts (see the
+# mantle repo's pnpm-workspace.yaml for the full rationale).
+allowBuilds:
+  electron: true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  electron-winstaller: true
+  '@parcel/watcher': false

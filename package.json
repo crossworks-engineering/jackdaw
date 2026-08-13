@@ -1,0 +1,49 @@
+{
+  "name": "jackdaw",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jackdaw — the data-aware workspace. The web + desktop interface for Mantle brains.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "pnpm -C client/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write \"{client,packages,e2e,scripts}/**/*.{ts,tsx,mjs,cjs}\" \"*.{ts,tsx,mjs,cjs}\"",
+    "format:check": "prettier --check \"{client,packages,e2e,scripts}/**/*.{ts,tsx,mjs,cjs}\" \"*.{ts,tsx,mjs,cjs}\"",
+    "test": "vitest run",
+    "verify": "pnpm -r typecheck && pnpm lint && pnpm format:check && vitest run",
+    "themes:pull": "echo 'themes are generated in the mantle repo (packages/share-ui) and consumed from @crossworks/share-ui'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.2.10",
+    "concurrently": "^9.2.4",
+    "eslint": "^10.7.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.20.7",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "@mantle/client-types": "npm:@crossworks/client-types@0.230.40",
+      "@mantle/content-core": "npm:@crossworks/content-core@0.230.40",
+      "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.40",
+      "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.40",
+      "@mantle/app-build": "npm:@crossworks/app-build@0.230.40",
+      "pdfjs-dist": "6.1.200",
+      "@napi-rs/canvas": "1.0.2"
+    },
+    "patchedDependencies": {
+      "katex@0.18.1": "patches/katex@0.18.1.patch"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env*.local
+# Generated at build time by @mantle/app-build's build-runtime (npm: @crossworks/app-build)
+client/web/public/app-runtime/
+# Electron: the staged copy of the built owner UI + packaged artifacts
+client/desktop/ui/
+client/desktop/release/
