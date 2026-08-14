@@ -34,11 +34,31 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { ComposeStatus, UpdateCheck, UpdaterStatus } from '@mantle/client-types';
+import { APP_VERSION } from '@mantle/web-ui/version';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 
 type Build = { version: string; sha: string; time: string };
+
+/** Numeric segment-wise tag compare (v-prefix and -suffixes ignored); >0 when
+ *  a > b. Local copy — the server's compareVersions lives in a lib this
+ *  zero-secret client can't import. */
+function compareTags(a: string, b: string): number {
+  const norm = (v: string) =>
+    v
+      .replace(/^v/, '')
+      .split('-')[0]!
+      .split('.')
+      .map((n) => parseInt(n, 10) || 0);
+  const pa = norm(a);
+  const pb = norm(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
 
 type UpdatesData = {
   check: UpdateCheck;
@@ -155,6 +175,86 @@ function UpdaterScriptLine({ compose }: { compose: ComposeStatus | null }) {
   );
 }
 
+/**
+ * The interface's own release stream. This BUNDLE is the installed interface —
+ * `APP_VERSION` here is jackdaw's build version, which is exactly why the
+ * "update available" verdict is computed in the browser and not by the server
+ * (it cannot know which client build a browser is running).
+ *
+ * The paired tag is what a normal SERVER update would install; the button here
+ * is for moving the interface alone — a UI-only release, or catching up a
+ * pinned box. Renders nothing on servers that predate the client stream in
+ * /api/updates/check (no section beats a permanently empty one).
+ */
+function InterfaceSection({
+  check,
+  busy,
+  updaterAvailable,
+  onUpdate,
+}: {
+  check: UpdateCheck;
+  busy: boolean;
+  updaterAvailable: boolean;
+  onUpdate: (tag: string) => void;
+}) {
+  const client = check.client;
+  if (!client) return null;
+  const latest = client.latest;
+  const updateAvailable = !!latest && compareTags(latest.tag, APP_VERSION) > 0;
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Interface
+      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <p className="text-sm">
+            <span className="font-medium">v{APP_VERSION}</span>
+            <span className="text-muted-foreground"> installed</span>
+            {latest && (
+              <span className="text-muted-foreground">
+                {' '}
+                · latest {latest.tag}
+                {latest.publishedAt ? `, published ${latest.publishedAt.slice(0, 10)}` : ''}
+              </span>
+            )}
+          </p>
+          {latest && (
+            <a
+              href={latest.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              Release notes <ExternalLink className="size-3" />
+            </a>
+          )}
+          {client.error && <p className="text-xs text-muted-foreground">{client.error}</p>}
+        </div>
+        {updateAvailable ? (
+          <Button
+            variant="outline"
+            onClick={() => onUpdate(latest.tag)}
+            disabled={!updaterAvailable || busy}
+          >
+            <ArrowUpCircle />
+            Update interface to {latest.tag}
+          </Button>
+        ) : latest ? (
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <CheckCircle2 className="size-4 text-emerald-500" /> Up to date
+          </span>
+        ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        The interface releases separately from the brain. A normal update installs the pair the
+        release was tested with{client.pairedTag ? ` (currently ${client.pairedTag})` : ''}; this
+        button moves the interface alone and takes a few seconds.
+      </p>
+    </section>
+  );
+}
+
 const PHASE_LABEL: Record<string, string> = {
   requested: 'Waiting for the updater to pick up the request…',
   pulling: 'Pulling the new image…',
@@ -210,6 +310,9 @@ function UpdatesView({
   const priorStartedRef = useRef<string | null>(
     initialStatus?.phase === 'requested' ? initialStatus.startedAt : null,
   );
+  // The in-flight run rolls only the interface (client container). See
+  // onUpdateInterface for why 'done' must then reload rather than toast.
+  const interfaceOnlyRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -246,9 +349,15 @@ function UpdatesView({
           return;
         }
         if (data.status?.phase === 'done') {
-          // Same version after 'done' — e.g. re-pulling an unchanged 'latest'.
           setUpdating(false);
           stopPolling();
+          if (interfaceOnlyRef.current) {
+            // The interface just rolled under us — this bundle is the OLD
+            // build. Land on the new one instead of announcing success from it.
+            window.location.reload();
+            return;
+          }
+          // Same version after 'done' — e.g. re-pulling an unchanged 'latest'.
           toast.success('Update finished.');
         } else if (data.status?.phase === 'error') {
           setUpdating(false);
@@ -292,15 +401,13 @@ function UpdatesView({
     }
   }
 
-  async function onConfirmUpdate() {
-    setConfirmOpen(false);
-    const target = check.latest?.tag ?? 'latest';
+  async function requestRoll(body: { target?: string; clientTarget?: string }, shown: string) {
     let res: { ok: true } | { ok: false; error: string };
     try {
       res = await apiSend<{ ok: true } | { ok: false; error: string }>(
         '/api/updates/request',
         'POST',
-        { target },
+        body,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Update request failed');
@@ -313,8 +420,25 @@ function UpdatesView({
     setLog('');
     // Whatever run is terminal right now is the one to disregard from here on.
     priorStartedRef.current = status?.startedAt ?? null;
-    setStatus((s) => (s ? { ...s, phase: 'requested', target, error: null } : s));
+    setStatus((s) => (s ? { ...s, phase: 'requested', target: shown, error: null } : s));
     setUpdating(true);
+  }
+
+  async function onConfirmUpdate() {
+    setConfirmOpen(false);
+    const target = check.latest?.tag ?? 'latest';
+    interfaceOnlyRef.current = false;
+    await requestRoll({ target }, target);
+  }
+
+  async function onUpdateInterface(tag: string) {
+    // Interface-only: the SERVER version never changes, so the reload trigger
+    // the server path relies on ("/api/updates/status answers with a new
+    // version") will not fire — and the container being replaced is the one
+    // serving THIS page. The flag makes 'done' reload instead of toast, so
+    // the user lands on the build they just installed.
+    interfaceOnlyRef.current = true;
+    await requestRoll({ clientTarget: tag }, `${tag} (interface)`);
   }
 
   // 'requested' counts as busy in its own right, not just via `updating`:
@@ -397,9 +521,17 @@ function UpdatesView({
         )}
         <p className="text-xs text-muted-foreground">
           Checked {check.checkedAt.slice(0, 16).replace('T', ' ')} UTC against the GitHub releases
-          of <code>crossworks-engineering/mantle</code>.
+          of <code>crossworks-engineering/mantle</code> and <code>jackdaw</code>.
         </p>
       </section>
+
+      {/* ── Interface (owner UI) — its own release stream since the split ── */}
+      <InterfaceSection
+        check={check}
+        busy={busy}
+        updaterAvailable={updaterAvailable}
+        onUpdate={onUpdateInterface}
+      />
 
       {/* ── Updater / progress ── */}
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">

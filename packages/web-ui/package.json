@@ -166,9 +166,9 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.5.0",
     "vaul": "^1.1.2",
-    "@mantle/content-core": "npm:@crossworks/content-core@0.230.60",
-    "@mantle/client-types": "npm:@crossworks/client-types@0.230.60",
-    "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.60"
+    "@mantle/content-core": "npm:@crossworks/content-core@0.230.62",
+    "@mantle/client-types": "npm:@crossworks/client-types@0.230.62",
+    "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.62"
   },
   "devDependencies": {
     "@types/katex": "^0.16.8",

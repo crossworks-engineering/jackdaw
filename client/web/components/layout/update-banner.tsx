@@ -14,11 +14,33 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpCircle } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { APP_VERSION } from '@mantle/web-ui/version';
 
 type CheckPayload = {
   updateAvailable?: boolean;
   latest?: { tag?: string } | null;
+  /** The interface's own release stream (post-split servers). The server
+   *  cannot know which client build this browser runs, so whether the
+   *  INTERFACE is stale is decided here, against our own APP_VERSION. */
+  client?: { latest?: { tag?: string } | null } | null;
 };
+
+/** Numeric segment-wise tag compare; >0 when a > b (v-prefix ignored). */
+function tagNewer(tag: string, version: string): boolean {
+  const norm = (v: string) =>
+    v
+      .replace(/^v/, '')
+      .split('-')[0]!
+      .split('.')
+      .map((n) => parseInt(n, 10) || 0);
+  const pa = norm(tag);
+  const pb = norm(version);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return false;
+}
 
 // Re-poll hourly so a long-open tab surfaces a new release within the hour. The
 // server still gates the actual GitHub call (30min TTL once "no update"), so
@@ -33,7 +55,17 @@ export function UpdateBanner({ onNavigate }: { onNavigate?: () => void }) {
     const check = async () => {
       try {
         const data = await apiFetch<CheckPayload>('/api/updates/check', { cache: 'no-store' });
-        if (!cancelled) setTag(data.updateAvailable ? (data.latest?.tag ?? null) : null);
+        if (cancelled) return;
+        // A server release wins the label; failing that, an interface-only
+        // release lights the same chip (the updates page separates them).
+        const clientTag = data.client?.latest?.tag;
+        setTag(
+          data.updateAvailable
+            ? (data.latest?.tag ?? null)
+            : clientTag && tagNewer(clientTag, APP_VERSION)
+              ? `${clientTag} (interface)`
+              : null,
+        );
       } catch {
         // Offline / transient — just don't show the banner.
       }

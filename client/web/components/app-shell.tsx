@@ -17,6 +17,7 @@ import { MobileBar } from '@/components/layout/rail/mobile-bar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { ChangelogLink } from '@/components/layout/changelog-link';
 import { UpdateBanner } from '@/components/layout/update-banner';
+import { ContractBanner } from '@/components/layout/contract-banner';
 import { LiveColumn } from '@/components/layout/live-column';
 import { Sheet, SheetContent, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { ToastProvider } from '@mantle/web-ui/ui/toast';
@@ -371,6 +372,9 @@ function ShellFrame({
           order. Same reason the brand block and the toolbar carry it. */}
       <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
         {contextCard}
+        {/* Above the update chip: incompatibility explains WHY things are
+            failing right now, an available update is merely nice to have. */}
+        <ContractBanner onNavigate={onNavigate} />
         <UpdateBanner onNavigate={onNavigate} />
         <SidebarNav
           initialExpandedGroups={initialExpandedGroups}
