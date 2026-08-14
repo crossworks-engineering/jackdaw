@@ -8,7 +8,23 @@ import { JackdawBadge, JackdawRow } from './jackdaw-mark';
 
 /**
  * Identity block at the head of the rail: the wordmark (or the uploaded brand
- * logo) on the first line, this brain's peer name on the second.
+ * logo), with this brain's peer name set to its right.
+ *
+ * THE PEER NAME FLOATS RIGHT AND WRAPS AS A UNIT. It shares the logo's row when
+ * the column is wide enough and drops to a row of its own when it is not,
+ * staying flush right either way. That is a wrapping flex line plus `ml-auto`
+ * on the name, and it needs both halves: `flex-wrap` decides the row, and the
+ * auto left margin is what pushes the name right — including on the wrapped
+ * row, where it is the only item and `justify-content` would otherwise leave it
+ * hard left. The name keeps `whitespace-nowrap` so it wraps whole rather than
+ * breaking mid-name.
+ *
+ * Its clipping margin is deliberately one-sided (`-mr-2 px-2`, not the
+ * `-mx-2 px-2` the wordmark uses). `-mx-2` sets `margin-left` too, colliding
+ * with `ml-auto` on the same property, and which one won would come down to
+ * utility order in the generated sheet rather than intent. Pulling only the
+ * right edge flush leaves `margin-left` free for the auto push, and the left
+ * padding costs nothing on an element that margin has already positioned.
  *
  * This is the heir to the old fixed header, which is why it — and not only the
  * mobile bar — carries the `header` area backdrop. The Appearance setting keeps
@@ -81,39 +97,49 @@ export function BrandBlock({
           but below its text. Renders nothing when the area is switched off. */}
       <AreaBackdrop area="header" className="-z-10" />
 
-      <Link
-        href="/"
-        onClick={onNavigate}
-        aria-label={`${name} home`}
-        title={name}
-        className="flex min-w-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[nav-collapsed=true]/shell:justify-center"
-      >
-        <BrandLogo
-          name={name}
-          logoVersion={logoVersion}
-          logoDarkVersion={logoDarkVersion}
-          imgClassName="h-9 w-auto max-w-full object-contain object-left group-data-[nav-collapsed=true]/shell:size-8 group-data-[nav-collapsed=true]/shell:object-center"
-          renderWordmark={(visibility) =>
-            named ? (
-              <Wordmark name={name} mark={mark} className={visibility} />
-            ) : (
-              <JackdawMark className={visibility} />
-            )
-          }
-        />
-      </Link>
-
-      {peerName && (
-        <p
-          // The peer name sits under the wordmark as a subtitle, in the
-          // user-selectable page-title face (Settings → Appearance → Fonts;
-          // unset ⇒ inherits the UI sans). Same width-only clipping as above.
-          className="peer-name -mx-2 mt-1 max-w-full overflow-x-clip overflow-y-visible whitespace-nowrap px-2 font-semibold leading-snug tracking-tight text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden"
-          title={peerName}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 group-data-[nav-collapsed=true]/shell:justify-center">
+        <Link
+          href="/"
+          onClick={onNavigate}
+          aria-label={`${name} home`}
+          title={name}
+          // `grow`, NOT `flex-1`. Both would let the logo fill its row, but
+          // `flex-1` sets `flex-basis: 0`, and flex uses the BASE size to decide
+          // where a line breaks — a zero-basis logo always leaves room for the
+          // peer name, so the two would never wrap apart. `grow` keeps the
+          // content-sized basis (so wrapping still triggers) and only fills the
+          // slack afterwards. Without it the logo sizes to fit-content and the
+          // wordmark loses ~16px it used to have, clipping the last glyph.
+          className="flex min-w-0 grow items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[nav-collapsed=true]/shell:justify-center"
         >
-          {peerName}
-        </p>
-      )}
+          <BrandLogo
+            name={name}
+            logoVersion={logoVersion}
+            logoDarkVersion={logoDarkVersion}
+            imgClassName="h-9 w-auto max-w-full object-contain object-left group-data-[nav-collapsed=true]/shell:size-8 group-data-[nav-collapsed=true]/shell:object-center"
+            renderWordmark={(visibility) =>
+              named ? (
+                <Wordmark name={name} mark={mark} className={visibility} />
+              ) : (
+                <JackdawMark className={visibility} />
+              )
+            }
+          />
+        </Link>
+
+        {peerName && (
+          <p
+            // Set beside the wordmark, flush right, in the user-selectable
+            // page-title face (Settings → Appearance → Fonts; unset ⇒ inherits
+            // the UI sans). Same width-only clipping as the wordmark, asymmetric
+            // so it cannot fight `ml-auto` — see the block comment above.
+            className="peer-name -mr-2 ml-auto max-w-full overflow-x-clip overflow-y-visible whitespace-nowrap px-2 font-semibold leading-snug tracking-tight text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden"
+            title={peerName}
+          >
+            {peerName}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { SpendChart } from '@/components/dashboard/spend-chart';
 import { IngestChart } from '@/components/dashboard/ingest-chart';
 import { BrainBreakdown } from '@/components/dashboard/brain-breakdown';
 import { BrainStats } from '@/components/dashboard/brain-stats';
+import { BuildCard } from '@/components/dashboard/build-card';
 import { CapacityDial } from '@/components/dashboard/capacity-dial';
 import { OpsPanels } from '@/components/dashboard/ops-panels';
 import type {
@@ -139,6 +140,7 @@ export function DashboardClient() {
         <CapacityDial capacity={capacity} />
         <BrainBreakdown nodesByType={brain.nodesByType} entitiesByKind={brain.entitiesByKind} />
         <BrainStats vectors={vectors} brain={brain} integrity={integrity} />
+        <BuildCard />
       </div>
 
       <OpsPanels

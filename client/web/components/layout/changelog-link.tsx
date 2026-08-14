@@ -15,19 +15,20 @@ import {
 } from '@mantle/web-ui/version';
 
 /**
- * Build identity at the foot of the rail's nav → /changelog: the Mantle
- * wordmark, this build's version, and a "What's new?" pill until the changelog
- * has been viewed (localStorage last-seen vs APP_VERSION; the /changelog page
- * stamps it and fires CHANGELOG_SEEN_EVENT so the pill clears without a
- * remount). In the collapsed icon rail the wordmark gives way to the megaphone
- * and the pill becomes the same dot the nav badges use.
+ * Build identity at the foot of the rail's nav → /changelog: this build's
+ * version and a "What's new?" pill until the changelog has been viewed
+ * (localStorage last-seen vs APP_VERSION; the /changelog page stamps it and
+ * fires CHANGELOG_SEEN_EVENT so the pill clears without a remount). In the
+ * collapsed icon rail the version gives way to the megaphone and the pill
+ * becomes the same dot the nav badges use.
  *
- * The wordmark is the one the footer bar used to carry, moved here when that
- * bar was removed. It uses `.wordmark-brand` (`--font-brand`, the product's
- * own face), NOT `--font-wordmark`: this line says the software is Mantle
- * regardless of what the owner named their brain or which display face they
- * picked for it, which is exactly why it cannot share a row with the brand
- * block up top.
+ * Version ONLY, no wordmark. The line used to carry a "mantle" wordmark from
+ * the old footer bar, which the repo split made actively wrong: APP_VERSION
+ * here is the JACKDAW build (next.config stamps the client's own
+ * package.json), so the pairing read "mantle vX" while naming a version
+ * Mantle never had. Both products and both versions now appear together on
+ * the dashboard's <BuildCard>, which can name each one correctly because it
+ * reads the server's version over the wire.
  */
 export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -77,9 +78,6 @@ export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
           className="hidden size-4 shrink-0 group-data-[nav-collapsed=true]/shell:block"
           aria-hidden
         />
-        <span className="wordmark-brand select-none text-lg leading-none text-primary-ink group-data-[nav-collapsed=true]/shell:hidden">
-          mantle
-        </span>
         <span className="flex-1 truncate text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden">
           {VERSION_LABEL}
         </span>

@@ -40,8 +40,13 @@ export const DialogContent = React.forwardRef<
       // internally, so call sites no longer need their own
       // `max-h-[90vh] overflow-y-auto` wrappers (some still have them,
       // harmlessly).
+      //
+      // That internal scroll pairs with `scrollbar-thin`, as every other
+      // scrolling pane in the app does. Without it dialogs were the one
+      // surface still drawing the platform's full-width bar, which is most
+      // obvious in the tall ones (Appearance → Fonts).
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[94vw] max-w-5xl -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-background px-5 pb-5 pt-4 shadow-lg',
+        'fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[94vw] max-w-5xl -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-y-auto scrollbar-thin rounded-lg border border-border bg-background px-5 pb-5 pt-4 shadow-lg',
         className,
       )}
       {...props}
