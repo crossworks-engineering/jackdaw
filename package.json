@@ -1,6 +1,6 @@
 {
   "name": "jackdaw",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Jackdaw — the data-aware workspace. The web + desktop interface for Mantle brains.",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -34,11 +34,11 @@
   },
   "pnpm": {
     "overrides": {
-      "@mantle/client-types": "npm:@crossworks/client-types@0.230.59",
-      "@mantle/content-core": "npm:@crossworks/content-core@0.230.59",
-      "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.59",
-      "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.59",
-      "@mantle/app-build": "npm:@crossworks/app-build@0.230.59",
+      "@mantle/client-types": "npm:@crossworks/client-types@0.230.60",
+      "@mantle/content-core": "npm:@crossworks/content-core@0.230.60",
+      "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.60",
+      "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.60",
+      "@mantle/app-build": "npm:@crossworks/app-build@0.230.60",
       "pdfjs-dist": "6.1.200",
       "@napi-rs/canvas": "1.0.2"
     },

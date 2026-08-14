@@ -1,10 +1,10 @@
 {
   "name": "@mantle/client-web",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Mantle owner UI — the zero-secret client Next app. Talks to the server origin via bearer + CORS; holds no SESSION_SECRET, no DB, no server packages.",
   "scripts": {
-    "app-runtime": "tsx node_modules/@mantle/app-build/scripts/build-runtime.ts client/web",
+    "app-runtime": "tsx node_modules/@mantle/app-build/scripts/build-runtime.ts",
     "excalidraw-assets": "node scripts/copy-excalidraw-assets.mjs",
     "predev": "pnpm run app-runtime && pnpm run excalidraw-assets",
     "dev": "next dev",
@@ -19,7 +19,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@excalidraw/excalidraw": "0.18.1",
-    "@mantle/client-types": "npm:@crossworks/client-types@0.230.59",
+    "@mantle/client-types": "npm:@crossworks/client-types@0.230.60",
     "@mantle/web-ui": "workspace:*",
     "@tanstack/react-query": "^5.101.3",
     "@tanstack/react-table": "^8.21.3",
@@ -60,9 +60,9 @@
     "yaml": "^2.9.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14",
-    "@mantle/content-core": "npm:@crossworks/content-core@0.230.59",
-    "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.59",
-    "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.59"
+    "@mantle/content-core": "npm:@crossworks/content-core@0.230.60",
+    "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.60",
+    "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.60"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
@@ -73,7 +73,7 @@
     "postcss": "^8.5.21",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.7.2",
-    "@mantle/app-build": "npm:@crossworks/app-build@0.230.59",
+    "@mantle/app-build": "npm:@crossworks/app-build@0.230.60",
     "tsx": "^4.20.7",
     "tailwindcss-animate": "^1.0.7",
     "@tailwindcss/typography": "^0.5.20"
