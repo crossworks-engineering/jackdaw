@@ -87,8 +87,8 @@ export const pageExtensions: Extensions = [
   // Inline card linking to a sub-page (Phase 4a). Shared so PageView renders
   // the card too; created by the `/page` slash command.
   ChildPage,
-  // Mermaid diagram block (```mermaid in the dialect). Lazy-loads mermaid in
-  // its NodeView, so the schema entry costs nothing at startup.
+  // LEGACY diagram block (Mermaid retired 2026-08). Kept in the schema so
+  // stored docs still parse; renders read-only source, never inserted new.
   Diagram,
   // Inline ($…$) + block ($$…$$) math via KaTeX. Input rules convert as you
   // type; nodes are `inlineMath` / `blockMath` with a `latex` attr. KaTeX CSS is

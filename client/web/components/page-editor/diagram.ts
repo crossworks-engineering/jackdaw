@@ -3,13 +3,14 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import { DiagramView } from './diagram-view';
 
 /**
- * Mermaid diagram block. The Mermaid source text is the single source of
- * truth (attrs.source); the NodeView renders it to SVG client-side with a
- * lazy-loaded mermaid bundle. Authored in the dialect as a ```mermaid fence
- * (see @mantle/content markdownToDoc / docToMarkdown). Atom node — the source
- * is edited through the NodeView's source panel, not as document content.
- * Serialized as `<div data-diagram data-source="…">` so copy/paste HTML
- * round-trips without the NodeView.
+ * LEGACY diagram block (the retired Mermaid engine, 2026-08). The node type
+ * stays in the schema because stored docs carry these nodes — dropping it
+ * would make ProseMirror reject old documents outright. The NodeView shows
+ * the stored source as a read-only labelled code block; nothing renders
+ * Mermaid anymore, and the slash menu no longer inserts this node. New
+ * diagram work is the Draftsman specialist's SVG + spec block (mantle
+ * docs/diagrams.md). Serialized as `<div data-diagram data-source="…">` so
+ * copy/paste HTML still round-trips.
  */
 export const Diagram = Node.create({
   name: 'diagram',

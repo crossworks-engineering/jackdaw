@@ -49,7 +49,6 @@
     "./lib/themes": "./src/lib/themes.ts",
     "./lib/utils": "./src/lib/utils.ts",
     "./live-turn": "./src/live-turn.tsx",
-    "./mermaid-theme": "./src/mermaid-theme.ts",
     "./model-choices": "./src/model-choices.ts",
     "./page-outline": "./src/page-outline.tsx",
     "./page-tree": "./src/page-tree.ts",
