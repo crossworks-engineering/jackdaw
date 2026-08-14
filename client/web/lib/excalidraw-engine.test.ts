@@ -11,9 +11,9 @@ import { EXCALIDRAW_ENGINE } from '@mantle/client-types/version';
  * same stamp.
  */
 describe('EXCALIDRAW_ENGINE', () => {
-  const pkg = JSON.parse(
-    readFileSync(join(import.meta.dirname, '../package.json'), 'utf8'),
-  ) as { dependencies?: Record<string, string> };
+  const pkg = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+  };
   const pin = pkg.dependencies?.['@excalidraw/excalidraw'];
 
   it('matches the pin declared by client/web', () => {

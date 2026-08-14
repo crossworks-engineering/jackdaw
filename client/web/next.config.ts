@@ -17,7 +17,23 @@ const rootPkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), '
 };
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@mantle/web-ui'],
+  // The published contract packages ship TS source; both their alias names
+  // (@mantle/*, how this repo imports them) and their real npm names
+  // (@crossworks/*, what the installed package.json declares) are listed so
+  // Turbopack transpiles them regardless of which identity it matches on.
+  transpilePackages: [
+    '@mantle/web-ui',
+    '@mantle/client-types',
+    '@mantle/content-core',
+    '@mantle/voice-client',
+    '@mantle/share-ui',
+    '@mantle/app-build',
+    '@crossworks/client-types',
+    '@crossworks/content-core',
+    '@crossworks/voice-client',
+    '@crossworks/share-ui',
+    '@crossworks/app-build',
+  ],
   // Pin the dev/build root to THIS checkout. Without it Turbopack infers the
   // root by scanning upward for lockfiles, finds the integrator clone's, and
   // roots there — and since `.claude/worktrees/` lives INSIDE that clone, every

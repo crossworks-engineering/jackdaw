@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -237,7 +235,10 @@ describe('font sizes', () => {
   // app.css keys its rules off these exact ids. A size added here without a
   // matching rule would be storable, selectable, and do nothing.
   it('every non-default size has a rule in app.css', () => {
-    const css = readFileSync(fileURLToPath(new URL('../../node_modules/@mantle/share-ui/styles/app.css', import.meta.url)), 'utf8');
+    const css = readFileSync(
+      fileURLToPath(new URL('../node_modules/@mantle/share-ui/styles/app.css', import.meta.url)),
+      'utf8',
+    );
     for (const s of FONT_SIZES) {
       if (s.id === DEFAULT_FONT_SIZE) continue;
       for (const attr of ['data-font-size', 'data-logo-size', 'data-title-size', 'data-prose-size'])
@@ -253,7 +254,9 @@ describe('font sizes', () => {
  * that pointed at it (dead weight in both images, nobody notices). Neither
  * shows up in a typecheck. Both directions are asserted here, per app.
  */
-const APPS = ['client', 'server'] as const;
+// Post-split this repo asserts its own app only; the server's font payload
+// is validated in the mantle repo against the same registry.
+const APPS = ['client'] as const;
 const publicDir = (app: string) =>
   fileURLToPath(new URL(`../../../${app}/web/public`, import.meta.url));
 
@@ -382,56 +385,4 @@ describe('the font library', () => {
       );
     }
   });
-});
-
-/**
- * Both apps carry their own copy of the font payload, on purpose: client/web
- * serves it through `next start`, server/web through its own static layer
- * (server/static.ts) for the public /s and /print surfaces. Each origin needs
- * the bytes, so the duplication is load-bearing and stays.
- *
- * What must NOT happen is the two drifting. Update a face in one app and forget
- * the other and nothing breaks loudly — the share page just quietly renders a
- * different font from the app that authored it, on a surface nobody is looking
- * at. Content hashes make that impossible to land.
- *
- * Adding or replacing a face means mirroring it into BOTH public dirs, which
- * `scripts/fonts-import.mjs` does for you; see server/web/CLAUDE.md.
- */
-function fingerprint(dir: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  const walk = (abs: string, rel: string) => {
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const next = rel ? `${rel}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) walk(join(abs, entry.name), next);
-      else
-        out[next] = createHash('sha256')
-          .update(readFileSync(join(abs, entry.name)))
-          .digest('hex');
-    }
-  };
-  walk(dir, '');
-  return out;
-}
-
-describe('the two apps serve the same font payload', () => {
-  // Everything duplicated between them: the variable-font library and its
-  // licences, and the Inter UI face.
-  for (const root of ['fonts', 'Inter'] as const) {
-    it(`public/${root} is byte-identical in client/web and server/web`, () => {
-      const client = fingerprint(`${publicDir('client')}/${root}`);
-      const server = fingerprint(`${publicDir('server')}/${root}`);
-
-      expect(
-        Object.keys(server).sort(),
-        `public/${root}: one app has files the other does not`,
-      ).toEqual(Object.keys(client).sort());
-
-      const differing = Object.keys(client).filter((f) => client[f] !== server[f]);
-      expect(
-        differing,
-        `public/${root}: same filename, different bytes — mirror the change`,
-      ).toEqual([]);
-    });
-  }
 });

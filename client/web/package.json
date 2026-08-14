@@ -4,7 +4,7 @@
   "private": true,
   "description": "Mantle owner UI — the zero-secret client Next app. Talks to the server origin via bearer + CORS; holds no SESSION_SECRET, no DB, no server packages.",
   "scripts": {
-    "app-runtime": "node node_modules/@mantle/app-build/scripts/build-runtime.ts client/web",
+    "app-runtime": "tsx node_modules/@mantle/app-build/scripts/build-runtime.ts client/web",
     "excalidraw-assets": "node scripts/copy-excalidraw-assets.mjs",
     "predev": "pnpm run app-runtime && pnpm run excalidraw-assets",
     "dev": "next dev",
@@ -74,6 +74,9 @@
     "postcss": "^8.5.21",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.7.2",
-    "@mantle/app-build": "npm:@crossworks/app-build@0.230.43"
+    "@mantle/app-build": "npm:@crossworks/app-build@0.230.43",
+    "tsx": "^4.20.7",
+    "tailwindcss-animate": "^1.0.7",
+    "@tailwindcss/typography": "^0.5.20"
   }
 }
