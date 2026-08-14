@@ -2,8 +2,13 @@
 # `mantle-client` name so the fleet's compose files don't change at the split;
 # tags: the jackdaw version + `latest`.
 #
+# Each arch builds NATIVELY in parallel (GitHub's free arm64 runners for
+# public repos) and pushes by digest; the merge job stitches both digests into
+# one multi-arch manifest. Same pattern as mantle's release.yml — the previous
+# single-job QEMU build emulated arm64 and took ~17 min; native is ~6.
+#
 # Needs DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repo secrets; skips cleanly
-# until they exist.
+# until they exist (job-level `if:` can't read secrets, hence the probe job).
 name: release
 
 on:
@@ -14,40 +19,126 @@ permissions:
   contents: read
 
 jobs:
-  client-image:
+  creds:
     runs-on: ubuntu-24.04
+    outputs:
+      have: ${{ steps.probe.outputs.have }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Check for Docker Hub credentials
-        id: creds
+      - id: probe
         env:
           U: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           if [ -n "$U" ]; then echo "have=true" >> "$GITHUB_OUTPUT";
           else echo "have=false" >> "$GITHUB_OUTPUT"; echo "::notice::DOCKERHUB_* secrets not set — skipping image push"; fi
 
-      - uses: docker/setup-qemu-action@v3
-        if: steps.creds.outputs.have == 'true'
+  build:
+    needs: creds
+    if: needs.creds.outputs.have == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # platform must be an original matrix key (not include-only) so this
+        # is a true 2-job product; the includes only attach the right runner.
+        # (Include-only platforms collapsed to one job in mantle's v0.202.0
+        # and shipped an arm64-only manifest.)
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE: ${{ vars.MANTLE_IMAGE_NAMESPACE || 'titanwest' }}/mantle-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Platform label
+        run: echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+        env:
+          platform: ${{ matrix.platform }}
+
       - uses: docker/setup-buildx-action@v3
-        if: steps.creds.outputs.have == 'true'
+
       - uses: docker/login-action@v3
-        if: steps.creds.outputs.have == 'true'
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build + push
-        if: steps.creds.outputs.have == 'true'
+      # Build this single arch natively and push it BY DIGEST (no tag yet) —
+      # the merge job assembles the tagged multi-arch manifest from both.
+      - id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           target: client
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ vars.MANTLE_IMAGE_NAMESPACE || 'titanwest' }}/mantle-client:${{ github.ref_name }}
-            ${{ vars.MANTLE_IMAGE_NAMESPACE || 'titanwest' }}/mantle-client:latest
+          platforms: ${{ matrix.platform }}
           build-args: |
             MANTLE_GIT_SHA=${{ github.sha }}
             MANTLE_BUILD_TIME=${{ github.event.head_commit.timestamp }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # Per-arch cache scope so the two runners don't clobber each other.
+          cache-from: type=gha,scope=client-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=client-${{ matrix.platform }}
+
+      # Bare hex only (strip the sha256: prefix) — the merge job re-adds
+      # @sha256: when it assembles the manifest.
+      - name: Export digest
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [creds, build]
+    if: needs.creds.outputs.have == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      IMAGE: ${{ vars.MANTLE_IMAGE_NAMESPACE || 'titanwest' }}/mantle-client
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Tripwire: exactly one digest per architecture BEFORE anything is
+      # tagged — fail while the registry tags are untouched instead of
+      # publishing a partial manifest that `:latest` consumers pull.
+      - name: Assert one digest per architecture
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          n=$(ls -1 | wc -l)
+          if [ "$n" -ne 2 ]; then
+            echo "expected 2 per-arch digests (amd64 + arm64), got $n:" >&2
+            ls -1 >&2
+            exit 1
+          fi
+
+      - name: Create + push the multi-arch manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            -t "${IMAGE}:${{ github.ref_name }}" \
+            -t "${IMAGE}:latest" \
+            $(printf "${IMAGE}@sha256:%s " *)
+
+      - name: Inspect + assert both platforms
+        run: |
+          docker buildx imagetools inspect "${IMAGE}:${{ github.ref_name }}" | tee /tmp/inspect.txt
+          grep -q "linux/amd64" /tmp/inspect.txt
+          grep -q "linux/arm64" /tmp/inspect.txt
