@@ -153,11 +153,18 @@ E2E_SKIP_PDF=1 pnpm -C e2e e2e
 ```
 
 ⚠ **Check WHICH worktree the running client is serving, not just that a client
-is running.** A `next dev` left over from another worktree answers on `:3100`
-perfectly happily and serves that worktree's code, so your edits appear to do
-nothing and the suite grades the wrong tree. `ps aux | grep "next dev"` prints
-the path. Restarting it on the same port from your own worktree is the fix —
-the port matters (CORS), the process does not.
+is running.** Every worktree's dev server looks identical on `:3100`, so one
+left over from another worktree answers perfectly happily and serves *that*
+worktree's code: your edits appear to do nothing and the suite grades the wrong
+tree. And you cannot sidestep it by taking another port — the CORS allowlist is
+only 3000/3001/3100. Ask the listening process where it actually lives:
+
+```sh
+lsof -a -p "$(lsof -tiTCP:3100 -sTCP:LISTEN | head -1)" -d cwd -Fn
+```
+
+Restarting it on the same port from your own worktree is the fix — the port
+matters, the process does not.
 
 ⚠ **`next dev` writes `client/web/AGENTS.md` and `client/web/CLAUDE.md`** on
 every boot. They arrive untracked; they are not part of anyone's change. Decide
