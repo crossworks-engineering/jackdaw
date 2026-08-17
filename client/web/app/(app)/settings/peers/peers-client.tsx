@@ -508,7 +508,7 @@ function PeerDetail({
           <Button
             variant="ghost"
             size="sm"
-            className="text-destructive-ink hover:text-destructive-ink"
+            className="text-muted-foreground hover:text-destructive-ink"
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 /> Delete

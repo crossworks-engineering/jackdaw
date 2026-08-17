@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -185,145 +186,152 @@ function ModelsView({ data }: { data: ExploreBundle }) {
   };
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[360px_1fr] md:overflow-hidden">
-      {/* LEFT: provider picker + model list */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center gap-2 border-b border-border p-3">
-          <Select
-            value={provider}
-            onValueChange={(id) =>
-              id !== provider && go({ provider: id, q: null, sort: null, kind: null, page: null })
-            }
-          >
-            <SelectTrigger className="h-9 flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.label}
-                  {!p.canFetch && ' (no catalog)'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9 shrink-0"
-            onClick={refresh}
-            disabled={busy}
-            aria-label="Refresh model list"
-          >
-            {refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-          </Button>
-        </div>
-
-        <div className="flex flex-col gap-2 border-b border-border p-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search models…"
-              className="h-9 pl-8"
-            />
-          </div>
-          <div className="flex items-center gap-2">
+    <MasterDetail
+      id="models"
+      list={
+        <>
+          {/* LEFT: provider picker + model list */}
+          <div className="flex items-center gap-2 border-b border-border p-3">
             <Select
-              value={sort}
-              onValueChange={(v) => go({ sort: v === 'name' ? null : v, page: null })}
+              value={provider}
+              onValueChange={(id) =>
+                id !== provider && go({ provider: id, q: null, sort: null, kind: null, page: null })
+              }
             >
-              <SelectTrigger className="h-8 flex-1 text-xs">
+              <SelectTrigger className="h-9 flex-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SORTS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
+                {providers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                    {!p.canFetch && ' (no catalog)'}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {kinds.length > 1 && (
+            {/* §5: `icon-sm` IS size-9 — the hand-written size was the violation,
+              not the dimension. */}
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="shrink-0"
+              onClick={refresh}
+              disabled={busy}
+              aria-label="Refresh model list"
+            >
+              {refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2 border-b border-border p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={searchRef}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search models…"
+                className="h-9 pl-8"
+              />
+            </div>
+            <div className="flex items-center gap-2">
               <Select
-                value={kind}
-                onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
+                value={sort}
+                onValueChange={(v) => go({ sort: v === 'name' ? null : v, page: null })}
               >
-                <SelectTrigger className="h-8 w-[120px] text-xs">
+                <SelectTrigger className="h-8 flex-1 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {kinds.map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {k}
+                  {SORTS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {kinds.length > 1 && (
+                <Select
+                  value={kind}
+                  onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
+                >
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {kinds.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {k}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              {busy
+                ? 'Loading…'
+                : `${total} model${total === 1 ? '' : 's'} · updated ${timeAgo(meta.fetchedAt)}`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {rows.length === 0 ? (
+              <EmptyList meta={meta} provider={current} filtered={Boolean(q) || kind !== 'all'} />
+            ) : (
+              rows.map((m) => (
+                <ListCard
+                  key={m.id}
+                  onClick={() => setSelectedId(m.id)}
+                  selected={selectedId === m.id}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium">{m.name ?? m.id}</span>
+                    {m.kind && (
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                        {m.kind}
+                      </Badge>
+                    )}
+                  </div>
+                  {m.name && (
+                    <p className="truncate font-mono text-[11px] text-muted-foreground">{m.id}</p>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
+                    <span>ctx {fmtTokens(m.contextTokens)}</span>
+                    {(m.inputPricePerM !== undefined || m.outputPricePerM !== undefined) && (
+                      <span>
+                        in {fmtPrice(m.inputPricePerM)} · out {fmtPrice(m.outputPricePerM)} /M
+                      </span>
+                    )}
+                  </div>
+                </ListCard>
+              ))
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground tabular-nums">
-            {busy
-              ? 'Loading…'
-              : `${total} model${total === 1 ? '' : 's'} · updated ${timeAgo(meta.fetchedAt)}`}
-          </p>
-        </div>
 
-        <div className="space-y-1.5 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {rows.length === 0 ? (
-            <EmptyList meta={meta} provider={current} filtered={Boolean(q) || kind !== 'all'} />
-          ) : (
-            rows.map((m) => (
-              <ListCard
-                key={m.id}
-                onClick={() => setSelectedId(m.id)}
-                selected={selectedId === m.id}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium">{m.name ?? m.id}</span>
-                  {m.kind && (
-                    <Badge variant="secondary" className="shrink-0 text-[10px]">
-                      {m.kind}
-                    </Badge>
-                  )}
-                </div>
-                {m.name && (
-                  <p className="truncate font-mono text-[11px] text-muted-foreground">{m.id}</p>
-                )}
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
-                  <span>ctx {fmtTokens(m.contextTokens)}</span>
-                  {(m.inputPricePerM !== undefined || m.outputPricePerM !== undefined) && (
-                    <span>
-                      in {fmtPrice(m.inputPricePerM)} · out {fmtPrice(m.outputPricePerM)} /M
-                    </span>
-                  )}
-                </div>
-              </ListCard>
-            ))
-          )}
-        </div>
-
-        <ListPager
-          page={page}
-          total={total}
-          pageSize={pageSize}
-          pending={navPending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
-
-      {/* RIGHT: detail */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {selected ? (
+          <ListPager
+            page={page}
+            total={total}
+            pageSize={pageSize}
+            pending={navPending}
+            onGo={(p) => go({ page: p > 1 ? p : null })}
+          />
+        </>
+      }
+      // 360px was this screen's own width; the list is a dense catalogue with a
+      // provider picker above it, so it keeps the wider default rather than
+      // being squeezed to 340px for uniformity's sake.
+      defaultListSize="360px"
+      detail={
+        selected ? (
           <ModelDetail model={selected} provider={current} />
         ) : (
           <ProviderSplash meta={meta} provider={current} />
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   );
 }
 

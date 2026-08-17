@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Copy, Eye, EyeOff, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Label } from '@mantle/web-ui/ui/label';
+import { TagPill } from '@mantle/web-ui/tag-pill';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -165,15 +165,22 @@ export function SecretDetail({
 
   if (editing && editInitial) {
     return (
-      <div className="space-y-4 p-6">
-        <h2 className="text-lg font-semibold">Edit secret</h2>
-        <SecretForm
-          initial={editInitial}
-          submitLabel="Save secret"
-          submitting={pending}
-          onSubmit={saveEdit}
-          onCancel={() => setEditing(false)}
-        />
+      // Same boxed composer as the "New secret" pane (§6c) — create and edit
+      // are the same form, so they get the same surface.
+      <div className="p-6">
+        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Pencil className="size-5 text-primary-ink" aria-hidden />
+            <h2 className="text-lg font-semibold">Edit secret</h2>
+          </div>
+          <SecretForm
+            initial={editInitial}
+            submitLabel="Save secret"
+            submitting={pending}
+            onSubmit={saveEdit}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
       </div>
     );
   }
@@ -182,12 +189,15 @@ export function SecretDetail({
     <div className="space-y-4 p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-lg font-semibold">{meta.title}</h2>
-            <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          {/* §8: the glyph lives INSIDE the h2, the title truncates, and the
+              kind badge rides inline as `shrink-0`. */}
+          <h2 className="flex min-w-0 items-center gap-2 text-lg font-semibold">
+            <KeyRound className="size-5 shrink-0 text-primary-ink" aria-hidden />
+            <span className="min-w-0 truncate">{meta.title}</span>
+            <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
               {meta.kind}
             </span>
-          </div>
+          </h2>
           {meta.description && <p className="text-sm text-muted-foreground">{meta.description}</p>}
           {meta.summary && !meta.description && (
             <p className="text-xs italic text-muted-foreground">Indexed: {meta.summary}</p>
@@ -195,12 +205,7 @@ export function SecretDetail({
           {meta.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-0.5">
               {meta.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                >
-                  {t}
-                </span>
+                <TagPill key={t} tag={t} />
               ))}
             </div>
           )}
@@ -211,11 +216,12 @@ export function SecretDetail({
           </Button>
           <Button
             variant="ghost"
-            size="sm"
-            className="text-destructive-ink hover:text-destructive-ink"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-destructive-ink"
             onClick={() => setDeleteOpen(true)}
+            aria-label="Delete secret"
           >
-            <Trash2 /> Delete
+            <Trash2 />
           </Button>
         </div>
       </div>
@@ -283,7 +289,9 @@ export function SecretDetail({
 
           {revealed.note && (
             <div className="space-y-1.5">
-              <Label>Note</Label>
+              {/* A caption, not a <Label>: this is read-only output with no
+                  control to label, and a dangling <label> is worse than none. */}
+              <p className="text-sm font-medium">Note</p>
               <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 font-mono text-sm">
                 {revealed.note}
               </pre>

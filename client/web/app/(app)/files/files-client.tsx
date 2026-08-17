@@ -480,7 +480,7 @@ function FilesView({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-destructive-ink hover:text-destructive-ink"
+                    className="h-7 text-muted-foreground hover:text-destructive-ink"
                     onClick={() => setDeleteFolderOpen(true)}
                     disabled={busy}
                   >
@@ -571,7 +571,7 @@ function FilesView({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="ml-auto text-destructive-ink hover:text-destructive-ink"
+                  className="ml-auto text-muted-foreground hover:text-destructive-ink"
                   onClick={() => setBulkDeleteOpen(true)}
                 >
                   <Trash2 /> Delete {selectedFileIds.size}

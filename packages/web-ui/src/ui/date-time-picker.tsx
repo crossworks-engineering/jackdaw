@@ -41,12 +41,22 @@ export function DateTimePicker({
   id,
   placeholder = 'Pick a date & time',
   clearable = false,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }: {
   value: Date | null;
   onChange: (next: Date | null) => void;
   id?: string;
   placeholder?: string;
   clearable?: boolean;
+  /**
+   * §6b's validation triple has to reach the date fields too, or a form whose
+   * only invalid control is a date goes red nowhere. Forwarded to the trigger
+   * (the focusable thing a label points at) and painted like `Input`'s own
+   * invalid state, so a date field fails looking the same as a text field.
+   */
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }) {
   const timeStr = value ? `${pad(value.getHours())}:${pad(value.getMinutes())}` : '09:00';
 
@@ -68,9 +78,12 @@ export function DateTimePicker({
           id={id}
           type="button"
           variant="outline"
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             'w-full justify-start gap-2 font-normal',
             !value && 'text-muted-foreground',
+            'aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:ring-destructive',
           )}
         >
           <CalendarIcon className="size-4 shrink-0" aria-hidden />

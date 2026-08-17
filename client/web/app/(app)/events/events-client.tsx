@@ -8,6 +8,14 @@ import { useRealtime } from '@/components/realtime/use-realtime';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -98,8 +106,17 @@ export function EventsClient() {
   const [sel, setSel] = useState<Selection>(null);
   useEffect(() => {
     if (sel !== null) return;
+    // ONCE THE LIST LOADS, and not a frame before — the same trap /tasks had.
+    // `events` is a local copy seeded by the effect above, so on a cold load
+    // there are two commits where it is still empty while rows are on their
+    // way: the pending one, and the one where the query first resolves (this
+    // effect sees the previous render's `events`). Defaulting in either lands on
+    // the create form and STAYS there, because a non-null `sel` is never
+    // revisited — every fresh load of /events opened a composer.
+    if (!listQuery.isSuccess) return;
+    if (events.length === 0 && (listQuery.data?.events.length ?? 0) > 0) return;
     setSel(events[0] ? { mode: 'view', id: events[0].id } : { mode: 'create' });
-  }, [events, sel]);
+  }, [events, sel, listQuery.isSuccess, listQuery.data]);
 
   // Debounced search → URL (?q=); resets to page 1.
   useEffect(() => {
@@ -236,114 +253,120 @@ export function EventsClient() {
     );
   }
 
-  return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: event list ─────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Events
-          </h2>
-          <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-            <Plus /> New
-          </Button>
-        </div>
-        <div className="space-y-2 border-b border-border p-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search events…"
-              className="h-9 pl-8"
-            />
+  // ONE detail pane for all three states, exactly as /tasks does it, so the
+  // create form and the read view sit on the same surface at the same width.
+  const detailPane =
+    sel?.mode === 'create' ? (
+      <div className="p-6">
+        {/* §6c: boxed, left-aligned card. It used to be `mx-auto max-w-2xl`,
+            which centred a form in a pane that is now draggable — the composer
+            drifted away from the list it belongs to as the pane grew. */}
+        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="size-5 text-primary-ink" aria-hidden />
+            <h2 className="text-lg font-semibold">New event</h2>
           </div>
-          <select
-            value={window}
-            onChange={(e) =>
-              go({ window: e.target.value === 'upcoming' ? null : e.target.value, page: null })
-            }
-            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-            aria-label="Filter events"
-          >
-            <option value="upcoming">Upcoming</option>
-            <option value="past">Past</option>
-            <option value="all">All</option>
-          </select>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {all.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              {query || window !== 'upcoming' ? (
-                'No events match your search or filter.'
-              ) : (
-                <>
-                  No upcoming events. Click <strong>New</strong>, or ask Saskia (“remind me of my
-                  meeting at 10am”).
-                </>
-              )}
-            </p>
-          ) : groups ? (
-            GROUP_ORDER.filter((g) => groups[g].length > 0).map((g) => (
-              <section key={g} className="space-y-2">
-                <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {GROUP_LABEL[g]}
-                </h3>
-                <div className="space-y-2">{groups[g].map(renderCard)}</div>
-              </section>
-            ))
-          ) : (
-            // Pre-mount fallback: flat list (matches SSR order).
-            <div className="space-y-2">{all.map(renderCard)}</div>
-          )}
-        </div>
-        <ListPager
-          page={page}
-          total={total}
-          pageSize={pageSize}
-          pending={navPending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
-
-      {/* ── Right: create | detail | empty ───────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {sel?.mode === 'create' ? (
-          // Width-lock matches the contacts form (mx-auto max-w-2xl) so the
-          // detail/form doesn't sprawl across wide screens.
-          <div className="mx-auto max-w-2xl space-y-4 p-6">
-            <div className="flex items-center gap-2">
-              <CalendarClock className="size-5 text-primary-ink" aria-hidden />
-              <h2 className="text-lg font-semibold">New event</h2>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              The reminder fires the chosen lead time before the start and pings your most-recent
-              Telegram chat.
-            </p>
-            <EventForm
-              initial={emptyEventForm()}
-              submitLabel="Save event"
-              submitting={pending}
-              onSubmit={createEvent}
-              onCancel={() => {
-                const first = all[0];
-                setSel(first ? { mode: 'view', id: first.id } : { mode: 'create' });
-              }}
-            />
-          </div>
-        ) : selected ? (
-          <EventDetail
-            key={selected.id}
-            event={selected}
-            onUpdated={onUpdated}
-            onDeleted={() => onDeleted(selected.id)}
+          <EventForm
+            initial={emptyEventForm()}
+            submitLabel="Save event"
+            submitting={pending}
+            onSubmit={createEvent}
+            onCancel={() => {
+              const first = all[0];
+              setSel(first ? { mode: 'view', id: first.id } : { mode: 'create' });
+            }}
           />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select an event, or add a new one.
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    ) : selected ? (
+      <EventDetail
+        key={selected.id}
+        event={selected}
+        onUpdated={onUpdated}
+        onDeleted={() => onDeleted(selected.id)}
+      />
+    ) : (
+      <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+        Select an event, or add a new one.
+      </div>
+    );
+
+  return (
+    <MasterDetail
+      id="events"
+      list={
+        <>
+          {/* ── Left: event list ─────────────────────────────────────── */}
+          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Events
+            </h2>
+            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+              <Plus /> New
+            </Button>
+          </div>
+          <div className="space-y-2 border-b border-border p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search events…"
+                className="h-9 pl-8"
+              />
+            </div>
+            {/* Was a raw `<select>` — no focus ring, native chevron, and a font
+              that ignored the theme. §6d: the kit's Select or nothing. */}
+            <Select
+              value={window}
+              onValueChange={(v) => go({ window: v === 'upcoming' ? null : v, page: null })}
+            >
+              <SelectTrigger className="h-9 w-full" aria-label="Filter events">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="upcoming">Upcoming</SelectItem>
+                <SelectItem value="past">Past</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {all.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                {query || window !== 'upcoming' ? (
+                  'No events match your search or filter.'
+                ) : (
+                  <>
+                    No upcoming events. Click <strong>New</strong>, or ask Saskia (“remind me of my
+                    meeting at 10am”).
+                  </>
+                )}
+              </p>
+            ) : groups ? (
+              GROUP_ORDER.filter((g) => groups[g].length > 0).map((g) => (
+                <section key={g} className="space-y-2">
+                  <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {GROUP_LABEL[g]}
+                  </h3>
+                  <div className="space-y-2">{groups[g].map(renderCard)}</div>
+                </section>
+              ))
+            ) : (
+              // Pre-mount fallback: flat list (matches SSR order).
+              <div className="space-y-2">{all.map(renderCard)}</div>
+            )}
+          </div>
+          <ListPager
+            page={page}
+            total={total}
+            pageSize={pageSize}
+            pending={navPending}
+            onGo={(p) => go({ page: p > 1 ? p : null })}
+          />
+        </>
+      }
+      detail={detailPane}
+    />
   );
 }

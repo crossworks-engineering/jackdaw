@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -205,173 +206,175 @@ export function JournalClient() {
     );
   }
 
-  return (
-    <div className="relative md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
+  const listPane = (
+    <>
       {/* ── Left: list ─────────────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="space-y-3 border-b border-border p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search journal entries…"
-                className="pl-8"
-              />
-            </div>
-            <Button onClick={startCreate}>
-              <Plus /> New
-            </Button>
+      <div className="space-y-3 border-b border-border p-4">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search journal entries…"
+              className="pl-8"
+            />
           </div>
+          <Button onClick={startCreate}>
+            <Plus /> New
+          </Button>
+        </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={activeMood ?? ALL}
-              onValueChange={(v) => go({ mood: v === ALL ? null : v, page: null })}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Any mood" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any mood</SelectItem>
-                {MOODS.map((m) => (
-                  <SelectItem key={m.key} value={m.key}>
-                    {m.emoji} {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={activeCategory ?? ALL}
-              onValueChange={(v) => go({ category: v === ALL ? null : v, page: null })}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Any area" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any area</SelectItem>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c.key} value={c.key}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Button
-                size="sm"
-                variant={activeTag ? 'outline' : 'default'}
-                className="h-7 rounded-full px-3"
-                onClick={() => go({ tag: null, page: null })}
-              >
-                All
-              </Button>
-              {tags.slice(0, 12).map((t) => (
-                <Button
-                  key={t.tag}
-                  size="sm"
-                  variant={activeTag === t.tag ? 'default' : 'outline'}
-                  className="h-7 rounded-full px-3"
-                  onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: null })}
-                >
-                  {t.tag}
-                  <span className="ml-1 opacity-60">{t.count}</span>
-                </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Select
+            value={activeMood ?? ALL}
+            onValueChange={(v) => go({ mood: v === ALL ? null : v, page: null })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Any mood" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any mood</SelectItem>
+              {MOODS.map((m) => (
+                <SelectItem key={m.key} value={m.key}>
+                  {m.emoji} {m.label}
+                </SelectItem>
               ))}
-            </div>
-          )}
+            </SelectContent>
+          </Select>
+          <Select
+            value={activeCategory ?? ALL}
+            onValueChange={(v) => go({ category: v === ALL ? null : v, page: null })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Any area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any area</SelectItem>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c.key} value={c.key}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Cards */}
-        <div
-          className={cn(
-            'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
-            pending && 'opacity-60',
-          )}
-        >
-          {entries.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
-              {query || activeMood || activeCategory || activeTag
-                ? 'No journal entries match your search or filters.'
-                : 'No journal entries yet. Click “New” to record who you are, or let your assistant log a thought.'}
-            </div>
-          ) : (
-            entries.map((n) => {
-              const md = moodDisplay(n.mood);
-              const cat = categoryLabel(n.category);
-              return (
-                <ListCard
-                  key={n.id}
-                  onClick={() => selectEntry(n.id)}
-                  data-mark-id={n.id}
-                  data-mark-kind="journal"
-                  data-mark-label={n.title}
-                  selected={selected?.id === n.id && !creating}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 w-4 shrink-0 text-center text-sm" aria-hidden>
-                      {md?.emoji || <NotebookPen className="size-4 text-muted-foreground" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{n.title}</div>
-                      {(n.summary || n.body) && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {n.summary ?? n.body}
-                        </p>
-                      )}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        {cat && (
-                          <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-                            {cat}
-                          </span>
-                        )}
-                        {n.tags.map((t) => (
-                          <TagPill key={t} tag={t} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </ListCard>
-              );
-            })
-          )}
-        </div>
-
-        <ListPager
-          page={page}
-          total={total}
-          pageSize={pageSize}
-          pending={pending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
-
-      {/* ── Right: preview / editor ─────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-hidden">
-        {editing ? (
-          <JournalEditor
-            entry={creating ? null : selected}
-            onSaved={onSaved}
-            onCancel={() => guard(exitEdit)}
-            onDirtyChange={setDirty}
-          />
-        ) : selected ? (
-          <JournalPreview
-            entry={selected}
-            onEdit={startEdit}
-            onDelete={() => setDeleteTarget(selected)}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a journal entry, or click{' '}
-            <span className="mx-1 font-medium text-foreground">New</span> to start one.
+        {tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant={activeTag ? 'outline' : 'default'}
+              className="h-7 rounded-full px-3"
+              onClick={() => go({ tag: null, page: null })}
+            >
+              All
+            </Button>
+            {tags.slice(0, 12).map((t) => (
+              <Button
+                key={t.tag}
+                size="sm"
+                variant={activeTag === t.tag ? 'default' : 'outline'}
+                className="h-7 rounded-full px-3"
+                onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: null })}
+              >
+                {t.tag}
+                <span className="ml-1 opacity-60">{t.count}</span>
+              </Button>
+            ))}
           </div>
         )}
       </div>
+
+      {/* Cards */}
+      <div
+        className={cn(
+          'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
+          pending && 'opacity-60',
+        )}
+      >
+        {entries.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
+            {query || activeMood || activeCategory || activeTag
+              ? 'No journal entries match your search or filters.'
+              : 'No journal entries yet. Click “New” to record who you are, or let your assistant log a thought.'}
+          </div>
+        ) : (
+          entries.map((n) => {
+            const md = moodDisplay(n.mood);
+            const cat = categoryLabel(n.category);
+            return (
+              <ListCard
+                key={n.id}
+                onClick={() => selectEntry(n.id)}
+                data-mark-id={n.id}
+                data-mark-kind="journal"
+                data-mark-label={n.title}
+                selected={selected?.id === n.id && !creating}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 w-4 shrink-0 text-center text-sm" aria-hidden>
+                    {md?.emoji || <NotebookPen className="size-4 text-muted-foreground" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{n.title}</div>
+                    {(n.summary || n.body) && (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                        {n.summary ?? n.body}
+                      </p>
+                    )}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {cat && (
+                        <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
+                          {cat}
+                        </span>
+                      )}
+                      {n.tags.map((t) => (
+                        <TagPill key={t} tag={t} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </ListCard>
+            );
+          })
+        )}
+      </div>
+
+      <ListPager
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        pending={pending}
+        onGo={(p) => go({ page: p > 1 ? p : null })}
+      />
+    </>
+  );
+
+  // ── Right: preview / editor ───────────────────────────────────────
+  const detailPane = editing ? (
+    <JournalEditor
+      entry={creating ? null : selected}
+      onSaved={onSaved}
+      onCancel={() => guard(exitEdit)}
+      onDirtyChange={setDirty}
+    />
+  ) : selected ? (
+    <JournalPreview
+      entry={selected}
+      onEdit={startEdit}
+      onDelete={() => setDeleteTarget(selected)}
+    />
+  ) : (
+    <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+      Select a journal entry, or click <span className="mx-1 font-medium text-foreground">New</span>{' '}
+      to start one.
+    </div>
+  );
+
+  return (
+    <>
+      <MasterDetail id="journal" list={listPane} detail={detailPane} />
 
       {/* Discard-unsaved-changes guard */}
       <AlertDialog open={discard !== null} onOpenChange={(o) => !o && setDiscard(null)}>
@@ -417,7 +420,7 @@ export function JournalClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 
@@ -434,10 +437,20 @@ function JournalPreview({
   const md = moodDisplay(entry.mood);
   const cat = categoryLabel(entry.category);
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    // No inner scroller: the pane owns it (MasterDetail), so the sticky header
+    // sticks to the pane's scroller instead of a second one nested inside it.
+    <div>
       <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-semibold">{entry.title}</h2>
+          {/* §8: the glyph lives INSIDE the h2 so it shares the title's
+              baseline. The mood emoji is the entry's own identity, so it is the
+              glyph when there is one; the notebook stands in when there isn't. */}
+          <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
+            <span className="shrink-0" aria-hidden>
+              {md?.emoji || <NotebookPen className="size-5 text-primary-ink" />}
+            </span>
+            <span className="min-w-0 truncate">{entry.title}</span>
+          </h2>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {md && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
@@ -460,7 +473,7 @@ function JournalPreview({
           </Button>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             className="text-muted-foreground hover:text-destructive-ink"
             onClick={onDelete}
             aria-label="Delete journal entry"
@@ -470,7 +483,7 @@ function JournalPreview({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto scrollbar-thin px-6 py-5">
+      <div className="space-y-5 px-6 py-5">
         {entry.body ? (
           <p className="whitespace-pre-wrap text-base leading-relaxed">{entry.body}</p>
         ) : (

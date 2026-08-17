@@ -27,6 +27,7 @@ import {
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useListNav } from '@/lib/use-list-nav';
@@ -380,61 +381,70 @@ export function RunsClient() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 md:grid md:grid-cols-[360px_1fr] md:overflow-hidden">
-        {/* ── Left: run list ─────────────────────────────────────────── */}
-        <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Runs
-            </h2>
-            <span className="text-xs text-muted-foreground tabular-nums">{total}</span>
-          </div>
-          <div className="space-y-1.5 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-            {runs.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-                No runs yet. The responder creates one with <code>run_plan</code> when it delegates
-                a multi-step job.
-              </p>
-            ) : (
-              runs.map((r) => (
-                <ListCard key={r.id} onClick={() => go({ run: r.id })} selected={selected === r.id}>
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{r.title}</span>
-                    <span
-                      className={cn(
-                        'ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider',
-                        STATE_CLASS[r.status] ?? 'text-muted-foreground',
-                      )}
-                    >
-                      {r.status}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{new Date(r.createdAt).toLocaleString()}</span>
-                    <span className="ml-auto tabular-nums">{usd(r.costMicroUsd)}</span>
-                  </div>
-                </ListCard>
-              ))
-            )}
-          </div>
-          <ListPager
-            page={page}
-            total={total}
-            pageSize={pageSize}
-            pending={navPending}
-            onGo={(p) => go({ page: p, run: null })}
-          />
-        </div>
-
-        {/* ── Right: run detail ──────────────────────────────────────── */}
-        <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-          {selected ? (
+      {/* `min-h-0 flex-1`: this screen has a worker strip ABOVE the panes, so
+          MasterDetail gets the remaining height rather than the whole page. */}
+      <MasterDetail
+        id="runs"
+        className="min-h-0 flex-1"
+        defaultListSize="360px"
+        list={
+          <>
+            {/* ── Left: run list ───────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Runs
+              </h2>
+              <span className="text-xs text-muted-foreground tabular-nums">{total}</span>
+            </div>
+            <div className="space-y-1.5 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {runs.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  No runs yet. The responder creates one with <code>run_plan</code> when it
+                  delegates a multi-step job.
+                </p>
+              ) : (
+                runs.map((r) => (
+                  <ListCard
+                    key={r.id}
+                    onClick={() => go({ run: r.id })}
+                    selected={selected === r.id}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{r.title}</span>
+                      <span
+                        className={cn(
+                          'ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider',
+                          STATE_CLASS[r.status] ?? 'text-muted-foreground',
+                        )}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{new Date(r.createdAt).toLocaleString()}</span>
+                      <span className="ml-auto tabular-nums">{usd(r.costMicroUsd)}</span>
+                    </div>
+                  </ListCard>
+                ))
+              )}
+            </div>
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p, run: null })}
+            />
+          </>
+        }
+        detail={
+          selected ? (
             <RunDetail runId={selected} />
           ) : (
             <p className="p-6 text-sm text-muted-foreground">Select a run to inspect it.</p>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
     </div>
   );
 }

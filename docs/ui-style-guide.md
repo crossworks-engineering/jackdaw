@@ -319,6 +319,13 @@ drift into a slightly different one.
   `htmlFor` that points at nothing.
 - `noValidate` on the `<form>`: we render our own messages, so the browser's
   native bubble would be a second, uglier copy of the same thing.
+- ⚠ **A vertical `Field` stretches its DIRECT children to full width**
+  (`*:w-full`), which is what you want for a control and not what you want for
+  a small button. An "+ Add another" beside a repeating group becomes a
+  full-width bar the moment you move it inside a `Field`. Wrap it in a plain
+  `<div>` and let the wrapper take the stretch — do NOT fight it with `w-fit`
+  on the button, which lands at the same specificity and wins or loses by
+  source order.
 
 ### 6b. Validation is three attributes, not a red `<p>`
 
@@ -665,9 +672,18 @@ Every detail pane opens with the same four-part row:
 - **Delete is a ghost icon button that is grey until hover:**
   `variant="ghost" size="sm" className="text-muted-foreground
   hover:text-destructive-ink"` plus an `aria-label`. It carries **no text
-  label**. The always-red variant (`text-destructive-ink
-  hover:text-destructive-ink`) is the older idiom; it is being retired, so do
-  not add new ones. Delete always confirms through an `AlertDialog`.
+  label**. Delete always confirms through an `AlertDialog`.
+  - The always-red variant (`text-destructive-ink
+    hover:text-destructive-ink`) **has been retired** — every delete
+    affordance in the app now uses grey-until-hover. Several still carry a
+    `Trash2 + "Delete"` text label; dropping the label is per-screen work
+    (phase 2), the colour is not.
+  - **Two deliberate survivors**, both non-delete and both text-only: "Reset to
+    default" (`studio/structure-editor.tsx`) and "Cancel" a run
+    (`runs/active-runs-strip.tsx`). A trash glyph carries the warning on its
+    own, so grey at rest costs nothing; a word does not, and greying those two
+    would leave a destructive action looking like any other ghost button.
+    Don't "finish the sweep" by changing them.
 
 ### Detail (deep-link) pages
 Start with `<BackLink href>`; title via `<SetPageTitle>`. **Keep these working
