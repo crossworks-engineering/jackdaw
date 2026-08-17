@@ -6,15 +6,15 @@ the rules it establishes were written into
 across the rest of the app, per
 [`plans/workspace-screen-consistency.md`](./plans/workspace-screen-consistency.md).
 
-**Start with the UI tests. The reasoning is in §1 — please read it before
-picking up a screen.**
+**§1 (the UI tests) is DONE — see §1a for what landed and what it caught.** The
+next job is the shared foundation in §5.
 
 This supersedes `docs/handover-tasks-kanban.md` in the **mantle** repo, which
 described the landing sequence that has now happened.
 
 ---
 
-## 1. Do this first: pin the Tasks UI with e2e tests
+## 1. Done first: pin the Tasks UI with e2e tests
 
 There is a Playwright suite (`e2e/`, 14 specs, `pnpm e2e` runs a hermetic
 cycle: throwaway stack → suite → wipe). **None of them touch `/tasks`** — the
@@ -47,6 +47,53 @@ What is worth pinning, roughly in value order:
 Items 1–4 are behaviour. 5–6 are closer to guards; if they are awkward in
 Playwright, item 6 is a good candidate for the lint/scan work in phase 4 of the
 rollout plan instead.
+
+---
+
+## 1a. What landed, and what it caught
+
+All six are pinned, in two new specs. Both skip the `same-origin` project — the
+owner UI lives on the client app — so they run in `split`, like
+`editor-header.spec.ts`.
+
+| spec | covers |
+|---|---|
+| `e2e/specs/tasks.spec.ts` | items 1–4 |
+| `e2e/specs/shell-layout.spec.ts` | items 5–6 (item 6 as a runtime CSS scan, not lint) |
+
+Each tasks spec tags its fixtures with a unique marker and drives the screen
+with `?q=<marker>`, so a box's real tasks cannot change what it sees, and
+deletes them in a `finally`. Item 6 turned out well as a runtime scan and does
+not need the phase-4 lint rule: it walks every CSS rule the page loaded, so a
+new screen offsetting against `--nav-w` is covered without being listed
+anywhere.
+
+**Two real defects, both found by writing the tests:**
+
+1. **`/tasks` opened a composer on every cold load.** The
+   default-selection effect ran while the list query was still pending, read an
+   empty `tasks`, and set `{mode:'create'}` — and a non-null `sel` is never
+   revisited, so the first task was never selected. Only a warm React Query
+   cache (a client-side nav *into* Tasks) hid it, which is why hand-testing
+   missed it. Fixed in `tasks-client.tsx`: the effect now waits for
+   `isSuccess` **and** for the local copy to catch up with the query.
+2. **A `getComputedStyle`-based transition guard is silently vacuous.**
+   Playwright injects `*, ::before, ::after { transition: none !important }`, so
+   every computed `transition-property` reads `none` under test. The first
+   version of item 6 passed with the landmine-1 bug deliberately put back.
+   It now reads the AUTHORED rules out of `document.styleSheets`, and was
+   verified by re-adding `transition-[width] duration-200` to the nav rail and
+   watching it fail. Same warning is in `e2e/README.md`.
+
+Worth copying, not just noting: **every new guard was re-run against the bug it
+exists for.** The item-1 drag spec asserts the `rank` actually changed for the
+same reason — a synthetic drag that silently fails to register leaves the status
+`blocked` and the assertion green.
+
+**Not covered, deliberately:** `team.spec.ts` fails on the scratch brain (it
+mints a contact team token and the gate never renders). It fails identically
+without any of this work — it is the missing provisioning warned about in §3,
+not a regression. Re-check it against a brain with real data.
 
 ---
 
@@ -96,7 +143,27 @@ most settings forms never render on it. Those screens are the largest cluster
 in the rollout and carry most of the app's `FieldHint` usage — check them
 against a brain with real data, not this one.
 
----
+### Running the e2e suite against it
+
+Its CORS allowlist is only `localhost:3000/3001/3100`
+(`MANTLE_API_CORS_ORIGINS` in its `.env.local`), so the client must serve on one
+of those three or every fetch fails with `Failed to fetch`. `:3000` is usually
+already taken by a dev pair — check before starting, then use `:3100`:
+
+```sh
+MANTLE_SERVER_ORIGIN=http://192.168.100.75:3999 PORT=3100 pnpm -C client/web dev
+
+E2E_SERVER_URL=http://192.168.100.75:3999 E2E_CLIENT_URL=http://localhost:3100 \
+E2E_EMAIL=audit@example.com E2E_PASSWORD=e2e-owner-password-1 \
+E2E_SKIP_PDF=1 pnpm -C e2e e2e
+```
+
+Its owner is `audit@example.com` and its password was lost with the session that
+made it, so signup is refused (an anchor owner exists) and the suite's bootstrap
+cannot mint its own. **The hash was reset to the suite's own password**
+(bcrypt, cost 12 — the previous one is saved at `/tmp/scratch-owner-hash.bak` on
+the workstation). Scratch DB, disposable data; a real box would want its own
+credentials instead.
 
 ## 4. Landmines
 

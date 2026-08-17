@@ -10,9 +10,17 @@ One spec set, two topologies:
 | `split` | client (owner UI) on its own origin, server on the canonical origin | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
-team-token entry, PDF export, `/app-runtime` CORS. Fixtures make specs
-topology-blind — same-origin auth is the session cookie, split auth is the
-kind-`'m'` bearer (localStorage contract in `lib/contract.ts`).
+team-token entry, PDF export, `/app-runtime` CORS, the editor header, `/tasks`
+behaviour, and the resizable shell. Fixtures make specs topology-blind —
+same-origin auth is the session cookie, split auth is the kind-`'m'` bearer
+(localStorage contract in `lib/contract.ts`).
+
+⚠ **Never assert a transition from `getComputedStyle`.** Playwright injects
+`*, ::before, ::after { transition: none !important }` into the page, so every
+computed `transition-property` reads `none` under test and such an assertion
+passes whatever the app does. Read the authored rules out of `document
+.styleSheets` instead — `shell-layout.spec.ts` does, and the comment there
+explains why.
 
 ## Run it
 

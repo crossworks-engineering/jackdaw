@@ -142,8 +142,17 @@ export function TasksClient() {
   const [sel, setSel] = useState<Selection>(urlSelected ? { mode: 'view', id: urlSelected } : null);
   useEffect(() => {
     if (isBoard || sel !== null) return;
+    // ONCE THE LIST LOADS, and not a frame before. `tasks` is a local copy
+    // seeded by the effect above, so on a cold load there are two commits where
+    // it is still empty while rows are on their way: the pending one, and the
+    // one where the query first resolves (this effect sees the previous render's
+    // `tasks`). Defaulting in either lands on the create form and then stays
+    // there, because a non-null `sel` is never revisited — every fresh load of
+    // /tasks opened a composer instead of the first task.
+    if (!activeQuery.isSuccess) return;
+    if (tasks.length === 0 && (activeQuery.data?.tasks.length ?? 0) > 0) return;
     setSel(tasks[0] ? { mode: 'view', id: tasks[0].id } : { mode: 'create' });
-  }, [tasks, sel, isBoard]);
+  }, [tasks, sel, isBoard, activeQuery.isSuccess, activeQuery.data]);
 
   // Reflect the selected task in the URL (?selected=) as the user clicks
   // around — copy-/share-/bookmark-able, and aligned with the `/n/<id>`

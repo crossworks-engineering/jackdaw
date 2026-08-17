@@ -11,3 +11,6 @@ client/web/public/app-runtime/
 # Electron: the staged copy of the built owner UI + packaged artifacts
 client/desktop/ui/
 client/desktop/release/
+# e2e run output: the minted credentials + screenshots, and Playwright's traces
+e2e/.artifacts/
+e2e/test-results/
