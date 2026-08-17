@@ -160,7 +160,9 @@ export function ShareControl({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size={iconOnly ? 'icon' : 'sm'} aria-label="Share">
+        {/* `icon-sm`, not `icon`: this sits in detail headers next to
+            `size="sm"` buttons, and `icon` is 40px against their 36px. */}
+        <Button variant="outline" size={iconOnly ? 'icon-sm' : 'sm'} aria-label="Share">
           <Share2 />
           {!iconOnly && 'Share'}
         </Button>
@@ -188,13 +190,7 @@ export function ShareControl({
                 className="h-8 text-xs"
                 onFocus={(e) => e.currentTarget.select()}
               />
-              <Button
-                size="icon"
-                variant="outline"
-                className="size-8 shrink-0"
-                onClick={copy}
-                aria-label="Copy link"
-              >
+              <Button size="icon-xs" variant="outline" onClick={copy} aria-label="Copy link">
                 {copied ? <Check /> : <Copy />}
               </Button>
             </div>

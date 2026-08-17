@@ -21,6 +21,8 @@ import {
 } from '@/components/journey/use-live-activity';
 import type { ActivityItem } from '@mantle/client-types/journey-format';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
+import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
+import { ACTIVITY_W_MAX, ACTIVITY_W_MIN } from '@/lib/nav-width';
 import { formatElapsed } from './elapsed';
 
 /**
@@ -61,7 +63,17 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
   return <>{formatElapsed(ageSeconds(startedAt))}</>;
 }
 
-export function LiveColumn({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function LiveColumn({
+  collapsed,
+  onToggle,
+  width,
+  onWidthChange,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  width: number;
+  onWidthChange: (px: number) => void;
+}) {
   const { data, loaded, tick } = useLiveActivity();
   void tick; // re-render cue for relative timestamps
   const active = data?.active ?? [];
@@ -71,11 +83,23 @@ export function LiveColumn({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const hasAny = active.length + failures.length + recent.length > 0;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-30 hidden w-[var(--activity-w)] flex-col border-l bg-sidebar transition-[width] duration-200 ease-in-out lg:flex">
+    <aside className="fixed inset-y-0 right-0 z-30 hidden w-[var(--activity-w)] flex-col border-l bg-sidebar lg:flex">
       {/* `-z-10`: the aside is `fixed z-30` and so owns a stacking context, in
           which a negative-z child paints above its background but below the
           content. Renders nothing when the activity area is switched off. */}
       <AreaBackdrop area="activity" className="-z-10" />
+      {/* Pinned to the right, so the grab edge is on its LEFT. Collapsed rails
+          aren't draggable — the toggle owns that width (same rule as the nav). */}
+      {collapsed ? null : (
+        <RailHandle
+          side="left"
+          label="Resize activity column"
+          value={width}
+          min={ACTIVITY_W_MIN}
+          max={ACTIVITY_W_MAX}
+          onChange={onWidthChange}
+        />
+      )}
       {collapsed ? (
         <CollapsedRail
           active={active.length}

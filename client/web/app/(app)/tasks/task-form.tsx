@@ -4,7 +4,14 @@ import { useState } from 'react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
 import {
   Select,
   SelectContent,
@@ -97,102 +104,115 @@ export function TaskForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="task-title">Title</Label>
-        <Input
-          id="task-title"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          placeholder="What needs doing?"
-          autoFocus
-          required
-        />
-      </div>
+    <form onSubmit={submit} noValidate>
+      <FieldGroup>
+        <Field data-invalid={!!error || undefined}>
+          <FieldLabel htmlFor="task-title">Title</FieldLabel>
+          <Input
+            id="task-title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="What needs doing?"
+            aria-invalid={!!error || undefined}
+            aria-describedby={error ? 'task-form-error' : undefined}
+            autoFocus
+          />
+          {/* Anchored to the field it is about, not floated at the foot of the
+              form: `role="alert"` only helps if the control it names is the one
+              the user is standing on. */}
+          <FieldError id="task-form-error">{error}</FieldError>
+        </Field>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="task-status">Status</Label>
-          <Select
-            value={form.status}
-            onValueChange={(status) => setForm({ ...form, status: status as Status })}
-          >
-            <SelectTrigger id="task-status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {STATUS_LABEL[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Two controls, one row on anything wider than a phone. The grid is
+            layout, so it stays a plain wrapper; each cell is still a Field. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="task-status">Status</FieldLabel>
+            <Select
+              value={form.status}
+              onValueChange={(status) => setForm({ ...form, status: status as Status })}
+            >
+              <SelectTrigger id="task-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="task-priority">Priority</FieldLabel>
+            <Select
+              value={form.priority}
+              onValueChange={(priority) => setForm({ ...form, priority: priority as Priority })}
+            >
+              <SelectTrigger id="task-priority">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITIES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="task-priority">Priority</Label>
-          <Select
-            value={form.priority}
-            onValueChange={(priority) => setForm({ ...form, priority: priority as Priority })}
-          >
-            <SelectTrigger id="task-priority">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+        <Field>
+          <FieldLabel htmlFor="task-due">Due</FieldLabel>
+          <DateTimePicker
+            id="task-due"
+            value={form.due}
+            onChange={(due) => setForm({ ...form, due })}
+            placeholder="No due date"
+            clearable
+          />
+          <FieldDescription>Optional. Overdue tasks are flagged on the list.</FieldDescription>
+        </Field>
+
+        <Field>
+          {/* TagInput owns no single focusable id, so the label describes the
+              group rather than pointing at a control with `htmlFor`. */}
+          <FieldLabel asChild>
+            <span>Tags</span>
+          </FieldLabel>
+          <TagInput
+            value={form.tags}
+            onChange={(tags) => setForm({ ...form, tags })}
+            placeholder="Add tags…"
+          />
+          <FieldDescription>Tags group the board and drive its filters.</FieldDescription>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="task-body">Notes</FieldLabel>
+          <Textarea
+            id="task-body"
+            value={form.body}
+            onChange={(e) => setForm({ ...form, body: e.target.value })}
+            rows={5}
+            placeholder="Anything to remember about this task. Markdown supported."
+            aria-describedby="task-body-description"
+          />
+          <FieldDescription id="task-body-description">
+            Plain markdown (lists, links, <code>`code`</code>, **bold**) rendered on the detail
+            view.
+          </FieldDescription>
+        </Field>
+
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <SubmitButton pending={submitting}>{submitLabel}</SubmitButton>
         </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="task-due">Due (optional)</Label>
-        <DateTimePicker
-          id="task-due"
-          value={form.due}
-          onChange={(due) => setForm({ ...form, due })}
-          placeholder="No due date"
-          clearable
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Tags</Label>
-        <TagInput
-          value={form.tags}
-          onChange={(tags) => setForm({ ...form, tags })}
-          placeholder="Add tags…"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="task-body">Notes</Label>
-        <textarea
-          id="task-body"
-          value={form.body}
-          onChange={(e) => setForm({ ...form, body: e.target.value })}
-          rows={5}
-          placeholder="Anything to remember about this task. Markdown supported."
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        />
-        <p className="text-xs text-muted-foreground">
-          Plain markdown — lists, links, <code>`code`</code>, **bold** — rendered on the detail
-          view.
-        </p>
-      </div>
-
-      {error && <p className="text-sm text-destructive-ink">{error}</p>}
-
-      <div className="flex justify-end gap-2 border-t border-border pt-3">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <SubmitButton pending={submitting}>{submitLabel}</SubmitButton>
-      </div>
+      </FieldGroup>
     </form>
   );
 }

@@ -9,7 +9,11 @@ export const Input = React.forwardRef<
     type={type}
     ref={ref}
     className={cn(
-      'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+      // `aria-invalid:` paints the control itself on a failed validation. The
+      // attribute is what a screen reader already reads, so styling off it
+      // keeps the two in step: there is no way to show the red border without
+      // also announcing the field as invalid.
+      'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:ring-destructive',
       className,
     )}
     {...props}

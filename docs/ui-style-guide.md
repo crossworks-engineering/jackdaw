@@ -195,7 +195,36 @@ Prefer these over hand-rolled markup:
 `textarea`, `checkbox`, `badge`, `select`, `tabs`, `toggle` / `toggle-group`,
 `tooltip`, `popover`, `card`, `avatar`, `separator`, `skeleton`, `switch`,
 `slider`, `radio-group`, `command`, `sheet`, `table`, `toast`, `sidebar`,
-`resizable`, `submit-button`.
+`resizable`, `submit-button`, `field`.
+
+### 4a. Our relationship to shadcn — read this before copying upstream code
+
+**The primitive library is Radix UI.** Not Base UI, not React Aria. When you
+read shadcn docs, use the `radix` variant of the page
+(`ui.shadcn.com/docs/components/radix/…`).
+
+**These components are a hand-maintained fork, not a managed shadcn install.**
+There is no `components.json`, so `shadcn add` has never run here and will
+overwrite rather than merge. They were vendored around the 2024 generation and
+have been edited in place since. Concretely, ours differ from upstream in ways
+you must preserve when porting:
+
+| | upstream today | ours |
+|---|---|---|
+| component | plain function (React 19 ref-as-prop) | `React.forwardRef` |
+| styling | CSS layer classes (`cn-input`, `cn-field`) | inline utility strings |
+| `data-slot` | everywhere | only on `field.tsx` |
+
+Two more traps when copying upstream source verbatim:
+- **`text-primary` is banned as ink.** The `mantle/use-ink-for-text` lint rule
+  rejects it; use `text-primary-ink`. Upstream uses the fill colour freely.
+- **Radix imports are mid-migration.** 5 components import from the unified
+  `radix-ui`, 17 from scoped `@radix-ui/react-*`. Either resolves; don't
+  churn a file just to change its import style.
+
+Adopting upstream's CSS-layer styling wholesale is a **separate, large
+decision** — it would have to be reconciled with the generated theme system
+(`pnpm themes:build` in `packages/share-ui`). Don't start it incidentally.
 
 Shared app-level patterns (`components/`):
 
@@ -223,15 +252,123 @@ Shared app-level patterns (`components/`):
 - **Heights line up at `h-9`:** `Button size="sm"` is `h-9`; the matching
   `ToggleGroup` size is `default` (also `h-9`), **not** `sm` (`h-8`). Match
   sibling controls.
-- Icon-only buttons: `size="icon"` + an `aria-label`.
+- **Every size has a square icon twin at the same height.** Use the twin;
+  **never hand-size a Button with `className="size-7"`** and never use a
+  labelled size to hold a lone icon (that gives a rectangle, not a square).
+
+  | Labelled | Height | Icon-only twin |
+  |---|---|---|
+  | `xs` | 32px | `icon-xs` |
+  | `sm` | 36px | `icon-sm` |
+  | `default` | 40px | `icon` |
+  | `lg` | 44px | `icon-lg` |
+
+  So a ghost delete beside a `size="sm"` Edit is `size="icon-sm"`, not
+  `size="icon"` (40px, 4px taller) and not `size="sm"` (a 40x36 rectangle).
+  Before the twins existed both workarounds were widespread, and one screen
+  rendered buttons at four different heights.
+- Icon-only buttons: an `icon*` size + an `aria-label`.
 - Icons come from `lucide-react`. Decorative icons get `aria-hidden`.
 
 ---
 
 ## 6. Forms
 
-- `Label` + field wrapped in `space-y-1.5`; stack fields with `space-y-4`.
-- Use `Input`, `Textarea` (not raw elements). Tag fields use `<TagInput>`.
+**The reference implementation is `app/(app)/tasks/task-form.tsx`.** Read it
+before writing a form; the rules below are what it does and why.
+
+### 6a. Structure: the `Field` family, never loose `div`s
+
+Forms compose `FieldGroup` / `Field` / `FieldLabel` / `FieldDescription` /
+`FieldError` from `@mantle/web-ui/ui/field`. **Do not** stack `div`s with
+`space-y-*` and a bare `<Label>`; that shape is what let every screen's form
+drift into a slightly different one.
+
+```tsx
+<form onSubmit={submit} noValidate>
+  <FieldGroup>
+    <Field data-invalid={!!error || undefined}>
+      <FieldLabel htmlFor="task-title">Title</FieldLabel>
+      <Input id="task-title" aria-invalid={!!error || undefined}
+             aria-describedby={error ? 'task-form-error' : undefined} />
+      <FieldError id="task-form-error">{error}</FieldError>
+    </Field>
+
+    <Field>
+      <FieldLabel htmlFor="task-body">Notes</FieldLabel>
+      <Textarea id="task-body" aria-describedby="task-body-description" />
+      <FieldDescription id="task-body-description">What it is for.</FieldDescription>
+    </Field>
+
+    <div className="flex justify-end gap-2 border-t border-border pt-4">
+      <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      <SubmitButton pending={submitting}>Save task</SubmitButton>
+    </div>
+  </FieldGroup>
+</form>
+```
+
+- `FieldGroup` owns the gap between fields (`gap-4`); `Field` owns the gap
+  between label, control and description (`gap-1.5`). **Never re-space either
+  by hand** — that is the whole point of the wrapper.
+- **Two controls side by side**: wrap them in a plain
+  `<div className="grid gap-4 sm:grid-cols-2">`, and keep each cell a `Field`.
+  The grid is layout; the `Field` is still the unit.
+- **A control with no single focusable id** (`TagInput`) takes
+  `<FieldLabel asChild><span>…</span></FieldLabel>` rather than a dangling
+  `htmlFor` that points at nothing.
+- `noValidate` on the `<form>`: we render our own messages, so the browser's
+  native bubble would be a second, uglier copy of the same thing.
+
+### 6b. Validation is three attributes, not a red `<p>`
+
+A failed field carries all three, and `FieldError` renders nothing when there
+is no message, so it can be mounted unconditionally:
+
+| Where | What |
+|---|---|
+| `Field` | `data-invalid` → turns the label `destructive-ink` |
+| the control | `aria-invalid` → turns its border `destructive` |
+| `FieldError` | `role="alert"` → announces, and `id` matches the control's `aria-describedby` |
+
+**Put the error inside the `Field` it belongs to**, not at the foot of the
+form. `role="alert"` only helps if it names the control the user is standing on.
+
+### 6c. The composer surface: boxed, capped, left-aligned
+
+A create/edit form in a master-detail right pane is a **card**, not a bare
+pane. Same treatment for create and edit; they are the same form.
+
+```tsx
+<div className="p-6">
+  <div className="w-full max-w-2xl space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+    <div className="flex items-center gap-2">
+      <ListTodo className="size-5 text-primary-ink" aria-hidden />
+      <h2 className="text-lg font-semibold">New task</h2>
+    </div>
+    <TaskForm … />
+  </div>
+</div>
+```
+
+- **`max-w-2xl`.** An uncapped form stretches to the full `1fr` track and the
+  line length becomes unreadable on a wide screen.
+- **Left-aligned, no `mx-auto`.** The composer tugs against the list it adds
+  to. Events and contacts still centre theirs; **Tasks is the new norm** and
+  they are the ones to change.
+- `bg-card` + `shadow-sm` is what separates the composer from the pane. It is
+  also what exposes any field that does not match its siblings, which is a
+  feature.
+
+### 6d. Text boxes
+
+- Use `Input`, `Textarea`, `TagInput`, `DateTimePicker`. **Never a raw
+  `<input>` / `<textarea>`.** A hand-rolled one loses the focus ring, the
+  invalid state, the placeholder colour and the thin scrollbar, all silently.
+- **`Input` and `Textarea` are kept identical** on background, border, shadow,
+  focus ring and font size, so they read as one control set on a card. If you
+  change one, change the other. The only deliberate differences are
+  textarea-only: `min-h` instead of a fixed height, and `scrollbar-thin`.
 - **Every settings field carries a `<FieldHint>`** (`ui/field-hint.tsx`): the
   dimmed one-liner under the control. Not decoration: a number with no stated
   effect is a number nobody dares change.
@@ -355,8 +492,58 @@ gap / cut-off). `min-h-0` is necessary but **not sufficient**: a correctly-sized
 but `position:static` `overflow-y-auto` pane still leaks its scrollable overflow
 into `<main>` when its content is far taller than the viewport, so the actual
 scroll container (the detail pane) must also be `relative` (see the master-detail
-rules below). Use `scrollbar-thin` on scroll areas (`scrollbar-hidden` also
-exists; both are utilities in `globals.css`).
+rules below).
+
+**Scrollbars are always thin. No exceptions.** Every element that scrolls
+carries `scrollbar-thin` (`scrollbar-hidden` is the deliberate opt-out; both
+are utilities in `globals.css`). There is **no global default** — `html` and
+`body` compute to `scrollbar-width: auto` — so an element that scrolls without
+the class gets a fat bar, and nothing warns you.
+
+Two consequences worth knowing:
+- **Put it on the primitive, not the caller.** `Textarea` carries it, so its
+  ~20 consumers cannot forget. Any new scrolling primitive should do the same.
+- **A raw `<textarea>` gets a fat bar**, which is one more reason §6d bans
+  them. When auditing, don't grep for the class: read computed
+  `scrollbarWidth` in the browser, because an element can inherit a scroll
+  overflow from a parent rule and still miss the class.
+
+### Resizable panes: `<MasterDetail>` (the scaffold, in code)
+
+**New screens use `@mantle/web-ui/ui/master-detail` rather than hand-rolling
+the grid below.** It owns the rules that make the scaffold work — both panes
+`min-h-0`, the detail pane `relative`, `scrollbar-thin` on both — so they
+cannot be dropped. The hand-written grid is documented below because 24 screens
+still use it; port them as you touch them.
+
+```tsx
+<MasterDetail id="tasks" list={…} detail={…} />
+```
+
+- **Three panels, not two.** List (fixed) | detail (fixed) | an empty spacer.
+  The spacer exists only to give the detail a right edge to drag against, so a
+  form keeps a readable measure instead of stretching to 1200px on a wide
+  display. Defaults: list `340px`, detail `672px` (= `max-w-2xl`).
+- **`listFills`** inverts it: the LIST takes the slack and there is no spacer.
+  For a left pane that wants every pixel — the Kanban board.
+- **`detailFirst`** puts the detail on the left. The board reads left-to-right
+  across its columns, so the form belongs where that sweep starts.
+- **`id` is the persistence key**, saved to `localStorage`. Unique per screen,
+  and per *view* where a screen has more than one: `tasks` and `tasks-board`
+  are separate, because a board wants far more room than a 340px list.
+- Below `md` it falls back to the CSS grid and nothing resizes.
+
+**Fixed rails use `<RailHandle>` instead** (`ui/rail-handle`). The nav and
+activity columns are `position: fixed` and publish their width as a CSS
+variable that six other surfaces read; they are not flex children of a panel
+group, so panels cannot wrap them. Widths persist to a **cookie**, not
+localStorage, and are seeded server-side in `app/(app)/layout.tsx` so the rail
+does not jump on load. A **collapsed rail has no handle** — the toggle owns
+that width.
+
+> ⚠ **Never put a transition on a property you read from a CSS variable.** See
+> the long note in `globals.css`: the element stops tracking the variable
+> entirely. Animate the variable instead; the consumers follow.
 
 ### Master-detail: THE pattern for list+editor screens
 Used by **Notes, Traces, Secrets, Events, Tasks**, and every settings list
@@ -439,6 +626,37 @@ Rules:
   a debounced search input, and **`<ListPager>`** (footer count + prev/next,
   shown whenever there are rows). Don't filter a loaded list in `useMemo`,
   paginating a client-filtered slice is wrong.
+
+### Detail header anatomy (right pane)
+**The reference is `/pages`** (`pages-client.tsx`, the `PagePreview` header).
+Every detail pane opens with the same four-part row:
+
+```tsx
+<div className="space-y-4 p-6">
+  <div className="flex items-start justify-between gap-3">
+    <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
+      <span aria-hidden>{icon}</span>              {/* glyph INSIDE the h2 */}
+      <span className="min-w-0 truncate">{title}</span>
+      {badge}                                       {/* inline, shrink-0 */}
+    </h2>
+    <div className="flex shrink-0 gap-2">{/* actions */}</div>
+  </div>
+```
+
+- **`text-xl font-semibold`** is the entity-title scale. Distinct from the
+  `text-base`/`text-lg` section-heading scale in §3, and from the composer
+  heading in §6c, which is a section heading.
+- **The icon lives inside the `h2`**, so it shares the title's baseline. A
+  glyph parked outside the heading drifts as soon as the title wraps.
+- **`min-w-0 truncate` on the title, `shrink-0` on the actions.** Without it a
+  long title shoves the buttons off the pane.
+- **Action order is least destructive to most, delete last.**
+- **Delete is a ghost icon button that is grey until hover:**
+  `variant="ghost" size="sm" className="text-muted-foreground
+  hover:text-destructive-ink"` plus an `aria-label`. It carries **no text
+  label**. The always-red variant (`text-destructive-ink
+  hover:text-destructive-ink`) is the older idiom; it is being retired, so do
+  not add new ones. Delete always confirms through an `AlertDialog`.
 
 ### Detail (deep-link) pages
 Start with `<BackLink href>`; title via `<SetPageTitle>`. **Keep these working

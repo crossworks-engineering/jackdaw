@@ -92,7 +92,10 @@ export function TaskComments({ taskId }: { taskId: string }) {
     void queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
   };
 
-  const comments = commentsQuery.data ?? [];
+  // Newest first. The API orders by `createdAt` ASC (packages/content
+  // node-comments.ts), so a reverse is exact — including for two comments that
+  // share a timestamp, which a re-sort would reorder arbitrarily.
+  const comments = [...(commentsQuery.data ?? [])].reverse();
 
   return (
     <section className="space-y-3">
@@ -103,13 +106,42 @@ export function TaskComments({ taskId }: { taskId: string }) {
         )}
       </h3>
 
+      {/* Composer first, thread below it, newest at the top: on a long thread
+          the reply box is the one control you always want, and at the foot it
+          drifts further away with every comment added. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+        className="space-y-2"
+      >
+        <Textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          rows={2}
+          placeholder="Write a comment… (markdown, ⌘↵ to send)"
+        />
+        <div className="flex justify-end">
+          <SubmitButton pending={sending} disabled={!draft.trim()}>
+            <SendHorizontal /> Add comment
+          </SubmitButton>
+        </div>
+      </form>
+
       {commentsQuery.isPending ? (
         <div className="flex justify-center py-4">
           <Spinner />
         </div>
       ) : comments.length === 0 ? (
         <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-          No comments yet. Start the discussion below.
+          No comments yet. Start the discussion above.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -148,32 +180,6 @@ export function TaskComments({ taskId }: { taskId: string }) {
           ))}
         </ul>
       )}
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-        className="space-y-2"
-      >
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          rows={2}
-          placeholder="Write a comment… (markdown, ⌘↵ to send)"
-        />
-        <div className="flex justify-end">
-          <SubmitButton pending={sending} disabled={!draft.trim()}>
-            <SendHorizontal /> Add comment
-          </SubmitButton>
-        </div>
-      </form>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

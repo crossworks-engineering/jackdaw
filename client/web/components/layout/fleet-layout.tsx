@@ -37,7 +37,7 @@ export function FleetLayout({
   return (
     <div
       className={cn(
-        'fixed inset-x-0 bottom-0 top-[var(--top-bar-h)] z-10 flex flex-col overflow-hidden bg-background transition-[left,right] duration-200 ease-in-out md:left-[var(--nav-w)] lg:right-[var(--activity-w)]',
+        'fixed inset-x-0 bottom-0 top-[var(--top-bar-h)] z-10 flex flex-col overflow-hidden bg-background md:left-[var(--nav-w)] lg:right-[var(--activity-w)]',
         className,
       )}
     >

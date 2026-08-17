@@ -15,6 +15,40 @@ export const STATUSES = [
 
 export const PRIORITIES = ['low', 'normal', 'high'] as const satisfies readonly TaskPriority[];
 
+/**
+ * The board's columns — three, not four. `blocked` has no column of its own:
+ * it is a flag on work already under way, not a further stage, and a fourth
+ * column cost more width than it earned. Set it from the task form.
+ */
+export const BOARD_COLUMNS = [
+  'open',
+  'in_progress',
+  'done',
+] as const satisfies readonly TaskStatus[];
+
+export type BoardColumn = (typeof BOARD_COLUMNS)[number];
+
+/**
+ * Which column a task renders in. Blocked work sits under In progress, with a
+ * badge on the card — it must land SOMEWHERE, or dropping the column would
+ * make blocked tasks vanish from the board rather than merely lose a heading.
+ */
+export function boardColumnFor(status: TaskStatus): BoardColumn {
+  return status === 'blocked' ? 'in_progress' : status;
+}
+
+/**
+ * The status a drop should WRITE, which is not always the column it landed in.
+ *
+ * Blocked cards render under In progress, so a plain reorder inside that column
+ * would otherwise post `in_progress` and silently unblock the task — the board
+ * would be clearing the flag as a side effect of tidying. Dragging OUT of the
+ * column is still a real status change; blocked is cleared from the form.
+ */
+export function statusForDrop(current: TaskStatus, column: BoardColumn): TaskStatus {
+  return current === 'blocked' && column === 'in_progress' ? 'blocked' : column;
+}
+
 export type Priority = TaskPriority;
 export type Status = TaskStatus;
 

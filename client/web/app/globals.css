@@ -32,8 +32,71 @@
  * Every framed region offsets its top against it, so the bar's existence is
  * declared once here instead of being re-derived at six call sites.
  * ------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+ * Shell chrome widths: ANIMATE THE VARIABLE, NEVER THE CONSUMERS.
+ *
+ * Five elements size themselves from these vars — the nav rail and the
+ * activity column (`width`), and `<main>`, the mail shell and FleetLayout
+ * (`left` / `right`). It is tempting to put `transition-[width]` on each. That
+ * is wrong, and it fails in a way that looks like a React bug:
+ *
+ *   An element that transitions the very property it reads from a custom
+ *   property STOPS TRACKING that property. Chrome keeps the old computed value
+ *   and the element sits frozen while the variable moves under it.
+ *
+ * Collapsing hid this for years because toggling `data-nav-collapsed` also
+ * rewrites the rail's contents, forcing a recalc. The moment the expanded
+ * width became draggable — a change to the variable and nothing else — every
+ * consumer froze: the rail at one width, `<main>` at another, a gap between.
+ *
+ * Registering the vars below makes them real, interpolatable lengths, so the
+ * transition can live on the SOURCE. The vars animate; the five consumers
+ * simply follow, frame by frame, with no transition of their own. One
+ * declaration replaces five, and a sixth consumer gets it for free.
+ * ------------------------------------------------------------------------- */
+/* `initial-value` MUST be in px, never rem.
+ *
+ * A registered custom property's initial value has to be "computationally
+ * independent" — it cannot depend on anything else, and `rem` depends on the
+ * root font size. `16rem` makes the whole `@property` rule invalid, and an
+ * invalid rule is dropped SILENTLY: the property stays unregistered, the
+ * transition below becomes a no-op, and nothing anywhere reports an error.
+ * `0rem` happens to survive (zero is zero in any unit), which is exactly the
+ * kind of half-working that hides the rule. 256px = 16rem, 320px = 20rem. */
+@property --nav-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 256px;
+}
+@property --activity-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 320px;
+}
+@property --assistant-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+@property --help-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 .mantle-shell {
   --top-bar-h: 3rem;
+
+  transition:
+    --nav-w 200ms ease-in-out,
+    --activity-w 200ms ease-in-out,
+    --assistant-w 200ms ease-in-out,
+    --help-w 200ms ease-in-out;
+}
+
+/* A drag must be frame-exact, not eased 200ms behind the pointer. */
+.mantle-shell[data-resizing='true'] {
+  transition: none;
 }
 /* 48rem, NOT 768px: this must flip at exactly the same instant as the bar's
  * own `md:hidden` and the rail's `md:flex`. Tailwind v4 emits `md` as

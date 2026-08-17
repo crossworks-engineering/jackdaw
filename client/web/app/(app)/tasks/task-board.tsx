@@ -14,13 +14,22 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckSquare, Flag, MessageSquare } from 'lucide-react';
+import { Ban, CheckSquare, Flag, MessageSquare } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import type { TaskRow, TaskStatus } from '@mantle/client-types';
 import { rankBetween } from '@/lib/rank';
-import { STATUSES, STATUS_DOT, STATUS_LABEL, dueLabel } from './task-meta';
+import {
+  BOARD_COLUMNS,
+  STATUS_BADGE,
+  STATUS_DOT,
+  STATUS_LABEL,
+  boardColumnFor,
+  statusForDrop,
+  dueLabel,
+  type BoardColumn,
+} from './task-meta';
 
 /** A card was dropped: move `taskId` to `status`, ordered at `rank`. */
 export type BoardMove = { taskId: string; status: TaskStatus; rank: string };
@@ -71,8 +80,21 @@ function BoardCard({
         {(task.dueAt ||
           task.todos.length > 0 ||
           task.commentCount > 0 ||
-          task.priority === 'high') && (
+          task.priority === 'high' ||
+          task.status === 'blocked') && (
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {/* The board has no Blocked column, so the card has to say so. It
+                leads the meta row: "this is stuck" outranks when it is due. */}
+            {task.status === 'blocked' && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5',
+                  STATUS_BADGE.blocked,
+                )}
+              >
+                <Ban className="size-3" /> Blocked
+              </span>
+            )}
             {task.priority === 'high' && (
               <span className="inline-flex items-center gap-1 text-destructive-ink">
                 <Flag className="size-3" /> high
@@ -208,10 +230,10 @@ export function TaskBoard({
   // mutates a row in place, it doesn't re-sort.
   const columns = useMemo(
     () =>
-      STATUSES.map((status) => ({
+      BOARD_COLUMNS.map((status) => ({
         status,
         tasks: tasks
-          .filter((t) => t.status === status)
+          .filter((t) => boardColumnFor(t.status) === status)
           .slice()
           .sort((a, b) => {
             if (a.rank && b.rank) return a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0;
@@ -232,24 +254,28 @@ export function TaskBoard({
     const task = tasks.find((t) => t.id === active.id);
     if (!task) return;
 
-    let targetStatus: TaskStatus;
+    // Two different things, deliberately kept apart: which COLUMN the card
+    // landed in (drives the rank neighbours) and which STATUS to write.
+    let targetColumn: BoardColumn;
     let insertBeforeId: string | null = null;
     const overId = String(over.id);
     if (overId.startsWith(COL_PREFIX)) {
-      targetStatus = overId.slice(COL_PREFIX.length) as TaskStatus;
+      targetColumn = overId.slice(COL_PREFIX.length) as BoardColumn;
     } else {
       // Dropped back onto itself: a no-op, NOT "append to end" (review catch).
       if (overId === task.id) return;
       const overTask = tasks.find((t) => t.id === overId);
       if (!overTask) return;
-      targetStatus = overTask.status;
+      targetColumn = boardColumnFor(overTask.status);
       insertBeforeId = overTask.id;
     }
+
+    const targetStatus = statusForDrop(task.status, targetColumn);
 
     // Neighbours come from the RENDERED (rank-sorted) column, not the raw
     // list — after an optimistic drag the two orders diverge and raw-order
     // neighbours produce inverted bounds / duplicate keys (review catch).
-    const rendered = columns.find((c) => c.status === targetStatus)?.tasks ?? [];
+    const rendered = columns.find((c) => c.status === targetColumn)?.tasks ?? [];
     const col = rendered.filter((t) => t.id !== task.id);
     const insertAt = insertBeforeId ? col.findIndex((t) => t.id === insertBeforeId) : col.length;
     if (insertAt < 0) return;
@@ -282,7 +308,7 @@ export function TaskBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="grid flex-1 grid-cols-1 gap-3 p-3 md:min-h-0 md:grid-cols-4">
+      <div className="grid flex-1 grid-cols-1 gap-3 p-3 md:min-h-0 md:grid-cols-3">
         {columns.map((col) => (
           <BoardColumn
             key={col.status}

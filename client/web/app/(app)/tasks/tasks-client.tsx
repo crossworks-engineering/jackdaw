@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
@@ -24,6 +23,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { TaskForm, emptyTaskForm, type TaskPayload } from './task-form';
 import { TaskDetail, type TaskPatch, type TaskRow } from './task-detail';
@@ -52,18 +52,24 @@ export function TasksClient() {
   // so send it explicitly.
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
-  const status = (searchParams.get('status')?.trim() || 'active') as Status | 'all' | 'active';
+  // 'archived' rides in the status param for the UI's sake, but it is a
+  // different axis on the wire: the server takes `?archived=only` and leaves
+  // status alone, so an archived task keeps whatever status it had.
+  const statusParam = searchParams.get('status')?.trim() || 'active';
+  const showingArchive = statusParam === 'archived';
+  const status = (showingArchive ? 'all' : statusParam) as Status | 'all' | 'active';
   const priority = (searchParams.get('priority')?.trim() || 'all') as Priority | 'all';
   const urlSelected = searchParams.get('selected')?.trim() || null;
   const view: 'list' | 'board' = searchParams.get('view') === 'board' ? 'board' : 'list';
   const isBoard = view === 'board';
 
   const listQuery = useQuery({
-    queryKey: ['tasks', { q: query, status, priority, page }],
+    queryKey: ['tasks', { q: query, status, priority, page, showingArchive }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       qs.set('status', status);
+      if (showingArchive) qs.set('archived', 'only');
       if (priority !== 'all') qs.set('priority', priority);
       if (page > 1) qs.set('page', String(page));
       return apiFetch<TasksListResponse>(`/api/tasks?${qs.toString()}`);
@@ -131,7 +137,8 @@ export function TasksClient() {
   const [pending, startTransition] = useTransition();
   // null = "not yet defaulted"; the effect below picks the first task / create
   // mode once the list loads, unless the URL deep-links a selection. The board
-  // starts unselected (its detail opens in a sheet on click).
+  // stays unselected until you click a card — auto-selecting there would open a
+  // form beside a board you had only just switched to.
   const [sel, setSel] = useState<Selection>(urlSelected ? { mode: 'view', id: urlSelected } : null);
   useEffect(() => {
     if (isBoard || sel !== null) return;
@@ -160,7 +167,7 @@ export function TasksClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
-  const filtering = !!query || status !== 'active' || priority !== 'all';
+  const filtering = !!query || statusParam !== 'active' || priority !== 'all';
   const selected = sel?.mode === 'view' ? (tasks.find((t) => t.id === sel.id) ?? null) : null;
 
   const createTask = async (payload: TaskPayload) => {
@@ -203,8 +210,26 @@ export function TasksClient() {
     return true;
   };
 
-  const toggleStatus = (t: TaskRow) =>
-    void patchTask(t.id, { status: t.status === 'done' ? 'open' : 'done' });
+  // What each task was before the checkbox marked it done, so unticking is an
+  // UNDO rather than a reset. The checkbox is binary over a four-state
+  // vocabulary: without this, ticking a Blocked task and unticking it to change
+  // your mind silently lands it on To do, and the state is gone. Now that
+  // Blocked is only reachable from the form, that was the easiest way to lose it.
+  //
+  // A ref, not state: nothing renders from it, and it must not trigger a
+  // repaint mid-toggle. Deliberately NOT persisted — after a reload, unticking
+  // an old task is no longer an undo, so `open` is the honest answer.
+  const statusBeforeDone = useRef(new Map<string, Status>());
+
+  const toggleStatus = (t: TaskRow) => {
+    if (t.status === 'done') {
+      const restored = statusBeforeDone.current.get(t.id) ?? 'open';
+      statusBeforeDone.current.delete(t.id);
+      return void patchTask(t.id, { status: restored });
+    }
+    statusBeforeDone.current.set(t.id, t.status);
+    void patchTask(t.id, { status: 'done' });
+  };
 
   const moveTask = (m: BoardMove) => void patchTask(m.taskId, { status: m.status, rank: m.rank });
 
@@ -258,7 +283,14 @@ export function TasksClient() {
       onValueChange={(v) => {
         // The board shows every status as a column, so a sticky per-status
         // filter would silently contradict the URL — clear it on switch.
-        if (v && v !== view) go({ view: v === 'board' ? 'board' : null, status: null, page: null });
+        if (!v || v === view) return;
+        // Switching views starts clean. Selection used to survive it: a
+        // half-written create reappeared on the board as an overlay, and a
+        // stale `?selected=` re-opened a detail beside a board you had only
+        // just arrived at. Both read as the board opening things by itself.
+        // The list re-picks its first row on its own; the board waits for a click.
+        setSel(null);
+        go({ view: v === 'board' ? 'board' : null, status: null, page: null, selected: null });
       }}
       aria-label="View"
     >
@@ -271,48 +303,45 @@ export function TasksClient() {
     </ToggleGroup>
   );
 
-  const detailSheet = (
-    <Sheet open={sel !== null} onOpenChange={(open) => !open && setSel(null)}>
-      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-2xl">
-        {sel?.mode === 'create' ? (
-          <>
-            <SheetHeader className="p-6 pb-0">
-              <SheetTitle className="flex items-center gap-2">
-                <ListTodo className="size-5 text-primary-ink" aria-hidden /> New task
-              </SheetTitle>
-            </SheetHeader>
-            <div className="p-6 pt-4">
-              <TaskForm
-                initial={emptyTaskForm()}
-                submitLabel="Save task"
-                submitting={pending}
-                onSubmit={createTask}
-                onCancel={() => setSel(null)}
-              />
-            </div>
-          </>
-        ) : selected ? (
-          <>
-            <SheetHeader className="sr-only">
-              <SheetTitle>{selected.title}</SheetTitle>
-            </SheetHeader>
-            <TaskDetail
-              key={selected.id}
-              task={selected}
-              onToggleStatus={() => toggleStatus(selected)}
-              onSave={(payload) => patchTask(selected.id, payload)}
-              onPatch={(patch) => patchTask(selected.id, patch)}
-              onDelete={() => removeTask(selected.id)}
-            />
-          </>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
+  // ONE detail pane, shared by the list and the board. The board used to get a
+  // right-hand Sheet instead, which meant two implementations of the same three
+  // states and a create form that looked different depending on the view you
+  // happened to be in.
+  const detailPane =
+    sel?.mode === 'create' ? (
+      <div className="p-6">
+        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <ListTodo className="size-5 text-primary-ink" aria-hidden />
+            <h2 className="text-lg font-semibold">New task</h2>
+          </div>
+          <TaskForm
+            initial={emptyTaskForm()}
+            submitLabel="Save task"
+            submitting={pending}
+            onSubmit={createTask}
+            onCancel={() => setSel(tasks[0] ? { mode: 'view', id: tasks[0].id } : null)}
+          />
+        </div>
+      </div>
+    ) : selected ? (
+      <TaskDetail
+        key={selected.id}
+        task={selected}
+        onToggleStatus={() => toggleStatus(selected)}
+        onSave={(payload) => patchTask(selected.id, payload)}
+        onPatch={(patch) => patchTask(selected.id, patch)}
+        onDelete={() => removeTask(selected.id)}
+      />
+    ) : (
+      <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+        Select a task, or add a new one.
+      </div>
+    );
 
   if (isBoard) {
-    return (
-      <div className="flex h-full min-h-0 flex-col">
+    const boardPane = (
+      <>
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Tasks
@@ -358,233 +387,220 @@ export function TasksClient() {
           />
         </div>
         {/* The board loads one capped page — say so rather than truncating
-            silently (the task_list tool's `truncated` flag, UI edition). */}
+              silently (the task_list tool's `truncated` flag, UI edition). */}
         {(boardQuery.data?.total ?? 0) > (boardQuery.data?.tasks.length ?? 0) && (
           <p className="border-t border-border px-3 py-1.5 text-xs text-muted-foreground">
             Showing {boardQuery.data?.tasks.length} of {boardQuery.data?.total} tasks — narrow with
             search or a priority filter to see the rest.
           </p>
         )}
-        {detailSheet}
-      </div>
+      </>
+    );
+
+    // Nothing open: the board gets the whole screen. Reserving 672px for an
+    // empty "select a task" panel would hand half the board away for nothing,
+    // and switching to this view is not a request to open a form.
+    if (sel === null) return <div className="flex h-full min-h-0 flex-col">{boardPane}</div>;
+
+    // Form on the LEFT, board on the right: the board reads left-to-right
+    // across its columns, so the form belongs where that sweep starts. The
+    // board takes the slack and the form keeps its fixed width. Its own
+    // persistence id — a Kanban board wants far more room than a 340px task
+    // list, so the two views must not share a width.
+    return (
+      <MasterDetail id="tasks-board" listFills detailFirst list={boardPane} detail={detailPane} />
     );
   }
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: task list ──────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Tasks
-          </h2>
-          <div className="flex items-center gap-2">
-            {viewToggle}
-            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-              <Plus /> New
-            </Button>
+    <MasterDetail
+      id="tasks"
+      list={
+        <>
+          {/* ── Left: task list ──────────────────────────────────────── */}
+          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Tasks
+            </h2>
+            <div className="flex items-center gap-2">
+              {viewToggle}
+              <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                <Plus /> New
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="space-y-2 border-b border-border p-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search tasks…"
-              className="h-9 pl-8"
-            />
+          <div className="space-y-2 border-b border-border p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search tasks…"
+                className="h-9 pl-8"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Select
+                value={statusParam}
+                onValueChange={(v) => go({ status: v === 'active' ? null : v, page: null })}
+              >
+                <SelectTrigger className="h-9 flex-1" aria-label="Filter by status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {STATUS_LABEL[s]}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="all">All status</SelectItem>
+                  {/* Archive is a separate axis from status, but it belongs in
+                      the same "what am I looking at" control rather than a
+                      third dropdown in an already crowded bar. */}
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={priority}
+                onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
+              >
+                <SelectTrigger className="h-9 flex-1" aria-label="Filter by priority">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All priorities</SelectItem>
+                  {PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Select
-              value={status}
-              onValueChange={(v) => go({ status: v === 'active' ? null : v, page: null })}
-            >
-              <SelectTrigger className="h-9 flex-1" aria-label="Filter by status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                {STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {STATUS_LABEL[s]}
-                  </SelectItem>
-                ))}
-                <SelectItem value="all">All status</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={priority}
-              onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
-            >
-              <SelectTrigger className="h-9 flex-1" aria-label="Filter by priority">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All priorities</SelectItem>
-                {PRIORITIES.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {tasks.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              {filtering ? (
-                'No tasks match your search or filters.'
-              ) : (
-                <>
-                  No tasks yet. Click <strong>New</strong> to add one.
-                </>
-              )}
-            </p>
-          ) : (
-            tasks.map((t) => {
-              const isSel = sel?.mode === 'view' && sel.id === t.id;
-              const done = t.status === 'done';
-              const overdue = !!t.dueAt && new Date(t.dueAt) < new Date() && !done;
-              const todosDone = t.todos.filter((x) => x.done).length;
-              return (
-                <ListCard
-                  key={t.id}
-                  asChild
-                  selected={isSel}
-                  className={cn(
-                    'flex items-start gap-2.5',
-                    t.priority === 'high' && !isSel && 'border-destructive',
-                  )}
-                >
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(t)}
-                      className={cn(
-                        'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                        done
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-input hover:bg-muted',
-                      )}
-                      aria-label={done ? 'Mark open' : 'Mark done'}
-                      aria-pressed={done}
-                    >
-                      {done && <Check className="size-3" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSel({ mode: 'view', id: t.id })}
-                      data-mark-id={t.id}
-                      data-mark-kind="task"
-                      data-mark-label={t.title}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <div className="flex items-baseline gap-2">
-                        <span
-                          className={cn(
-                            'truncate text-sm font-medium',
-                            done && 'text-muted-foreground line-through',
-                          )}
-                        >
-                          {t.title}
-                        </span>
-                        {t.dueAt && (
+          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {tasks.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                {filtering ? (
+                  'No tasks match your search or filters.'
+                ) : (
+                  <>
+                    No tasks yet. Click <strong>New</strong> to add one.
+                  </>
+                )}
+              </p>
+            ) : (
+              tasks.map((t) => {
+                const isSel = sel?.mode === 'view' && sel.id === t.id;
+                const done = t.status === 'done';
+                const overdue = !!t.dueAt && new Date(t.dueAt) < new Date() && !done;
+                const todosDone = t.todos.filter((x) => x.done).length;
+                return (
+                  <ListCard
+                    key={t.id}
+                    asChild
+                    selected={isSel}
+                    className={cn(
+                      'flex items-start gap-2.5',
+                      t.priority === 'high' && !isSel && 'border-destructive',
+                    )}
+                  >
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(t)}
+                        className={cn(
+                          'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                          done
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-input hover:bg-muted',
+                        )}
+                        aria-label={done ? 'Mark not done' : 'Mark done'}
+                        aria-pressed={done}
+                      >
+                        {done && <Check className="size-3" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSel({ mode: 'view', id: t.id })}
+                        data-mark-id={t.id}
+                        data-mark-kind="task"
+                        data-mark-label={t.title}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-baseline gap-2">
                           <span
                             className={cn(
-                              'ml-auto shrink-0 text-xs tabular-nums',
-                              overdue
-                                ? 'font-medium text-destructive-ink'
-                                : 'text-muted-foreground',
+                              'truncate text-sm font-medium',
+                              done && 'text-muted-foreground line-through',
                             )}
                           >
-                            {dueLabel(t.dueAt, { todayAsTime: true })}
+                            {t.title}
                           </span>
+                          {t.dueAt && (
+                            <span
+                              className={cn(
+                                'ml-auto shrink-0 text-xs tabular-nums',
+                                overdue
+                                  ? 'font-medium text-destructive-ink'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
+                              {dueLabel(t.dueAt, { todayAsTime: true })}
+                            </span>
+                          )}
+                        </div>
+                        {(t.body || t.summary) && (
+                          <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                            {t.body || t.summary}
+                          </p>
                         )}
-                      </div>
-                      {(t.body || t.summary) && (
-                        <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                          {t.body || t.summary}
-                        </p>
-                      )}
-                      {(t.status === 'in_progress' ||
-                        t.status === 'blocked' ||
-                        t.todos.length > 0 ||
-                        t.commentCount > 0) && (
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          {(t.status === 'in_progress' || t.status === 'blocked') && (
-                            <span>{STATUS_LABEL[t.status]}</span>
-                          )}
-                          {t.todos.length > 0 && (
-                            <span className="tabular-nums">
-                              {todosDone}/{t.todos.length} steps
-                            </span>
-                          )}
-                          {t.commentCount > 0 && (
-                            <span className="inline-flex items-center gap-1 tabular-nums">
-                              <MessageSquare className="size-3" />
-                              {t.commentCount}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {t.tags.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {t.tags.map((tag) => (
-                            <TagPill key={tag} tag={tag} />
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </ListCard>
-              );
-            })
-          )}
-        </div>
-        <ListPager
-          page={page}
-          total={total}
-          pageSize={pageSize}
-          pending={navPending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
-
-      {/* ── Right: create | detail | empty ───────────────────────── */}
-      <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {sel?.mode === 'create' ? (
-          <div className="space-y-4 p-6">
-            <div className="flex items-center gap-2">
-              <ListTodo className="size-5 text-primary-ink" aria-hidden />
-              <h2 className="text-lg font-semibold">New task</h2>
-            </div>
-            <TaskForm
-              initial={emptyTaskForm()}
-              submitLabel="Save task"
-              submitting={pending}
-              onSubmit={createTask}
-              onCancel={() =>
-                setSel(tasks[0] ? { mode: 'view', id: tasks[0].id } : { mode: 'create' })
-              }
-            />
+                        {(t.status === 'in_progress' ||
+                          t.status === 'blocked' ||
+                          t.todos.length > 0 ||
+                          t.commentCount > 0) && (
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            {(t.status === 'in_progress' || t.status === 'blocked') && (
+                              <span>{STATUS_LABEL[t.status]}</span>
+                            )}
+                            {t.todos.length > 0 && (
+                              <span className="tabular-nums">
+                                {todosDone}/{t.todos.length} steps
+                              </span>
+                            )}
+                            {t.commentCount > 0 && (
+                              <span className="inline-flex items-center gap-1 tabular-nums">
+                                <MessageSquare className="size-3" />
+                                {t.commentCount}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {t.tags.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {t.tags.map((tag) => (
+                              <TagPill key={tag} tag={tag} />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </ListCard>
+                );
+              })
+            )}
           </div>
-        ) : selected ? (
-          <TaskDetail
-            key={selected.id}
-            task={selected}
-            onToggleStatus={() => toggleStatus(selected)}
-            onSave={(payload) => patchTask(selected.id, payload)}
-            onPatch={(patch) => patchTask(selected.id, patch)}
-            onDelete={() => removeTask(selected.id)}
+          <ListPager
+            page={page}
+            total={total}
+            pageSize={pageSize}
+            pending={navPending}
+            onGo={(p) => go({ page: p > 1 ? p : null })}
           />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a task, or add a new one.
-          </div>
-        )}
-      </div>
-    </div>
+        </>
+      }
+      detail={detailPane}
+    />
   );
 }

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '../lib/utils';
+import { FieldDescription } from './field';
 
 /** Id convention shared with the field it describes, so the input can point at
  *  the hint with `aria-describedby={hintId('historyLimit')}`. */
@@ -20,10 +20,15 @@ export interface FieldHintProps {
 }
 
 /** The one-line dimmed description under a settings field. Says what the field
- *  does; `warn` adds the consequence of pushing it too far, in a second tone. */
+ *  does; `warn` adds the consequence of pushing it too far, in a second tone.
+ *
+ *  This is `FieldDescription` plus `warn` and the `id` convention. It renders
+ *  through it rather than restating the styles, so the hint under a settings
+ *  control and the hint under a `<Field>` cannot drift apart. New forms should
+ *  reach for `FieldDescription` directly unless they need `warn`. */
 export function FieldHint({ id, warn, className, children }: FieldHintProps) {
   return (
-    <p id={id ? hintId(id) : undefined} className={cn('text-xs text-muted-foreground', className)}>
+    <FieldDescription id={id ? hintId(id) : undefined} className={className}>
       {children}
       {warn ? (
         <>
@@ -31,6 +36,6 @@ export function FieldHint({ id, warn, className, children }: FieldHintProps) {
           <span className="text-warning-ink">{warn}</span>
         </>
       ) : null}
-    </p>
+    </FieldDescription>
   );
 }

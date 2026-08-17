@@ -8,6 +8,15 @@ import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
 import { setAssetToken } from '@mantle/web-ui/asset-url';
+import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
+import {
+  ACTIVITY_W_COOKIE,
+  ACTIVITY_W_DEFAULT,
+  NAV_W_COOKIE,
+  NAV_W_DEFAULT,
+  NAV_W_MAX,
+  NAV_W_MIN,
+} from '@/lib/nav-width';
 import { maybeRefreshToken } from '@mantle/web-ui/token-refresh';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { BrandBlock } from '@/components/layout/rail/brand-block';
@@ -72,6 +81,10 @@ function writeCookie(name: string, on: boolean) {
   document.cookie = `${name}=${on ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`;
 }
 
+function writeCookieValue(name: string, value: string | number) {
+  document.cookie = `${name}=${value}; path=/; max-age=31536000; samesite=lax`;
+}
+
 type ShellData = {
   onboarded: boolean;
   avatar: { style: string; seed: string } | null;
@@ -111,6 +124,9 @@ type ShellData = {
 export function AppShell(props: {
   contextCard: React.ReactNode;
   initialNavCollapsed?: boolean;
+  /** Rail widths in px, seeded from cookies for the same no-flash reason. */
+  initialNavWidth?: number;
+  initialActivityWidth?: number;
   initialActivityCollapsed?: boolean;
   /** Nav groups the user last left unfolded, seeded from the cookie so a
    *  folded group never flashes open on first paint. */
@@ -138,12 +154,16 @@ export function AppShell(props: {
 function ShellFrame({
   contextCard,
   initialNavCollapsed = false,
+  initialNavWidth = NAV_W_DEFAULT,
+  initialActivityWidth = ACTIVITY_W_DEFAULT,
   initialActivityCollapsed = true,
   initialExpandedGroups = [],
   children,
 }: {
   contextCard: React.ReactNode;
   initialNavCollapsed?: boolean;
+  initialNavWidth?: number;
+  initialActivityWidth?: number;
   initialActivityCollapsed?: boolean;
   initialExpandedGroups?: string[];
   children: React.ReactNode;
@@ -151,6 +171,27 @@ function ShellFrame({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(initialNavCollapsed);
+  // Seeded from a cookie (like the collapse flags) rather than localStorage, so
+  // the server renders the user's width and the rail doesn't jump on load.
+  const [navWidth, setNavWidth] = useState(initialNavWidth);
+  // True for the duration of a resize, by pointer OR keyboard. Published as
+  // `data-resizing` on the shell root, where one CSS rule suspends transitions
+  // across the frame — see the long note beside it in globals.css. Without it
+  // every element that reads `--nav-w` freezes mid-drag.
+  const [resizing, setResizing] = useState(false);
+  const resizeIdle = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [activityWidth, setActivityWidth] = useState(initialActivityWidth);
+
+  // Shared by both rails. Restores the transition once the user stops, so a
+  // later collapse still glides.
+  const applyRailWidth = (px: number, set: (px: number) => void, cookie: string) => {
+    setResizing(true);
+    set(px);
+    writeCookieValue(cookie, px);
+    if (resizeIdle.current) clearTimeout(resizeIdle.current);
+    resizeIdle.current = setTimeout(() => setResizing(false), 250);
+  };
   const [activityCollapsed, setActivityCollapsed] = useState(initialActivityCollapsed);
   const pathname = usePathname();
   const router = useRouter();
@@ -412,14 +453,17 @@ function ShellFrame({
         // be an inline style.
         className="mantle-shell group/shell h-screen bg-background"
         data-nav-collapsed={navCollapsed ? 'true' : 'false'}
+        data-resizing={resizing ? 'true' : 'false'}
         data-activity-collapsed={activityCollapsed ? 'true' : 'false'}
         data-zen={zen ? 'true' : 'false'}
         style={
           {
             // Focus mode zeroes every chrome offset — the SAME vars the whole
             // frame already positions against, so one flip reflows everything.
-            '--nav-w': zen ? '0px' : navCollapsed ? '3.5rem' : '16rem',
-            '--activity-w': zen ? '0px' : activityCollapsed ? '3.5rem' : '20rem',
+            // Collapsed and zen keep their fixed widths: the handle is only
+            // offered on the expanded rail, so a drag can never fight a toggle.
+            '--nav-w': zen ? '0px' : navCollapsed ? '3.5rem' : `${navWidth}px`,
+            '--activity-w': zen ? '0px' : activityCollapsed ? '3.5rem' : `${activityWidth}px`,
             '--assistant-w': assistantW,
             '--help-w': helpW,
           } as React.CSSProperties
@@ -444,13 +488,25 @@ function ShellFrame({
         {/* The rail. Full window height now that nothing brackets it: it owns
             the brand, the account/theme/search controls, the nav and the
             launcher toolbar. Unmounted in focus mode. */}
+        {/* No `transition-[width]` on the aside: `--nav-w` animates instead
+            (globals.css). A transition here would freeze it against the var. */}
         {zen ? null : (
-          <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--nav-w)] flex-col border-r bg-sidebar transition-[width] duration-200 ease-in-out md:flex">
+          <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--nav-w)] flex-col border-r bg-sidebar md:flex">
             {/* Generated backdrop for this area — renders nothing when Settings →
               Appearance has the menu switched off. See
               @mantle/web-ui/area-backdrop. */}
             <AreaBackdrop area="menu" />
             {body(undefined, navCollapsed)}
+            {/* Collapsed rails aren't draggable: the toggle owns that width. */}
+            {navCollapsed ? null : (
+              <RailHandle
+                label="Resize navigation"
+                value={navWidth}
+                min={NAV_W_MIN}
+                max={NAV_W_MAX}
+                onChange={(px) => applyRailWidth(px, setNavWidth, NAV_W_COOKIE)}
+              />
+            )}
           </aside>
         )}
 
@@ -471,7 +527,14 @@ function ShellFrame({
         </Sheet>
 
         {/* Right live-activity column */}
-        {zen ? null : <LiveColumn collapsed={activityCollapsed} onToggle={toggleActivity} />}
+        {zen ? null : (
+          <LiveColumn
+            collapsed={activityCollapsed}
+            onToggle={toggleActivity}
+            width={activityWidth}
+            onWidthChange={(px) => applyRailWidth(px, setActivityWidth, ACTIVITY_W_COOKIE)}
+          />
+        )}
 
         {/* Content area — now the full height of the window at md and up, which
             is what removing the two bars bought.
@@ -484,7 +547,8 @@ function ShellFrame({
             server is slow enough to stream). Containing it here, beside the
             chrome rather than around it, keeps the chrome's tree-context
             symmetric. Same rationale as UsageCard's boundary in layout.tsx. */}
-        <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin transition-[left,right] duration-200 ease-in-out md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]">
+        {/* No `transition-[left,right]` — see the aside above and globals.css. */}
+        <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]">
           <Suspense fallback={null}>{children}</Suspense>
         </main>
 

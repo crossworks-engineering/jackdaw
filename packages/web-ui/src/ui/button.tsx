@@ -4,7 +4,10 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../lib/utils';
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // `shrink-0` and `select-none` match upstream: a button in a tight flex row
+  // should keep its size rather than be squashed below its label, and its text
+  // is a control, not prose to drag-select.
+  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -21,11 +24,21 @@ const buttonVariants = cva(
         approve: 'bg-primary text-primary-foreground hover:bg-primary/90',
         deny: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
       },
+      // Every labelled size has a square `icon-*` twin at the SAME height, so
+      // an icon button can sit in a row with a text button and line up. That
+      // pairing was missing before, and call sites improvised: 23 of them used
+      // `ghost`+`sm` to hold a lone icon (a 40x36 rectangle), and 5 hand-set
+      // `size-7`/`size-9` on the Button. One screen rendered buttons at four
+      // different heights. Reach for the twin instead of a `size-*` override.
       size: {
+        xs: 'h-8 px-2 text-xs',
+        sm: 'h-9 px-3',
         default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
-        icon: 'h-10 w-10',
+        lg: 'h-11 px-8',
+        'icon-xs': 'size-8',
+        'icon-sm': 'size-9',
+        icon: 'size-10',
+        'icon-lg': 'size-11',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },
