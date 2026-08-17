@@ -83,7 +83,7 @@ rules in one edit.
 Ordered by traffic:
 
 **2a. Daily drivers** — ✅ `events`, ✅ `contacts`, ✅ `journal`, ✅ `secrets`,
-`formulas`, `apps`, `models`, `runs`, `sandboxes`
+✅ `models`, ✅ `runs`, ✅ `sandboxes`, `formulas`, `apps`
 
 `events` first: it is the closest structural match to `tasks` and will prove
 the pattern travels. It also still centres its composer (`mx-auto max-w-2xl`),
@@ -152,11 +152,25 @@ is only load-bearing for `apps`.
 
 | screen | scaffold | notable |
 |---|---|---|
-| `models` | `md:grid-cols-[360px_1fr]` | no raw controls; smallest remaining |
-| `runs` | `md:grid-cols-[360px_1fr]` | no raw controls |
-| `sandboxes` | `md:grid-cols-[340px_1fr]` | bare `<Label>` to convert |
+| ✅ `models` | was `[360px_1fr]` | pure scaffold swap; keeps 360px via `defaultListSize` |
+| ✅ `runs` | was `[360px_1fr]` | pure swap; the worker strip above the panes means MasterDetail takes `min-h-0 flex-1`, not the page |
+| ✅ `sandboxes` | was `[340px_1fr]` | pure swap. Its `<Label>` was labelling a checkbox — correct, left alone |
 | `formulas` | `md:grid-cols-[…]` | ~2200 lines, a nested `lg:grid` editor of its own — budget a whole session |
 | `apps` | `focusGridClass` | blocked, see above |
+
+The last three were **scaffold-only** ports: no form, no validation, nothing
+user-visible beyond the divider. Rather than three near-identical spec files they
+share `e2e/specs/master-detail-screens.spec.ts`, a table-driven spec that asserts
+the panes exist, the width persists under a per-screen key, and the pane owns at
+most one scrollbar. Adding a row is the whole cost of covering the next port —
+use it for `formulas` and `apps` too, and keep the per-screen specs for ports
+that change behaviour.
+
+⚠ **`/sandboxes` is not verified in a browser.** The `sandboxes` compose profile
+is off on the scratch brain, so the screen renders its "not enabled" explainer and
+the spec row skips itself (out loud — a silent skip reads like a pass). The port
+is typechecked and structurally identical to `runs`; confirm it on a box with the
+profile on.
 
 **2b. Settings** — `accounts`, `agents`, `ai-workers`, `heartbeats`, `keys`,
 `peers`, `skills`, `tools`, `tool-groups`, `users`, `worker-groups`, `config`

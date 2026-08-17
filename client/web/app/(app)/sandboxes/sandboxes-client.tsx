@@ -15,6 +15,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { Label } from '@mantle/web-ui/ui/label';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -334,59 +335,60 @@ export function SandboxesClient() {
   };
 
   return (
-    <div className="h-full md:grid md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: sandbox list ───────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Sandboxes
-          </h2>
-          <span className="text-xs text-muted-foreground tabular-nums">{sandboxes.length}</span>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {sandboxes.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              No sandboxes yet. The coder agent creates one with <code>sandbox_create</code> when it
-              needs an isolated terminal.
-            </p>
-          ) : (
-            sandboxes.map((s) => (
-              <ListCard
-                key={s.id}
-                onClick={() => go({ sandbox: s.id })}
-                selected={selected === s.id}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-mono text-sm font-medium">{s.name}</span>
-                  <span
-                    className={cn(
-                      'ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider',
-                      STATUS_CLASS[s.status] ?? 'text-muted-foreground',
-                    )}
-                  >
-                    {s.status}
-                  </span>
-                </div>
-                {s.description && (
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{s.description}</p>
-                )}
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  used {timeAgo(s.lastUsedAt)}
-                </div>
-              </ListCard>
-            ))
-          )}
-        </div>
-        {disk && disk.usedBytes != null && (
-          <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-            Disk: {fmtBytes(disk.usedBytes)} of {fmtBytes(disk.budgetBytes)} used
+    <MasterDetail
+      id="sandboxes"
+      list={
+        <>
+          {/* ── Left: sandbox list ───────────────────────────────────── */}
+          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Sandboxes
+            </h2>
+            <span className="text-xs text-muted-foreground tabular-nums">{sandboxes.length}</span>
           </div>
-        )}
-      </div>
-
-      {/* ── Right: sandbox detail ────────────────────────────────────── */}
-      <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {selected ? (
+          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {sandboxes.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                No sandboxes yet. The coder agent creates one with <code>sandbox_create</code> when
+                it needs an isolated terminal.
+              </p>
+            ) : (
+              sandboxes.map((s) => (
+                <ListCard
+                  key={s.id}
+                  onClick={() => go({ sandbox: s.id })}
+                  selected={selected === s.id}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-mono text-sm font-medium">{s.name}</span>
+                    <span
+                      className={cn(
+                        'ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider',
+                        STATUS_CLASS[s.status] ?? 'text-muted-foreground',
+                      )}
+                    >
+                      {s.status}
+                    </span>
+                  </div>
+                  {s.description && (
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{s.description}</p>
+                  )}
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    used {timeAgo(s.lastUsedAt)}
+                  </div>
+                </ListCard>
+              ))
+            )}
+          </div>
+          {disk && disk.usedBytes != null && (
+            <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+              Disk: {fmtBytes(disk.usedBytes)} of {fmtBytes(disk.budgetBytes)} used
+            </div>
+          )}
+        </>
+      }
+      detail={
+        selected ? (
           <SandboxDetail
             sandboxId={selected}
             onChanged={refresh}
@@ -398,8 +400,8 @@ export function SandboxesClient() {
           />
         ) : (
           <p className="p-6 text-sm text-muted-foreground">Select a sandbox to inspect it.</p>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   );
 }
