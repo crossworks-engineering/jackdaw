@@ -319,6 +319,13 @@ drift into a slightly different one.
   `htmlFor` that points at nothing.
 - `noValidate` on the `<form>`: we render our own messages, so the browser's
   native bubble would be a second, uglier copy of the same thing.
+- ⚠ **A vertical `Field` stretches its DIRECT children to full width**
+  (`*:w-full`), which is what you want for a control and not what you want for
+  a small button. An "+ Add another" beside a repeating group becomes a
+  full-width bar the moment you move it inside a `Field`. Wrap it in a plain
+  `<div>` and let the wrapper take the stretch — do NOT fight it with `w-fit`
+  on the button, which lands at the same specificity and wins or loses by
+  source order.
 
 ### 6b. Validation is three attributes, not a red `<p>`
 

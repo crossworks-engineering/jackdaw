@@ -82,12 +82,41 @@ rules in one edit.
 
 Ordered by traffic:
 
-**2a. Daily drivers** — `events`, `contacts`, `journal`, `secrets`, `formulas`,
-`apps`, `models`, `runs`, `sandboxes`
+**2a. Daily drivers** — ✅ `events`, ✅ `contacts`, `journal`, `secrets`,
+`formulas`, `apps`, `models`, `runs`, `sandboxes`
 
 `events` first: it is the closest structural match to `tasks` and will prove
 the pattern travels. It also still centres its composer (`mx-auto max-w-2xl`),
 which §6c now says should hug the list.
+
+**What the first two taught us — read before picking up the next:**
+
+- **The pattern travels, and the port is mostly mechanical.** Scaffold →
+  `<MasterDetail id="<screen>">`, form → `Field` family, raw `<select>`/
+  `<textarea>` → the kit's, header → §8 anatomy. Both screens took one pass.
+- **Drop `mx-auto max-w-*` from the detail**, don't keep it. The divider is the
+  measure now; a `max-w-2xl` inside a draggable pane means dragging it wider
+  does nothing, and a centred composer walks away from the list it belongs to.
+  Where a screen ALSO has a deep-link route (`/events/[id]`), give the shared
+  component a `className` and let the route pass the measure — the pane passes
+  nothing.
+- **Two screens had the cold-load selection race** (`/tasks`, `/events`): the
+  default-selection effect read an empty local list and opened a composer that
+  was never revisited. Both fixed. The remaining screens derive selection
+  (`?id ?? rows[0]`) instead, which cannot go wrong the same way — check which
+  kind you have before assuming.
+- **`Field` stretches its direct children.** See §6a's warning; it caught the
+  "+ Add email" button on contacts.
+- **§6b is the part with real bite.** Every form so far had one shared red
+  message at the foot. Anchoring it per control is where the actual work is,
+  and where the tests earn their keep — events has four failure modes and the
+  spec walks the marker moving between fields.
+- **`DateTimePicker` forwards `aria-invalid` now**, so a date field can fail
+  visibly. It could not before.
+
+Each ported screen gets a spec (`e2e/specs/<screen>.spec.ts`). Keep them about
+the PORT — the scaffold, the header, the validation — not the domain; the domain
+already has its own coverage or does not need any.
 
 **2b. Settings** — `accounts`, `agents`, `ai-workers`, `heartbeats`, `keys`,
 `peers`, `skills`, `tools`, `tool-groups`, `users`, `worker-groups`, `config`

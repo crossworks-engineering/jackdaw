@@ -10,11 +10,30 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Mail, Phone, Plus, RefreshCw, Search, Trash2, Users, X } from 'lucide-react';
+import {
+  Copy,
+  Mail,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  UserRound,
+  Users,
+  X,
+} from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import {
@@ -51,7 +70,6 @@ import {
   normalizeCountryCode,
   type ContactRow,
 } from '@mantle/content-core/contacts-format';
-import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 
@@ -127,86 +145,87 @@ export function ContactsClient() {
   // selection changes (it's keyed on selected.id). Local edits stay client-only
   // until Save runs.
   return (
-    <div className="grid h-full grid-cols-1 md:grid-cols-[340px_1fr] md:gap-0">
-      {/* ─── LIST ─────────────────────────────────────────────────────── */}
-      <aside className="flex min-h-0 flex-col border-r border-border bg-muted/20">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <div className="relative flex-1">
-            <Search
-              className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') go({ q: q || null, page: null });
-              }}
-              onBlur={() => {
-                if (q !== query) go({ q: q || null, page: null });
-              }}
-              placeholder="Search contacts…"
-              className="pl-8"
-            />
+    <MasterDetail
+      id="contacts"
+      list={
+        <>
+          {/* ─── LIST ─────────────────────────────────────────────────── */}
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <div className="relative flex-1">
+              <Search
+                className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') go({ q: q || null, page: null });
+                }}
+                onBlur={() => {
+                  if (q !== query) go({ q: q || null, page: null });
+                }}
+                placeholder="Search contacts…"
+                className="pl-8"
+              />
+            </div>
+            <NewContactButton />
           </div>
-          <NewContactButton />
-        </div>
-        <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-          {contacts.length === 0 ? (
-            <li className="px-2 py-8 text-center text-sm text-muted-foreground">
-              {query ? `No contacts match "${query}".` : 'No contacts yet. Click + to add one.'}
-            </li>
-          ) : (
-            contacts.map((c) => (
-              <li key={c.id}>
-                <ListCard
-                  onClick={() => go({ id: c.id })}
-                  disabled={pending}
-                  selected={selected?.id === c.id}
-                  className="text-sm"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate font-medium">{c.title}</span>
-                    {c.team && (
-                      <Users
-                        className="size-3.5 shrink-0 text-muted-foreground"
-                        aria-label="Team member"
-                      />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {/* Surface company on the secondary line — but only when
+          <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+            {contacts.length === 0 ? (
+              <li className="px-2 py-8 text-center text-sm text-muted-foreground">
+                {query ? `No contacts match "${query}".` : 'No contacts yet. Click + to add one.'}
+              </li>
+            ) : (
+              contacts.map((c) => (
+                <li key={c.id}>
+                  <ListCard
+                    onClick={() => go({ id: c.id })}
+                    disabled={pending}
+                    selected={selected?.id === c.id}
+                    className="text-sm"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate font-medium">{c.title}</span>
+                      {c.team && (
+                        <Users
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-label="Team member"
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      {/* Surface company on the secondary line — but only when
                         it's not already the title (i.e. a company-only contact
                         whose title IS the company). For person@company contacts
                         the title is the person and we show the company here. */}
-                    {c.company && c.company !== c.title ? (
-                      <span className="truncate">{c.company}</span>
-                    ) : c.email ? (
-                      <span className="truncate">{c.email}</span>
-                    ) : null}
-                    {c.contactCounts.email && c.contactCounts.email > 0 ? (
-                      <span className="ml-auto whitespace-nowrap">✉ {c.contactCounts.email}</span>
-                    ) : null}
-                  </div>
-                </ListCard>
-              </li>
-            ))
-          )}
-        </ul>
-        <div className="border-t border-border px-3 py-2">
-          <ListPager
-            total={total}
-            page={page}
-            pageSize={pageSize}
-            pending={pending}
-            onGo={(p) => go({ page: p === 1 ? null : p })}
-          />
-        </div>
-      </aside>
-
-      {/* ─── DETAIL / FORM ────────────────────────────────────────────── */}
-      <main className="min-h-0 overflow-y-auto">
-        {selected ? (
+                      {c.company && c.company !== c.title ? (
+                        <span className="truncate">{c.company}</span>
+                      ) : c.email ? (
+                        <span className="truncate">{c.email}</span>
+                      ) : null}
+                      {c.contactCounts.email && c.contactCounts.email > 0 ? (
+                        <span className="ml-auto whitespace-nowrap">✉ {c.contactCounts.email}</span>
+                      ) : null}
+                    </div>
+                  </ListCard>
+                </li>
+              ))
+            )}
+          </ul>
+          <div className="border-t border-border px-3 py-2">
+            <ListPager
+              total={total}
+              page={page}
+              pageSize={pageSize}
+              pending={pending}
+              onGo={(p) => go({ page: p === 1 ? null : p })}
+            />
+          </div>
+        </>
+      }
+      detail={
+        selected ? (
           <ContactForm key={selected.id} contact={selected} />
         ) : (
           <div className="flex h-full items-center justify-center px-8 text-center text-sm text-muted-foreground">
@@ -214,9 +233,9 @@ export function ContactsClient() {
               ? 'Add your first contact. Saskia will then be able to email them.'
               : 'Pick a contact on the left.'}
           </div>
-        )}
-      </main>
-    </div>
+        )
+      }
+    />
   );
 }
 
@@ -287,6 +306,13 @@ function ContactForm({ contact }: { contact: ContactRow }) {
   }, [contact]);
 
   const cellPreview = useMemo(() => formatCell(countryCode, cell), [countryCode, cell]);
+  /** Any non-empty row that is neither an address nor an `@domain` wildcard.
+   *  Drives the group's `data-invalid` and its single `role="alert"` message —
+   *  per-row messages would stack four copies of the same sentence. */
+  const emailsInvalid = useMemo(
+    () => emails.some((e) => e.trim() !== '' && !isPlausibleEmailOrDomain(e)),
+    [emails],
+  );
 
   const onSave = () => {
     // Client-side identity check — mirrors the server-side guard in
@@ -373,14 +399,21 @@ function ContactForm({ contact }: { contact: ContactRow }) {
   const lastEmailAt = contact.lastContactedAt.email;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-6">
+    // No `max-w-*`: the panel divider sets the measure now, so dragging the
+    // pane wider actually widens the form (§8, resizable panes).
+    <div className="flex flex-col gap-6 px-6 py-6">
+      {/* §8 "Detail header anatomy": glyph inside the h2, title truncates,
+          actions `shrink-0`, delete icon-only and last. Settings-style editors
+          keep their boolean flags as header Switches — that stays. */}
       <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold">{contact.title}</h2>
+        <div className="min-w-0 flex-1">
+          <h2 className="flex min-w-0 items-center gap-2 text-lg font-semibold">
+            <UserRound className="size-5 shrink-0 text-primary-ink" aria-hidden />
+            <span className="min-w-0 truncate">{contact.title}</span>
+          </h2>
           <p className="text-xs text-muted-foreground">Added {formatDateTime(contact.createdAt)}</p>
         </div>
-        {/* Header flags as Switches top-right + ghost Delete (screen convention). */}
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-4">
           <label className="flex items-center gap-2 text-sm" htmlFor="team-member">
             <span className="text-muted-foreground">Team member</span>
             <Switch
@@ -395,11 +428,12 @@ function ContactForm({ contact }: { contact: ContactRow }) {
           </label>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             className="text-muted-foreground hover:text-destructive-ink"
             onClick={() => setConfirmDelete(true)}
+            aria-label="Delete contact"
           >
-            <Trash2 aria-hidden /> Delete
+            <Trash2 aria-hidden />
           </Button>
         </div>
       </header>
@@ -448,132 +482,163 @@ function ContactForm({ contact }: { contact: ContactRow }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="firstName">First name</Label>
-          <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+      <FieldGroup>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="firstName">First name</FieldLabel>
+            <Input
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="lastName">Last name</FieldLabel>
+            <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </Field>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lastName">Last name</Label>
-          <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-        </div>
-      </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="company">Company</Label>
-        <Input
-          id="company"
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="Modular"
-        />
-        <p className="text-xs text-muted-foreground">
-          Optional. Use the company alone for a supplier/org contact, or pair it with a person.
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Email addresses</Label>
-        <div className="space-y-2">
-          {emails.map((entry, i) => {
-            const invalid = entry.trim() !== '' && !isPlausibleEmailOrDomain(entry);
-            return (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  value={entry}
-                  onChange={(e) =>
-                    setEmails((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
-                  }
-                  placeholder={i === 0 ? 'orders@modular.co.za' : '@modular.co.za'}
-                  autoComplete="off"
-                  aria-invalid={invalid}
-                  className={cn(invalid && 'border-destructive')}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Remove email"
-                  onClick={() =>
-                    setEmails((prev) => (prev.length === 1 ? [''] : prev.filter((_, j) => j !== i)))
-                  }
-                >
-                  <X aria-hidden />
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setEmails((prev) => [...prev, ''])}
-        >
-          <Plus aria-hidden /> Add email
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Each line is a full address (<code>orders@modular.co.za</code>) or a whole-domain wildcard
-          (<code>@modular.co.za</code>, trusting all mail from that domain). Mantle ingests mail
-          from these into the brain; Saskia can email the plain addresses. Adding one backfills the
-          last 90 days.
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Cell number</Label>
-        <div className="grid grid-cols-[88px_1fr] gap-2">
+        <Field>
+          <FieldLabel htmlFor="company">Company</FieldLabel>
           <Input
-            value={countryCode}
-            onChange={(e) => setCountryCode(e.target.value)}
-            placeholder="+27"
-            aria-label="Country code"
-            className="font-mono"
+            id="company"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="Modular"
+            aria-describedby="company-description"
           />
-          <Input
-            value={cell}
-            onChange={(e) => setCell(e.target.value)}
-            placeholder="760810774"
-            aria-label="Cell number"
-            inputMode="tel"
+          <FieldDescription id="company-description">
+            Optional. Use the company alone for a supplier/org contact, or pair it with a person.
+          </FieldDescription>
+        </Field>
+
+        <Field data-invalid={emailsInvalid || undefined}>
+          <FieldLabel asChild>
+            <span>Email addresses</span>
+          </FieldLabel>
+          <div className="space-y-2">
+            {emails.map((entry, i) => {
+              const invalid = entry.trim() !== '' && !isPlausibleEmailOrDomain(entry);
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    value={entry}
+                    onChange={(e) =>
+                      setEmails((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                    }
+                    placeholder={i === 0 ? 'orders@modular.co.za' : '@modular.co.za'}
+                    autoComplete="off"
+                    // `Input` paints its own invalid border off this attribute,
+                    // so the hand-added `border-destructive` was a second way of
+                    // saying the same thing — and the one that could drift.
+                    aria-invalid={invalid || undefined}
+                    aria-describedby={invalid ? 'emails-error' : undefined}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove email"
+                    onClick={() =>
+                      setEmails((prev) =>
+                        prev.length === 1 ? [''] : prev.filter((_, j) => j !== i),
+                      )
+                    }
+                  >
+                    <X aria-hidden />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          {/* Wrapped, not bare: a vertical `Field` stretches its DIRECT children
+              to full width (`*:w-full`), which turned this small outline button
+              into a full-width bar. The wrapper takes the stretch instead. */}
+          <div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEmails((prev) => [...prev, ''])}
+            >
+              <Plus aria-hidden /> Add email
+            </Button>
+          </div>
+          {/* The red border was the only signal before, which a screen reader
+              never got. §6b wants it announced as well as shown. */}
+          <FieldError id="emails-error">
+            {emailsInvalid
+              ? 'An address must be a full address or a leading-@ domain wildcard.'
+              : null}
+          </FieldError>
+          <FieldDescription>
+            Each line is a full address (<code>orders@modular.co.za</code>) or a whole-domain
+            wildcard (<code>@modular.co.za</code>, trusting all mail from that domain). Mantle
+            ingests mail from these into the brain; Saskia can email the plain addresses. Adding one
+            backfills the last 90 days.
+          </FieldDescription>
+        </Field>
+
+        <Field>
+          <FieldLabel asChild>
+            <span>Cell number</span>
+          </FieldLabel>
+          <div className="grid grid-cols-[88px_1fr] gap-2">
+            <Input
+              value={countryCode}
+              onChange={(e) => setCountryCode(e.target.value)}
+              placeholder="+27"
+              aria-label="Country code"
+              className="font-mono"
+            />
+            <Input
+              value={cell}
+              onChange={(e) => setCell(e.target.value)}
+              placeholder="760810774"
+              aria-label="Cell number"
+              inputMode="tel"
+            />
+          </div>
+          {cellPreview && (
+            <FieldDescription className="flex items-center gap-1.5">
+              <Phone className="size-3" aria-hidden />
+              <span className="font-mono">{cellPreview}</span>
+            </FieldDescription>
+          )}
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="description">Description — who is this, for the AI</FieldLabel>
+          <Textarea
+            id="description"
+            rows={4}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Modular is the aluminium-profile supplier we use for printer projects. Sells 2020 and 3030 profiles."
+            aria-describedby="description-description"
           />
+          <FieldDescription id="description-description">
+            The brain indexes this — facts and entities land on this contact&apos;s identity, so
+            Saskia can later answer &quot;who supplies aluminium profiles?&quot;.
+          </FieldDescription>
+        </Field>
+
+        <Field>
+          <FieldLabel asChild>
+            <span>Tags</span>
+          </FieldLabel>
+          <TagInput value={tags} onChange={setTags} />
+        </Field>
+
+        {/* Footer row: divider on top, Save floats right — same shape as the
+            task/event forms (`flex justify-end gap-2 border-t pt-4`). */}
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <SubmitButton type="button" pending={pending} onClick={onSave}>
+            Save contact
+          </SubmitButton>
         </div>
-        {cellPreview && (
-          <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Phone className="size-3" aria-hidden />
-            <span className="font-mono">{cellPreview}</span>
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="description">Description — who is this, for the AI</Label>
-        <Textarea
-          id="description"
-          rows={4}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Modular is the aluminium-profile supplier we use for printer projects. Sells 2020 and 3030 profiles."
-        />
-        <p className="text-xs text-muted-foreground">
-          The brain indexes this — facts and entities land on this contact's identity, so Saskia can
-          later answer &quot;who supplies aluminium profiles?&quot;.
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Tags</Label>
-        <TagInput value={tags} onChange={setTags} />
-      </div>
-
-      {/* Footer row: divider on top, Save floats right — same shape as the
-          task/event forms (`flex justify-end gap-2 border-t pt-3`). */}
-      <div className="flex justify-end gap-2 border-t border-border pt-3">
-        <Button onClick={onSave} disabled={pending}>
-          {pending ? 'Saving…' : 'Save contact'}
-        </Button>
-      </div>
+      </FieldGroup>
 
       {/* Shown-once token dialog. Closing drops the plaintext for good —
           after that the only way to a working token is Regenerate. */}
