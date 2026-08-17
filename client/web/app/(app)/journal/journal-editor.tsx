@@ -6,8 +6,9 @@ import { MOODS, CATEGORIES } from '@mantle/content-core/journal-options';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@mantle/web-ui/ui/field';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
+import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import {
   Select,
   SelectContent,
@@ -58,6 +59,8 @@ export function JournalEditor({
   );
   const [tags, setTags] = useState<string[]>(entry?.tags ?? []);
   const [saving, setSaving] = useState(false);
+  /** Validation message for the body, the only required field. */
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setTitle(entry?.title ?? '');
@@ -85,9 +88,13 @@ export function JournalEditor({
 
   async function save() {
     if (!body.trim()) {
-      toast.error('Write something first');
+      // §6b: on the field, not in a toast. A toast for a validation failure
+      // announces itself once and then leaves no trace beside the empty control
+      // the user has to go back and fill.
+      setError('Write something first');
       return;
     }
+    setError(null);
     setSaving(true);
     try {
       const payload = {
@@ -96,18 +103,25 @@ export function JournalEditor({
         mood,
         category,
         entryDate: entryDate ? entryDate.toISOString() : '',
+        tags,
       };
-      const res = await fetch(creating ? '/api/journal' : `/api/journal/${entry!.id}`, {
-        method: creating ? 'POST' : 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, tags }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        toast.error(j.error ?? `Save failed (${res.status})`);
+      let saved: JournalRow;
+      try {
+        // `apiSend`, NOT a bare `fetch`. This was the last raw `fetch('/api/…')`
+        // in the client, and on the detached topology it was broken outright:
+        // the request went to the CLIENT origin, which has no /api routes at
+        // all, so every journal save was redirected to /login. Everything else
+        // in the app already went through apiFetch/apiSend to the brain.
+        ({ journal: saved } = await apiSend<{ journal: JournalRow }>(
+          creating ? '/api/journal' : `/api/journal/${entry!.id}`,
+          creating ? 'POST' : 'PATCH',
+          payload,
+        ));
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
+        toast.error(e instanceof Error ? e.message : 'Save failed');
         return;
       }
-      const { journal: saved } = (await res.json()) as { journal: JournalRow };
       toast.success(creating ? 'Journal entry saved' : 'Saved');
       onSaved(saved);
     } finally {
@@ -136,8 +150,11 @@ export function JournalEditor({
         e.preventDefault();
         void save();
       }}
-      className="flex h-full min-h-0 flex-col"
+      noValidate
     >
+      {/* Sticky against the PANE's scroller now (MasterDetail owns it), not an
+          inner one of its own — two nested scrollers put two bars side by side
+          and made the sticky header stick to the wrong one. */}
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
         <Input
           value={title}
@@ -150,73 +167,89 @@ export function JournalEditor({
           <X /> Cancel
         </Button>
         <SubmitButton pending={saving} size="sm">
-          {creating ? 'Save journal entry' : 'Save journal entry'}
+          Save journal entry
         </SubmitButton>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto scrollbar-thin px-4 py-4">
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="A short, honest note — who you are, what you’re doing, how you feel…"
-          autoFocus
-          className="min-h-[10rem] resize-y text-base leading-relaxed"
-        />
+      <div className="px-4 py-4">
+        <FieldGroup>
+          <Field data-invalid={!!error || undefined}>
+            {/* The body has no visible label by design — it is the whole point
+                of the screen and the placeholder carries the prompt. The label
+                exists for screen readers only. */}
+            <FieldLabel htmlFor="journal-body" className="sr-only">
+              Journal entry
+            </FieldLabel>
+            <Textarea
+              id="journal-body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="A short, honest note — who you are, what you’re doing, how you feel…"
+              autoFocus
+              aria-invalid={!!error || undefined}
+              aria-describedby={error ? 'journal-body-error' : undefined}
+              className="min-h-[10rem] resize-y text-base leading-relaxed"
+            />
+            <FieldError id="journal-body-error">{error}</FieldError>
+          </Field>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="journal-mood">Mood</Label>
-            <Select value={mood || NONE} onValueChange={(v) => setMood(v === NONE ? '' : v)}>
-              <SelectTrigger id="journal-mood">
-                <SelectValue placeholder="How did it feel?" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>— None —</SelectItem>
-                {MOODS.map((m) => (
-                  <SelectItem key={m.key} value={m.key}>
-                    {m.emoji} {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="journal-mood">Mood</FieldLabel>
+              <Select value={mood || NONE} onValueChange={(v) => setMood(v === NONE ? '' : v)}>
+                <SelectTrigger id="journal-mood">
+                  <SelectValue placeholder="How did it feel?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>— None —</SelectItem>
+                  {MOODS.map((m) => (
+                    <SelectItem key={m.key} value={m.key}>
+                      {m.emoji} {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="journal-category">Area of life</FieldLabel>
+              <Select
+                value={category || NONE}
+                onValueChange={(v) => setCategory(v === NONE ? '' : v)}
+              >
+                <SelectTrigger id="journal-category">
+                  <SelectValue placeholder="What is this about?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>— None —</SelectItem>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.key} value={c.key}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="journal-category">Area of life</Label>
-            <Select
-              value={category || NONE}
-              onValueChange={(v) => setCategory(v === NONE ? '' : v)}
-            >
-              <SelectTrigger id="journal-category">
-                <SelectValue placeholder="What is this about?" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>— None —</SelectItem>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c.key} value={c.key}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+          <Field>
+            <FieldLabel htmlFor="journal-date">When (optional)</FieldLabel>
+            <DateTimePicker
+              id="journal-date"
+              value={entryDate}
+              onChange={setEntryDate}
+              placeholder="Defaults to now"
+              clearable
+            />
+          </Field>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="journal-date">When (optional)</Label>
-          <DateTimePicker
-            id="journal-date"
-            value={entryDate}
-            onChange={setEntryDate}
-            placeholder="Defaults to now"
-            clearable
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Tags</Label>
-          <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
-        </div>
+          <Field>
+            <FieldLabel asChild>
+              <span>Tags</span>
+            </FieldLabel>
+            <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
+          </Field>
+        </FieldGroup>
       </div>
     </form>
   );

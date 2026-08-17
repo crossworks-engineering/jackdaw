@@ -82,14 +82,14 @@ rules in one edit.
 
 Ordered by traffic:
 
-**2a. Daily drivers** — ✅ `events`, ✅ `contacts`, `journal`, `secrets`,
+**2a. Daily drivers** — ✅ `events`, ✅ `contacts`, ✅ `journal`, `secrets`,
 `formulas`, `apps`, `models`, `runs`, `sandboxes`
 
 `events` first: it is the closest structural match to `tasks` and will prove
 the pattern travels. It also still centres its composer (`mx-auto max-w-2xl`),
 which §6c now says should hug the list.
 
-**What the first two taught us — read before picking up the next:**
+**What the first three taught us — read before picking up the next:**
 
 - **The pattern travels, and the port is mostly mechanical.** Scaffold →
   `<MasterDetail id="<screen>">`, form → `Field` family, raw `<select>`/
@@ -113,6 +113,15 @@ which §6c now says should hug the list.
   spec walks the marker moving between fields.
 - **`DateTimePicker` forwards `aria-invalid` now**, so a date field can fail
   visibly. It could not before.
+- **A detail pane must not bring its own scroller.** `MasterDetail` owns one; a
+  preview that keeps `h-full min-h-0 overflow-y-auto` nests a second inside it,
+  which paints two bars and sticks a `sticky` header to the wrong one. Journal
+  did. Delete the inner scroller and let content flow — `journal.spec.ts` counts
+  the bars.
+- **Look for raw `fetch('/api/…')` while you are in the file.** Journal's editor
+  had the last one in the client, and on the detached topology it was broken
+  outright: the CLIENT origin has no `/api` routes, so every save redirected to
+  `/login`. `apiFetch`/`apiSend` are the only way to the brain.
 
 Each ported screen gets a spec (`e2e/specs/<screen>.spec.ts`). Keep them about
 the PORT — the scaffold, the header, the validation — not the domain; the domain
