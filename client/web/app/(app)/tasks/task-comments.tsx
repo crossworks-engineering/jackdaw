@@ -22,6 +22,7 @@ import {
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { formatDayTime } from '@mantle/web-ui/lib/format-datetime';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import type { NodeComment } from '@mantle/client-types';
 
@@ -31,16 +32,6 @@ const ROLE_CHIP: Record<NodeComment['authorKind'], string | null> = {
   member: 'Team',
   agent: 'Assistant',
 };
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
 
 /**
  * The discussion thread on a task — modeled on the Team Forum's post anatomy
@@ -63,11 +54,12 @@ export function TaskComments({ taskId }: { taskId: string }) {
       ),
   });
 
+  // Thread-scoped invalidation only. The task-row counts repaint via the
+  // parent's debounced ['task','comment'] subscription — invalidating the
+  // whole ['tasks'] tree from here refetched a 500-row board per comment.
   useRealtime(['comment'], (c) => {
     if (c.id && c.id !== taskId) return;
     void queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
-    // Counts ride on the task rows too.
-    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
   });
 
   const send = async () => {
@@ -86,7 +78,6 @@ export function TaskComments({ taskId }: { taskId: string }) {
       setSending(false);
     }
     void queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
-    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
   };
 
   const remove = async (id: string) => {
@@ -99,7 +90,6 @@ export function TaskComments({ taskId }: { taskId: string }) {
       return;
     }
     void queryClient.invalidateQueries({ queryKey: ['task-comments', taskId] });
-    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
   };
 
   const comments = commentsQuery.data ?? [];
@@ -138,7 +128,7 @@ export function TaskComments({ taskId }: { taskId: string }) {
                     {ROLE_CHIP[c.authorKind]}
                   </span>
                 )}
-                <span className="text-muted-foreground">{formatTime(c.createdAt)}</span>
+                <span className="text-muted-foreground">{formatDayTime(c.createdAt)}</span>
                 {c.editedAt && <span className="text-muted-foreground">(edited)</span>}
                 <Button
                   type="button"

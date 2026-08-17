@@ -16,24 +16,16 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { CheckSquare, Flag, MessageSquare } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { ListCard } from '@mantle/web-ui/ui/list-card';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import type { TaskRow, TaskStatus } from '@mantle/client-types';
 import { rankBetween } from '@/lib/rank';
-import { STATUSES, STATUS_DOT, STATUS_LABEL } from './task-meta';
+import { STATUSES, STATUS_DOT, STATUS_LABEL, dueLabel } from './task-meta';
 
 /** A card was dropped: move `taskId` to `status`, ordered at `rank`. */
 export type BoardMove = { taskId: string; status: TaskStatus; rank: string };
 
 const COL_PREFIX = 'col-';
-
-function dueLabel(iso: string): string {
-  const diff = new Date(iso).getTime() - Date.now();
-  const days = Math.round(diff / 86_400_000);
-  if (Math.abs(days) < 1) return 'today';
-  if (days < 0) return `${Math.abs(days)}d ago`;
-  if (days < 7) return `in ${days}d`;
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
 
 function BoardCard({
   task,
@@ -50,66 +42,70 @@ function BoardCard({
   const overdue = !!task.dueAt && new Date(task.dueAt) < new Date() && !done;
   const todosDone = task.todos.filter((t) => t.done).length;
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect?.();
-        }
-      }}
-      data-mark-id={task.id}
-      data-mark-kind="task"
-      data-mark-label={task.title}
+    <ListCard
+      asChild
+      selected={selected}
       className={cn(
-        'cursor-grab rounded-md border bg-card p-3 text-left shadow-sm transition-colors',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border hover:bg-accent/50',
+        'cursor-grab p-3',
         task.priority === 'high' && !selected && 'border-destructive',
         dragging && 'opacity-90 shadow-lg',
       )}
     >
-      <p className={cn('text-sm font-medium', done && 'text-muted-foreground line-through')}>
-        {task.title}
-      </p>
-      {(task.dueAt ||
-        task.todos.length > 0 ||
-        task.commentCount > 0 ||
-        task.priority === 'high') && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {task.priority === 'high' && (
-            <span className="inline-flex items-center gap-1 text-destructive-ink">
-              <Flag className="size-3" /> high
-            </span>
-          )}
-          {task.dueAt && (
-            <span className={cn('tabular-nums', overdue && 'font-medium text-destructive-ink')}>
-              {dueLabel(task.dueAt)}
-            </span>
-          )}
-          {task.todos.length > 0 && (
-            <span className="inline-flex items-center gap-1 tabular-nums">
-              <CheckSquare className="size-3" />
-              {todosDone}/{task.todos.length}
-            </span>
-          )}
-          {task.commentCount > 0 && (
-            <span className="inline-flex items-center gap-1 tabular-nums">
-              <MessageSquare className="size-3" />
-              {task.commentCount}
-            </span>
-          )}
-        </div>
-      )}
-      {task.tags.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {task.tags.slice(0, 4).map((tag) => (
-            <TagPill key={tag} tag={tag} />
-          ))}
-        </div>
-      )}
-    </div>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect?.();
+          }
+        }}
+        data-mark-id={task.id}
+        data-mark-kind="task"
+        data-mark-label={task.title}
+      >
+        <p className={cn('text-sm font-medium', done && 'text-muted-foreground line-through')}>
+          {task.title}
+        </p>
+        {(task.dueAt ||
+          task.todos.length > 0 ||
+          task.commentCount > 0 ||
+          task.priority === 'high') && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {task.priority === 'high' && (
+              <span className="inline-flex items-center gap-1 text-destructive-ink">
+                <Flag className="size-3" /> high
+              </span>
+            )}
+            {task.dueAt && (
+              <span className={cn('tabular-nums', overdue && 'font-medium text-destructive-ink')}>
+                {dueLabel(task.dueAt)}
+              </span>
+            )}
+            {task.todos.length > 0 && (
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <CheckSquare className="size-3" />
+                {todosDone}/{task.todos.length}
+              </span>
+            )}
+            {task.commentCount > 0 && (
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <MessageSquare className="size-3" />
+                {task.commentCount}
+              </span>
+            )}
+          </div>
+        )}
+        {task.tags.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {task.tags.slice(0, 4).map((tag) => (
+              <TagPill key={tag} tag={tag} />
+            ))}
+          </div>
+        )}
+      </div>
+    </ListCard>
   );
 }
 
@@ -164,7 +160,10 @@ function BoardColumn({
         </h3>
         <span className="ml-auto text-xs tabular-nums text-muted-foreground">{tasks.length}</span>
       </div>
-      <div ref={setNodeRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2 scrollbar-thin">
+      <div
+        ref={setNodeRef}
+        className="relative min-h-0 flex-1 space-y-2 overflow-y-auto p-2 scrollbar-thin"
+      >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
             <SortableCard
@@ -239,14 +238,19 @@ export function TaskBoard({
     if (overId.startsWith(COL_PREFIX)) {
       targetStatus = overId.slice(COL_PREFIX.length) as TaskStatus;
     } else {
+      // Dropped back onto itself: a no-op, NOT "append to end" (review catch).
+      if (overId === task.id) return;
       const overTask = tasks.find((t) => t.id === overId);
       if (!overTask) return;
       targetStatus = overTask.status;
-      if (overTask.id !== task.id) insertBeforeId = overTask.id;
+      insertBeforeId = overTask.id;
     }
 
-    // Neighbours in the target column, without the dragged card itself.
-    const col = tasks.filter((t) => t.status === targetStatus && t.id !== task.id);
+    // Neighbours come from the RENDERED (rank-sorted) column, not the raw
+    // list — after an optimistic drag the two orders diverge and raw-order
+    // neighbours produce inverted bounds / duplicate keys (review catch).
+    const rendered = columns.find((c) => c.status === targetStatus)?.tasks ?? [];
+    const col = rendered.filter((t) => t.id !== task.id);
     const insertAt = insertBeforeId ? col.findIndex((t) => t.id === insertBeforeId) : col.length;
     if (insertAt < 0) return;
     // Nearest RANKED neighbours around the insertion point — unranked (null)
@@ -260,7 +264,6 @@ export function TaskBoard({
       }
     }
     const nextRank: string | null = col[insertAt]?.rank ?? null;
-    if (targetStatus === task.status && insertBeforeId === null && col.length === 0) return;
     let rank: string;
     try {
       rank = rankBetween(prevRank, nextRank);

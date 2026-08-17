@@ -43,6 +43,25 @@ export const STATUS_DOT: Record<TaskStatus, string> = {
 
 export const PRIORITY_BADGE: Record<TaskPriority, string> = {
   low: 'bg-muted text-muted-foreground',
-  normal: 'bg-muted text-foreground',
+  normal: 'bg-muted text-muted-foreground',
   high: 'bg-destructive/15 text-destructive-ink',
 };
+
+/** Relative due-date stamp shared by the list cards and the board cards.
+ *  `todayAsTime` renders a same-day due as its clock time (the list); the
+ *  board's tighter cards say just "today". */
+export function dueLabel(iso: string, opts: { todayAsTime?: boolean } = {}): string {
+  const diff = new Date(iso).getTime() - Date.now();
+  const days = Math.round(diff / 86_400_000);
+  if (Math.abs(days) < 1) {
+    if (!opts.todayAsTime) return 'today';
+    return new Date(iso).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+  if (days < 0) return `${Math.abs(days)}d ago`;
+  if (days < 7) return `in ${days}d`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}

@@ -28,23 +28,16 @@ import { useRealtime } from '@/components/realtime/use-realtime';
 import { TaskForm, emptyTaskForm, type TaskPayload } from './task-form';
 import { TaskDetail, type TaskPatch, type TaskRow } from './task-detail';
 import { TaskBoard, type BoardMove } from './task-board';
-import { PRIORITIES, STATUSES, STATUS_LABEL, type Priority, type Status } from './task-meta';
+import {
+  PRIORITIES,
+  STATUSES,
+  STATUS_LABEL,
+  dueLabel,
+  type Priority,
+  type Status,
+} from './task-meta';
 
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
-
-function dueLabel(iso: string): string {
-  const diff = new Date(iso).getTime() - Date.now();
-  const days = Math.round(diff / 86_400_000);
-  if (Math.abs(days) < 1)
-    return new Date(iso).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  if (days < 0) return `${Math.abs(days)}d ago`;
-  if (days < 7) return `in ${days}d`;
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
 
 type TasksListResponse = { tasks: TaskRow[]; total: number; page: number; pageSize: number };
 
@@ -123,8 +116,15 @@ export function TasksClient() {
 
   // Live repaint: another tab, an agent, or a team member touching tasks or
   // comments shows up without a manual reload (events-client precedent).
-  useRealtime(['task'], () => {
-    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  // Trailing debounce: a burst of notifies (bulk edit, extractor sweep, a
+  // comment exchange) collapses into one refetch instead of one per frame.
+  const invalidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useRealtime(['task', 'comment'], () => {
+    if (invalidateTimer.current) clearTimeout(invalidateTimer.current);
+    invalidateTimer.current = setTimeout(() => {
+      invalidateTimer.current = null;
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }, 400);
   });
 
   const [searchInput, setSearchInput] = useState(query);
@@ -183,13 +183,15 @@ export function TasksClient() {
   /** One optimistic write path for every partial update — status moves, board
    *  drags ({status, rank}), todos edits, and the full edit form. */
   const patchTask = async (id: string, patch: TaskPatch & { rank?: string }): Promise<boolean> => {
-    const before = tasks;
+    // Row-scoped revert: restoring the whole snapshot would clobber writes
+    // that landed on OTHER rows while this one was in flight (review catch).
+    const beforeRow = tasks.find((t) => t.id === id);
     setTasks((prev) => prev.map((t) => (t.id === id ? ({ ...t, ...patch } as TaskRow) : t)));
     let task: TaskRow;
     try {
       ({ task } = await apiSend<{ task: TaskRow }>(`/api/tasks/${id}`, 'PATCH', patch));
     } catch (e) {
-      setTasks(before); // revert
+      if (beforeRow) setTasks((prev) => prev.map((t) => (t.id === id ? beforeRow : t)));
       if (e instanceof ApiError && e.status === 401) return false; // already bounced to /login
       toast.error(e instanceof Error ? e.message : 'Could not update task');
       return false;
@@ -254,7 +256,9 @@ export function TasksClient() {
       type="single"
       value={view}
       onValueChange={(v) => {
-        if (v && v !== view) go({ view: v === 'board' ? 'board' : null, page: null });
+        // The board shows every status as a column, so a sticky per-status
+        // filter would silently contradict the URL — clear it on switch.
+        if (v && v !== view) go({ view: v === 'board' ? 'board' : null, status: null, page: null });
       }}
       aria-label="View"
     >
@@ -353,6 +357,14 @@ export function TasksClient() {
             onMove={moveTask}
           />
         </div>
+        {/* The board loads one capped page — say so rather than truncating
+            silently (the task_list tool's `truncated` flag, UI edition). */}
+        {(boardQuery.data?.total ?? 0) > (boardQuery.data?.tasks.length ?? 0) && (
+          <p className="border-t border-border px-3 py-1.5 text-xs text-muted-foreground">
+            Showing {boardQuery.data?.tasks.length} of {boardQuery.data?.total} tasks — narrow with
+            search or a priority filter to see the rest.
+          </p>
+        )}
         {detailSheet}
       </div>
     );
@@ -487,7 +499,7 @@ export function TasksClient() {
                                 : 'text-muted-foreground',
                             )}
                           >
-                            {dueLabel(t.dueAt)}
+                            {dueLabel(t.dueAt, { todayAsTime: true })}
                           </span>
                         )}
                       </div>

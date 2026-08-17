@@ -19,6 +19,7 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { formatDayTime } from '@mantle/web-ui/lib/format-datetime';
 import type { NodeComment } from '@mantle/client-types';
 
 const ROLE_CHIP: Record<NodeComment['authorKind'], string | null> = {
@@ -26,16 +27,6 @@ const ROLE_CHIP: Record<NodeComment['authorKind'], string | null> = {
   member: null, // members mostly read each other — the name is enough
   agent: 'Assistant',
 };
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
 
 export function TeamTaskComments({ nodeId }: { nodeId: string }) {
   const queryClient = useQueryClient();
@@ -106,7 +97,7 @@ export function TeamTaskComments({ nodeId }: { nodeId: string }) {
                     {ROLE_CHIP[c.authorKind]}
                   </span>
                 )}
-                <span className="text-muted-foreground">{formatTime(c.createdAt)}</span>
+                <span className="text-muted-foreground">{formatDayTime(c.createdAt)}</span>
                 {c.editedAt && <span className="text-muted-foreground">(edited)</span>}
               </div>
               <div className="prose prose-sm dark:prose-invert prose-accent mt-1 max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0">

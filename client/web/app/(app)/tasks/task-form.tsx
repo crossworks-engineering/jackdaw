@@ -16,9 +16,6 @@ import { TagInput } from '@/components/tag-input';
 import { DateTimePicker } from '@mantle/web-ui/ui/date-time-picker';
 import { PRIORITIES, STATUSES, STATUS_LABEL, type Priority, type Status } from './task-meta';
 
-// Kept for older import sites; the canonical home is ./task-meta.
-export { PRIORITIES, type Priority };
-
 export type TaskFormValues = {
   title: string;
   body: string;
