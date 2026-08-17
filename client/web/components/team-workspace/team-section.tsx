@@ -437,7 +437,12 @@ export function TeamSection({
               </OpenShare>
             </div>
             {!isCrossOrigin() ? (
-              <ShareReader key={selected.token} token={selected.token} title={selected.title} />
+              <ShareReader
+                key={selected.token}
+                token={selected.token}
+                title={selected.title}
+                nodeId={selected.nodeId}
+              />
             ) : (
               // Genuinely cross-origin client: inline reading would strand the
               // cookie-authenticated subresources (page images, downloads), so

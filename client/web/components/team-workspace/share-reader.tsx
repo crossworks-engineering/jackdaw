@@ -38,6 +38,7 @@ import { FormulaCalculator } from '@mantle/share-ui/formula-calculator';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { Download, File as FileIcon, Folder as FolderIcon, ExternalLink } from 'lucide-react';
 import { OpenShare } from './open-on-server';
+import { TeamTaskComments } from './team-task-comments';
 
 type LoadState =
   | { phase: 'loading' }
@@ -48,7 +49,17 @@ type LoadState =
 
 const assetUrl = (token: string) => (fileId: string) => `/s/${token}/a/${fileId}`;
 
-export function ShareReader({ token, title }: { token: string; title: string }) {
+export function ShareReader({
+  token,
+  title,
+  nodeId,
+}: {
+  token: string;
+  title: string;
+  /** When set and the share is a task, a member comment thread renders under
+   *  the presenter (POST/GET /api/team/comments — gated on the active share). */
+  nodeId?: string;
+}) {
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
 
   const load = useCallback(
@@ -130,7 +141,12 @@ export function ShareReader({ token, title }: { token: string; title: string }) 
       {view.kind === 'page' && <PageReader view={view} />}
       {view.kind === 'note' && <NotePresenter view={view} />}
       {view.kind === 'draw' && <DrawPresenter view={view} src={`/s/${token}/draw`} />}
-      {view.kind === 'task' && <TaskPresenter view={view} />}
+      {view.kind === 'task' && (
+        <>
+          <TaskPresenter view={view} />
+          {nodeId && <TeamTaskComments nodeId={nodeId} />}
+        </>
+      )}
       {view.kind === 'event' && <EventPresenter view={view} />}
       {view.kind === 'file' && <FilePresenter view={view} assetUrl={assetUrl(token)} />}
       {view.kind === 'table' && <TablePresenter view={view} token={token} />}

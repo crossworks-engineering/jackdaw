@@ -5,15 +5,24 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { TagInput } from '@/components/tag-input';
 import { DateTimePicker } from '@mantle/web-ui/ui/date-time-picker';
+import { PRIORITIES, STATUSES, STATUS_LABEL, type Priority, type Status } from './task-meta';
 
-export const PRIORITIES = ['low', 'normal', 'high'] as const;
-export type Priority = (typeof PRIORITIES)[number];
+// Kept for older import sites; the canonical home is ./task-meta.
+export { PRIORITIES, type Priority };
 
 export type TaskFormValues = {
   title: string;
   body: string;
+  status: Status;
   priority: Priority;
   due: Date | null;
   tags: string[];
@@ -22,6 +31,7 @@ export type TaskFormValues = {
 export type TaskPayload = {
   title: string;
   body: string;
+  status: Status;
   priority: Priority;
   dueAt: string | null;
   tags: string[];
@@ -30,6 +40,7 @@ export type TaskPayload = {
 export const emptyTaskForm = (): TaskFormValues => ({
   title: '',
   body: '',
+  status: 'open',
   priority: 'normal',
   due: null,
   tags: [],
@@ -38,6 +49,7 @@ export const emptyTaskForm = (): TaskFormValues => ({
 export function taskToForm(t: {
   title: string;
   body: string;
+  status: Status;
   priority: Priority;
   dueAt: string | null;
   tags: string[];
@@ -45,6 +57,7 @@ export function taskToForm(t: {
   return {
     title: t.title,
     body: t.body,
+    status: t.status,
     priority: t.priority,
     due: t.dueAt ? new Date(t.dueAt) : null,
     tags: t.tags,
@@ -79,6 +92,7 @@ export function TaskForm({
     await onSubmit({
       title: form.title.trim(),
       body: form.body,
+      status: form.status,
       priority: form.priority,
       dueAt: form.due ? form.due.toISOString() : null,
       tags: form.tags.map((t) => t.trim().toLowerCase()).filter(Boolean),
@@ -101,30 +115,52 @@ export function TaskForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="task-priority">Priority</Label>
-          <select
-            id="task-priority"
-            value={form.priority}
-            onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Label htmlFor="task-status">Status</Label>
+          <Select
+            value={form.status}
+            onValueChange={(status) => setForm({ ...form, status: status as Status })}
           >
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="task-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="task-due">Due (optional)</Label>
-          <DateTimePicker
-            id="task-due"
-            value={form.due}
-            onChange={(due) => setForm({ ...form, due })}
-            placeholder="No due date"
-            clearable
-          />
+          <Label htmlFor="task-priority">Priority</Label>
+          <Select
+            value={form.priority}
+            onValueChange={(priority) => setForm({ ...form, priority: priority as Priority })}
+          >
+            <SelectTrigger id="task-priority">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITIES.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="task-due">Due (optional)</Label>
+        <DateTimePicker
+          id="task-due"
+          value={form.due}
+          onChange={(due) => setForm({ ...form, due })}
+          placeholder="No due date"
+          clearable
+        />
       </div>
 
       <div className="space-y-1.5">

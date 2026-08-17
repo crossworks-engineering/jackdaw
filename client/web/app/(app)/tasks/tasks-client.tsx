@@ -3,10 +3,19 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ListTodo, Plus, Search } from 'lucide-react';
+import { Check, ListTodo, MessageSquare, Plus, Search, SquareKanban, List } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@mantle/web-ui/ui/sheet';
+import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { syncSelectionParam } from '@/lib/url-sync';
@@ -15,10 +24,12 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
-import { TaskForm, emptyTaskForm, PRIORITIES, type Priority, type TaskPayload } from './task-form';
-import { TaskDetail, type Status, type TaskRow } from './task-detail';
+import { useRealtime } from '@/components/realtime/use-realtime';
+import { TaskForm, emptyTaskForm, type TaskPayload } from './task-form';
+import { TaskDetail, type TaskPatch, type TaskRow } from './task-detail';
+import { TaskBoard, type BoardMove } from './task-board';
+import { PRIORITIES, STATUSES, STATUS_LABEL, type Priority, type Status } from './task-meta';
 
-const STATUSES = ['open', 'done'] as const;
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
 
 function dueLabel(iso: string): string {
@@ -50,6 +61,8 @@ export function TasksClient() {
   const status = (searchParams.get('status')?.trim() || 'open') as Status | 'all';
   const priority = (searchParams.get('priority')?.trim() || 'all') as Priority | 'all';
   const urlSelected = searchParams.get('selected')?.trim() || null;
+  const view: 'list' | 'board' = searchParams.get('view') === 'board' ? 'board' : 'list';
+  const isBoard = view === 'board';
 
   const listQuery = useQuery({
     queryKey: ['tasks', { q: query, status, priority, page }],
@@ -62,41 +75,67 @@ export function TasksClient() {
       return apiFetch<TasksListResponse>(`/api/tasks?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
+    enabled: !isBoard,
   });
+
+  // The board loads every column in one call (server caps pageSize at 500) —
+  // status comes from the columns themselves, so only q/priority filter it.
+  const boardQuery = useQuery({
+    queryKey: ['tasks', 'board', { q: query, priority }],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (query) qs.set('q', query);
+      qs.set('status', 'all');
+      if (priority !== 'all') qs.set('priority', priority);
+      qs.set('pageSize', '500');
+      return apiFetch<TasksListResponse>(`/api/tasks?${qs.toString()}`);
+    },
+    placeholderData: (prev) => prev,
+    enabled: isBoard,
+  });
+
+  const activeQuery = isBoard ? boardQuery : listQuery;
 
   // A deep-linked task (`?selected=`) may sit outside the current slice or be
   // filtered out — fetch it directly so the detail pane can still open it.
   const selectedTaskQuery = useQuery({
     queryKey: ['tasks', urlSelected],
     queryFn: () => apiFetch<{ task: TaskRow }>(`/api/tasks/${urlSelected}`).then((r) => r.task),
-    enabled: !!urlSelected && !(listQuery.data?.tasks ?? []).some((t) => t.id === urlSelected),
+    enabled: !!urlSelected && !(activeQuery.data?.tasks ?? []).some((t) => t.id === urlSelected),
   });
 
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
 
   // Local working copy of the list, so mutations can update optimistically. Seeded
-  // from the query (+ a deep-linked task pinned at the top); the seed effect below
-  // reconciles it whenever the server data changes (incl. after a mutation's invalidate).
+  // from the active query (+ a deep-linked task pinned at the top); the seed effect
+  // reconciles it whenever the server data changes (incl. after an invalidate).
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   useEffect(() => {
-    const base = listQuery.data?.tasks ?? [];
+    const base = activeQuery.data?.tasks ?? [];
     const extra =
       selectedTaskQuery.data && !base.some((t) => t.id === selectedTaskQuery.data!.id)
         ? [selectedTaskQuery.data]
         : [];
     setTasks([...extra, ...base]);
-  }, [listQuery.data, selectedTaskQuery.data]);
+  }, [activeQuery.data, selectedTaskQuery.data]);
+
+  // Live repaint: another tab, an agent, or a team member touching tasks or
+  // comments shows up without a manual reload (events-client precedent).
+  useRealtime(['task'], () => {
+    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  });
 
   const [searchInput, setSearchInput] = useState(query);
   const [pending, startTransition] = useTransition();
   // null = "not yet defaulted"; the effect below picks the first task / create
-  // mode once the list loads, unless the URL deep-links a selection.
+  // mode once the list loads, unless the URL deep-links a selection. The board
+  // starts unselected (its detail opens in a sheet on click).
   const [sel, setSel] = useState<Selection>(urlSelected ? { mode: 'view', id: urlSelected } : null);
   useEffect(() => {
-    if (sel !== null) return;
+    if (isBoard || sel !== null) return;
     setSel(tasks[0] ? { mode: 'view', id: tasks[0].id } : { mode: 'create' });
-  }, [tasks, sel]);
+  }, [tasks, sel, isBoard]);
 
   // Reflect the selected task in the URL (?selected=) as the user clicks
   // around — copy-/share-/bookmark-able, and aligned with the `/n/<id>`
@@ -140,11 +179,16 @@ export function TasksClient() {
     });
   };
 
-  const saveTask = async (id: string, payload: TaskPayload): Promise<boolean> => {
+  /** One optimistic write path for every partial update — status moves, board
+   *  drags ({status, rank}), todos edits, and the full edit form. */
+  const patchTask = async (id: string, patch: TaskPatch & { rank?: string }): Promise<boolean> => {
+    const before = tasks;
+    setTasks((prev) => prev.map((t) => (t.id === id ? ({ ...t, ...patch } as TaskRow) : t)));
     let task: TaskRow;
     try {
-      ({ task } = await apiSend<{ task: TaskRow }>(`/api/tasks/${id}`, 'PATCH', payload));
+      ({ task } = await apiSend<{ task: TaskRow }>(`/api/tasks/${id}`, 'PATCH', patch));
     } catch (e) {
+      setTasks(before); // revert
       if (e instanceof ApiError && e.status === 401) return false; // already bounced to /login
       toast.error(e instanceof Error ? e.message : 'Could not update task');
       return false;
@@ -156,25 +200,10 @@ export function TasksClient() {
     return true;
   };
 
-  const toggleStatus = async (t: TaskRow) => {
-    const next: Status = t.status === 'open' ? 'done' : 'open';
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: next } : x))); // optimistic
-    let task: TaskRow;
-    try {
-      ({ task } = await apiSend<{ task: TaskRow }>(`/api/tasks/${t.id}`, 'PATCH', {
-        status: next,
-      }));
-    } catch (e) {
-      setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: t.status } : x))); // revert
-      if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
-      toast.error(e instanceof Error ? e.message : 'Could not update task');
-      return;
-    }
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? task : x)));
-    startTransition(async () => {
-      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    });
-  };
+  const toggleStatus = (t: TaskRow) =>
+    void patchTask(t.id, { status: t.status === 'done' ? 'open' : 'done' });
+
+  const moveTask = (m: BoardMove) => void patchTask(m.taskId, { status: m.status, rank: m.rank });
 
   const removeTask = async (id: string) => {
     try {
@@ -187,7 +216,11 @@ export function TasksClient() {
     toast.success('Task deleted');
     setTasks((prev) => {
       const nextList = prev.filter((t) => t.id !== id);
-      setSel(nextList[0] ? { mode: 'view', id: nextList[0].id } : { mode: 'create' });
+      if (isBoard) {
+        setSel(null);
+      } else {
+        setSel(nextList[0] ? { mode: 'view', id: nextList[0].id } : { mode: 'create' });
+      }
       return nextList;
     });
     startTransition(async () => {
@@ -195,22 +228,131 @@ export function TasksClient() {
     });
   };
 
-  if (listQuery.isPending) {
+  if (activeQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (listQuery.isError && !listQuery.data) {
+  if (activeQuery.isError && !activeQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
         <p className="text-muted-foreground">
-          {listQuery.error instanceof Error ? listQuery.error.message : 'Failed to load tasks.'}
+          {activeQuery.error instanceof Error ? activeQuery.error.message : 'Failed to load tasks.'}
         </p>
-        <Button variant="outline" size="sm" onClick={() => listQuery.refetch()}>
+        <Button variant="outline" size="sm" onClick={() => activeQuery.refetch()}>
           Retry
         </Button>
+      </div>
+    );
+  }
+
+  const viewToggle = (
+    <ToggleGroup
+      type="single"
+      value={view}
+      onValueChange={(v) => {
+        if (v && v !== view) go({ view: v === 'board' ? 'board' : null, page: null });
+      }}
+      aria-label="View"
+    >
+      <ToggleGroupItem value="list" aria-label="List view">
+        <List />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="board" aria-label="Board view">
+        <SquareKanban />
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+
+  const detailSheet = (
+    <Sheet open={sel !== null} onOpenChange={(open) => !open && setSel(null)}>
+      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-2xl">
+        {sel?.mode === 'create' ? (
+          <>
+            <SheetHeader className="p-6 pb-0">
+              <SheetTitle className="flex items-center gap-2">
+                <ListTodo className="size-5 text-primary-ink" aria-hidden /> New task
+              </SheetTitle>
+            </SheetHeader>
+            <div className="p-6 pt-4">
+              <TaskForm
+                initial={emptyTaskForm()}
+                submitLabel="Save task"
+                submitting={pending}
+                onSubmit={createTask}
+                onCancel={() => setSel(null)}
+              />
+            </div>
+          </>
+        ) : selected ? (
+          <>
+            <SheetHeader className="sr-only">
+              <SheetTitle>{selected.title}</SheetTitle>
+            </SheetHeader>
+            <TaskDetail
+              key={selected.id}
+              task={selected}
+              onToggleStatus={() => toggleStatus(selected)}
+              onSave={(payload) => patchTask(selected.id, payload)}
+              onPatch={(patch) => patchTask(selected.id, patch)}
+              onDelete={() => removeTask(selected.id)}
+            />
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+
+  if (isBoard) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Tasks
+          </h2>
+          <div className="relative ml-2 min-w-40 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search tasks…"
+              className="h-9 pl-8"
+            />
+          </div>
+          <Select
+            value={priority}
+            onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
+          >
+            <SelectTrigger className="h-9 w-36" aria-label="Filter by priority">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All priorities</SelectItem>
+              {PRIORITIES.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="ml-auto flex items-center gap-2">
+            {viewToggle}
+            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+              <Plus /> New
+            </Button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto md:flex md:flex-col md:overflow-hidden">
+          <TaskBoard
+            tasks={tasks}
+            selectedId={sel?.mode === 'view' ? sel.id : null}
+            onSelect={(id) => setSel({ mode: 'view', id })}
+            onMove={moveTask}
+          />
+        </div>
+        {detailSheet}
       </div>
     );
   }
@@ -223,9 +365,12 @@ export function TasksClient() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Tasks
           </h2>
-          <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-            <Plus /> New
-          </Button>
+          <div className="flex items-center gap-2">
+            {viewToggle}
+            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+              <Plus /> New
+            </Button>
+          </div>
         </div>
         <div className="space-y-2 border-b border-border p-3">
           <div className="relative">
@@ -238,34 +383,35 @@ export function TasksClient() {
             />
           </div>
           <div className="flex gap-2">
-            <select
-              value={status}
-              onChange={(e) => go({ status: e.target.value, page: null })}
-              className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-              aria-label="Filter by status"
-            >
-              <option value="all">All status</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <select
+            <Select value={status} onValueChange={(v) => go({ status: v, page: null })}>
+              <SelectTrigger className="h-9 flex-1" aria-label="Filter by status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All status</SelectItem>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
               value={priority}
-              onChange={(e) =>
-                go({ priority: e.target.value === 'all' ? null : e.target.value, page: null })
-              }
-              className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-              aria-label="Filter by priority"
+              onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
             >
-              <option value="all">All priorities</option>
-              {PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-9 flex-1" aria-label="Filter by priority">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All priorities</SelectItem>
+                {PRIORITIES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
@@ -284,6 +430,7 @@ export function TasksClient() {
               const isSel = sel?.mode === 'view' && sel.id === t.id;
               const done = t.status === 'done';
               const overdue = !!t.dueAt && new Date(t.dueAt) < new Date() && !done;
+              const todosDone = t.todos.filter((x) => x.done).length;
               return (
                 <ListCard
                   key={t.id}
@@ -344,6 +491,27 @@ export function TasksClient() {
                           {t.body || t.summary}
                         </p>
                       )}
+                      {(t.status === 'in_progress' ||
+                        t.status === 'blocked' ||
+                        t.todos.length > 0 ||
+                        t.commentCount > 0) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          {(t.status === 'in_progress' || t.status === 'blocked') && (
+                            <span>{STATUS_LABEL[t.status]}</span>
+                          )}
+                          {t.todos.length > 0 && (
+                            <span className="tabular-nums">
+                              {todosDone}/{t.todos.length} steps
+                            </span>
+                          )}
+                          {t.commentCount > 0 && (
+                            <span className="inline-flex items-center gap-1 tabular-nums">
+                              <MessageSquare className="size-3" />
+                              {t.commentCount}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {t.tags.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {t.tags.map((tag) => (
@@ -368,7 +536,7 @@ export function TasksClient() {
       </div>
 
       {/* ── Right: create | detail | empty ───────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
+      <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
         {sel?.mode === 'create' ? (
           <div className="space-y-4 p-6">
             <div className="flex items-center gap-2">
@@ -390,7 +558,8 @@ export function TasksClient() {
             key={selected.id}
             task={selected}
             onToggleStatus={() => toggleStatus(selected)}
-            onSave={(payload) => saveTask(selected.id, payload)}
+            onSave={(payload) => patchTask(selected.id, payload)}
+            onPatch={(patch) => patchTask(selected.id, patch)}
             onDelete={() => removeTask(selected.id)}
           />
         ) : (

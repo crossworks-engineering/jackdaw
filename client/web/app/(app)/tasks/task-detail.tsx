@@ -15,24 +15,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
+import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ShareControl } from '@/components/share-control';
-import { TaskForm, taskToForm, type Priority, type TaskPayload } from './task-form';
-import type { TaskRow } from '@mantle/client-types';
-
-export type Status = 'open' | 'done';
+import { TaskForm, taskToForm, type TaskPayload } from './task-form';
+import { PRIORITY_BADGE, STATUSES, STATUS_BADGE, STATUS_LABEL, type Status } from './task-meta';
+import { TaskTodos } from './task-todos';
+import { TaskComments } from './task-comments';
+import type { TaskRow, TaskTodo } from '@mantle/client-types';
 
 // Wire shape is the GET /api/tasks mapper's output — single source of truth.
 // Re-exported so the list client keeps importing it from here; a drift between
 // the @mantle/content row and what this screen renders is now a compile error.
 export type { TaskRow };
+export type { Status };
 
-const PRIORITY_BADGE: Record<Priority, string> = {
-  low: 'bg-muted text-muted-foreground',
-  normal: 'bg-muted text-foreground',
-  high: 'bg-destructive/15 text-destructive-ink',
-};
+/** A partial task write (status move, todos edit) — subset of the form payload. */
+export type TaskPatch = Partial<TaskPayload> & { todos?: TaskTodo[] };
 
 /**
  * Presentational task detail — the client owns the tasks list + all fetches and
@@ -43,11 +50,13 @@ export function TaskDetail({
   task,
   onToggleStatus,
   onSave,
+  onPatch,
   onDelete,
 }: {
   task: TaskRow;
   onToggleStatus: () => void;
   onSave: (payload: TaskPayload) => Promise<boolean>;
+  onPatch: (patch: TaskPatch) => Promise<boolean>;
   onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -116,6 +125,27 @@ export function TaskDetail({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Select
+              value={task.status}
+              onValueChange={(status) => void onPatch({ status: status as Status })}
+            >
+              <SelectTrigger
+                aria-label="Status"
+                className={cn(
+                  'h-7 w-auto gap-1.5 rounded-full border-0 px-2.5 text-xs',
+                  STATUS_BADGE[task.status],
+                )}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span
               className={cn(
                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5',
@@ -124,7 +154,6 @@ export function TaskDetail({
             >
               <Flag className="size-3" /> {task.priority}
             </span>
-            <span className="text-muted-foreground">{done ? 'Done' : 'Open'}</span>
             {task.dueAt && (
               <span
                 className={cn(
@@ -140,12 +169,7 @@ export function TaskDetail({
           {task.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {task.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                >
-                  {t}
-                </span>
+                <TagPill key={t} tag={t} />
               ))}
             </div>
           )}
@@ -157,9 +181,14 @@ export function TaskDetail({
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.body}</ReactMarkdown>
         </article>
       )}
+
+      <TaskTodos todos={task.todos} onChange={(todos) => void onPatch({ todos })} />
+
       {task.summary && (
         <p className="text-xs italic text-muted-foreground">Indexed: {task.summary}</p>
       )}
+
+      <TaskComments taskId={task.id} />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
