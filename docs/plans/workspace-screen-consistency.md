@@ -133,6 +133,31 @@ Each ported screen gets a spec (`e2e/specs/<screen>.spec.ts`). Keep them about
 the PORT — the scaffold, the header, the validation — not the domain; the domain
 already has its own coverage or does not need any.
 
+**⚠ `apps` is BLOCKED on a `MasterDetail` decision, so do it last.** It is the
+one 2a screen with focus mode (`focusGridClass`, `components/layout/
+focus-layout.ts`): in zen the list column collapses to zero and the preview
+takes the full width, and the list is **hidden, never unmounted**, so its search
+box, scroll position and page survive the round trip. `MasterDetail` has no
+equivalent — it renders the list panel or it doesn't. Porting `apps` therefore
+means first teaching `MasterDetail` to collapse a still-mounted list, which is a
+design change to a shared primitive rather than the mechanical port the other
+screens are. Do not fake it by unmounting: that is the behaviour the helper's
+comment exists to prevent.
+
+`draw` and `pages` share the same helper, but they are phase 3 and the plan
+already says not to force the master-detail shape onto them — so this decision
+is only load-bearing for `apps`.
+
+**Shape of what is left in 2a** (checked, so the next session can pick by size):
+
+| screen | scaffold | notable |
+|---|---|---|
+| `models` | `md:grid-cols-[360px_1fr]` | no raw controls; smallest remaining |
+| `runs` | `md:grid-cols-[360px_1fr]` | no raw controls |
+| `sandboxes` | `md:grid-cols-[340px_1fr]` | bare `<Label>` to convert |
+| `formulas` | `md:grid-cols-[…]` | ~2200 lines, a nested `lg:grid` editor of its own — budget a whole session |
+| `apps` | `focusGridClass` | blocked, see above |
+
 **2b. Settings** — `accounts`, `agents`, `ai-workers`, `heartbeats`, `keys`,
 `peers`, `skills`, `tools`, `tool-groups`, `users`, `worker-groups`, `config`
 
