@@ -14,6 +14,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import type { ThoughtEvent } from './use-turn-stream';
 import { liveTrailView } from './thought-trail-view';
 
@@ -138,16 +139,13 @@ function StatusFooter({
       {/* The narrator line — the warm, prominent "what I'm doing right now",
           larger than the trail and shimmering while the turn runs. */}
       <div className="flex items-start gap-2">
-        <Sparkles
-          className="mt-[3px] size-4 shrink-0 animate-pulse text-foreground/50"
-          aria-hidden
-        />
+        <AiThinkingOrb label={label} className="mt-px size-5 shrink-0" />
         <p className="mantle-shimmer-text min-w-0 break-words text-[0.95rem] font-medium leading-relaxed">
           {cleanLabel(label)}
         </p>
       </div>
       {meta.length > 0 && (
-        <div className="mt-1 pl-6 text-[11px] tabular-nums text-muted-foreground/70">
+        <div className="mt-1 pl-7 text-[11px] tabular-nums text-muted-foreground/70">
           {meta.join(' · ')}
         </div>
       )}

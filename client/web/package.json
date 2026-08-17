@@ -20,6 +20,9 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@excalidraw/excalidraw": "0.18.1",
     "@mantle/client-types": "npm:@crossworks/client-types@0.230.62",
+    "@mantle/content-core": "npm:@crossworks/content-core@0.230.62",
+    "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.62",
+    "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.62",
     "@mantle/web-ui": "workspace:*",
     "@tanstack/react-query": "^5.101.3",
     "@tanstack/react-table": "^8.21.3",
@@ -57,25 +60,23 @@
     "recharts": "^3.10.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.3",
+    "thinking-orbs": "^0.3.1",
     "yaml": "^2.9.0",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14",
-    "@mantle/content-core": "npm:@crossworks/content-core@0.230.62",
-    "@mantle/voice-client": "npm:@crossworks/voice-client@0.230.62",
-    "@mantle/share-ui": "npm:@crossworks/share-ui@0.230.62"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@mantle/app-build": "npm:@crossworks/app-build@0.230.62",
     "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/dagre": "^0.7.52",
     "@types/node": "^22.20.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.5.21",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.2",
-    "@mantle/app-build": "npm:@crossworks/app-build@0.230.62",
-    "tsx": "^4.20.7",
     "tailwindcss-animate": "^1.0.7",
-    "@tailwindcss/typography": "^0.5.20"
+    "tsx": "^4.20.7",
+    "typescript": "^5.7.2"
   }
 }

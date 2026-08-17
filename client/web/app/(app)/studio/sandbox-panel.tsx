@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, RotateCcw, Send } from 'lucide-react';
 import { apiSend } from '@mantle/web-ui/api-fetch';
+import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 
@@ -121,7 +122,7 @@ export function SandboxPanel({ agentId, agentName }: { agentId: string; agentNam
           ))}
           {busy && (
             <div className="self-start flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1.5 text-[13px] text-muted-foreground">
-              <Loader2 className="size-3 animate-spin" aria-hidden /> thinking…
+              <AiThinkingOrb className="shrink-0" /> thinking…
             </div>
           )}
           <div ref={endRef} />

@@ -23,6 +23,7 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { KindBadge, TopicFlags, type ForumKind, type ForumStatus } from '@mantle/web-ui/forum-meta';
 import { teamFetch, teamEventStream } from '@mantle/web-ui/team-fetch';
+import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import {
   applyLiveTurnEvent,
   emptyLiveTurn,
@@ -87,11 +88,7 @@ function ThinkingBubble({ label }: { label: string | null }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-2xl bg-primary/10 px-3.5 py-3 text-foreground">
       <span className="sr-only">The assistant is working</span>
-      <span className="flex items-center gap-1" aria-hidden>
-        <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.3s]" />
-        <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.15s]" />
-        <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60" />
-      </span>
+      <AiThinkingOrb label={label} className="shrink-0" />
       {label && (
         <span className="text-xs text-current opacity-70" aria-hidden>
           {label}

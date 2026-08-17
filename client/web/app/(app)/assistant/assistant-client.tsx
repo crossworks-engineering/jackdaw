@@ -9,6 +9,7 @@ import {
 import { useTurnStage } from '@/components/assistant/use-turn-stage';
 import { useTurnStream, type ThoughtEvent } from '@/components/assistant/use-turn-stream';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
+import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import {
   ArrowDown,
   CornerDownLeft,
@@ -1417,11 +1418,7 @@ export function AssistantClient({
                                 className="inline-flex items-center gap-2 rounded-2xl px-3.5 py-3"
                                 style={{ backgroundColor: accent.soft }}
                               >
-                                <span className="flex items-center gap-1" aria-hidden>
-                                  <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.3s]" />
-                                  <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.15s]" />
-                                  <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60" />
-                                </span>
+                                <AiThinkingOrb className="shrink-0" />
                                 <span className="text-xs text-current opacity-70">
                                   {agentName ?? 'Assistant'} is working…
                                 </span>
@@ -1514,11 +1511,11 @@ export function AssistantClient({
                               </article>
                             )
                           ) : showTyping ? (
-                            // Once status events arrive, the typing dots give way to
+                            // Once status events arrive, the thinking orb gives way to
                             // the live thought trail building in place, and — when
                             // token streaming is on — the reply itself typing out
                             // below it. Before any of that (or on the poll fallback)
-                            // keep the classic dots. The streamed reply is advisory:
+                            // keep the thinking orb. The streamed reply is advisory:
                             // when the durable turn.response lands above, this whole
                             // branch is replaced by the authoritative <article>.
                             streamTrail.length > 0 || streamReply ? (
@@ -1564,11 +1561,7 @@ export function AssistantClient({
                                 <span className="sr-only">
                                   {agentName ?? 'Assistant'} is {stageLabel ?? 'typing'}
                                 </span>
-                                <span className="flex items-center gap-1" aria-hidden>
-                                  <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.3s]" />
-                                  <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:-0.15s]" />
-                                  <span className="size-1.5 animate-bounce rounded-full bg-current opacity-60" />
-                                </span>
+                                <AiThinkingOrb label={stageLabel} className="shrink-0" />
                                 {stageLabel && (
                                   <span className="text-xs text-current opacity-70" aria-hidden>
                                     {stageLabel}
@@ -1583,7 +1576,7 @@ export function AssistantClient({
                   })}
                   {foreignBusy && (
                     <li className="flex items-center gap-2 px-1 py-2 text-sm text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      <AiThinkingOrb className="shrink-0" />
                       {agentName ?? 'Assistant'} is working… (started elsewhere)
                     </li>
                   )}
