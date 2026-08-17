@@ -7,6 +7,14 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -121,140 +129,149 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
     refresh();
   };
 
-  return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: secret list ────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Secrets
-          </h2>
-          <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-            <Plus /> New
-          </Button>
-        </div>
-        <div className="flex items-center gap-2 border-b border-border p-3">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search…"
-              className="h-9 pl-8"
-            />
+  // ONE detail pane for all three states, as /tasks does it.
+  const detailPane =
+    sel?.mode === 'create' ? (
+      <div className="p-6">
+        {/* §6c: boxed, left-aligned card, width from the divider. */}
+        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <KeyRound className="size-5 text-primary-ink" aria-hidden />
+            <h2 className="text-lg font-semibold">New secret</h2>
           </div>
-          <select
-            value={kind}
-            onChange={(e) =>
-              go({ kind: e.target.value === 'all' ? null : e.target.value, page: null })
+          <p className="text-xs text-muted-foreground">
+            Stored sealed (AES-256-GCM). Only the title, description, and tags are indexed.
+          </p>
+          <SecretForm
+            initial={emptySecretForm()}
+            submitLabel="Save secret"
+            submitting={pending}
+            onSubmit={createSecret}
+            onCancel={() =>
+              setSel(secrets[0] ? { mode: 'view', id: secrets[0].id } : { mode: 'create' })
             }
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            aria-label="Filter by kind"
-          >
-            <option value="all">All</option>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {secrets.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              {filtering ? (
-                'No secrets match your search or filter.'
-              ) : (
-                <>
-                  No secrets yet. Click <strong>New</strong> to add one.
-                </>
-              )}
-            </p>
-          ) : (
-            secrets.map((s) => {
-              const isSel = sel?.mode === 'view' && sel.id === s.id;
-              return (
-                <ListCard
-                  key={s.id}
-                  onClick={() => setSel({ mode: 'view', id: s.id })}
-                  selected={isSel}
-                >
-                  <div className="flex items-center gap-2">
-                    <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="truncate text-sm font-medium">{s.title}</span>
-                    <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {s.kind}
-                    </span>
-                  </div>
-                  {(s.description || s.summary) && (
-                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                      {s.description || s.summary}
-                    </p>
-                  )}
-                  {(s.fieldCount > 0 || s.hasNote) && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                      {s.fieldCount > 0 && (
-                        <span>
-                          {s.fieldCount} field{s.fieldCount === 1 ? '' : 's'}
-                        </span>
-                      )}
-                      {s.hasNote && <span>· note</span>}
-                    </div>
-                  )}
-                  {s.tags.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {s.tags.map((t) => (
-                        <TagPill key={t} tag={t} />
-                      ))}
-                    </div>
-                  )}
-                </ListCard>
-              );
-            })
-          )}
-        </div>
-        <ListPager
-          page={page}
-          total={total}
-          pageSize={pageSize}
-          pending={navPending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
-
-      {/* ── Right: create form | detail | empty ──────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {sel?.mode === 'create' ? (
-          <div className="space-y-4 p-6">
-            <div>
-              <h2 className="text-lg font-semibold">New secret</h2>
-              <p className="text-xs text-muted-foreground">
-                Stored sealed (AES-256-GCM). Only the title, description, and tags are indexed.
-              </p>
-            </div>
-            <SecretForm
-              initial={emptySecretForm()}
-              submitLabel="Save secret"
-              submitting={pending}
-              onSubmit={createSecret}
-              onCancel={() =>
-                setSel(secrets[0] ? { mode: 'view', id: secrets[0].id } : { mode: 'create' })
-              }
-            />
-          </div>
-        ) : selected ? (
-          <SecretDetail
-            key={selected.id}
-            secret={selected}
-            onUpdated={onUpdated}
-            onDeleted={() => onDeleted(selected.id)}
           />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a secret, or add a new one.
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    ) : selected ? (
+      <SecretDetail
+        key={selected.id}
+        secret={selected}
+        onUpdated={onUpdated}
+        onDeleted={() => onDeleted(selected.id)}
+      />
+    ) : (
+      <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+        Select a secret, or add a new one.
+      </div>
+    );
+
+  return (
+    <MasterDetail
+      id="secrets"
+      list={
+        <>
+          {/* ── Left: secret list ────────────────────────────────── */}
+          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Secrets
+            </h2>
+            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+              <Plus /> New
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 border-b border-border p-3">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search…"
+                className="h-9 pl-8"
+              />
+            </div>
+            {/* Was a raw `<select>` — no focus ring, native chevron (§6d). */}
+            <Select
+              value={kind}
+              onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
+            >
+              <SelectTrigger className="h-9 w-28" aria-label="Filter by kind">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {secrets.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                {filtering ? (
+                  'No secrets match your search or filter.'
+                ) : (
+                  <>
+                    No secrets yet. Click <strong>New</strong> to add one.
+                  </>
+                )}
+              </p>
+            ) : (
+              secrets.map((s) => {
+                const isSel = sel?.mode === 'view' && sel.id === s.id;
+                return (
+                  <ListCard
+                    key={s.id}
+                    onClick={() => setSel({ mode: 'view', id: s.id })}
+                    selected={isSel}
+                  >
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="truncate text-sm font-medium">{s.title}</span>
+                      <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {s.kind}
+                      </span>
+                    </div>
+                    {(s.description || s.summary) && (
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                        {s.description || s.summary}
+                      </p>
+                    )}
+                    {(s.fieldCount > 0 || s.hasNote) && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                        {s.fieldCount > 0 && (
+                          <span>
+                            {s.fieldCount} field{s.fieldCount === 1 ? '' : 's'}
+                          </span>
+                        )}
+                        {s.hasNote && <span>· note</span>}
+                      </div>
+                    )}
+                    {s.tags.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {s.tags.map((t) => (
+                          <TagPill key={t} tag={t} />
+                        ))}
+                      </div>
+                    )}
+                  </ListCard>
+                );
+              })
+            )}
+          </div>
+          <ListPager
+            page={page}
+            total={total}
+            pageSize={pageSize}
+            pending={navPending}
+            onGo={(p) => go({ page: p > 1 ? p : null })}
+          />
+        </>
+      }
+      detail={detailPane}
+    />
   );
 }

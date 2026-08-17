@@ -82,14 +82,14 @@ rules in one edit.
 
 Ordered by traffic:
 
-**2a. Daily drivers** — ✅ `events`, ✅ `contacts`, ✅ `journal`, `secrets`,
+**2a. Daily drivers** — ✅ `events`, ✅ `contacts`, ✅ `journal`, ✅ `secrets`,
 `formulas`, `apps`, `models`, `runs`, `sandboxes`
 
 `events` first: it is the closest structural match to `tasks` and will prove
 the pattern travels. It also still centres its composer (`mx-auto max-w-2xl`),
 which §6c now says should hug the list.
 
-**What the first three taught us — read before picking up the next:**
+**What the first four taught us — read before picking up the next:**
 
 - **The pattern travels, and the port is mostly mechanical.** Scaffold →
   `<MasterDetail id="<screen>">`, form → `Field` family, raw `<select>`/
@@ -122,6 +122,12 @@ which §6c now says should hug the list.
   had the last one in the client, and on the detached topology it was broken
   outright: the CLIENT origin has no `/api` routes, so every save redirected to
   `/login`. `apiFetch`/`apiSend` are the only way to the brain.
+- **Watch for a domain type called `Field`.** Secrets has one (a label/value
+  pair), so there the UI primitive is imported as `Field as FormField` — alias
+  the primitive, not the wire type.
+- **A `<Label>` with no control is worse than no label.** Secrets' revealed note
+  had one; it is a caption (`<p className="text-sm font-medium">`) now. §6a is
+  about form controls, not read-only output.
 
 Each ported screen gets a spec (`e2e/specs/<screen>.spec.ts`). Keep them about
 the PORT — the scaffold, the header, the validation — not the domain; the domain
