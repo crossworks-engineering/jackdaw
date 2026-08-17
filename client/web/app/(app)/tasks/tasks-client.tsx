@@ -55,10 +55,11 @@ export function TasksClient() {
   const toast = useToast();
 
   // URL is the source of truth (matches the old SSR page). Status defaults to
-  // 'open' here (the GET defaults to 'all'), so send it explicitly.
+  // 'active' here — every not-done state — while the GET defaults to 'all',
+  // so send it explicitly.
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
-  const status = (searchParams.get('status')?.trim() || 'open') as Status | 'all';
+  const status = (searchParams.get('status')?.trim() || 'active') as Status | 'all' | 'active';
   const priority = (searchParams.get('priority')?.trim() || 'all') as Priority | 'all';
   const urlSelected = searchParams.get('selected')?.trim() || null;
   const view: 'list' | 'board' = searchParams.get('view') === 'board' ? 'board' : 'list';
@@ -159,7 +160,7 @@ export function TasksClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
-  const filtering = !!query || status !== 'open' || priority !== 'all';
+  const filtering = !!query || status !== 'active' || priority !== 'all';
   const selected = sel?.mode === 'view' ? (tasks.find((t) => t.id === sel.id) ?? null) : null;
 
   const createTask = async (payload: TaskPayload) => {
@@ -383,17 +384,21 @@ export function TasksClient() {
             />
           </div>
           <div className="flex gap-2">
-            <Select value={status} onValueChange={(v) => go({ status: v, page: null })}>
+            <Select
+              value={status}
+              onValueChange={(v) => go({ status: v === 'active' ? null : v, page: null })}
+            >
               <SelectTrigger className="h-9 flex-1" aria-label="Filter by status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
                 {STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>
                     {STATUS_LABEL[s]}
                   </SelectItem>
                 ))}
+                <SelectItem value="all">All status</SelectItem>
               </SelectContent>
             </Select>
             <Select
