@@ -56,6 +56,9 @@ function EventDetailInner({ initial }: { initial: EventRow }) {
         event={initial}
         onUpdated={(e) => setTitle(e.title)}
         onDeleted={() => router.push('/events')}
+        // This route has no panel divider to set the measure, so it supplies
+        // one. The /events pane deliberately passes nothing — see EventDetail.
+        className="mx-auto max-w-2xl"
       />
     </>
   );

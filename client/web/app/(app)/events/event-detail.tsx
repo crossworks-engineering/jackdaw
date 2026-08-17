@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import {
   Bell,
   CalendarCheck,
+  CalendarClock,
   CalendarPlus,
   Clock,
   MapPin,
@@ -12,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { cn } from '@mantle/web-ui/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +27,7 @@ import {
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { ShareControl } from '@/components/share-control';
+import { TagPill } from '@mantle/web-ui/tag-pill';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { useNow } from '@/components/use-now';
 import {
@@ -175,10 +178,18 @@ export function EventDetail({
   event,
   onUpdated,
   onDeleted,
+  className,
 }: {
   event: EventRow;
   onUpdated?: (e: EventRow) => void;
   onDeleted?: () => void;
+  /**
+   * Reading width. In the master-detail pane this is empty on purpose — the
+   * panel divider sets the measure, and a `max-w-*` here would stop the
+   * content growing when the user drags the pane wider. The `/events/[id]`
+   * deep link has no divider, so IT passes `mx-auto max-w-2xl`.
+   */
+  className?: string;
 }) {
   const toast = useToast();
   const now = useNow(1000);
@@ -220,15 +231,22 @@ export function EventDetail({
 
   if (editing) {
     return (
-      <div className="space-y-4 p-6">
-        <h2 className="text-lg font-semibold">Edit event</h2>
-        <EventForm
-          initial={eventToForm(meta)}
-          submitLabel="Save event"
-          submitting={pending}
-          onSubmit={saveEdit}
-          onCancel={() => setEditing(false)}
-        />
+      // Same boxed composer as the "New event" pane (§6c) — create and edit are
+      // the same form, so they get the same surface.
+      <div className={cn('p-6', className)}>
+        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Pencil className="size-5 text-primary-ink" aria-hidden />
+            <h2 className="text-lg font-semibold">Edit event</h2>
+          </div>
+          <EventForm
+            initial={eventToForm(meta)}
+            submitLabel="Save event"
+            submitting={pending}
+            onSubmit={saveEdit}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
       </div>
     );
   }
@@ -236,15 +254,20 @@ export function EventDetail({
   const ics = buildIcsHref(meta);
 
   return (
-    // Width-lock matches the contacts form (mx-auto max-w-2xl) so the detail
-    // doesn't sprawl across wide screens.
-    <div className="mx-auto max-w-2xl space-y-5 p-6">
+    <div className={cn('space-y-5 p-6', className)}>
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <Countdown event={meta} now={now} />
 
         <div className="min-w-0 flex-1 space-y-2">
+          {/* §8 "Detail header anatomy": the glyph lives INSIDE the h2 so it
+              shares the title's baseline, the title is `min-w-0 truncate`, the
+              actions are `shrink-0` and ordered least destructive to most.
+              Delete is icon-only and last. */}
           <div className="flex items-start justify-between gap-3">
-            <h2 className="min-w-0 text-xl font-semibold">{meta.title}</h2>
+            <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
+              <CalendarClock className="size-5 shrink-0 text-primary-ink" aria-hidden />
+              <span className="min-w-0 truncate">{meta.title}</span>
+            </h2>
             <div className="flex shrink-0 items-center gap-2">
               <ShareControl nodeId={meta.id} iconOnly teamMode />
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
@@ -252,16 +275,17 @@ export function EventDetail({
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
                 className="text-muted-foreground hover:text-destructive-ink"
                 onClick={() => setDeleteOpen(true)}
+                aria-label="Delete event"
               >
-                <Trash2 /> Delete
+                <Trash2 />
               </Button>
             </div>
           </div>
 
-          <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="size-4 shrink-0" aria-hidden />
             <span>
               {formatDateTime(meta.startsAt)}
@@ -269,11 +293,11 @@ export function EventDetail({
             </span>
           </p>
           {meta.location && (
-            <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="size-4 shrink-0" aria-hidden /> {meta.location}
             </p>
           )}
-          <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Bell className="size-3.5 shrink-0" aria-hidden />
             {meta.reminderSentAt
               ? `Reminder sent ${formatDateTime(meta.reminderSentAt)}`
@@ -284,7 +308,7 @@ export function EventDetail({
                 } · fires ${formatDateTime(meta.remindAt)}`}
           </p>
           {meta.recur !== 'none' && (
-            <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <Repeat className="size-3.5 shrink-0" aria-hidden />
               <span className="capitalize">{meta.recur}</span>
               {meta.recurUntil && (
@@ -293,14 +317,12 @@ export function EventDetail({
             </p>
           )}
           {meta.tags.length > 0 && (
+            // §9: `<TagPill>`, not a hand-rolled muted pill. The list card next
+            // to this one already used it, so the same tag rendered two colours
+            // depending on which side of the divider you looked at.
             <div className="flex flex-wrap gap-1 pt-0.5">
               {meta.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                >
-                  {t}
-                </span>
+                <TagPill key={t} tag={t} />
               ))}
             </div>
           )}
