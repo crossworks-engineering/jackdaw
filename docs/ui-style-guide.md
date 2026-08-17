@@ -334,14 +334,16 @@ is no message, so it can be mounted unconditionally:
 **Put the error inside the `Field` it belongs to**, not at the foot of the
 form. `role="alert"` only helps if it names the control the user is standing on.
 
-### 6c. The composer surface: boxed, capped, left-aligned
+### 6c. The composer surface: boxed, left, width from the panel
 
-A create/edit form in a master-detail right pane is a **card**, not a bare
-pane. Same treatment for create and edit; they are the same form.
+A create/edit form in a master-detail detail pane is a **card**, not a bare
+pane. Same treatment for create and edit; they are the same form. The read
+view gets the same column, so opening a record and editing it do not change
+width under you.
 
 ```tsx
 <div className="p-6">
-  <div className="w-full max-w-2xl space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+  <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
     <div className="flex items-center gap-2">
       <ListTodo className="size-5 text-primary-ink" aria-hidden />
       <h2 className="text-lg font-semibold">New task</h2>
@@ -351,14 +353,22 @@ pane. Same treatment for create and edit; they are the same form.
 </div>
 ```
 
-- **`max-w-2xl`.** An uncapped form stretches to the full `1fr` track and the
-  line length becomes unreadable on a wide screen.
-- **Left-aligned, no `mx-auto`.** The composer tugs against the list it adds
-  to. Events and contacts still centre theirs; **Tasks is the new norm** and
-  they are the ones to change.
+- **No `max-w-*` here.** The form fills its panel, and `<MasterDetail>` gives
+  that panel a default width of `672px` with a drag handle on its right edge
+  (§8). A cap here would fight the handle: the user drags, and the form
+  refuses to follow. The measure is still protected — it is just protected by
+  the panel, in one place, rather than re-declared per screen.
+- **Tucked left, never centred.** The composer sits against the list it adds
+  to. That is what the empty third panel in §8 is for: it holds the slack on
+  the right so the form does not drift to the middle of a wide display.
+  Events and contacts still centre theirs (`mx-auto max-w-2xl`); **Tasks is
+  the norm** and they are the ones to change.
 - `bg-card` + `shadow-sm` is what separates the composer from the pane. It is
   also what exposes any field that does not match its siblings, which is a
   feature.
+- The read view takes the card treatment only if its content is *not* already
+  cards. Tasks does not box it, because the body, checklist and comments are
+  cards already and a wrapper would nest borders three deep.
 
 ### 6d. Text boxes
 
@@ -597,10 +607,11 @@ Rules:
   ```
 - **Auto-select the first item** so the right pane is never blank:
   `selected ?? items[0]`.
-- **Editor header (right pane):** title + one-line description on the left;
-  top-right holds boolean flags as shadcn **`Switch`es** (Enabled,
-  Default-for-kind, …) and a ghost **Delete** (`text-destructive`). Form body
-  has the rest; Save/Cancel footer. Delete → `AlertDialog`. Don't put the
+- **Editor header (right pane):** anatomy, action order and the delete idiom
+  are in **"Detail header anatomy"** below — follow that, not this bullet's
+  older description. What is specific to settings editors: top-right also
+  holds boolean flags as shadcn **`Switch`es** (Enabled, Default-for-kind, …),
+  the form body has the rest, and there is a Save/Cancel footer. Don't put the
   Enabled toggle in the form body; it lives in the header.
 - **Selection model, pick one:**
   - *Client state* when the list rows already hold everything the detail needs
