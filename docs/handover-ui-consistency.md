@@ -5,9 +5,10 @@
 the rest of the app, per
 [`plans/workspace-screen-consistency.md`](./plans/workspace-screen-consistency.md).
 
-**Phase 1 is done. Phase 2a is 7 of 9.** The plan document is the authority on
-what is left and what the ports taught us — read its §2a table before picking up
-a screen. This file is the state of the world around it.
+**Phase 1 is done. Phase 2a is 8 of 9 — every unblocked screen.** The plan
+document is the authority on what is left and what the ports taught us — read
+its §2a table before picking up a screen. This file is the state of the world
+around it.
 
 This supersedes the first handover of the same name; §1 of that one (write the
 Tasks e2e tests) is finished and its content now lives in §1a below.
@@ -60,10 +61,10 @@ a coding decision. The specs exist to make that review cheap.
   non-delete, text-only buttons stay red on purpose; §8 records why so nobody
   "finishes" the sweep.
 
-### Phase 2a — 7 of 9 screens
+### Phase 2a — 8 of 9 screens
 
-`events`, `contacts`, `journal`, `secrets`, `models`, `runs`, `sandboxes`.
-`formulas` and `apps` remain — **`apps` is blocked**, see §3.
+`events`, `contacts`, `journal`, `secrets`, `models`, `runs`, `sandboxes`,
+`formulas`. Only `apps` remains, and it is **blocked** — see §3.
 
 Per-screen detail is in the commits. The transferable lessons are in the plan's
 §2a "what the ports taught us" list; do not re-derive them.
@@ -89,9 +90,7 @@ Per-screen detail is in the commits. The transferable lessons are in the plan's
 
 **Read the plan's §2a table first.** Then, in preference order:
 
-1. **`formulas`** — the last unblocked 2a screen. ~2200 lines with a nested
-   `lg:grid` editor of its own; budget a session, not a slot in a batch.
-2. **Decide the `apps` question**, which unblocks the last 2a screen *and* is
+1. **Decide the `apps` question**, which unblocks the last 2a screen *and* is
    the same capability phase 3 wants for `pages` and `draw`. `apps` uses
    `focusGridClass` (`components/layout/focus-layout.ts`): in focus mode the
    list column collapses to zero and the preview goes full width, and the list
@@ -100,7 +99,10 @@ Per-screen detail is in the commits. The transferable lessons are in the plan's
    it has no third state. Teaching it to collapse a still-mounted list is a
    design change to a shared primitive. **Do not fake it by unmounting**; that
    is exactly what the helper's own comment exists to prevent.
-3. **Phase 2b, the 12 settings screens** — the largest cluster and the most
+   `formulas` now wants the same capability for a second reason: its editor
+   replaces the whole screen, so opening it unmounts `MasterDetail` and loses
+   the list's scroll position. One decision, two screens.
+2. **Phase 2b, the 12 settings screens** — the largest cluster and the most
    forms, so the most §6a/§6b value. Also the ones that need a brain with real
    data (§4).
 
@@ -159,14 +161,17 @@ workstation. Disposable DB; a real box would want its own credentials.
 `/sandboxes` shows an explainer. Phase 2b is exactly that cluster — check it
 against a brain with real data, not this one.
 
-**Suite status on this brain:** 55 pass, 2 skip, 1 fail.
+**Suite status on this brain:** 71 pass, 51 skip, 2 fail — both projects, one
+`pnpm -C e2e e2e` run.
 
-- Skipped: the PDF spec (`E2E_SKIP_PDF=1`, no browserless sidecar) and the
-  `/sandboxes` row (feature off — it skips out loud, because a silent skip reads
-  like a pass).
-- Failing: `team.spec.ts` — it mints a contact team token and the gate never
-  renders. **Pre-existing**; it fails identically with none of this work
-  applied. It is the missing provisioning above, not a regression.
+- Skipped: most of the suite under `same-origin` (every spec added by this
+  rollout is `split`-only, and skips itself there), plus the PDF spec
+  (`E2E_SKIP_PDF=1`, no browserless sidecar) and the `/sandboxes` row (feature
+  off — it skips out loud, because a silent skip reads like a pass).
+- Failing: `team.spec.ts`, once per project. It mints a contact team token and
+  the gate never renders. **Pre-existing**; re-checked with all of this work
+  stashed and it fails identically. It is the missing provisioning above, not
+  a regression.
 
 ---
 
@@ -224,7 +229,8 @@ spec added this session is `split`-only — the owner UI lives on the client app
 | `secrets.spec.ts` | both former raw `<select>`s; edit reusing the create surface |
 | `shell-layout.spec.ts` | rail + panel width persistence; the CSS-var transition guard |
 | `field-primitives.spec.ts` | `Input`/`Textarea` font size at 375px and 1280px |
-| `master-detail-screens.spec.ts` | **table-driven across all 8 ported screens** |
+| `formulas.spec.ts` | the §8 header; §6b on the evaluator AND on the editor's YAML view |
+| `master-detail-screens.spec.ts` | **table-driven across all 9 ported screens** |
 
 Two habits worth keeping:
 

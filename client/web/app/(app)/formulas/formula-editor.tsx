@@ -25,9 +25,9 @@
  * dropped term and always worth stopping for.
  */
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useId, useMemo, useState } from 'react';
 import YAML from 'yaml';
-import { AlertTriangle, Check, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Plus, Sigma, Trash2 } from 'lucide-react';
 import {
   checkLookupCoverage,
   parseFormulaSpec,
@@ -38,7 +38,13 @@ import { checkDimensions, type DimensionIssue } from '@mantle/content-core/formu
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import {
@@ -52,7 +58,6 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
-import { cn } from '@mantle/web-ui/lib/utils';
 import {
   arr,
   listOf,
@@ -71,7 +76,17 @@ const ROLES = ['input', 'constant', 'derived', 'output'] as const;
 
 // ─── small building blocks ─────────────────────────────────────────────────
 
-function Field({
+/**
+ * One labelled control, on the §6a `Field` family.
+ *
+ * The children are a RENDER PROP rather than plain nodes so the wrapper can
+ * mint the id and hand it to the control: before this, every label in the
+ * editor was a bare `<Label>` with no `htmlFor` and nothing nested inside it,
+ * so roughly forty labels pointed at no control at all. Clicking one did
+ * nothing and a screen reader announced the box unnamed. Spreading `f` is what
+ * ties the two together, and carries the description's id along with it.
+ */
+function SpecField({
   label,
   hint,
   className,
@@ -80,35 +95,55 @@ function Field({
   label: string;
   hint?: string;
   className?: string;
-  children: React.ReactNode;
+  children: (f: { id: string; 'aria-describedby'?: string }) => React.ReactNode;
 }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <div className={cn('space-y-1.5', className)}>
-      <Label className="text-xs">{label}</Label>
-      {children}
-      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
-    </div>
+    <Field className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {children({ id, 'aria-describedby': hintId })}
+      {hint ? <FieldDescription id={hintId}>{hint}</FieldDescription> : null}
+    </Field>
   );
+}
+
+/** A caption over a group of controls. NOT a `<Label>`: it names a table or a
+ *  set of boxes rather than one control, and a label with no control is worse
+ *  than no label. */
+function GroupCaption({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm font-medium text-foreground">{children}</p>;
 }
 
 function Card({
   title,
   onRemove,
+  removeLabel,
   children,
 }: {
   title: string;
   onRemove: () => void;
+  /** Names WHAT is being removed, since the button carries no text (§8). */
+  removeLabel: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-3 rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-xs font-medium text-foreground">{title}</span>
-        <Button variant="ghost" size="sm" onClick={onRemove} title="Remove">
+        <span className="min-w-0 truncate font-mono text-xs font-medium text-foreground">
+          {title}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:text-destructive-ink"
+          onClick={onRemove}
+          aria-label={removeLabel}
+        >
           <Trash2 />
         </Button>
       </div>
-      {children}
+      <FieldGroup>{children}</FieldGroup>
     </div>
   );
 }
@@ -286,15 +321,27 @@ export function FormulaEditor({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
-        <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-foreground">
-            {formulaId ? 'Edit formula' : 'New formula'}
+        <div className="min-w-0 flex-1">
+          {/* §8 anatomy, at the entity-title scale: the glyph sits inside the
+              h2 and the title truncates. This pane replaces the whole screen
+              rather than sitting in the detail column, so it is a detail
+              header, not §6c's boxed composer card. */}
+          <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold text-foreground">
+            <Sigma className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 truncate">{formulaId ? 'Edit formula' : 'New formula'}</span>
           </h2>
+          {/* `findings` is computed from the last draft that PARSED, so while
+              the YAML is broken it reports zero problems — and the header read
+              "0 problem(s) to fix." beside a red box. Name the real blocker. */}
           <p className="text-xs text-muted-foreground">
-            {valid ? 'The spec validates.' : `${findings.errors.length} problem(s) to fix.`}
+            {valid
+              ? 'The spec validates.'
+              : yamlError
+                ? 'The YAML does not parse.'
+                : `${findings.errors.length} problem(s) to fix.`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Tabs value={mode} onValueChange={(v) => switchMode(v as 'form' | 'source')}>
             <TabsList>
               <TabsTrigger value="form">Form</TabsTrigger>
@@ -314,93 +361,132 @@ export function FormulaEditor({
         {/* ── editing surface ─────────────────────────────────────────── */}
         <div className="min-h-0 space-y-6 overflow-y-auto scrollbar-thin px-6 py-5">
           {mode === 'source' ? (
-            <div className="space-y-2">
+            // §6b: the parse failure was a loose red `<p>` — visible, but never
+            // announced, and it left the box itself looking fine. All three
+            // marks now: `data-invalid` on the Field, `aria-invalid` on the
+            // Textarea, `role="alert"` (from FieldError) on the message.
+            <Field data-invalid={Boolean(yamlError) || undefined}>
+              <FieldLabel htmlFor="formula-yaml">Spec source</FieldLabel>
               <Textarea
+                id="formula-yaml"
                 value={yamlText}
                 onChange={(e) => onYamlChange(e.target.value)}
                 spellCheck={false}
+                aria-invalid={Boolean(yamlError) || undefined}
+                aria-describedby={yamlError ? 'formula-yaml-error' : 'formula-yaml-description'}
                 className="min-h-[60vh] font-mono text-xs"
               />
-              {yamlError ? (
-                <p className="text-xs text-destructive-ink">{yamlError}</p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">
+              <FieldError id="formula-yaml-error">{yamlError}</FieldError>
+              {yamlError ? null : (
+                <FieldDescription id="formula-yaml-description">
                   Edits parse straight into the form. Comments are yours to keep here, but are not
                   stored with the spec.
-                </p>
+                </FieldDescription>
               )}
-            </div>
+            </Field>
           ) : (
             <>
               <EditorSection title="Identity">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Spec id" hint="Durable slug, e.g. api581-release-quantity.">
-                    <Input
-                      value={text(draft.id)}
-                      onChange={(e) => patch({ id: e.target.value })}
-                      className="font-mono text-xs"
-                    />
-                  </Field>
-                  <Field label="Name">
-                    <Input
-                      value={text(draft.name)}
-                      onChange={(e) => patch({ name: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Display title" hint="Defaults to the name.">
-                    <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-                  </Field>
-                  <Field label="Tags" hint="Comma separated.">
-                    <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
-                  </Field>
-                  <Field label="Unit system" hint="e.g. SI, USC.">
-                    <Input
-                      value={text(draft.unitSystem)}
-                      onChange={(e) => patch({ unitSystem: e.target.value })}
-                    />
-                  </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <SpecField label="Spec id" hint="Durable slug, e.g. api581-release-quantity.">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={text(draft.id)}
+                        onChange={(e) => patch({ id: e.target.value })}
+                        className="font-mono text-xs"
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField label="Name">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={text(draft.name)}
+                        onChange={(e) => patch({ name: e.target.value })}
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField label="Display title" hint="Defaults to the name.">
+                    {(f) => (
+                      <Input {...f} value={title} onChange={(e) => setTitle(e.target.value)} />
+                    )}
+                  </SpecField>
+                  <SpecField label="Tags" hint="Comma separated.">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={tagsText}
+                        onChange={(e) => setTagsText(e.target.value)}
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField label="Unit system" hint="e.g. SI, USC.">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={text(draft.unitSystem)}
+                        onChange={(e) => patch({ unitSystem: e.target.value })}
+                      />
+                    )}
+                  </SpecField>
                 </div>
               </EditorSection>
 
               <EditorSection title="Source & citation">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Standard">
-                    <Input
-                      value={text(source.standard)}
-                      onChange={(e) => patch({ source: { ...source, standard: e.target.value } })}
-                    />
-                  </Field>
-                  <Field label="Part">
-                    <Input
-                      value={text(source.part)}
-                      onChange={(e) => patch({ source: { ...source, part: e.target.value } })}
-                    />
-                  </Field>
-                  <Field
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <SpecField label="Standard">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={text(source.standard)}
+                        onChange={(e) => patch({ source: { ...source, standard: e.target.value } })}
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField label="Part">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={text(source.part)}
+                        onChange={(e) => patch({ source: { ...source, part: e.target.value } })}
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField
                     label="Edition"
                     hint="Equation numbers move between editions — a numbered citation to an editionless standard is not a citation."
                   >
-                    <Input
-                      value={text(source.edition)}
-                      onChange={(e) => patch({ source: { ...source, edition: e.target.value } })}
-                    />
-                  </Field>
-                  <Field label="Sections" hint="Comma separated.">
-                    <Input
-                      value={(Array.isArray(source.sections) ? source.sections : []).join(', ')}
-                      onChange={(e) =>
-                        patch({ source: { ...source, sections: listOf(e.target.value) } })
-                      }
-                    />
-                  </Field>
-                  <Field label="Tables" hint="Comma separated.">
-                    <Input
-                      value={(Array.isArray(source.tables) ? source.tables : []).join(', ')}
-                      onChange={(e) =>
-                        patch({ source: { ...source, tables: listOf(e.target.value) } })
-                      }
-                    />
-                  </Field>
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={text(source.edition)}
+                        onChange={(e) => patch({ source: { ...source, edition: e.target.value } })}
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField label="Sections" hint="Comma separated.">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={(Array.isArray(source.sections) ? source.sections : []).join(', ')}
+                        onChange={(e) =>
+                          patch({ source: { ...source, sections: listOf(e.target.value) } })
+                        }
+                      />
+                    )}
+                  </SpecField>
+                  <SpecField label="Tables" hint="Comma separated.">
+                    {(f) => (
+                      <Input
+                        {...f}
+                        value={(Array.isArray(source.tables) ? source.tables : []).join(', ')}
+                        onChange={(e) =>
+                          patch({ source: { ...source, tables: listOf(e.target.value) } })
+                        }
+                      />
+                    )}
+                  </SpecField>
                 </div>
               </EditorSection>
 
@@ -411,51 +497,66 @@ export function FormulaEditor({
                       key={i}
                       title={text(v.symbol) || `variable ${i + 1}`}
                       onRemove={() => removeAt('variables', i)}
+                      removeLabel="Remove this variable"
                     >
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <Field label="Symbol" hint="Case-sensitive; match the printed notation.">
-                          <Input
-                            value={text(v.symbol)}
-                            onChange={(e) =>
-                              patchAt('variables', i, { ...v, symbol: e.target.value })
-                            }
-                            className="font-mono text-xs"
-                          />
-                        </Field>
-                        <Field label="Name">
-                          <Input
-                            value={text(v.name)}
-                            onChange={(e) =>
-                              patchAt('variables', i, { ...v, name: e.target.value })
-                            }
-                          />
-                        </Field>
-                        <Field label="Unit" hint="A constraint, not a label.">
-                          <Input
-                            value={text(v.unit)}
-                            onChange={(e) =>
-                              patchAt('variables', i, { ...v, unit: e.target.value })
-                            }
-                          />
-                        </Field>
-                        <Field label="Role">
-                          <Select
-                            value={text(v.role) || 'input'}
-                            onValueChange={(role) => patchAt('variables', i, { ...v, role })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ROLES.map((r) => (
-                                <SelectItem key={r} value={r}>
-                                  {r}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        <Field
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <SpecField
+                          label="Symbol"
+                          hint="Case-sensitive; match the printed notation."
+                        >
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(v.symbol)}
+                              onChange={(e) =>
+                                patchAt('variables', i, { ...v, symbol: e.target.value })
+                              }
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField label="Name">
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(v.name)}
+                              onChange={(e) =>
+                                patchAt('variables', i, { ...v, name: e.target.value })
+                              }
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField label="Unit" hint="A constraint, not a label.">
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(v.unit)}
+                              onChange={(e) =>
+                                patchAt('variables', i, { ...v, unit: e.target.value })
+                              }
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField label="Role">
+                          {(f) => (
+                            <Select
+                              value={text(v.role) || 'input'}
+                              onValueChange={(role) => patchAt('variables', i, { ...v, role })}
+                            >
+                              <SelectTrigger {...f}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ROLES.map((r) => (
+                                  <SelectItem key={r} value={r}>
+                                    {r}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </SpecField>
+                        <SpecField
                           label="Value"
                           hint={
                             text(v.role) === 'constant'
@@ -463,23 +564,29 @@ export function FormulaEditor({
                               : 'Optional default.'
                           }
                         >
-                          <Input
-                            value={text(v.value)}
-                            onChange={(e) =>
-                              patchAt('variables', i, { ...v, value: scalar(e.target.value) })
-                            }
-                            className="font-mono text-xs"
-                          />
-                        </Field>
-                        <Field label="Expression" hint="Required for a derived variable.">
-                          <Input
-                            value={text(v.expression)}
-                            onChange={(e) =>
-                              patchAt('variables', i, { ...v, expression: e.target.value })
-                            }
-                            className="font-mono text-xs"
-                          />
-                        </Field>
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(v.value)}
+                              onChange={(e) =>
+                                patchAt('variables', i, { ...v, value: scalar(e.target.value) })
+                              }
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField label="Expression" hint="Required for a derived variable.">
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(v.expression)}
+                              onChange={(e) =>
+                                patchAt('variables', i, { ...v, expression: e.target.value })
+                              }
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </SpecField>
                       </div>
                     </Card>
                   ))}
@@ -497,78 +604,107 @@ export function FormulaEditor({
                       key={i}
                       title={text(e.id) || `expression ${i + 1}`}
                       onRemove={() => removeAt('expressions', i)}
+                      removeLabel="Remove this expression"
                     >
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Id">
-                          <Input
-                            value={text(e.id)}
-                            onChange={(ev) =>
-                              patchAt('expressions', i, { ...e, id: ev.target.value })
-                            }
-                            className="font-mono text-xs"
-                          />
-                        </Field>
-                        <Field
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <SpecField label="Id">
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(e.id)}
+                              onChange={(ev) =>
+                                patchAt('expressions', i, { ...e, id: ev.target.value })
+                              }
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField
                           label="Equation number"
                           hint="Part of the claim — cite what you read."
                         >
-                          <Input
-                            value={text(e.equation)}
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(e.equation)}
+                              onChange={(ev) =>
+                                patchAt('expressions', i, { ...e, equation: ev.target.value })
+                              }
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField label="Result symbol">
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(e.resultSymbol)}
+                              onChange={(ev) =>
+                                patchAt('expressions', i, { ...e, resultSymbol: ev.target.value })
+                              }
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </SpecField>
+                        <SpecField label="Result unit">
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(e.unit)}
+                              onChange={(ev) =>
+                                patchAt('expressions', i, { ...e, unit: ev.target.value })
+                              }
+                            />
+                          )}
+                        </SpecField>
+                      </div>
+                      <SpecField label="Expression" hint="What is actually computed.">
+                        {(f) => (
+                          <Textarea
+                            {...f}
+                            value={text(e.expression)}
                             onChange={(ev) =>
-                              patchAt('expressions', i, { ...e, equation: ev.target.value })
+                              patchAt('expressions', i, { ...e, expression: ev.target.value })
                             }
-                          />
-                        </Field>
-                        <Field label="Result symbol">
-                          <Input
-                            value={text(e.resultSymbol)}
-                            onChange={(ev) =>
-                              patchAt('expressions', i, { ...e, resultSymbol: ev.target.value })
-                            }
+                            spellCheck={false}
                             className="font-mono text-xs"
                           />
-                        </Field>
-                        <Field label="Result unit">
-                          <Input
-                            value={text(e.unit)}
-                            onChange={(ev) =>
-                              patchAt('expressions', i, { ...e, unit: ev.target.value })
-                            }
-                          />
-                        </Field>
-                      </div>
-                      <Field label="Expression" hint="What is actually computed.">
-                        <Textarea
-                          value={text(e.expression)}
-                          onChange={(ev) =>
-                            patchAt('expressions', i, { ...e, expression: ev.target.value })
-                          }
-                          spellCheck={false}
-                          className="font-mono text-xs"
-                        />
-                      </Field>
-                      <Field
+                        )}
+                      </SpecField>
+                      <SpecField
                         label="LaTeX"
                         hint="Display only — never parsed, and nothing checks it agrees."
                       >
-                        <Textarea
-                          value={text(e.latex)}
-                          onChange={(ev) =>
-                            patchAt('expressions', i, { ...e, latex: ev.target.value })
-                          }
-                          spellCheck={false}
-                          className="font-mono text-xs"
-                        />
-                      </Field>
-                      <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                        {(f) => (
+                          <Textarea
+                            {...f}
+                            value={text(e.latex)}
+                            onChange={(ev) =>
+                              patchAt('expressions', i, { ...e, latex: ev.target.value })
+                            }
+                            spellCheck={false}
+                            className="font-mono text-xs"
+                          />
+                        )}
+                      </SpecField>
+                      {/* A horizontal Field: label and description on the left,
+                          the one control on the right. The label now names the
+                          Switch instead of hanging beside it, so the text is a
+                          hit target and a screen reader reads the two together. */}
+                      <Field
+                        orientation="horizontal"
+                        className="items-start justify-between gap-3 rounded-md border border-border p-3"
+                      >
                         <div className="min-w-0">
-                          <Label className="text-xs">Unverified</Label>
-                          <p className="text-[11px] text-muted-foreground">
+                          <FieldLabel htmlFor={`unverified-${i}`}>Unverified</FieldLabel>
+                          <FieldDescription id={`unverified-${i}-hint`}>
                             Set this if you did not read the equation off the page. It renders as a
                             warning everywhere.
-                          </p>
+                          </FieldDescription>
                         </div>
                         <Switch
+                          id={`unverified-${i}`}
+                          aria-describedby={`unverified-${i}-hint`}
+                          className="shrink-0"
                           checked={Boolean(e.unverified)}
                           onCheckedChange={(on) =>
                             patchAt('expressions', i, {
@@ -579,16 +715,19 @@ export function FormulaEditor({
                             })
                           }
                         />
-                      </div>
+                      </Field>
                       {e.unverified ? (
-                        <Field label="Why it is unverified">
-                          <Textarea
-                            value={text(e.unverified)}
-                            onChange={(ev) =>
-                              patchAt('expressions', i, { ...e, unverified: ev.target.value })
-                            }
-                          />
-                        </Field>
+                        <SpecField label="Why it is unverified">
+                          {(f) => (
+                            <Textarea
+                              {...f}
+                              value={text(e.unverified)}
+                              onChange={(ev) =>
+                                patchAt('expressions', i, { ...e, unverified: ev.target.value })
+                              }
+                            />
+                          )}
+                        </SpecField>
                       ) : null}
                     </Card>
                   ))}
@@ -610,26 +749,33 @@ export function FormulaEditor({
                         key={i}
                         title={text(p.id) || `branch ${i + 1}`}
                         onRemove={() => removeAt('piecewise', i)}
+                        removeLabel="Remove this piecewise branch"
                       >
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Field label="Id">
-                            <Input
-                              value={text(p.id)}
-                              onChange={(e) =>
-                                patchAt('piecewise', i, { ...p, id: e.target.value })
-                              }
-                              className="font-mono text-xs"
-                            />
-                          </Field>
-                          <Field label="Result symbol">
-                            <Input
-                              value={text(p.resultSymbol)}
-                              onChange={(e) =>
-                                patchAt('piecewise', i, { ...p, resultSymbol: e.target.value })
-                              }
-                              className="font-mono text-xs"
-                            />
-                          </Field>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <SpecField label="Id">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={text(p.id)}
+                                onChange={(e) =>
+                                  patchAt('piecewise', i, { ...p, id: e.target.value })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            )}
+                          </SpecField>
+                          <SpecField label="Result symbol">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={text(p.resultSymbol)}
+                                onChange={(e) =>
+                                  patchAt('piecewise', i, { ...p, resultSymbol: e.target.value })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            )}
+                          </SpecField>
                         </div>
                         <div className="space-y-2">
                           {cases.map((c, j) => (
@@ -671,7 +817,9 @@ export function FormulaEditor({
                               />
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon-sm"
+                                className="text-muted-foreground hover:text-destructive-ink"
+                                aria-label={`Remove case ${j + 1}`}
                                 onClick={() => setCases(cases.filter((_, k) => k !== j))}
                               >
                                 <Trash2 />
@@ -683,18 +831,21 @@ export function FormulaEditor({
                             onClick={() => setCases([...cases, { when: '', use: '' }])}
                           />
                         </div>
-                        <Field
+                        <SpecField
                           label="Otherwise"
                           hint="Leave empty and an unmatched value is an error rather than a quiet zero."
                         >
-                          <Input
-                            value={text(p.otherwise)}
-                            onChange={(e) =>
-                              patchAt('piecewise', i, { ...p, otherwise: e.target.value })
-                            }
-                            className="font-mono text-xs"
-                          />
-                        </Field>
+                          {(f) => (
+                            <Input
+                              {...f}
+                              value={text(p.otherwise)}
+                              onChange={(e) =>
+                                patchAt('piecewise', i, { ...p, otherwise: e.target.value })
+                              }
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </SpecField>
                       </Card>
                     );
                   })}
@@ -719,46 +870,61 @@ export function FormulaEditor({
                         key={i}
                         title={text(l.id) || `table ${i + 1}`}
                         onRemove={() => removeAt('lookups', i)}
+                        removeLabel="Remove this lookup table"
                       >
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Field label="Id">
-                            <Input
-                              value={text(l.id)}
-                              onChange={(e) => patchAt('lookups', i, { ...l, id: e.target.value })}
-                              className="font-mono text-xs"
-                            />
-                          </Field>
-                          <Field label="Name">
-                            <Input
-                              value={text(l.name)}
-                              onChange={(e) =>
-                                patchAt('lookups', i, { ...l, name: e.target.value })
-                              }
-                            />
-                          </Field>
-                          <Field label="Keys" hint="Comma separated symbols.">
-                            <Input
-                              value={keys.join(', ')}
-                              onChange={(e) =>
-                                patchAt('lookups', i, { ...l, keys: listOf(e.target.value) })
-                              }
-                              className="font-mono text-xs"
-                            />
-                          </Field>
-                          <Field label="Result field">
-                            <Input
-                              value={result}
-                              onChange={(e) =>
-                                patchAt('lookups', i, { ...l, result: e.target.value })
-                              }
-                              className="font-mono text-xs"
-                            />
-                          </Field>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <SpecField label="Id">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={text(l.id)}
+                                onChange={(e) =>
+                                  patchAt('lookups', i, { ...l, id: e.target.value })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            )}
+                          </SpecField>
+                          <SpecField label="Name">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={text(l.name)}
+                                onChange={(e) =>
+                                  patchAt('lookups', i, { ...l, name: e.target.value })
+                                }
+                              />
+                            )}
+                          </SpecField>
+                          <SpecField label="Keys" hint="Comma separated symbols.">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={keys.join(', ')}
+                                onChange={(e) =>
+                                  patchAt('lookups', i, { ...l, keys: listOf(e.target.value) })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            )}
+                          </SpecField>
+                          <SpecField label="Result field">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={result}
+                                onChange={(e) =>
+                                  patchAt('lookups', i, { ...l, result: e.target.value })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            )}
+                          </SpecField>
                         </div>
 
                         {keys.length > 0 ? (
                           <div className="space-y-2">
-                            <Label className="text-xs">Declared domains</Label>
+                            <GroupCaption>Declared domains</GroupCaption>
                             <p className="text-[11px] text-muted-foreground">
                               The legal values per key. Declaring them is what lets coverage be
                               checked — every combination with no row gets named.
@@ -793,7 +959,7 @@ export function FormulaEditor({
 
                         {columns.length > 0 ? (
                           <div className="space-y-2">
-                            <Label className="text-xs">Rows</Label>
+                            <GroupCaption>Rows</GroupCaption>
                             <div className="overflow-x-auto scrollbar-thin">
                               <table className="w-full text-xs">
                                 <thead>
@@ -832,7 +998,9 @@ export function FormulaEditor({
                                       <td className="p-0.5">
                                         <Button
                                           variant="ghost"
-                                          size="sm"
+                                          size="icon-sm"
+                                          className="text-muted-foreground hover:text-destructive-ink"
+                                          aria-label={`Remove row ${j + 1}`}
                                           onClick={() => setRows(rows.filter((_, k) => k !== j))}
                                         >
                                           <Trash2 />
@@ -868,44 +1036,54 @@ export function FormulaEditor({
                         key={i}
                         title={text(c.id) || `classification ${i + 1}`}
                         onRemove={() => removeAt('classifications', i)}
+                        removeLabel="Remove this classification"
                       >
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Field
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <SpecField
                             label="Id"
                             hint="Name it after the symbol it describes, e.g. detection-rating for `detection`."
                           >
-                            <Input
-                              value={text(c.id)}
-                              onChange={(e) =>
-                                patchAt('classifications', i, { ...c, id: e.target.value })
-                              }
-                              className="font-mono text-xs"
-                            />
-                          </Field>
-                          <Field label="Ratings" hint="Comma separated.">
-                            <Input
-                              value={domain.join(', ')}
-                              onChange={(e) =>
-                                patchAt('classifications', i, {
-                                  ...c,
-                                  domain: listOf(e.target.value),
-                                })
-                              }
-                            />
-                          </Field>
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={text(c.id)}
+                                onChange={(e) =>
+                                  patchAt('classifications', i, { ...c, id: e.target.value })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            )}
+                          </SpecField>
+                          <SpecField label="Ratings" hint="Comma separated.">
+                            {(f) => (
+                              <Input
+                                {...f}
+                                value={domain.join(', ')}
+                                onChange={(e) =>
+                                  patchAt('classifications', i, {
+                                    ...c,
+                                    domain: listOf(e.target.value),
+                                  })
+                                }
+                              />
+                            )}
+                          </SpecField>
                         </div>
                         {domain.map((value) => (
-                          <Field key={value} label={`Criterion for ${value}`}>
-                            <Textarea
-                              value={text(criteria[value])}
-                              onChange={(e) =>
-                                patchAt('classifications', i, {
-                                  ...c,
-                                  criteria: { ...criteria, [value]: e.target.value },
-                                })
-                              }
-                            />
-                          </Field>
+                          <SpecField key={value} label={`Criterion for ${value}`}>
+                            {(f) => (
+                              <Textarea
+                                {...f}
+                                value={text(criteria[value])}
+                                onChange={(e) =>
+                                  patchAt('classifications', i, {
+                                    ...c,
+                                    criteria: { ...criteria, [value]: e.target.value },
+                                  })
+                                }
+                              />
+                            )}
+                          </SpecField>
                         ))}
                       </Card>
                     );
@@ -943,7 +1121,9 @@ export function FormulaEditor({
                       />
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive-ink"
+                        aria-label={`Remove the note “${key}”`}
                         onClick={() => {
                           const next = { ...notes };
                           delete next[key];
@@ -978,7 +1158,13 @@ export function FormulaEditor({
           </div>
 
           {serverErrors.length > 0 ? (
-            <div className="space-y-1 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+            // A rejected save is a whole-spec verdict, not one control's fault,
+            // so it stays a panel rather than a FieldError — but it arrives
+            // after a click and has to announce itself.
+            <div
+              role="alert"
+              className="space-y-1 rounded-md border border-destructive/40 bg-destructive/5 p-3"
+            >
               <p className="text-xs font-medium text-foreground">The server rejected the spec</p>
               <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
                 {serverErrors.map((e, i) => (
@@ -999,6 +1185,13 @@ export function FormulaEditor({
                 ))}
               </ul>
             </div>
+          ) : yamlError ? (
+            // Same reason as the header line: with unparsed YAML the rail is
+            // describing the last GOOD draft, and "the spec parses" beside a
+            // red source box reads as though nothing is wrong.
+            <p className="text-[11px] text-muted-foreground">
+              The source does not parse, so these findings describe the last version that did.
+            </p>
           ) : (
             <p className="text-[11px] text-muted-foreground">
               The spec parses. Every expression is syntactically valid and every cross-reference

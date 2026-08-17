@@ -83,7 +83,10 @@ rules in one edit.
 Ordered by traffic:
 
 **2a. Daily drivers** — ✅ `events`, ✅ `contacts`, ✅ `journal`, ✅ `secrets`,
-✅ `models`, ✅ `runs`, ✅ `sandboxes`, `formulas`, `apps`
+✅ `models`, ✅ `runs`, ✅ `sandboxes`, ✅ `formulas`, `apps`
+
+**`apps` is the only 2a screen left, and it is blocked** — see the note below.
+Every unblocked one is done.
 
 `events` first: it is the closest structural match to `tasks` and will prove
 the pattern travels. It also still centres its composer (`mx-auto max-w-2xl`),
@@ -128,6 +131,27 @@ which §6c now says should hug the list.
 - **A `<Label>` with no control is worse than no label.** Secrets' revealed note
   had one; it is a caption (`<p className="text-sm font-medium">`) now. §6a is
   about form controls, not read-only output.
+- **A screen with its own form helper has usually skipped `htmlFor` entirely.**
+  Formulas had a local `Field` — same name as the primitive, and a bare
+  `<Label>` beside arbitrary children, so ~40 labels named no control at all.
+  A wrapper cannot mint an id for a child it does not know, which is exactly
+  why the shape drifts. The fix is a **render prop**: the wrapper makes the id
+  and hands it down (`{(f) => <Input {...f} … />}`), so the association cannot
+  be forgotten one field at a time. Look for this in 2b — the settings editors
+  are the other place a screen rolled its own field.
+- **Reverting the label fixes a form's density, so re-check it in a browser.**
+  The primitive's label is `text-sm` where a hand-rolled one is usually
+  `text-xs`, and `FieldGroup` is `gap-4` where hand-spacing is `space-y-3`.
+  A dense editor visibly loosens. That is the standard, not a regression —
+  but look at it before assuming.
+- **A whole-form outcome is not a field error.** A failed evaluation, or a
+  server's rejection of a whole spec, stays a panel; it just needs
+  `role="alert"` so it is announced. `FieldError` is for the control at fault.
+  Keep the two apart or §6b's per-control anchoring stops meaning anything.
+- **Check what a summary line says while another view is broken.** The
+  editor's header read "0 problem(s) to fix." beside a red YAML box, because
+  its findings are computed from the last draft that parsed. Any screen with
+  two views over one model can say this.
 
 Each ported screen gets a spec (`e2e/specs/<screen>.spec.ts`). Keep them about
 the PORT — the scaffold, the header, the validation — not the domain; the domain
@@ -155,16 +179,28 @@ is only load-bearing for `apps`.
 | ✅ `models` | was `[360px_1fr]` | pure scaffold swap; keeps 360px via `defaultListSize` |
 | ✅ `runs` | was `[360px_1fr]` | pure swap; the worker strip above the panes means MasterDetail takes `min-h-0 flex-1`, not the page |
 | ✅ `sandboxes` | was `[340px_1fr]` | pure swap. Its `<Label>` was labelling a checkbox — correct, left alone |
-| `formulas` | `md:grid-cols-[…]` | ~2200 lines, a nested `lg:grid` editor of its own — budget a whole session |
+| ✅ `formulas` | was `md:grid-cols-[360px_1fr]` | keeps 360px. The editor stays a WHOLE-PANE surface, not a detail-pane composer — see below |
 | `apps` | `focusGridClass` | blocked, see above |
 
-The last three were **scaffold-only** ports: no form, no validation, nothing
-user-visible beyond the divider. Rather than three near-identical spec files they
-share `e2e/specs/master-detail-screens.spec.ts`, a table-driven spec that asserts
-the panes exist, the width persists under a per-screen key, and the pane owns at
-most one scrollbar. Adding a row is the whole cost of covering the next port —
-use it for `formulas` and `apps` too, and keep the per-screen specs for ports
-that change behaviour.
+**`formulas` kept its editor outside the panes, on purpose.** `FormulaEditor`
+replaces the entire screen rather than rendering into the detail column, and
+the port did not change that: it carries a validation rail in its own
+`lg:grid-cols-[1fr_320px]`, and a two-column form inside a 672px detail panel
+is unusable. So §6c's boxed-composer rule does not apply to it — it is a
+full-pane surface and takes the §8 detail-header anatomy instead. The cost is
+that opening the editor unmounts `MasterDetail`, so the list's scroll position
+and page are lost on return; that is pre-existing, and it is the same
+collapsed-but-mounted capability `apps` is blocked on. If `MasterDetail` learns
+it, formulas can use it too.
+
+`models`, `runs` and `sandboxes` were **scaffold-only** ports: no form, no
+validation, nothing user-visible beyond the divider. Rather than three
+near-identical spec files they share `e2e/specs/master-detail-screens.spec.ts`,
+a table-driven spec that asserts the panes exist, the width persists under a
+per-screen key, and the pane owns at most one scrollbar. Adding a row is the
+whole cost of covering the next port — `formulas` took one, and `apps` will
+too. Keep the per-screen specs for ports that change behaviour: `formulas`
+also has `e2e/specs/formulas.spec.ts`, because it changed three.
 
 ⚠ **`/sandboxes` is not verified in a browser.** The `sandboxes` compose profile
 is off on the scratch brain, so the screen renders its "not enabled" explainer and

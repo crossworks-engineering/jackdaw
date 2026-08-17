@@ -5,11 +5,12 @@ import { ARTIFACTS_DIR } from '../lib/env';
  * The scaffold half of phase 2, asserted once for every ported screen instead of
  * copy-pasted into seven files.
  *
- * `events`, `contacts`, `journal` and `secrets` have their own specs because the
- * port changed real behaviour there (validation, saving, the composer). `models`,
- * `runs` and `sandboxes` were pure scaffold swaps — no form, no new validation —
- * so what is worth holding is exactly what this table holds: the panes exist,
- * the width is remembered per screen, and the pane owns the only scrollbar.
+ * `events`, `contacts`, `journal`, `secrets` and `formulas` have their own specs
+ * because the port changed real behaviour there (validation, saving, the
+ * composer). `models`, `runs` and `sandboxes` were pure scaffold swaps — no
+ * form, no new validation — so what is worth holding is exactly what this table
+ * holds: the panes exist, the width is remembered per screen, and the pane owns
+ * the only scrollbar.
  *
  * Adding a screen to `SCREENS` is the whole cost of covering the next port.
  */
@@ -22,6 +23,7 @@ const SCREENS = [
   { path: '/secrets', id: 'secrets' },
   { path: '/models', id: 'models' },
   { path: '/runs', id: 'runs' },
+  { path: '/formulas', id: 'formulas' },
   // A box with the `sandboxes` compose profile off renders an explainer instead
   // of the screen, so this row SKIPS itself there rather than failing. Said out
   // loud, because a silently-skipped row is indistinguishable from a passing one.
