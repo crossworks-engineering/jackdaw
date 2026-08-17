@@ -1,0 +1,9 @@
+# Generated files. Prettier does not read .gitignore, so anything generated has
+# to be listed here too or `format:check` fails the moment a tool rewrites it.
+client/web/next-env.d.ts
+client/web/public/app-runtime/
+.next/
+dist/
+out/
+coverage/
+pnpm-lock.yaml
