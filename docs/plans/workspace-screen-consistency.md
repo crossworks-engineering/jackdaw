@@ -23,16 +23,55 @@ A screen is finished when all six hold:
 6. Buttons use a real size, never `className="size-7"`; icon-only buttons use
    the `icon-*` twin that matches their row (§5).
 
-## Phase 1 — finish the shared foundation (do this first)
+## Phase 1 — finish the shared foundation ✅ DONE
 
 These are one-file changes that improve every screen at once, so they are worth
 doing before touching any individual screen.
 
 | Item | Where | Why now |
 |---|---|---|
-| `Input` is missing `text-base md:text-sm` | `packages/web-ui/src/ui/input.tsx` | 16px on small screens is what stops iOS zooming on focus. `Textarea` has it; `Input` does not. |
-| Extract `CommentThread` | new, `packages/web-ui` | `tasks/task-comments.tsx` and `team-workspace/team-task-comments.tsx` duplicate the role chip, post row, empty state and composer. The Tasks one now has the composer on top and newest-first; the member one does not. They will keep drifting. |
-| Retire the second delete idiom | repo-wide | 12 uses of always-red vs 11 of red-on-hover. §8 picks one; the other should stop spreading. |
+| ✅ `Input` is missing `text-base md:text-sm` | `packages/web-ui/src/ui/input.tsx` | 16px on small screens is what stops iOS zooming on focus. `Textarea` has it; `Input` does not. |
+| ✅ Extract `CommentThread` | `packages/web-ui/src/comment-thread.tsx` | `tasks/task-comments.tsx` and `team-workspace/team-task-comments.tsx` duplicated the role chip, post row, empty state and composer. The Tasks one had the composer on top and newest-first; the member one did not. They will keep drifting. |
+| ✅ Retire the second delete idiom | repo-wide | 12 uses of always-red vs 11 of red-on-hover. §8 picks one; the other should stop spreading. |
+
+**How they landed:**
+
+- `Input` now carries `text-base md:text-sm`. `className` still wins (the kit
+  merges through `tailwind-merge`), so a screen that deliberately wants `text-sm`
+  everywhere can still say so.
+- `<CommentThread>` is presentation only — comments in, `onSend`/`onDelete` out.
+  Neither transport moved into it: the owner surface keeps its `apiFetch` + SSE
+  subscription, the member surface keeps `teamFetch` + a 30s poll. `onDelete` is
+  **omitted** on the member surface rather than disabled, so members have no
+  moderation button at all. Both surfaces now run the reference behaviour
+  (composer on top, newest first); the member thread keeps its `max-w-2xl`
+  measure via `className`, because it has to line up with `TaskPresenter` above
+  it — that is alignment, not the centring §6c retired.
+- 14 always-red delete buttons across 13 files became grey-until-hover. Two
+  non-delete, text-only buttons were left as they were on purpose — see §8,
+  which now records why, so nobody "finishes" the sweep.
+
+Two things phase 2 still owns, and phase 1 deliberately did not touch: the
+`Trash2 + "Delete"` text labels on the settings editors (§8 wants no label), and
+their position in the header row.
+
+**Both changed primitives are now pinned in `e2e/`,** because a shared primitive
+that regresses regresses everywhere:
+
+- `specs/field-primitives.spec.ts` measures the computed font size of `Input`
+  and `Textarea` at 375px and 1280px. A grep for `text-base md:text-sm` would
+  pass on a screen that overrides it; the measurement is what iOS reacts to.
+- `specs/tasks.spec.ts` drives the comment thread end to end — post, ordering,
+  composer placement, delete-with-confirm. It is the only browser coverage
+  either copy of `<CommentThread>` has.
+
+Both were verified against the bug they exist for (revert the change, watch the
+test fail) before being committed. Do the same for the phase-4 guards.
+
+⚠ **The member thread has not been exercised in a browser.** `team.spec.ts`
+cannot run on the scratch brain (no provisioning), so `TeamTaskComments` is
+covered only by the typechecker and by sharing its component with the owner
+path. Check /team against a brain with real data.
 
 ## Phase 2 — the master-detail screens (24 of them)
 

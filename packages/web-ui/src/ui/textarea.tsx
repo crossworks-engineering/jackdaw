@@ -17,9 +17,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'tex
           //  - `scrollbar-thin`, because this is the one field that scrolls
           //    and nothing sets a thin bar globally (html/body are `auto`).
           //
-          // `text-base md:text-sm` is NOT a divergence to fix here: 16px on
-          // small screens is what stops iOS zooming on focus. `Input` is the
-          // one missing it.
+          // `text-base md:text-sm` is the iOS zoom guard, and `Input` carries
+          // it too now — keep the two in step if either changes.
           'flex min-h-[60px] w-full scrollbar-thin rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:ring-destructive md:text-sm',
           className,
         )}

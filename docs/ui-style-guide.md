@@ -665,9 +665,18 @@ Every detail pane opens with the same four-part row:
 - **Delete is a ghost icon button that is grey until hover:**
   `variant="ghost" size="sm" className="text-muted-foreground
   hover:text-destructive-ink"` plus an `aria-label`. It carries **no text
-  label**. The always-red variant (`text-destructive-ink
-  hover:text-destructive-ink`) is the older idiom; it is being retired, so do
-  not add new ones. Delete always confirms through an `AlertDialog`.
+  label**. Delete always confirms through an `AlertDialog`.
+  - The always-red variant (`text-destructive-ink
+    hover:text-destructive-ink`) **has been retired** — every delete
+    affordance in the app now uses grey-until-hover. Several still carry a
+    `Trash2 + "Delete"` text label; dropping the label is per-screen work
+    (phase 2), the colour is not.
+  - **Two deliberate survivors**, both non-delete and both text-only: "Reset to
+    default" (`studio/structure-editor.tsx`) and "Cancel" a run
+    (`runs/active-runs-strip.tsx`). A trash glyph carries the warning on its
+    own, so grey at rest costs nothing; a word does not, and greying those two
+    would leave a destructive action looking like any other ghost button.
+    Don't "finish the sweep" by changing them.
 
 ### Detail (deep-link) pages
 Start with `<BackLink href>`; title via `<SetPageTitle>`. **Keep these working

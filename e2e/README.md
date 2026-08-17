@@ -11,9 +11,9 @@ One spec set, two topologies:
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
 team-token entry, PDF export, `/app-runtime` CORS, the editor header, `/tasks`
-behaviour, and the resizable shell. Fixtures make specs topology-blind —
-same-origin auth is the session cookie, split auth is the kind-`'m'` bearer
-(localStorage contract in `lib/contract.ts`).
+behaviour, the resizable shell, and the shared field primitives. Fixtures make
+specs topology-blind — same-origin auth is the session cookie, split auth is the
+kind-`'m'` bearer (localStorage contract in `lib/contract.ts`).
 
 ⚠ **Never assert a transition from `getComputedStyle`.** Playwright injects
 `*, ::before, ::after { transition: none !important }` into the page, so every

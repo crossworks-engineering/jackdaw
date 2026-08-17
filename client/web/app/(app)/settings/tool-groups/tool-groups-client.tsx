@@ -304,7 +304,7 @@ export function ToolGroupsClient() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-destructive-ink hover:text-destructive-ink"
+                    className="text-muted-foreground hover:text-destructive-ink"
                     onClick={() => setDeleteTarget(editing.group)}
                   >
                     <Trash2 /> Delete

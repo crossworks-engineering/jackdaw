@@ -20,6 +20,10 @@ import type { APIRequestContext, Page } from '@playwright/test';
  *  4. tick a Blocked task, untick it, it returns to Blocked — pure client
  *     state (a `useRef` map), easy to break, invisible when broken.
  *
+ * Plus one that is not really about Tasks: the comment thread. `<CommentThread>`
+ * moved into `packages/web-ui` and now serves the member surface too, so this is
+ * the only place either copy is exercised in a browser.
+ *
  * Every spec tags its fixtures with a unique marker and drives the screen with
  * `?q=<marker>`, so the suite's other content (and a box's real tasks) cannot
  * change what the assertions see. Fixtures are deleted in a `finally`.
@@ -264,6 +268,68 @@ test.describe('tasks', () => {
         'Blocked',
       );
       await expect.poll(async () => (await readTask(ownerApi, task.id)).status).toBe('blocked');
+    } finally {
+      await ownerApi.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
+  test('comments: composer on top, newest first, and a post can be deleted', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    // `<CommentThread>` (packages/web-ui) is shared with the member surface
+    // now, so a regression here lands on /team as well. What is worth holding is
+    // the arrangement the two threads had drifted apart on: the composer ABOVE
+    // the thread and newest first, so the reply box does not walk further down
+    // the page with every comment added.
+    const marker = `E2E comments ${Date.now()}`;
+    const title = `${marker} discuss`;
+    const task = await createTask(ownerApi, { title });
+
+    try {
+      await ownerPage.goto(`/tasks?q=${encodeURIComponent(marker)}`);
+      const detail = ownerPage.locator('[data-testid="detail"]');
+      const composer = detail.getByPlaceholder(/Write a comment/);
+      await expect(composer).toBeVisible();
+      await expect(detail.getByText('No comments yet. Start the discussion above.')).toBeVisible();
+
+      const post = async (body: string) => {
+        await composer.fill(body);
+        await detail.getByRole('button', { name: 'Add comment' }).click();
+        await expect(detail.getByRole('listitem').filter({ hasText: body })).toBeVisible();
+        // The composer clears only on a successful send, so an empty box is
+        // itself the evidence the write landed.
+        await expect(composer).toHaveValue('');
+      };
+
+      await post(`${marker} the first thing`);
+      await post(`${marker} the second thing`);
+      // The count rides in a `<span>` with no space before it, so the
+      // accessible name is "Comments(2)" — match loosely rather than pin
+      // whitespace that only exists visually (`ml-1.5`).
+      await expect(detail.getByRole('heading', { name: /^Comments\s*\(2\)$/ })).toBeVisible();
+
+      const first = detail.getByRole('listitem').filter({ hasText: 'the first thing' });
+      const second = detail.getByRole('listitem').filter({ hasText: 'the second thing' });
+      const firstBox = (await first.boundingBox())!;
+      const secondBox = (await second.boundingBox())!;
+      const composerBox = (await composer.boundingBox())!;
+      expect(secondBox.y, 'newest comment should sit above the older one').toBeLessThan(firstBox.y);
+      expect(composerBox.y, 'the composer belongs above the thread').toBeLessThan(secondBox.y);
+
+      // Moderation is owner-only, and it confirms — §8's delete idiom, applied
+      // per row. (The member surface passes no `onDelete` at all, so there the
+      // button is absent rather than disabled.)
+      await second.getByRole('button', { name: 'Delete comment' }).click();
+      await ownerPage.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+      await expect(second).toHaveCount(0);
+      await expect(first).toBeVisible();
+      await expect(detail.getByRole('heading', { name: /^Comments\s*\(1\)$/ })).toBeVisible();
+
+      // The count the list card badges comes from the API, not the thread.
+      const listed = await ownerApi.get(`/api/nodes/${task.id}/comments`);
+      const { comments } = (await listed.json()) as { comments: { body: string }[] };
+      expect(comments).toHaveLength(1);
     } finally {
       await ownerApi.delete(`/api/tasks/${task.id}`);
     }
