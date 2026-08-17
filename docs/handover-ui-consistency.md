@@ -20,12 +20,14 @@ Tasks e2e tests) is finished and its content now lives in §1a below.
 | Repo | Branch | State |
 |---|---|---|
 | **mantle** | `main` | Pushed. `v0.230.67` tagged; `@crossworks/*@0.230.67` on npm. |
-| **jackdaw** | `main` | **9 commits ahead of origin, unpushed.** Pre-dates this session. |
-| **jackdaw** | `claude/ui-consistency-handover-c2aac7` | **16 ahead of origin/main**, i.e. 7 new on top of main. Unpushed, unmerged. |
+| **jackdaw** | `main` | **10 ahead of origin, unpushed.** The rollout was merged here at `706f9d5`. |
+| **jackdaw** | `claude/heuristic-curie-9c542d` | **11 ahead of origin/main** — the `/formulas` port, one commit on top of main. Unpushed, unmerged. |
 
-The 7 on the branch:
+The rollout, in order:
 
 ```
+1ca0c6b refactor(formulas): port /formulas to the Tasks standard   ← on the branch
+706f9d5 Merge: UI consistency rollout — phase 1 and 2a (7 of 9)
 8b52101 refactor(models,runs,sandboxes): port the last three clean 2a screens
 1310d43 docs(ui): record what blocks /apps and the shape of the rest of 2a
 b9a7f66 refactor(secrets): port /secrets to the Tasks standard
@@ -36,12 +38,12 @@ b9a7f66 refactor(secrets): port /secrets to the Tasks standard
 ba2a9cf test(tasks): pin the Tasks UI and the resizable shell with e2e specs
 ```
 
-`pnpm verify` is clean. The e2e suite is 55 passing / 1 failing / 2 skipped —
+`pnpm verify` is clean. The e2e suite is 71 passing / 2 failing / 51 skipped —
 see §4 for which and why.
 
-**⚠ Nothing is pushed, merged, or deployed.** Sixteen commits of unreviewed work
-in one branch is the largest outstanding risk here, and it is Jason's call, not
-a coding decision. The specs exist to make that review cheap.
+**⚠ Nothing is pushed or deployed.** Eleven commits of unreviewed work is the
+largest outstanding risk here, and it is Jason's call, not a coding decision.
+The specs exist to make that review cheap.
 
 ---
 
@@ -149,6 +151,22 @@ E2E_SERVER_URL=http://192.168.100.75:3999 E2E_CLIENT_URL=http://localhost:3100 \
 E2E_EMAIL=audit@example.com E2E_PASSWORD=e2e-owner-password-1 \
 E2E_SKIP_PDF=1 pnpm -C e2e e2e
 ```
+
+⚠ **Check WHICH worktree the running client is serving, not just that a client
+is running.** A `next dev` left over from another worktree answers on `:3100`
+perfectly happily and serves that worktree's code, so your edits appear to do
+nothing and the suite grades the wrong tree. `ps aux | grep "next dev"` prints
+the path. Restarting it on the same port from your own worktree is the fix —
+the port matters (CORS), the process does not.
+
+⚠ **`next dev` writes `client/web/AGENTS.md` and `client/web/CLAUDE.md`** on
+every boot. They arrive untracked; they are not part of anyone's change. Decide
+once whether to track them (their own text argues for it) — until then, leave
+them out of your `git add`.
+
+⚠ **A fresh worktree has no `node_modules`.** `pnpm install --frozen-lockfile`
+takes a few seconds off the store, but nothing — not `tsc`, not the dev server —
+works before it.
 
 The scratch brain's owner is `audit@example.com`. **Its password was reset to
 the suite's own** (`e2e-owner-password-1`, bcrypt cost 12) because the original
