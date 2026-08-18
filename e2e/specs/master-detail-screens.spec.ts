@@ -25,6 +25,13 @@ const SCREENS = [
   { path: '/runs', id: 'runs' },
   { path: '/formulas', id: 'formulas' },
   { path: '/apps', id: 'apps' },
+  // Left column is a nav TREE rather than a list of cards — a deliberate
+  // exception. The scaffold contract this file holds is the same either way.
+  { path: '/docs', id: 'docs' },
+  // Folder TREE on the left, same deliberate exception as /docs. Its right pane
+  // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
+  // below is the interesting one here.
+  { path: '/files', id: 'files' },
   // A box with the `sandboxes` compose profile off renders an explainer instead
   // of the screen, so this row SKIPS itself there rather than failing. Said out
   // loud, because a silently-skipped row is indistinguishable from a passing one.
@@ -41,6 +48,20 @@ test.describe('ported master-detail screens', () => {
       // fixture's viewport option. Wide enough that widening the detail has
       // somewhere to come from.
       await ownerPage.setViewportSize({ width: 1600, height: 900 });
+
+      // The scaffold has to survive a SERVER render. `MasterDetail` used to
+      // hand `useDefaultLayout` an explicit `storage: undefined`, which trips
+      // that hook's `storage = localStorage` default — a global Node does not
+      // have — and throws out of its server snapshot, taking the whole route
+      // down to client-only rendering. It went unseen for nine screens because
+      // every one of them reads `useSearchParams` without a Suspense boundary,
+      // which already de-opts the subtree; `/docs` is a layout that genuinely
+      // server-renders, and it found this immediately.
+      const bailouts: string[] = [];
+      ownerPage.on('pageerror', (err) => {
+        if (/Switched to client rendering/.test(err.message)) bailouts.push(err.message);
+      });
+
       await ownerPage.goto(screen.path);
 
       const list = ownerPage.locator('[data-testid="list"]');
@@ -59,6 +80,7 @@ test.describe('ported master-detail screens', () => {
       const detail = ownerPage.locator('[data-testid="detail"]');
       await expect(list, 'no list panel — still a hand-written grid?').toBeVisible();
       await expect(detail).toBeVisible();
+      expect(bailouts, 'the server render threw and the route fell back to the client').toEqual([]);
 
       // Exactly one scrollbar in the detail pane: MasterDetail's own. A pane
       // that keeps its old `h-full overflow-y-auto` nests a second.

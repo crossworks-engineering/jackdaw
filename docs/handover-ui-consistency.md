@@ -161,6 +161,26 @@ E2E_EMAIL=audit@example.com E2E_PASSWORD=e2e-owner-password-1 \
 E2E_SKIP_PDF=1 pnpm -C e2e e2e
 ```
 
+⚠ **The brain does NOT outlive the ssh command that starts it**, `setsid nohup
+… & disown` notwithstanding. Verified twice: kill the local `ssh` client and the
+next `curl` to `:3999` gets connection-refused, with `[ELIFECYCLE] Command
+failed.` at the end of `/tmp/kanban-brain.log`. So an agent whose harness reaps
+background processes at session end leaves the box with no brain — which is why
+you may find it stopped even though the last session said it was running.
+
+Two consequences:
+
+- **Start it early and keep that ssh command alive** for the whole session. It
+  will not return; that is expected, so launch it in the background and move on.
+- **`loginctl show-user jasons -p Linger` is `no`**, so `systemd-run --user`
+  would be torn down the same way. Making it genuinely survive means
+  `loginctl enable-linger`, which is a system-settings change — ask Jason, do
+  not do it in passing.
+
+The `pkill` is still worth running first regardless: when the brain dies THIS
+way it takes its supervisor with it, but a brain that dies other ways leaves a
+`tsx watch` behind that respawns the old code.
+
 ⚠ **Check WHICH worktree the running client is serving, not just that a client
 is running.** Every worktree's dev server looks identical on `:3100`, so one
 left over from another worktree answers perfectly happily and serves *that*

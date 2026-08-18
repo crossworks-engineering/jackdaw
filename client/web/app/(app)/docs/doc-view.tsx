@@ -84,7 +84,11 @@ export function DocView({ doc }: { doc: ReaderDoc }) {
   const components = makeComponents(doc.collectionKey, doc.relPath);
 
   return (
-    <article className="mx-auto max-w-3xl px-6 py-8 md:py-12">
+    // No `mx-auto max-w-*`: the detail pane hugs the divider (§8), and the
+    // measure is `MasterDetail`'s third panel now, not this article's. Centring
+    // here would walk the prose away from the nav AND make dragging the divider
+    // wider do nothing.
+    <article className="px-6 py-8 md:py-12">
       <p className="mb-2 text-xs text-muted-foreground">
         {doc.collectionLabel}
         {segments.map((s, i) => (

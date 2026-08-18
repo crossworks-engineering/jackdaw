@@ -225,4 +225,107 @@ test.describe('shell layout', () => {
     for (const name of WIDTH_VARS) expect(report.shellTransitions).toContain(name);
     for (const value of report.computedVars) expect(value).toMatch(/^-?[\d.]+px$/);
   });
+
+  test('both shell rails show a drag grip at rest, the same one every divider shows', async ({
+    ownerPage,
+  }) => {
+    // Style guide §8: "every draggable edge shows a grip, at rest, without
+    // hovering it". `RailHandle` used to render `after:bg-transparent` and
+    // nothing else, so the nav and activity rails — the two edges a user meets
+    // on EVERY screen — read as fixed furniture until the pointer happened to
+    // cross an 8px strip.
+    //
+    // Deliberately NOT a class-name assertion: the bug was a missing element
+    // and the regression would be a hover-gated one, neither of which a class
+    // check distinguishes. So this measures the painted box with the pointer
+    // parked far away, and reads the properties that would hide it.
+    await ownerPage.goto('/tasks');
+    await expect(ownerPage.locator('.mantle-shell')).toBeVisible();
+    // The activity column starts COLLAPSED (its cookie defaults that way), and
+    // a collapsed rail correctly has no handle — so expand it before asking
+    // whether the expanded rail advertises one.
+    await ownerPage.getByRole('button', { name: 'Expand activity' }).click();
+    await expect(ownerPage.getByRole('button', { name: 'Collapse activity' })).toBeVisible();
+    // …and let it FINISH expanding. `--activity-w` animates on `.mantle-shell`,
+    // so the rail's edge is still travelling for a few frames after the button
+    // flips; measuring the grip against a moving edge is a real flake.
+    await expect
+      .poll(async () =>
+        ownerPage
+          .locator('.mantle-shell')
+          .evaluate((el) => getComputedStyle(el).getPropertyValue('--activity-w').trim()),
+      )
+      .toBe('320px'); // ACTIVITY_W_DEFAULT, as the nav test hardcodes 256px
+
+    // Park the pointer in the middle of the content, AFTER that click: a click
+    // leaves the mouse where it landed, and "at rest" would otherwise be a lie.
+    await ownerPage.mouse.move(800, 450);
+
+    // The reference affordance: the chip `ResizableHandle withHandle` draws on
+    // the master-detail divider. Comparing against it — rather than against
+    // hardcoded 12×16 — is what holds "one affordance means one thing": restyle
+    // one and this fails until the other follows.
+    const reference = ownerPage.locator('[data-slot="resizable-handle"] > div').first();
+    await expect(reference).toBeVisible();
+    const referenceBox = (await reference.boundingBox())!;
+
+    for (const [name, railSelector] of [
+      ['Resize navigation', 'aside.fixed.inset-y-0.left-0'],
+      ['Resize activity column', 'aside.fixed.inset-y-0.right-0'],
+    ] as const) {
+      const handle = ownerPage.getByRole('separator', { name });
+      await expect(handle, `${name}: no handle on the expanded rail`).toBeVisible();
+
+      const grip = handle.locator('[data-slot="rail-handle-grip"]');
+      await expect(grip, `${name}: the rail has no grip element at all`).toHaveCount(1);
+
+      const box = (await grip.boundingBox())!;
+      expect(box.width, `${name}: grip is a different size to the divider's`).toBeCloseTo(
+        referenceBox.width,
+        1,
+      );
+      expect(box.height, `${name}: grip is a different size to the divider's`).toBeCloseTo(
+        referenceBox.height,
+        1,
+      );
+
+      // Painted, not merely present. A grip revealed by `group-hover:opacity-100`
+      // or `after:`-style transparency would satisfy every assertion above and
+      // still be exactly the hidden affordance this test exists to forbid.
+      const paint = await grip.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return {
+          opacity: Number(s.opacity),
+          visibility: s.visibility,
+          display: s.display,
+          background: s.backgroundColor,
+        };
+      });
+      expect(paint.opacity, `${name}: the grip is transparent until hovered`).toBe(1);
+      expect(paint.visibility).toBe('visible');
+      expect(paint.display).not.toBe('none');
+      expect(paint.background, `${name}: the grip has no fill at rest`).not.toMatch(
+        /rgba\(.*,\s*0\)$/,
+      );
+
+      // It straddles the rail's edge, the way the divider's chip straddles the
+      // divider — on it, not floating in the middle of the rail's content.
+      const rail = (await ownerPage.locator(railSelector).boundingBox())!;
+      const edge = name === 'Resize navigation' ? rail.x + rail.width : rail.x;
+      expect(
+        Math.abs(box.x + box.width / 2 - edge),
+        `${name}: the grip is not sitting on the rail's draggable edge`,
+      ).toBeLessThan(2);
+    }
+
+    await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}shell-rail-grips.png` });
+
+    // The other half of §8's rule, which the grip must not quietly undo: a
+    // COLLAPSED rail has no handle, because the toggle owns that width.
+    // ⌘B rather than the toolbar button: the button sits in the bottom-left
+    // corner, which is exactly where `next dev` parks its overlay portal, and
+    // that portal swallows the click in this environment only.
+    await ownerPage.keyboard.press('ControlOrMeta+b');
+    await expect(ownerPage.getByRole('separator', { name: 'Resize navigation' })).toHaveCount(0);
+  });
 });

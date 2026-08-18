@@ -1,5 +1,6 @@
 'use client';
 
+import { GripVerticalIcon } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 
 import { cn } from '../lib/utils';
@@ -18,6 +19,14 @@ import { cn } from '../lib/utils';
  *
  * Keyboard-operable, because a drag-only control is unusable without a mouse:
  * arrows nudge by 8px, shift-arrows by 32px.
+ *
+ * It carries the SAME grip chip `ResizableHandle withHandle` draws, drawn at
+ * rest rather than on hover (style guide §8: "every draggable edge shows a
+ * grip, at rest, without hovering it"). One affordance means one thing, so the
+ * chip is copied verbatim — `h-4 w-3`, bordered, `bg-border`, a `size-2.5`
+ * `GripVerticalIcon` — and only its POSITIONING differs: `ResizableHandle`
+ * centres its chip on a flex divider, and a fixed rail has no divider to sit
+ * on, only an edge.
  */
 export function RailHandle({
   value,
@@ -79,6 +88,7 @@ export function RailHandle({
         onDraggingChange?.(false);
         e.currentTarget.releasePointerCapture(e.pointerId);
       }}
+      data-slot="rail-handle"
       // Escape hatch for a rail dragged somewhere unusable.
       onDoubleClick={() => onChange(clamp(0))}
       onKeyDown={(e) => {
@@ -99,6 +109,24 @@ export function RailHandle({
           onChange(max);
         }
       }}
-    />
+    >
+      {/* The grip, drawn at rest. Centred on the 1px rule (`after`), so it
+          straddles the rail's edge exactly as `ResizableHandle`'s chip
+          straddles its divider — half over the rail, half over the content.
+          The rail is `fixed z-30` and owns a stacking context, so the outboard
+          half paints above <main>, and nothing clips it because neither aside
+          sets `overflow-hidden`. */}
+      <div
+        aria-hidden
+        data-slot="rail-handle-grip"
+        className={cn(
+          'absolute top-1/2 z-10 flex h-4 w-3 -translate-y-1/2 items-center justify-center',
+          'rounded-xs border bg-border',
+          side === 'right' ? 'left-1/2 -translate-x-1/2' : 'right-1/2 translate-x-1/2',
+        )}
+      >
+        <GripVerticalIcon className="size-2.5" />
+      </div>
+    </div>
   );
 }

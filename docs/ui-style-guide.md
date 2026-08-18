@@ -588,12 +588,16 @@ localStorage, and are seeded server-side in `app/(app)/layout.tsx` so the rail
 does not jump on load. A **collapsed rail has no handle** — the toggle owns
 that width.
 
-> ⚠ **`RailHandle` does not meet the grip rule yet.** It renders
-> `after:bg-transparent` and only paints on `hover:`/`focus-visible:`, with no
-> grip element, so both shell rails read as fixed furniture until you happen to
-> sweep the right 8px. Bringing it up to `ResizableHandle`'s affordance is a
-> tracked item — see
-> [`handover-resizable-columns.md`](./handover-resizable-columns.md) §8.
+`RailHandle` meets the grip rule the same way `ResizableHandle` does: it draws
+the **identical chip** — `h-4 w-3`, bordered, `bg-border`, a `size-2.5`
+`GripVerticalIcon` — at rest, straddling the rail's edge. Only the positioning
+differs, because a fixed rail has an edge rather than a divider to centre on.
+The 1px `after:` rule stays `bg-transparent` until hover: the rail's own
+`border-r`/`border-l` already draws that line, so painting a second one there
+would be a doubled border, not a stronger affordance.
+`shell-layout.spec.ts` holds this — it measures the grip's painted box against
+the divider's with the pointer parked away, so restyling one and not the other
+fails.
 
 > ⚠ **Never put a transition on a property you read from a CSS variable.** See
 > the long note in `globals.css`: the element stops tracking the variable

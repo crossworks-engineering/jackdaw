@@ -15,6 +15,26 @@ const SPACER = 'spacer';
 const DESKTOP = '(min-width: 768px)';
 
 /**
+ * What `useDefaultLayout` reads on the SERVER.
+ *
+ * It must not be `undefined`: the hook's signature is `storage = localStorage`,
+ * so an explicit `undefined` triggers the default, `localStorage` is not a
+ * global in Node, and the hook's server snapshot then calls `.getItem` on
+ * nothing. The whole subtree falls back to client rendering with
+ * "Cannot read properties of undefined (reading 'getItem')".
+ *
+ * That went unseen while every ported screen read `useSearchParams` (through
+ * `useListNav`) without a Suspense boundary, which de-opts the subtree to
+ * client-only rendering — so `MasterDetail` was never reached on the server.
+ * `/docs` is a layout with no search params and genuinely server-renders, which
+ * is what surfaced it.
+ *
+ * A server render never has a saved layout to honour anyway: the panels are not
+ * mounted until `useMediaQuery` resolves, which is client-side by definition.
+ */
+const NO_STORAGE = { getItem: () => null, setItem: () => {} };
+
+/**
  * The list + detail scaffold from the style guide (§8), with a draggable
  * divider. Owns the pane classes rather than leaving them to each screen,
  * because the rules that make it work are easy to drop and expensive to debug:
@@ -122,7 +142,7 @@ export function MasterDetail({
     // Window resizes and imperative calls shouldn't overwrite a width the user
     // chose deliberately.
     onlySaveAfterUserInteractions: true,
-    storage: typeof window === 'undefined' ? undefined : window.localStorage,
+    storage: typeof window === 'undefined' ? NO_STORAGE : window.localStorage,
   });
 
   // Drive the collapse imperatively rather than by swapping `defaultSize`:
