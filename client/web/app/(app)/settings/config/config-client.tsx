@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { diffLines } from 'diff';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -285,104 +286,115 @@ function ConfigView({ report }: { report: ConfigDiffReport }) {
   }
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[360px_1fr] md:overflow-hidden">
-      {/* ── Left: entity list ───────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Config vs template
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Template v{report.appVersion}
-            {report.lastReconciledVersion
-              ? ` · last synced v${report.lastReconciledVersion}`
-              : ' · never auto-synced'}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-            <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground">{ok} OK</span>
-            <span className={cn('rounded-sm bg-muted px-1.5 py-0.5', STATUS_TEXT.modified)}>
-              {modified} modified
-            </span>
-            <span className={cn('rounded-sm bg-muted px-1.5 py-0.5', STATUS_TEXT.missing)}>
-              {missing} missing
-            </span>
-            <span className={cn('rounded-sm bg-muted px-1.5 py-0.5', STATUS_TEXT.extra)}>
-              {extra} added
-            </span>
-          </div>
-          {adoptAllCount > 0 && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 w-full"
-                  disabled={submitting}
-                >
-                  Commit all ({adoptAllCount})
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Commit {adoptAllCount} change{adoptAllCount === 1 ? '' : 's'} from the template?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Applies every committable item now (the same syncs the next version bump would
-                    make). Worker model changes are excluded — commit those individually.
-                    Operator-added items are never removed.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={runAdoptAll}>Commit all</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-
-        <div className="space-y-3 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {sections.map((section) => (
-            <div key={section.label} className="space-y-1.5">
-              <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {section.label}
-              </p>
-              {section.items.map((e) => {
-                const key = `${e.kind}:${e.slug}`;
-                const isSel = selected ? `${selected.kind}:${selected.slug}` === key : false;
-                return (
-                  <ListCard
-                    key={key}
-                    onClick={() => setSelectedKey(key)}
-                    className={cn(
-                      // Status keeps its own left bar here — it encodes the
-                      // template diff, not selection.
-                      'border-l-[3px]',
-                      STATUS_BORDER[e.status],
-                      isSel && 'bg-muted/50 ring-1 ring-ring',
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{e.name}</span>
-                      <StatusPill status={e.status} />
-                    </div>
-                    <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                      {e.slug}
-                    </div>
-                  </ListCard>
-                );
-              })}
+    <MasterDetail
+      id="settings-config"
+      // The 360px this screen has always had.
+      defaultListSize="360px"
+      // `detailFills`, unlike its siblings in this cluster: the detail is not a
+      // form, it is a config DIFF — side-by-side template vs live values that
+      // wrap badly at the 672px form measure. This screen has no form at all,
+      // which is why the plan's 0 `<Label>` / 0 `FieldHint` count is correct
+      // here and there is no §6 work to do.
+      detailFills
+      list={
+        <>
+          <div className="border-b border-border p-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Config vs template
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Template v{report.appVersion}
+              {report.lastReconciledVersion
+                ? ` · last synced v${report.lastReconciledVersion}`
+                : ' · never auto-synced'}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+              <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground">
+                {ok} OK
+              </span>
+              <span className={cn('rounded-sm bg-muted px-1.5 py-0.5', STATUS_TEXT.modified)}>
+                {modified} modified
+              </span>
+              <span className={cn('rounded-sm bg-muted px-1.5 py-0.5', STATUS_TEXT.missing)}>
+                {missing} missing
+              </span>
+              <span className={cn('rounded-sm bg-muted px-1.5 py-0.5', STATUS_TEXT.extra)}>
+                {extra} added
+              </span>
             </div>
-          ))}
-        </div>
-      </div>
+            {adoptAllCount > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 w-full"
+                    disabled={submitting}
+                  >
+                    Commit all ({adoptAllCount})
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Commit {adoptAllCount} change{adoptAllCount === 1 ? '' : 's'} from the
+                      template?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Applies every committable item now (the same syncs the next version bump would
+                      make). Worker model changes are excluded — commit those individually.
+                      Operator-added items are never removed.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={runAdoptAll}>Commit all</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
 
-      {/* ── Right: entity detail ────────────────────────────────────── */}
-      {/* `relative` keeps tall content out of <main>'s own scroll area. */}
-      <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {selected ? (
+          <div className="space-y-3 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {sections.map((section) => (
+              <div key={section.label} className="space-y-1.5">
+                <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {section.label}
+                </p>
+                {section.items.map((e) => {
+                  const key = `${e.kind}:${e.slug}`;
+                  const isSel = selected ? `${selected.kind}:${selected.slug}` === key : false;
+                  return (
+                    <ListCard
+                      key={key}
+                      onClick={() => setSelectedKey(key)}
+                      className={cn(
+                        // Status keeps its own left bar here — it encodes the
+                        // template diff, not selection.
+                        'border-l-[3px]',
+                        STATUS_BORDER[e.status],
+                        isSel && 'bg-muted/50 ring-1 ring-ring',
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{e.name}</span>
+                        <StatusPill status={e.status} />
+                      </div>
+                      <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+                        {e.slug}
+                      </div>
+                    </ListCard>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </>
+      }
+      // `relative` and the pane's single scroller are `MasterDetail`'s job now.
+      detail={
+        selected ? (
           <div className="space-y-4 p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -465,8 +477,8 @@ function ConfigView({ report }: { report: ConfigDiffReport }) {
           <div className="flex h-full items-center justify-center p-6">
             <p className="text-sm text-muted-foreground">No config to compare.</p>
           </div>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   );
 }

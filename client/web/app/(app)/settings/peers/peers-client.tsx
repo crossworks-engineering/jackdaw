@@ -7,8 +7,14 @@ import { Check, Copy, KeyRound, Network, Plus, RefreshCw, Search, Trash2, X } fr
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
-import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -135,105 +141,111 @@ function PeersView({ initialPeers }: { initialPeers: Peer[] }) {
   const selected = sel.mode === 'view' ? (peers.find((p) => p.id === sel.id) ?? null) : null;
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: peer list ───────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Peers
-          </h2>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              setReveal(null);
-              setSel({ mode: 'create' });
-            }}
-          >
-            <Plus /> New
-          </Button>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {peers.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              No peers yet. Click <strong>New</strong> to connect another Mantle.
-            </p>
+    <>
+      <MasterDetail
+        id="settings-peers"
+        // The 340px this screen has always had.
+        defaultListSize="340px"
+        // No `detailFills`: the detail is a form, and the 672px default measure
+        // is what keeps it off 1200px line lengths (§8).
+        list={
+          <>
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Peers
+              </h2>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setReveal(null);
+                  setSel({ mode: 'create' });
+                }}
+              >
+                <Plus /> New
+              </Button>
+            </div>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {peers.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  No peers yet. Click <strong>New</strong> to connect another Mantle.
+                </p>
+              ) : (
+                peers.map((p) => {
+                  const isSel = sel.mode === 'view' && sel.id === p.id;
+                  return (
+                    <ListCard
+                      key={p.id}
+                      onClick={() => {
+                        setReveal(null);
+                        setSel({ mode: 'view', id: p.id });
+                      }}
+                      selected={isSel}
+                      dimmed={!p.enabled}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Network className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate text-sm font-medium">{p.displayName}</span>
+                        <span
+                          className={cn(
+                            'ml-auto size-2 shrink-0 rounded-full',
+                            p.enabled && p.status === 'active'
+                              ? 'bg-primary'
+                              : p.enabled && p.status === 'pending'
+                                ? 'bg-success'
+                                : 'bg-muted-foreground/40',
+                          )}
+                          aria-label={
+                            p.enabled
+                              ? p.status === 'pending'
+                                ? 'awaiting their token'
+                                : p.status
+                              : 'disabled'
+                          }
+                        />
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">{p.baseUrl}</div>
+                    </ListCard>
+                  );
+                })
+              )}
+            </div>
+          </>
+        }
+        detail={
+          sel.mode === 'create' ? (
+            <CreatePeer
+              onCreated={(peer, inboundToken) => {
+                setPeers((p) => [peer, ...p]);
+                setReveal(inboundToken);
+                setSel({ mode: 'view', id: peer.id });
+              }}
+            />
+          ) : selected ? (
+            <PeerDetail
+              key={selected.id}
+              peer={selected}
+              revealToken={reveal}
+              onClearReveal={() => setReveal(null)}
+              onChanged={(patch) =>
+                setPeers((list) => list.map((p) => (p.id === selected.id ? { ...p, ...patch } : p)))
+              }
+              onRevealNew={(t) => setReveal(t)}
+              onDeleted={() => {
+                const next = peers.filter((p) => p.id !== selected.id);
+                setPeers(next);
+                setReveal(null);
+                setSel(next[0] ? { mode: 'view', id: next[0].id } : { mode: 'create' });
+              }}
+            />
           ) : (
-            peers.map((p) => {
-              const isSel = sel.mode === 'view' && sel.id === p.id;
-              return (
-                <ListCard
-                  key={p.id}
-                  onClick={() => {
-                    setReveal(null);
-                    setSel({ mode: 'view', id: p.id });
-                  }}
-                  selected={isSel}
-                  dimmed={!p.enabled}
-                >
-                  <div className="flex items-center gap-2">
-                    <Network className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate text-sm font-medium">{p.displayName}</span>
-                    <span
-                      className={cn(
-                        'ml-auto size-2 shrink-0 rounded-full',
-                        p.enabled && p.status === 'active'
-                          ? 'bg-primary'
-                          : p.enabled && p.status === 'pending'
-                            ? 'bg-success'
-                            : 'bg-muted-foreground/40',
-                      )}
-                      aria-label={
-                        p.enabled
-                          ? p.status === 'pending'
-                            ? 'awaiting their token'
-                            : p.status
-                          : 'disabled'
-                      }
-                    />
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">{p.baseUrl}</div>
-                </ListCard>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── Right: create | detail ────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {sel.mode === 'create' ? (
-          <CreatePeer
-            onCreated={(peer, inboundToken) => {
-              setPeers((p) => [peer, ...p]);
-              setReveal(inboundToken);
-              setSel({ mode: 'view', id: peer.id });
-            }}
-          />
-        ) : selected ? (
-          <PeerDetail
-            key={selected.id}
-            peer={selected}
-            revealToken={reveal}
-            onClearReveal={() => setReveal(null)}
-            onChanged={(patch) =>
-              setPeers((list) => list.map((p) => (p.id === selected.id ? { ...p, ...patch } : p)))
-            }
-            onRevealNew={(t) => setReveal(t)}
-            onDeleted={() => {
-              const next = peers.filter((p) => p.id !== selected.id);
-              setPeers(next);
-              setReveal(null);
-              setSel(next[0] ? { mode: 'view', id: next[0].id } : { mode: 'create' });
-            }}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a peer, or add a new one.
-          </div>
-        )}
-      </div>
-    </div>
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              Select a peer, or add a new one.
+            </div>
+          )
+        }
+      />
+    </>
   );
 }
 
@@ -243,13 +255,24 @@ function CreatePeer({ onCreated }: { onCreated: (peer: Peer, inboundToken: strin
   const [baseUrl, setBaseUrl] = useState('');
   const [outboundToken, setOutbound] = useState('');
   const [pending, setPending] = useState(false);
+  /**
+   * §6b. One toast said "Name and base URL are required" — a single message for
+   * two controls, in a corner, naming neither one on screen. Each field says so
+   * itself now. The rule is unchanged.
+   */
+  const [errors, setErrors] = useState<{ name?: string; url?: string }>({});
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim() || !baseUrl.trim()) {
-      toast.error('Name and base URL are required');
+    const next: { name?: string; url?: string } = {};
+    if (!displayName.trim()) next.name = 'A display name is required.';
+    if (!baseUrl.trim()) next.url = 'A base URL is required.';
+    if (next.name || next.url) {
+      setErrors(next);
+      document.getElementById(next.name ? 'peer-name' : 'peer-url')?.focus();
       return;
     }
+    setErrors({});
     setPending(true);
     try {
       const { peer, inboundToken } = await apiSend<{ peer: Peer; inboundToken: string }>(
@@ -271,7 +294,7 @@ function CreatePeer({ onCreated }: { onCreated: (peer: Peer, inboundToken: strin
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-6">
+    <div className="space-y-4 p-6">
       <div className="flex items-center gap-2">
         <Network className="size-5 text-primary-ink" aria-hidden />
         <h2 className="text-lg font-semibold">Connect a Mantle</h2>
@@ -282,48 +305,63 @@ function CreatePeer({ onCreated }: { onCreated: (peer: Peer, inboundToken: strin
         token <em>they</em> send you, here or later on the peer&apos;s page. Neither side needs the
         other to go first.
       </p>
-      <form onSubmit={submit} className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="peer-name">Display name</Label>
-          <Input
-            id="peer-name"
-            value={displayName}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Her Mantle"
-            autoFocus
-            aria-describedby={hintId('peer-name')}
-          />
-          <FieldHint id="peer-name">Your own name for this brain — only you see it.</FieldHint>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="peer-url">Base URL</Label>
-          <Input
-            id="peer-url"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://her-mantle.example.com"
-            aria-describedby={hintId('peer-url')}
-          />
-          <FieldHint id="peer-url">
-            Where their brain answers. Must be reachable from here.
-          </FieldHint>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="peer-token">Their token — optional for now</Label>
-          <Input
-            id="peer-token"
-            value={outboundToken}
-            onChange={(e) => setOutbound(e.target.value)}
-            placeholder="mtlpeer_… (leave empty if they haven't sent it yet)"
-          />
-          <FieldHint id="peer-token">
-            Used to query them; sealed at rest. Without it the peer is added as “awaiting their
-            token” — they can already query you, and you paste theirs when it arrives.
-          </FieldHint>
-        </div>
-        <div className="flex justify-end border-t border-border pt-3">
-          <SubmitButton pending={pending}>Add peer</SubmitButton>
-        </div>
+      <form onSubmit={submit} noValidate>
+        <FieldGroup>
+          <Field data-invalid={!!errors.name || undefined}>
+            <FieldLabel htmlFor="peer-name">Display name</FieldLabel>
+            <Input
+              id="peer-name"
+              value={displayName}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errors.name) setErrors((c) => ({ ...c, name: undefined }));
+              }}
+              placeholder="e.g. Her Mantle"
+              autoFocus
+              aria-invalid={!!errors.name || undefined}
+              aria-describedby={errors.name ? 'peer-name-error peer-name-hint' : 'peer-name-hint'}
+            />
+            <FieldDescription id="peer-name-hint">
+              Your own name for this brain — only you see it.
+            </FieldDescription>
+            <FieldError id="peer-name-error">{errors.name}</FieldError>
+          </Field>
+          <Field data-invalid={!!errors.url || undefined}>
+            <FieldLabel htmlFor="peer-url">Base URL</FieldLabel>
+            <Input
+              id="peer-url"
+              value={baseUrl}
+              onChange={(e) => {
+                setBaseUrl(e.target.value);
+                if (errors.url) setErrors((c) => ({ ...c, url: undefined }));
+              }}
+              placeholder="https://her-mantle.example.com"
+              aria-invalid={!!errors.url || undefined}
+              aria-describedby={errors.url ? 'peer-url-error peer-url-hint' : 'peer-url-hint'}
+            />
+            <FieldDescription id="peer-url-hint">
+              Where their brain answers. Must be reachable from here.
+            </FieldDescription>
+            <FieldError id="peer-url-error">{errors.url}</FieldError>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="peer-token">Their token — optional for now</FieldLabel>
+            <Input
+              id="peer-token"
+              value={outboundToken}
+              onChange={(e) => setOutbound(e.target.value)}
+              placeholder="mtlpeer_… (leave empty if they haven't sent it yet)"
+              aria-describedby="peer-token-hint"
+            />
+            <FieldDescription id="peer-token-hint">
+              Used to query them; sealed at rest. Without it the peer is added as “awaiting their
+              token” — they can already query you, and you paste theirs when it arrives.
+            </FieldDescription>
+          </Field>
+          <div className="flex justify-end border-t border-border pt-3">
+            <SubmitButton pending={pending}>Add peer</SubmitButton>
+          </div>
+        </FieldGroup>
       </form>
     </div>
   );
@@ -494,7 +532,7 @@ function PeerDetail({
   const grantedIds = new Set(shares.map((s) => s.nodeId));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 p-6">
+    <div className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-xl font-semibold">{peer.displayName}</h2>
@@ -510,8 +548,10 @@ function PeerDetail({
             size="sm"
             className="text-muted-foreground hover:text-destructive-ink"
             onClick={() => setDeleteOpen(true)}
+            aria-label={`Delete ${peer.displayName}`}
+            title="Delete peer"
           >
-            <Trash2 /> Delete
+            <Trash2 />
           </Button>
         </div>
       </div>

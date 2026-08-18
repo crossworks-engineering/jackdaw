@@ -74,7 +74,7 @@ width rather than snapping to the 340px default.
 | `settings/keys` | 610 | 340px | 4 | 7 |
 | `settings/config` | 472 | 360px | 0 | 0 |
 | `settings/skills` | 469 | 360px | 5 | 10 |
-| `settings/ai-workers` | 460 | 340px | 0 | 0 |
+| `settings/ai-workers` | **3453** ⚠ | 340px | **38** ⚠ | **39** ⚠ |
 | `settings/tool-groups` | 454 | 360px | 4 | 8 |
 | `settings/accounts` | 404 | 340px | 0 | 0 |
 | `settings/worker-groups` | 380 | 360px | 4 | 7 |
@@ -193,7 +193,8 @@ is a known flake, roughly 1 run in 2.
 2. ~~**`traces` + `runners`**~~ — **DONE.** See §7 for how the `minmax()`
    translation actually landed; it is not quite what this line assumed.
 3. ~~**The four small settings screens**~~ — **DONE.** See §8.
-4. **`keys`, `peers`, `config`, `ai-workers`** — the middle.
+4. **`keys`, `peers`, `config`** — **DONE**, see §9. ⚠ **`ai-workers` is NOT
+   part of this batch and never should have been** — see §9's first warning.
 5. **`tools`, `users`, `heartbeats`, `agents`** — the four biggest, last, once
    the form idiom is settled. `agents` alone is bigger than most of this list.
 6. **`team-admin`** — two scaffolds in one file; decide one `MasterDetail` or
@@ -351,3 +352,61 @@ Suite: **108 pass / 88 skip / 2 fail** — the two are still `team.spec.ts`.
 
 Left in §2b: `keys`, `peers`, `config`, `ai-workers`, then `tools`, `users`,
 `heartbeats`, `agents`, then `team-admin` and `apps/[id]`.
+
+---
+
+## 9. `keys` · `peers` · `config` — done (2026-08-18)
+
+All three on `MasterDetail` at their existing widths (340 / 340 / 360).
+
+### ⚠ FIRST: `ai-workers` is not a small screen. The table was wrong by 7×.
+
+This batch was planned as four. It is three. Walking the child components the
+way §8 said to gives:
+
+| | plan said | actually |
+|---|---|---|
+| `ai-workers` | 460 lines · 0 `<Label>` · 0 `FieldHint` | **3453 lines · 38 · 39**, plus 9 raw `<select>`, 6 raw `<textarea>`, 2 raw checkboxes |
+
+The table counted `ai-workers-client.tsx` (460 lines) and missed
+**`worker-form.tsx`, which is 2357 lines on its own** — a per-kind field
+renderer over every provider's chat/vision/STT/TTS/image model lists — plus five
+`*-test-button.tsx` components.
+
+For scale: **`agents` is 3662 lines.** `ai-workers` is 3453. The plan scheduled
+`agents` LAST and called it "bigger than most of this list"; it scheduled
+`ai-workers` here, in the middle, as a zero-work screen. **They belong in the
+same batch, and it is the last one.**
+
+### What §6b meant on these three
+
+- **`keys` had every bad delivery at once.** Two toasts (`Paste the key value.`,
+  the custom-service pattern) layered ON TOP of `required` — so a browser bubble
+  and a corner message for the same field. And its rotate dialog did a **silent
+  `return`** on an empty value: the button looked broken and said nothing.
+- **`peers` had one toast for two controls** — "Name and base URL are required",
+  naming neither of them on screen. Each field says so itself now.
+- **`config` genuinely has no form.** Its 0/0 in the table is correct. Pure
+  scaffold swap.
+
+§6d: `keys`' provider `<select>` was a raw element with hand-copied input
+classes; it is a `Select` now.
+
+`config` is also **the one screen in this cluster that takes `detailFills`** —
+its detail is a template-vs-live diff, not form text, and the 672px form measure
+wraps it badly.
+
+`peers` carried two `mx-auto max-w-2xl` caps inside its detail pane; dropped,
+same reason as `accounts`.
+
+### Coverage
+
+Three scaffold rows plus `settings-keys-peers.spec.ts`. Both guards verified by
+restoring the exact pre-port delivery — keys' toast and peers' single
+two-control toast — and watching only the intended tests fail.
+
+Suite: **114 pass / 94 skip / 2 fail** — the two are still `team.spec.ts`.
+
+Remaining in §2b: **`tools`, `users`, `heartbeats`, `agents` and
+`ai-workers`** (the last two are the big pair), then `team-admin` and
+`apps/[id]`.

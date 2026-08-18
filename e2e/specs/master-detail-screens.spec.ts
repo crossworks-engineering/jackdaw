@@ -56,6 +56,12 @@ const SCREENS = [
   { path: '/settings/worker-groups', id: 'settings-worker-groups' },
   { path: '/settings/tool-groups', id: 'settings-tool-groups' },
   { path: '/settings/skills', id: 'settings-skills' },
+  { path: '/settings/keys', id: 'settings-keys' },
+  { path: '/settings/peers', id: 'settings-peers' },
+  // `config` is the one screen in this cluster with NO form, so it takes
+  // `detailFills` — its detail is a template-vs-live diff, not a measure of
+  // form text. Nothing else about the row changes.
+  { path: '/settings/config', id: 'settings-config' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.

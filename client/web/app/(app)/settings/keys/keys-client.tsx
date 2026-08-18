@@ -28,10 +28,24 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
-import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
+import { FieldHint } from '@mantle/web-ui/ui/field-hint';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { SUPPORTED_PROVIDERS, wiredCapabilitiesFor } from '@mantle/voice-client';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
@@ -58,6 +72,9 @@ type KeyRow = {
 // service matching ^[a-z0-9_-]+$; the dropdown just needs an escape hatch.
 const CUSTOM_SERVICE = '__custom__';
 const SERVICE_RE = /^[a-z0-9_-]+$/;
+
+/** Which create-form controls are at fault. Keys are the control ids. */
+type KeyErrors = { 'custom-service'?: string; plaintext?: string };
 
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
 
@@ -110,6 +127,15 @@ export function KeysClient() {
   // Rotate + delete flows.
   const [rotating, setRotating] = useState<KeyRow>();
   const [rotateValue, setRotateValue] = useState('');
+  const [createErrors, setCreateErrors] = useState<KeyErrors>({});
+  const [rotateError, setRotateError] = useState<string>();
+  const clearCreateError = (k: keyof KeyErrors) =>
+    setCreateErrors((cur) => {
+      if (!cur[k]) return cur;
+      const next = { ...cur };
+      delete next[k];
+      return next;
+    });
   const [deleteTarget, setDeleteTarget] = useState<KeyRow>();
 
   // Test-key flow, keyed by id.
@@ -143,14 +169,21 @@ export function KeysClient() {
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!plaintext.trim()) {
-      toast.error('Paste the key value.');
+    // §6b. Both of these were toasts: a message about a specific control,
+    // shown in a corner, gone before you can look back at the field. The rules
+    // are unchanged — `plaintext` was `required` too, which added the browser's
+    // bubble on top.
+    const next: KeyErrors = {};
+    if (!plaintext.trim()) next.plaintext = 'Paste the key value.';
+    if (isCustom && !SERVICE_RE.test(effectiveService))
+      next['custom-service'] = 'Lower-case letters, numbers and dashes only.';
+    if (Object.keys(next).length > 0) {
+      setCreateErrors(next);
+      const first = next['custom-service'] ? 'custom-service' : 'plaintext';
+      document.getElementById(first)?.focus();
       return;
     }
-    if (isCustom && !SERVICE_RE.test(effectiveService)) {
-      toast.error('Enter a service name (lowercase letters, numbers, dashes).');
-      return;
-    }
+    setCreateErrors({});
     const finalLabel = label.trim() || 'default';
     try {
       await apiSend('/api/keys', 'POST', {
@@ -174,7 +207,15 @@ export function KeysClient() {
 
   async function onRotate(e: React.FormEvent) {
     e.preventDefault();
-    if (!rotating || !rotateValue.trim()) return;
+    if (!rotating) return;
+    // Was a silent `return` on an empty value — the dialog just sat there and
+    // the button appeared broken. `required` added a bubble on top of that.
+    if (!rotateValue.trim()) {
+      setRotateError('Paste the new key value.');
+      document.getElementById('rotate-value')?.focus();
+      return;
+    }
+    setRotateError(undefined);
     try {
       await apiSend(`/api/keys/${rotating.id}/rotate`, 'POST', { plaintext: rotateValue });
     } catch (e) {
@@ -222,206 +263,235 @@ export function KeysClient() {
   }
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: key list ───────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            API keys
-          </h2>
-          <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-            <Plus /> New
-          </Button>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {keys.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              No keys yet. Click <strong>New</strong> to add one.
-            </p>
-          ) : (
-            keys.map((k) => {
-              const selected = sel?.mode === 'view' && sel.id === k.id;
-              return (
-                <ListCard
-                  key={k.id}
-                  onClick={() => setSel({ mode: 'view', id: k.id })}
-                  selected={selected}
-                >
-                  <div className="flex items-baseline gap-2">
-                    <span className="truncate text-sm font-medium">{k.service}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">/ {k.label}</span>
-                  </div>
-                  <code className="font-mono text-xs text-muted-foreground">{k.masked}</code>
-                </ListCard>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── Right: create form OR key detail ─────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {sel?.mode === 'create' ? (
-          <div className="space-y-4 p-6">
-            <div>
-              <h2 className="text-lg font-semibold">Add a new key</h2>
-              <p className="text-xs text-muted-foreground">
-                Stored as AES-256-GCM ciphertext. The plaintext is shown once after save, then never
-                again.
-              </p>
+    <>
+      <MasterDetail
+        id="settings-keys"
+        // The 340px this screen has always had.
+        defaultListSize="340px"
+        // No `detailFills`: the detail is a form, and the 672px default measure
+        // is what keeps it off 1200px line lengths (§8).
+        list={
+          <>
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                API keys
+              </h2>
+              <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                <Plus /> New
+              </Button>
             </div>
-            <form onSubmit={onCreate} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="service">Provider</Label>
-                  <select
-                    id="service"
-                    value={service}
-                    onChange={(e) => setService(e.target.value)}
-                    required
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    {SUPPORTED_PROVIDERS.map((p) => {
-                      const { wired } = wiredCapabilitiesFor(p);
-                      // Inline summary of what this provider's key can
-                      // actually be used for. Empty wired list → the
-                      // provider is catalogued but no adapter is
-                      // registered (rare; means a planned integration
-                      // hasn't landed). Partial list → operator sees
-                      // upfront that this provider's chat/whatever
-                      // isn't wired yet, even if the embedding is.
-                      const suffix =
-                        wired.length === 0 ? ' — not yet wired' : ` · ${wired.join(' · ')}`;
-                      return (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                          {p.isAggregator ? ' (aggregator)' : ''}
-                          {suffix}
-                        </option>
-                      );
-                    })}
-                    <option value={CUSTOM_SERVICE}>Custom / other API…</option>
-                  </select>
-                  {isCustom && (
-                    <>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {keys.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  No keys yet. Click <strong>New</strong> to add one.
+                </p>
+              ) : (
+                keys.map((k) => {
+                  const selected = sel?.mode === 'view' && sel.id === k.id;
+                  return (
+                    <ListCard
+                      key={k.id}
+                      onClick={() => setSel({ mode: 'view', id: k.id })}
+                      selected={selected}
+                    >
+                      <div className="flex items-baseline gap-2">
+                        <span className="truncate text-sm font-medium">{k.service}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">/ {k.label}</span>
+                      </div>
+                      <code className="font-mono text-xs text-muted-foreground">{k.masked}</code>
+                    </ListCard>
+                  );
+                })
+              )}
+            </div>
+          </>
+        }
+        detail={
+          sel?.mode === 'create' ? (
+            <div className="space-y-4 p-6">
+              <div>
+                <h2 className="text-lg font-semibold">Add a new key</h2>
+                <p className="text-xs text-muted-foreground">
+                  Stored as AES-256-GCM ciphertext. The plaintext is shown once after save, then
+                  never again.
+                </p>
+              </div>
+              <form onSubmit={onCreate} noValidate>
+                <FieldGroup>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="service">Provider</FieldLabel>
+                      {/* Was a raw `<select>` carrying hand-copied input classes:
+                      no focus ring, no invalid state, and it drifts from every
+                      other control the moment a token changes (§6d). */}
+                      <Select value={service} onValueChange={setService}>
+                        <SelectTrigger id="service">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SUPPORTED_PROVIDERS.map((p) => {
+                            const { wired } = wiredCapabilitiesFor(p);
+                            // Inline summary of what this provider's key can
+                            // actually be used for. Empty wired list → the
+                            // provider is catalogued but no adapter is
+                            // registered (rare; means a planned integration
+                            // hasn't landed). Partial list → operator sees
+                            // upfront that this provider's chat/whatever
+                            // isn't wired yet, even if the embedding is.
+                            const suffix =
+                              wired.length === 0 ? ' — not yet wired' : ` · ${wired.join(' · ')}`;
+                            return (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.label}
+                                {p.isAggregator ? ' (aggregator)' : ''}
+                                {suffix}
+                              </SelectItem>
+                            );
+                          })}
+                          <SelectItem value={CUSTOM_SERVICE}>Custom / other API…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isCustom && (
+                        <Field data-invalid={!!createErrors['custom-service'] || undefined}>
+                          <Input
+                            id="custom-service"
+                            value={customService}
+                            onChange={(e) => {
+                              setCustomService(e.target.value.toLowerCase());
+                              clearCreateError('custom-service');
+                            }}
+                            placeholder="e.g. mapbox"
+                            autoFocus
+                            aria-invalid={!!createErrors['custom-service'] || undefined}
+                            aria-describedby={
+                              createErrors['custom-service']
+                                ? 'custom-service-error custom-service-hint'
+                                : 'custom-service-hint'
+                            }
+                          />
+                          <FieldHint id="custom-service">
+                            Service name for a non-LLM API your API-console tools call (lowercase
+                            letters, numbers, dashes). Reference it in a tool as{' '}
+                            <code>{`{{secret:${effectiveService || 'service'}/${label.trim() || 'default'}}}`}</code>
+                            .
+                          </FieldHint>
+                          <FieldError id="custom-service-error">
+                            {createErrors['custom-service']}
+                          </FieldError>
+                        </Field>
+                      )}
+                      {provider &&
+                        (() => {
+                          const { wired, unwired } = wiredCapabilitiesFor(provider);
+                          return (
+                            <>
+                              <p className="text-xs text-muted-foreground">
+                                {provider.description}{' '}
+                                <a
+                                  href={provider.signupUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline"
+                                >
+                                  Get a key →
+                                </a>
+                              </p>
+                              {wired.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  <span className="font-medium">Use for:</span> {wired.join(', ')}
+                                  {wired.length > 1 ? ' workers.' : ' workers.'}
+                                </p>
+                              )}
+                              {unwired.length > 0 && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                  <span className="font-medium">Also supports</span>{' '}
+                                  {unwired.join(', ')}, but Mantle doesn&apos;t dispatch through
+                                  this provider for{' '}
+                                  {unwired.length > 1 ? 'those capabilities' : 'that'} yet — a key
+                                  still works for the wired capabilities above.
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="label">Label</FieldLabel>
                       <Input
-                        id="custom-service"
-                        value={customService}
-                        onChange={(e) => setCustomService(e.target.value.toLowerCase())}
-                        placeholder="e.g. mapbox"
-                        autoFocus
-                        required
+                        id="label"
+                        value={label}
+                        onChange={(e) => setLabel(e.target.value)}
+                        placeholder="default"
+                        aria-describedby="label-hint"
                       />
-                      <FieldHint id="custom-service">
-                        Service name for a non-LLM API your API-console tools call (lowercase
-                        letters, numbers, dashes). Reference it in a tool as{' '}
-                        <code>{`{{secret:${effectiveService || 'service'}/${label.trim() || 'default'}}}`}</code>
-                        .
-                      </FieldHint>
-                    </>
-                  )}
-                  {provider &&
-                    (() => {
-                      const { wired, unwired } = wiredCapabilitiesFor(provider);
-                      return (
-                        <>
-                          <p className="text-xs text-muted-foreground">
-                            {provider.description}{' '}
-                            <a
-                              href={provider.signupUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="underline"
-                            >
-                              Get a key →
-                            </a>
-                          </p>
-                          {wired.length > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              <span className="font-medium">Use for:</span> {wired.join(', ')}
-                              {wired.length > 1 ? ' workers.' : ' workers.'}
-                            </p>
-                          )}
-                          {unwired.length > 0 && (
-                            <p className="text-xs text-amber-600 dark:text-amber-400">
-                              <span className="font-medium">Also supports</span>{' '}
-                              {unwired.join(', ')}, but Mantle doesn&apos;t dispatch through this
-                              provider for {unwired.length > 1 ? 'those capabilities' : 'that'} yet
-                              — a key still works for the wired capabilities above.
-                            </p>
-                          )}
-                        </>
-                      );
-                    })()}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="label">Label</Label>
-                  <Input
-                    id="label"
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    placeholder="default"
-                  />
-                  <FieldHint id="label">
-                    Disambiguates multiple keys for one service (e.g. <code>personal</code>,{' '}
-                    <code>agent</code>).
-                  </FieldHint>
-                </div>
-              </div>
+                      <FieldDescription id="label-hint">
+                        Disambiguates multiple keys for one service (e.g. <code>personal</code>,{' '}
+                        <code>agent</code>).
+                      </FieldDescription>
+                    </Field>
+                  </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="plaintext">Key value</Label>
-                <Input
-                  id="plaintext"
-                  type="text"
-                  autoComplete="off"
-                  value={plaintext}
-                  onChange={(e) => setPlaintext(e.target.value)}
-                  placeholder="sk-…"
-                  required
-                  autoFocus
-                  aria-describedby={hintId('plaintext')}
-                />
-                <FieldHint
-                  id="plaintext"
-                  warn="Shown only now — after saving you'll see the masked form."
-                >
-                  Pasted straight from the provider. Stored encrypted.
-                </FieldHint>
-              </div>
+                  <Field data-invalid={!!createErrors.plaintext || undefined}>
+                    <FieldLabel htmlFor="plaintext">Key value</FieldLabel>
+                    <Input
+                      id="plaintext"
+                      type="text"
+                      autoComplete="off"
+                      value={plaintext}
+                      onChange={(e) => {
+                        setPlaintext(e.target.value);
+                        clearCreateError('plaintext');
+                      }}
+                      placeholder="sk-…"
+                      autoFocus
+                      aria-invalid={!!createErrors.plaintext || undefined}
+                      aria-describedby={
+                        createErrors.plaintext ? 'plaintext-error plaintext-hint' : 'plaintext-hint'
+                      }
+                    />
+                    <FieldHint
+                      id="plaintext"
+                      warn="Shown only now — after saving you'll see the masked form."
+                    >
+                      Pasted straight from the provider. Stored encrypted.
+                    </FieldHint>
+                    <FieldError id="plaintext-error">{createErrors.plaintext}</FieldError>
+                  </Field>
 
-              <div className="flex justify-end gap-2 border-t border-border pt-3">
-                {keys.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setSel({ mode: 'view', id: keys[0]!.id })}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                <SubmitButton pending={pending}>Save key</SubmitButton>
-              </div>
-            </form>
-          </div>
-        ) : selectedKey ? (
-          <KeyDetail
-            row={selectedKey}
-            testing={!!testing[selectedKey.id]}
-            testResult={testResults[selectedKey.id]}
-            onTest={() => onTest(selectedKey)}
-            onRotate={() => {
-              setRotating(selectedKey);
-              setRotateValue('');
-            }}
-            onDelete={() => setDeleteTarget(selectedKey)}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a key, or add a new one.
-          </div>
-        )}
-      </div>
+                  <div className="flex justify-end gap-2 border-t border-border pt-3">
+                    {keys.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setSel({ mode: 'view', id: keys[0]!.id })}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <SubmitButton pending={pending}>Save key</SubmitButton>
+                  </div>
+                </FieldGroup>
+              </form>
+            </div>
+          ) : selectedKey ? (
+            <KeyDetail
+              row={selectedKey}
+              testing={!!testing[selectedKey.id]}
+              testResult={testResults[selectedKey.id]}
+              onTest={() => onTest(selectedKey)}
+              onRotate={() => {
+                setRotating(selectedKey);
+                setRotateValue('');
+              }}
+              onDelete={() => setDeleteTarget(selectedKey)}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              Select a key, or add a new one.
+            </div>
+          )
+        }
+      />
 
       {/* Reveal-once modal */}
       <Dialog open={!!revealed} onOpenChange={(open) => !open && setRevealed(undefined)}>
@@ -465,16 +535,25 @@ export function KeysClient() {
               undo.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={onRotate} className="space-y-3">
-            <Input
-              type="text"
-              autoComplete="off"
-              value={rotateValue}
-              onChange={(e) => setRotateValue(e.target.value)}
-              placeholder="sk-…"
-              required
-              autoFocus
-            />
+          <form onSubmit={onRotate} noValidate>
+            <Field data-invalid={!!rotateError || undefined} className="mb-3">
+              <FieldLabel htmlFor="rotate-value">New key value</FieldLabel>
+              <Input
+                id="rotate-value"
+                type="text"
+                autoComplete="off"
+                value={rotateValue}
+                onChange={(e) => {
+                  setRotateValue(e.target.value);
+                  if (rotateError) setRotateError(undefined);
+                }}
+                placeholder="sk-…"
+                autoFocus
+                aria-invalid={!!rotateError || undefined}
+                aria-describedby={rotateError ? 'rotate-value-error' : undefined}
+              />
+              <FieldError id="rotate-value-error">{rotateError}</FieldError>
+            </Field>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setRotating(undefined)}>
                 Cancel
@@ -505,7 +584,7 @@ export function KeysClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 
@@ -542,20 +621,27 @@ function KeyDetail({
           size="sm"
           className="shrink-0 text-muted-foreground hover:text-destructive-ink"
           onClick={onDelete}
+          aria-label={`Delete ${row.service} / ${row.label}`}
+          title="Delete key"
         >
-          <Trash2 /> Delete
+          <Trash2 />
         </Button>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Stored key</Label>
+      <Field>
+        {/* Labels a read-only `<code>`, not a control, so there is no `htmlFor`
+            to give — `asChild` keeps the type without minting a label that
+            names nothing. */}
+        <FieldLabel asChild>
+          <span>Stored key</span>
+        </FieldLabel>
         <code className="block rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-sm">
           {row.masked}
         </code>
-        <p className="text-xs text-muted-foreground">
+        <FieldDescription>
           AES-256-GCM ciphertext — the plaintext is never shown again. Rotate to replace it.
-        </p>
-      </div>
+        </FieldDescription>
+      </Field>
 
       {provider && (
         <p className="text-sm text-muted-foreground">
