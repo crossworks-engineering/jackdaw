@@ -1,5 +1,4 @@
 import type { ActionCategory } from '@mantle/web-ui/journey-format';
-import { DebugTabs } from '../debug-tabs';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { ActiveNow } from '@/components/journey/active-now';
 import { JourneyClient } from './journey-client';
@@ -21,8 +20,7 @@ export default async function JourneyPage({
   const processedOnly = done === '1';
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-      <DebugTabs />
+    <div className="space-y-6 px-6 py-8">
       <SetPageTitle title="Journey" />
       <ActiveNow />
       <JourneyClient category={category} processedOnly={processedOnly} />

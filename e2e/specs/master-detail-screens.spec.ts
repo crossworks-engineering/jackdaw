@@ -38,6 +38,12 @@ const SCREENS = [
   // Left column is a nav TREE rather than a list of cards — a deliberate
   // exception. The scaffold contract this file holds is the same either way.
   { path: '/docs', id: 'docs' },
+  // A layout, like /docs: the twelve debug tabs are the DETAIL, and the list is
+  // a card per tab. `/debug` (Overview) is the one tab with no search box, so
+  // unlike its siblings it never de-opts to client rendering — which makes the
+  // server-render check below meaningful here. The cards themselves are in
+  // `debug-nav.spec.ts`.
+  { path: '/debug', id: 'debug' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.

@@ -1,5 +1,4 @@
 import { SetPageTitle } from '@/components/layout/page-title';
-import { DebugTabs } from '../debug-tabs';
 import { IntegrityClient } from './integrity-client';
 
 export const dynamic = 'force-dynamic';
@@ -16,8 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function IntegrityPage() {
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-6 py-8">
-      <DebugTabs />
+    <div className="space-y-4 px-6 py-8">
       <SetPageTitle title="Integrity" />
       <IntegrityClient />
     </div>

@@ -90,7 +90,6 @@ import { PageView } from '@/components/page-editor/page-view';
 import { ShareControl } from '@/components/share-control';
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { buildPageToc } from '@mantle/content-core/page-toc';
-import { StretchHorizontal } from 'lucide-react';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -98,7 +97,7 @@ import { ExportMenu } from '@/components/export/export-menu';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
-import type { PageRow, PageWidth } from '@mantle/client-types';
+import type { PageRow } from '@mantle/client-types';
 
 // Wire shape is the GET /api/pages mapper's output — single source of truth
 // (the canonical row also carries `width`, unused by this list view). Drift
@@ -451,13 +450,12 @@ export function PagesClient() {
         defaultListSize="300px"
         minListSize="220px"
         maxListSize="560px"
-        // The preview is NOT plain prose that wants the 672px default: it
-        // declares its own measure through the per-page narrow/wide setting
-        // (`max-w-3xl` / `max-w-none`, persisted server-side) and hangs an
-        // outline rail beside it at xl. Capping the pane at 672px would make
-        // "wide" a no-op and leave the outline eating a third of the body. It
-        // also has to absorb the list's width in focus mode, which is the whole
-        // point of that mode here.
+        // The divider is the measure here: the per-page narrow/wide toggle is
+        // gone from this screen, so the preview reads at whatever width the
+        // drag leaves it, tucked left against the divider. Capping the pane at
+        // the 672px prose default would take that choice back and leave the xl
+        // outline rail eating a third of the body. It also has to absorb the
+        // list's width in focus mode, which is the whole point of that mode.
         detailFills
         // Focus mode. The list COLLAPSES rather than unmounting, so the search
         // box, scroll position and page survive the round trip — see the prop's
@@ -638,7 +636,6 @@ export function PagesClient() {
               key={selected.id}
               row={selected}
               onDelete={() => setDeleteTarget(selected)}
-              onWidthChange={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
             />
           ) : (
             <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
@@ -984,22 +981,10 @@ function TagFilter({
  *  empty — shows its content here instead of looking blank. This is render-only
  *  (no indexing); the committed doc stays the canonical version everywhere else
  *  (public share, MCP). A badge flags that the preview is showing a draft. */
-function PagePreview({
-  row,
-  onDelete,
-  onWidthChange,
-}: {
-  row: PageRow;
-  onDelete: () => void;
-  onWidthChange: (width: PageWidth) => void;
-}) {
+function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) {
   const [doc, setDoc] = useState<JSONContent | null>(null);
   const [isDraft, setIsDraft] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Optimistic: the width applies on click and the PATCH follows, because this
-  // is a reading control and a round trip between click and reflow reads as a
-  // stall. The list is invalidated after, so re-selecting shows the new value.
-  const [width, setWidth] = useState<PageWidth>(row.width);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // The outline reads the SAME doc the preview renders — the draft when there
@@ -1016,17 +1001,6 @@ function PagePreview({
       ?.querySelector(`[data-block-id="${CSS.escape(id)}"]`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
-
-  const applyWidth = async (next: PageWidth) => {
-    if (next === width) return;
-    setWidth(next);
-    try {
-      await apiSend(`/api/pages/${row.id}`, 'PATCH', { width: next });
-      onWidthChange(next);
-    } catch {
-      setWidth(width); // put it back; the page kept its stored width
-    }
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1067,20 +1041,6 @@ function PagePreview({
               case. The "Draft · uncommitted" badge beside the title is what
               says so. */}
           <ShareControl nodeId={row.id} teamMode allowCascade />
-          {/* Reading width, same control and same stored `data.width` as the
-              editor's — so a page reads the way it was written, and widening it
-              here widens it there. Earns its place beside the focus toggle:
-              full-viewport reading is exactly when the measure matters. */}
-          <Button
-            size="sm"
-            variant={width === 'wide' ? 'default' : 'outline'}
-            onClick={() => void applyWidth(width === 'wide' ? 'narrow' : 'wide')}
-            aria-pressed={width === 'wide'}
-            aria-label="Toggle full width"
-            title="Toggle full width"
-          >
-            <StretchHorizontal />
-          </Button>
           {/* This header survives focus mode (the shell's chrome doesn't), so
               the toggle here is the whole control, enter and exit. */}
           <FocusToggle />
@@ -1116,8 +1076,9 @@ function PagePreview({
           <Skeleton className="h-4 w-5/6" />
         </div>
       ) : doc ? (
-        // Outline rail (left, wide screens) + width-constrained content, the
-        // same shape the editor uses so a page doesn't reflow when you open it.
+        // Outline rail (left, wide screens) + content that fills the rest.
+        // The measure is the divider, so nothing is centred and nothing is
+        // capped — drag the column and the prose follows.
         <div className="flex w-full gap-6" ref={bodyRef}>
           {toc.length > 0 && (
             <aside className="hidden w-56 shrink-0 xl:block">
@@ -1127,9 +1088,7 @@ function PagePreview({
             </aside>
           )}
           <div className="min-w-0 flex-1">
-            <div className={cn('mx-auto w-full', width !== 'wide' ? 'max-w-3xl' : 'max-w-none')}>
-              <PageView content={doc} />
-            </div>
+            <PageView content={doc} />
           </div>
         </div>
       ) : (

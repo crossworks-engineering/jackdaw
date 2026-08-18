@@ -1,5 +1,4 @@
 import { SetPageTitle } from '@/components/layout/page-title';
-import { DebugTabs } from '../debug-tabs';
 import { SanityClient } from './sanity-client';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +13,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SanityPage() {
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-6 py-8">
-      <DebugTabs />
+    <div className="space-y-4 px-6 py-8">
       <SetPageTitle title="Sanity check" />
       <SanityClient />
     </div>

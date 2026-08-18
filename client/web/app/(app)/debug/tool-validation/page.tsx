@@ -1,5 +1,4 @@
 import { SetPageTitle } from '@/components/layout/page-title';
-import { DebugTabs } from '../debug-tabs';
 import { ToolValidationClient } from './tool-validation-client';
 
 /** Debug → Tool validation: the central arg-validator's warn-mode telemetry
@@ -7,8 +6,7 @@ import { ToolValidationClient } from './tool-validation-client';
  *  GET /api/debug/tool-validation. */
 export default async function DebugToolValidationPage() {
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
-      <DebugTabs />
+    <div className="space-y-8 px-6 py-8">
       <SetPageTitle title="Tool validation" />
       <ToolValidationClient />
     </div>

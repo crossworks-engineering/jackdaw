@@ -42,14 +42,11 @@ There are **two copies of this control, in two files** — confirmed, not assume
 - **`/pages` keeps `detailFills`.** It is what makes the divider the real
   measure, and without it focus mode hands the freed width to an empty spacer
   rather than to the page.
-- ⚠ **The editor's copy is the open question.** `/pages/[id]` is a full-page
-  route with no divider, so removing its toggle leaves it with no width choice
-  at all. Jason's "the full width button can fall away" was said about the
-  workspace; **the editor was not discussed.** Decide deliberately and record
-  which you chose: either the editor keeps its toggle (and `data.width` lives
-  on, now written from one place instead of two), or it goes too and the editor
-  takes a fixed measure. Do not remove only one and leave a stored field that
-  nothing writes.
+- ✅ **DECIDED (2026-08-18, Jason): the editor KEEPS its toggle.** `/pages/[id]`
+  is a full-page route with no divider, so removing its toggle would leave a
+  long page with no width choice at all. `data.width` therefore lives on, now
+  written from ONE place instead of two. The workspace copy in
+  `pages-client.tsx` is gone; `page-detail-client.tsx` is untouched.
 - **Leave the `data.width` field on the server alone** either way. Removing a
   stored field is a mantle change and a migration; this is a client port.
 - The `xl` outline rail is not part of this — leave it.
@@ -99,7 +96,7 @@ Check whether they genuinely have no form or hand-roll one entirely.
 | `traces` | `traces/traces-client.tsx` | `md:grid-cols-[minmax(340px,400px)_1fr]` | a RANGE, not a fixed width — becomes `minListSize`/`maxListSize` |
 | `runners` | `runners/runners-client.tsx` | `md:grid-cols-[minmax(340px,400px)_1fr]` | same shape as traces; do them together |
 | `apps/[id]` | `apps/[id]/app-detail-client.tsx` | `grid-cols-[200px_minmax(0,1fr)]` | the app EDITOR, not the list — `/apps` itself is done |
-| `debug/context` | `debug/context/context-client.tsx` | `md:grid-cols-[1fr_1.4fr_1fr]` | **THREE columns.** Not master-detail. Leave it, or decide separately |
+| ~~`debug/context`~~ | `debug/context/context-client.tsx` | `md:grid-cols-[1fr_1.4fr_1fr]` | **THREE columns**, INSIDE the detail pane — untouched, and fine there. The whole `/debug` section is now one `MasterDetail` (see below), so this grid is the tab's own content, not a screen scaffold |
 
 `docs/layout.tsx` and `team-workspace/team-section` are already handled —
 `docs` was ported, and `team-section` carries no list scaffold.
@@ -189,8 +186,10 @@ is a known flake, roughly 1 run in 2.
 
 ## 6. Suggested order
 
-1. **`/pages`** — the decision in §1 is already made; do it while the context is
-   warm, and it closes the last loose end from the resizable work.
+1. ~~**`/pages`**~~ — **DONE.** Toggle, `applyWidth`, `onWidthChange` and the
+   `mx-auto`/`max-w-3xl` wrapper removed from `pages-client.tsx`; `detailFills`
+   kept and its comment rewritten. Guard: `e2e/specs/pages-reading-width.spec.ts`
+   (prose fills the pane, prose is not centred, toggle absent).
 2. **`traces` + `runners`** — identical scaffolds, small, and they prove the
    `minmax()` → `minListSize`/`maxListSize` translation once for both.
 3. **The four small settings screens** (`worker-groups`, `accounts`,
@@ -208,3 +207,48 @@ is a known flake, roughly 1 run in 2.
 State of the world when this was written: `main` at `9de5a2b`, pushed. Deployed
 boxes run **v0.3.0**, which predates all of the resizable work — none of it is
 in front of a user until the next release is tagged.
+
+
+---
+
+## 7. Done since this handover was written (2026-08-18)
+
+### `/pages` — §1, closed
+The workspace width toggle is gone; the divider is the measure and the preview
+tucks left. The EDITOR keeps its toggle (§1, decided), so `data.width` lives on
+and is now written from one place. Guard: `e2e/specs/pages-reading-width.spec.ts`
+— both assertions verified by re-introducing `mx-auto` / `max-w-3xl` and
+watching each one fail.
+
+### `/debug` — the whole section, ported (not in the original plan)
+Twelve tabs behind a horizontal strip that scrolled sideways. Now one
+`MasterDetail` in `debug/layout.tsx`, with a **card per tab** in `debug-nav.tsx`:
+title, a one-line description, and a stat line (`911 traces · 100% ok (24h)`,
+`0/132 indexed · no duplicate edges`, …). `debug-tabs.tsx` is deleted and the
+`mx-auto max-w-6xl` centring is off all thirteen pages.
+
+Three things worth carrying forward:
+
+- **The stat queries reuse each tab's own react-query key and URL**, so the
+  cards and the tab share one cache entry rather than fetching twice. The nav
+  sits in the LAYOUT, so they mount once per section, not once per navigation.
+- **`sanity` and `integrity` are deliberately not fetched** for their stats —
+  one runs checks on request, the other is a full corpus scan, and decorating a
+  card is not a reason to make opening `/debug` do real work. Integrity borrows
+  the overview bundle's cheap counters; sanity says plainly that it runs on open.
+- ⚠ **A trap the next port will hit too.** `MasterDetail` paints a plain CSS
+  grid until `useMediaQuery` resolves, THEN swaps to the resizable panels — a
+  different tree, so the list subtree is rebuilt once on mount, on every ported
+  screen. A test that touches the list before that swap is racing it: green in
+  isolation, red under a full run. Wait for `[data-slot="resizable-handle"]`
+  first — it exists only in the panel branch, so it is the "settled" signal.
+  This cost a full debugging cycle; `debug-nav.spec.ts` records it.
+
+### Suite
+**91 pass / 71 skip / 2 fail** against the scratch brain, both projects, one
+run. The two failures are `team.spec.ts` — the same pre-existing provisioning
+gap §5 already names, unchanged. `field-primitives.spec.ts` flaked once in three
+runs, as documented.
+
+Still open from §2: the twelve settings screens, `traces`, `runners`,
+`team-admin`, `apps/[id]`.

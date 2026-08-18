@@ -1,5 +1,4 @@
 import { SetPageTitle } from '@/components/layout/page-title';
-import { DebugTabs } from '../debug-tabs';
 import { TopicsClient } from './topics-client';
 
 /** Debug → Topics. Data-free: TopicsClient fetches GET /api/debug/topics. */
@@ -13,8 +12,7 @@ export default async function DebugTopicsPage({
   const query = sp.q?.trim() || '';
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-6 py-8">
-      <DebugTabs />
+    <div className="space-y-4 px-6 py-8">
       <SetPageTitle title="Topics" />
       <TopicsClient page={page} query={query} />
     </div>
