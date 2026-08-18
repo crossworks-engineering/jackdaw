@@ -7,8 +7,9 @@ import { ARTIFACTS_DIR } from '../lib/env';
  *
  * `events`, `contacts`, `journal`, `secrets`, `formulas` and `apps` have their own specs
  * because the port changed real behaviour there (validation, saving, the
- * composer). `models`, `runs`, `sandboxes` and `tables` were pure scaffold
- * swaps — no form, no new validation — so what is worth holding is exactly what
+ * composer), and `notes` adds `focus-mode.spec.ts` for the half a screenshot
+ * cannot tell apart. `models`, `runs`, `sandboxes` and `tables` were pure
+ * scaffold swaps — no form, no new validation — so what is worth holding is exactly what
  * this table holds: the panes exist, the width is remembered per screen, and the
  * pane owns the only scrollbar.
  *
@@ -30,6 +31,8 @@ const SCREENS = [
   // front of it before believing that check: it only counts elements that
   // actually overflow.)
   { path: '/tables', id: 'tables' },
+  // Focus mode too, so its collapsed-but-mounted half is in `focus-mode.spec.ts`.
+  { path: '/notes', id: 'notes' },
   // Left column is a nav TREE rather than a list of cards — a deliberate
   // exception. The scaffold contract this file holds is the same either way.
   { path: '/docs', id: 'docs' },
