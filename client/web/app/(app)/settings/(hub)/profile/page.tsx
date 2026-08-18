@@ -11,7 +11,7 @@ import { ProfileClient } from './profile-client';
  */
 export default async function ProfilePage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-6 py-8">
+    <div className="space-y-6 px-6 py-8">
       <SetPageTitle title="Profile" />
       <ProfileClient />
     </div>

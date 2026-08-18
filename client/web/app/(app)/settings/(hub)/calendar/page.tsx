@@ -11,7 +11,7 @@ export default async function CalendarSettingsPage() {
   return (
     <>
       <SetPageTitle title="Calendars" />
-      <div className="mx-auto max-w-2xl space-y-5 p-6">
+      <div className="space-y-5 p-6">
         <div className="space-y-1">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <CalendarDays className="size-5 text-muted-foreground" aria-hidden />

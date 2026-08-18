@@ -50,6 +50,10 @@ const SCREENS = [
   // the divider actually has somewhere to go.
   { path: '/traces', id: 'traces' },
   { path: '/runners', id: 'runners' },
+  // The settings HUB at the formerly-unclaimed `/settings`: a card per
+  // single-panel settings screen, the screen itself in the detail. A layout,
+  // like /docs and /debug. `settings-hub.spec.ts` holds the cards.
+  { path: '/settings', id: 'settings-hub' },
   // The settings cluster, screen by screen as it is ported. Their FORMS are the
   // real work and get their own specs; this row is the scaffold half only.
   { path: '/settings/accounts', id: 'settings-accounts' },

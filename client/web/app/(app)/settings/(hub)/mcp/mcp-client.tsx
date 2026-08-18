@@ -113,7 +113,7 @@ export function McpSettingsClient() {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-2xl space-y-6 p-4 md:p-6">
+      <div className="w-full space-y-6 p-4 md:p-6">
         {/* Connector card */}
         <section className="rounded-xl border border-border bg-card">
           <div className="flex items-start justify-between gap-4 border-b border-border p-4 md:p-5">

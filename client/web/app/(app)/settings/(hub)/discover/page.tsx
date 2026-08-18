@@ -10,7 +10,7 @@ import { DiscoverClient } from './discover-client';
  */
 export default async function DiscoverPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-6 py-6">
+    <div className="space-y-6 px-6 py-6">
       <SetPageTitle title="Discover senders" />
       <header className="space-y-1">
         <h1 className="text-lg font-semibold">Discover senders</h1>

@@ -224,7 +224,7 @@ function EmbeddingForm({
   const failoverDate = config?.lastFailoverAt ? new Date(config.lastFailoverAt) : null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 p-1">
+    <div className="w-full space-y-6 p-1">
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">
           The <strong>one</strong> place the brain&apos;s embedder is configured. Every embed —

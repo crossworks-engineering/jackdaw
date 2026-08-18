@@ -14,7 +14,7 @@ import { BackupsClient } from './backups-client';
  */
 export default async function BackupsPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-6 py-8">
+    <div className="space-y-6 px-6 py-8">
       <SetPageTitle title="Backups" />
       <BackupsClient />
     </div>

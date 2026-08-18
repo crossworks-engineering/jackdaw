@@ -454,7 +454,7 @@ function UpdatesView({
   const latest = check.latest;
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+    <div className="w-full space-y-6 p-6">
       {/* ── Current build ── */}
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

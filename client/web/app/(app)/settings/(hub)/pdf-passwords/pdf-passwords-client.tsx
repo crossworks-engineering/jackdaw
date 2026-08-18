@@ -78,7 +78,7 @@ export function PdfPasswordsClient() {
   const rows = pwQuery.data.passwords;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
+    <div className="space-y-6 p-6">
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <Lock className="size-5 text-primary-ink" aria-hidden />

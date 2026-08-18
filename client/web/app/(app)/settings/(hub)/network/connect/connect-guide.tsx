@@ -44,7 +44,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 export function ConnectGuide() {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 p-1">
+    <div className="w-full space-y-6 p-1">
       <div>
         <Button
           asChild

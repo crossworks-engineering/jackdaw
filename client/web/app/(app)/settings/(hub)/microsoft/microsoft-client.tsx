@@ -62,7 +62,7 @@ export function MicrosoftClient() {
   const accounts = accountsQuery.data ?? [];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 p-6">
+    <div className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
