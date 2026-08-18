@@ -37,6 +37,14 @@ export default function SettingsHubLayout({ children }: { children: React.ReactN
       defaultListSize="380px"
       minListSize="300px"
       maxListSize="560px"
+      // The detail OPENS at the 672px measure, but it must be able to be
+      // dragged out to everything the shell leaves it — `appearance` is a
+      // gallery of ~40 theme swatches and ~34 avatar styles in two columns, and
+      // at 672px both are cramped while an empty spacer holds 500px of the
+      // window. `100%` lets the drag run the spacer down to nothing, so the
+      // ceiling is the window minus the rail and the Activity column rather
+      // than an arbitrary 1100px.
+      maxDetailSize="100%"
       list={<SettingsNav />}
       detail={children}
     />

@@ -196,6 +196,38 @@ test.describe('settings hub', () => {
     }
   });
 
+  test('the detail can be dragged out to the full window, not a 1100px cap', async ({
+    ownerPage,
+  }) => {
+    // `appearance` is a gallery — ~40 theme swatches in a narrow aside and ~34
+    // avatar styles beside it — and at the 672px opening measure both are
+    // cramped while an empty spacer holds several hundred px of the window.
+    // `maxDetailSize="100%"` lets the drag run that spacer down to nothing, so
+    // the ceiling is the window (minus the rail and the Activity column) rather
+    // than `MasterDetail`'s 1100px default.
+    await ownerPage.setViewportSize({ width: 1920, height: 1080 });
+    await ownerPage.goto('/settings/appearance');
+    const detail = ownerPage.locator('[data-testid="detail"]');
+    await expect(detail).toBeVisible();
+
+    const handle = ownerPage
+      .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
+      .last()
+      .locator(':scope > [data-slot="resizable-handle"]')
+      .last();
+    const grip = (await handle.boundingBox())!;
+    await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await ownerPage.mouse.down();
+    await ownerPage.mouse.move(1900, grip.y + grip.height / 2, { steps: 12 });
+    await ownerPage.mouse.up();
+
+    await expect
+      .poll(async () => (await detail.boundingBox())!.width, {
+        message: 'the detail stopped short — is maxDetailSize back at its 1100px default?',
+      })
+      .toBeGreaterThan(1150);
+  });
+
   test('the screens fill the pane instead of centring in it', async ({ ownerPage }) => {
     // The half that actually answers "left-aligned, sizable content". All
     // thirteen carried an `mx-auto max-w-*` of their own, and a pane that is

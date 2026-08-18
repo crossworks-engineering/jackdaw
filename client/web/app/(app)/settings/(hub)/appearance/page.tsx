@@ -57,9 +57,10 @@ function Controls() {
   );
 
   return (
-    // `p-6` to match every other hub screen: this one carried no padding of its
-    // own because the old centred column supplied the gap.
-    <div className="space-y-6 p-6">
+    // No padding of its own: `AppearancePage` below already pads the row that
+    // holds this column (`px-6 py-6`). Adding `p-6` here inset the Mode cards
+    // twice over — 48px from the divider against the right column's 24.
+    <div className="space-y-6">
       <section className="space-y-2">
         <h2
           id="mode-heading"
@@ -132,10 +133,12 @@ function Controls() {
             value={colorTheme}
             onValueChange={setColorTheme}
             aria-labelledby="color-theme-heading"
-            // `RadioGroup` is a one-column grid by default, which left fifty
-            // themes as one tall stack with the rest of the pane empty. Now the
-            // list flows into however many columns the divider affords.
-            className="gap-1.5 sm:grid-cols-2 xl:grid-cols-3"
+            // ONE column, deliberately. This list lives in the narrow `aside`
+            // below (1/5 of the pane, min 220px), not in the pane itself, so
+            // flowing it into 2–3 columns cut every theme name down to a single
+            // letter. The width this screen was missing belongs to the RIGHT column
+            // — see `maxDetailSize` on the hub layout.
+            className="gap-1.5"
           >
             {matches.map((t) => {
               const active = colorTheme === t.id;
