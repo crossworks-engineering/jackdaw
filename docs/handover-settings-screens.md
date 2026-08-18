@@ -1,5 +1,11 @@
 # Handover: the settings cluster, and the screens the plan missed (2026-08-18)
 
+> **Continuing this work? Start with
+> [`handover-settings-endgame.md`](./handover-settings-endgame.md).** It has the
+> current state, the four screens left, and what the last session learned.
+> ⚠ **§10 below is the trustworthy inventory — §2b undercounts `agents` and
+> `ai-workers` badly.**
+
 Phase 2a and the resizable-column work are **done**: fifteen screens are on
 `<MasterDetail>`, every hand-rolled resizer in the app is gone, and both shell
 rails draw a grip at rest.
