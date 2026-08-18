@@ -8,7 +8,7 @@ import { AppWindow, Plus, Trash2, Pencil } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@mantle/web-ui/ui/field';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -32,13 +32,12 @@ import {
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { useListNav } from '@/lib/use-list-nav';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
 import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
-import { focusGridClass } from '@/components/layout/focus-layout';
-import { cn } from '@mantle/web-ui/lib/utils';
 import type { AppRow } from '@mantle/client-types';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
@@ -144,152 +143,161 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   }
 
   return (
-    <div
-      className={cn(
-        'grid h-full min-h-0 grid-rows-[1fr]',
-        focusGridClass(zen, 'md:grid-cols-[340px_1fr]'),
-      )}
-    >
-      {/* Left: list — hidden (never unmounted) in focus mode, so the search box
-          and scroll position survive the round trip. */}
-      <div className={cn('flex min-h-0 flex-col border-r border-border', zen && 'hidden')}>
-        <div className="flex items-center gap-2 border-b border-border p-2">
-          <form
-            className="flex-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              go({ q: q || null, page: null });
-            }}
-          >
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search apps…"
-              className="h-9"
-            />
-          </form>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" aria-label="New app">
-                <Plus />
-              </Button>
-            </DialogTrigger>
-            <CreateAppDialog
-              onCreated={(id) => {
-                setCreateOpen(false);
-                router.push(`/apps/${id}`);
-              }}
-            />
-          </Dialog>
-        </div>
+    <>
+      <MasterDetail
+        id="apps"
+        defaultListSize="340px"
+        // The preview is an app viewport, not a measure of reading text, so the
+        // detail takes the slack instead of an empty spacer. Capping it at the
+        // 672px default would shrink the only thing this screen is for.
+        detailFills
+        // Focus mode. The list COLLAPSES rather than unmounting, so the search
+        // box, scroll position and page all survive the round trip — see the
+        // prop's note in master-detail.tsx.
+        listCollapsed={zen}
+        list={
+          <>
+            <div className="flex items-center gap-2 border-b border-border p-2">
+              <form
+                className="flex-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  go({ q: q || null, page: null });
+                }}
+              >
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search apps…"
+                  className="h-9"
+                />
+              </form>
+              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button size="icon-sm" aria-label="New app">
+                    <Plus />
+                  </Button>
+                </DialogTrigger>
+                <CreateAppDialog
+                  onCreated={(id) => {
+                    setCreateOpen(false);
+                    router.push(`/apps/${id}`);
+                  }}
+                />
+              </Dialog>
+            </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-3">
-          {apps.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              No apps yet. Create one, or ask Saskia to “build me an app”.
+            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-3">
+              {apps.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  No apps yet. Create one, or ask Saskia to “build me an app”.
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {apps.map((app) => (
+                    <li key={app.id}>
+                      <ListCard
+                        selected={app.id === selectedId}
+                        onClick={() => setSelectedId(app.id)}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <span aria-hidden>{app.icon ?? '🧩'}</span>
+                          <span className="truncate">{app.title}</span>
+                          <span className="ml-auto flex shrink-0 items-center gap-1">
+                            {app.hasDraft && <Badge variant="secondary">draft</Badge>}
+                            <ExposureBadge app={app} />
+                          </span>
+                        </span>
+                        {app.description && (
+                          <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                            {app.description}
+                          </span>
+                        )}
+                      </ListCard>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={pending}
+              onGo={(p) => go({ page: p })}
+            />
+          </>
+        }
+        detail={
+          /* The app gets the full pane (viewport frame) and handles its own
+             scrolling, matching how it renders when shared. */
+          !selected ? (
+            <div className="flex flex-1 items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              <div className="flex flex-col items-center gap-2">
+                <AppWindow className="size-8 opacity-50" />
+                Select an app to preview it.
+              </div>
             </div>
           ) : (
-            <ul className="space-y-2">
-              {apps.map((app) => (
-                <li key={app.id}>
-                  <ListCard selected={app.id === selectedId} onClick={() => setSelectedId(app.id)}>
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <span aria-hidden>{app.icon ?? '🧩'}</span>
-                      <span className="truncate">{app.title}</span>
-                      <span className="ml-auto flex shrink-0 items-center gap-1">
-                        {app.hasDraft && <Badge variant="secondary">draft</Badge>}
-                        <ExposureBadge app={app} />
-                      </span>
+            <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
+                    <span aria-hidden>{selected.icon ?? '🧩'}</span>
+                    <span className="min-w-0 truncate">{selected.title}</span>
+                  </h2>
+                  {selected.description && (
+                    <p className="text-sm text-muted-foreground">{selected.description}</p>
+                  )}
+                  <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>
+                      {selected.toolCount} tool{selected.toolCount === 1 ? '' : 's'} ·{' '}
+                      {selected.hasBuild ? 'published build' : 'no published build'}
+                      {selected.hasDraft ? ' · unpublished draft' : ''}
                     </span>
-                    {app.description && (
-                      <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                        {app.description}
-                      </span>
-                    )}
-                  </ListCard>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <ListPager
-          page={page}
-          total={total}
-          pageSize={pageSize}
-          pending={pending}
-          onGo={(p) => go({ page: p })}
-        />
-      </div>
-
-      {/* Right: preview — the app gets the full pane (viewport frame) and
-          handles its own scrolling, matching how it renders when shared. */}
-      <div className="flex min-h-0 flex-col">
-        {!selected ? (
-          <div className="flex flex-1 items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            <div className="flex flex-col items-center gap-2">
-              <AppWindow className="size-8 opacity-50" />
-              Select an app to preview it.
-            </div>
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-semibold">
-                  <span aria-hidden>{selected.icon ?? '🧩'}</span>
-                  {selected.title}
-                </h2>
-                {selected.description && (
-                  <p className="text-sm text-muted-foreground">{selected.description}</p>
-                )}
-                <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {selected.toolCount} tool{selected.toolCount === 1 ? '' : 's'} ·{' '}
-                    {selected.hasBuild ? 'published build' : 'no published build'}
-                    {selected.hasDraft ? ' · unpublished draft' : ''}
-                  </span>
-                  <ExposureBadge app={selected} />
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Share the published app at a full-screen /s/<token> URL —
+                    <ExposureBadge app={selected} />
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* Share the published app at a full-screen /s/<token> URL —
                     only once there's a published build to point the link at.
                     Same control and hint as the editor header. */}
-                {selected.hasBuild && (
-                  <ShareControl
-                    nodeId={selected.id}
-                    teamMode
-                    teamHint="Visitors must enter their team token, and every action is audited to that member. Team members can use the app’s Mantle tools and write to its data — a public link can only read the app’s own data. Grant it to people you trust."
-                  />
-                )}
-                {/* Focus mode: the shell drops its chrome and the list column
+                  {selected.hasBuild && (
+                    <ShareControl
+                      nodeId={selected.id}
+                      teamMode
+                      teamHint="Visitors must enter their team token, and every action is audited to that member. Team members can use the app’s Mantle tools and write to its data — a public link can only read the app’s own data. Grant it to people you trust."
+                    />
+                  )}
+                  {/* Focus mode: the shell drops its chrome and the list column
                     collapses, leaving the app alone in the viewport — the same
                     read-only preview Pages offers outside its editor. This
                     header survives focus mode, so the toggle stays reachable. */}
-                <FocusToggle />
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/apps/${selected.id}`}>
-                    <Pencil />
-                    Open editor
-                  </Link>
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-9 text-muted-foreground hover:text-destructive-ink"
-                  onClick={() => setDeleteTarget(selected)}
-                  aria-label="Delete app"
-                >
-                  <Trash2 />
-                </Button>
+                  <FocusToggle />
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/apps/${selected.id}`}>
+                      <Pencil />
+                      Open editor
+                    </Link>
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-destructive-ink"
+                    onClick={() => setDeleteTarget(selected)}
+                    aria-label="Delete app"
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1">
+                <AppSandbox appId={selected.id} frame="viewport" />
               </div>
             </div>
-            <div className="min-h-0 flex-1">
-              <AppSandbox appId={selected.id} frame="viewport" />
-            </div>
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -310,7 +318,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 
@@ -319,10 +327,18 @@ function CreateAppDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    // Was a bare `return`: pressing Create with an empty name did nothing at
+    // all — no message, no mark, no dialog change. §6b puts the failure on the
+    // control instead of leaving the button looking broken.
+    if (!name.trim()) {
+      setError('A name is required');
+      return;
+    }
+    setError(null);
     setSaving(true);
     try {
       const { app } = await apiSend<{ app: { id: string } }>('/api/apps', 'POST', {
@@ -342,29 +358,37 @@ function CreateAppDialog({ onCreated }: { onCreated: (id: string) => void }) {
       <DialogHeader>
         <DialogTitle>New app</DialogTitle>
       </DialogHeader>
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="app-name">Name</Label>
-          <Input
-            id="app-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Weather"
-            autoFocus
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="app-desc">Description</Label>
-          <Input
-            id="app-desc"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Today’s weather for a city"
-          />
-        </div>
-        <div className="flex justify-end">
-          <SubmitButton pending={saving}>Create app</SubmitButton>
-        </div>
+      <form onSubmit={submit} noValidate>
+        <FieldGroup>
+          <Field data-invalid={Boolean(error) || undefined}>
+            <FieldLabel htmlFor="app-name">Name</FieldLabel>
+            <Input
+              id="app-name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error && e.target.value.trim()) setError(null);
+              }}
+              placeholder="Weather"
+              autoFocus
+              aria-invalid={Boolean(error) || undefined}
+              aria-describedby={error ? 'app-name-error' : undefined}
+            />
+            <FieldError id="app-name-error">{error}</FieldError>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="app-desc">Description</FieldLabel>
+            <Input
+              id="app-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Today’s weather for a city"
+            />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton pending={saving}>Create app</SubmitButton>
+          </div>
+        </FieldGroup>
       </form>
     </DialogContent>
   );

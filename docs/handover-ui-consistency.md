@@ -5,7 +5,7 @@
 the rest of the app, per
 [`plans/workspace-screen-consistency.md`](./plans/workspace-screen-consistency.md).
 
-**Phase 1 is done. Phase 2a is 8 of 9 — every unblocked screen.** The plan
+**Phase 1 is done. Phase 2a is DONE — 9 of 9.** The plan
 document is the authority on what is left and what the ports taught us — read
 its §2a table before picking up a screen. This file is the state of the world
 around it.
@@ -73,10 +73,12 @@ The specs exist to make that review cheap.
   non-delete, text-only buttons stay red on purpose; §8 records why so nobody
   "finishes" the sweep.
 
-### Phase 2a — 8 of 9 screens
+### Phase 2a — 9 of 9 screens, complete
 
 `events`, `contacts`, `journal`, `secrets`, `models`, `runs`, `sandboxes`,
-`formulas`. Only `apps` remains, and it is **blocked** — see §3.
+`formulas`, `apps`. The `apps` blocker is resolved — `MasterDetail` learned
+`listCollapsed` (a zero-width but still-MOUNTED list, for focus mode) and
+`detailFills`. Both are opt-in; the other eight screens are untouched.
 
 Per-screen detail is in the commits. The transferable lessons are in the plan's
 §2a "what the ports taught us" list; do not re-derive them.
@@ -102,21 +104,18 @@ Per-screen detail is in the commits. The transferable lessons are in the plan's
 
 **Read the plan's §2a table first.** Then, in preference order:
 
-1. **Decide the `apps` question**, which unblocks the last 2a screen *and* is
-   the same capability phase 3 wants for `pages` and `draw`. `apps` uses
-   `focusGridClass` (`components/layout/focus-layout.ts`): in focus mode the
-   list column collapses to zero and the preview goes full width, and the list
-   is **hidden, never unmounted**, so its search box, scroll position and page
-   survive the round trip. `MasterDetail` renders the list panel or it doesn't —
-   it has no third state. Teaching it to collapse a still-mounted list is a
-   design change to a shared primitive. **Do not fake it by unmounting**; that
-   is exactly what the helper's own comment exists to prevent.
-   `formulas` now wants the same capability for a second reason: its editor
-   replaces the whole screen, so opening it unmounts `MasterDetail` and loses
-   the list's scroll position. One decision, two screens.
-2. **Phase 2b, the 12 settings screens** — the largest cluster and the most
+1. **Phase 2b, the 12 settings screens** — the largest cluster and the most
    forms, so the most §6a/§6b value. Also the ones that need a brain with real
-   data (§4).
+   data (§4). Expect the `formulas` lesson to repeat: a screen with its own
+   form helper has usually skipped `htmlFor` altogether.
+2. **Phase 2c**, then phase 3. `pages` and `draw` still use `focusGridClass`
+   directly; `MasterDetail` can now express what they need (`listCollapsed`,
+   `detailFills`), but the plan's advice not to force the master-detail shape
+   onto an editor still stands — the capability existing is not a reason.
+
+`/formulas` also still wants `listCollapsed`: its editor replaces the whole
+screen, so opening it unmounts `MasterDetail` and loses the list's scroll
+position. The primitive can express that now; nobody has wired it.
 
 Phase 4's lint rules stay last, as the plan says: a rule that fails on 20
 screens is a rule someone disables.
