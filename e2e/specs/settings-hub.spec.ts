@@ -194,6 +194,25 @@ test.describe('settings hub', () => {
         `${path} is flush against the divider`,
       ).toBeGreaterThanOrEqual(16);
     }
+
+    // `audit` is the one screen built as a full-height table rather than a
+    // column of sections, so it has no `section`/`header`/`form` to measure and
+    // it was full-bleed until Jason asked for it to match. Its three regions —
+    // filter bar, table, pager — each get the same 24px, while the rules
+    // between them still span the pane as dividers should.
+    await ownerPage.goto('/settings/audit');
+    const auditPane = ownerPage.locator('[data-testid="detail"]');
+    await expect(auditPane.locator('th').first()).toBeVisible();
+    const auditBox = (await auditPane.boundingBox())!;
+    for (const [region, selector] of [
+      ['filter bar', 'label'],
+      ['table', 'th'],
+      ['pager', 'span.tabular-nums'],
+    ] as const) {
+      const el = auditPane.locator(selector).first();
+      const box = (await el.boundingBox())!;
+      expect(box.x - auditBox.x, `audit's ${region} is not inset`).toBeGreaterThanOrEqual(16);
+    }
   });
 
   test('the detail can be dragged out to the full window, not a 1100px cap', async ({

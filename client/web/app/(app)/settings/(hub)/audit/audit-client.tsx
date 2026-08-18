@@ -65,7 +65,9 @@ export function AuditClient({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-end gap-3 border-b border-border p-3">
+      {/* 24px inset like every other hub screen; the rule itself still spans
+          the full pane, as a divider should. */}
+      <div className="flex flex-wrap items-end gap-3 border-b border-border px-6 py-4">
         <div className="w-56 space-y-1.5">
           <Label className="text-xs text-muted-foreground">Login</Label>
           <Select
@@ -130,7 +132,7 @@ export function AuditClient({
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-6 scrollbar-thin">
         {rows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
             <ScrollText className="size-5" />
@@ -180,6 +182,9 @@ export function AuditClient({
         pageSize={pageSize}
         pending={pending}
         onGo={(p) => go({ page: p === 1 ? null : p })}
+        // The pager's own `px-3` is sized for a narrow list column; here it sits
+        // in the detail pane and lines up with the table above it.
+        className="px-6"
       />
     </div>
   );

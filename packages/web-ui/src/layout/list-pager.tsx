@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
+import { cn } from '../lib/utils';
 
 /**
  * Compact footer pager for the master-detail list panes (the /pages pattern).
@@ -15,17 +16,26 @@ export function ListPager({
   pageSize,
   pending = false,
   onGo,
+  className,
 }: {
   page: number;
   total: number;
   pageSize: number;
   pending?: boolean;
   onGo: (page: number) => void;
+  /** Override the default `px-3` — for a pager sitting in a DETAIL pane rather
+   *  than a narrow list column, where the screen's own 24px inset applies. */
+  className?: string;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (total === 0) return null;
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+    <div
+      className={cn(
+        'flex items-center justify-between gap-2 border-t border-border px-3 py-2',
+        className,
+      )}
+    >
       <span className="text-xs text-muted-foreground tabular-nums">
         {total} total · page {page} / {totalPages}
       </span>
