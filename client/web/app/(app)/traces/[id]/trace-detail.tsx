@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react';
 import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
+import { useFlowColorMode } from '@mantle/web-ui/hooks/use-flow-color-mode';
 import type {
   TraceDetail as TraceDetailType,
   TraceStepSummary,
@@ -30,6 +31,9 @@ export function TraceDetail({ trace }: { trace: TraceDetailType }) {
     () => trace.steps.find((s) => s.id === selectedId) ?? null,
     [trace.steps, selectedId],
   );
+  // Above the empty-steps return below — hooks can't sit after an early exit.
+  // Without this the Controls keep React Flow's light palette on a dark page.
+  const colorMode = useFlowColorMode();
 
   if (trace.steps.length === 0) {
     return (
@@ -44,6 +48,7 @@ export function TraceDetail({ trace }: { trace: TraceDetailType }) {
       <div className="h-[640px] rounded-md border border-border bg-muted/20">
         <ReactFlowProvider>
           <ReactFlow
+            colorMode={colorMode}
             nodes={nodes.map((n) =>
               n.id === selectedId
                 ? {

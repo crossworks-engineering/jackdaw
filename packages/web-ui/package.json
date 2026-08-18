@@ -34,6 +34,7 @@
     "./generated-avatar": "./src/generated-avatar.tsx",
     "./generated-backdrop": "./src/generated-backdrop.tsx",
     "./highlight-colors": "./src/highlight-colors.ts",
+    "./hooks/use-flow-color-mode": "./src/hooks/use-flow-color-mode.ts",
     "./hooks/use-media-query": "./src/hooks/use-media-query.tsx",
     "./hooks/use-mobile": "./src/hooks/use-mobile.tsx",
     "./journey-format": "./src/journey-format.ts",

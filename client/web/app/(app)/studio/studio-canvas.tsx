@@ -31,6 +31,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Star } from 'lucide-react';
+import { useFlowColorMode } from '@mantle/web-ui/hooks/use-flow-color-mode';
 import type { StudioNode, StudioEdge } from '@mantle/client-types';
 
 const NODE_W = 220;
@@ -269,10 +270,13 @@ export function StudioCanvas({
     () => buildFlow(studioNodes, studioEdges, selectedId),
     [studioNodes, studioEdges, selectedId],
   );
+  // Without this the Controls keep React Flow's light palette on a dark page.
+  const colorMode = useFlowColorMode();
 
   return (
     <ReactFlowProvider>
       <ReactFlow
+        colorMode={colorMode}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
