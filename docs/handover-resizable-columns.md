@@ -194,7 +194,49 @@ Full environment, credentials and the nine landmines:
 
 ---
 
-## 8. Suggested order
+## 8. Make every draggable edge visibly draggable
+
+Jason's ask, and it is separate from the ports above: **wherever a column can
+be dragged, the grip must be visible at rest** — including the nav and activity
+rails while they are expanded.
+
+The two handles in the kit do not currently agree:
+
+| | at rest | grip |
+|---|---|---|
+| `ResizableHandle withHandle` (`MasterDetail`) | 1px `bg-border` rule | **always drawn** — `GripVerticalIcon` in a bordered `h-4 w-3` chip |
+| `RailHandle` (nav + activity rails) | `after:bg-transparent` — invisible | **none** |
+
+So a ported screen already shows a grip, and the shell rails show nothing until
+the pointer crosses an 8px strip. Same gesture, two different levels of
+discoverability.
+
+**The work is `packages/web-ui/src/ui/rail-handle.tsx`** — give it the same
+affordance `ResizableHandle` has. It already has the hard parts: `role`,
+`aria-valuenow/min/max`, `tabIndex`, arrow-key nudging (8px, 32px with shift),
+Home/End, and a double-click escape hatch. Only the visuals are missing.
+
+Points to settle when doing it:
+
+- **Match `ResizableHandle` exactly**, don't invent a second grip style. The
+  point is that one affordance means one thing everywhere.
+- **The rails are `position: fixed`, `z-40`, pinned to the viewport edge.** The
+  grip must sit ON the edge without covering rail content or the scrollbar —
+  `ResizableHandle` centres its chip on a flex divider, which the rails are not.
+  Check both sides: `side="left"` (nav) and `side="right"` (activity).
+- **Keep "a collapsed rail has no handle"** (§8). The toggle owns that width;
+  this ask is explicitly about the expanded state.
+- **The hand-rolled resizers in Notes / Pages / Tables are invisible too** —
+  but they get the grip for free when they move to `MasterDetail`, so don't
+  patch them separately. This item is `RailHandle` only.
+
+Verify it the way §6 says: the assertion is that the grip is **visible without
+interaction**, so drive it with no hover — take the element's box and assert it
+renders, rather than checking a class. Then revert and watch it fail.
+
+---
+
+## 9. Suggested order
 
 1. **Docs** (37 lines) — proves the swap, costs nothing.
 2. **Files** — same shape, bigger file, a tree in the left column.
@@ -204,6 +246,10 @@ Full environment, credentials and the nine landmines:
 5. **Pages** — the biggest (1192 lines) and the one with both, so it goes last
    with everything else already proven.
 6. **Draw** — focus mode, fixed width; could equally go earlier, it is small.
+
+§8 (`RailHandle`'s grip) is independent of all six and touches one shared file
+— do it first or last, whenever a small self-contained change suits. It is the
+only item here a user sees on every screen rather than one.
 
 After the last one, `components/layout/focus-layout.ts` and its test should be
 deletable — Pages and Draw are its only importers. That is the signal the job

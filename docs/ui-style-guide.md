@@ -572,6 +572,14 @@ still use it; port them as you touch them.
   are separate, because a board wants far more room than a 340px list.
 - Below `md` it falls back to the CSS grid and nothing resizes.
 
+**Every draggable edge shows a grip, at rest, without hovering it.** If a
+column can be resized, the user must be able to see that before they go
+looking. `ResizableHandle withHandle` — what `MasterDetail` renders — is the
+reference: a 1px `bg-border` rule with an always-drawn grip
+(`GripVerticalIcon` in a bordered `h-4 w-3` chip) sitting on it. An edge whose
+only affordance appears on hover is a hidden feature; an edge with no grip at
+all is an invisible one.
+
 **Fixed rails use `<RailHandle>` instead** (`ui/rail-handle`). The nav and
 activity columns are `position: fixed` and publish their width as a CSS
 variable that six other surfaces read; they are not flex children of a panel
@@ -579,6 +587,13 @@ group, so panels cannot wrap them. Widths persist to a **cookie**, not
 localStorage, and are seeded server-side in `app/(app)/layout.tsx` so the rail
 does not jump on load. A **collapsed rail has no handle** — the toggle owns
 that width.
+
+> ⚠ **`RailHandle` does not meet the grip rule yet.** It renders
+> `after:bg-transparent` and only paints on `hover:`/`focus-visible:`, with no
+> grip element, so both shell rails read as fixed furniture until you happen to
+> sweep the right 8px. Bringing it up to `ResizableHandle`'s affordance is a
+> tracked item — see
+> [`handover-resizable-columns.md`](./handover-resizable-columns.md) §8.
 
 > ⚠ **Never put a transition on a property you read from a CSS variable.** See
 > the long note in `globals.css`: the element stops tracking the variable
