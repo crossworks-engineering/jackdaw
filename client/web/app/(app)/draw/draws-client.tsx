@@ -33,7 +33,7 @@ import { FocusToggle } from '@/components/layout/focus-toggle';
 import { DrawViewer } from '@/components/draw/draw-viewer';
 import { Move } from 'lucide-react';
 import { useZenMode } from '@/components/layout/zen-mode';
-import { focusGridClass } from '@/components/layout/focus-layout';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 
 type DrawRow = {
   id: string;
@@ -167,164 +167,172 @@ export function DrawsClient() {
   }
 
   return (
-    <div className={cn('relative md:grid md:h-full md:overflow-hidden', focusGridClass(zen))}>
-      {/* ── Left: list ─────────────────────────────────────────────── */}
-      {/* Hidden, not unmounted, in focus mode: the search box, scroll position
-          and page number survive, so leaving focus puts the screen back as it
-          was. */}
-      <div
-        className={cn(
-          'flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r',
-          zen && 'hidden',
-        )}
-      >
-        <div className="space-y-2 border-b border-border p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={searchRef}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search drawings…"
-                className="pl-8"
-              />
-            </div>
-            <Button size="sm" onClick={() => void createDraw()} disabled={creating}>
-              {creating ? <Spinner /> : <Plus />}
-              New
-            </Button>
-          </div>
-          {tag ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => go({ tag: null, page: null })}
-              title="Clear the tag filter"
-            >
-              <X />
-              {tag}
-            </Button>
-          ) : null}
-        </div>
-
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-          {draws.length === 0 && (query || tag) ? (
-            <div className="space-y-3 px-1 py-8 text-center">
-              <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => go({ q: null, tag: null, page: null })}
-              >
-                Clear filters
-              </Button>
-            </div>
-          ) : draws.length === 0 ? (
-            <div className="space-y-3 px-1 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the brain
-                like every other content type.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void createDraw()}
-                disabled={creating}
-              >
-                {creating ? <Spinner /> : <Plus />}
-                New drawing
-              </Button>
-            </div>
-          ) : (
-            draws.map((d) => (
-              <ListCard key={d.id} asChild selected={activeId === d.id} className="p-0">
-                <div>
-                  <button
-                    onClick={() => select(d.id)}
-                    data-mark-id={d.id}
-                    data-mark-kind="draw"
-                    data-mark-label={d.title}
-                    className="block w-full rounded-lg p-2.5 text-left"
-                  >
-                    <div className="flex items-start gap-2">
-                      {d.icon ? (
-                        <span className="mt-0.5 w-4 shrink-0 text-center text-sm leading-4">
-                          {d.icon}
-                        </span>
-                      ) : (
-                        <PenTool className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="min-w-0 truncate text-sm font-medium">{d.title}</span>
-                          {/* A dot, not a word: the row is a scan target and the
-                            preview pane carries the full explanation. */}
-                          {d.hasDraft && (
-                            <span
-                              className="size-1.5 shrink-0 rounded-full bg-primary"
-                              title="Uncommitted edits"
-                              aria-label="Uncommitted edits"
-                            />
-                          )}
-                        </div>
-                        {d.summary ? (
-                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                            {d.summary}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
-                  {d.tags.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
-                      {d.tags.map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => go({ tag: t === tag ? null : t, page: null })}
-                          title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
-                        >
-                          <TagPill
-                            tag={t}
-                            className={cn(
-                              'transition-opacity hover:opacity-80',
-                              t === tag && 'ring-1 ring-primary',
-                            )}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+    <>
+      <MasterDetail
+        id="draw"
+        // The fixed 360px column this screen has always had — draggable now.
+        defaultListSize="360px"
+        // The detail is a DRAWING: an SVG snapshot, or a pan-and-zoom canvas.
+        // The 672px default measure exists to protect a line of text, and
+        // capping a diagram at it would shrink the thing the screen is for.
+        detailFills
+        // Focus mode. The list COLLAPSES rather than unmounting, so the search
+        // box, scroll position and page survive the round trip — see the prop's
+        // note in master-detail.tsx.
+        listCollapsed={zen}
+        list={
+          <>
+            <div className="space-y-2 border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    ref={searchRef}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search drawings…"
+                    className="pl-8"
+                  />
                 </div>
-              </ListCard>
-            ))
-          )}
-        </div>
+                <Button size="sm" onClick={() => void createDraw()} disabled={creating}>
+                  {creating ? <Spinner /> : <Plus />}
+                  New
+                </Button>
+              </div>
+              {tag ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => go({ tag: null, page: null })}
+                  title="Clear the tag filter"
+                >
+                  <X />
+                  {tag}
+                </Button>
+              ) : null}
+            </div>
 
-        <ListPager
-          page={page}
-          total={listQuery.data?.total ?? 0}
-          pageSize={listQuery.data?.pageSize ?? 50}
-          pending={pending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+              {draws.length === 0 && (query || tag) ? (
+                <div className="space-y-3 px-1 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => go({ q: null, tag: null, page: null })}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+              ) : draws.length === 0 ? (
+                <div className="space-y-3 px-1 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
+                    brain like every other content type.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void createDraw()}
+                    disabled={creating}
+                  >
+                    {creating ? <Spinner /> : <Plus />}
+                    New drawing
+                  </Button>
+                </div>
+              ) : (
+                draws.map((d) => (
+                  <ListCard key={d.id} asChild selected={activeId === d.id} className="p-0">
+                    <div>
+                      <button
+                        onClick={() => select(d.id)}
+                        data-mark-id={d.id}
+                        data-mark-kind="draw"
+                        data-mark-label={d.title}
+                        className="block w-full rounded-lg p-2.5 text-left"
+                      >
+                        <div className="flex items-start gap-2">
+                          {d.icon ? (
+                            <span className="mt-0.5 w-4 shrink-0 text-center text-sm leading-4">
+                              {d.icon}
+                            </span>
+                          ) : (
+                            <PenTool className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="min-w-0 truncate text-sm font-medium">
+                                {d.title}
+                              </span>
+                              {/* A dot, not a word: the row is a scan target and the
+                            preview pane carries the full explanation. */}
+                              {d.hasDraft && (
+                                <span
+                                  className="size-1.5 shrink-0 rounded-full bg-primary"
+                                  title="Uncommitted edits"
+                                  aria-label="Uncommitted edits"
+                                />
+                              )}
+                            </div>
+                            {d.summary ? (
+                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                {d.summary}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </button>
+                      {d.tags.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
+                          {d.tags.map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => go({ tag: t === tag ? null : t, page: null })}
+                              title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
+                            >
+                              <TagPill
+                                tag={t}
+                                className={cn(
+                                  'transition-opacity hover:opacity-80',
+                                  t === tag && 'ring-1 ring-primary',
+                                )}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </ListCard>
+                ))
+              )}
+            </div>
 
-      {/* ── Right: preview pane ────────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto">
-        {active ? (
-          <DrawPreview
-            key={active.id}
-            draw={active}
-            onOpen={() => router.push(`/draw/${active.id}`)}
-            onDelete={() => setDeleteTarget(active)}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">Select a drawing.</p>
-          </div>
-        )}
-      </div>
+            <ListPager
+              page={page}
+              total={listQuery.data?.total ?? 0}
+              pageSize={listQuery.data?.pageSize ?? 50}
+              pending={pending}
+              onGo={(p) => go({ page: p > 1 ? p : null })}
+            />
+          </>
+        }
+        // No wrapper: the preview is a plain document with no pinned header of
+        // its own, so `MasterDetail`'s pane is the only scroller.
+        detail={
+          active ? (
+            <DrawPreview
+              key={active.id}
+              draw={active}
+              onOpen={() => router.push(`/draw/${active.id}`)}
+              onDelete={() => setDeleteTarget(active)}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-muted-foreground">Select a drawing.</p>
+            </div>
+          )
+        }
+      />
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -347,7 +355,7 @@ export function DrawsClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

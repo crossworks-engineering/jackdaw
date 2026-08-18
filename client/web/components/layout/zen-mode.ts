@@ -11,7 +11,8 @@ import { createContext, useContext } from 'react';
  * mode render a `<FocusToggle />` in their own toolbar — the Pages and Draw
  * editors, for writing, and their list previews, for reading and sharing
  * without opening the editor at all. A list screen also drops its own list
- * column (see `focus-layout.ts`), or the chrome would go and the biggest
+ * column — `<MasterDetail listCollapsed={zen}>`, which drives the column to
+ * zero width WITHOUT unmounting it — or the chrome would go and the biggest
  * distraction would stay.
  * The default value is a no-op so a component using the hook outside the
  * shell (shares, tests) degrades to "no focus mode" instead of crashing.

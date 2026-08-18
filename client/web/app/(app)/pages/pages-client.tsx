@@ -93,7 +93,7 @@ import { buildPageToc } from '@mantle/content-core/page-toc';
 import { StretchHorizontal } from 'lucide-react';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
-import { focusGridColumns } from '@/components/layout/focus-layout';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ExportMenu } from '@/components/export/export-menu';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
@@ -177,51 +177,9 @@ export function PagesClient() {
 
   const [searchInput, setSearchInput] = useState(query);
 
-  // Draggable list-pane width (md+). Default 300px; persisted so it sticks.
-  const WIDTH_KEY = 'mantle:pages-list-width';
-  const LIST_MIN = 220;
-  const LIST_MAX = 560;
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [listWidth, setListWidth] = useState(300);
   // Focus mode drops the list column so a page can be READ full-width, not
   // only written that way. The toggle lives in the preview header below.
   const { zen } = useZenMode();
-
-  useEffect(() => {
-    try {
-      const v = Number(localStorage.getItem(WIDTH_KEY));
-      if (Number.isFinite(v) && v >= LIST_MIN && v <= LIST_MAX) setListWidth(v);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(WIDTH_KEY, String(Math.round(listWidth)));
-    } catch {
-      // ignore
-    }
-  }, [listWidth]);
-
-  const startResize = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const onMove = (ev: PointerEvent) => {
-      const left = gridRef.current?.getBoundingClientRect().left ?? 0;
-      setListWidth(Math.min(LIST_MAX, Math.max(LIST_MIN, ev.clientX - left)));
-    };
-    const onUp = () => {
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-    // Suppress text selection + force the resize cursor for the whole drag.
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
 
   const selected = pages.find((p) => p.id === selectedId) ?? pages[0] ?? null;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -486,215 +444,209 @@ export function PagesClient() {
   }
 
   return (
-    <div
-      ref={gridRef}
-      className="relative md:grid md:h-full md:overflow-hidden"
-      // Inline template columns drive the draggable left width. Only takes
-      // effect at md+ (below md the container is block-stacked, not a grid).
-      // Focus mode collapses it to the preview alone.
-      style={{ gridTemplateColumns: focusGridColumns(zen, listWidth) }}
-    >
-      {/* Draggable divider between list + preview (md+ only). */}
-      {zen ? null : (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize list"
-          onPointerDown={startResize}
-          className="absolute inset-y-0 z-20 hidden w-2 -translate-x-1/2 cursor-col-resize transition-colors hover:bg-primary/20 md:block"
-          style={{ left: `${listWidth}px` }}
-        />
-      )}
-      {/* ── Left: list / tree ───────────────────────────────────────── */}
-      {/* Hidden, not unmounted, in focus mode: the search box, scroll position
-          and page number survive, so leaving focus puts the screen back as it
-          was. */}
-      <div
-        className={cn(
-          'flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r',
-          zen && 'hidden',
-        )}
-      >
-        <div className="space-y-3 border-b border-border p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search pages…"
-                className="pl-8"
-              />
-            </div>
-            <Button onClick={() => setOpen(true)}>
-              <Plus /> New
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 px-2 text-muted-foreground"
-                  title="Sort pages"
-                >
-                  <ArrowUpDown className="size-3.5" />
-                  {SORT_LABELS[sort]}
-                  <ChevronDown className="size-3.5 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuRadioGroup
-                  value={sort}
-                  onValueChange={(v) => go({ sort: v as PageSort, page: 1 })}
-                >
-                  {(Object.keys(SORT_LABELS) as PageSort[]).map((s) => (
-                    <DropdownMenuRadioItem key={s} value={s}>
-                      {SORT_LABELS[s]}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {tags.length > 0 && (
-              <TagFilter
-                tags={tags}
-                activeTag={activeTag}
-                onSelect={(t) => go({ tag: t, page: 1 })}
-              />
-            )}
-
-            {activeTag && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-muted-foreground"
-                onClick={() => go({ tag: null, page: 1 })}
-                title="Clear tag filter"
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div
-          className={cn(
-            'p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
-            mode === 'list' && 'space-y-2',
-            mode === 'tree' && 'space-y-0.5',
-            navPending && 'opacity-60',
-          )}
-        >
-          {pages.length === 0 ? (
-            emptyState
-          ) : mode === 'tree' ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={pointerWithin}
-              onDragStart={(e) => setActiveId(String(e.active.id))}
-              onDragEnd={onDragEnd}
-              onDragCancel={() => setActiveId(null)}
-            >
-              {/* Un-nest target — only while dragging a page that has a parent. */}
-              {activeRow && activeRow.parentId !== null && <TopLevelDropZone />}
-              {renderTree(null, 0)}
-              <DragOverlay dropAnimation={null}>
-                {activeRow ? <DragGhost row={activeRow} /> : null}
-              </DragOverlay>
-            </DndContext>
-          ) : (
-            pages.map((p) => (
-              <ListCard
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                data-mark-id={p.id}
-                data-mark-kind="page"
-                data-mark-label={p.title}
-                selected={selected?.id === p.id}
-              >
-                <div className="flex items-start gap-2">
-                  <span
-                    className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4"
-                    aria-hidden
-                  >
-                    {p.icon ?? '📄'}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{p.title}</div>
-                    {p.summary && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {p.summary}
-                      </p>
-                    )}
-                    {p.tags.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {p.tags.map((t) => (
-                          <TagPill key={t} tag={t} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+    <>
+      <MasterDetail
+        id="pages"
+        // The screen's old clamps, so the column lands and stops where it did.
+        defaultListSize="300px"
+        minListSize="220px"
+        maxListSize="560px"
+        // The preview is NOT plain prose that wants the 672px default: it
+        // declares its own measure through the per-page narrow/wide setting
+        // (`max-w-3xl` / `max-w-none`, persisted server-side) and hangs an
+        // outline rail beside it at xl. Capping the pane at 672px would make
+        // "wide" a no-op and leave the outline eating a third of the body. It
+        // also has to absorb the list's width in focus mode, which is the whole
+        // point of that mode here.
+        detailFills
+        // Focus mode. The list COLLAPSES rather than unmounting, so the search
+        // box, scroll position and page survive the round trip — see the prop's
+        // note in master-detail.tsx.
+        listCollapsed={zen}
+        list={
+          <>
+            <div className="space-y-3 border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search pages…"
+                    className="pl-8"
+                  />
                 </div>
-              </ListCard>
-            ))
-          )}
-        </div>
-
-        {total > 0 && (
-          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-            <span className="tabular-nums">
-              {total} {total === 1 ? 'page' : 'pages'}
-            </span>
-            {mode === 'list' && (
-              <div className="flex items-center gap-1.5">
-                <span className="tabular-nums">
-                  {page} / {totalPages}
-                </span>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="size-7"
-                  disabled={page <= 1 || navPending}
-                  onClick={() => go({ page: page - 1 })}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="size-7"
-                  disabled={page >= totalPages || navPending}
-                  onClick={() => go({ page: page + 1 })}
-                  aria-label="Next page"
-                >
-                  <ChevronRight />
+                <Button onClick={() => setOpen(true)}>
+                  <Plus /> New
                 </Button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
 
-      {/* ── Right: preview ─────────────────────────────────────────── */}
-      <div className="md:h-full md:overflow-y-auto md:scrollbar-thin">
-        {selected ? (
-          <PagePreview
-            key={selected.id}
-            row={selected}
-            onDelete={() => setDeleteTarget(selected)}
-            onWidthChange={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a page to preview.
-          </div>
-        )}
-      </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-muted-foreground"
+                      title="Sort pages"
+                    >
+                      <ArrowUpDown className="size-3.5" />
+                      {SORT_LABELS[sort]}
+                      <ChevronDown className="size-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuRadioGroup
+                      value={sort}
+                      onValueChange={(v) => go({ sort: v as PageSort, page: 1 })}
+                    >
+                      {(Object.keys(SORT_LABELS) as PageSort[]).map((s) => (
+                        <DropdownMenuRadioItem key={s} value={s}>
+                          {SORT_LABELS[s]}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {tags.length > 0 && (
+                  <TagFilter
+                    tags={tags}
+                    activeTag={activeTag}
+                    onSelect={(t) => go({ tag: t, page: 1 })}
+                  />
+                )}
+
+                {activeTag && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-muted-foreground"
+                    onClick={() => go({ tag: null, page: 1 })}
+                    title="Clear tag filter"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                'p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
+                mode === 'list' && 'space-y-2',
+                mode === 'tree' && 'space-y-0.5',
+                navPending && 'opacity-60',
+              )}
+            >
+              {pages.length === 0 ? (
+                emptyState
+              ) : mode === 'tree' ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={pointerWithin}
+                  onDragStart={(e) => setActiveId(String(e.active.id))}
+                  onDragEnd={onDragEnd}
+                  onDragCancel={() => setActiveId(null)}
+                >
+                  {/* Un-nest target — only while dragging a page that has a parent. */}
+                  {activeRow && activeRow.parentId !== null && <TopLevelDropZone />}
+                  {renderTree(null, 0)}
+                  <DragOverlay dropAnimation={null}>
+                    {activeRow ? <DragGhost row={activeRow} /> : null}
+                  </DragOverlay>
+                </DndContext>
+              ) : (
+                pages.map((p) => (
+                  <ListCard
+                    key={p.id}
+                    onClick={() => setSelectedId(p.id)}
+                    data-mark-id={p.id}
+                    data-mark-kind="page"
+                    data-mark-label={p.title}
+                    selected={selected?.id === p.id}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4"
+                        aria-hidden
+                      >
+                        {p.icon ?? '📄'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{p.title}</div>
+                        {p.summary && (
+                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                            {p.summary}
+                          </p>
+                        )}
+                        {p.tags.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {p.tags.map((t) => (
+                              <TagPill key={t} tag={t} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </ListCard>
+                ))
+              )}
+            </div>
+
+            {total > 0 && (
+              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                <span className="tabular-nums">
+                  {total} {total === 1 ? 'page' : 'pages'}
+                </span>
+                {mode === 'list' && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="tabular-nums">
+                      {page} / {totalPages}
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="size-7"
+                      disabled={page <= 1 || navPending}
+                      onClick={() => go({ page: page - 1 })}
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="size-7"
+                      disabled={page >= totalPages || navPending}
+                      onClick={() => go({ page: page + 1 })}
+                      aria-label="Next page"
+                    >
+                      <ChevronRight />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        }
+        // No wrapper: the preview is a plain document with no pinned header of
+        // its own, so `MasterDetail`'s pane is the only scroller.
+        detail={
+          selected ? (
+            <PagePreview
+              key={selected.id}
+              row={selected}
+              onDelete={() => setDeleteTarget(selected)}
+              onWidthChange={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              Select a page to preview.
+            </div>
+          )
+        }
+      />
 
       {/* New page dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -758,7 +710,7 @@ export function PagesClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

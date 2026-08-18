@@ -38,6 +38,7 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
@@ -54,12 +55,6 @@ type NotesListResponse = {
  *  pulls in the server-only db client and can't enter the client bundle. */
 const isDigestTag = (t: string) =>
   t === 'conversation-digest' || t.startsWith('agent:') || t.startsWith('topic:');
-
-// Draggable list-pane width (md+). Persisted so it sticks across visits.
-const WIDTH_KEY = 'mantle:notes-list-width';
-const LIST_MIN = 300;
-const LIST_MAX = 760;
-const LIST_DEFAULT = 380;
 
 export function NotesClient() {
   const router = useRouter();
@@ -134,42 +129,6 @@ export function NotesClient() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [tags, tagsExpanded]);
-
-  // ── Resizable list pane ──────────────────────────────────────────────
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [listWidth, setListWidth] = useState(LIST_DEFAULT);
-  useEffect(() => {
-    try {
-      const v = Number(localStorage.getItem(WIDTH_KEY));
-      if (Number.isFinite(v) && v >= LIST_MIN && v <= LIST_MAX) setListWidth(v);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  useEffect(() => {
-    try {
-      localStorage.setItem(WIDTH_KEY, String(Math.round(listWidth)));
-    } catch {
-      /* ignore */
-    }
-  }, [listWidth]);
-  const startResize = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const onMove = (ev: PointerEvent) => {
-      const left = gridRef.current?.getBoundingClientRect().left ?? 0;
-      setListWidth(Math.min(LIST_MAX, Math.max(LIST_MIN, ev.clientX - left)));
-    };
-    const onUp = () => {
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
 
   // ── Selection / edit state machine ──────────────────────────────────
   const selected = useMemo<NoteRow | null>(() => {
@@ -299,219 +258,224 @@ export function NotesClient() {
   }
 
   return (
-    <div
-      ref={gridRef}
-      className="relative md:grid md:h-full md:overflow-hidden"
-      style={{
-        gridTemplateColumns: focus ? '0px minmax(0, 1fr)' : `${listWidth}px minmax(0, 1fr)`,
-      }}
-    >
-      {/* ── Left: list ─────────────────────────────────────────────── */}
-      <div
-        className={cn(
-          'flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r',
-          focus && 'hidden',
-        )}
-      >
-        <div className="space-y-3 border-b border-border p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search notes…"
-                className="pl-8"
-              />
-            </div>
-            <Button onClick={startCreate}>
-              <Plus /> New
-            </Button>
-          </div>
-
-          <div className="flex items-start gap-1.5">
-            <div
-              ref={tagRowRef}
-              className={cn(
-                'flex flex-1 flex-wrap items-center gap-1.5',
-                !tagsExpanded && 'max-h-7 overflow-hidden',
-              )}
-            >
-              {tags.length > 0 && (
-                <Button
-                  size="sm"
-                  variant={activeTag ? 'outline' : 'default'}
-                  className="h-7 rounded-full px-3"
-                  onClick={() => go({ tag: null, page: 1 })}
-                >
-                  All
-                </Button>
-              )}
-              {tags.map((t) => (
-                <Button
-                  key={t.tag}
-                  size="sm"
-                  variant={activeTag === t.tag ? 'default' : 'outline'}
-                  className="h-7 rounded-full px-3"
-                  onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: 1 })}
-                >
-                  {t.tag}
-                  <span className="ml-1 opacity-60">{t.count}</span>
-                </Button>
-              ))}
-            </div>
-            {tagsOverflow && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-7 shrink-0"
-                onClick={() => setTagsExpanded((v) => !v)}
-                aria-label={tagsExpanded ? 'Show fewer tags' : 'Show all tags'}
-                title={tagsExpanded ? 'Show fewer tags' : 'Show all tags'}
-              >
-                <ChevronDown className={cn('transition-transform', tagsExpanded && 'rotate-180')} />
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant={showDigests ? 'default' : 'outline'}
-              className={cn(
-                'h-7 shrink-0 rounded-full px-3',
-                !showDigests && 'text-muted-foreground',
-              )}
-              onClick={() =>
-                go({
-                  digests: !showDigests,
-                  page: 1,
-                  // Hiding digests while filtered on a digest tag would show an
-                  // empty list — drop the tag along with them.
-                  ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
-                })
-              }
-              title={
-                showDigests ? 'Hide agent conversation digests' : 'Show agent conversation digests'
-              }
-            >
-              <Sparkles /> Digests
-            </Button>
-          </div>
-        </div>
-
-        {/* Cards */}
-        <div
-          className={cn(
-            'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
-            navPending && 'opacity-60',
-          )}
-        >
-          {notes.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
-              {query || activeTag
-                ? 'No notes match your search or filter.'
-                : 'No notes yet. Click “New” or ask your assistant to add one.'}
-            </div>
-          ) : (
-            notes.map((n) => (
-              <ListCard
-                key={n.id}
-                onClick={() => selectNote(n.id)}
-                data-mark-id={n.id}
-                data-mark-kind="note"
-                data-mark-label={n.title}
-                selected={selected?.id === n.id && !creating}
-              >
-                <div className="flex items-start gap-2">
-                  <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{n.title}</div>
-                    {(n.summary || n.content) && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {n.summary ?? n.content.slice(0, 200)}
-                      </p>
-                    )}
-                    {n.tags.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {n.tags.map((t) => (
-                          <TagPill key={t} tag={t} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+    <>
+      <MasterDetail
+        id="notes"
+        // The screen's old clamps, so the column lands and stops where it did.
+        defaultListSize="380px"
+        minListSize="300px"
+        maxListSize="760px"
+        // The detail is a full-bleed markdown EDITOR (and the preview beside
+        // it), not a form that needs protecting from a long line. It also has
+        // to absorb the list's width in focus mode — that mode is literally
+        // called "full width", and with the default spacer the freed pixels
+        // would go to an empty panel instead.
+        detailFills
+        // Focus mode. The list COLLAPSES rather than unmounting, so the search
+        // box, scroll position and page survive the round trip — see the prop's
+        // note in master-detail.tsx.
+        listCollapsed={focus}
+        list={
+          <>
+            <div className="space-y-3 border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search notes…"
+                    className="pl-8"
+                  />
                 </div>
-              </ListCard>
-            ))
-          )}
-        </div>
+                <Button onClick={startCreate}>
+                  <Plus /> New
+                </Button>
+              </div>
 
-        {/* Pagination */}
-        {total > 0 && (
-          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-            <span className="tabular-nums">
-              {total} {total === 1 ? 'note' : 'notes'}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="tabular-nums">
-                {page} / {totalPages}
-              </span>
-              <Button
-                size="icon"
-                variant="outline"
-                className="size-7"
-                disabled={page <= 1 || navPending}
-                onClick={() => go({ page: page - 1 })}
-                aria-label="Previous page"
-              >
-                <ChevronLeft />
-              </Button>
-              <Button
-                size="icon"
-                variant="outline"
-                className="size-7"
-                disabled={page >= totalPages || navPending}
-                onClick={() => go({ page: page + 1 })}
-                aria-label="Next page"
-              >
-                <ChevronRight />
-              </Button>
+              <div className="flex items-start gap-1.5">
+                <div
+                  ref={tagRowRef}
+                  className={cn(
+                    'flex flex-1 flex-wrap items-center gap-1.5',
+                    !tagsExpanded && 'max-h-7 overflow-hidden',
+                  )}
+                >
+                  {tags.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant={activeTag ? 'outline' : 'default'}
+                      className="h-7 rounded-full px-3"
+                      onClick={() => go({ tag: null, page: 1 })}
+                    >
+                      All
+                    </Button>
+                  )}
+                  {tags.map((t) => (
+                    <Button
+                      key={t.tag}
+                      size="sm"
+                      variant={activeTag === t.tag ? 'default' : 'outline'}
+                      className="h-7 rounded-full px-3"
+                      onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: 1 })}
+                    >
+                      {t.tag}
+                      <span className="ml-1 opacity-60">{t.count}</span>
+                    </Button>
+                  ))}
+                </div>
+                {tagsOverflow && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 shrink-0"
+                    onClick={() => setTagsExpanded((v) => !v)}
+                    aria-label={tagsExpanded ? 'Show fewer tags' : 'Show all tags'}
+                    title={tagsExpanded ? 'Show fewer tags' : 'Show all tags'}
+                  >
+                    <ChevronDown
+                      className={cn('transition-transform', tagsExpanded && 'rotate-180')}
+                    />
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant={showDigests ? 'default' : 'outline'}
+                  className={cn(
+                    'h-7 shrink-0 rounded-full px-3',
+                    !showDigests && 'text-muted-foreground',
+                  )}
+                  onClick={() =>
+                    go({
+                      digests: !showDigests,
+                      page: 1,
+                      // Hiding digests while filtered on a digest tag would show an
+                      // empty list — drop the tag along with them.
+                      ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
+                    })
+                  }
+                  title={
+                    showDigests
+                      ? 'Hide agent conversation digests'
+                      : 'Show agent conversation digests'
+                  }
+                >
+                  <Sparkles /> Digests
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Drag handle */}
-      {!focus && (
-        <div
-          onPointerDown={startResize}
-          className="absolute inset-y-0 z-20 hidden w-2 -translate-x-1/2 cursor-col-resize transition-colors hover:bg-primary/20 md:block"
-          style={{ left: `${listWidth}px` }}
-          aria-hidden
-        />
-      )}
+            {/* Cards */}
+            <div
+              className={cn(
+                'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
+                navPending && 'opacity-60',
+              )}
+            >
+              {notes.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
+                  {query || activeTag
+                    ? 'No notes match your search or filter.'
+                    : 'No notes yet. Click “New” or ask your assistant to add one.'}
+                </div>
+              ) : (
+                notes.map((n) => (
+                  <ListCard
+                    key={n.id}
+                    onClick={() => selectNote(n.id)}
+                    data-mark-id={n.id}
+                    data-mark-kind="note"
+                    data-mark-label={n.title}
+                    selected={selected?.id === n.id && !creating}
+                  >
+                    <div className="flex items-start gap-2">
+                      <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{n.title}</div>
+                        {(n.summary || n.content) && (
+                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                            {n.summary ?? n.content.slice(0, 200)}
+                          </p>
+                        )}
+                        {n.tags.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {n.tags.map((t) => (
+                              <TagPill key={t} tag={t} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </ListCard>
+                ))
+              )}
+            </div>
 
-      {/* ── Right: preview / editor ─────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-hidden">
-        {editing ? (
-          <NoteEditor
-            note={creating ? null : selected}
-            focus={focus}
-            onToggleFocus={() => setFocus((f) => !f)}
-            onSaved={onSaved}
-            onCancel={() => guard(exitEdit)}
-            onDirtyChange={setDirty}
-          />
-        ) : selected ? (
-          <NotePreview
-            note={selected}
-            onEdit={startEdit}
-            onDelete={() => setDeleteTarget(selected)}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a note, or click <span className="mx-1 font-medium text-foreground">New</span> to
-            start one.
+            {/* Pagination */}
+            {total > 0 && (
+              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                <span className="tabular-nums">
+                  {total} {total === 1 ? 'note' : 'notes'}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="tabular-nums">
+                    {page} / {totalPages}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-7"
+                    disabled={page <= 1 || navPending}
+                    onClick={() => go({ page: page - 1 })}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-7"
+                    disabled={page >= totalPages || navPending}
+                    onClick={() => go({ page: page + 1 })}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        }
+        // Both the editor and the preview open with their own sticky header
+        // above a scrolling body, so each keeps its own scroller.
+        // `h-full overflow-hidden` means the pane's scroller can never
+        // overflow, so only one bar is ever painted.
+        detail={
+          <div className="md:h-full md:overflow-hidden">
+            {editing ? (
+              <NoteEditor
+                note={creating ? null : selected}
+                focus={focus}
+                onToggleFocus={() => setFocus((f) => !f)}
+                onSaved={onSaved}
+                onCancel={() => guard(exitEdit)}
+                onDirtyChange={setDirty}
+              />
+            ) : selected ? (
+              <NotePreview
+                note={selected}
+                onEdit={startEdit}
+                onDelete={() => setDeleteTarget(selected)}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+                Select a note, or click{' '}
+                <span className="mx-1 font-medium text-foreground">New</span> to start one.
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        }
+      />
 
       {/* Discard-unsaved-changes guard */}
       <AlertDialog open={discard !== null} onOpenChange={(o) => !o && setDiscard(null)}>
@@ -557,7 +521,7 @@ export function NotesClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

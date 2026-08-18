@@ -7,10 +7,11 @@ import { ARTIFACTS_DIR } from '../lib/env';
  *
  * `events`, `contacts`, `journal`, `secrets`, `formulas` and `apps` have their own specs
  * because the port changed real behaviour there (validation, saving, the
- * composer). `models`, `runs` and `sandboxes` were pure scaffold swaps — no
- * form, no new validation — so what is worth holding is exactly what this table
- * holds: the panes exist, the width is remembered per screen, and the pane owns
- * the only scrollbar.
+ * composer), and `notes`/`draw`/`pages` add `focus-mode.spec.ts` for the half a
+ * screenshot cannot tell apart. `models`, `runs`, `sandboxes` and `tables` were pure
+ * scaffold swaps — no form, no new validation — so what is worth holding is exactly what
+ * this table holds: the panes exist, the width is remembered per screen, and the
+ * pane owns the only scrollbar.
  *
  * Adding a screen to `SCREENS` is the whole cost of covering the next port.
  */
@@ -25,6 +26,15 @@ const SCREENS = [
   { path: '/runs', id: 'runs' },
   { path: '/formulas', id: 'formulas' },
   { path: '/apps', id: 'apps' },
+  // Its detail is the table EDITOR — a sticky toolbar above a scrolling grid —
+  // so the one-scrollbar row below is the interesting one here. (Put rows in
+  // front of it before believing that check: it only counts elements that
+  // actually overflow.)
+  { path: '/tables', id: 'tables' },
+  // Focus mode too, so their collapsed-but-mounted half is in `focus-mode.spec.ts`.
+  { path: '/notes', id: 'notes' },
+  { path: '/draw', id: 'draw' },
+  { path: '/pages', id: 'pages' },
   // Left column is a nav TREE rather than a list of cards — a deliberate
   // exception. The scaffold contract this file holds is the same either way.
   { path: '/docs', id: 'docs' },
