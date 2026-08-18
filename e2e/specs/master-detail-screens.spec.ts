@@ -5,7 +5,7 @@ import { ARTIFACTS_DIR } from '../lib/env';
  * The scaffold half of phase 2, asserted once for every ported screen instead of
  * copy-pasted into seven files.
  *
- * `events`, `contacts`, `journal`, `secrets` and `formulas` have their own specs
+ * `events`, `contacts`, `journal`, `secrets`, `formulas` and `apps` have their own specs
  * because the port changed real behaviour there (validation, saving, the
  * composer). `models`, `runs` and `sandboxes` were pure scaffold swaps — no
  * form, no new validation — so what is worth holding is exactly what this table
@@ -24,6 +24,7 @@ const SCREENS = [
   { path: '/models', id: 'models' },
   { path: '/runs', id: 'runs' },
   { path: '/formulas', id: 'formulas' },
+  { path: '/apps', id: 'apps' },
   // A box with the `sandboxes` compose profile off renders an explainer instead
   // of the screen, so this row SKIPS itself there rather than failing. Said out
   // loud, because a silently-skipped row is indistinguishable from a passing one.
@@ -133,5 +134,34 @@ test.describe('ported master-detail screens', () => {
       'models inherited the width dragged on contacts — shared key?',
     ).toBeGreaterThan(3);
     await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}master-detail-per-screen.png` });
+  });
+
+  test('a screen that did not opt into collapsing cannot be dragged to zero', async ({
+    ownerPage,
+  }) => {
+    // `MasterDetail`'s list panel is `collapsible` ONLY for screens that pass
+    // `listCollapsed` (today just /apps, for focus mode). Setting it for
+    // everyone would be a one-word change with a real cost: `collapsible` also
+    // means "collapse when dragged below minSize", so every list here could be
+    // dragged out of existence. /contacts never opts in, so its drag must stop
+    // at the minimum instead.
+    await ownerPage.setViewportSize({ width: 1600, height: 900 });
+    await ownerPage.goto('/contacts');
+    const list = ownerPage.locator('[data-testid="list"]');
+    await expect(list).toBeVisible();
+
+    const handle = ownerPage.locator('[data-slot="resizable-handle"]').first();
+    const grip = (await handle.boundingBox())!;
+    await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await ownerPage.mouse.down();
+    // Far past the 260px minimum, and past the left edge of the window.
+    await ownerPage.mouse.move(0, grip.y + grip.height / 2, { steps: 12 });
+    await ownerPage.mouse.up();
+
+    const width = await list.evaluate((el) => (el as HTMLElement).offsetWidth);
+    expect(
+      width,
+      'the list collapsed on a screen that never asked to be collapsible',
+    ).toBeGreaterThan(100);
   });
 });

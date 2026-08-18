@@ -83,16 +83,14 @@ rules in one edit.
 Ordered by traffic:
 
 **2a. Daily drivers** — ✅ `events`, ✅ `contacts`, ✅ `journal`, ✅ `secrets`,
-✅ `models`, ✅ `runs`, ✅ `sandboxes`, ✅ `formulas`, `apps`
+✅ `models`, ✅ `runs`, ✅ `sandboxes`, ✅ `formulas`, ✅ `apps`
 
-**`apps` is the only 2a screen left, and it is blocked** — see the note below.
-Every unblocked one is done.
+**Phase 2a is done — 9 of 9.**
 
-`events` first: it is the closest structural match to `tasks` and will prove
-the pattern travels. It also still centres its composer (`mx-auto max-w-2xl`),
-which §6c now says should hug the list.
+`events` went first, as the closest structural match to `tasks`, to prove the
+pattern travels. It did.
 
-**What the first four taught us — read before picking up the next:**
+**What the nine ports taught us — read before picking up a 2b screen:**
 
 - **The pattern travels, and the port is mostly mechanical.** Scaffold →
   `<MasterDetail id="<screen>">`, form → `Field` family, raw `<select>`/
@@ -152,25 +150,42 @@ which §6c now says should hug the list.
   editor's header read "0 problem(s) to fix." beside a red YAML box, because
   its findings are computed from the last draft that parsed. Any screen with
   two views over one model can say this.
+- **A pane whose content is not prose does not want the 672px measure.** Apps
+  embeds an app viewport; capping it would shrink the only thing the screen is
+  for. `detailFills` exists for that, and phase 3's `pages`/`draw` previews are
+  the same shape.
+- **Assert "still mounted", not "zero width".** A collapse and an unmount look
+  identical in a screenshot and differ entirely in what the user loses. The
+  test types into the search box, toggles focus, and reads the value back —
+  `count()` and `inputValue()`, deliberately not `toBeVisible()`, since a
+  zero-width element is correctly invisible.
+- **Leaving focus mode is not one frame.** The shell's chrome comes back and
+  the panel group narrows a moment after the list reappears, so a width sampled
+  in between is legitimately wrong. Poll on the delta from the width it left
+  at, never on a bare threshold.
 
 Each ported screen gets a spec (`e2e/specs/<screen>.spec.ts`). Keep them about
 the PORT — the scaffold, the header, the validation — not the domain; the domain
 already has its own coverage or does not need any.
 
-**⚠ `apps` is BLOCKED on a `MasterDetail` decision, so do it last.** It is the
-one 2a screen with focus mode (`focusGridClass`, `components/layout/
-focus-layout.ts`): in zen the list column collapses to zero and the preview
-takes the full width, and the list is **hidden, never unmounted**, so its search
-box, scroll position and page survive the round trip. `MasterDetail` has no
-equivalent — it renders the list panel or it doesn't. Porting `apps` therefore
-means first teaching `MasterDetail` to collapse a still-mounted list, which is a
-design change to a shared primitive rather than the mechanical port the other
-screens are. Do not fake it by unmounting: that is the behaviour the helper's
-comment exists to prevent.
+**`apps` was blocked on a `MasterDetail` decision. Resolved: opt-in prop.**
+`MasterDetail` now takes `listCollapsed`, which drives the list column to zero
+width *without unmounting it*, so the search box, scroll position and page
+survive a focus-mode round trip. `/apps` passes its `zen` state; nothing else
+passes it, so the other eight screens behave exactly as before.
 
-`draw` and `pages` share the same helper, but they are phase 3 and the plan
-already says not to force the master-detail shape onto them — so this decision
-is only load-bearing for `apps`.
+Two things that decision turned on, both worth keeping in mind for `pages` and
+`draw` in phase 3:
+
+- **Opt-in, not automatic.** Making `MasterDetail` read zen itself would have
+  been less wiring and would have changed eight screens' behaviour in one
+  commit, on a mode only ever looked at on `apps`. It can still be done later
+  by passing `zen` from each screen.
+- **`collapsible` is not free.** The panel library's `collapsible` also means
+  "collapse when dragged below `minSize`". Setting it unconditionally would let
+  every ported list be dragged out of existence, so the prop having no default
+  is load-bearing: passing `listCollapsed` at all is what opts a screen in.
+  `master-detail-screens.spec.ts` holds that line.
 
 **Shape of what is left in 2a** (checked, so the next session can pick by size):
 
@@ -180,7 +195,7 @@ is only load-bearing for `apps`.
 | ✅ `runs` | was `[360px_1fr]` | pure swap; the worker strip above the panes means MasterDetail takes `min-h-0 flex-1`, not the page |
 | ✅ `sandboxes` | was `[340px_1fr]` | pure swap. Its `<Label>` was labelling a checkbox — correct, left alone |
 | ✅ `formulas` | was `md:grid-cols-[360px_1fr]` | keeps 360px. The editor stays a WHOLE-PANE surface, not a detail-pane composer — see below |
-| `apps` | `focusGridClass` | blocked, see above |
+| ✅ `apps` | was `focusGridClass` | `listCollapsed` for focus mode, `detailFills` so the app viewport is not capped at a reading measure |
 
 **`formulas` kept its editor outside the panes, on purpose.** `FormulaEditor`
 replaces the entire screen rather than rendering into the detail column, and

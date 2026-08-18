@@ -1,6 +1,7 @@
 'use client';
 
-import { useDefaultLayout } from 'react-resizable-panels';
+import { useEffect, useRef } from 'react';
+import { useDefaultLayout, type PanelImperativeHandle } from 'react-resizable-panels';
 
 import { cn } from '../lib/utils';
 import useMediaQuery from '../hooks/use-media-query';
@@ -27,10 +28,18 @@ const DESKTOP = '(min-width: 768px)';
  * gets its own width and a handle on its right edge rather than stretching to
  * whatever the window happens to be: on a wide display a full-bleed form runs
  * to 1200px line lengths and reads badly. The third panel is empty — it exists
- * only to give the detail a right edge to drag against.
+ * only to give the detail a right edge to drag against. `listFills` and
+ * `detailFills` each drop it, for a screen where one side should take the
+ * slack instead.
  *
  * Below `md` there is no divider and no spacer: the panes stack, exactly as the
  * grid did.
+ *
+ * `listCollapsed` drives the list column to zero width WITHOUT unmounting it —
+ * what focus mode needs. The list keeps its search text, scroll position and
+ * page, so leaving focus mode puts the screen back as it was instead of
+ * reloading it. Unmounting would be much simpler and is exactly wrong; see the
+ * note on the prop.
  */
 export function MasterDetail({
   id,
@@ -43,7 +52,9 @@ export function MasterDetail({
   minDetailSize = '420px',
   maxDetailSize = '1100px',
   listFills = false,
+  detailFills = false,
   detailFirst = false,
+  listCollapsed,
   className,
 }: {
   /** Persistence key. Unique per screen — two screens sharing one would share a width. */
@@ -66,32 +77,84 @@ export function MasterDetail({
    */
   listFills?: boolean;
   /**
+   * The mirror of `listFills`: the LIST keeps its fixed, draggable width and
+   * the DETAIL absorbs the slack, with no spacer.
+   *
+   * For a detail pane that is not reading text. The default's 672px measure
+   * exists to stop a FORM stretching to 1200px line lengths; an embedded app
+   * viewport wants every pixel it can get, and capping it would shrink the
+   * thing the screen exists to show.
+   */
+  detailFills?: boolean;
+  /**
    * Put the detail on the LEFT and the list on the right. The Kanban board
    * reads left-to-right across its columns, so a form pinned to the right edge
    * sits at the end of that sweep; on the left it is where the eye starts.
    * Panel ids do not change, so a saved layout survives the flip.
    */
   detailFirst?: boolean;
+  /**
+   * Collapse the list column to zero and give the detail the full width —
+   * focus mode on a list screen, where leaving the list beside the content
+   * defeats the point of turning focus on.
+   *
+   * The list stays MOUNTED. Rendering `{collapsed ? null : list}` would be
+   * less code and would throw away the user's search box, scroll position and
+   * page on every toggle, so focus mode would double as a reset button. The
+   * panel library collapses to `collapsedSize` and keeps children, which is
+   * the whole reason this is a panel prop rather than a caller's ternary.
+   *
+   * PASSING IT AT ALL is what makes the panel collapsible, which is why it has
+   * no default. `collapsible` also means "collapse when dragged below
+   * `minSize`", so setting it unconditionally would let every ported screen's
+   * list be dragged out of existence — a behaviour change to eight screens
+   * that nobody asked for. Screens that never pass this keep today's
+   * behaviour exactly: the drag stops at `minListSize`.
+   */
+  listCollapsed?: boolean;
   className?: string;
 }) {
   const isDesktop = useMediaQuery(DESKTOP);
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `master-detail:${id}`,
-    panelIds: listFills ? [LIST, DETAIL] : [LIST, DETAIL, SPACER],
+    panelIds: listFills || detailFills ? [LIST, DETAIL] : [LIST, DETAIL, SPACER],
     // Window resizes and imperative calls shouldn't overwrite a width the user
     // chose deliberately.
     onlySaveAfterUserInteractions: true,
     storage: typeof window === 'undefined' ? undefined : window.localStorage,
   });
 
+  // Drive the collapse imperatively rather than by swapping `defaultSize`:
+  // `defaultSize` is only read on mount, so a prop change would do nothing.
+  // `expand()` restores the width the user last dragged, which is why the
+  // round trip through focus mode does not reset the column to the default.
+  //
+  // `onlySaveAfterUserInteractions` above is what stops this writing 0 to
+  // localStorage — a persisted collapse would leave the list gone after a
+  // reload, with no handle left to drag it back.
+  const collapsible = listCollapsed !== undefined;
+  const listHandle = useRef<PanelImperativeHandle | null>(null);
+  useEffect(() => {
+    const panel = listHandle.current;
+    if (!panel || !collapsible) return;
+    if (listCollapsed) panel.collapse();
+    else panel.expand();
+  }, [collapsible, listCollapsed]);
+
   // `isDesktop` is null until the first effect runs. Falling back to the CSS
   // grid rather than to the stacked layout matters: the grid is responsive on
   // its own, so a desktop load shows the right shape immediately instead of
   // flashing a stacked list before the panels take over.
   if (!isDesktop) {
+    // `hidden`, not unmounted — same contract as the collapsed panel above.
     const listCell = (
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
+      <div
+        className={cn(
+          'flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r',
+          listCollapsed && 'hidden',
+        )}
+      >
         {list}
       </div>
     );
@@ -104,11 +167,13 @@ export function MasterDetail({
       <div
         className={cn('md:grid md:h-full md:overflow-hidden', className)}
         style={{
-          gridTemplateColumns: detailFirst
-            ? `${defaultDetailSize} 1fr`
-            : listFills
-              ? `1fr ${defaultDetailSize}`
-              : `${defaultListSize} 1fr`,
+          gridTemplateColumns: listCollapsed
+            ? 'minmax(0, 1fr)'
+            : detailFirst
+              ? `${defaultDetailSize} 1fr`
+              : listFills
+                ? `1fr ${defaultDetailSize}`
+                : `${defaultListSize} 1fr`,
         }}
       >
         {detailFirst ? detailCell : listCell}
@@ -120,22 +185,30 @@ export function MasterDetail({
   const listPanel = (
     <ResizablePanel
       id={LIST}
+      panelRef={listHandle}
+      collapsible={collapsible}
+      collapsedSize="0px"
       // Sizeless when it fills: the panel group hands it whatever the detail
       // does not take, and the one handle governs the detail.
       defaultSize={listFills ? undefined : defaultListSize}
       minSize={listFills ? '320px' : minListSize}
       maxSize={listFills ? undefined : maxListSize}
     >
-      <div className="flex h-full min-h-0 flex-col">{list}</div>
+      {/* `overflow-hidden` is load-bearing at zero width: the panel shrinks,
+          its contents do not, so without it the list paints straight over the
+          detail instead of disappearing. */}
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">{list}</div>
     </ResizablePanel>
   );
 
   const detailPanel = (
     <ResizablePanel
       id={DETAIL}
-      defaultSize={defaultDetailSize}
-      minSize={minDetailSize}
-      maxSize={maxDetailSize}
+      // Sizeless when it fills, for the same reason the list is under
+      // `listFills`: the group hands it whatever is left.
+      defaultSize={detailFills ? undefined : defaultDetailSize}
+      minSize={detailFills ? undefined : minDetailSize}
+      maxSize={detailFills ? undefined : maxDetailSize}
     >
       <div className="relative h-full min-h-0 overflow-y-auto scrollbar-thin">{detail}</div>
     </ResizablePanel>
@@ -152,14 +225,16 @@ export function MasterDetail({
       {/* The handle is a 1px `bg-border` rule, so it replaces the border the
           panes would otherwise carry rather than sitting beside it. */}
       {detailFirst ? detailPanel : listPanel}
-      <ResizableHandle withHandle />
+      {/* No divider against a collapsed list: it would sit at the screen edge
+          and drag a column the user has just asked to be rid of. */}
+      {listCollapsed ? null : <ResizableHandle withHandle />}
       {detailFirst ? listPanel : detailPanel}
       {/* Empty by design. It is the detail pane's outer edge, nothing more, so
           the measure stays readable on a wide display instead of the form
           stretching to fill it. `minSize=0` lets it vanish entirely when the
           window is too narrow to afford any slack. Not needed when the list
           fills — there the detail already has a fixed width. */}
-      {listFills ? null : (
+      {listFills || detailFills ? null : (
         <>
           <ResizableHandle withHandle />
           <ResizablePanel id={SPACER} minSize="0px" />

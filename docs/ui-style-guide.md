@@ -543,8 +543,22 @@ still use it; port them as you touch them.
   display. Defaults: list `340px`, detail `672px` (= `max-w-2xl`).
 - **`listFills`** inverts it: the LIST takes the slack and there is no spacer.
   For a left pane that wants every pixel — the Kanban board.
+- **`detailFills`** is the mirror: the list keeps its draggable width and the
+  DETAIL takes the slack. For a detail pane that is not reading text — Apps
+  embeds an app viewport, and the 672px measure exists to protect a FORM's
+  line length, not to shrink the thing the screen is for.
 - **`detailFirst`** puts the detail on the left. The board reads left-to-right
   across its columns, so the form belongs where that sweep starts.
+- **`listCollapsed`** drives the list column to zero — focus mode on a list
+  screen, where leaving the list beside the content defeats the point. **The
+  list stays mounted**, so its search text, scroll position and page survive
+  the round trip; `{zen ? null : list}` looks identical and quietly makes focus
+  mode a reset button. Only `/apps` passes it today.
+  - **Passing it at all is what makes the panel collapsible**, which is why it
+    has no default. `collapsible` also means "collapse when dragged below
+    `minSize`", so setting it for everyone would let any list be dragged out of
+    existence. A screen that never passes it stops at `minListSize`, exactly as
+    before.
 - **`id` is the persistence key**, saved to `localStorage`. Unique per screen,
   and per *view* where a screen has more than one: `tasks` and `tasks-board`
   are separate, because a board wants far more room than a 340px list.
