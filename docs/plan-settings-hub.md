@@ -220,3 +220,64 @@ the padding.** The divider becomes the measure.
 - It does not remove any route. Every `/settings/<name>` URL keeps working; a
   route group changes the file tree, not the path.
 - It does not change the sidebar. That is step 5, in the other repo.
+
+---
+
+## 8. Shipped — steps 1 to 3 (2026-08-18)
+
+Two commits. **Steps 1, 2 and 3 are done; step 4 was answered by doing step 3;
+step 5 is the mantle-side nav change and is still open.**
+
+### The two decisions §2 and §3 left open — answered by Jason
+
+- **The hub keeps the name "Settings" and sits at `/settings`.** The route was
+  unclaimed, so it cost no redirect and broke no bookmark.
+- **`discover` gets a card.** It has no nav entry at all today and is reachable
+  only from a link inside the mail client, so this is a small feature, not only
+  a re-shape. Thirteen cards, not twelve.
+
+### What landed
+
+`settings/(hub)/` — `layout.tsx`, `settings-nav.tsx`, `page.tsx`, and the
+thirteen screens moved under the group. Option 1 from §4, as recommended: URLs
+are unchanged, so every `/settings/<name>` deep link still works and the twelve
+collection screens (plus the `security` redirect stub) stayed outside.
+
+`/settings` is an **explainer, not a redirect to the first card.** A redirect
+would answer a question the reader has not asked, and the back button would
+bounce off it.
+
+**Twelve caps dropped**, not the nine §4 counted: the sweep missed
+`mcp/mcp-client.tsx` and `pdf-passwords-client.tsx`. `pdf-passwords` keeps ONE
+`mx-auto` — an error empty-state, which is centred on purpose.
+
+**Five stat lines**, exactly the five §5 named. Each reuses its screen's own
+queryKey and URL. On the scratch brain they read: `off` · `connected · 9
+devices` · `nothing to review` · `off — no scheduled backups` ·
+`0.230.66 → 0.230.67 available`.
+
+⚠ The update line uses `latest.version`, **not `latest.tag`** — the tag carries
+a leading `v` that `currentVersion` does not, and `0.230.66 → v0.230.67` reads
+like two different kinds of thing.
+
+### Coverage, and one nearly-vacuous test
+
+One row in `master-detail-screens.spec.ts` plus `settings-hub.spec.ts` (5
+tests). Both structural guards were verified against the bug they exist for: the
+profile cap put back fails only the width test, and keying the nav on the
+pathname fails only the remount test.
+
+⚠ **The first stats test matched `/on|off/` against the MCP card's whole text —
+and its own description contains the word "connect*or*".** It would have passed
+with no stat rendered at all. The stat line carries
+`data-testid="settings-nav-stat"` now, and the test asserts exactly five of
+them, each one's reading, and that Profile has none.
+
+### Step 5 is NOT done, and cannot be done here
+
+The sidebar still lists all thirteen screens individually, so the nav and the
+hub are redundant but consistent. Collapsing those thirteen entries to one is a
+change to `NAV_GROUPS` in **`@crossworks/share-ui`, built in the mantle repo** —
+a package release picked up here on upgrade. §2's ordering advice held and still
+holds: the hub shipped first, the nav points at screens that all still exist,
+and nothing is broken while step 5 waits.
