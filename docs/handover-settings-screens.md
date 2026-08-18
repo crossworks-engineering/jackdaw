@@ -195,8 +195,10 @@ is a known flake, roughly 1 run in 2.
 3. ~~**The four small settings screens**~~ — **DONE.** See §8.
 4. **`keys`, `peers`, `config`** — **DONE**, see §9. ⚠ **`ai-workers` is NOT
    part of this batch and never should have been** — see §9's first warning.
-5. **`tools`, `users`, `heartbeats`, `agents`** — the four biggest, last, once
-   the form idiom is settled. `agents` alone is bigger than most of this list.
+5. **`tools`, `users`, `heartbeats`** — the middle-large three. Their planned
+   sizes are ACCURATE (see §10); the form idiom from §8/§9 carries straight over.
+6. **`agents` + `ai-workers`** — the big pair, last. Both are ~3.5k lines once
+   their child components are counted, and both were undercounted here. See §10.
 6. **`team-admin`** — two scaffolds in one file; decide one `MasterDetail` or
    two before starting.
 7. **`apps/[id]`** and **`debug/context`** — deliberately last. The first is an
@@ -410,3 +412,48 @@ Suite: **114 pass / 94 skip / 2 fail** — the two are still `team.spec.ts`.
 Remaining in §2b: **`tools`, `users`, `heartbeats`, `agents` and
 `ai-workers`** (the last two are the big pair), then `team-admin` and
 `apps/[id]`.
+
+---
+
+## 10. The corrected inventory (2026-08-18) — read this instead of §2b
+
+§2b was counted from each screen's `*-client.tsx` alone. Two screens keep most
+of their form in a CHILD component, and both were undercounted badly. Recounted
+across every `.tsx` in the screen's directory:
+
+| screen | §2b said | actual lines | `<Label` | `FieldHint` | raw `<select>` | raw `<textarea>` | raw checkbox |
+|---|---|---|---|---|---|---|---|
+| `tools` | 833 | 850 | 14 | 27 | 2 | 5 | 0 |
+| `users` | 956 | 974 | 7 | 15 | 0 | 0 | 0 |
+| `heartbeats` | 1005 | 1024 | 17 | 33 | 2 | 1 | 0 |
+| **`agents`** | **1983** | **3662** ⚠ | 34 | 65 | 9 | 1 | 1 |
+| **`ai-workers`** | **460** | **3453** ⚠ | 38 | 39 | 9 | 6 | 2 |
+
+**`tools`, `users` and `heartbeats` are within 2% of the plan** — those rows are
+trustworthy and the §8/§9 idiom carries straight over.
+
+**`agents` is 85% bigger than recorded** and **`ai-workers` is 7.5× bigger.**
+Both keep their field renderers in child components the original sweep never
+opened (`agents/models-tab.tsx` and friends; `ai-workers/worker-form.tsx` at
+2357 lines). They are a matched pair of ~3.5k-line screens and they are the
+LAST batch.
+
+**Jason's call (2026-08-18): `ai-workers` moves out of the "middle" batch and
+sits with `agents` at the end.**
+
+### The tail
+
+| screen | lines | `<Label` | note |
+|---|---|---|---|
+| `team-admin` | 1082 | 0 | no form — scaffold only, but TWO grids in one file |
+| `apps/[id]` | 472 | 0 | no form — the app EDITOR, `grid-cols-[200px_minmax(0,1fr)]` |
+
+Neither carries §6 work. `team-admin`'s open question is still whether its two
+scaffolds become one `MasterDetail` or two.
+
+### The rule that produced this table
+
+**Count the directory, not the client file.** `find <dir> -name '*.tsx'`. Three
+of the five screens ported so far hid material work in a child — `accounts` in
+`imap/imap-form.tsx`, `tool-groups` in `components/tool-group-integration.tsx`,
+and now these two. It is the single most reliable way this plan has been wrong.
