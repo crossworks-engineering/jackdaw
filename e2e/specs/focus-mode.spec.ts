@@ -4,8 +4,8 @@ import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
 
 /**
- * Focus mode on the list screens that have it — Notes first; Draw and Pages
- * join the table as they are ported.
+ * Focus mode on the list screens that have it — Notes and Draw; Pages joins the
+ * table when it is ported.
  *
  * Their scaffold half is one row each in `master-detail-screens.spec.ts`. What
  * is here is the half the port could get wrong for free: in focus mode the list
@@ -60,6 +60,7 @@ const SCREENS: Screen[] = [
       await expect(page.getByPlaceholder('Untitled note')).toBeVisible();
     },
   },
+  { path: '/draw', search: 'Search drawings…', fixture: creates('draws') },
 ];
 
 test.describe('focus mode', () => {
