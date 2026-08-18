@@ -1,5 +1,19 @@
 # Handover: the settings endgame (2026-08-18)
 
+> **✅ CLOSED — the four screens below are done.** `apps/[id]`, `team-admin`,
+> `settings/agents` and `settings/ai-workers` were ported in the session after
+> this file was written. Phase 2b is complete; the inventory is empty.
+> **What was learned doing them is in
+> [`handover-settings-screens.md`](./handover-settings-screens.md) §12** — read
+> that, not §2 below, which is now a record of what the work looked like
+> beforehand.
+>
+> **The one piece still open is the settings hub** (§6 of this file, and
+> [`plan-settings-hub.md`](./plan-settings-hub.md)). It is unstarted.
+>
+> §3 (the idiom), §4 (what §6b means), §5 (environment and the suite) and §7
+> (decisions) are still current and still worth reading.
+
 **Start here.** Fourteen screens were ported in the previous session. Four are
 left, and two of them are the big ones.
 
@@ -280,3 +294,29 @@ singleton settings screens — the same double-measure bug described in §3.
 - **`ai-workers` moves to the last batch** with `agents` (Jason, 2026-08-18).
 - **The settings hub keeps the name "Settings"** at the unclaimed `/settings`
   route — recommended, not yet confirmed.
+- **`team-admin` gets TWO `MasterDetail` ids**, not one reused view — the §2
+  question, answered while porting it. Reasoning in
+  [`handover-settings-screens.md`](./handover-settings-screens.md) §12.
+
+---
+
+## 8. What changed after this file was written (2026-08-18, later)
+
+The four screens are ported and the suite is **135 pass / 115 skip / 2 fail**
+(the two are `team.spec.ts`, pre-existing). Corrections to what is above:
+
+- §2's order held, and `agents` did take the `validateTool` pattern directly.
+  But **its API key and Model fields are on the "Model & routing" tab**, not
+  General — the field→tab map has to be read off `data-agent-section`, not
+  guessed.
+- §4's "§6d is not only `<select>`" understated one thing: on an UNCONTROLLED
+  form (`ai-workers`), **a Radix `Select` submits nothing at all**. It needs a
+  hidden input under the same name. Radix `Checkbox` does not — it brings its
+  own.
+- §5's `PIPESTATUS[0]` advice is **bash**. This shell is zsh:
+  `${pipestatus[1]}`, 1-indexed. The bash form prints nothing and reads as a
+  pass.
+- §5's "seed it through the API in the spec" was needed once more: the
+  system-prompt rule is unreachable on the scratch brain without a saved API
+  key, so `settings-agents-workers.spec.ts` mints one and deletes it in a
+  `finally`.

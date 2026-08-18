@@ -114,6 +114,49 @@ test.describe('apps', () => {
     });
   });
 
+  test('the Code tab file tree is draggable, and remembers its width', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    // It was a hard `grid-cols-[200px_minmax(0,1fr)]` — the one remaining
+    // hand-written grid with no `md:` prefix, which is why the usual sweep
+    // missed it. 200px is not enough for a nested path, and there was no way
+    // to ask for more.
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto(`/apps/${app.id}`);
+      await ownerPage.getByRole('tab', { name: 'Code' }).click();
+
+      const list = ownerPage.locator('[data-testid="list"]');
+      await expect(list, 'no list panel — still a hand-written grid?').toBeVisible();
+      const widthOf = () => list.evaluate((el) => (el as HTMLElement).offsetWidth);
+      // The 200px column it has always opened at, not MasterDetail's 340 default.
+      await expect.poll(widthOf).toBeLessThan(260);
+
+      // The scaffold's own divider: the app shell has a handle too, and the
+      // Code tab's group is nested inside it.
+      const handle = ownerPage
+        .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
+        .last()
+        .locator(':scope > [data-slot="resizable-handle"]')
+        .first();
+      const grip = (await handle.boundingBox())!;
+      await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+      await ownerPage.mouse.down();
+      await ownerPage.mouse.move(grip.x + grip.width / 2 + 120, grip.y + grip.height / 2, {
+        steps: 8,
+      });
+      await ownerPage.mouse.up();
+      const widened = await widthOf();
+      expect(widened, 'the divider did not move').toBeGreaterThan(260);
+
+      await ownerPage.reload();
+      await ownerPage.getByRole('tab', { name: 'Code' }).click();
+      await expect(list).toBeVisible();
+      await expect.poll(async () => Math.abs((await widthOf()) - widened)).toBeLessThan(3);
+    });
+  });
+
   test('creating an app with no name says so instead of doing nothing', async ({ ownerPage }) => {
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
     await ownerPage.goto('/apps');

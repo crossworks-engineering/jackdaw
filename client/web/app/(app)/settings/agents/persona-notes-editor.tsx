@@ -28,6 +28,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
@@ -386,16 +393,19 @@ export function PersonaNotesEditor({
   );
 }
 
+/** Was a raw `<select>` with hand-copied input classes — no focus ring, native
+ *  chevron, and a menu the theme never reached (§6d). */
 function KindSelect({ value, onChange }: { value: Kind; onChange: (k: Kind) => void }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as Kind)}
-      className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-    >
-      <option value="style">Style — voice, tone, format</option>
-      <option value="relationship">Relationship — names, how you relate</option>
-      <option value="correction">Correction — a standing fix</option>
-    </select>
+    <Select value={value} onValueChange={(v) => onChange(v as Kind)}>
+      <SelectTrigger className="h-8 w-auto text-xs" aria-label="Note kind">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="style">Style — voice, tone, format</SelectItem>
+        <SelectItem value="relationship">Relationship — names, how you relate</SelectItem>
+        <SelectItem value="correction">Correction — a standing fix</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }

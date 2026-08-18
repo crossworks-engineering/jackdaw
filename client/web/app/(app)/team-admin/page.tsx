@@ -57,6 +57,7 @@ import {
 import { MemberActivityPager } from '@/components/team-admin/member-activity-pager';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -553,119 +554,136 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
   const activityPage = selected?.activityPage ?? 1;
   return (
     <Tab active="members" badges={data.badges}>
-      <div className="min-h-0 flex-1 md:grid md:grid-cols-[340px_1fr]">
-        {/* Members */}
-        <aside className="flex min-h-0 flex-col border-r border-border">
-          <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold">Team members</h2>
-            {data.members.length > 0 && (
-              <span className="text-xs text-muted-foreground">{data.members.length}</span>
-            )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-            <MemberList members={data.members} selectedId={selected?.contactId ?? null} />
-          </div>
-        </aside>
-
-        {/* Activity */}
-        <section className="flex min-h-0 flex-col">
-          {selected && selectedMember ? (
-            <>
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-semibold">{selectedMember.contactName}</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {selected.postTotal} {selected.postTotal === 1 ? 'post' : 'posts'} ·{' '}
-                    {selectedMember.forum?.topicsStarted ?? 0} started · member since{' '}
-                    {fmtWhen(selectedMember.memberSince)} · token last used{' '}
-                    {fmtWhen(selectedMember.tokenLastUsedAt)}
+      <MasterDetail
+        // Its OWN key, not one shared with the Topics tab below: the two tabs
+        // list different things at different lengths, so a width dragged for a
+        // member list has no business setting the forum's.
+        id="team-admin-members"
+        // The tab strip stays full width above; the scaffold is what is left.
+        className="min-h-0 flex-1"
+        // The 340px this tab has always had.
+        defaultListSize="340px"
+        // The detail is an activity transcript, not a form, so it keeps the
+        // `1fr` it had rather than the 672px measure. Its own `max-w-3xl`
+        // inside still centres the reading column — that cap is not a second
+        // measure on a fixed pane here, because this pane fills.
+        detailFills
+        list={
+          <>
+            <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold">Team members</h2>
+              {data.members.length > 0 && (
+                <span className="text-xs text-muted-foreground">{data.members.length}</span>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+              <MemberList members={data.members} selectedId={selected?.contactId ?? null} />
+            </div>
+          </>
+        }
+        detail={
+          <section className="flex h-full min-h-0 flex-col">
+            {selected && selectedMember ? (
+              <>
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <div>
+                    <h2 className="text-sm font-semibold">{selectedMember.contactName}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {selected.postTotal} {selected.postTotal === 1 ? 'post' : 'posts'} ·{' '}
+                      {selectedMember.forum?.topicsStarted ?? 0} started · member since{' '}
+                      {fmtWhen(selectedMember.memberSince)} · token last used{' '}
+                      {fmtWhen(selectedMember.tokenLastUsedAt)}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/contacts?selected=${selectedMember.contactId}`}
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                  >
+                    Manage token →
+                  </Link>
+                </div>
+                <ThreadAccessSplit
+                  thread={
+                    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+                      <div className="mx-auto w-full max-w-3xl space-y-5 p-4">
+                        {selected.requests.length > 0 && (
+                          <MemberRequestList requests={selected.requests} />
+                        )}
+                        {selected.authored.length > 0 && (
+                          <AuthoredTopics topics={selected.authored} />
+                        )}
+                        <section className="space-y-2">
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Posts &amp; answers
+                          </h3>
+                          {selected.posts.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+                              {selectedMember.messageCount > 0
+                                ? 'Nothing in the Forum yet — their conversation predates it. The archive is below.'
+                                : `${selectedMember.contactName} hasn’t posted in the Forum yet.`}
+                            </p>
+                          ) : (
+                            <>
+                              <ul className="flex flex-col gap-3">
+                                {selected.posts.map((p) => (
+                                  <ActivityPost key={p.id} post={p} />
+                                ))}
+                              </ul>
+                              {selected.postTotal > selected.activityPageSize && (
+                                <MemberActivityPager
+                                  page={activityPage}
+                                  total={selected.postTotal}
+                                  pageSize={selected.activityPageSize}
+                                />
+                              )}
+                            </>
+                          )}
+                        </section>
+                        {selectedMember.messageCount > 0 && (
+                          <ChatArchive
+                            thread={selected.thread}
+                            count={selectedMember.messageCount}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  }
+                  access={
+                    selected.access.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No access events yet.</p>
+                    ) : (
+                      <ul className="flex flex-col gap-1">
+                        {selected.access.map((a) => (
+                          <li
+                            key={a.id}
+                            className="flex items-center gap-2 text-xs text-muted-foreground"
+                          >
+                            <span className="w-14 shrink-0 font-medium text-foreground">
+                              {a.kind}
+                            </span>
+                            <span className="truncate">{JSON.stringify(a.detail)}</span>
+                            <span className="ml-auto shrink-0">{fmtWhen(a.createdAt)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  }
+                />
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <div className="text-center text-sm text-muted-foreground">
+                  <Users className="mx-auto mb-2 size-6" />
+                  <p>Enable a contact as a team member to see their activity here.</p>
+                  <p className="mt-1 text-xs">
+                    Their token is what unlocks <code>/team</code>.
                   </p>
                 </div>
-                <Link
-                  href={`/contacts?selected=${selectedMember.contactId}`}
-                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                >
-                  Manage token →
-                </Link>
               </div>
-              <ThreadAccessSplit
-                thread={
-                  <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-                    <div className="mx-auto w-full max-w-3xl space-y-5 p-4">
-                      {selected.requests.length > 0 && (
-                        <MemberRequestList requests={selected.requests} />
-                      )}
-                      {selected.authored.length > 0 && (
-                        <AuthoredTopics topics={selected.authored} />
-                      )}
-                      <section className="space-y-2">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Posts &amp; answers
-                        </h3>
-                        {selected.posts.length === 0 ? (
-                          <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                            {selectedMember.messageCount > 0
-                              ? 'Nothing in the Forum yet — their conversation predates it. The archive is below.'
-                              : `${selectedMember.contactName} hasn’t posted in the Forum yet.`}
-                          </p>
-                        ) : (
-                          <>
-                            <ul className="flex flex-col gap-3">
-                              {selected.posts.map((p) => (
-                                <ActivityPost key={p.id} post={p} />
-                              ))}
-                            </ul>
-                            {selected.postTotal > selected.activityPageSize && (
-                              <MemberActivityPager
-                                page={activityPage}
-                                total={selected.postTotal}
-                                pageSize={selected.activityPageSize}
-                              />
-                            )}
-                          </>
-                        )}
-                      </section>
-                      {selectedMember.messageCount > 0 && (
-                        <ChatArchive thread={selected.thread} count={selectedMember.messageCount} />
-                      )}
-                    </div>
-                  </div>
-                }
-                access={
-                  selected.access.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No access events yet.</p>
-                  ) : (
-                    <ul className="flex flex-col gap-1">
-                      {selected.access.map((a) => (
-                        <li
-                          key={a.id}
-                          className="flex items-center gap-2 text-xs text-muted-foreground"
-                        >
-                          <span className="w-14 shrink-0 font-medium text-foreground">
-                            {a.kind}
-                          </span>
-                          <span className="truncate">{JSON.stringify(a.detail)}</span>
-                          <span className="ml-auto shrink-0">{fmtWhen(a.createdAt)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )
-                }
-              />
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="text-center text-sm text-muted-foreground">
-                <Users className="mx-auto mb-2 size-6" />
-                <p>Enable a contact as a team member to see their activity here.</p>
-                <p className="mt-1 text-xs">
-                  Their token is what unlocks <code>/team</code>.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
+            )}
+          </section>
+        }
+      />
     </Tab>
   );
 }
@@ -703,186 +721,196 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
   const ctxQuery = query?.trim() || undefined;
   return (
     <Tab active="topics" badges={data.badges}>
-      <div className="min-h-0 flex-1 md:grid md:grid-cols-[340px_1fr]">
-        <aside className="flex min-h-0 flex-col border-r border-border">
-          <div className="flex flex-col gap-2 border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold">Forum topics</h2>
-            <AdminTopicSearch initialQuery={ctxQuery ?? ''} />
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-            {data.topics.length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground">
-                {ctxQuery
-                  ? `No topics or posts match “${ctxQuery}”.`
-                  : 'No forum topics yet. Members start them at /team/forum — pinned topics float to the top of everyone’s list.'}
-              </div>
-            ) : (
-              <ul className="flex flex-col gap-2 p-3">
-                {data.topics.map((t) => {
-                  const ctx =
-                    `${ctxQuery ? `&q=${encodeURIComponent(ctxQuery)}` : ''}` +
-                    `${data.page > 1 ? `&page=${data.page}` : ''}`;
-                  return (
-                    <li key={t.id}>
-                      <ListCard asChild selected={t.id === selected?.topic.id}>
-                        <Link href={`/team-admin?view=topics&topic=${t.id}${ctx}`}>
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              {t.unread > 0 ? (
-                                <span
-                                  className="size-2 shrink-0 rounded-full bg-primary"
-                                  aria-hidden
-                                />
-                              ) : null}
-                              <span className="truncate text-sm font-medium">{t.title}</span>
-                            </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {fmtWhen(t.lastPostAt)}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <TopicFlags
-                              pinned={t.pinned}
-                              visibility={t.visibility}
-                              status={t.status}
-                            />
-                            <KindBadge kind={t.kind} />
-                            <span className="min-w-0 truncate">
-                              {t.authorName} · {t.postCount} {t.postCount === 1 ? 'post' : 'posts'}
-                            </span>
-                          </div>
-                        </Link>
-                      </ListCard>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-          <AdminTopicPager page={data.page} total={data.topicTotal} pageSize={data.pageSize} />
-        </aside>
-
-        <section className="flex min-h-0 flex-col">
-          {selected ? (
-            <>
-              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold">{selected.topic.title}</h2>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <TopicFlags
-                      pinned={selected.topic.pinned}
-                      visibility={selected.topic.visibility}
-                      status={selected.topic.status}
-                    />
-                    <KindBadge kind={selected.topic.kind} />
-                    <span>
-                      started by {selected.topic.authorName} · {fmtWhen(selected.topic.createdAt)}
-                    </span>
-                  </p>
+      <MasterDetail
+        // Its own key — see the Members tab above.
+        id="team-admin-topics"
+        className="min-h-0 flex-1"
+        defaultListSize="340px"
+        // A forum transcript, not a form: same reasoning as Members.
+        detailFills
+        list={
+          <>
+            <div className="flex flex-col gap-2 border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold">Forum topics</h2>
+              <AdminTopicSearch initialQuery={ctxQuery ?? ''} />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+              {data.topics.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">
+                  {ctxQuery
+                    ? `No topics or posts match “${ctxQuery}”.`
+                    : 'No forum topics yet. Members start them at /team/forum — pinned topics float to the top of everyone’s list.'}
                 </div>
-                <TopicPinToggle
-                  topicId={selected.topic.id}
-                  pinned={selected.topic.pinned}
-                  onDone={() => void refetch()}
-                />
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
-                <div className="mx-auto flex max-w-3xl flex-col gap-3">
-                  {selected.posts.map((p) => (
-                    <div
-                      key={p.id}
-                      className={cn(
-                        'w-full rounded-lg border px-3 py-2',
-                        p.authorKind === 'member'
-                          ? 'border-primary/20 bg-primary/5'
-                          : 'border-border bg-card text-card-foreground',
-                      )}
-                    >
-                      <div className="mb-1 flex items-baseline gap-2 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{p.authorName}</span>
-                        {p.authorKind !== 'member' && (
-                          <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wider">
-                            {p.authorKind === 'agent' ? 'Assistant' : 'Owner'}
-                          </span>
-                        )}
-                        <span>{fmtWhen(p.createdAt)}</span>
-                        {p.traceId ? (
-                          <Link
-                            href={`/traces/${p.traceId}`}
-                            className="ml-auto inline-flex items-center gap-1 underline-offset-2 hover:underline"
-                          >
-                            <ExternalLink className="size-3" /> trace
+              ) : (
+                <ul className="flex flex-col gap-2 p-3">
+                  {data.topics.map((t) => {
+                    const ctx =
+                      `${ctxQuery ? `&q=${encodeURIComponent(ctxQuery)}` : ''}` +
+                      `${data.page > 1 ? `&page=${data.page}` : ''}`;
+                    return (
+                      <li key={t.id}>
+                        <ListCard asChild selected={t.id === selected?.topic.id}>
+                          <Link href={`/team-admin?view=topics&topic=${t.id}${ctx}`}>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                {t.unread > 0 ? (
+                                  <span
+                                    className="size-2 shrink-0 rounded-full bg-primary"
+                                    aria-hidden
+                                  />
+                                ) : null}
+                                <span className="truncate text-sm font-medium">{t.title}</span>
+                              </span>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {fmtWhen(t.lastPostAt)}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <TopicFlags
+                                pinned={t.pinned}
+                                visibility={t.visibility}
+                                status={t.status}
+                              />
+                              <KindBadge kind={t.kind} />
+                              <span className="min-w-0 truncate">
+                                {t.authorName} · {t.postCount}{' '}
+                                {t.postCount === 1 ? 'post' : 'posts'}
+                              </span>
+                            </div>
                           </Link>
-                        ) : null}
-                      </div>
-                      {p.status === 'failed' ? (
-                        <p className="text-sm text-destructive-ink">
-                          Turn failed: {p.error ?? 'unknown error'}
-                        </p>
-                      ) : p.status === 'pending' ? (
-                        <p className="text-sm italic text-muted-foreground">answering…</p>
-                      ) : p.authorKind === 'member' ? (
-                        <p className="whitespace-pre-wrap text-sm">{p.body}</p>
-                      ) : (
-                        <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{p.body}</ReactMarkdown>
-                        </div>
-                      )}
-                      {p.attachments.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {p.attachments.map((a) => {
-                            if (!a.fileId) return null;
-                            const st = uploadStates.get(a.fileId);
-                            // Dismissed bytes are gone — dead chip, no link.
-                            if (st === 'dismissed') {
-                              return (
-                                <span
-                                  key={a.fileId}
-                                  className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground line-through"
-                                  title="Dismissed — bytes deleted"
-                                >
-                                  <Paperclip className="size-3" aria-hidden />
-                                  {a.caption ?? 'attachment'}
-                                </span>
-                              );
-                            }
-                            return (
-                              <AdminDownloadLink
-                                key={a.fileId}
-                                path={`/api/team-admin/forum/uploads/${a.fileId}/download`}
-                              >
-                                <Paperclip className="size-3" aria-hidden />
-                                {a.caption ?? 'attachment'}
-                                {st === 'filed' ? ' ✓' : ''}
-                              </AdminDownloadLink>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="border-t border-border px-4 py-3">
-                <div className="mx-auto max-w-3xl">
-                  <TopicReplyForm
+                        </ListCard>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <AdminTopicPager page={data.page} total={data.topicTotal} pageSize={data.pageSize} />
+          </>
+        }
+        detail={
+          <section className="flex h-full min-h-0 flex-col">
+            {selected ? (
+              <>
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold">{selected.topic.title}</h2>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <TopicFlags
+                        pinned={selected.topic.pinned}
+                        visibility={selected.topic.visibility}
+                        status={selected.topic.status}
+                      />
+                      <KindBadge kind={selected.topic.kind} />
+                      <span>
+                        started by {selected.topic.authorName} · {fmtWhen(selected.topic.createdAt)}
+                      </span>
+                    </p>
+                  </div>
+                  <TopicPinToggle
                     topicId={selected.topic.id}
-                    status={selected.topic.status}
+                    pinned={selected.topic.pinned}
                     onDone={() => void refetch()}
                   />
                 </div>
+                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
+                  <div className="mx-auto flex max-w-3xl flex-col gap-3">
+                    {selected.posts.map((p) => (
+                      <div
+                        key={p.id}
+                        className={cn(
+                          'w-full rounded-lg border px-3 py-2',
+                          p.authorKind === 'member'
+                            ? 'border-primary/20 bg-primary/5'
+                            : 'border-border bg-card text-card-foreground',
+                        )}
+                      >
+                        <div className="mb-1 flex items-baseline gap-2 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{p.authorName}</span>
+                          {p.authorKind !== 'member' && (
+                            <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wider">
+                              {p.authorKind === 'agent' ? 'Assistant' : 'Owner'}
+                            </span>
+                          )}
+                          <span>{fmtWhen(p.createdAt)}</span>
+                          {p.traceId ? (
+                            <Link
+                              href={`/traces/${p.traceId}`}
+                              className="ml-auto inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                            >
+                              <ExternalLink className="size-3" /> trace
+                            </Link>
+                          ) : null}
+                        </div>
+                        {p.status === 'failed' ? (
+                          <p className="text-sm text-destructive-ink">
+                            Turn failed: {p.error ?? 'unknown error'}
+                          </p>
+                        ) : p.status === 'pending' ? (
+                          <p className="text-sm italic text-muted-foreground">answering…</p>
+                        ) : p.authorKind === 'member' ? (
+                          <p className="whitespace-pre-wrap text-sm">{p.body}</p>
+                        ) : (
+                          <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{p.body}</ReactMarkdown>
+                          </div>
+                        )}
+                        {p.attachments.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {p.attachments.map((a) => {
+                              if (!a.fileId) return null;
+                              const st = uploadStates.get(a.fileId);
+                              // Dismissed bytes are gone — dead chip, no link.
+                              if (st === 'dismissed') {
+                                return (
+                                  <span
+                                    key={a.fileId}
+                                    className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground line-through"
+                                    title="Dismissed — bytes deleted"
+                                  >
+                                    <Paperclip className="size-3" aria-hidden />
+                                    {a.caption ?? 'attachment'}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <AdminDownloadLink
+                                  key={a.fileId}
+                                  path={`/api/team-admin/forum/uploads/${a.fileId}/download`}
+                                >
+                                  <Paperclip className="size-3" aria-hidden />
+                                  {a.caption ?? 'attachment'}
+                                  {st === 'filed' ? ' ✓' : ''}
+                                </AdminDownloadLink>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t border-border px-4 py-3">
+                  <div className="mx-auto max-w-3xl">
+                    <TopicReplyForm
+                      topicId={selected.topic.id}
+                      status={selected.topic.status}
+                      onDone={() => void refetch()}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <div className="text-center text-sm text-muted-foreground">
+                  <MessagesSquare className="mx-auto mb-2 size-6" />
+                  <p>The team&rsquo;s shared forum threads land here.</p>
+                </div>
               </div>
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="text-center text-sm text-muted-foreground">
-                <MessagesSquare className="mx-auto mb-2 size-6" />
-                <p>The team&rsquo;s shared forum threads land here.</p>
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
+            )}
+          </section>
+        }
+      />
     </Tab>
   );
 }

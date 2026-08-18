@@ -23,6 +23,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { WorkerForm } from './worker-form';
 
 type KeyOption = { id: string; service: string; label: string; masked: string };
@@ -235,180 +236,190 @@ export function AiWorkersClient() {
   };
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: grouped worker list ───────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            AI workers
-          </h2>
-        </div>
-        <div className="space-y-4 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {workersQuery.isPending ? (
-            <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
-              <Spinner size={28} />
-              Loading workers…
+    <>
+      <MasterDetail
+        id="settings-ai-workers"
+        // The 340px this screen has always had.
+        defaultListSize="340px"
+        // No `detailFills`: the detail is the worker FORM, and the 672px
+        // default measure is what keeps its fields off 1200px line lengths.
+        list={
+          <>
+            <div className="border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                AI workers
+              </h2>
             </div>
-          ) : workersQuery.isError ? (
-            <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive-ink">
-              <p>Couldn’t load workers: {workersQuery.error.message}</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => workersQuery.refetch()}
-              >
-                Retry
-              </Button>
+            <div className="space-y-4 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {workersQuery.isPending ? (
+                <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
+                  <Spinner size={28} />
+                  Loading workers…
+                </div>
+              ) : workersQuery.isError ? (
+                <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive-ink">
+                  <p>Couldn’t load workers: {workersQuery.error.message}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => workersQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                KIND_ORDER.map((kind) => {
+                  const meta = KIND_META[kind];
+                  const items = workers.filter((w) => w.kind === kind);
+                  return (
+                    <section key={kind} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 px-1">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {meta.label}
+                        </h3>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setSel({ mode: 'create', kind })}
+                        >
+                          <Plus /> Add
+                        </Button>
+                      </div>
+                      {items.length === 0 ? (
+                        <p className="px-1 text-xs text-muted-foreground/60">None configured.</p>
+                      ) : (
+                        items.map((w) => {
+                          const selected = selectedId === w.id;
+                          return (
+                            <ListCard
+                              key={w.id}
+                              onClick={() => setSel({ mode: 'edit', id: w.id })}
+                              selected={selected}
+                              dimmed={!w.enabled}
+                            >
+                              <div className="flex items-center gap-2">
+                                {w.isDefault ? (
+                                  <CheckCircle2
+                                    className="size-4 shrink-0 text-emerald-600"
+                                    aria-label="Default for this kind"
+                                  />
+                                ) : (
+                                  <span className="size-4 shrink-0" aria-hidden />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="truncate text-sm font-medium">{w.name}</span>
+                                    {!w.enabled && (
+                                      <span className="shrink-0 rounded-sm bg-muted px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                                        off
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                                    <span className="shrink-0">
+                                      {getProvider(w.provider)?.label ?? w.provider}
+                                    </span>
+                                    <span aria-hidden>·</span>
+                                    <code className="truncate font-mono">{w.model}</code>
+                                  </div>
+                                </div>
+                              </div>
+                            </ListCard>
+                          );
+                        })
+                      )}
+                    </section>
+                  );
+                })
+              )}
             </div>
-          ) : (
-            KIND_ORDER.map((kind) => {
-              const meta = KIND_META[kind];
-              const items = workers.filter((w) => w.kind === kind);
-              return (
-                <section key={kind} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2 px-1">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {meta.label}
-                    </h3>
+          </>
+        }
+        detail={
+          <>
+            {sel?.mode === 'create' ? (
+              <div className="space-y-4 p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold">New {KIND_META[sel.kind].label}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {KIND_META[sel.kind].description}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <WorkerToggles
+                      enabled={enabled}
+                      setEnabled={setEnabled}
+                      isDefault={isDefault}
+                      setIsDefault={setIsDefault}
+                    />
+                  </div>
+                </div>
+                <WorkerForm
+                  key={`new-${sel.kind}`}
+                  mode="create"
+                  kind={sel.kind}
+                  keys={keys}
+                  action={createAction}
+                  enabled={enabled}
+                  isDefault={isDefault}
+                  nativeDocProviders={nativeDocProviders}
+                  tailnetPeers={tailnetPeers}
+                />
+              </div>
+            ) : editWorker ? (
+              <div className="space-y-4 p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-lg font-semibold">{editWorker.name}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      <code className="rounded bg-muted px-1.5 py-0.5">{editWorker.slug}</code> ·
+                      kind: {editWorker.kind} · {editWorker.usageCount} runs
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <WorkerToggles
+                      enabled={enabled}
+                      setEnabled={setEnabled}
+                      isDefault={isDefault}
+                      setIsDefault={setIsDefault}
+                    />
                     <Button
                       type="button"
-                      size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => setSel({ mode: 'create', kind })}
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive-ink"
+                      onClick={() => setDeleteTarget(editWorker)}
                     >
-                      <Plus /> Add
+                      <Trash2 /> Delete
                     </Button>
                   </div>
-                  {items.length === 0 ? (
-                    <p className="px-1 text-xs text-muted-foreground/60">None configured.</p>
-                  ) : (
-                    items.map((w) => {
-                      const selected = selectedId === w.id;
-                      return (
-                        <ListCard
-                          key={w.id}
-                          onClick={() => setSel({ mode: 'edit', id: w.id })}
-                          selected={selected}
-                          dimmed={!w.enabled}
-                        >
-                          <div className="flex items-center gap-2">
-                            {w.isDefault ? (
-                              <CheckCircle2
-                                className="size-4 shrink-0 text-emerald-600"
-                                aria-label="Default for this kind"
-                              />
-                            ) : (
-                              <span className="size-4 shrink-0" aria-hidden />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="truncate text-sm font-medium">{w.name}</span>
-                                {!w.enabled && (
-                                  <span className="shrink-0 rounded-sm bg-muted px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
-                                    off
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-                                <span className="shrink-0">
-                                  {getProvider(w.provider)?.label ?? w.provider}
-                                </span>
-                                <span aria-hidden>·</span>
-                                <code className="truncate font-mono">{w.model}</code>
-                              </div>
-                            </div>
-                          </div>
-                        </ListCard>
-                      );
-                    })
-                  )}
-                </section>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── Right: editor ───────────────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {sel?.mode === 'create' ? (
-          <div className="space-y-4 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold">New {KIND_META[sel.kind].label}</h2>
-                <p className="text-xs text-muted-foreground">{KIND_META[sel.kind].description}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <WorkerToggles
+                </div>
+                <WorkerForm
+                  key={editWorker.id}
+                  mode="edit"
+                  kind={editWorker.kind}
+                  worker={editWorker}
+                  keys={keys}
+                  action={(fd) => updateAction(editWorker.id, fd)}
                   enabled={enabled}
-                  setEnabled={setEnabled}
                   isDefault={isDefault}
-                  setIsDefault={setIsDefault}
+                  nativeDocProviders={nativeDocProviders}
+                  tailnetPeers={tailnetPeers}
                 />
               </div>
-            </div>
-            <WorkerForm
-              key={`new-${sel.kind}`}
-              mode="create"
-              kind={sel.kind}
-              keys={keys}
-              action={createAction}
-              enabled={enabled}
-              isDefault={isDefault}
-              nativeDocProviders={nativeDocProviders}
-              tailnetPeers={tailnetPeers}
-            />
-          </div>
-        ) : editWorker ? (
-          <div className="space-y-4 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-lg font-semibold">{editWorker.name}</h2>
-                <p className="text-xs text-muted-foreground">
-                  <code className="rounded bg-muted px-1.5 py-0.5">{editWorker.slug}</code> · kind:{' '}
-                  {editWorker.kind} · {editWorker.usageCount} runs
-                </p>
+            ) : (
+              <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+                Select a worker to edit, or add one with the{' '}
+                <span className="font-medium">+ Add</span> buttons.
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <WorkerToggles
-                  enabled={enabled}
-                  setEnabled={setEnabled}
-                  isDefault={isDefault}
-                  setIsDefault={setIsDefault}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive-ink"
-                  onClick={() => setDeleteTarget(editWorker)}
-                >
-                  <Trash2 /> Delete
-                </Button>
-              </div>
-            </div>
-            <WorkerForm
-              key={editWorker.id}
-              mode="edit"
-              kind={editWorker.kind}
-              worker={editWorker}
-              keys={keys}
-              action={(fd) => updateAction(editWorker.id, fd)}
-              enabled={enabled}
-              isDefault={isDefault}
-              nativeDocProviders={nativeDocProviders}
-              tailnetPeers={tailnetPeers}
-            />
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a worker to edit, or add one with the <span className="font-medium">+ Add</span>{' '}
-            buttons.
-          </div>
-        )}
-      </div>
+            )}
+          </>
+        }
+      />
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -427,7 +438,7 @@ export function AiWorkersClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

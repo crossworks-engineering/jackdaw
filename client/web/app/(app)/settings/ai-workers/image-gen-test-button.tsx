@@ -14,7 +14,8 @@
 import { useState, useTransition } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Field, FieldLabel } from '@mantle/web-ui/ui/field';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 
@@ -62,17 +63,17 @@ export function ImageGenTestButton({ workerId }: { workerId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1.5">
-        <Label htmlFor="image-gen-prompt">Test prompt</Label>
-        <textarea
+      <Field>
+        <FieldLabel htmlFor="image-gen-prompt">Test prompt</FieldLabel>
+        <Textarea
           id="image-gen-prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={3}
           placeholder="A close-up watercolor of a sleeping cat curled on a blue cushion."
-          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          className="min-h-[80px]"
         />
-      </div>
+      </Field>
       <div>
         <Button type="button" onClick={run} disabled={pending}>
           {pending ? (

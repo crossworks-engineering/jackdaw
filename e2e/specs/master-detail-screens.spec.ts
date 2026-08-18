@@ -63,6 +63,10 @@ const SCREENS = [
   // form text. Nothing else about the row changes.
   { path: '/settings/config', id: 'settings-config' },
   { path: '/settings/tools', id: 'settings-tools' },
+  // The two big ones. Their FORMS are the real work (their own specs below);
+  // this row is the scaffold half only.
+  { path: '/settings/agents', id: 'settings-agents' },
+  { path: '/settings/ai-workers', id: 'settings-ai-workers' },
   { path: '/settings/users', id: 'settings-users' },
   { path: '/settings/heartbeats', id: 'settings-heartbeats' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
@@ -73,7 +77,30 @@ const SCREENS = [
   // of the screen, so this row SKIPS itself there rather than failing. Said out
   // loud, because a silently-skipped row is indistinguishable from a passing one.
   { path: '/sandboxes', id: 'sandboxes', needsFeature: /Sandboxes are not enabled/ },
+  // Two grids in ONE file, one per tab, so they take two keys rather than
+  // sharing a width: a member list and a forum topic list are different
+  // lengths and a width dragged for one has no business setting the other.
+  // The row below lands on Members, the default tab; `team-admin.spec.ts`
+  // holds the half that proves Topics has its own.
+  { path: '/team-admin', id: 'team-admin-members' },
 ] as const;
+
+/**
+ * The scaffold's OWN divider.
+ *
+ * `[data-slot="resizable-handle"]` alone is not specific enough: the app shell
+ * has one (the nav rail), and a detail pane may bring its own — `/team-admin`
+ * splits its member transcript from the access log with a second, HORIZONTAL
+ * group, and a plain `.last()` grabs that instead and drags it sideways for no
+ * effect. Scope to the innermost group that actually holds the list panel, and
+ * take only its DIRECT children.
+ */
+function scaffoldHandles(page: import('@playwright/test').Page) {
+  return page
+    .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
+    .last()
+    .locator(':scope > [data-slot="resizable-handle"]');
+}
 
 test.describe('ported master-detail screens', () => {
   test.skip(({ topology }) => topology === 'same-origin', 'owner UI lives on the client app');
@@ -136,7 +163,7 @@ test.describe('ported master-detail screens', () => {
       // The layout is saved under this screen's OWN key, so two screens cannot
       // share a width. Written only after a real interaction, hence the drag.
       const before = (await detail.boundingBox())!;
-      const handle = ownerPage.locator('[data-slot="resizable-handle"]').last();
+      const handle = scaffoldHandles(ownerPage).last();
       const grip = (await handle.boundingBox())!;
       await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
       await ownerPage.mouse.down();
@@ -175,7 +202,7 @@ test.describe('ported master-detail screens', () => {
     await expect(detail).toBeVisible();
     const contactsWidth = (await detail.boundingBox())!.width;
 
-    const handle = ownerPage.locator('[data-slot="resizable-handle"]').last();
+    const handle = scaffoldHandles(ownerPage).last();
     const grip = (await handle.boundingBox())!;
     await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
     await ownerPage.mouse.down();
@@ -209,7 +236,7 @@ test.describe('ported master-detail screens', () => {
     const list = ownerPage.locator('[data-testid="list"]');
     await expect(list).toBeVisible();
 
-    const handle = ownerPage.locator('[data-slot="resizable-handle"]').first();
+    const handle = scaffoldHandles(ownerPage).first();
     const grip = (await handle.boundingBox())!;
     await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
     await ownerPage.mouse.down();

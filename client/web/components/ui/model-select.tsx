@@ -73,6 +73,14 @@ export interface ModelSelectProps {
   name?: string;
   id?: string;
   required?: boolean;
+  /** Marks the trigger invalid — the same contract as a native control's.
+   *  Declared explicitly because TypeScript lets any hyphenated JSX attribute
+   *  through on a component: an `aria-invalid` passed by a caller is silently
+   *  DROPPED unless the component names it, so a form whose only bad field is a
+   *  model would go red nowhere. (`DateTimePicker` had exactly this bug.) */
+  'aria-invalid'?: boolean;
+  /** Ids of the hint / error text describing the trigger. */
+  'aria-describedby'?: string;
   disabled?: boolean;
   className?: string;
 }
@@ -90,6 +98,8 @@ export function ModelSelect({
   name,
   id,
   required,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
   disabled,
   className,
 }: ModelSelectProps) {
@@ -137,6 +147,8 @@ export function ModelSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
+            aria-invalid={ariaInvalid}
+            aria-describedby={ariaDescribedBy}
             disabled={disabled}
             data-required={required ? '' : undefined}
             className={cn(

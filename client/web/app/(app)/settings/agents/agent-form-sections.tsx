@@ -5,7 +5,15 @@ import { ArrowLeftRight } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Field, FieldLabel } from '@mantle/web-ui/ui/field';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { ModelSelect } from '@/components/ui/model-select';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -33,10 +41,9 @@ const KNOWN_NODE_TYPES = [
 // (and a matching `case` in extractor.ts:readNodeBodyRaw) if a surface
 // for one of them is ever built.
 
-export const SELECT_CLASS =
-  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
-export const TEXTAREA_CLASS =
-  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+/** Radix `Select` forbids an empty-string item value, so "no choice" rides a
+ *  sentinel that maps back to `''` in the form state. */
+export const NONE = '__none__';
 
 type ApiKeyOption = { id: string; service: string; label: string; masked: string };
 
@@ -51,8 +58,8 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
         Memory
       </legend>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="historyLimit">Turns to replay</Label>
+        <Field>
+          <FieldLabel htmlFor="historyLimit">Turns to replay</FieldLabel>
           <Input
             id="historyLimit"
             type="number"
@@ -69,9 +76,9 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
               How much of the recent conversation is re-sent with each new message. 20 is plenty.
             </FieldHint>
           )}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="historyWindowHours">Time window (hours)</Label>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="historyWindowHours">Time window (hours)</FieldLabel>
           <Input
             id="historyWindowHours"
             type="number"
@@ -86,13 +93,13 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             Also drop replayed turns older than this, so an idle chat starts fresh. Blank = go by
             count alone.
           </FieldHint>
-        </div>
+        </Field>
       </div>
 
       {(form.role === 'responder' || form.role === 'assistant') && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="digestLimit">Digests</Label>
+          <Field>
+            <FieldLabel htmlFor="digestLimit">Digests</FieldLabel>
             <Input
               id="digestLimit"
               type="number"
@@ -105,9 +112,9 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             <FieldHint id="digestLimit">
               Rollups of older conversation pulled in for background. Default 3.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="factLimit">Facts</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="factLimit">Facts</FieldLabel>
             <Input
               id="factLimit"
               type="number"
@@ -120,9 +127,9 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             <FieldHint id="factLimit" warn="Too many and the relevant ones get lost in the noise.">
               Extracted facts matched against the incoming message. Default 10.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="contentHitLimit">Content hits</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="contentHitLimit">Content hits</FieldLabel>
             <Input
               id="contentHitLimit"
               type="number"
@@ -135,14 +142,14 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             <FieldHint id="contentHitLimit" warn="Each hit is a full passage — these add up fast.">
               Passages from your notes and files pulled in for the question. Default 3.
             </FieldHint>
-          </div>
+          </Field>
         </div>
       )}
 
       {form.role === 'extractor' && (
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Node types to process</Label>
+          <Field>
+            <FieldLabel>Node types to process</FieldLabel>
             <NodeTypePicker
               value={form.extractTypes}
               onChange={(v) => setForm((f) => ({ ...f, extractTypes: v }))}
@@ -153,17 +160,21 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
               a custom type if you&apos;ve introduced a new node kind. <code>branch</code> and{' '}
               <code>secret</code> are HARD-SKIPPED regardless of this setting.
             </FieldHint>
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+          </Field>
+          {/* Was a raw `<input type="checkbox">` carrying no focus ring and
+              none of the theme's states (§6d). */}
+          <Field orientation="horizontal">
+            <Checkbox
+              id="extractFacts"
               checked={form.extractFacts}
-              onChange={(e) => setForm((f) => ({ ...f, extractFacts: e.target.checked }))}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, extractFacts: v === true }))}
             />
-            Extract facts (uncheck for content_index population only)
-          </label>
-          <div className="space-y-1.5">
-            <Label htmlFor="extractCostCapCents">Cost cap per run (¢)</Label>
+            <FieldLabel htmlFor="extractFacts" className="cursor-pointer font-normal">
+              Extract facts (uncheck for content_index population only)
+            </FieldLabel>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="extractCostCapCents">Cost cap per run (¢)</FieldLabel>
             <Input
               id="extractCostCapCents"
               type="number"
@@ -181,14 +192,14 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
               Once trace cost crosses this, the fact-processing loop bails gracefully. Summary +
               entity reconciliation still run.
             </FieldHint>
-          </div>
+          </Field>
         </div>
       )}
 
       {form.role === 'summarizer' && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="summarizeThreshold">Trigger threshold</Label>
+          <Field>
+            <FieldLabel htmlFor="summarizeThreshold">Trigger threshold</FieldLabel>
             <Input
               id="summarizeThreshold"
               type="number"
@@ -204,9 +215,9 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             >
               Undigested turns per chat before summarization fires. Default 30.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="summarizeBatch">Batch size</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="summarizeBatch">Batch size</FieldLabel>
             <Input
               id="summarizeBatch"
               type="number"
@@ -222,7 +233,7 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             >
               How many of the oldest turns to fold into one digest. Default 20.
             </FieldHint>
-          </div>
+          </Field>
         </div>
       )}
     </fieldset>
@@ -278,9 +289,9 @@ export function BackupRouteSection({
       </legend>
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">
-          <Label htmlFor="backupEnabled" className="cursor-pointer">
+          <FieldLabel htmlFor="backupEnabled" className="cursor-pointer">
             Enable failover
-          </Label>
+          </FieldLabel>
           <FieldHint id="backupEnabled">
             On a route-down / 429 / 5xx from the primary, fall over to a backup route. May be a
             different provider + model — that&apos;s what enables a local primary with a cloud
@@ -307,33 +318,34 @@ export function BackupRouteSection({
             </Button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="backupProvider">Provider</Label>
+            <Field>
+              <FieldLabel htmlFor="backupProvider">Provider</FieldLabel>
               {(() => {
                 const chatProviders = providersForCapability('chat');
                 return (
                   <>
-                    <select
-                      id="backupProvider"
+                    <Select
                       value={form.backupProvider}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          backupProvider: e.target.value,
-                        }))
-                      }
-                      className={SELECT_CLASS}
+                      onValueChange={(v) => setForm((f) => ({ ...f, backupProvider: v }))}
                     >
-                      {chatProviders.map((p) => {
-                        const wired = isProviderWired(p.id, 'chat');
-                        return (
-                          <option key={p.id} value={p.id}>
-                            {p.label}
-                            {wired ? '' : ' · not yet wired'}
-                          </option>
-                        );
-                      })}
-                    </select>
+                      <SelectTrigger
+                        id="backupProvider"
+                        aria-describedby={hintId('backupProvider')}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatProviders.map((p) => {
+                          const wired = isProviderWired(p.id, 'chat');
+                          return (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.label}
+                              {wired ? '' : ' · not yet wired'}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
                     <FieldHint id="backupProvider">
                       Who answers when the primary route is down.
                     </FieldHint>
@@ -346,35 +358,38 @@ export function BackupRouteSection({
                   </>
                 );
               })()}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="backupApiKey">API key</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="backupApiKey">API key</FieldLabel>
               {(() => {
                 const eligibleBackupKeys = apiKeys.filter((k) => k.service === form.backupProvider);
                 return (
                   <>
-                    <select
-                      id="backupApiKey"
-                      value={form.backupApiKeyId}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          backupApiKeyId: e.target.value,
-                        }))
+                    <Select
+                      // "no key" is a real choice for a local route, so it keeps
+                      // an item rather than becoming a placeholder — on the NONE
+                      // sentinel, because Radix forbids an empty item value.
+                      value={form.backupApiKeyId || NONE}
+                      onValueChange={(v) =>
+                        setForm((f) => ({ ...f, backupApiKeyId: v === NONE ? '' : v }))
                       }
-                      className={SELECT_CLASS}
                     >
-                      <option value="">
-                        {form.backupProvider === 'local'
-                          ? 'None (keyless / local)'
-                          : '— select a key —'}
-                      </option>
-                      {eligibleBackupKeys.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.service} / {k.label} ({k.masked})
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger id="backupApiKey">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>
+                          {form.backupProvider === 'local'
+                            ? 'None (keyless / local)'
+                            : '— select a key —'}
+                        </SelectItem>
+                        {eligibleBackupKeys.map((k) => (
+                          <SelectItem key={k.id} value={k.id}>
+                            {k.service} / {k.label} ({k.masked})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     {apiKeys.length > 0 &&
                       eligibleBackupKeys.length === 0 &&
                       form.backupProvider !== 'local' && (
@@ -385,10 +400,10 @@ export function BackupRouteSection({
                   </>
                 );
               })()}
-            </div>
+            </Field>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="backupModel">Model</Label>
+          <Field>
+            <FieldLabel htmlFor="backupModel">Model</FieldLabel>
             <ModelSelect
               id="backupModel"
               value={form.backupModel}
@@ -403,7 +418,7 @@ export function BackupRouteSection({
               Needn&apos;t match the primary — a cheaper or smaller model is fine here, since it
               only runs when the primary is down.
             </FieldHint>
-          </div>
+          </Field>
           {(form.backupProvider === 'local' || form.backupProvider === 'custom') && (
             <RouteHostFields
               idPrefix="backup"
@@ -450,10 +465,10 @@ export function RouteHostFields({
   const listId = `${idPrefix}-tailnet-peers`;
   return (
     <div className="space-y-3 rounded-md border border-dashed border-border p-3">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}BaseUrl`}>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}BaseUrl`}>
           Base URL{isCustom && <span className="text-muted-foreground"> (required)</span>}
-        </Label>
+        </FieldLabel>
         <Input
           id={`${idPrefix}BaseUrl`}
           value={baseUrl}
@@ -490,13 +505,13 @@ export function RouteHostFields({
             {peers.length > 0 && ' Tailnet devices are suggested as you type.'}
           </p>
         )}
-      </div>
+      </Field>
       {!isCustom && (
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <Label htmlFor={`${idPrefix}ViaTailnet`} className="cursor-pointer">
+            <FieldLabel htmlFor={`${idPrefix}ViaTailnet`} className="cursor-pointer">
               Reach via Tailscale
-            </Label>
+            </FieldLabel>
             <p className="text-xs text-muted-foreground">
               Route this request through the bundled Tailscale proxy so the Base URL (a MagicDNS
               name) reaches a box behind NAT. Inert unless the <code>tailnet</code> compose profile

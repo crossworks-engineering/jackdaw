@@ -60,7 +60,16 @@ import {
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { ModelSelect } from '@/components/ui/model-select';
@@ -73,6 +82,74 @@ import { ChatTestButton } from '@/components/settings/chat-test-button';
 import { VisionTestButton } from './vision-test-button';
 import { DocumentTestButton } from './document-test-button';
 import { ImageGenTestButton } from './image-gen-test-button';
+
+/** Radix `Select` forbids an empty-string item value, so "none" rides a
+ *  sentinel that maps back to `''` before it reaches the form data. */
+const NONE = '__none__';
+
+/**
+ * A `Select` that still submits with the form.
+ *
+ * This form is uncontrolled — it reads `new FormData(formEl)` on submit — and
+ * Radix's Select is a button plus a portal, not a form control, so on its own it
+ * puts NOTHING in that FormData. Pairing it with a hidden input under the same
+ * `name` restores exactly what the raw `<select name=… defaultValue=…>` did by
+ * itself, and keeps the swap invisible to the submit handler and the server.
+ */
+function FormSelect({
+  id,
+  name,
+  defaultValue,
+  describedBy,
+  children,
+}: {
+  id: string;
+  name: string;
+  defaultValue: string;
+  describedBy?: string;
+  children: React.ReactNode;
+}) {
+  const [value, setValue] = useState(defaultValue);
+  return (
+    <>
+      <input type="hidden" name={name} value={value} />
+      <Select value={value} onValueChange={setValue}>
+        <SelectTrigger id={id} aria-describedby={describedBy}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
+    </>
+  );
+}
+
+/** Which control of the worker form can be wrong, keyed by its `id`. */
+type WorkerErrors = Partial<Record<'name' | 'model' | 'primary_base_url_input', string>>;
+
+/**
+ * The rules the form used to hand to the browser as `required`.
+ *
+ * A native bubble is announced to nothing, disappears on the next click, and
+ * cannot say WHICH rule broke — and on `model` it never fired at all, because
+ * `ModelSelect`'s trigger is a button rather than a form control. The `required`
+ * attributes stay on as documentation; the form is `noValidate` and these run
+ * instead, with the message landing on the field.
+ *
+ * Reads FormData rather than component state because this form is uncontrolled:
+ * most of its inputs are `name` + `defaultValue`, so the DOM is where the
+ * current answer actually lives.
+ */
+function validateWorker(fd: FormData, opts: { needsBaseUrl: boolean }): WorkerErrors {
+  const errs: WorkerErrors = {};
+  const read = (k: string) => String(fd.get(k) ?? '').trim();
+  if (!read('name')) errs.name = 'A name is required.';
+  if (!read('model')) errs.model = 'A model is required.';
+  // `custom` routes have nowhere to fall back to: without a base URL the
+  // saved worker cannot run at all.
+  if (opts.needsBaseUrl && !read('base_url'))
+    errs.primary_base_url_input = 'A custom route needs its provider’s base URL.';
+  return errs;
+}
 
 type KeyOption = { id: string; service: string; label: string; masked: string };
 
@@ -227,6 +304,10 @@ export function WorkerForm({
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<WorkerErrors>({});
+  // Only complain AFTER a submit has failed — a brand-new worker should not
+  // open marked red.
+  const [submitted, setSubmitted] = useState(false);
   // Embedding-kind only: lifted from EmbeddingFields so the save button
   // can disable itself when the picked model emits a dim that doesn't
   // fit the brain's vector(768) column. Null = unknown (untested,
@@ -497,12 +578,38 @@ export function WorkerForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 
+  // What the submit handler and the after-a-failure revalidation both need.
+  // `base_url` is React state rather than an input value, so it is stamped in
+  // before the rules read the FormData.
+  const needsBaseUrl = chatShaped && provider === 'custom';
+  const collect = (formEl: HTMLFormElement) => {
+    const fd = new FormData(formEl);
+    fd.set('base_url', baseUrl.trim());
+    return fd;
+  };
+
   return (
     <form
+      noValidate
+      // ONE handler instead of `onChange` on all thirty-odd controls: input
+      // events bubble to the form, so a field that has been fixed stops
+      // complaining as soon as it is. Does nothing until a submit has failed.
+      onChange={(e) => {
+        if (!submitted) return;
+        setErrors(validateWorker(collect(e.currentTarget), { needsBaseUrl }));
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         setError(null);
-        const fd = new FormData(e.currentTarget);
+        const fd = collect(e.currentTarget);
+        const errs = validateWorker(fd, { needsBaseUrl });
+        setSubmitted(true);
+        setErrors(errs);
+        const first = (['name', 'model', 'primary_base_url_input'] as const).find((k) => errs[k]);
+        if (first) {
+          document.getElementById(first)?.focus();
+          return;
+        }
         fd.set('kind', kind);
         fd.set('enabled', enabled ? 'on' : 'off');
         fd.set('isDefault', isDefault ? 'on' : 'off');
@@ -548,45 +655,46 @@ export function WorkerForm({
     >
       {/* ── Identity ─────────────────────────────────────────────── */}
       <section className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="name">Name</Label>
+        <Field data-invalid={!!errors.name || undefined}>
+          <FieldLabel htmlFor="name">Name</FieldLabel>
           <Input
             id="name"
             name="name"
             defaultValue={worker?.name ?? ''}
             placeholder="e.g. Saskia's voice"
             required
-            aria-describedby={hintId('name')}
+            aria-invalid={!!errors.name || undefined}
+            aria-describedby={errors.name ? `name-error ${hintId('name')}` : hintId('name')}
           />
           <FieldHint id="name">
             Display label only. The system uses the auto-generated slug for lookups.
           </FieldHint>
-        </div>
+          <FieldError id="name-error">{errors.name}</FieldError>
+        </Field>
 
         {/* Provider + key side by side; the model picker gets its own
             full-width row below — mirrors the agents form layout. */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="provider">Provider</Label>
-            <select
-              id="provider"
-              name="provider"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              required
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              {eligibleProviders.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                  {p.isAggregator ? ' (aggregator)' : ''}
-                  {!isProviderWired(p.id, capability) ? ' — not yet wired' : ''}
-                  {kind === 'document' && !nativeDocProviders.includes(p.id)
-                    ? ' — page-OCR fallback'
-                    : ''}
-                </option>
-              ))}
-            </select>
+          <Field>
+            <FieldLabel htmlFor="provider">Provider</FieldLabel>
+            <input type="hidden" name="provider" value={provider} />
+            <Select value={provider} onValueChange={setProvider}>
+              <SelectTrigger id="provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleProviders.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                    {p.isAggregator ? ' (aggregator)' : ''}
+                    {!isProviderWired(p.id, capability) ? ' — not yet wired' : ''}
+                    {kind === 'document' && !nativeDocProviders.includes(p.id)
+                      ? ' — page-OCR fallback'
+                      : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {selectedProvider && (
               <p className="text-xs text-muted-foreground">
                 {selectedProvider.description}{' '}
@@ -607,15 +715,14 @@ export function WorkerForm({
                 ship the dispatch code for this provider.
               </p>
             )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="apiKeyId">API key</Label>
-            <select
-              id="apiKeyId"
-              name="apiKeyId"
-              value={apiKeyId}
-              onChange={(e) => {
-                const newKeyId = e.target.value;
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="apiKeyId">API key</FieldLabel>
+            <input type="hidden" name="apiKeyId" value={apiKeyId} />
+            <Select
+              value={apiKeyId || NONE}
+              onValueChange={(choice) => {
+                const newKeyId = choice === NONE ? '' : choice;
                 setApiKeyId(newKeyId);
                 // Auto-derive the provider from the picked key's service.
                 // Picking an OpenAI key while provider='anthropic' was the
@@ -635,15 +742,19 @@ export function WorkerForm({
                 }
                 void refreshDiscovery(newKeyId);
               }}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
             >
-              <option value="">— none —</option>
-              {eligibleKeys.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.service}/{k.label} ({k.masked})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="apiKeyId" aria-describedby={hintId('apiKeyId')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>— none —</SelectItem>
+                {eligibleKeys.map((k) => (
+                  <SelectItem key={k.id} value={k.id}>
+                    {k.service}/{k.label} ({k.masked})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <FieldHint id="apiKeyId">
               Which saved key pays for this worker. Picking one switches the provider to match.
             </FieldHint>
@@ -657,11 +768,11 @@ export function WorkerForm({
               eligibleKeysAvailable={eligibleKeys.length > 0}
               eligibleProviderLabels={eligibleProviders.map((p) => p.label)}
             />
-          </div>
+          </Field>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="model">Model</Label>
+        <Field data-invalid={!!errors.model || undefined}>
+          <FieldLabel htmlFor="model">Model</FieldLabel>
           {supportsDiscovery ? (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -676,6 +787,8 @@ export function WorkerForm({
                     placeholder="— pick a model —"
                     emptyMessage="No models in this catalogue match."
                     required
+                    aria-invalid={!!errors.model || undefined}
+                    aria-describedby={errors.model ? 'model-error' : undefined}
                   />
                 </div>
                 <Button
@@ -716,9 +829,12 @@ export function WorkerForm({
               onChange={(e) => setModel(e.target.value)}
               placeholder={MODEL_HINT_FOR_KIND[kind]}
               required
+              aria-invalid={!!errors.model || undefined}
+              aria-describedby={errors.model ? 'model-error' : undefined}
             />
           )}
-        </div>
+          <FieldError id="model-error">{errors.model}</FieldError>
+        </Field>
         {/* Primary route host (migration 0063) — chat-shaped `local` (self-
             hosted/LAN/tailnet) and `custom` (cloud OpenAI-compatible) routes both
             take a per-route Base URL. */}
@@ -731,6 +847,7 @@ export function WorkerForm({
             peers={tailnetPeers}
             onBaseUrl={setBaseUrl}
             onViaTailnet={setViaTailnet}
+            error={errors.primary_base_url_input}
           />
         )}
       </section>
@@ -790,22 +907,25 @@ export function WorkerForm({
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="backup_provider">Provider</Label>
-                  <select
-                    id="backup_provider"
-                    value={backupProvider}
-                    onChange={(e) => setBackupProvider(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                  >
-                    {eligibleProviders.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                        {p.isAggregator ? ' (aggregator)' : ''}
-                        {!isProviderWired(p.id, capability) ? ' — not yet wired' : ''}
-                      </option>
-                    ))}
-                  </select>
+                <Field>
+                  <FieldLabel htmlFor="backup_provider">Provider</FieldLabel>
+                  <Select value={backupProvider} onValueChange={setBackupProvider}>
+                    <SelectTrigger
+                      id="backup_provider"
+                      aria-describedby={hintId('backup_provider')}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eligibleProviders.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.label}
+                          {p.isAggregator ? ' (aggregator)' : ''}
+                          {!isProviderWired(p.id, capability) ? ' — not yet wired' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FieldHint id="backup_provider">
                     Who serves this worker when the primary is unreachable.
                   </FieldHint>
@@ -815,37 +935,40 @@ export function WorkerForm({
                       fail until one ships.
                     </p>
                   )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="backup_api_key_id">API key</Label>
-                  <select
-                    id="backup_api_key_id"
-                    value={backupApiKeyId}
-                    onChange={(e) => setBackupApiKeyId(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="backup_api_key_id">API key</FieldLabel>
+                  <Select
+                    value={backupApiKeyId || NONE}
+                    onValueChange={(v) => setBackupApiKeyId(v === NONE ? '' : v)}
                   >
-                    <option value="">
-                      {backupProvider === 'local' ? 'None (keyless / local)' : '— none —'}
-                    </option>
-                    {keys
-                      .filter((k) => k.service === backupProvider)
-                      .map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.service}/{k.label} ({k.masked})
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                    <SelectTrigger id="backup_api_key_id">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>
+                        {backupProvider === 'local' ? 'None (keyless / local)' : '— none —'}
+                      </SelectItem>
+                      {keys
+                        .filter((k) => k.service === backupProvider)
+                        .map((k) => (
+                          <SelectItem key={k.id} value={k.id}>
+                            {k.service}/{k.label} ({k.masked})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="backup_model">Model</Label>
+              <Field>
+                <FieldLabel htmlFor="backup_model">Model</FieldLabel>
                 <Input
                   id="backup_model"
                   value={backupModel}
                   onChange={(e) => setBackupModel(e.target.value)}
                   placeholder={MODEL_HINT_FOR_KIND[kind]}
                 />
-              </div>
+              </Field>
               {(backupProvider === 'local' || backupProvider === 'custom') && (
                 <RouteHostFields
                   idPrefix="backup"
@@ -938,8 +1061,8 @@ export function WorkerForm({
 
       {/* ── Priority ─────────────────────────────────────────────── */}
       <section className="space-y-3 border-t border-border pt-6">
-        <div className="space-y-1.5">
-          <Label htmlFor="priority">Priority</Label>
+        <Field>
+          <FieldLabel htmlFor="priority">Priority</FieldLabel>
           <Input
             id="priority"
             name="priority"
@@ -951,7 +1074,7 @@ export function WorkerForm({
           <FieldHint id="priority">
             Higher wins when no default is set and several workers of this kind are enabled.
           </FieldHint>
-        </div>
+        </Field>
       </section>
 
       {/* ── Test button (kind-aware) ──────────────────────────────── */}
@@ -1078,6 +1201,7 @@ function RouteHostFields({
   peers = [],
   onBaseUrl,
   onViaTailnet,
+  error,
 }: {
   idPrefix: string;
   provider: 'local' | 'custom';
@@ -1087,19 +1211,24 @@ function RouteHostFields({
   peers?: string[];
   onBaseUrl: (v: string) => void;
   onViaTailnet: (v: boolean) => void;
+  /** The base-URL rule lives with the parent form (it depends on the provider
+   *  and the kind); only the MESSAGE comes down here. */
+  error?: string;
 }) {
   const isCustom = provider === 'custom';
   const listId = `${idPrefix}-worker-tailnet-peers`;
   return (
     <div className="space-y-3 rounded-md border border-dashed border-border p-3">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}_base_url_input`}>
+      <Field data-invalid={!!error || undefined}>
+        <FieldLabel htmlFor={`${idPrefix}_base_url_input`}>
           Base URL{isCustom && <span className="text-muted-foreground"> (required)</span>}
-        </Label>
+        </FieldLabel>
         <Input
           id={`${idPrefix}_base_url_input`}
           value={baseUrl}
           onChange={(e) => onBaseUrl(e.target.value)}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error ? `${idPrefix}_base_url_input-error` : undefined}
           placeholder={
             isCustom
               ? 'https://api.your-provider.com/v1'
@@ -1130,13 +1259,14 @@ function RouteHostFields({
             {peers.length > 0 && ' Tailnet devices are suggested as you type.'}
           </p>
         )}
-      </div>
+        <FieldError id={`${idPrefix}_base_url_input-error`}>{error}</FieldError>
+      </Field>
       {!isCustom && (
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <Label htmlFor={`${idPrefix}_via_tailnet_switch`} className="cursor-pointer">
+            <FieldLabel htmlFor={`${idPrefix}_via_tailnet_switch`} className="cursor-pointer">
               Reach via Tailscale
-            </Label>
+            </FieldLabel>
             <p className="text-xs text-muted-foreground">
               Route through the bundled Tailscale proxy so the Base URL (a MagicDNS name) reaches a
               box behind NAT. Inert unless the <code>tailnet</code> compose profile is up.
@@ -1373,36 +1503,39 @@ function TtsFields({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="voice">Voice</Label>
+      <Field>
+        <FieldLabel htmlFor="voice">Voice</FieldLabel>
         {/* Hidden input carries the canonical voice value on submit.
             The dropdown and custom-id input both write to `voiceValue`
             — this is what FormData picks up. */}
         <input type="hidden" name="voice" value={voiceValue} />
-        <select
-          id="voice"
-          // No `name` — the hidden input above owns submission. This
-          // is just the preset picker UI.
+        <Select
+          // No `name` — the hidden input above owns submission. This is just
+          // the preset picker UI.
           value={isCustomVoice ? '__custom__' : voiceValue}
-          onChange={(e) => {
-            // The "Custom voice ID" sentinel is a no-op selection —
-            // the actual custom value lives in the text input below.
-            if (e.target.value === '__custom__') return;
-            setVoiceValue(e.target.value);
+          onValueChange={(v) => {
+            // The "Custom voice ID" sentinel is a no-op selection — the actual
+            // custom value lives in the text input below.
+            if (v === '__custom__') return;
+            setVoiceValue(v);
           }}
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
         >
-          {availableVoices.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.id} — {v.description}
-            </option>
-          ))}
-          {supportsCustomVoiceId && (
-            <option value="__custom__">
-              {isCustomVoice ? `Custom: ${voiceValue}` : 'Custom voice ID…'}
-            </option>
-          )}
-        </select>
+          <SelectTrigger id="voice">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableVoices.map((v) => (
+              <SelectItem key={v.id} value={v.id}>
+                {v.id} — {v.description}
+              </SelectItem>
+            ))}
+            {supportsCustomVoiceId && (
+              <SelectItem value="__custom__">
+                {isCustomVoice ? `Custom: ${voiceValue}` : 'Custom voice ID…'}
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
         {supportsCustomVoiceId && (
           <div className="space-y-1">
             <Input
@@ -1495,12 +1628,12 @@ function TtsFields({
             </div>
           </details>
         )}
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="instructions">
+      <Field>
+        <FieldLabel htmlFor="instructions">
           Style instructions {supportsInstructions ? '' : '(unsupported on this model)'}
-        </Label>
+        </FieldLabel>
         <Input
           id="instructions"
           name="instructions"
@@ -1517,7 +1650,7 @@ function TtsFields({
             ? 'Steers tone, accent, pacing, emotion. Only the gpt-4o-mini-tts model reads this — older models ignore it.'
             : 'Switch to gpt-4o-mini-tts to use style instructions.'}
         </p>
-      </div>
+      </Field>
 
       {/* Language hint — only the xAI TTS endpoint has a structured
           `language` body field today. Critical for xAI custom voices:
@@ -1527,8 +1660,8 @@ function TtsFields({
           biases pronunciation via natural-language phrasing in the
           prompt rather than a structured code. */}
       {provider === 'xai' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="language">Language hint</Label>
+        <Field>
+          <FieldLabel htmlFor="language">Language hint</FieldLabel>
           <Input
             id="language"
             name="language"
@@ -1540,12 +1673,12 @@ function TtsFields({
             voice&apos;s native language (e.g. <code className="font-mono">fr</code> for a French
             clone) so the accent stays in character. Leave blank to let Grok auto-detect.
           </p>
-        </div>
+        </Field>
       )}
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="speed">Speed</Label>
+        <Field>
+          <FieldLabel htmlFor="speed">Speed</FieldLabel>
           <Input
             id="speed"
             name="speed"
@@ -1556,25 +1689,25 @@ function TtsFields({
             defaultValue={(params.speed as number) ?? 1.0}
           />
           <p className="text-xs text-muted-foreground">0.25–4.0. Try 0.95 for a touch slower.</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="format">Format</Label>
-          <select
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="format">Format</FieldLabel>
+          <FormSelect
             id="format"
             name="format"
             defaultValue={(params.format as string) ?? 'opus'}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            describedBy={hintId('format')}
           >
-            <option value="opus">opus (Telegram-native)</option>
-            <option value="mp3">mp3</option>
-            <option value="wav">wav</option>
-            <option value="flac">flac</option>
-          </select>
+            <SelectItem value="opus">opus (Telegram-native)</SelectItem>
+            <SelectItem value="mp3">mp3</SelectItem>
+            <SelectItem value="wav">wav</SelectItem>
+            <SelectItem value="flac">flac</SelectItem>
+          </FormSelect>
           <FieldHint id="format">
             Audio container for the reply. Keep <code className="font-mono">opus</code> for Telegram
             — anything else arrives as a file attachment, not a playable voice note.
           </FieldHint>
-        </div>
+        </Field>
       </div>
     </div>
   );
@@ -1583,8 +1716,8 @@ function TtsFields({
 function SttFields({ params }: { params: Record<string, unknown> }) {
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="language">Language hint (optional)</Label>
+      <Field>
+        <FieldLabel htmlFor="language">Language hint (optional)</FieldLabel>
         <Input
           id="language"
           name="language"
@@ -1595,9 +1728,9 @@ function SttFields({ params }: { params: Record<string, unknown> }) {
           ISO-639-1 code. Whisper auto-detects when blank; set this only if you speak one language
           exclusively and want faster results.
         </p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="max_duration_seconds">Max duration (seconds)</Label>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="max_duration_seconds">Max duration (seconds)</FieldLabel>
         <Input
           id="max_duration_seconds"
           name="max_duration_seconds"
@@ -1610,7 +1743,7 @@ function SttFields({ params }: { params: Record<string, unknown> }) {
         <p className="text-xs text-muted-foreground">
           Hard cap. Voice notes longer than this are rejected with a polite reply.
         </p>
-      </div>
+      </Field>
     </div>
   );
 }
@@ -1631,38 +1764,38 @@ function VisionFields({
     'Transcribe everything visible in this image verbatim, preserving line breaks and structure. If something is unclear, mark it [unclear]. Output plain text only — do not summarise or comment.';
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="systemPrompt">System prompt</Label>
-        <textarea
+      <Field>
+        <FieldLabel htmlFor="systemPrompt">System prompt</FieldLabel>
+        <Textarea
           id="systemPrompt"
           name="systemPrompt"
           defaultValue={systemPrompt ?? ''}
           rows={3}
           placeholder="You are an OCR engine. Output exactly what's on the page — no commentary."
-          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          className="min-h-[80px]"
         />
         <p className="text-xs text-muted-foreground">
           Optional. Use to nudge the model's behaviour across all calls (e.g. &quot;preserve
           mathematical notation as LaTeX&quot;). Leave blank for plain transcription.
         </p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="extraction_prompt">Per-image prompt</Label>
-        <textarea
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="extraction_prompt">Per-image prompt</FieldLabel>
+        <Textarea
           id="extraction_prompt"
           name="extraction_prompt"
           defaultValue={(params.extraction_prompt as string) ?? defaultPrompt}
           rows={3}
           placeholder={defaultPrompt}
-          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          className="min-h-[80px]"
         />
         <p className="text-xs text-muted-foreground">
           Sent alongside each image. The default is verbatim transcription — change it for
           structured-markdown output, summarisation, action-item extraction, etc.
         </p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="max_tokens">Max output tokens</Label>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="max_tokens">Max output tokens</FieldLabel>
         <Input
           id="max_tokens"
           name="max_tokens"
@@ -1674,7 +1807,7 @@ function VisionFields({
         <FieldHint id="max_tokens" warn="Set it short and a dense page stops half-read.">
           Caps cost on long transcripts. 2000 covers ~3 pages of dense handwriting.
         </FieldHint>
-      </div>
+      </Field>
     </div>
   );
 }
@@ -1699,37 +1832,37 @@ function DocumentFields({
         providers fall back to page-by-page image OCR. If no document worker is set, PDFs use the
         Vision worker.
       </p>
-      <div className="space-y-1.5">
-        <Label htmlFor="systemPrompt">System prompt</Label>
-        <textarea
+      <Field>
+        <FieldLabel htmlFor="systemPrompt">System prompt</FieldLabel>
+        <Textarea
           id="systemPrompt"
           name="systemPrompt"
           defaultValue={systemPrompt ?? ''}
           rows={3}
           placeholder="You are a precise document transcriber. Output exactly what's on the page — no commentary."
-          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          className="min-h-[80px]"
         />
         <p className="text-xs text-muted-foreground">
           Optional. Steers behaviour across all calls. Leave blank for plain transcription.
         </p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="extraction_prompt">Per-document prompt</Label>
-        <textarea
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="extraction_prompt">Per-document prompt</FieldLabel>
+        <Textarea
           id="extraction_prompt"
           name="extraction_prompt"
           defaultValue={(params.extraction_prompt as string) ?? defaultPrompt}
           rows={5}
           placeholder={defaultPrompt}
-          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          className="min-h-[80px]"
         />
         <p className="text-xs text-muted-foreground">
           Sent alongside the PDF. The default is a faithful, table-aware transcription — ideal for
           invoices and statements.
         </p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="max_tokens">Max output tokens</Label>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="max_tokens">Max output tokens</FieldLabel>
         <Input
           id="max_tokens"
           name="max_tokens"
@@ -1742,23 +1875,26 @@ function DocumentFields({
           The whole document transcribes in one call, so keep this generous — 8000 covers a
           multi-page invoice. Long docs need more than the per-image vision default.
         </FieldHint>
-      </div>
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
+      </Field>
+      {/* Was a raw `<input type="checkbox">`: no focus ring and none of the
+          theme's states. Radix's own hidden bubble input keeps it submitting
+          under the same name (§6d). */}
+      <Field orientation="horizontal" className="items-start">
+        <Checkbox
+          id="prefer_native"
           name="prefer_native"
           defaultChecked={Boolean(params.prefer_native)}
-          className="mt-0.5 size-4"
+          className="mt-0.5"
         />
-        <span>
+        <FieldLabel htmlFor="prefer_native" className="cursor-pointer flex-col items-start gap-0">
           <span className="font-medium">Always read PDFs natively</span>
-          <span className="block text-xs text-muted-foreground">
+          <span className="block text-xs font-normal text-muted-foreground">
             Send every PDF to the model, even when it has a text layer — best for tabular docs
             (invoices/statements) whose text layer scrambles columns. Off by default: PDFs with
             clean text use the cheap text path and skip the model.
           </span>
-        </span>
-      </label>
+        </FieldLabel>
+      </Field>
     </div>
   );
 }
@@ -1767,8 +1903,8 @@ function ImageGenFields({ params }: { params: Record<string, unknown> }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="size">Size</Label>
+        <Field>
+          <FieldLabel htmlFor="size">Size</FieldLabel>
           <Input
             id="size"
             name="size"
@@ -1779,40 +1915,40 @@ function ImageGenFields({ params }: { params: Record<string, unknown> }) {
           <FieldHint id="size" warn="Larger sizes cost more per image and take longer.">
             Output dimensions. Must be a size the chosen model accepts.
           </FieldHint>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="quality">Quality</Label>
-          <select
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="quality">Quality</FieldLabel>
+          <FormSelect
             id="quality"
             name="quality"
             defaultValue={(params.quality as string) ?? 'standard'}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            describedBy={hintId('quality')}
           >
-            <option value="standard">standard</option>
-            <option value="hd">hd</option>
-          </select>
+            <SelectItem value="standard">standard</SelectItem>
+            <SelectItem value="hd">hd</SelectItem>
+          </FormSelect>
           <FieldHint id="quality" warn="`hd` roughly doubles the per-image price.">
             Detail level the model renders at.
           </FieldHint>
-        </div>
+        </Field>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="style">Style (DALL-E only)</Label>
-        <select
+      <Field>
+        <FieldLabel htmlFor="style">Style (DALL-E only)</FieldLabel>
+        <FormSelect
           id="style"
           name="style"
           defaultValue={(params.style as string) ?? 'natural'}
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          describedBy={hintId('style')}
         >
-          <option value="natural">natural</option>
-          <option value="vivid">vivid</option>
-        </select>
+          <SelectItem value="natural">natural</SelectItem>
+          <SelectItem value="vivid">vivid</SelectItem>
+        </FormSelect>
         <FieldHint id="style">
           <code className="font-mono">vivid</code> pushes for dramatic, saturated images;{' '}
           <code className="font-mono">natural</code> stays closer to the prompt. Ignored by
           non-DALL-E models.
         </FieldHint>
-      </div>
+      </Field>
     </div>
   );
 }
@@ -2138,9 +2274,9 @@ function LlmWorkerFields({
           turn’s critical path; if it’s slow or fails, the plain grounded line stays.
         </p>
       )}
-      <div className="space-y-1.5">
-        <Label htmlFor="systemPrompt">System prompt</Label>
-        <textarea
+      <Field>
+        <FieldLabel htmlFor="systemPrompt">System prompt</FieldLabel>
+        <Textarea
           id="systemPrompt"
           name="systemPrompt"
           defaultValue={systemPrompt ?? ''}
@@ -2150,17 +2286,17 @@ function LlmWorkerFields({
               ? 'e.g. "Rewrite this status as ONE warm first-person sentence, present tense, ending with an ellipsis…" — blank uses the built-in concise default.'
               : '(default prompt is used if blank)'
           }
-          className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm font-mono shadow-sm"
+          className="min-h-[120px] font-mono"
         />
         <p className="text-xs text-muted-foreground">
           {kind === 'narrator'
             ? 'Leave blank for the built-in concise voice (a short phrase). Write your own to control how much it says.'
             : 'Leave blank to use the built-in default for this worker kind.'}
         </p>
-      </div>
+      </Field>
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="temperature">Temperature</Label>
+        <Field>
+          <FieldLabel htmlFor="temperature">Temperature</FieldLabel>
           <Input
             id="temperature"
             name="temperature"
@@ -2177,9 +2313,9 @@ function LlmWorkerFields({
           >
             How much the model improvises. 0.2 keeps it factual.
           </FieldHint>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="max_tokens">Max tokens</Label>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="max_tokens">Max tokens</FieldLabel>
           <Input
             id="max_tokens"
             name="max_tokens"
@@ -2190,12 +2326,12 @@ function LlmWorkerFields({
           <FieldHint id="max_tokens" warn="Too low truncates the output mid-way.">
             Ceiling on each run&apos;s output. 1500 suits a summary or a note.
           </FieldHint>
-        </div>
+        </Field>
       </div>
       {kind === 'reflector' && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="window_size">Window size (turns)</Label>
+          <Field>
+            <FieldLabel htmlFor="window_size">Window size (turns)</FieldLabel>
             <Input
               id="window_size"
               name="window_size"
@@ -2209,9 +2345,9 @@ function LlmWorkerFields({
             >
               How many recent turns the reflector reviews per run.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="max_notes_per_run">Max notes per run</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="max_notes_per_run">Max notes per run</FieldLabel>
             <Input
               id="max_notes_per_run"
               name="max_notes_per_run"
@@ -2222,13 +2358,13 @@ function LlmWorkerFields({
             <FieldHint id="max_notes_per_run" warn="Raise it and the persona fills with trivia.">
               Ceiling on persona notes written per run. Default 10.
             </FieldHint>
-          </div>
+          </Field>
         </div>
       )}
       {kind === 'extractor' && (
         <>
-          <div className="space-y-1.5">
-            <Label htmlFor="target_types">Target node types (comma-separated)</Label>
+          <Field>
+            <FieldLabel htmlFor="target_types">Target node types (comma-separated)</FieldLabel>
             <Input
               id="target_types"
               name="target_types"
@@ -2243,18 +2379,20 @@ function LlmWorkerFields({
             <FieldHint id="target_types" warn="`*` means every ingested node gets an LLM pass.">
               Which node types this extractor runs on.
             </FieldHint>
-          </div>
+          </Field>
           <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+            <Field orientation="horizontal">
+              <Checkbox
+                id="extract_facts"
                 name="extract_facts"
                 defaultChecked={params.extract_facts !== false}
               />
-              Extract facts (vs. summary only)
-            </label>
-            <div className="space-y-1.5">
-              <Label htmlFor="extract_cost_cap_micro_usd">Cost cap (µUSD per node)</Label>
+              <FieldLabel htmlFor="extract_facts" className="cursor-pointer font-normal">
+                Extract facts (vs. summary only)
+              </FieldLabel>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="extract_cost_cap_micro_usd">Cost cap (µUSD per node)</FieldLabel>
               <Input
                 id="extract_cost_cap_micro_usd"
                 name="extract_cost_cap_micro_usd"
@@ -2269,9 +2407,11 @@ function LlmWorkerFields({
               >
                 Spend allowed on a single node before extraction gives up.
               </FieldHint>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="max_embedded_images_per_doc">Embedded images per document</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="max_embedded_images_per_doc">
+                Embedded images per document
+              </FieldLabel>
               <Input
                 id="max_embedded_images_per_doc"
                 name="max_embedded_images_per_doc"
@@ -2288,14 +2428,14 @@ function LlmWorkerFields({
                 Diagrams and screenshots kept per document, in reading order. The default 30 suits a
                 mixed corpus; a screenshot-heavy manual needs more or its later figures are dropped.
               </FieldHint>
-            </div>
+            </Field>
           </div>
         </>
       )}
       {kind === 'summarizer' && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="summarize_threshold">Threshold (turns)</Label>
+          <Field>
+            <FieldLabel htmlFor="summarize_threshold">Threshold (turns)</FieldLabel>
             <Input
               id="summarize_threshold"
               name="summarize_threshold"
@@ -2309,9 +2449,9 @@ function LlmWorkerFields({
             >
               Min undigested turns before we attempt a rollup.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="summarize_batch">Batch (turns)</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="summarize_batch">Batch (turns)</FieldLabel>
             <Input
               id="summarize_batch"
               name="summarize_batch"
@@ -2325,32 +2465,31 @@ function LlmWorkerFields({
             >
               Max turns folded per digest.
             </FieldHint>
-          </div>
+          </Field>
         </div>
       )}
       {provider === 'huggingface' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="huggingface_routing">HF routing policy</Label>
-          <select
+        <Field>
+          <FieldLabel htmlFor="huggingface_routing">HF routing policy</FieldLabel>
+          <FormSelect
             id="huggingface_routing"
             name="huggingface_routing"
             defaultValue={(params.huggingface_routing as string) ?? 'fastest'}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
           >
             {HUGGINGFACE_ROUTING_POLICIES.map((policy) => (
-              <option key={policy} value={policy}>
+              <SelectItem key={policy} value={policy}>
                 {policy}
                 {policy === 'fastest' && ' — lowest latency provider (default)'}
                 {policy === 'cheapest' && ' — lowest cost per output token'}
                 {policy === 'preferred' && ' — your saved provider preference order'}
-              </option>
+              </SelectItem>
             ))}
-          </select>
+          </FormSelect>
           <p className="text-xs text-muted-foreground">
             HF's router picks which sub-provider (Cerebras, Groq, Together…) actually serves this
             call. Appended as a suffix to the model id at request time.
           </p>
-        </div>
+        </Field>
       )}
     </div>
   );

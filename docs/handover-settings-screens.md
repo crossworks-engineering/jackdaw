@@ -533,3 +533,133 @@ not a regression — but do not use "passes in isolation" as the test for it.
 
 Remaining: **`agents` + `ai-workers`** (the ~3.5k-line pair), then `team-admin`
 and `apps/[id]`.
+
+---
+
+## 12. The endgame — `apps/[id]` · `team-admin` · `agents` · `ai-workers` (2026-08-18)
+
+**Phase 2b is complete.** The four screens §10 left are ported. Nothing in the
+inventory remains; the only open UI work in these docs is the settings hub
+(`plan-settings-hub.md`, §6 of the endgame handover).
+
+Order run: the two scaffold-only screens first (momentum, no §6 work), then the
+big pair with `agents` before `ai-workers`.
+
+### `apps/[id]` — the Code tab
+
+`grid-cols-[200px_minmax(0,1fr)]` → `MasterDetail id="app-code"` with
+`detailFills`. The file tree is a TREE, not a card list, so it keeps its 200px
+opening width and its floor comes down with it: `minListSize="160px"`. Leaving
+the 260px default would have put the minimum ABOVE the opening width, and the
+divider could only ever have moved right.
+
+`detailFills` because a code editor is not a measure of reading prose — the
+672px cap would wrap the lines the tab exists to show.
+
+### `team-admin` — the open question, answered
+
+**Two `MasterDetail`s with different ids**, not one reused view:
+`team-admin-members` and `team-admin-topics`. A member roster and a forum topic
+list are different lengths, so a width dragged on one has no business setting
+the other. Both take `detailFills` — their detail is a transcript, not a form.
+
+⚠ The inner `mx-auto max-w-3xl` on both transcripts **stays**. That is not the
+double-measure bug from §3 of the endgame handover: that bug is a cap inside a
+pane that is ALREADY a fixed measure and draggable, which leaves the drag with
+nothing to do. Under `detailFills` the pane fills and the single handle governs
+the list, so the inner cap is just a reading column.
+
+### `agents` — 34 controls, and the browser could never have delivered them
+
+The scaffold is the usual swap at 340px, no `detailFills` (the detail is a
+form). `MasterDetail`'s detail pane is `relative`, which this screen needs more
+than most — the note about Radix bubble inputs escaping into `<main>` moved onto
+the prop rather than being deleted.
+
+§6b here replaced the worst delivery in the rollout: `checkValidity()` followed
+by `reportValidity()` on the first invalid control. **The fields live on
+CSS-hidden tabs, and a browser asked to report on a `display:none` control gives
+up SILENTLY** — the submit button simply looked broken. The rules now live in a
+pure `validateAgent(form, editing)` with live revalidation (the `tools` pattern
+from §11), and `AGENT_ERROR_ORDER` maps each field to the tab that holds it so a
+failed submit lands on the first thing wrong.
+
+⚠ **Provider, API key and Model are on the "Model & routing" tab, not
+General.** The first version of the error map put them on General; the field was
+correctly marked and the message was correctly rendered — on a hidden tab, so
+the e2e assertion failed on `toBeVisible` while every attribute check passed.
+Read the `data-agent-section` boundaries before writing that map.
+
+§6d: 5 raw `<select>`s (role, provider, api key, TTS voice, persona-note kind),
+1 raw `<textarea>` and 1 raw checkbox. `models-tab.tsx`'s picker lost its
+`modelMissing` bare `<p>` for a real `FieldError`, and gained the key rule it
+never had.
+
+### `ai-workers` — the same job on an UNCONTROLLED form
+
+`worker-form.tsx` reads `new FormData(formEl)` on submit; most of its inputs are
+`name` + `defaultValue`. Two consequences that do not appear on any other screen
+in this rollout:
+
+- **`validateWorker` reads FormData, not component state** — the DOM is where
+  the current answer lives.
+- **Revalidation hangs off ONE `onChange` on the `<form>`**, because input
+  events bubble. Thirty-eight controls, one handler, same behaviour as the
+  per-field wiring on the controlled screens.
+
+⚠ **A Radix `Select` submits NOTHING.** It is a button plus a portal, not a form
+control, so swapping a `<select name=…>` for one silently drops that field from
+the FormData. The fix is a hidden input under the same name; `FormSelect` in
+`worker-form.tsx` packages it, and `provider` / `apiKeyId` (which already had
+state) just got the hidden input. Radix `Checkbox` is the exception — it renders
+its own bubble input, so `name` + `defaultChecked` keeps working.
+
+⚠ **Radix forbids an empty-string item value**, so every "— none —" option rides
+a `NONE = '__none__'` sentinel mapped back to `''`. Where "nothing picked" is an
+ERROR rather than a choice (`agents`' API key), it is the trigger's placeholder
+instead of an item.
+
+### A silent drop worth knowing about
+
+**TypeScript lets any hyphenated JSX attribute through on a component.**
+`<ModelSelect aria-invalid={…}>` type-checked, rendered nothing, and would have
+left a form whose only bad field was the model going red nowhere — the same bug
+`DateTimePicker` had. `ModelSelectProps` now names `'aria-invalid'` and
+`'aria-describedby'` explicitly. Verified by deleting the forwarding and
+watching exactly the two model-marking tests fail.
+
+### Coverage
+
+- Three rows in `master-detail-screens.spec.ts` (`/settings/agents`,
+  `/settings/ai-workers`, `/team-admin`).
+- `settings-agents-workers.spec.ts` — 7 tests over both forms.
+- `team-admin.spec.ts` gains the two-keys test; `apps.spec.ts` gains the Code
+  tab's draggable, persisted file tree.
+
+⚠ **`[data-slot="resizable-handle"]` alone is not specific enough any more.**
+`/team-admin`'s detail brings its OWN horizontal split (thread vs access log),
+so the table spec's `.last()` grabbed that and dragged it sideways for no
+effect — reported as "the divider did not move", which reads like a scaffold
+bug. `scaffoldHandles()` now scopes to the innermost panel group holding the
+list panel and takes only its direct children.
+
+⚠ **A layout is saved only after a real interaction on THAT screen.** The
+two-keys test has to drag both tabs; asserting the Topics key after dragging
+only Members is a check that can never pass.
+
+Guards verified against the bug each exists for: the `ModelSelect` forwarding
+above, one shared `team-admin` id (only the two-keys test failed), and
+`apps/[id]` back at 340px (only the Code tab test failed).
+
+### Suite
+
+**135 pass / 115 skip / 2 fail.** The two are `team.spec.ts`, pre-existing and
+unrelated (missing provisioning). `field-primitives.spec.ts` — the §11 flake —
+passed this run.
+
+### Environment note
+
+`pnpm lint 2>&1 | tail -N; echo ${PIPESTATUS[0]}` is a **bash** idiom. The shell
+here is **zsh**, where the array is `$pipestatus` and it is **1-indexed**:
+`${pipestatus[1]}`. Under zsh the bash form prints an empty string, which looks
+exactly like a pass.

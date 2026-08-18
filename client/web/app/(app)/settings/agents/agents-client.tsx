@@ -18,12 +18,21 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { ModelSelect } from '@/components/ui/model-select';
 import { Slider } from '@mantle/web-ui/ui/slider';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import type { ExplorerModel } from '@mantle/client-types';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
 import type {
@@ -47,13 +56,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs
 import { PersonaNotesEditor } from './persona-notes-editor';
 import { ChatTestButton } from '@/components/settings/chat-test-button';
 import { ModelsTab } from './models-tab';
-import {
-  BackupRouteSection,
-  MemorySection,
-  RouteHostFields,
-  SELECT_CLASS,
-  TEXTAREA_CLASS,
-} from './agent-form-sections';
+import { BackupRouteSection, MemorySection, NONE, RouteHostFields } from './agent-form-sections';
 import { slugify } from '@mantle/web-ui/slugify';
 
 // The embedder is no longer agent-configurable — it's the single
@@ -83,6 +86,55 @@ type Role = (typeof ROLES)[number]['value'];
  *  URL-driven. Every `TabsContent` carries `data-agent-section` so submit
  *  validation can jump to the tab holding the first invalid field. */
 type AgentSection = 'general' | 'model' | 'behaviour' | 'memory' | 'learned';
+
+/** Which field of the agent form can be wrong, keyed by the control's `id`. */
+type AgentErrors = Partial<Record<'name' | 'slug' | 'apiKey' | 'model' | 'systemPrompt', string>>;
+
+/**
+ * The rules the form used to hand to the browser as `required` / `pattern`.
+ *
+ * They are re-stated here because native validation cannot deliver them on this
+ * screen: the fields are spread across CSS-hidden tabs, and a browser asked to
+ * report on a `display:none` control gives up SILENTLY — the submit button just
+ * looked broken. The old workaround jumped to the offending tab and called
+ * `reportValidity()`, which does show a bubble, but one that is announced to
+ * nothing, vanishes on the next click, and never says which rule broke.
+ *
+ * Pure, and called from two places: on submit, and on every change after the
+ * first failed submit, so a fixed field stops complaining without a per-field
+ * `onChange` handler on all thirty-odd controls.
+ */
+function validateAgent(
+  form: FormState,
+  editing: { mode: 'create' } | { mode: 'edit'; agent: AgentSummary },
+): AgentErrors {
+  const errs: AgentErrors = {};
+  if (!form.name.trim()) errs.name = 'A name is required.';
+  // Slug is immutable once saved, so only a create can get it wrong.
+  if (editing.mode === 'create') {
+    const slug = form.slug.trim();
+    if (!slug) errs.slug = 'A slug is required.';
+    else if (!/^[a-z0-9_-]+$/.test(slug))
+      errs.slug = 'Lower-case letters, digits, hyphen and underscore only.';
+  }
+  if (!form.apiKeyId) errs.apiKey = 'Pick the saved key this agent should bill to.';
+  if (!form.model.trim()) errs.model = 'A model is required.';
+  if (!form.systemPrompt.trim()) errs.systemPrompt = 'A system prompt is required.';
+  return errs;
+}
+
+/** Which tab holds each field, and the order the form reads in — so a failed
+ *  submit lands on the FIRST thing wrong rather than the last rule to run. */
+const AGENT_ERROR_ORDER: { field: keyof AgentErrors; section: AgentSection }[] = [
+  { field: 'name', section: 'general' },
+  { field: 'slug', section: 'general' },
+  // Provider, key and model live on "Model & routing", not General — which is
+  // exactly why the browser could not deliver these: on the wrong tab they are
+  // `display:none`, and a hidden control neither takes focus nor shows a bubble.
+  { field: 'apiKey', section: 'model' },
+  { field: 'model', section: 'model' },
+  { field: 'systemPrompt', section: 'behaviour' },
+];
 
 // Wire shapes come from @mantle/client-types (the `/api/**` contract); the local
 // names below keep the rest of this file unchanged. `AgentSummary` is the agent
@@ -505,6 +557,14 @@ export function AgentsClient() {
   // Kept across agent switches (handy for comparing the same setting across
   // agents); only bounced off `learned`, which create mode doesn't render.
   const [section, setSection] = useState<AgentSection>('general');
+  const [errors, setErrors] = useState<AgentErrors>({});
+  // Only complain AFTER a submit has failed: validating from the first
+  // keystroke would mark a brand-new agent red before anything was typed.
+  const [submitted, setSubmitted] = useState(false);
+  useEffect(() => {
+    if (!submitted || !editing) return;
+    setErrors(validateAgent(form, editing));
+  }, [submitted, form, editing]);
 
   // The agent's effective tool set = the union of every granted group's tools
   // (exactly what the runtime resolves; P6 — tool groups are the sole grant).
@@ -726,24 +786,20 @@ export function AgentsClient() {
     e.preventDefault();
     if (!editing) return;
 
-    // The form is `noValidate` because its fields are spread across tabs and
-    // inactive tabs are CSS-hidden: the browser aborts a native-validation
-    // submit *silently* when the invalid field isn't focusable. Re-run the
-    // same constraints by hand, jump to the tab holding the first invalid
-    // field (form/DOM order), then let the native bubble show on it.
-    const formEl = e.currentTarget as HTMLFormElement;
-    if (!formEl.checkValidity()) {
-      const bad = formEl.querySelector<HTMLInputElement>(
-        'input:invalid, select:invalid, textarea:invalid',
-      );
-      const target = bad?.closest<HTMLElement>('[data-agent-section]')?.dataset.agentSection as
-        AgentSection | undefined;
-      if (target && target !== section) {
-        // flushSync so the tab switch commits before reportValidity() —
-        // a display:none field can't receive focus or show the bubble.
-        flushSync(() => setSection(target));
-      }
-      bad?.reportValidity();
+    // The form is `noValidate`: its fields are spread across tabs and an
+    // inactive tab is CSS-hidden, so the browser abandons a native-validation
+    // submit silently. The same rules run here instead, and the message lands
+    // ON the field — see `validateAgent`.
+    const errs = validateAgent(form, editing);
+    setSubmitted(true);
+    setErrors(errs);
+    const first = AGENT_ERROR_ORDER.find((f) => errs[f.field]);
+    if (first) {
+      // flushSync so the tab switch commits before the focus call — a
+      // `display:none` control cannot take focus, and the screen would mark a
+      // field red on a tab the user cannot see.
+      if (first.section !== section) flushSync(() => setSection(first.section));
+      document.getElementById(first.field)?.focus();
       return;
     }
 
@@ -955,880 +1011,939 @@ export function AgentsClient() {
             )}
           </div>
 
-          <div className="md:grid md:min-h-0 md:flex-1 md:grid-cols-[340px_1fr] md:overflow-hidden">
-            {/* ── Left: agent list ─────────────────────────────────────── */}
-            <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-              <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Agents
-                </h2>
-                <Button type="button" size="sm" onClick={openCreate}>
-                  <Plus /> New
-                </Button>
-              </div>
-              <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-                {agents.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-                    No agents yet. Click <strong>New</strong> to create one — you&apos;ll need an
-                    API key saved at <code>/settings/keys</code> first.
-                  </p>
-                ) : (
-                  agents.map((a) => {
-                    const selected = selectedId === a.id;
-                    return (
-                      <ListCard
-                        key={a.id}
-                        onClick={() => openEdit(a)}
-                        selected={selected}
-                        dimmed={!a.enabled}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          {/* Every agent gets an avatar, stored record or not:
+          <MasterDetail
+            id="settings-agents"
+            // The tab strip and the responder banner stay full width above, so
+            // the scaffold is the lower half of the screen.
+            className="min-h-0 flex-1"
+            // The 340px this screen has always had.
+            defaultListSize="340px"
+            // No `detailFills`: the detail is the agent FORM, and the 672px
+            // default measure is what keeps its fields off 1200px line lengths.
+            list={
+              <>
+                <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Agents
+                  </h2>
+                  <Button type="button" size="sm" onClick={openCreate}>
+                    <Plus /> New
+                  </Button>
+                </div>
+                <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+                  {agents.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                      No agents yet. Click <strong>New</strong> to create one — you&apos;ll need an
+                      API key saved at <code>/settings/keys</code> first.
+                    </p>
+                  ) : (
+                    agents.map((a) => {
+                      const selected = selectedId === a.id;
+                      return (
+                        <ListCard
+                          key={a.id}
+                          onClick={() => openEdit(a)}
+                          selected={selected}
+                          dimmed={!a.enabled}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {/* Every agent gets an avatar, stored record or not:
                               the STYLE is the brain's, so all a per-agent record
                               adds is a rerolled seed. Falling back to the slug
                               means a fresh brain looks right immediately, rather
                               than showing initials until each agent is opened and
                               saved one by one. */}
-                          <GeneratedAvatar seed={a.avatar?.seed || a.slug} size={32} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate text-sm font-medium">{a.name}</span>
-                              {!a.enabled && (
-                                <span className="shrink-0 rounded-sm bg-muted px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
-                                  off
+                            <GeneratedAvatar seed={a.avatar?.seed || a.slug} size={32} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate text-sm font-medium">{a.name}</span>
+                                {!a.enabled && (
+                                  <span className="shrink-0 rounded-sm bg-muted px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                                    off
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                                <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
+                                  {a.role}
                                 </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                              <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
-                                {a.role}
-                              </span>
-                              <span className="shrink-0 text-[11px]">
-                                {getProvider(a.provider)?.label ?? a.provider}
-                              </span>
-                              <span className="shrink-0 text-[11px]" aria-hidden>
-                                ·
-                              </span>
-                              <code className="truncate font-mono text-[11px]">{a.model}</code>
+                                <span className="shrink-0 text-[11px]">
+                                  {getProvider(a.provider)?.label ?? a.provider}
+                                </span>
+                                <span className="shrink-0 text-[11px]" aria-hidden>
+                                  ·
+                                </span>
+                                <code className="truncate font-mono text-[11px]">{a.model}</code>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </ListCard>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* ── Right: editor ────────────────────────────────────────── */}
-            {/* `relative` makes this pane the containing block for the form's
-            absolutely-positioned descendants — notably the Radix Switch/Checkbox
-            hidden "bubble inputs" on the many tool/skill toggles. Without it
-            their offsetParent resolves to the fixed `<main>`, so they escape this
-            pane's overflow-y-auto clip and inflate main's scroll area → a second
-            scrollbar alongside this one. Keeping them contained leaves a single
-            scroller (this pane). */}
-            <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-              {!editing ? (
-                <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-                  Select an agent to edit, or create a new one.
+                        </ListCard>
+                      );
+                    })
+                  )}
                 </div>
-              ) : (
-                <div className="space-y-4 p-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="text-lg font-semibold">
-                        {editing.mode === 'create' ? 'New agent' : `Edit ${editing.agent.name}`}
-                      </h2>
-                      <p className="text-xs text-muted-foreground">
-                        {editing.mode === 'create'
-                          ? 'A new AI agent. Pick a stored API key, model, and persona.'
-                          : 'Update the agent. Slug is immutable.'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Switch
-                          checked={form.enabled}
-                          onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-                        />
-                        Enabled
-                      </label>
-                      {editing.mode === 'edit' && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openClone(editing.agent)}
-                        >
-                          <Copy /> Duplicate
-                        </Button>
-                      )}
-                      {editing.mode === 'edit' && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground hover:text-destructive-ink"
-                          onClick={() => setDeleteTarget(editing.agent)}
-                        >
-                          <Trash2 /> Delete
-                        </Button>
-                      )}
-                    </div>
+              </>
+            }
+            // `MasterDetail`'s detail pane is `relative`, which this screen
+            // needs more than most: the Radix Switch/Checkbox hidden "bubble
+            // inputs" behind the many tool/skill toggles are absolutely
+            // positioned, and without a containing block here their
+            // offsetParent resolves to the fixed `<main>` — they escape the
+            // pane's clip, inflate main's scroll area, and paint a second
+            // scrollbar beside this one.
+            detail={
+              <>
+                {!editing ? (
+                  <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+                    Select an agent to edit, or create a new one.
                   </div>
-                  {/* Sub-tabs of the editor. `TabsContent` is `forceMount` +
+                ) : (
+                  <div className="space-y-4 p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="text-lg font-semibold">
+                          {editing.mode === 'create' ? 'New agent' : `Edit ${editing.agent.name}`}
+                        </h2>
+                        <p className="text-xs text-muted-foreground">
+                          {editing.mode === 'create'
+                            ? 'A new AI agent. Pick a stored API key, model, and persona.'
+                            : 'Update the agent. Slug is immutable.'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm">
+                          <Switch
+                            checked={form.enabled}
+                            onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
+                          />
+                          Enabled
+                        </label>
+                        {editing.mode === 'edit' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openClone(editing.agent)}
+                          >
+                            <Copy /> Duplicate
+                          </Button>
+                        )}
+                        {editing.mode === 'edit' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:text-destructive-ink"
+                            onClick={() => setDeleteTarget(editing.agent)}
+                          >
+                            <Trash2 /> Delete
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Sub-tabs of the editor. `TabsContent` is `forceMount` +
                   CSS-hidden so (a) all fields stay in the DOM for
                   checkValidity() across tabs and (b) self-persisting children
                   (TelegramBotSection, PersonaNotesEditor) keep their local
                   state across tab switches. */}
-                  <Tabs value={section} onValueChange={(v) => setSection(v as AgentSection)}>
-                    <TabsList className="h-auto flex-wrap justify-start">
-                      <TabsTrigger value="general">General</TabsTrigger>
-                      <TabsTrigger value="model">Model & routing</TabsTrigger>
-                      <TabsTrigger value="behaviour">Behaviour</TabsTrigger>
-                      <TabsTrigger value="memory">Memory</TabsTrigger>
-                      {editing.mode === 'edit' && (
-                        <TabsTrigger value="learned">Learned</TabsTrigger>
-                      )}
-                    </TabsList>
-                    {/* noValidate: see submitForm — the browser can't focus an
+                    <Tabs value={section} onValueChange={(v) => setSection(v as AgentSection)}>
+                      <TabsList className="h-auto flex-wrap justify-start">
+                        <TabsTrigger value="general">General</TabsTrigger>
+                        <TabsTrigger value="model">Model & routing</TabsTrigger>
+                        <TabsTrigger value="behaviour">Behaviour</TabsTrigger>
+                        <TabsTrigger value="memory">Memory</TabsTrigger>
+                        {editing.mode === 'edit' && (
+                          <TabsTrigger value="learned">Learned</TabsTrigger>
+                        )}
+                      </TabsList>
+                      {/* noValidate: see submitForm — the browser can't focus an
                     invalid field on a hidden tab, so constraints are re-run
                     there with a jump to the offending tab. */}
-                    <form onSubmit={submitForm} noValidate className="mt-4 space-y-4">
-                      <TabsContent
-                        forceMount
-                        value="general"
-                        data-agent-section="general"
-                        className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                      >
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="name">Name</Label>
-                            <Input
-                              id="name"
-                              value={form.name}
-                              onChange={(e) => onNameChange(e.target.value)}
-                              placeholder="Telegram responder"
-                              required
-                              autoFocus
-                              aria-describedby={hintId('name')}
-                            />
-                            <FieldHint id="name">
-                              What you&apos;ll see in the agent list and above this agent&apos;s
-                              messages.
-                            </FieldHint>
+                      <form onSubmit={submitForm} noValidate className="mt-4 space-y-4">
+                        <TabsContent
+                          forceMount
+                          value="general"
+                          data-agent-section="general"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field data-invalid={!!errors.name || undefined}>
+                              <FieldLabel htmlFor="name">Name</FieldLabel>
+                              <Input
+                                id="name"
+                                value={form.name}
+                                onChange={(e) => onNameChange(e.target.value)}
+                                placeholder="Telegram responder"
+                                required
+                                autoFocus
+                                aria-invalid={!!errors.name || undefined}
+                                aria-describedby={
+                                  errors.name ? `name-error ${hintId('name')}` : hintId('name')
+                                }
+                              />
+                              <FieldHint id="name">
+                                What you&apos;ll see in the agent list and above this agent&apos;s
+                                messages.
+                              </FieldHint>
+                              <FieldError id="name-error">{errors.name}</FieldError>
+                            </Field>
+                            <Field data-invalid={!!errors.slug || undefined}>
+                              <FieldLabel htmlFor="slug">Slug</FieldLabel>
+                              <Input
+                                id="slug"
+                                value={form.slug}
+                                onChange={(e) => {
+                                  setSlugTouched(true);
+                                  setForm((f) => ({ ...f, slug: e.target.value }));
+                                }}
+                                pattern="[a-z0-9_\-]+"
+                                required
+                                disabled={editing?.mode === 'edit'}
+                                aria-invalid={!!errors.slug || undefined}
+                                aria-describedby={
+                                  errors.slug ? `slug-error ${hintId('slug')}` : hintId('slug')
+                                }
+                              />
+                              <FieldHint id="slug">
+                                The stable id other agents delegate to. Fixed once saved.
+                              </FieldHint>
+                              <FieldError id="slug-error">{errors.slug}</FieldError>
+                            </Field>
                           </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="slug">Slug</Label>
+
+                          <Field>
+                            <FieldLabel htmlFor="description">Description</FieldLabel>
                             <Input
-                              id="slug"
-                              value={form.slug}
-                              onChange={(e) => {
-                                setSlugTouched(true);
-                                setForm((f) => ({ ...f, slug: e.target.value }));
-                              }}
-                              pattern="[a-z0-9_\-]+"
-                              required
-                              disabled={editing?.mode === 'edit'}
-                              aria-describedby={hintId('slug')}
+                              id="description"
+                              value={form.description}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, description: e.target.value }))
+                              }
+                              placeholder="Default Telegram responder, with memory"
+                              aria-describedby={hintId('description')}
                             />
-                            <FieldHint id="slug">
-                              The stable id other agents delegate to. Fixed once saved.
+                            <FieldHint id="description">
+                              One line on what this agent is for — it&apos;s what another agent
+                              reads when choosing whether to hand work over.
                             </FieldHint>
-                          </div>
-                        </div>
+                          </Field>
 
-                        <div className="space-y-1.5">
-                          <Label htmlFor="description">Description</Label>
-                          <Input
-                            id="description"
-                            value={form.description}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, description: e.target.value }))
-                            }
-                            placeholder="Default Telegram responder, with memory"
-                            aria-describedby={hintId('description')}
-                          />
-                          <FieldHint id="description">
-                            One line on what this agent is for — it&apos;s what another agent reads
-                            when choosing whether to hand work over.
-                          </FieldHint>
-                        </div>
+                          <Field>
+                            <FieldLabel>Avatar</FieldLabel>
+                            <AvatarPicker
+                              value={form.avatar}
+                              onChange={(v) =>
+                                // The stored shape still carries a style for API
+                                // compatibility, but rendering ignores it — the
+                                // brain's style (Appearance) is what every avatar
+                                // is drawn in. Stamp the current one so the row
+                                // stays coherent rather than storing a stale id.
+                                setForm((f) => ({
+                                  ...f,
+                                  avatar: v ? { style: avatarStyle, seed: v.seed } : null,
+                                }))
+                              }
+                              fallbackSeed={form.slug || form.name || 'agent'}
+                              clearLabel="Reset to default"
+                            />
+                            <FieldHint>
+                              Shown beside this agent&apos;s replies and in the list, drawn in the
+                              brain&apos;s avatar style (change that in Appearance). Every agent has
+                              one already, seeded from its slug — Randomize just picks a different
+                              one.
+                            </FieldHint>
+                          </Field>
 
-                        <div className="space-y-1.5">
-                          <Label>Avatar</Label>
-                          <AvatarPicker
-                            value={form.avatar}
-                            onChange={(v) =>
-                              // The stored shape still carries a style for API
-                              // compatibility, but rendering ignores it — the
-                              // brain's style (Appearance) is what every avatar
-                              // is drawn in. Stamp the current one so the row
-                              // stays coherent rather than storing a stale id.
-                              setForm((f) => ({
-                                ...f,
-                                avatar: v ? { style: avatarStyle, seed: v.seed } : null,
-                              }))
-                            }
-                            fallbackSeed={form.slug || form.name || 'agent'}
-                            clearLabel="Reset to default"
-                          />
-                          <FieldHint>
-                            Shown beside this agent&apos;s replies and in the list, drawn in the
-                            brain&apos;s avatar style (change that in Appearance). Every agent has
-                            one already, seeded from its slug — Randomize just picks a different
-                            one.
-                          </FieldHint>
-                        </div>
-
-                        {/*
+                          {/*
               Two rows of paired fields. Row 1: Role + Priority (short
               controls, fit naturally side-by-side). Row 2: Model + API key
               50/50 — the model combobox needs the extra width so its
               selected-summary (name + context + pricing badges) doesn't
               get truncated on long Anthropic/Google slugs.
             */}
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="role">Role</Label>
-                            <select
-                              id="role"
-                              value={form.role}
-                              onChange={(e) => onRoleChange(e.target.value as Role)}
-                              className={SELECT_CLASS}
-                              aria-describedby={hintId('role')}
-                            >
-                              {ROLES.map((r) => (
-                                <option key={r.value} value={r.value}>
-                                  {r.label}
-                                </option>
-                              ))}
-                            </select>
-                            <FieldHint id="role">
-                              Which loop runs this agent. It also decides which of the tuning fields
-                              below apply.
-                            </FieldHint>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="priority">Priority</Label>
-                            <Input
-                              id="priority"
-                              type="number"
-                              value={form.priority}
-                              onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                              min={0}
-                              step={1}
-                              aria-describedby={hintId('priority')}
-                            />
-                            <FieldHint id="priority">
-                              Ordering when several agents qualify — highest sits at the top of the
-                              chat list.
-                            </FieldHint>
-                          </div>
-                        </div>
-
-                        {form.role === 'responder' && (
-                          <fieldset className="space-y-3 rounded-md border border-border p-3">
-                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              Telegram bot
-                            </legend>
-                            {editing.mode === 'edit' ? (
-                              <TelegramBotSection agentId={editing.agent.id} />
-                            ) : (
-                              <p className="text-xs text-muted-foreground">
-                                Save this responder first, then link its Telegram bot here.
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              This responder long-polls its own bot. Create one with{' '}
-                              <a
-                                href="https://t.me/BotFather"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline"
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field>
+                              <FieldLabel htmlFor="role">Role</FieldLabel>
+                              <Select
+                                value={form.role}
+                                onValueChange={(v) => onRoleChange(v as Role)}
                               >
-                                @BotFather
-                              </a>{' '}
-                              and paste the token — it&apos;s encrypted at rest. DMs to this bot are
-                              answered by this agent.
-                            </p>
-                          </fieldset>
-                        )}
-                      </TabsContent>
+                                <SelectTrigger id="role" aria-describedby={hintId('role')}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ROLES.map((r) => (
+                                    <SelectItem key={r.value} value={r.value}>
+                                      {r.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FieldHint id="role">
+                                Which loop runs this agent. It also decides which of the tuning
+                                fields below apply.
+                              </FieldHint>
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="priority">Priority</FieldLabel>
+                              <Input
+                                id="priority"
+                                type="number"
+                                value={form.priority}
+                                onChange={(e) =>
+                                  setForm((f) => ({ ...f, priority: e.target.value }))
+                                }
+                                min={0}
+                                step={1}
+                                aria-describedby={hintId('priority')}
+                              />
+                              <FieldHint id="priority">
+                                Ordering when several agents qualify — highest sits at the top of
+                                the chat list.
+                              </FieldHint>
+                            </Field>
+                          </div>
 
-                      <TabsContent
-                        forceMount
-                        value="model"
-                        data-agent-section="model"
-                        className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                      >
-                        {/* Provider + key side by side; the model picker gets its own
+                          {form.role === 'responder' && (
+                            <fieldset className="space-y-3 rounded-md border border-border p-3">
+                              <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Telegram bot
+                              </legend>
+                              {editing.mode === 'edit' ? (
+                                <TelegramBotSection agentId={editing.agent.id} />
+                              ) : (
+                                <p className="text-xs text-muted-foreground">
+                                  Save this responder first, then link its Telegram bot here.
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                This responder long-polls its own bot. Create one with{' '}
+                                <a
+                                  href="https://t.me/BotFather"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline"
+                                >
+                                  @BotFather
+                                </a>{' '}
+                                and paste the token — it&apos;s encrypted at rest. DMs to this bot
+                                are answered by this agent.
+                              </p>
+                            </fieldset>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent
+                          forceMount
+                          value="model"
+                          data-agent-section="model"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          {/* Provider + key side by side; the model picker gets its own
                 full-width row below (three dropdowns abreast was too
                 cramped). Post-Phase-3 the provider field on the agent row
                 actually controls runtime dispatch —
                 `getChatAdapter(agent.provider)` resolves the adapter the
                 responder / assistant / heartbeat loop runs through, and
                 the API key filter narrows accordingly. */}
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="provider">Provider</Label>
-                            {(() => {
-                              const chatProviders = providersForCapability('chat');
-                              return (
-                                <>
-                                  <select
-                                    id="provider"
-                                    value={form.provider}
-                                    onChange={(e) =>
-                                      setForm((f) => ({ ...f, provider: e.target.value }))
-                                    }
-                                    className={SELECT_CLASS}
-                                    required
-                                  >
-                                    {chatProviders.map((p) => {
-                                      const wired = isProviderWired(p.id, 'chat');
-                                      return (
-                                        <option key={p.id} value={p.id}>
-                                          {p.label}
-                                          {wired ? '' : ' · not yet wired'}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                  <FieldHint id="provider">
-                                    Which service runs this agent&apos;s turns. It picks the adapter
-                                    and narrows the key and model lists below.
-                                  </FieldHint>
-                                  {!isProviderWired(form.provider, 'chat') && (
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                                      No chat adapter registered for <code>{form.provider}</code>.
-                                      Saves will succeed but the responder/assistant will fail at
-                                      first turn until a chat adapter ships for this provider.
-                                    </p>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="apiKey">API key</Label>
-                            {(() => {
-                              // Filter keys to those whose service matches the selected
-                              // provider. Direct-provider workers need a same-provider
-                              // key; OR workers need an `openrouter` key. The runtime
-                              // refuses cross-provider keys via getApiKeyById +
-                              // adapter.chat()'s auth check.
-                              const eligibleAgentKeys = apiKeys.filter(
-                                (k) => k.service === form.provider,
-                              );
-                              return (
-                                <>
-                                  <select
-                                    id="apiKey"
-                                    value={form.apiKeyId}
-                                    onChange={(e) =>
-                                      setForm((f) => ({ ...f, apiKeyId: e.target.value }))
-                                    }
-                                    className={SELECT_CLASS}
-                                    required
-                                  >
-                                    <option value="">— select a key —</option>
-                                    {eligibleAgentKeys.map((k) => (
-                                      <option key={k.id} value={k.id}>
-                                        {k.service} / {k.label} ({k.masked})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {apiKeys.length > 0 && eligibleAgentKeys.length === 0 && (
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                                      None of your saved keys are for <code>{form.provider}</code>.
-                                      Add one at{' '}
-                                      <a href="/settings/keys" className="underline">
-                                        /settings/keys
-                                      </a>{' '}
-                                      or pick a different provider.
-                                    </p>
-                                  )}
-                                  {apiKeys.length === 0 ? (
-                                    <FieldHint>
-                                      No keys saved.{' '}
-                                      <a href="/settings/keys" className="underline">
-                                        Add one
-                                      </a>{' '}
-                                      first.
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field>
+                              <FieldLabel htmlFor="provider">Provider</FieldLabel>
+                              {(() => {
+                                const chatProviders = providersForCapability('chat');
+                                return (
+                                  <>
+                                    <Select
+                                      value={form.provider}
+                                      onValueChange={(v) => setForm((f) => ({ ...f, provider: v }))}
+                                    >
+                                      <SelectTrigger
+                                        id="provider"
+                                        aria-describedby={hintId('provider')}
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {chatProviders.map((p) => {
+                                          const wired = isProviderWired(p.id, 'chat');
+                                          return (
+                                            <SelectItem key={p.id} value={p.id}>
+                                              {p.label}
+                                              {wired ? '' : ' · not yet wired'}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                    <FieldHint id="provider">
+                                      Which service runs this agent&apos;s turns. It picks the
+                                      adapter and narrows the key and model lists below.
                                     </FieldHint>
-                                  ) : (
-                                    <FieldHint id="apiKey">
-                                      Which saved key pays for this agent. It must belong to the
-                                      provider above — the runtime refuses a mismatch.
-                                    </FieldHint>
-                                  )}
-                                </>
-                              );
-                            })()}
+                                    {!isProviderWired(form.provider, 'chat') && (
+                                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                                        No chat adapter registered for <code>{form.provider}</code>.
+                                        Saves will succeed but the responder/assistant will fail at
+                                        first turn until a chat adapter ships for this provider.
+                                      </p>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </Field>
+                            <Field data-invalid={!!errors.apiKey || undefined}>
+                              <FieldLabel htmlFor="apiKey">API key</FieldLabel>
+                              {(() => {
+                                // Filter keys to those whose service matches the selected
+                                // provider. Direct-provider workers need a same-provider
+                                // key; OR workers need an `openrouter` key. The runtime
+                                // refuses cross-provider keys via getApiKeyById +
+                                // adapter.chat()'s auth check.
+                                const eligibleAgentKeys = apiKeys.filter(
+                                  (k) => k.service === form.provider,
+                                );
+                                return (
+                                  <>
+                                    <Select
+                                      value={form.apiKeyId || undefined}
+                                      onValueChange={(v) => setForm((f) => ({ ...f, apiKeyId: v }))}
+                                    >
+                                      <SelectTrigger
+                                        id="apiKey"
+                                        aria-invalid={!!errors.apiKey || undefined}
+                                        aria-describedby={
+                                          errors.apiKey
+                                            ? `apiKey-error ${hintId('apiKey')}`
+                                            : hintId('apiKey')
+                                        }
+                                      >
+                                        {/* No empty `SelectItem` to fall back on — Radix
+                                            forbids one — so "nothing picked yet" is the
+                                            trigger's placeholder. */}
+                                        <SelectValue placeholder="— select a key —" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {eligibleAgentKeys.map((k) => (
+                                          <SelectItem key={k.id} value={k.id}>
+                                            {k.service} / {k.label} ({k.masked})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {apiKeys.length > 0 && eligibleAgentKeys.length === 0 && (
+                                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                                        None of your saved keys are for <code>{form.provider}</code>
+                                        . Add one at{' '}
+                                        <a href="/settings/keys" className="underline">
+                                          /settings/keys
+                                        </a>{' '}
+                                        or pick a different provider.
+                                      </p>
+                                    )}
+                                    {apiKeys.length === 0 ? (
+                                      <FieldHint>
+                                        No keys saved.{' '}
+                                        <a href="/settings/keys" className="underline">
+                                          Add one
+                                        </a>{' '}
+                                        first.
+                                      </FieldHint>
+                                    ) : (
+                                      <FieldHint id="apiKey">
+                                        Which saved key pays for this agent. It must belong to the
+                                        provider above — the runtime refuses a mismatch.
+                                      </FieldHint>
+                                    )}
+                                    <FieldError id="apiKey-error">{errors.apiKey}</FieldError>
+                                  </>
+                                );
+                              })()}
+                            </Field>
                           </div>
-                        </div>
 
-                        <div className="space-y-1.5">
-                          <Label htmlFor="model">Model</Label>
-                          <ModelSelect
-                            id="model"
-                            value={form.model}
-                            onValueChange={(next) => setForm((f) => ({ ...f, model: next }))}
-                            models={catalog}
-                            loading={catalogState.loading}
-                            error={catalogState.error}
-                            placeholder="— pick a model —"
-                            emptyMessage="No matching models in the catalog."
-                            required
-                          />
-                          <ContextWindowHint model={form.model} limits={contextLimits} />
-                          {editing.mode === 'edit' && editing.agent.manifestManaged && (
-                            <p className="text-xs text-muted-foreground">
-                              System agent — your provider, model and prompt choices are permanent
-                              across upgrades; only tuning params re-sync to the system default.
-                              Studio&apos;s reset-to-default pulls the shipped configuration back if
-                              you want it.
-                            </p>
-                          )}
-                          {(() => {
-                            // Subtle hint when the typed slug doesn't appear in the
-                            // current provider's catalog AND discovery has settled.
-                            // Catches the "switched provider mid-edit and forgot the
-                            // slug shape differs" case (OR's `anthropic/claude-haiku-
-                            // 4.5` vs direct Anthropic's `claude-haiku-4-5`). Custom
-                            // slugs are still allowed — the save commits whatever's
-                            // typed — so this is informational, not blocking.
-                            if (catalogState.loading) return null;
-                            if (!form.model.trim()) return null;
-                            if (catalog.some((m) => m.id === form.model)) return null;
-                            return (
-                              <p className="text-xs text-amber-600 dark:text-amber-400">
-                                <code>{form.model}</code> isn&apos;t in <code>{form.provider}</code>
-                                &apos;s catalog. Save will succeed but the call will fail if the
-                                slug is wrong — direct providers use bare ids (e.g.{' '}
-                                <code>claude-haiku-4-5</code>) where OpenRouter uses prefixed slugs
-                                (e.g. <code>anthropic/claude-haiku-4.5</code>
-                                ).
+                          <Field data-invalid={!!errors.model || undefined}>
+                            <FieldLabel htmlFor="model">Model</FieldLabel>
+                            <ModelSelect
+                              id="model"
+                              value={form.model}
+                              onValueChange={(next) => setForm((f) => ({ ...f, model: next }))}
+                              models={catalog}
+                              loading={catalogState.loading}
+                              error={catalogState.error}
+                              placeholder="— pick a model —"
+                              emptyMessage="No matching models in the catalog."
+                              required
+                              aria-invalid={!!errors.model || undefined}
+                              aria-describedby={errors.model ? 'model-error' : undefined}
+                            />
+                            <FieldError id="model-error">{errors.model}</FieldError>
+                            <ContextWindowHint model={form.model} limits={contextLimits} />
+                            {editing.mode === 'edit' && editing.agent.manifestManaged && (
+                              <p className="text-xs text-muted-foreground">
+                                System agent — your provider, model and prompt choices are permanent
+                                across upgrades; only tuning params re-sync to the system default.
+                                Studio&apos;s reset-to-default pulls the shipped configuration back
+                                if you want it.
                               </p>
-                            );
-                          })()}
-                        </div>
+                            )}
+                            {(() => {
+                              // Subtle hint when the typed slug doesn't appear in the
+                              // current provider's catalog AND discovery has settled.
+                              // Catches the "switched provider mid-edit and forgot the
+                              // slug shape differs" case (OR's `anthropic/claude-haiku-
+                              // 4.5` vs direct Anthropic's `claude-haiku-4-5`). Custom
+                              // slugs are still allowed — the save commits whatever's
+                              // typed — so this is informational, not blocking.
+                              if (catalogState.loading) return null;
+                              if (!form.model.trim()) return null;
+                              if (catalog.some((m) => m.id === form.model)) return null;
+                              return (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                  <code>{form.model}</code> isn&apos;t in{' '}
+                                  <code>{form.provider}</code>
+                                  &apos;s catalog. Save will succeed but the call will fail if the
+                                  slug is wrong — direct providers use bare ids (e.g.{' '}
+                                  <code>claude-haiku-4-5</code>) where OpenRouter uses prefixed
+                                  slugs (e.g. <code>anthropic/claude-haiku-4.5</code>
+                                  ).
+                                </p>
+                              );
+                            })()}
+                          </Field>
 
-                        {/* Per-agent voice (migration 0066). The chosen TTS worker owns
+                          {/* Per-agent voice (migration 0066). The chosen TTS worker owns
                 provider + voice + model + key; the agent only references it.
                 "Default" = the owner's default TTS worker, resolved at speak
                 time (so it tracks whatever you mark default in AI workers). */}
-                        <div className="space-y-1.5">
-                          <Label htmlFor="ttsWorker">Voice (TTS)</Label>
-                          <select
-                            id="ttsWorker"
-                            value={form.ttsWorkerId}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, ttsWorkerId: e.target.value }))
-                            }
-                            className={SELECT_CLASS}
-                          >
-                            {(() => {
-                              const def =
-                                ttsWorkers.find((w) => w.enabled && w.isDefault) ??
-                                ttsWorkers.find((w) => w.enabled);
-                              return (
-                                <option value="">
-                                  {def ? `Default voice (${def.name})` : 'Default voice'}
-                                </option>
-                              );
-                            })()}
-                            {ttsWorkers.map((w) => (
-                              <option key={w.id} value={w.id}>
-                                {w.name} — {w.provider}/{w.model}
-                                {w.enabled ? '' : ' (disabled)'}
-                              </option>
-                            ))}
-                          </select>
-                          {ttsWorkers.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              No voice (TTS) workers yet — replies use the default voice. Add one at{' '}
-                              <a href="/settings/ai-workers" className="underline">
-                                /settings/ai-workers
-                              </a>
-                              .
-                            </p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Which voice this agent speaks with. Leave on <em>Default</em> to track
-                              the default TTS worker; manage voices at{' '}
-                              <a href="/settings/ai-workers" className="underline">
-                                /settings/ai-workers
-                              </a>
-                              .
-                            </p>
-                          )}
-                        </div>
+                          <Field>
+                            <FieldLabel htmlFor="ttsWorker">Voice (TTS)</FieldLabel>
+                            <Select
+                              // "Default voice" is a real choice here rather than
+                              // an empty state, so it rides the NONE sentinel:
+                              // Radix forbids an empty-string item value.
+                              value={form.ttsWorkerId || NONE}
+                              onValueChange={(v) =>
+                                setForm((f) => ({ ...f, ttsWorkerId: v === NONE ? '' : v }))
+                              }
+                            >
+                              <SelectTrigger id="ttsWorker">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(() => {
+                                  const def =
+                                    ttsWorkers.find((w) => w.enabled && w.isDefault) ??
+                                    ttsWorkers.find((w) => w.enabled);
+                                  return (
+                                    <SelectItem value={NONE}>
+                                      {def ? `Default voice (${def.name})` : 'Default voice'}
+                                    </SelectItem>
+                                  );
+                                })()}
+                                {ttsWorkers.map((w) => (
+                                  <SelectItem key={w.id} value={w.id}>
+                                    {w.name} — {w.provider}/{w.model}
+                                    {w.enabled ? '' : ' (disabled)'}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {ttsWorkers.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No voice (TTS) workers yet — replies use the default voice. Add one
+                                at{' '}
+                                <a href="/settings/ai-workers" className="underline">
+                                  /settings/ai-workers
+                                </a>
+                                .
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">
+                                Which voice this agent speaks with. Leave on <em>Default</em> to
+                                track the default TTS worker; manage voices at{' '}
+                                <a href="/settings/ai-workers" className="underline">
+                                  /settings/ai-workers
+                                </a>
+                                .
+                              </p>
+                            )}
+                          </Field>
 
-                        {/* Primary route host (migration 0063). The `local` adapter (self-
+                          {/* Primary route host (migration 0063). The `local` adapter (self-
                 hosted/LAN/tailnet box) and the `custom` adapter (cloud OpenAI-
                 compatible endpoint) both need a per-route Base URL. */}
-                        {(form.provider === 'local' || form.provider === 'custom') && (
-                          <RouteHostFields
-                            idPrefix="primary"
-                            provider={form.provider}
-                            baseUrl={form.baseUrl}
-                            viaTailnet={form.viaTailnet}
-                            peers={tailnetPeers}
-                            onBaseUrl={(v) => setForm((f) => ({ ...f, baseUrl: v }))}
-                            onViaTailnet={(v) => setForm((f) => ({ ...f, viaTailnet: v }))}
-                          />
-                        )}
-
-                        <BackupRouteSection
-                          form={form}
-                          setForm={setForm}
-                          apiKeys={apiKeys}
-                          tailnetPeers={tailnetPeers}
-                          catalog={backupCatalog}
-                          catalogState={backupCatalogState}
-                        />
-
-                        <fieldset className="space-y-3 rounded-md border border-border p-3">
-                          <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Model params
-                          </legend>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <div className="flex items-baseline justify-between gap-2">
-                                <Label>Temperature</Label>
-                                <span className="text-xs">
-                                  <span className="font-medium text-foreground">
-                                    {tempDescriptor(temp).word}
-                                  </span>
-                                  <span className="ml-1.5 tabular-nums text-muted-foreground">
-                                    {temp.toFixed(1)}
-                                  </span>
-                                </span>
-                              </div>
-                              <Slider
-                                min={0}
-                                max={2}
-                                step={0.1}
-                                value={[temp]}
-                                onValueChange={([v]) =>
-                                  setForm((f) => ({ ...f, temperature: String(v ?? 0) }))
-                                }
-                                className="py-1.5"
-                                aria-label="Temperature"
-                              />
-                              <FieldHint
-                                warn={
-                                  temp > 1.2 ? 'This high, replies start to wander.' : undefined
-                                }
-                              >
-                                {tempDescriptor(temp).hint}
-                              </FieldHint>
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="maxTokens">Max tokens</Label>
-                              <Input
-                                id="maxTokens"
-                                type="number"
-                                step={1}
-                                min={1}
-                                value={form.maxTokens}
-                                onChange={(e) =>
-                                  setForm((f) => ({ ...f, maxTokens: e.target.value }))
-                                }
-                                placeholder="(provider default)"
-                                aria-describedby={hintId('maxTokens')}
-                              />
-                              <FieldHint
-                                id="maxTokens"
-                                warn="Set it too low and long answers get cut off mid-sentence."
-                              >
-                                Ceiling on a single reply. Blank leaves it to the provider.
-                              </FieldHint>
-                            </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="flex cursor-pointer items-center gap-2 text-sm">
-                              <Switch
-                                checked={form.suggestFollowUp}
-                                onCheckedChange={(v) =>
-                                  setForm((f) => ({ ...f, suggestFollowUp: v }))
-                                }
-                              />
-                              Suggest follow-ups
-                            </label>
-                            <FieldHint>
-                              After each reply, propose the next question as an accept-with-Enter
-                              chip in the chat composer. Runs the Follow-up suggester worker once
-                              per turn (a cheap model, off the reply&apos;s critical path), so it
-                              costs a little per message. Off by default.
-                            </FieldHint>
-                          </div>
-                        </fieldset>
-
-                        {editing.mode === 'edit' && (
-                          <section className="space-y-2 border-t border-border pt-6">
-                            <h3 className="text-sm font-semibold">Test chat</h3>
-                            <p className="text-xs text-muted-foreground">
-                              Send a one-shot prompt through this agent&apos;s adapter (
-                              <code>{editing.agent.provider}</code>) and see what comes back. Uses
-                              the saved system prompt, model, and params — same path as the
-                              production responder. Useful for validating a new direct- provider key
-                              (Anthropic / Google / xAI) without sending a real Telegram message.
-                            </p>
-                            <ChatTestButton
-                              endpoint={`/api/agents/${editing.agent.id}/test/chat`}
+                          {(form.provider === 'local' || form.provider === 'custom') && (
+                            <RouteHostFields
+                              idPrefix="primary"
+                              provider={form.provider}
+                              baseUrl={form.baseUrl}
+                              viaTailnet={form.viaTailnet}
+                              peers={tailnetPeers}
+                              onBaseUrl={(v) => setForm((f) => ({ ...f, baseUrl: v }))}
+                              onViaTailnet={(v) => setForm((f) => ({ ...f, viaTailnet: v }))}
                             />
-                          </section>
-                        )}
-                      </TabsContent>
+                          )}
 
-                      <TabsContent
-                        forceMount
-                        value="memory"
-                        data-agent-section="memory"
-                        className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                      >
-                        <MemorySection form={form} setForm={setForm} />
-                      </TabsContent>
-
-                      <TabsContent
-                        forceMount
-                        value="behaviour"
-                        data-agent-section="behaviour"
-                        className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                      >
-                        <div className="space-y-1.5">
-                          <Label htmlFor="systemPrompt">System prompt</Label>
-                          <textarea
-                            id="systemPrompt"
-                            value={form.systemPrompt}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, systemPrompt: e.target.value }))
-                            }
-                            rows={6}
-                            required
-                            className={TEXTAREA_CLASS}
+                          <BackupRouteSection
+                            form={form}
+                            setForm={setForm}
+                            apiKeys={apiKeys}
+                            tailnetPeers={tailnetPeers}
+                            catalog={backupCatalog}
+                            catalogState={backupCatalogState}
                           />
-                          <p className="text-xs text-muted-foreground">
-                            For <code>anthropic/*</code> models this block is sent with{' '}
-                            <code>cache_control</code>, so the prefix is reused turn-to-turn and the
-                            provider only re-processes the new user message.
-                          </p>
-                        </div>
 
-                        <fieldset className="space-y-3 rounded-md border border-border p-3">
-                          <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Tool groups
-                          </legend>
-                          {availableToolGroups.length === 0 ? (
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Model params
+                            </legend>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <Field>
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <FieldLabel>Temperature</FieldLabel>
+                                  <span className="text-xs">
+                                    <span className="font-medium text-foreground">
+                                      {tempDescriptor(temp).word}
+                                    </span>
+                                    <span className="ml-1.5 tabular-nums text-muted-foreground">
+                                      {temp.toFixed(1)}
+                                    </span>
+                                  </span>
+                                </div>
+                                <Slider
+                                  min={0}
+                                  max={2}
+                                  step={0.1}
+                                  value={[temp]}
+                                  onValueChange={([v]) =>
+                                    setForm((f) => ({ ...f, temperature: String(v ?? 0) }))
+                                  }
+                                  className="py-1.5"
+                                  aria-label="Temperature"
+                                />
+                                <FieldHint
+                                  warn={
+                                    temp > 1.2 ? 'This high, replies start to wander.' : undefined
+                                  }
+                                >
+                                  {tempDescriptor(temp).hint}
+                                </FieldHint>
+                              </Field>
+                              <Field>
+                                <FieldLabel htmlFor="maxTokens">Max tokens</FieldLabel>
+                                <Input
+                                  id="maxTokens"
+                                  type="number"
+                                  step={1}
+                                  min={1}
+                                  value={form.maxTokens}
+                                  onChange={(e) =>
+                                    setForm((f) => ({ ...f, maxTokens: e.target.value }))
+                                  }
+                                  placeholder="(provider default)"
+                                  aria-describedby={hintId('maxTokens')}
+                                />
+                                <FieldHint
+                                  id="maxTokens"
+                                  warn="Set it too low and long answers get cut off mid-sentence."
+                                >
+                                  Ceiling on a single reply. Blank leaves it to the provider.
+                                </FieldHint>
+                              </Field>
+                            </div>
+                            <Field>
+                              <FieldLabel
+                                htmlFor="suggestFollowUp"
+                                className="cursor-pointer items-center gap-2"
+                              >
+                                <Switch
+                                  id="suggestFollowUp"
+                                  checked={form.suggestFollowUp}
+                                  onCheckedChange={(v) =>
+                                    setForm((f) => ({ ...f, suggestFollowUp: v }))
+                                  }
+                                />
+                                Suggest follow-ups
+                              </FieldLabel>
+                              <FieldHint>
+                                After each reply, propose the next question as an accept-with-Enter
+                                chip in the chat composer. Runs the Follow-up suggester worker once
+                                per turn (a cheap model, off the reply&apos;s critical path), so it
+                                costs a little per message. Off by default.
+                              </FieldHint>
+                            </Field>
+                          </fieldset>
+
+                          {editing.mode === 'edit' && (
+                            <section className="space-y-2 border-t border-border pt-6">
+                              <h3 className="text-sm font-semibold">Test chat</h3>
+                              <p className="text-xs text-muted-foreground">
+                                Send a one-shot prompt through this agent&apos;s adapter (
+                                <code>{editing.agent.provider}</code>) and see what comes back. Uses
+                                the saved system prompt, model, and params — same path as the
+                                production responder. Useful for validating a new direct- provider
+                                key (Anthropic / Google / xAI) without sending a real Telegram
+                                message.
+                              </p>
+                              <ChatTestButton
+                                endpoint={`/api/agents/${editing.agent.id}/test/chat`}
+                              />
+                            </section>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent
+                          forceMount
+                          value="memory"
+                          data-agent-section="memory"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          <MemorySection form={form} setForm={setForm} />
+                        </TabsContent>
+
+                        <TabsContent
+                          forceMount
+                          value="behaviour"
+                          data-agent-section="behaviour"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          <Field data-invalid={!!errors.systemPrompt || undefined}>
+                            <FieldLabel htmlFor="systemPrompt">System prompt</FieldLabel>
+                            <Textarea
+                              id="systemPrompt"
+                              value={form.systemPrompt}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, systemPrompt: e.target.value }))
+                              }
+                              rows={6}
+                              required
+                              className="font-mono"
+                              aria-invalid={!!errors.systemPrompt || undefined}
+                              aria-describedby={
+                                errors.systemPrompt ? 'systemPrompt-error' : undefined
+                              }
+                            />
+                            <FieldError id="systemPrompt-error">{errors.systemPrompt}</FieldError>
                             <p className="text-xs text-muted-foreground">
-                              No tool groups yet. Create capability bundles at{' '}
+                              For <code>anthropic/*</code> models this block is sent with{' '}
+                              <code>cache_control</code>, so the prefix is reused turn-to-turn and
+                              the provider only re-processes the new user message.
+                            </p>
+                          </Field>
+
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Tool groups
+                            </legend>
+                            {availableToolGroups.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No tool groups yet. Create capability bundles at{' '}
+                                <a href="/settings/tool-groups" className="underline">
+                                  /settings/tool-groups
+                                </a>
+                                .
+                              </p>
+                            ) : (
+                              <ToolGroupPicker
+                                available={availableToolGroups}
+                                selected={form.toolGroupSlugs}
+                                onChange={(next) =>
+                                  setForm((f) => ({ ...f, toolGroupSlugs: next }))
+                                }
+                              />
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              The primary way to grant capability — each group joins all its tools
+                              into the agent&apos;s effective set. Curate bundles at{' '}
                               <a href="/settings/tool-groups" className="underline">
                                 /settings/tool-groups
                               </a>
                               .
                             </p>
-                          ) : (
-                            <ToolGroupPicker
-                              available={availableToolGroups}
-                              selected={form.toolGroupSlugs}
-                              onChange={(next) => setForm((f) => ({ ...f, toolGroupSlugs: next }))}
-                            />
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            The primary way to grant capability — each group joins all its tools
-                            into the agent&apos;s effective set. Curate bundles at{' '}
-                            <a href="/settings/tool-groups" className="underline">
-                              /settings/tool-groups
-                            </a>
-                            .
-                          </p>
-                          {/* Effective set — what the runtime actually resolves (the union of
+                            {/* Effective set — what the runtime actually resolves (the union of
                   the granted groups' tools; P6 — groups are the sole grant). */}
-                          <div className="rounded-md bg-muted/40 p-2">
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                              Effective tools · {effectiveTools.length}
-                            </p>
-                            {effectiveTools.length === 0 ? (
+                            <div className="rounded-md bg-muted/40 p-2">
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Effective tools · {effectiveTools.length}
+                              </p>
+                              {effectiveTools.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  None — the agent never sees a <code>tools</code> parameter.
+                                </p>
+                              ) : (
+                                <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+                                  {effectiveTools.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          </fieldset>
+
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Skills
+                            </legend>
+                            {availableSkills.length === 0 ? (
                               <p className="text-xs text-muted-foreground">
-                                None — the agent never sees a <code>tools</code> parameter.
+                                No skills yet. Author one at{' '}
+                                <a href="/settings/skills" className="underline">
+                                  /settings/skills
+                                </a>
+                                .
                               </p>
                             ) : (
-                              <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">
-                                {effectiveTools.join(', ')}
-                              </p>
+                              <SkillPicker
+                                available={availableSkills}
+                                selected={form.skillSlugs}
+                                onChange={(next) => setForm((f) => ({ ...f, skillSlugs: next }))}
+                              />
                             )}
-                          </div>
-                        </fieldset>
-
-                        <fieldset className="space-y-3 rounded-md border border-border p-3">
-                          <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Skills
-                          </legend>
-                          {availableSkills.length === 0 ? (
                             <p className="text-xs text-muted-foreground">
-                              No skills yet. Author one at{' '}
-                              <a href="/settings/skills" className="underline">
-                                /settings/skills
-                              </a>
-                              .
+                              Each attached skill appends its instructions to the agent&apos;s
+                              system prompt (always-loaded). Skills are pure teaching — capability
+                              comes from tool groups + direct grants above.
                             </p>
-                          ) : (
-                            <SkillPicker
-                              available={availableSkills}
-                              selected={form.skillSlugs}
-                              onChange={(next) => setForm((f) => ({ ...f, skillSlugs: next }))}
-                            />
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Each attached skill appends its instructions to the agent&apos;s system
-                            prompt (always-loaded). Skills are pure teaching — capability comes from
-                            tool groups + direct grants above.
-                          </p>
-                        </fieldset>
+                          </fieldset>
 
-                        <fieldset className="space-y-3 rounded-md border border-border p-3">
-                          <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Delegates to
-                          </legend>
-                          {agents.filter((a) => a.slug !== form.slug).length === 0 ? (
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Delegates to
+                            </legend>
+                            {agents.filter((a) => a.slug !== form.slug).length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No other agents to delegate to. Create another agent (e.g. a
+                                research or recall agent) first.
+                              </p>
+                            ) : (
+                              <DelegatePicker
+                                available={agents
+                                  .filter((a) => a.slug !== form.slug)
+                                  .map((a) => ({ slug: a.slug, name: a.name, enabled: a.enabled }))}
+                                selected={form.delegateTo}
+                                onChange={(next) => setForm((f) => ({ ...f, delegateTo: next }))}
+                              />
+                            )}
                             <p className="text-xs text-muted-foreground">
-                              No other agents to delegate to. Create another agent (e.g. a research
-                              or recall agent) first.
+                              Agents this one may hand a sub-task to via the{' '}
+                              <code>invoke_agent</code> tool. Empty = delegation disabled (the
+                              runtime fails closed).
+                              {form.delegateTo.length > 0 &&
+                                !effectiveTools.includes('invoke_agent') && (
+                                  <span className="mt-1 block text-amber-600 dark:text-amber-400">
+                                    Grant the <code>delegation</code> group (or{' '}
+                                    <code>invoke_agent</code> directly), or these delegates
+                                    can&apos;t actually be reached.
+                                  </span>
+                                )}
                             </p>
-                          ) : (
-                            <DelegatePicker
-                              available={agents
-                                .filter((a) => a.slug !== form.slug)
-                                .map((a) => ({ slug: a.slug, name: a.name, enabled: a.enabled }))}
-                              selected={form.delegateTo}
-                              onChange={(next) => setForm((f) => ({ ...f, delegateTo: next }))}
-                            />
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Agents this one may hand a sub-task to via the <code>invoke_agent</code>{' '}
-                            tool. Empty = delegation disabled (the runtime fails closed).
-                            {form.delegateTo.length > 0 &&
-                              !effectiveTools.includes('invoke_agent') && (
-                                <span className="mt-1 block text-amber-600 dark:text-amber-400">
-                                  Grant the <code>delegation</code> group (or{' '}
-                                  <code>invoke_agent</code> directly), or these delegates can&apos;t
-                                  actually be reached.
-                                </span>
-                              )}
-                          </p>
-                        </fieldset>
+                          </fieldset>
 
-                        <fieldset className="space-y-3 rounded-md border border-border p-3">
-                          <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Tool results
-                          </legend>
-                          <p className="text-xs text-muted-foreground">
-                            Large tool outputs (a delegated agent&apos;s full answer, a big file
-                            read, a wide search) are stored and handed to the agent as a handle it
-                            reads via <code>read_result</code> (page / grep / semantic query) —
-                            instead of being truncated. Tune when that spill kicks in. Blank =
-                            system default.
-                          </p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="result-inline">Inline max (KB)</Label>
-                              <Input
-                                id="result-inline"
-                                type="number"
-                                min={1}
-                                value={form.resultInlineMaxKb}
-                                onChange={(e) =>
-                                  setForm((f) => ({ ...f, resultInlineMaxKb: e.target.value }))
-                                }
-                                placeholder="32 (default)"
-                                aria-describedby={hintId('result-inline')}
-                              />
-                              <FieldHint
-                                id="result-inline"
-                                warn="Raise it and big results land straight in the prompt."
-                              >
-                                Results larger than this spill to the store.
-                              </FieldHint>
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Tool results
+                            </legend>
+                            <p className="text-xs text-muted-foreground">
+                              Large tool outputs (a delegated agent&apos;s full answer, a big file
+                              read, a wide search) are stored and handed to the agent as a handle it
+                              reads via <code>read_result</code> (page / grep / semantic query) —
+                              instead of being truncated. Tune when that spill kicks in. Blank =
+                              system default.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field>
+                                <FieldLabel htmlFor="result-inline">Inline max (KB)</FieldLabel>
+                                <Input
+                                  id="result-inline"
+                                  type="number"
+                                  min={1}
+                                  value={form.resultInlineMaxKb}
+                                  onChange={(e) =>
+                                    setForm((f) => ({ ...f, resultInlineMaxKb: e.target.value }))
+                                  }
+                                  placeholder="32 (default)"
+                                  aria-describedby={hintId('result-inline')}
+                                />
+                                <FieldHint
+                                  id="result-inline"
+                                  warn="Raise it and big results land straight in the prompt."
+                                >
+                                  Results larger than this spill to the store.
+                                </FieldHint>
+                              </Field>
+                              <Field>
+                                <FieldLabel htmlFor="result-embed">Semantic-tier (KB)</FieldLabel>
+                                <Input
+                                  id="result-embed"
+                                  type="number"
+                                  min={1}
+                                  value={form.resultEmbedMinKb}
+                                  onChange={(e) =>
+                                    setForm((f) => ({ ...f, resultEmbedMinKb: e.target.value }))
+                                  }
+                                  placeholder="100 (default)"
+                                  aria-describedby={hintId('result-embed')}
+                                />
+                                <FieldHint id="result-embed">
+                                  At/over this, the agent is steered to semantic <code>query</code>.
+                                </FieldHint>
+                              </Field>
+                              <Field>
+                                <FieldLabel htmlFor="result-spill">Hard ceiling (KB)</FieldLabel>
+                                <Input
+                                  id="result-spill"
+                                  type="number"
+                                  min={1}
+                                  value={form.resultSpillMaxKb}
+                                  onChange={(e) =>
+                                    setForm((f) => ({ ...f, resultSpillMaxKb: e.target.value }))
+                                  }
+                                  placeholder="1024 (default)"
+                                  aria-describedby={hintId('result-spill')}
+                                />
+                                <FieldHint
+                                  id="result-spill"
+                                  warn="Raising it grows both the DB and the embedding bill."
+                                >
+                                  Bigger results are head-truncated before storing.
+                                </FieldHint>
+                              </Field>
                             </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="result-embed">Semantic-tier (KB)</Label>
-                              <Input
-                                id="result-embed"
-                                type="number"
-                                min={1}
-                                value={form.resultEmbedMinKb}
-                                onChange={(e) =>
-                                  setForm((f) => ({ ...f, resultEmbedMinKb: e.target.value }))
-                                }
-                                placeholder="100 (default)"
-                                aria-describedby={hintId('result-embed')}
-                              />
-                              <FieldHint id="result-embed">
-                                At/over this, the agent is steered to semantic <code>query</code>.
-                              </FieldHint>
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="result-spill">Hard ceiling (KB)</Label>
-                              <Input
-                                id="result-spill"
-                                type="number"
-                                min={1}
-                                value={form.resultSpillMaxKb}
-                                onChange={(e) =>
-                                  setForm((f) => ({ ...f, resultSpillMaxKb: e.target.value }))
-                                }
-                                placeholder="1024 (default)"
-                                aria-describedby={hintId('result-spill')}
-                              />
-                              <FieldHint
-                                id="result-spill"
-                                warn="Raising it grows both the DB and the embedding bill."
-                              >
-                                Bigger results are head-truncated before storing.
-                              </FieldHint>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Max embedding chunks and retention (TTL) are system-wide — set via{' '}
-                            <code>TOOL_RESULT_MAX_CHUNKS</code> / <code>TOOL_RESULT_TTL_DAYS</code>{' '}
-                            env vars.
-                          </p>
-                        </fieldset>
-                      </TabsContent>
-
-                      {editing.mode === 'edit' && (
-                        <TabsContent
-                          forceMount
-                          value="learned"
-                          data-agent-section="learned"
-                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                        >
-                          <PersonaNotesEditor
-                            key={editing.agent.id}
-                            agentId={editing.agent.id}
-                            initialNotes={editing.agent.personaNotes}
-                          />
+                            <p className="text-xs text-muted-foreground">
+                              Max embedding chunks and retention (TTL) are system-wide — set via{' '}
+                              <code>TOOL_RESULT_MAX_CHUNKS</code> /{' '}
+                              <code>TOOL_RESULT_TTL_DAYS</code> env vars.
+                            </p>
+                          </fieldset>
                         </TabsContent>
-                      )}
 
-                      <div className="flex justify-end gap-2 border-t border-border pt-3">
-                        <Button type="button" variant="outline" onClick={closeDialog}>
-                          Cancel
-                        </Button>
-                        <SubmitButton pending={saving}>
-                          {editing.mode === 'create' ? 'Create agent' : 'Save agent'}
-                        </SubmitButton>
-                      </div>
-                    </form>
-                  </Tabs>
-                </div>
-              )}
-            </div>
-          </div>
+                        {editing.mode === 'edit' && (
+                          <TabsContent
+                            forceMount
+                            value="learned"
+                            data-agent-section="learned"
+                            className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                          >
+                            <PersonaNotesEditor
+                              key={editing.agent.id}
+                              agentId={editing.agent.id}
+                              initialNotes={editing.agent.personaNotes}
+                            />
+                          </TabsContent>
+                        )}
+
+                        <div className="flex justify-end gap-2 border-t border-border pt-3">
+                          <Button type="button" variant="outline" onClick={closeDialog}>
+                            Cancel
+                          </Button>
+                          <SubmitButton pending={saving}>
+                            {editing.mode === 'create' ? 'Create agent' : 'Save agent'}
+                          </SubmitButton>
+                        </div>
+                      </form>
+                    </Tabs>
+                  </div>
+                )}
+              </>
+            }
+          />
         </>
       )}
 

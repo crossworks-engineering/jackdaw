@@ -5,8 +5,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { invalidateAgentQueries } from '@mantle/web-ui/agent-invalidation';
 import { ArrowRight, Check, Pencil, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Label } from '@mantle/web-ui/ui/label';
-import { FieldHint } from '@mantle/web-ui/ui/field-hint';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import {
   Dialog,
   DialogContent,
@@ -430,7 +437,10 @@ function ModelSetPicker({
   const [provider, setProvider] = useState(initial.provider || 'openrouter');
   const [model, setModel] = useState(initial.model);
   const [apiKeyId, setApiKeyId] = useState(initial.apiKeyId ?? '');
-  const [modelMissing, setModelMissing] = useState(false);
+  // The picker's two rules, keyed by control id. Neither can be left to the
+  // browser any more: `ModelSelect`'s trigger is a button, and the key picker
+  // is now a Radix `Select` — so `required` on either announces nothing.
+  const [errors, setErrors] = useState<{ 'picker-model'?: string; 'picker-key'?: string }>({});
 
   const chatProviders = providersForCapability('chat');
   const eligibleKeys = apiKeys.filter((k) => k.service === provider);
@@ -465,10 +475,13 @@ function ModelSetPicker({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    // ModelSelect's `required` is not a native constraint (the trigger is a
-    // button), so surface the miss instead of silently ignoring the submit.
-    if (!model.trim()) {
-      setModelMissing(true);
+    const errs: typeof errors = {};
+    if (!model.trim()) errs['picker-model'] = 'Pick a model before staging.';
+    if (!apiKeyId) errs['picker-key'] = 'Pick the saved key this route should bill to.';
+    setErrors(errs);
+    const first = (['picker-model', 'picker-key'] as const).find((k) => errs[k]);
+    if (first) {
+      document.getElementById(first)?.focus();
       return;
     }
     onStage({
@@ -489,22 +502,21 @@ function ModelSetPicker({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="picker-provider">Provider</Label>
-            <select
-              id="picker-provider"
-              value={provider}
-              onChange={(e) => onProviderChange(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              required
-            >
-              {chatProviders.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                  {isProviderWired(p.id, 'chat') ? '' : ' · not yet wired'}
-                </option>
-              ))}
-            </select>
+          <Field>
+            <FieldLabel htmlFor="picker-provider">Provider</FieldLabel>
+            <Select value={provider} onValueChange={onProviderChange}>
+              <SelectTrigger id="picker-provider" aria-describedby={hintId('picker-provider')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {chatProviders.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                    {isProviderWired(p.id, 'chat') ? '' : ' · not yet wired'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <FieldHint id="picker-provider">
               Which service runs this agent&apos;s turns — it narrows the model and key lists below.
             </FieldHint>
@@ -529,16 +541,16 @@ function ModelSetPicker({
                 instead.
               </p>
             )}
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="picker-model">Model</Label>
+          <Field data-invalid={!!errors['picker-model'] || undefined}>
+            <FieldLabel htmlFor="picker-model">Model</FieldLabel>
             <ModelSelect
               id="picker-model"
               value={model}
               onValueChange={(next) => {
                 setModel(next);
-                if (next.trim()) setModelMissing(false);
+                if (next.trim()) setErrors((e) => ({ ...e, 'picker-model': undefined }));
               }}
               models={catalog}
               loading={catalogQuery.isPending}
@@ -552,13 +564,17 @@ function ModelSetPicker({
               placeholder="— pick a model —"
               emptyMessage="No matching models in the catalog."
               required
+              aria-invalid={!!errors['picker-model'] || undefined}
+              aria-describedby={
+                errors['picker-model']
+                  ? `picker-model-error ${hintId('picker-model')}`
+                  : hintId('picker-model')
+              }
             />
             <FieldHint id="picker-model">
               The model this agent thinks with. Staged until you apply it.
             </FieldHint>
-            {modelMissing && (
-              <p className="text-xs text-destructive-ink">Pick a model before staging.</p>
-            )}
+            <FieldError id="picker-model-error">{errors['picker-model']}</FieldError>
             {!catalogQuery.isPending && model.trim() && !catalog.some((m) => m.id === model) && (
               <p className="text-xs text-warning-ink">
                 <code>{model}</code> isn&apos;t in <code>{provider}</code>&apos;s catalog — direct
@@ -566,27 +582,42 @@ function ModelSetPicker({
                 prefixed slugs (<code>anthropic/claude-haiku-4.5</code>).
               </p>
             )}
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="picker-key">API key</Label>
-            <select
-              id="picker-key"
-              value={apiKeyId}
-              onChange={(e) => setApiKeyId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              required
+          <Field data-invalid={!!errors['picker-key'] || undefined}>
+            <FieldLabel htmlFor="picker-key">API key</FieldLabel>
+            <Select
+              value={apiKeyId || undefined}
+              onValueChange={(v) => {
+                setApiKeyId(v);
+                setErrors((e) => ({ ...e, 'picker-key': undefined }));
+              }}
             >
-              <option value="">— select a key —</option>
-              {eligibleKeys.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.service} / {k.label} ({k.masked})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="picker-key"
+                aria-invalid={!!errors['picker-key'] || undefined}
+                aria-describedby={
+                  errors['picker-key']
+                    ? `picker-key-error ${hintId('picker-key')}`
+                    : hintId('picker-key')
+                }
+              >
+                {/* Radix forbids an empty item value, so "nothing picked" is
+                    the trigger's placeholder rather than an option. */}
+                <SelectValue placeholder="— select a key —" />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleKeys.map((k) => (
+                  <SelectItem key={k.id} value={k.id}>
+                    {k.service} / {k.label} ({k.masked})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <FieldHint id="picker-key">
               Which saved key pays for it. Must belong to the provider above.
             </FieldHint>
+            <FieldError id="picker-key-error">{errors['picker-key']}</FieldError>
             {apiKeys.length > 0 && eligibleKeys.length === 0 && (
               <p className="text-xs text-warning-ink">
                 None of your saved keys are for <code>{provider}</code>. Add one at{' '}
@@ -596,7 +627,7 @@ function ModelSetPicker({
                 or pick a different provider.
               </p>
             )}
-          </div>
+          </Field>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>

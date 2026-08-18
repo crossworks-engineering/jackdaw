@@ -25,6 +25,7 @@ import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { AppAccessLog } from '@mantle/web-ui/app-sandbox/access-log';
 import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
 import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import type { AppDetail } from '@mantle/client-types';
 
@@ -402,53 +403,74 @@ function AppDetailView({ app }: { app: AppDetail }) {
         </TabsContent>
 
         {/* Code — file-tree sidebar + an editable, syntax-highlighted editor. */}
-        <TabsContent
-          value="code"
-          className="mt-0 grid min-h-0 flex-1 grid-cols-[200px_minmax(0,1fr)]"
-        >
-          <FileTree
-            paths={paths}
-            entry={source.entry}
-            activePath={activePath}
-            onSelect={setActivePath}
-            className="border-r border-border"
+        <TabsContent value="code" className="mt-0 flex min-h-0 flex-1 flex-col">
+          <MasterDetail
+            id="app-code"
+            // The tab is the whole of this pane, so the scaffold takes all of
+            // it — the page header and the tab strip sit above.
+            className="min-h-0 flex-1"
+            // The 200px column the grid always had. It is a file TREE, not a
+            // list of cards, so it opens narrower than the 340px default and
+            // its floor comes down with it: a 260px minimum would be wider
+            // than the width it starts at, and the divider could only ever
+            // move right.
+            defaultListSize="200px"
+            minListSize="160px"
+            maxListSize="420px"
+            // The old `minmax(0,1fr)`. A code editor is not a measure of
+            // reading prose — capping it at 672px would hand the slack to an
+            // empty spacer and wrap the lines the tab exists to show.
+            detailFills
+            list={
+              <FileTree
+                paths={paths}
+                entry={source.entry}
+                activePath={activePath}
+                onSelect={setActivePath}
+                // `flex-1` for the height the grid cell used to give it; the
+                // divider is the border it used to draw itself.
+                className="flex-1"
+              />
+            }
+            detail={
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                    {activePath}
+                    {dirty && <span className="ml-1.5 text-foreground">●</span>}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={formatActive}
+                    disabled={busy !== null || !canFormat}
+                    title={canFormat ? 'Format with Prettier' : 'No formatter for this file type'}
+                  >
+                    <WandSparkles />
+                    {busy === 'format' ? 'Formatting…' : 'Format'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={saveDraft}
+                    disabled={busy !== null || !dirty}
+                  >
+                    <Save />
+                    {busy === 'save' ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+                <CodeEditor
+                  path={activePath}
+                  value={activeContent}
+                  onChange={(next) => {
+                    setFiles((f) => ({ ...f, [activePath]: next }));
+                    setDirty(true);
+                  }}
+                  className="min-h-0 flex-1"
+                />
+              </div>
+            }
           />
-          <div className="flex min-h-0 flex-col">
-            <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                {activePath}
-                {dirty && <span className="ml-1.5 text-foreground">●</span>}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={formatActive}
-                disabled={busy !== null || !canFormat}
-                title={canFormat ? 'Format with Prettier' : 'No formatter for this file type'}
-              >
-                <WandSparkles />
-                {busy === 'format' ? 'Formatting…' : 'Format'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={saveDraft}
-                disabled={busy !== null || !dirty}
-              >
-                <Save />
-                {busy === 'save' ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-            <CodeEditor
-              path={activePath}
-              value={activeContent}
-              onChange={(next) => {
-                setFiles((f) => ({ ...f, [activePath]: next }));
-                setDirty(true);
-              }}
-              className="min-h-0 flex-1"
-            />
-          </div>
         </TabsContent>
 
         {/* Activity — the external access log (who opened/used the shared app). */}
