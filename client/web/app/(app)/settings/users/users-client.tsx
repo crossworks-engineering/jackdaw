@@ -37,7 +37,6 @@ import {
   AlertDialogTrigger,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
 import {
   Select,
   SelectContent,
@@ -45,7 +44,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -132,68 +133,75 @@ export function UsersClient() {
     users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null;
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* LEFT: login list */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Logins
-          </h2>
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus /> Add login
-          </Button>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {users.map((u) => (
-            <ListCard
-              key={u.id}
-              onClick={() => setSelectedId(u.id)}
-              selected={selected?.id === u.id}
-            >
-              <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {u.displayName || u.email}
-                </span>
-                {u.agent && (
-                  <Badge variant="outline" className="shrink-0" title={u.agent.name}>
-                    <Bot className="size-3" /> {u.agent.name}
-                  </Badge>
-                )}
-                {u.isOwner && (
-                  <Badge variant="secondary" className="shrink-0">
-                    Anchor
-                  </Badge>
-                )}
-              </div>
-              <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                {u.displayName
-                  ? u.email
-                  : u.lastLoginAt
-                    ? `Last login ${formatDateTime(u.lastLoginAt)}`
-                    : 'Never signed in'}
-              </div>
-            </ListCard>
-          ))}
-        </div>
-      </div>
-
-      {/* RIGHT: detail */}
-      <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {selected ? (
-          <UserDetail
-            key={selected.id}
-            user={selected}
-            isSelf={selected.id === currentActorId}
-            onChanged={invalidate}
-            onRequestDelete={() => setDeleteOpen(true)}
-            onRequestReset={() => setResetOpen(true)}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-            <Users className="mr-2 size-4" /> No logins.
-          </div>
-        )}
-      </div>
+    <>
+      <MasterDetail
+        id="settings-users"
+        // The 340px this screen has always had.
+        defaultListSize="340px"
+        // No `detailFills`: the detail is a form, and the 672px default measure
+        // is what keeps it off 1200px line lengths (§8).
+        list={
+          <>
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Logins
+              </h2>
+              <Button size="sm" onClick={() => setAddOpen(true)}>
+                <Plus /> Add login
+              </Button>
+            </div>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {users.map((u) => (
+                <ListCard
+                  key={u.id}
+                  onClick={() => setSelectedId(u.id)}
+                  selected={selected?.id === u.id}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {u.displayName || u.email}
+                    </span>
+                    {u.agent && (
+                      <Badge variant="outline" className="shrink-0" title={u.agent.name}>
+                        <Bot className="size-3" /> {u.agent.name}
+                      </Badge>
+                    )}
+                    {u.isOwner && (
+                      <Badge variant="secondary" className="shrink-0">
+                        Anchor
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {u.displayName
+                      ? u.email
+                      : u.lastLoginAt
+                        ? `Last login ${formatDateTime(u.lastLoginAt)}`
+                        : 'Never signed in'}
+                  </div>
+                </ListCard>
+              ))}
+            </div>
+          </>
+        }
+        // `relative` and the pane's single scroller are `MasterDetail`'s job now.
+        detail={
+          selected ? (
+            <UserDetail
+              key={selected.id}
+              user={selected}
+              isSelf={selected.id === currentActorId}
+              onChanged={invalidate}
+              onRequestDelete={() => setDeleteOpen(true)}
+              onRequestReset={() => setResetOpen(true)}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
+              <Users className="mr-2 size-4" /> No logins.
+            </div>
+          )
+        }
+      />
 
       <AddUserDialog
         open={addOpen}
@@ -217,7 +225,7 @@ export function UsersClient() {
           />
         </>
       )}
-    </div>
+    </>
   );
 }
 
@@ -304,9 +312,9 @@ function UserDetail({
         </div>
       </div>
 
-      <form onSubmit={saveDisplayName} className="max-w-md space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="display-name">Display name</Label>
+      <form onSubmit={saveDisplayName} noValidate className="space-y-3">
+        <Field>
+          <FieldLabel htmlFor="display-name">Display name</FieldLabel>
           <Input
             id="display-name"
             value={displayName}
@@ -317,13 +325,13 @@ function UserDetail({
           <FieldHint id="display-name">
             How this person appears in the app. Changing it doesn&apos;t affect their login.
           </FieldHint>
-        </div>
+        </Field>
         <SubmitButton pending={saving}>Save user</SubmitButton>
       </form>
 
       <AssistantCard user={user} onChanged={onChanged} />
 
-      <div className="max-w-md rounded-md border border-border p-4">
+      <div className="rounded-md border border-border p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-medium">
@@ -383,7 +391,7 @@ function DevicesCard({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
   const devices = devicesQuery.data?.devices ?? [];
 
   return (
-    <div className="max-w-md space-y-3 rounded-md border border-border p-4">
+    <div className="space-y-3 rounded-md border border-border p-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2 text-sm font-medium">
           <MonitorSmartphone className="size-4 text-muted-foreground" /> Devices
@@ -483,14 +491,18 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
   const [sourceAgentId, setSourceAgentId] = useState('');
   const [pending, setPending] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
+  const [nameError, setNameError] = useState<string>();
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
+    // §6b: was a toast naming a control, shown in a corner.
     if (!trimmed) {
-      toast.error('Enter a name for the assistant.');
+      setNameError('Enter a name for the assistant.');
+      document.getElementById(`user-${user.id}-agent-name`)?.focus();
       return;
     }
+    setNameError(undefined);
     // With an assistant already in place and no explicit new source, this is a
     // rename — the server keeps the slug, so the existing thread survives.
     const source = user.agent ? sourceAgentId || undefined : sourceAgentId || sources.data?.[0]?.id;
@@ -530,7 +542,7 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
   };
 
   return (
-    <div className="max-w-md space-y-3 rounded-md border border-border p-4">
+    <div className="space-y-3 rounded-md border border-border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -565,11 +577,15 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
           </Button>
         )}
       </div>
-      <form onSubmit={save} className="space-y-3">
+      <form onSubmit={save} noValidate className="space-y-3">
         <AssistantFields
           idPrefix={`user-${user.id}`}
           name={name}
-          onNameChange={setName}
+          nameError={nameError}
+          onNameChange={(v) => {
+            setName(v);
+            if (nameError) setNameError(undefined);
+          }}
           sourceAgentId={sourceAgentId}
           onSourceAgentIdChange={setSourceAgentId}
           sources={sources.data ?? []}
@@ -630,6 +646,7 @@ function AssistantFields({
   sources,
   nameLabel = 'Assistant name (optional)',
   nameHint,
+  nameError,
   showSource = true,
 }: {
   idPrefix: string;
@@ -640,6 +657,13 @@ function AssistantFields({
   sources: SourceAgent[];
   nameLabel?: string;
   nameHint?: React.ReactNode;
+  /**
+   * §6b. The name rule lives with the caller (it differs per caller — blank is
+   * legal when adding a login, and a failure when renaming an assistant), so
+   * the message comes down rather than the rule going up. Same shape as
+   * `ToolGroupIntegrationSection`'s `serviceError`.
+   */
+  nameError?: string;
   /** False once an assistant exists — then the only in-place edit is a rename,
    *  which keeps the slug and therefore the thread. Pointing a login at a
    *  different source is Release + Create, so nobody strands a live thread by
@@ -651,14 +675,15 @@ function AssistantFields({
   const selected = sourceAgentId || sources[0]?.id || '';
   return (
     <>
-      <div className="space-y-1.5">
-        <Label htmlFor={nameId}>{nameLabel}</Label>
+      <Field data-invalid={!!nameError || undefined}>
+        <FieldLabel htmlFor={nameId}>{nameLabel}</FieldLabel>
         <Input
           id={nameId}
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
           placeholder="e.g. Nova"
-          aria-describedby={hintId(nameId)}
+          aria-invalid={!!nameError || undefined}
+          aria-describedby={nameError ? `${nameId}-error ${hintId(nameId)}` : hintId(nameId)}
         />
         <FieldHint
           id={nameId}
@@ -672,10 +697,11 @@ function AssistantFields({
             </>
           )}
         </FieldHint>
-      </div>
+        <FieldError id={`${nameId}-error`}>{nameError}</FieldError>
+      </Field>
       {showSource && name.trim().length > 0 && (
-        <div className="space-y-1.5">
-          <Label htmlFor={sourceId}>Copy from</Label>
+        <Field>
+          <FieldLabel htmlFor={sourceId}>Copy from</FieldLabel>
           <Select value={selected} onValueChange={onSourceAgentIdChange}>
             <SelectTrigger id={sourceId} aria-describedby={hintId(sourceId)}>
               <SelectValue placeholder="Choose an agent" />
@@ -696,7 +722,7 @@ function AssistantFields({
             name you give it here — it just gets its own chat history. Telegram bots and learned
             persona notes aren&apos;t copied.
           </FieldHint>
-        </div>
+        </Field>
       )}
     </>
   );
@@ -714,6 +740,7 @@ function AddUserDialog({
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [displayName, setDisplayName] = useState('');
   const [agentName, setAgentName] = useState('');
   const [sourceAgentId, setSourceAgentId] = useState('');
@@ -722,6 +749,21 @@ function AddUserDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // §6b. `required` + `type="email"` + `minLength` were the browser's bubble:
+    // announced to nothing and gone on the next click. Same rules, on the
+    // controls. The form is `noValidate`.
+    const errs: { email?: string; password?: string } = {};
+    if (!email.trim()) errs.email = 'An email address is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      errs.email = 'That does not look like an email address.';
+    if (!password) errs.password = 'A starting password is required.';
+    else if (password.length < 8) errs.password = 'Use at least 8 characters.';
+    if (errs.email || errs.password) {
+      setErrors(errs);
+      document.getElementById(errs.email ? 'new-user-email' : 'new-user-password')?.focus();
+      return;
+    }
+    setErrors({});
     setPending(true);
     try {
       // A blank assistant name means "share the brain default", exactly as every
@@ -764,9 +806,9 @@ function AddUserDialog({
             starting password; it can be changed after signing in.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="new-user-email">Email</Label>
+        <form onSubmit={submit} noValidate className="space-y-3">
+          <Field data-invalid={!!errors.email || undefined}>
+            <FieldLabel htmlFor="new-user-email">Email</FieldLabel>
             <Input
               id="new-user-email"
               type="email"
@@ -775,14 +817,18 @@ function AddUserDialog({
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@company.com"
               autoComplete="off"
-              aria-describedby={hintId('new-user-email')}
+              aria-invalid={!!errors.email || undefined}
+              aria-describedby={
+                errors.email ? 'new-user-email-error new-user-email-hint' : 'new-user-email-hint'
+              }
             />
             <FieldHint id="new-user-email">
               Their login. It can&apos;t be changed afterwards.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-user-password">Starting password</Label>
+            <FieldError id="new-user-email-error">{errors.email}</FieldError>
+          </Field>
+          <Field data-invalid={!!errors.password || undefined}>
+            <FieldLabel htmlFor="new-user-password">Starting password</FieldLabel>
             <Input
               id="new-user-password"
               type="text"
@@ -792,7 +838,12 @@ function AddUserDialog({
               onChange={(e) => setPassword(e.target.value)}
               placeholder="At least 8 characters"
               autoComplete="off"
-              aria-describedby={hintId('new-user-password')}
+              aria-invalid={!!errors.password || undefined}
+              aria-describedby={
+                errors.password
+                  ? 'new-user-password-error new-user-password-hint'
+                  : 'new-user-password-hint'
+              }
             />
             <FieldHint
               id="new-user-password"
@@ -800,9 +851,10 @@ function AddUserDialog({
             >
               What they sign in with the first time.
             </FieldHint>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-user-display-name">Display name (optional)</Label>
+            <FieldError id="new-user-password-error">{errors.password}</FieldError>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="new-user-display-name">Display name (optional)</FieldLabel>
             <Input
               id="new-user-display-name"
               value={displayName}
@@ -813,7 +865,7 @@ function AddUserDialog({
             <FieldHint id="new-user-display-name">
               Falls back to the email address when blank.
             </FieldHint>
-          </div>
+          </Field>
           <AssistantFields
             idPrefix="new-user"
             name={agentName}
@@ -842,10 +894,23 @@ function ResetPasswordDialog({
 }) {
   const toast = useToast();
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Same rules `required` + `minLength={8}` already encoded (§6b).
+    if (!password) {
+      setError('A new password is required.');
+      document.getElementById('reset-password-value')?.focus();
+      return;
+    }
+    if (password.length < 8) {
+      setError('Use at least 8 characters.');
+      document.getElementById('reset-password-value')?.focus();
+      return;
+    }
+    setError(undefined);
     setPending(true);
     try {
       await apiSend(`/api/users/${user.id}/password`, 'POST', { newPassword: password });
@@ -869,9 +934,9 @@ function ResetPasswordDialog({
             the reset is recorded in the audit log.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="reset-password-value">New password</Label>
+        <form onSubmit={submit} noValidate className="space-y-3">
+          <Field data-invalid={!!error || undefined}>
+            <FieldLabel htmlFor="reset-password-value">New password</FieldLabel>
             <Input
               id="reset-password-value"
               type="text"
@@ -881,7 +946,12 @@ function ResetPasswordDialog({
               onChange={(e) => setPassword(e.target.value)}
               placeholder="At least 8 characters"
               autoComplete="off"
-              aria-describedby={hintId('reset-password-value')}
+              aria-invalid={!!error || undefined}
+              aria-describedby={
+                error
+                  ? 'reset-password-value-error reset-password-value-hint'
+                  : 'reset-password-value-hint'
+              }
             />
             <FieldHint
               id="reset-password-value"
@@ -889,7 +959,8 @@ function ResetPasswordDialog({
             >
               What they&apos;ll sign in with from now on.
             </FieldHint>
-          </div>
+            <FieldError id="reset-password-value-error">{error}</FieldError>
+          </Field>
           <div className="flex justify-end pt-1">
             <SubmitButton pending={pending}>Reset password</SubmitButton>
           </div>

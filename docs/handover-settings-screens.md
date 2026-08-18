@@ -195,8 +195,7 @@ is a known flake, roughly 1 run in 2.
 3. ~~**The four small settings screens**~~ — **DONE.** See §8.
 4. **`keys`, `peers`, `config`** — **DONE**, see §9. ⚠ **`ai-workers` is NOT
    part of this batch and never should have been** — see §9's first warning.
-5. **`tools`, `users`, `heartbeats`** — the middle-large three. Their planned
-   sizes are ACCURATE (see §10); the form idiom from §8/§9 carries straight over.
+5. ~~**`tools`, `users`, `heartbeats`**~~ — **DONE**, see §11.
 6. **`agents` + `ai-workers`** — the big pair, last. Both are ~3.5k lines once
    their child components are counted, and both were undercounted here. See §10.
 6. **`team-admin`** — two scaffolds in one file; decide one `MasterDetail` or
@@ -457,3 +456,74 @@ scaffolds become one `MasterDetail` or two.
 of the five screens ported so far hid material work in a child — `accounts` in
 `imap/imap-form.tsx`, `tool-groups` in `components/tool-group-integration.tsx`,
 and now these two. It is the single most reliable way this plan has been wrong.
+
+---
+
+## 11. `tools` · `users` · `heartbeats` — done (2026-08-18)
+
+All three on `MasterDetail` at their existing widths (360 / 340 / 360), none
+with `detailFills`. §10's line counts were right: no hidden children, and the
+work was the size the plan said.
+
+### The technique that made these tractable
+
+These three carry 38 `<Label>`s and 75 `FieldHint`s between them — too many to
+hand-edit safely. What worked was a **deterministic block transform**: find each
+`<div className="space-y-1.5">` whose block contains a `<Label>`, match its
+closing `</div>` by indentation, and rewrite the pair to `<Field>` /
+`</Field>` with `Label` → `FieldLabel`. 35 blocks converted with no judgement
+calls. A second pass then wired `data-invalid` / `aria-invalid` /
+`aria-describedby` / `FieldError` per control id.
+
+⚠ **It converts the block, not the wrapper around it.** On `heartbeats` the
+list's own `flex flex-col border-b …` wrapper survived the scaffold swap and
+left one unclosed `<div>` — caught by `tsc`, but only three edits later. Run
+`pnpm -C client/web typecheck` after EVERY structural replacement, not at the
+end of the screen.
+
+### §6b: eight more toasts gone
+
+- **`tools`** had three, all carrying a PARSER message — the input schema, and
+  whatever `parseRecordField` threw for Headers and Query. Those are the worst
+  possible thing to put in a corner: you have to read them against the JSON you
+  just typed.
+- **`heartbeats`** had five: the `once` date, the `interval` minimum, the
+  Telegram `chat_id`, and two for the state JSON. The cron-locked refusal
+  **stays a toast on purpose** — it is about the whole record, not a field, and
+  there is nothing on screen to point at.
+- **`users`** had one (`Enter a name for the assistant.`) plus `required` /
+  `type="email"` / `minLength={8}` on the add-login and reset-password dialogs.
+
+`tools` also gained **live revalidation**: its rules moved into a pure
+`validateTool(form, editing)` called both on submit and, once a submit has
+failed, on every change — so a fixed field stops complaining without nine
+hand-wired `onChange` handlers. Worth copying for `agents`.
+
+`users`' assistant-name error threads into the shared `AssistantFields` child as
+a `nameError` prop, the third time this rollout has needed that shape (after
+`tool-groups` and `accounts`).
+
+§6d: 6 raw `<textarea>`s and 4 raw `<select>`s replaced.
+
+### Coverage
+
+Three scaffold rows plus `settings-tools-heartbeats.spec.ts` (6 tests). Guards
+verified by swallowing `tools`' parser message and restoring `heartbeats`'
+chat_id toast — only the two intended tests failed.
+
+⚠ **A new heartbeat defaults to the TELEGRAM surface with a blank `chat_id`**,
+and that check runs before the state parse. A first version of the state-JSON
+test never reached the state error and failed for the wrong reason. Fill
+`#hb_chat_id` first.
+
+### Suite
+
+**122 pass / 103 skip / 3 fail.** Two are `team.spec.ts`, as always. The third
+is `field-primitives.spec.ts` — **and its flake is worse than §4 records.** It
+failed once IN ISOLATION this session and passed on the next isolated run with
+identical code; §4 says isolation always passes. It measures `/tasks`, which
+this batch never touched (`git status` confirms). Still the indexing race, still
+not a regression — but do not use "passes in isolation" as the test for it.
+
+Remaining: **`agents` + `ai-workers`** (the ~3.5k-line pair), then `team-admin`
+and `apps/[id]`.

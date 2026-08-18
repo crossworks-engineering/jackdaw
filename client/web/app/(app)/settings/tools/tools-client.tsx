@@ -21,10 +21,20 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Label } from '@mantle/web-ui/ui/label';
-import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
+import { FieldHint } from '@mantle/web-ui/ui/field-hint';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
 
@@ -84,6 +94,90 @@ function fromTool(t: ToolSummary): FormState {
 }
 
 /** Parse an optional JSON-object textarea; '' → undefined; throws on junk. */
+/**
+ * Which controls are at fault. Keys are the control ids, so a failure can be
+ * put on the control that produced it (§6b) and a test can find it by id.
+ */
+type ToolErrors = {
+  name?: string;
+  slug?: string;
+  description?: string;
+  url?: string;
+  cmd?: string;
+  schema?: string;
+  'http-headers'?: string;
+  'http-query'?: string;
+};
+
+/** DOM order, so the caret lands on the FIRST thing that is wrong. */
+const ERROR_ORDER = [
+  'name',
+  'slug',
+  'description',
+  'url',
+  'cmd',
+  'http-headers',
+  'http-query',
+  'schema',
+] as const;
+
+/**
+ * §6b. Three of this screen's failures were toasts carrying a PARSER message —
+ * "Input schema is not valid JSON.", and whatever `parseRecordField` threw for
+ * Headers/Query. Those are the worst kind to put in a corner: you have to read
+ * them against the JSON you just typed, and the toast is gone before you look
+ * back. Every rule below is the one `required` / `pattern` / the toasts already
+ * encoded; only the delivery changed.
+ *
+ * Pure, and called from two places: once on submit, and again on every change
+ * after the first failed submit, so a field stops complaining the moment it is
+ * fixed without nine hand-wired `onChange` handlers.
+ */
+function validateTool(
+  form: FormState,
+  editing: { mode: 'create' } | { mode: 'edit'; tool: ToolSummary },
+): ToolErrors {
+  const errs: ToolErrors = {};
+  const isBuiltinLike =
+    editing.mode === 'edit' &&
+    (editing.tool.handler.kind === 'builtin' || editing.tool.handler.kind === 'recipe');
+  // Built-ins send only their editable metadata, so none of the rules below
+  // apply — their handler, slug and schema are code-backed and immutable.
+  if (isBuiltinLike) return errs;
+
+  if (!form.name.trim()) errs.name = 'A name is required.';
+  if (!form.description.trim()) errs.description = 'A description is required.';
+  if (editing.mode === 'create') {
+    const slug = form.slug.trim();
+    if (!slug) errs.slug = 'A slug is required.';
+    else if (!/^[a-z0-9_-]+$/.test(slug))
+      errs.slug = 'Lower-case letters, digits, hyphen and underscore only.';
+  }
+  if (form.kind === 'shell') {
+    if (!form.cmd.trim()) errs.cmd = 'A command template is required.';
+  } else if (!form.url.trim()) {
+    errs.url = 'A URL template is required.';
+  }
+  try {
+    JSON.parse(form.inputSchemaJson);
+  } catch (err) {
+    errs.schema = `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  if (form.kind !== 'shell') {
+    for (const [key, label, raw] of [
+      ['http-headers', 'Headers', form.headersJson],
+      ['http-query', 'Query', form.queryJson],
+    ] as const) {
+      try {
+        parseRecordField(label, raw);
+      } catch (err) {
+        errs[key] = err instanceof Error ? err.message : `${label} must be a JSON object.`;
+      }
+    }
+  }
+  return errs;
+}
+
 function parseRecordField(label: string, raw: string): Record<string, string> | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
@@ -123,6 +217,14 @@ export function ToolsClient() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [slugTouched, setSlugTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ToolSummary | null>(null);
+  const [errors, setErrors] = useState<ToolErrors>({});
+  // Only complain AFTER a submit has failed. Validating from the first
+  // keystroke would mark an empty form red before the user has done anything.
+  const [submitted, setSubmitted] = useState(false);
+  useEffect(() => {
+    if (!submitted || !editing) return;
+    setErrors(validateTool(form, editing));
+  }, [submitted, form, editing]);
 
   // ── Mutations ───────────────────────────────────────────────────────────────
   // Settings toggles — optimistic: flip the cached value immediately, roll back
@@ -235,6 +337,26 @@ export function ToolsClient() {
     e.preventDefault();
     if (!editing) return;
 
+    /**
+     * §6b. Three of this screen's failures were toasts carrying a PARSER
+     * message — "Input schema is not valid JSON.", and whatever
+     * `parseRecordField` threw for Headers/Query. Those are the worst kind to
+     * put in a corner: you have to read them against the JSON you just typed,
+     * and the toast is gone before you look back. Everything below lands on the
+     * textarea that produced it. `required` / `pattern` are documentation now;
+     * the form is `noValidate`.
+     */
+    const errs = validateTool(form, editing);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      setSubmitted(true);
+      const first = ERROR_ORDER.find((k) => errs[k]);
+      if (first) document.getElementById(first)?.focus();
+      return;
+    }
+    setSubmitted(true);
+    setErrors({});
+
     // Built-in: only the editable metadata is sent (handler/slug/schema are
     // code-backed and immutable). Everything else uses the full body.
     let body: Record<string, unknown>;
@@ -247,26 +369,17 @@ export function ToolsClient() {
         enabled: form.enabled,
       };
     } else {
-      let inputSchema: Record<string, unknown>;
-      try {
-        inputSchema = JSON.parse(form.inputSchemaJson);
-      } catch {
-        toast.error('Input schema is not valid JSON.');
-        return;
-      }
+      // Already validated above; this parse cannot throw. Kept as a parse
+      // rather than a cast so a future edit that skips validation still fails
+      // loudly here instead of sending garbage.
+      const inputSchema: Record<string, unknown> = JSON.parse(form.inputSchemaJson);
       let handler: ToolHandler;
       if (form.kind === 'shell') {
         handler = { kind: 'shell', cmd: form.cmd };
       } else {
-        let headers: Record<string, string> | undefined;
-        let query: Record<string, string> | undefined;
-        try {
-          headers = parseRecordField('Headers', form.headersJson);
-          query = parseRecordField('Query', form.queryJson);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Headers/Query must be JSON objects.');
-          return;
-        }
+        // Validated above too — same reasoning as the schema parse.
+        const headers = parseRecordField('Headers', form.headersJson);
+        const query = parseRecordField('Query', form.queryJson);
         // Preserve handler fields that have no form input (e.g. timeoutMs set
         // via the API/Toolsmith) — the PATCH replaces the whole handler jsonb,
         // so an unmapped field would be silently dropped on save.
@@ -310,469 +423,526 @@ export function ToolsClient() {
   };
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[360px_1fr] md:overflow-hidden">
-      {/* ── Left: tool list ──────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="space-y-4 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {toolsQuery.isPending ? (
-            <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
-              <Spinner size={28} />
-              Loading tools…
-            </div>
-          ) : toolsQuery.isError ? (
-            <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive-ink">
-              <p>Couldn’t load tools: {toolsQuery.error.message}</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => toolsQuery.refetch()}
-              >
-                Retry
-              </Button>
-            </div>
-          ) : (
-            <>
-              <section className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2 px-1">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    User-defined ({userDefined.length})
-                  </h3>
+    <>
+      <MasterDetail
+        id="settings-tools"
+        // The 360px this screen has always had.
+        defaultListSize="360px"
+        // No `detailFills`: the detail is a form, and the 672px default measure
+        // is what keeps it off 1200px line lengths (§8).
+        list={
+          <>
+            <div className="space-y-4 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {toolsQuery.isPending ? (
+                <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
+                  <Spinner size={28} />
+                  Loading tools…
+                </div>
+              ) : toolsQuery.isError ? (
+                <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive-ink">
+                  <p>Couldn’t load tools: {toolsQuery.error.message}</p>
                   <Button
                     type="button"
+                    variant="outline"
                     size="sm"
-                    variant="ghost"
-                    className="h-6 px-2 text-xs"
-                    onClick={openCreate}
+                    onClick={() => toolsQuery.refetch()}
                   >
-                    <Plus /> New
+                    Retry
                   </Button>
-                </div>
-                {userDefined.length === 0 ? (
-                  <p className="px-1 text-xs text-muted-foreground/60">None yet.</p>
-                ) : (
-                  userDefined.map((t) => (
-                    <ToolCard
-                      key={t.id}
-                      tool={t}
-                      selected={selectedId === t.id}
-                      onClick={() => openEdit(t)}
-                    />
-                  ))
-                )}
-              </section>
-
-              <section className="space-y-1.5">
-                <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Built-in ({builtins.length})
-                </h3>
-                {builtins.map((t) => (
-                  <ToolCard
-                    key={t.id}
-                    tool={t}
-                    selected={selectedId === t.id}
-                    onClick={() => openEdit(t)}
-                  />
-                ))}
-              </section>
-            </>
-          )}
-
-          {settingsQuery.isError && (
-            <p className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
-              <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
-              Couldn’t load tool policy settings — showing defaults.
-              <button
-                type="button"
-                onClick={() => settingsQuery.refetch()}
-                className="ml-auto shrink-0 underline underline-offset-2 hover:text-foreground"
-              >
-                Retry
-              </button>
-            </p>
-          )}
-
-          <section className="rounded-lg border border-border p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <Label htmlFor="require-approval" className="text-xs font-medium">
-                  Require my approval for agent-built tools
-                </Label>
-                <FieldHint
-                  id="require-approval"
-                  className="mt-1 leading-relaxed"
-                  warn="Off, a tool the agent wrote itself runs unseen on its first call."
-                >
-                  When on, a tool an agent builds (via Toolsmith) parks each call for your approval
-                  until you clear <span className="font-medium">requires confirm</span> for it. Turn
-                  on if an agent that reads email or the web can author tools.
-                </FieldHint>
-              </div>
-              <Switch
-                id="require-approval"
-                checked={settings.requireApproval}
-                disabled={settingsBusy}
-                onCheckedChange={toggleRequireApproval}
-                className="mt-0.5 shrink-0"
-              />
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-border p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <Label htmlFor="egress-gate" className="text-xs font-medium">
-                  Approve email &amp; web during unattended heartbeats
-                </Label>
-                <FieldHint
-                  id="egress-gate"
-                  className="mt-1 leading-relaxed"
-                  warn="Off, an unattended heartbeat can send mail or fetch the web with nobody watching."
-                >
-                  When on, a heartbeat that fires while you&apos;re away parks any{' '}
-                  <span className="font-medium">email or web</span> call for your approval instead
-                  of running it inline. You can clear it from the Telegram card on your phone. The
-                  heartbeat&apos;s own message reply is unaffected.
-                </FieldHint>
-              </div>
-              <Switch
-                id="egress-gate"
-                checked={settings.egressGate}
-                disabled={settingsBusy}
-                onCheckedChange={toggleEgressGate}
-                className="mt-0.5 shrink-0"
-              />
-            </div>
-          </section>
-        </div>
-      </div>
-
-      {/* ── Right: editor ────────────────────────────────────────── */}
-      {/* `relative` keeps the tall scrolling content from leaking into <main>'s
-          own scroll area (a second, outer scrollbar). See agents-client. */}
-      <div className="relative md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {!editing ? (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a tool to view or edit, or create a new one.
-          </div>
-        ) : (
-          <div className="space-y-4 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-lg font-semibold">
-                  {editing.mode === 'create' ? 'New tool' : editing.tool.slug}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {isBuiltin
-                    ? 'Built-in (code-backed). Name, description, and schema are defined in code (read-only) — toggle Enabled and Requires-confirm here.'
-                    : isRecipe
-                      ? 'Recipe (a chain of existing tools, authored by the Toolsmith). Read-only here — delete and recreate to change the steps; toggle Enabled and Requires-confirm.'
-                      : editing.mode === 'create'
-                        ? 'A new HTTP or shell tool. Slug is immutable after creation.'
-                        : 'Update the tool. Slug + kind are immutable.'}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <Switch
-                    checked={form.enabled}
-                    onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-                  />
-                  Enabled
-                </label>
-                {editing.mode === 'edit' && !isBuiltin && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive-ink"
-                    onClick={() => setDeleteTarget(editing.tool)}
-                  >
-                    <Trash2 /> Delete
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <form onSubmit={submit} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={form.name}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        name: e.target.value,
-                        slug: slugTouched
-                          ? f.slug
-                          : slugify(e.target.value, { allowUnderscore: true, maxLength: 64 }),
-                      }))
-                    }
-                    required
-                    autoFocus
-                    disabled={isReadOnly}
-                    aria-describedby={hintId('name')}
-                  />
-                  <FieldHint id="name">Human-readable label for this list.</FieldHint>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="slug">Slug</Label>
-                  <Input
-                    id="slug"
-                    value={form.slug}
-                    onChange={(e) => {
-                      setSlugTouched(true);
-                      setForm((f) => ({ ...f, slug: e.target.value }));
-                    }}
-                    pattern="[a-z0-9_\-]+"
-                    required
-                    disabled={editing.mode === 'edit'}
-                    aria-describedby={hintId('slug')}
-                  />
-                  <FieldHint id="slug">
-                    The name the model calls this tool by. Fixed once created.
-                  </FieldHint>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="description">Description (the model reads this)</Label>
-                <Input
-                  id="description"
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="What this tool does, when to use it"
-                  required
-                  disabled={isReadOnly}
-                  aria-describedby={hintId('description')}
-                />
-                <FieldHint
-                  id="description"
-                  warn="Vague wording here is the usual reason a tool never gets picked."
-                >
-                  This is how the model decides when to reach for this tool.
-                </FieldHint>
-              </div>
-
-              {isReadOnly && editTool ? (
-                <div className="space-y-1.5">
-                  <Label>Handler</Label>
-                  {editTool.handler.kind === 'recipe' ? (
-                    <>
-                      <div className="space-y-1 rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs">
-                        {editTool.handler.steps.map((s, i) => (
-                          <div key={i} className="truncate">
-                            <span className="text-muted-foreground">{i}.</span> {s.tool}
-                            {s.as ? (
-                              <span className="text-muted-foreground"> → ${s.as}</span>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        A chain of {editTool.handler.steps.length} existing tools; data flows
-                        between steps server-side. Delete and recreate via the Toolsmith to change
-                        it.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs">
-                        builtin · {editTool.handler.kind === 'builtin' ? editTool.handler.ref : ''}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Code-backed; the implementation is fixed. Edit it in{' '}
-                        <code>packages/tools/src/builtins*.ts</code>.
-                      </p>
-                    </>
-                  )}
                 </div>
               ) : (
                 <>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="kind">Kind</Label>
-                    <select
-                      id="kind"
-                      value={form.kind}
-                      onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as FormKind }))}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      disabled={editing.mode === 'edit'}
-                    >
-                      <option value="http">HTTP — fire a request</option>
-                      <option value="shell">Shell — run a command (auto-confirms required)</option>
-                    </select>
-                    <FieldHint
-                      id="kind"
-                      warn="Shell runs on the brain itself, so it always asks before firing."
-                    >
-                      How this tool does its work. Fixed once created.
-                    </FieldHint>
-                  </div>
-
-                  {form.kind === 'http' ? (
-                    <>
-                      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="url">URL template</Label>
-                          <Input
-                            id="url"
-                            value={form.url}
-                            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-                            placeholder="https://api.example.com/route/{origin}/{destination}"
-                            required
-                            aria-describedby={hintId('url')}
-                          />
-                          <FieldHint id="url">
-                            Where the request goes. <code>{'{param}'}</code> slots fill from the
-                            model&apos;s input.
-                          </FieldHint>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="method">Method</Label>
-                          <select
-                            id="method"
-                            value={form.method}
-                            onChange={(e) =>
-                              setForm((f) => ({
-                                ...f,
-                                method: e.target.value as FormState['method'],
-                              }))
-                            }
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          >
-                            <option>GET</option>
-                            <option>POST</option>
-                            <option>PUT</option>
-                            <option>PATCH</option>
-                            <option>DELETE</option>
-                          </select>
-                          <FieldHint id="method">HTTP verb for the call.</FieldHint>
-                        </div>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="http-headers">Headers (JSON object, optional)</Label>
-                          <textarea
-                            id="http-headers"
-                            value={form.headersJson}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, headersJson: e.target.value }))
-                            }
-                            rows={3}
-                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                            placeholder={
-                              '{\n  "authorization": "Bearer {{secret:mapbox/default}}"\n}'
-                            }
-                            aria-describedby={hintId('http-headers')}
-                          />
-                          <FieldHint
-                            id="http-headers"
-                            warn="Never paste a raw key here — use a secret reference."
-                          >
-                            Sent with every call.
-                          </FieldHint>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="http-query">Query params (JSON object, optional)</Label>
-                          <textarea
-                            id="http-query"
-                            value={form.queryJson}
-                            onChange={(e) => setForm((f) => ({ ...f, queryJson: e.target.value }))}
-                            rows={3}
-                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                            placeholder={'{\n  "access_token": "{{secret:mapbox/default}}"\n}'}
-                            aria-describedby={hintId('http-query')}
-                          />
-                          <FieldHint id="http-query">
-                            Appended to the URL as <code>?key=value</code>.
-                          </FieldHint>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="http-body">Body template (optional)</Label>
-                        <textarea
-                          id="http-body"
-                          value={form.bodyTemplate}
-                          onChange={(e) => setForm((f) => ({ ...f, bodyTemplate: e.target.value }))}
-                          rows={3}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                          placeholder={'{"query": {q}, "limit": {limit}}'}
-                        />
-                        <FieldHint id="http-body">
-                          <code>{'{param}'}</code> placeholders fill from the model&apos;s input
-                          (URL-encoded in the URL, JSON-encoded in the body);{' '}
-                          <code>{'{{secret:service/label}}'}</code> pulls from the API-key vault at
-                          call time. No body template → non-GET calls send the whole input as JSON.
-                          Tip: the API Console (System → API Console) builds these visually.
-                        </FieldHint>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="cmd">Command template</Label>
-                      <textarea
-                        id="cmd"
-                        value={form.cmd}
-                        onChange={(e) => setForm((f) => ({ ...f, cmd: e.target.value }))}
-                        rows={3}
-                        required
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                        placeholder={'echo "hello ${input.name}"'}
-                      />
-                      <FieldHint
-                        id="cmd"
-                        warn="This runs on the brain itself — keep it to something you'd type yourself."
+                  <section className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 px-1">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        User-defined ({userDefined.length})
+                      </h3>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={openCreate}
                       >
-                        Use <code>{'${input.<field>}'}</code> placeholders. Values are shell-escaped
-                        before substitution. 30s timeout, 10KB output cap.
-                      </FieldHint>
+                        <Plus /> New
+                      </Button>
                     </div>
-                  )}
+                    {userDefined.length === 0 ? (
+                      <p className="px-1 text-xs text-muted-foreground/60">None yet.</p>
+                    ) : (
+                      userDefined.map((t) => (
+                        <ToolCard
+                          key={t.id}
+                          tool={t}
+                          selected={selectedId === t.id}
+                          onClick={() => openEdit(t)}
+                        />
+                      ))
+                    )}
+                  </section>
+
+                  <section className="space-y-1.5">
+                    <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Built-in ({builtins.length})
+                    </h3>
+                    {builtins.map((t) => (
+                      <ToolCard
+                        key={t.id}
+                        tool={t}
+                        selected={selectedId === t.id}
+                        onClick={() => openEdit(t)}
+                      />
+                    ))}
+                  </section>
                 </>
               )}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="schema">Input schema (JSON Schema)</Label>
-                <textarea
-                  id="schema"
-                  value={form.inputSchemaJson}
-                  onChange={(e) => setForm((f) => ({ ...f, inputSchemaJson: e.target.value }))}
-                  rows={isReadOnly ? 10 : 6}
-                  readOnly={isReadOnly}
-                  className={cn(
-                    'w-full rounded-md border border-input px-3 py-2 text-sm font-mono',
-                    isReadOnly ? 'bg-muted/40 text-muted-foreground' : 'bg-background',
+              {settingsQuery.isError && (
+                <p className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
+                  <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                  Couldn’t load tool policy settings — showing defaults.
+                  <button
+                    type="button"
+                    onClick={() => settingsQuery.refetch()}
+                    className="ml-auto shrink-0 underline underline-offset-2 hover:text-foreground"
+                  >
+                    Retry
+                  </button>
+                </p>
+              )}
+
+              <section className="rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Label htmlFor="require-approval" className="text-xs font-medium">
+                      Require my approval for agent-built tools
+                    </Label>
+                    <FieldHint
+                      id="require-approval"
+                      className="mt-1 leading-relaxed"
+                      warn="Off, a tool the agent wrote itself runs unseen on its first call."
+                    >
+                      When on, a tool an agent builds (via Toolsmith) parks each call for your
+                      approval until you clear <span className="font-medium">requires confirm</span>{' '}
+                      for it. Turn on if an agent that reads email or the web can author tools.
+                    </FieldHint>
+                  </div>
+                  <Switch
+                    id="require-approval"
+                    checked={settings.requireApproval}
+                    disabled={settingsBusy}
+                    onCheckedChange={toggleRequireApproval}
+                    className="mt-0.5 shrink-0"
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Label htmlFor="egress-gate" className="text-xs font-medium">
+                      Approve email &amp; web during unattended heartbeats
+                    </Label>
+                    <FieldHint
+                      id="egress-gate"
+                      className="mt-1 leading-relaxed"
+                      warn="Off, an unattended heartbeat can send mail or fetch the web with nobody watching."
+                    >
+                      When on, a heartbeat that fires while you&apos;re away parks any{' '}
+                      <span className="font-medium">email or web</span> call for your approval
+                      instead of running it inline. You can clear it from the Telegram card on your
+                      phone. The heartbeat&apos;s own message reply is unaffected.
+                    </FieldHint>
+                  </div>
+                  <Switch
+                    id="egress-gate"
+                    checked={settings.egressGate}
+                    disabled={settingsBusy}
+                    onCheckedChange={toggleEgressGate}
+                    className="mt-0.5 shrink-0"
+                  />
+                </div>
+              </section>
+            </div>
+          </>
+        }
+        // `relative` and the pane's single scroller are `MasterDetail`'s job now.
+        detail={
+          !editing ? (
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              Select a tool to view or edit, or create a new one.
+            </div>
+          ) : (
+            <div className="space-y-4 p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-semibold">
+                    {editing.mode === 'create' ? 'New tool' : editing.tool.slug}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {isBuiltin
+                      ? 'Built-in (code-backed). Name, description, and schema are defined in code (read-only) — toggle Enabled and Requires-confirm here.'
+                      : isRecipe
+                        ? 'Recipe (a chain of existing tools, authored by the Toolsmith). Read-only here — delete and recreate to change the steps; toggle Enabled and Requires-confirm.'
+                        : editing.mode === 'create'
+                          ? 'A new HTTP or shell tool. Slug is immutable after creation.'
+                          : 'Update the tool. Slug + kind are immutable.'}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Switch
+                      checked={form.enabled}
+                      onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
+                    />
+                    Enabled
+                  </label>
+                  {editing.mode === 'edit' && !isBuiltin && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive-ink"
+                      onClick={() => setDeleteTarget(editing.tool)}
+                      aria-label={`Delete ${editing.tool.slug}`}
+                      title="Delete tool"
+                    >
+                      <Trash2 />
+                    </Button>
                   )}
-                />
-                <FieldHint id="schema">
-                  {isReadOnly
-                    ? 'What the model passes to this tool (read-only).'
-                    : 'Sent verbatim to the model so it knows what to pass.'}
-                </FieldHint>
+                </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={form.requiresConfirm}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, requiresConfirm: v }))}
-                />
-                Requires operator confirm
-              </label>
+              <form onSubmit={submit} noValidate className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field data-invalid={!!errors.name || undefined}>
+                    <FieldLabel htmlFor="name">Name</FieldLabel>
+                    <Input
+                      id="name"
+                      value={form.name}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          name: e.target.value,
+                          slug: slugTouched
+                            ? f.slug
+                            : slugify(e.target.value, { allowUnderscore: true, maxLength: 64 }),
+                        }))
+                      }
+                      required
+                      autoFocus
+                      disabled={isReadOnly}
+                      aria-invalid={!!errors.name || undefined}
+                      aria-describedby={errors.name ? 'name-error name-hint' : 'name-hint'}
+                    />
+                    <FieldHint id="name">Human-readable label for this list.</FieldHint>
+                    <FieldError id="name-error">{errors.name}</FieldError>
+                  </Field>
+                  <Field data-invalid={!!errors.slug || undefined}>
+                    <FieldLabel htmlFor="slug">Slug</FieldLabel>
+                    <Input
+                      id="slug"
+                      value={form.slug}
+                      onChange={(e) => {
+                        setSlugTouched(true);
+                        setForm((f) => ({ ...f, slug: e.target.value }));
+                      }}
+                      pattern="[a-z0-9_\-]+"
+                      required
+                      disabled={editing.mode === 'edit'}
+                      aria-invalid={!!errors.slug || undefined}
+                      aria-describedby={errors.slug ? 'slug-error slug-hint' : 'slug-hint'}
+                    />
+                    <FieldHint id="slug">
+                      The name the model calls this tool by. Fixed once created.
+                    </FieldHint>
+                    <FieldError id="slug-error">{errors.slug}</FieldError>
+                  </Field>
+                </div>
 
-              <div className="flex justify-end gap-2 border-t border-border pt-3">
-                <Button type="button" variant="outline" onClick={close}>
-                  Cancel
-                </Button>
-                <SubmitButton pending={saveMutation.isPending}>
-                  {editing.mode === 'create' ? 'Create tool' : 'Save tool'}
-                </SubmitButton>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
+                <Field data-invalid={!!errors.description || undefined}>
+                  <FieldLabel htmlFor="description">Description (the model reads this)</FieldLabel>
+                  <Input
+                    id="description"
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="What this tool does, when to use it"
+                    required
+                    disabled={isReadOnly}
+                    aria-invalid={!!errors.description || undefined}
+                    aria-describedby={
+                      errors.description ? 'description-error description-hint' : 'description-hint'
+                    }
+                  />
+                  <FieldHint
+                    id="description"
+                    warn="Vague wording here is the usual reason a tool never gets picked."
+                  >
+                    This is how the model decides when to reach for this tool.
+                  </FieldHint>
+                  <FieldError id="description-error">{errors.description}</FieldError>
+                </Field>
+
+                {isReadOnly && editTool ? (
+                  <Field>
+                    <FieldLabel>Handler</FieldLabel>
+                    {editTool.handler.kind === 'recipe' ? (
+                      <>
+                        <div className="space-y-1 rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs">
+                          {editTool.handler.steps.map((s, i) => (
+                            <div key={i} className="truncate">
+                              <span className="text-muted-foreground">{i}.</span> {s.tool}
+                              {s.as ? (
+                                <span className="text-muted-foreground"> → ${s.as}</span>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          A chain of {editTool.handler.steps.length} existing tools; data flows
+                          between steps server-side. Delete and recreate via the Toolsmith to change
+                          it.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs">
+                          builtin ·{' '}
+                          {editTool.handler.kind === 'builtin' ? editTool.handler.ref : ''}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Code-backed; the implementation is fixed. Edit it in{' '}
+                          <code>packages/tools/src/builtins*.ts</code>.
+                        </p>
+                      </>
+                    )}
+                  </Field>
+                ) : (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="kind">Kind</FieldLabel>
+                      {/* Was a raw `<select>` carrying hand-copied input
+                          classes: no focus ring, no invalid state, and it
+                          drifts from every other control the moment a token
+                          changes (§6d). */}
+                      <Select
+                        value={form.kind}
+                        onValueChange={(v) => setForm((f) => ({ ...f, kind: v as FormKind }))}
+                        disabled={editing.mode === 'edit'}
+                      >
+                        <SelectTrigger id="kind">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="http">HTTP — fire a request</SelectItem>
+                          <SelectItem value="shell">
+                            Shell — run a command (auto-confirms required)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FieldHint
+                        id="kind"
+                        warn="Shell runs on the brain itself, so it always asks before firing."
+                      >
+                        How this tool does its work. Fixed once created.
+                      </FieldHint>
+                    </Field>
+
+                    {form.kind === 'http' ? (
+                      <>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <Field data-invalid={!!errors.url || undefined}>
+                            <FieldLabel htmlFor="url">URL template</FieldLabel>
+                            <Input
+                              id="url"
+                              value={form.url}
+                              onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+                              placeholder="https://api.example.com/route/{origin}/{destination}"
+                              required
+                              aria-invalid={!!errors.url || undefined}
+                              aria-describedby={errors.url ? 'url-error url-hint' : 'url-hint'}
+                            />
+                            <FieldHint id="url">
+                              Where the request goes. <code>{'{param}'}</code> slots fill from the
+                              model&apos;s input.
+                            </FieldHint>
+                            <FieldError id="url-error">{errors.url}</FieldError>
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="method">Method</FieldLabel>
+                            <Select
+                              value={form.method}
+                              onValueChange={(v) =>
+                                setForm((f) => ({ ...f, method: v as FormState['method'] }))
+                              }
+                            >
+                              <SelectTrigger id="method">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const).map((m) => (
+                                  <SelectItem key={m} value={m}>
+                                    {m}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FieldHint id="method">HTTP verb for the call.</FieldHint>
+                          </Field>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field data-invalid={!!errors['http-headers'] || undefined}>
+                            <FieldLabel htmlFor="http-headers">
+                              Headers (JSON object, optional)
+                            </FieldLabel>
+                            <Textarea
+                              id="http-headers"
+                              value={form.headersJson}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, headersJson: e.target.value }))
+                              }
+                              rows={3}
+                              className="font-mono"
+                              placeholder={
+                                '{\n  "authorization": "Bearer {{secret:mapbox/default}}"\n}'
+                              }
+                              aria-invalid={!!errors['http-headers'] || undefined}
+                              aria-describedby={
+                                errors['http-headers']
+                                  ? 'http-headers-error http-headers-hint'
+                                  : 'http-headers-hint'
+                              }
+                            />
+                            <FieldHint
+                              id="http-headers"
+                              warn="Never paste a raw key here — use a secret reference."
+                            >
+                              Sent with every call.
+                            </FieldHint>
+                            <FieldError id="http-headers-error">
+                              {errors['http-headers']}
+                            </FieldError>
+                          </Field>
+                          <Field data-invalid={!!errors['http-query'] || undefined}>
+                            <FieldLabel htmlFor="http-query">
+                              Query params (JSON object, optional)
+                            </FieldLabel>
+                            <Textarea
+                              id="http-query"
+                              value={form.queryJson}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, queryJson: e.target.value }))
+                              }
+                              rows={3}
+                              className="font-mono"
+                              placeholder={'{\n  "access_token": "{{secret:mapbox/default}}"\n}'}
+                              aria-invalid={!!errors['http-query'] || undefined}
+                              aria-describedby={
+                                errors['http-query']
+                                  ? 'http-query-error http-query-hint'
+                                  : 'http-query-hint'
+                              }
+                            />
+                            <FieldHint id="http-query">
+                              Appended to the URL as <code>?key=value</code>.
+                            </FieldHint>
+                            <FieldError id="http-query-error">{errors['http-query']}</FieldError>
+                          </Field>
+                        </div>
+                        <Field>
+                          <FieldLabel htmlFor="http-body">Body template (optional)</FieldLabel>
+                          <Textarea
+                            id="http-body"
+                            value={form.bodyTemplate}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, bodyTemplate: e.target.value }))
+                            }
+                            rows={3}
+                            className="font-mono"
+                            placeholder={'{"query": {q}, "limit": {limit}}'}
+                          />
+                          <FieldHint id="http-body">
+                            <code>{'{param}'}</code> placeholders fill from the model&apos;s input
+                            (URL-encoded in the URL, JSON-encoded in the body);{' '}
+                            <code>{'{{secret:service/label}}'}</code> pulls from the API-key vault
+                            at call time. No body template → non-GET calls send the whole input as
+                            JSON. Tip: the API Console (System → API Console) builds these visually.
+                          </FieldHint>
+                        </Field>
+                      </>
+                    ) : (
+                      <Field data-invalid={!!errors.cmd || undefined}>
+                        <FieldLabel htmlFor="cmd">Command template</FieldLabel>
+                        <Textarea
+                          id="cmd"
+                          aria-invalid={!!errors.cmd || undefined}
+                          aria-describedby={errors.cmd ? 'cmd-error' : undefined}
+                          value={form.cmd}
+                          onChange={(e) => setForm((f) => ({ ...f, cmd: e.target.value }))}
+                          rows={3}
+                          required
+                          className="font-mono"
+                          placeholder={'echo "hello ${input.name}"'}
+                        />
+                        <FieldHint
+                          id="cmd"
+                          aria-invalid={!!errors.cmd || undefined}
+                          aria-describedby={errors.cmd ? 'cmd-error' : undefined}
+                          warn="This runs on the brain itself — keep it to something you'd type yourself."
+                        >
+                          Use <code>{'${input.<field>}'}</code> placeholders. Values are
+                          shell-escaped before substitution. 30s timeout, 10KB output cap.
+                        </FieldHint>
+                        <FieldError id="cmd-error">{errors.cmd}</FieldError>
+                      </Field>
+                    )}
+                  </>
+                )}
+
+                <Field data-invalid={!!errors.schema || undefined}>
+                  <FieldLabel htmlFor="schema">Input schema (JSON Schema)</FieldLabel>
+                  <Textarea
+                    id="schema"
+                    aria-invalid={!!errors.schema || undefined}
+                    aria-describedby={errors.schema ? 'schema-error' : undefined}
+                    value={form.inputSchemaJson}
+                    onChange={(e) => setForm((f) => ({ ...f, inputSchemaJson: e.target.value }))}
+                    rows={isReadOnly ? 10 : 6}
+                    readOnly={isReadOnly}
+                    className={cn(
+                      'w-full rounded-md border border-input px-3 py-2 text-sm font-mono',
+                      isReadOnly ? 'bg-muted/40 text-muted-foreground' : 'bg-background',
+                    )}
+                  />
+                  <FieldHint id="schema">
+                    {isReadOnly
+                      ? 'What the model passes to this tool (read-only).'
+                      : 'Sent verbatim to the model so it knows what to pass.'}
+                  </FieldHint>
+                  <FieldError id="schema-error">{errors.schema}</FieldError>
+                </Field>
+
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={form.requiresConfirm}
+                    onCheckedChange={(v) => setForm((f) => ({ ...f, requiresConfirm: v }))}
+                  />
+                  Requires operator confirm
+                </label>
+
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button type="button" variant="outline" onClick={close}>
+                    Cancel
+                  </Button>
+                  <SubmitButton pending={saveMutation.isPending}>
+                    {editing.mode === 'create' ? 'Create tool' : 'Save tool'}
+                  </SubmitButton>
+                </div>
+              </form>
+            </div>
+          )
+        }
+      />
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -791,7 +961,7 @@ export function ToolsClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

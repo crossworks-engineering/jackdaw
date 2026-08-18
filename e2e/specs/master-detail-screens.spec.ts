@@ -62,6 +62,9 @@ const SCREENS = [
   // `detailFills` — its detail is a template-vs-live diff, not a measure of
   // form text. Nothing else about the row changes.
   { path: '/settings/config', id: 'settings-config' },
+  { path: '/settings/tools', id: 'settings-tools' },
+  { path: '/settings/users', id: 'settings-users' },
+  { path: '/settings/heartbeats', id: 'settings-heartbeats' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.

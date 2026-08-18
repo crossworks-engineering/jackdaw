@@ -8,7 +8,17 @@ import { Pause, Play, Plus, Trash2, Zap } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { DateTimePicker } from '@mantle/web-ui/ui/date-time-picker';
 import {
   AlertDialog,
@@ -217,6 +227,13 @@ export function HeartbeatsClient() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [slugTouched, setSlugTouched] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<HeartbeatSummary | null>(null);
+  /** Which control is at fault. Keys are the control ids (§6b). */
+  const [errors, setErrors] = useState<{
+    schedule_at?: string;
+    hb_every?: string;
+    hb_chat_id?: string;
+    state_text?: string;
+  }>({});
   const [fireTarget, setFireTarget] = useState<HeartbeatSummary | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -269,6 +286,10 @@ export function HeartbeatsClient() {
     });
 
   const submit = async () => {
+    // §6b: everything below that names a CONTROL now lands on it. The
+    // cron-locked refusal stays a toast on purpose — it is about the whole
+    // record, not a field, and there is nothing on screen to point at.
+    setErrors({});
     if (form.is_cron_locked) {
       // Refuse to save while the form holds a cron-locked row.
       // The server action would re-serialise the schedule from
@@ -287,14 +308,15 @@ export function HeartbeatsClient() {
       | { kind: 'manual' };
     if (form.schedule_kind === 'once') {
       if (!form.schedule_at) {
-        toast.error("'once' schedule: pick a date & time.");
+        setErrors({ schedule_at: 'Pick a date and time.' });
         return;
       }
       schedule = { kind: 'once', at: new Date(form.schedule_at).toISOString() };
     } else if (form.schedule_kind === 'interval') {
       const every = Number(form.schedule_every_minutes);
       if (!Number.isFinite(every) || every < 1) {
-        toast.error("'interval' schedule: every (minutes) must be ≥ 1.");
+        setErrors({ hb_every: 'Every (minutes) must be 1 or more.' });
+        document.getElementById('hb_every')?.focus();
         return;
       }
       schedule = {
@@ -311,7 +333,8 @@ export function HeartbeatsClient() {
         ? { kind: 'telegram' as const, chat_id: form.surface_chat_id.trim() }
         : { kind: 'web' as const };
     if (surface.kind === 'telegram' && !surface.chat_id) {
-      toast.error('Telegram surface: chat_id required.');
+      setErrors({ hb_chat_id: 'A Telegram chat_id is required for this surface.' });
+      document.getElementById('hb_chat_id')?.focus();
       return;
     }
 
@@ -352,12 +375,18 @@ export function HeartbeatsClient() {
       try {
         const parsed: unknown = JSON.parse(rawState);
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          toast.error('State must be a JSON object (e.g. {"answered": []}).');
+          setErrors({ state_text: 'State must be a JSON object (e.g. {"answered": []}).' });
+          document.getElementById('state_text')?.focus();
           return;
         }
         body.state = parsed;
       } catch (err) {
-        toast.error(`State JSON is invalid: ${err instanceof Error ? err.message : String(err)}`);
+        // The parser message is the useful half — you have to read it against
+        // the JSON you just typed, which a toast takes away too soon.
+        setErrors({
+          state_text: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        document.getElementById('state_text')?.focus();
         return;
       }
     }
@@ -439,532 +468,569 @@ export function HeartbeatsClient() {
   }
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[360px_1fr] md:overflow-hidden">
-      {/* ── Left: heartbeat list ─────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Heartbeats
-          </h2>
-          <Button onClick={openCreate} size="sm">
-            <Plus /> New
-          </Button>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {heartbeats.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              No heartbeats yet. Click <strong>New</strong> to create one.
-            </p>
-          ) : (
-            heartbeats.map((h) => {
-              const selected = editing?.mode === 'edit' && editing.hb.id === h.id;
-              return (
-                <ListCard
-                  key={h.id}
-                  onClick={() => openEdit(h)}
-                  selected={selected}
-                  dimmed={h.status !== 'active'}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{h.name}</span>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded px-1.5 py-0.5 text-xs font-medium',
-                        statusBadgeClass(h.status),
-                      )}
+    <>
+      <MasterDetail
+        id="settings-heartbeats"
+        // The 360px this screen has always had.
+        defaultListSize="360px"
+        // No `detailFills`: the detail is a form, and the 672px default measure
+        // is what keeps it off 1200px line lengths (§8).
+        list={
+          <>
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Heartbeats
+              </h2>
+              <Button onClick={openCreate} size="sm">
+                <Plus /> New
+              </Button>
+            </div>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {heartbeats.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  No heartbeats yet. Click <strong>New</strong> to create one.
+                </p>
+              ) : (
+                heartbeats.map((h) => {
+                  const selected = editing?.mode === 'edit' && editing.hb.id === h.id;
+                  return (
+                    <ListCard
+                      key={h.id}
+                      onClick={() => openEdit(h)}
+                      selected={selected}
+                      dimmed={h.status !== 'active'}
                     >
-                      {h.status}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {h.agentSlug} · {h.skillSlug} · {h.scheduleKind} ·{' '}
-                    {h.surface.kind === 'telegram' ? `tg:${h.surface.chat_id}` : 'web'} · fires=
-                    {h.fireCount}
-                  </div>
-                  {h.nextFireAt && h.status === 'active' && (
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      next {formatDateTime(h.nextFireAt)}
-                    </div>
-                  )}
-                </ListCard>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── Right: editor ────────────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {editing ? (
-          <div className="space-y-4 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold">
-                  {editing.mode === 'edit' ? editing.hb.name : 'New heartbeat'}
-                </h2>
-                {editing.mode === 'edit' && (
-                  <p className="text-xs text-muted-foreground">
-                    <code className="rounded bg-muted px-1.5 py-0.5">{editing.hb.slug}</code> ·{' '}
-                    <Link href={`/heartbeats/${editing.hb.id}`} className="hover:underline">
-                      fire history →
-                    </Link>
-                  </p>
-                )}
-              </div>
-              {editing.mode === 'edit' && (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setFireTarget(editing.hb)}
-                    disabled={pending || editing.hb.status !== 'active'}
-                  >
-                    <Zap /> Fire
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onToggle(editing.hb)}
-                    disabled={
-                      pending ||
-                      editing.hb.status === 'completed' ||
-                      editing.hb.status === 'cancelled'
-                    }
-                  >
-                    {editing.hb.status === 'active' ? (
-                      <>
-                        <Pause /> Pause
-                      </>
-                    ) : (
-                      <>
-                        <Play /> Resume
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground hover:text-destructive-ink"
-                    onClick={() => setDeleteTarget(editing.hb)}
-                    disabled={pending}
-                  >
-                    <Trash2 /> Delete
-                  </Button>
-                </div>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{h.name}</span>
+                        <span
+                          className={cn(
+                            'shrink-0 rounded px-1.5 py-0.5 text-xs font-medium',
+                            statusBadgeClass(h.status),
+                          )}
+                        >
+                          {h.status}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {h.agentSlug} · {h.skillSlug} · {h.scheduleKind} ·{' '}
+                        {h.surface.kind === 'telegram' ? `tg:${h.surface.chat_id}` : 'web'} · fires=
+                        {h.fireCount}
+                      </div>
+                      {h.nextFireAt && h.status === 'active' && (
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                          next {formatDateTime(h.nextFireAt)}
+                        </div>
+                      )}
+                    </ListCard>
+                  );
+                })
               )}
             </div>
-
-            <div className="grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="hb_name">Name</Label>
-                  <Input
-                    id="hb_name"
-                    value={form.name}
-                    onChange={(e) => onName(e.target.value)}
-                    aria-describedby={hintId('hb_name')}
-                  />
-                  <FieldHint id="hb_name">What this heartbeat is called in the list.</FieldHint>
+          </>
+        }
+        detail={
+          editing ? (
+            <div className="space-y-4 p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold">
+                    {editing.mode === 'edit' ? editing.hb.name : 'New heartbeat'}
+                  </h2>
+                  {editing.mode === 'edit' && (
+                    <p className="text-xs text-muted-foreground">
+                      <code className="rounded bg-muted px-1.5 py-0.5">{editing.hb.slug}</code> ·{' '}
+                      <Link href={`/heartbeats/${editing.hb.id}`} className="hover:underline">
+                        fire history →
+                      </Link>
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="hb_slug">Slug</Label>
-                  <Input
-                    id="hb_slug"
-                    aria-describedby={hintId('hb_slug')}
-                    value={form.slug}
-                    disabled={editing.mode === 'edit'}
-                    onChange={(e) => {
-                      setSlugTouched(true);
-                      setForm((f) => ({
-                        ...f,
-                        slug: slugify(e.target.value, { allowUnderscore: true, maxLength: 64 }),
-                      }));
-                    }}
-                  />
-                  <FieldHint id="hb_slug">
-                    The id the <code>heartbeat_fire</code> tool calls it by. Fixed once saved.
-                  </FieldHint>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="hb_description">Description (optional)</Label>
-                <Input
-                  id="hb_description"
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  aria-describedby={hintId('hb_description')}
-                />
-                <FieldHint id="hb_description">
-                  A note to yourself about what this one is for — nothing reads it at runtime.
-                </FieldHint>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="hb_agent">Agent</Label>
-                  <select
-                    id="hb_agent"
-                    aria-describedby={hintId('hb_agent')}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={form.agent_slug}
-                    onChange={(e) => setForm((f) => ({ ...f, agent_slug: e.target.value }))}
-                  >
-                    <option value="">— choose —</option>
-                    {agents.map((a) => (
-                      <option key={a.slug} value={a.slug}>
-                        {a.name} ({a.slug}, {a.role})
-                      </option>
-                    ))}
-                  </select>
-                  <FieldHint id="hb_agent">
-                    Whose model, prompt and tools run the fire — and whose budget pays for it.
-                  </FieldHint>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="hb_skill">Skill</Label>
-                  <select
-                    id="hb_skill"
-                    aria-describedby={hintId('hb_skill')}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={form.skill_slug}
-                    onChange={(e) => {
-                      const slug = e.target.value;
-                      setForm((f) => {
-                        // Pre-fill initial state from the picked skill's
-                        // defaultState — but only when the operator
-                        // hasn't manually edited the state textarea yet.
-                        // Protects in-progress edits if they switch
-                        // skills experimentally. Edit mode sets
-                        // state_touched=true at fromHeartbeat time so
-                        // existing heartbeats never get clobbered.
-                        const next: FormState = { ...f, skill_slug: slug };
-                        if (!f.state_touched && slug) {
-                          const picked = skills.find((sk) => sk.slug === slug);
-                          if (picked) {
-                            next.state_text = JSON.stringify(picked.defaultState ?? {}, null, 2);
-                          }
-                        }
-                        return next;
-                      });
-                    }}
-                  >
-                    <option value="">— choose —</option>
-                    {skills.map((s) => (
-                      <option key={s.slug} value={s.slug}>
-                        {s.name} ({s.slug})
-                      </option>
-                    ))}
-                  </select>
-                  <FieldHint id="hb_skill">
-                    The instructions the agent follows on each fire. Picking one pre-fills the state
-                    below.
-                  </FieldHint>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="state_text">Initial state (JSON)</Label>
-                <textarea
-                  id="state_text"
-                  value={form.state_text}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, state_text: e.target.value, state_touched: true }))
-                  }
-                  rows={6}
-                  className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
-                  placeholder={'{\n  "answered": [],\n  "expecting_reply": false\n}'}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Pre-fills from the chosen skill&apos;s default state on first pick. Edits here
-                  only affect this heartbeat. See well-known keys in{' '}
-                  <a
-                    href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
-                    className="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    docs/heartbeats.md §10
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <fieldset className="space-y-3 rounded-md border p-4">
-                <legend className="px-1 text-sm font-medium">Schedule</legend>
-                {form.is_cron_locked && (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
-                    <strong>This heartbeat uses a cron schedule</strong>, which isn&apos;t supported
-                    in v1 of the heartbeats form. Editing the schedule here would silently coerce to{' '}
-                    <code>manual</code> and lose the cron expression — so it&apos;s locked.
-                    <br />
-                    To change this heartbeat&apos;s schedule, either edit the row directly via SQL,
-                    or delete + recreate it with one of the v1-supported schedule kinds.
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-3">
-                  {(['interval', 'once', 'manual'] as const).map((k) => (
-                    <label
-                      key={k}
-                      className={
-                        'flex items-center gap-2 text-sm' +
-                        (form.is_cron_locked ? ' opacity-50' : '')
+                {editing.mode === 'edit' && (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setFireTarget(editing.hb)}
+                      disabled={pending || editing.hb.status !== 'active'}
+                    >
+                      <Zap /> Fire
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onToggle(editing.hb)}
+                      disabled={
+                        pending ||
+                        editing.hb.status === 'completed' ||
+                        editing.hb.status === 'cancelled'
                       }
                     >
-                      <input
-                        type="radio"
-                        checked={form.schedule_kind === k}
-                        disabled={form.is_cron_locked}
-                        onChange={() => setForm((f) => ({ ...f, schedule_kind: k }))}
-                      />
-                      {k}
-                    </label>
-                  ))}
+                      {editing.hb.status === 'active' ? (
+                        <>
+                          <Pause /> Pause
+                        </>
+                      ) : (
+                        <>
+                          <Play /> Resume
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-destructive-ink"
+                      onClick={() => setDeleteTarget(editing.hb)}
+                      disabled={pending}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="hb_name">Name</FieldLabel>
+                    <Input
+                      id="hb_name"
+                      value={form.name}
+                      onChange={(e) => onName(e.target.value)}
+                      aria-describedby={hintId('hb_name')}
+                    />
+                    <FieldHint id="hb_name">What this heartbeat is called in the list.</FieldHint>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="hb_slug">Slug</FieldLabel>
+                    <Input
+                      id="hb_slug"
+                      aria-describedby={hintId('hb_slug')}
+                      value={form.slug}
+                      disabled={editing.mode === 'edit'}
+                      onChange={(e) => {
+                        setSlugTouched(true);
+                        setForm((f) => ({
+                          ...f,
+                          slug: slugify(e.target.value, { allowUnderscore: true, maxLength: 64 }),
+                        }));
+                      }}
+                    />
+                    <FieldHint id="hb_slug">
+                      The id the <code>heartbeat_fire</code> tool calls it by. Fixed once saved.
+                    </FieldHint>
+                  </Field>
                 </div>
-                {form.schedule_kind === 'interval' && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="hb_every">Every (minutes)</Label>
-                      <Input
-                        id="hb_every"
-                        type="number"
-                        min="1"
-                        value={form.schedule_every_minutes}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, schedule_every_minutes: e.target.value }))
-                        }
-                        aria-describedby={hintId('hb_every')}
-                      />
-                      <FieldHint
-                        id="hb_every"
-                        warn="Every fire is a full agent turn — a short interval bills around the clock."
-                      >
-                        How often this heartbeat wakes up.
-                      </FieldHint>
+
+                <Field>
+                  <FieldLabel htmlFor="hb_description">Description (optional)</FieldLabel>
+                  <Input
+                    id="hb_description"
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    aria-describedby={hintId('hb_description')}
+                  />
+                  <FieldHint id="hb_description">
+                    A note to yourself about what this one is for — nothing reads it at runtime.
+                  </FieldHint>
+                </Field>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="hb_agent">Agent</FieldLabel>
+                    {/* Was a raw `<select>` carrying hand-copied input
+                        classes: no focus ring, no invalid state, and it drifts
+                        from every other control the moment a token changes
+                        (§6d). */}
+                    <Select
+                      value={form.agent_slug}
+                      onValueChange={(v) => setForm((f) => ({ ...f, agent_slug: v }))}
+                    >
+                      <SelectTrigger id="hb_agent" aria-describedby={hintId('hb_agent')}>
+                        <SelectValue placeholder="— choose —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {agents.map((a) => (
+                          <SelectItem key={a.slug} value={a.slug}>
+                            {a.name} ({a.slug}, {a.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldHint id="hb_agent">
+                      Whose model, prompt and tools run the fire — and whose budget pays for it.
+                    </FieldHint>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="hb_skill">Skill</FieldLabel>
+                    <Select
+                      value={form.skill_slug}
+                      onValueChange={(slug) => {
+                        setForm((f) => {
+                          // Pre-fill initial state from the picked skill's
+                          // defaultState — but only when the operator
+                          // hasn't manually edited the state textarea yet.
+                          // Protects in-progress edits if they switch
+                          // skills experimentally. Edit mode sets
+                          // state_touched=true at fromHeartbeat time so
+                          // existing heartbeats never get clobbered.
+                          const next: FormState = { ...f, skill_slug: slug };
+                          if (!f.state_touched && slug) {
+                            const picked = skills.find((sk) => sk.slug === slug);
+                            if (picked) {
+                              next.state_text = JSON.stringify(picked.defaultState ?? {}, null, 2);
+                            }
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="hb_skill" aria-describedby={hintId('hb_skill')}>
+                        <SelectValue placeholder="— choose —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {skills.map((s) => (
+                          <SelectItem key={s.slug} value={s.slug}>
+                            {s.name} ({s.slug})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldHint id="hb_skill">
+                      The instructions the agent follows on each fire. Picking one pre-fills the
+                      state below.
+                    </FieldHint>
+                  </Field>
+                </div>
+
+                <Field data-invalid={!!errors.state_text || undefined}>
+                  <FieldLabel htmlFor="state_text">Initial state (JSON)</FieldLabel>
+                  <Textarea
+                    id="state_text"
+                    aria-invalid={!!errors.state_text || undefined}
+                    aria-describedby={errors.state_text ? 'state_text-error' : undefined}
+                    value={form.state_text}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, state_text: e.target.value, state_touched: true }))
+                    }
+                    rows={6}
+                    className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                    placeholder={'{\n  "answered": [],\n  "expecting_reply": false\n}'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pre-fills from the chosen skill&apos;s default state on first pick. Edits here
+                    only affect this heartbeat. See well-known keys in{' '}
+                    <a
+                      href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
+                      className="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      docs/heartbeats.md §10
+                    </a>
+                    .
+                  </p>
+                  <FieldError id="state_text-error">{errors.state_text}</FieldError>
+                </Field>
+
+                <fieldset className="space-y-3 rounded-md border p-4">
+                  <legend className="px-1 text-sm font-medium">Schedule</legend>
+                  {form.is_cron_locked && (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
+                      <strong>This heartbeat uses a cron schedule</strong>, which isn&apos;t
+                      supported in v1 of the heartbeats form. Editing the schedule here would
+                      silently coerce to <code>manual</code> and lose the cron expression — so
+                      it&apos;s locked.
+                      <br />
+                      To change this heartbeat&apos;s schedule, either edit the row directly via
+                      SQL, or delete + recreate it with one of the v1-supported schedule kinds.
                     </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="hb_jitter">Jitter ± (minutes)</Label>
+                  )}
+                  <div className="flex flex-wrap gap-3">
+                    {(['interval', 'once', 'manual'] as const).map((k) => (
+                      <label
+                        key={k}
+                        className={
+                          'flex items-center gap-2 text-sm' +
+                          (form.is_cron_locked ? ' opacity-50' : '')
+                        }
+                      >
+                        <input
+                          type="radio"
+                          checked={form.schedule_kind === k}
+                          disabled={form.is_cron_locked}
+                          onChange={() => setForm((f) => ({ ...f, schedule_kind: k }))}
+                        />
+                        {k}
+                      </label>
+                    ))}
+                  </div>
+                  {form.schedule_kind === 'interval' && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field data-invalid={!!errors.hb_every || undefined}>
+                        <FieldLabel htmlFor="hb_every">Every (minutes)</FieldLabel>
+                        <Input
+                          id="hb_every"
+                          type="number"
+                          min="1"
+                          value={form.schedule_every_minutes}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, schedule_every_minutes: e.target.value }))
+                          }
+                          aria-invalid={!!errors.hb_every || undefined}
+                          aria-describedby={
+                            errors.hb_every ? 'hb_every-error hb_every-hint' : 'hb_every-hint'
+                          }
+                        />
+                        <FieldHint
+                          id="hb_every"
+                          warn="Every fire is a full agent turn — a short interval bills around the clock."
+                        >
+                          How often this heartbeat wakes up.
+                        </FieldHint>
+                        <FieldError id="hb_every-error">{errors.hb_every}</FieldError>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="hb_jitter">Jitter ± (minutes)</FieldLabel>
+                        <Input
+                          id="hb_jitter"
+                          type="number"
+                          min="0"
+                          value={form.schedule_jitter_minutes}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, schedule_jitter_minutes: e.target.value }))
+                          }
+                          aria-describedby={hintId('hb_jitter')}
+                        />
+                        <FieldHint id="hb_jitter">
+                          Random slack around the interval so several heartbeats don&apos;t all fire
+                          on the same minute.
+                        </FieldHint>
+                      </Field>
+                    </div>
+                  )}
+                  {form.schedule_kind === 'once' && (
+                    <Field data-invalid={!!errors.schedule_at || undefined}>
+                      {/* A `DateTimePicker`, not an `<input>`, so there is no
+                          id to mark or point `aria-describedby` at — the Field
+                          carries the state and the message instead. */}
+                      <FieldLabel>Fire at</FieldLabel>
+                      <FieldHint>Runs once at this moment, then goes idle.</FieldHint>
+                      <DateTimePicker
+                        value={form.schedule_at ? new Date(form.schedule_at) : null}
+                        onChange={(d) =>
+                          setForm((f) => ({
+                            ...f,
+                            schedule_at: d ? isoToLocalInput(d.toISOString()) : '',
+                          }))
+                        }
+                        placeholder="Pick a date & time"
+                      />
+                      <FieldError id="schedule_at-error">{errors.schedule_at}</FieldError>
+                    </Field>
+                  )}
+                  {form.schedule_kind === 'manual' && (
+                    <p className="text-xs text-muted-foreground">
+                      Only fires via the &quot;Fire now&quot; button or the heartbeat_fire tool. No
+                      auto-schedule.
+                    </p>
+                  )}
+                </fieldset>
+
+                <fieldset className="space-y-3 rounded-md border p-4">
+                  <legend className="px-1 text-sm font-medium">
+                    Surface (where the reply goes)
+                  </legend>
+                  <div className="flex gap-4">
+                    {(['telegram', 'web'] as const).map((k) => (
+                      <label key={k} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          checked={form.surface_kind === k}
+                          onChange={() => setForm((f) => ({ ...f, surface_kind: k }))}
+                        />
+                        {k}
+                      </label>
+                    ))}
+                  </div>
+                  {form.surface_kind === 'telegram' && (
+                    <Field data-invalid={!!errors.hb_chat_id || undefined}>
+                      <FieldLabel htmlFor="hb_chat_id">Telegram chat_id</FieldLabel>
                       <Input
-                        id="hb_jitter"
+                        id="hb_chat_id"
+                        value={form.surface_chat_id}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, surface_chat_id: e.target.value }))
+                        }
+                        placeholder="e.g. 123456789"
+                        aria-invalid={!!errors.hb_chat_id || undefined}
+                        aria-describedby={
+                          errors.hb_chat_id ? 'hb_chat_id-error hb_chat_id-hint' : 'hb_chat_id-hint'
+                        }
+                      />
+                      <FieldHint id="hb_chat_id">
+                        Which chat the reply lands in. Wrong id and the fire runs but nobody sees
+                        it.
+                      </FieldHint>
+                      <FieldError id="hb_chat_id-error">{errors.hb_chat_id}</FieldError>
+                    </Field>
+                  )}
+                </fieldset>
+
+                <fieldset className="space-y-3 rounded-md border p-4">
+                  <legend className="px-1 text-sm font-medium">
+                    Gates — when is it appropriate to fire?
+                  </legend>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    {(['none', 'sensible', 'custom'] as const).map((p) => (
+                      <label key={p} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          checked={form.gate_preset === p}
+                          onChange={() => applyPreset(p)}
+                        />
+                        {p === 'sensible' ? 'sensible defaults' : p}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    No system-wide defaults. Blank fields mean &quot;no gate of this kind&quot;.
+                    &quot;Sensible defaults&quot; fills in 15min idle, 22:00–07:00 quiet hours
+                    (profile tz), 30min cooldown.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="hb_min_idle">Min idle (minutes)</FieldLabel>
+                      <Input
+                        id="hb_min_idle"
                         type="number"
                         min="0"
-                        value={form.schedule_jitter_minutes}
+                        value={form.min_idle_minutes}
                         onChange={(e) =>
-                          setForm((f) => ({ ...f, schedule_jitter_minutes: e.target.value }))
+                          setForm((f) => ({ ...f, min_idle_minutes: e.target.value }))
                         }
-                        aria-describedby={hintId('hb_jitter')}
+                        aria-describedby={hintId('hb_min_idle')}
                       />
-                      <FieldHint id="hb_jitter">
-                        Random slack around the interval so several heartbeats don&apos;t all fire
-                        on the same minute.
+                      <FieldHint id="hb_min_idle">
+                        Stay quiet unless you&apos;ve been silent this long — stops it interrupting
+                        mid-conversation.
+                      </FieldHint>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="hb_cooldown">Cooldown (minutes)</FieldLabel>
+                      <Input
+                        id="hb_cooldown"
+                        type="number"
+                        min="0"
+                        value={form.cooldown_minutes}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, cooldown_minutes: e.target.value }))
+                        }
+                        aria-describedby={hintId('hb_cooldown')}
+                      />
+                      <FieldHint
+                        id="hb_cooldown"
+                        warn="Leave it at 0 and a short interval can fire back-to-back."
+                      >
+                        Minimum gap between two fires of this heartbeat.
+                      </FieldHint>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="hb_quiet_from">Quiet from (HH:MM)</FieldLabel>
+                      <Input
+                        id="hb_quiet_from"
+                        value={form.quiet_from}
+                        placeholder="22:00"
+                        onChange={(e) => setForm((f) => ({ ...f, quiet_from: e.target.value }))}
+                        aria-describedby={hintId('hb_quiet_from')}
+                      />
+                      <FieldHint id="hb_quiet_from">
+                        Start of the window where it never fires. Blank = no quiet hours.
+                      </FieldHint>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="hb_quiet_to">Quiet to (HH:MM)</FieldLabel>
+                      <Input
+                        id="hb_quiet_to"
+                        value={form.quiet_to}
+                        placeholder="07:00"
+                        onChange={(e) => setForm((f) => ({ ...f, quiet_to: e.target.value }))}
+                        aria-describedby={hintId('hb_quiet_to')}
+                      />
+                      <FieldHint id="hb_quiet_to">
+                        End of that window. May wrap past midnight.
+                      </FieldHint>
+                    </Field>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label htmlFor="hb_quiet_tz">Quiet tz (IANA, blank = profile tz)</Label>
+                      <Input
+                        id="hb_quiet_tz"
+                        value={form.quiet_tz}
+                        placeholder="Africa/Johannesburg"
+                        onChange={(e) => setForm((f) => ({ ...f, quiet_tz: e.target.value }))}
+                        aria-describedby={hintId('hb_quiet_tz')}
+                      />
+                      <FieldHint id="hb_quiet_tz">
+                        Which clock the quiet hours above are read in.
                       </FieldHint>
                     </div>
                   </div>
-                )}
-                {form.schedule_kind === 'once' && (
-                  <div className="space-y-1">
-                    <Label>Fire at</Label>
-                    <FieldHint>Runs once at this moment, then goes idle.</FieldHint>
+                </fieldset>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Earliest at (optional)</FieldLabel>
+                    <FieldHint>
+                      Don&apos;t fire before this moment — useful for arming something ahead of
+                      time.
+                    </FieldHint>
                     <DateTimePicker
-                      value={form.schedule_at ? new Date(form.schedule_at) : null}
+                      value={form.earliest_at ? new Date(form.earliest_at) : null}
                       onChange={(d) =>
                         setForm((f) => ({
                           ...f,
-                          schedule_at: d ? isoToLocalInput(d.toISOString()) : '',
+                          earliest_at: d ? isoToLocalInput(d.toISOString()) : '',
                         }))
                       }
-                      placeholder="Pick a date & time"
+                      placeholder="No earliest bound"
+                      clearable
                     />
-                  </div>
-                )}
-                {form.schedule_kind === 'manual' && (
-                  <p className="text-xs text-muted-foreground">
-                    Only fires via the &quot;Fire now&quot; button or the heartbeat_fire tool. No
-                    auto-schedule.
-                  </p>
-                )}
-              </fieldset>
-
-              <fieldset className="space-y-3 rounded-md border p-4">
-                <legend className="px-1 text-sm font-medium">Surface (where the reply goes)</legend>
-                <div className="flex gap-4">
-                  {(['telegram', 'web'] as const).map((k) => (
-                    <label key={k} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        checked={form.surface_kind === k}
-                        onChange={() => setForm((f) => ({ ...f, surface_kind: k }))}
-                      />
-                      {k}
-                    </label>
-                  ))}
-                </div>
-                {form.surface_kind === 'telegram' && (
-                  <div className="space-y-1">
-                    <Label htmlFor="hb_chat_id">Telegram chat_id</Label>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="hb_max_fires">Max fires (blank = unbounded)</FieldLabel>
                     <Input
-                      id="hb_chat_id"
-                      value={form.surface_chat_id}
-                      onChange={(e) => setForm((f) => ({ ...f, surface_chat_id: e.target.value }))}
-                      placeholder="e.g. 123456789"
-                      aria-describedby={hintId('hb_chat_id')}
-                    />
-                    <FieldHint id="hb_chat_id">
-                      Which chat the reply lands in. Wrong id and the fire runs but nobody sees it.
-                    </FieldHint>
-                  </div>
-                )}
-              </fieldset>
-
-              <fieldset className="space-y-3 rounded-md border p-4">
-                <legend className="px-1 text-sm font-medium">
-                  Gates — when is it appropriate to fire?
-                </legend>
-                <div className="flex flex-wrap gap-3 text-sm">
-                  {(['none', 'sensible', 'custom'] as const).map((p) => (
-                    <label key={p} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={form.gate_preset === p}
-                        onChange={() => applyPreset(p)}
-                      />
-                      {p === 'sensible' ? 'sensible defaults' : p}
-                    </label>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  No system-wide defaults. Blank fields mean &quot;no gate of this kind&quot;.
-                  &quot;Sensible defaults&quot; fills in 15min idle, 22:00–07:00 quiet hours
-                  (profile tz), 30min cooldown.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="hb_min_idle">Min idle (minutes)</Label>
-                    <Input
-                      id="hb_min_idle"
+                      id="hb_max_fires"
                       type="number"
-                      min="0"
-                      value={form.min_idle_minutes}
-                      onChange={(e) => setForm((f) => ({ ...f, min_idle_minutes: e.target.value }))}
-                      aria-describedby={hintId('hb_min_idle')}
-                    />
-                    <FieldHint id="hb_min_idle">
-                      Stay quiet unless you&apos;ve been silent this long — stops it interrupting
-                      mid-conversation.
-                    </FieldHint>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="hb_cooldown">Cooldown (minutes)</Label>
-                    <Input
-                      id="hb_cooldown"
-                      type="number"
-                      min="0"
-                      value={form.cooldown_minutes}
-                      onChange={(e) => setForm((f) => ({ ...f, cooldown_minutes: e.target.value }))}
-                      aria-describedby={hintId('hb_cooldown')}
+                      min="1"
+                      value={form.max_fires}
+                      onChange={(e) => setForm((f) => ({ ...f, max_fires: e.target.value }))}
+                      aria-describedby={hintId('hb_max_fires')}
                     />
                     <FieldHint
-                      id="hb_cooldown"
-                      warn="Leave it at 0 and a short interval can fire back-to-back."
+                      id="hb_max_fires"
+                      warn="Blank means it runs forever until you disable it."
                     >
-                      Minimum gap between two fires of this heartbeat.
+                      Retires the heartbeat after this many fires.
                     </FieldHint>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="hb_quiet_from">Quiet from (HH:MM)</Label>
-                    <Input
-                      id="hb_quiet_from"
-                      value={form.quiet_from}
-                      placeholder="22:00"
-                      onChange={(e) => setForm((f) => ({ ...f, quiet_from: e.target.value }))}
-                      aria-describedby={hintId('hb_quiet_from')}
-                    />
-                    <FieldHint id="hb_quiet_from">
-                      Start of the window where it never fires. Blank = no quiet hours.
-                    </FieldHint>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="hb_quiet_to">Quiet to (HH:MM)</Label>
-                    <Input
-                      id="hb_quiet_to"
-                      value={form.quiet_to}
-                      placeholder="07:00"
-                      onChange={(e) => setForm((f) => ({ ...f, quiet_to: e.target.value }))}
-                      aria-describedby={hintId('hb_quiet_to')}
-                    />
-                    <FieldHint id="hb_quiet_to">
-                      End of that window. May wrap past midnight.
-                    </FieldHint>
-                  </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label htmlFor="hb_quiet_tz">Quiet tz (IANA, blank = profile tz)</Label>
-                    <Input
-                      id="hb_quiet_tz"
-                      value={form.quiet_tz}
-                      placeholder="Africa/Johannesburg"
-                      onChange={(e) => setForm((f) => ({ ...f, quiet_tz: e.target.value }))}
-                      aria-describedby={hintId('hb_quiet_tz')}
-                    />
-                    <FieldHint id="hb_quiet_tz">
-                      Which clock the quiet hours above are read in.
-                    </FieldHint>
-                  </div>
-                </div>
-              </fieldset>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Earliest at (optional)</Label>
-                  <FieldHint>
-                    Don&apos;t fire before this moment — useful for arming something ahead of time.
-                  </FieldHint>
-                  <DateTimePicker
-                    value={form.earliest_at ? new Date(form.earliest_at) : null}
-                    onChange={(d) =>
-                      setForm((f) => ({
-                        ...f,
-                        earliest_at: d ? isoToLocalInput(d.toISOString()) : '',
-                      }))
-                    }
-                    placeholder="No earliest bound"
-                    clearable
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="hb_max_fires">Max fires (blank = unbounded)</Label>
-                  <Input
-                    id="hb_max_fires"
-                    type="number"
-                    min="1"
-                    value={form.max_fires}
-                    onChange={(e) => setForm((f) => ({ ...f, max_fires: e.target.value }))}
-                    aria-describedby={hintId('hb_max_fires')}
-                  />
-                  <FieldHint
-                    id="hb_max_fires"
-                    warn="Blank means it runs forever until you disable it."
-                  >
-                    Retires the heartbeat after this many fires.
-                  </FieldHint>
+                  </Field>
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-end gap-2 border-t border-border pt-3">
-              <Button variant="outline" onClick={close} disabled={pending}>
-                Cancel
-              </Button>
-              <Button onClick={submit} disabled={pending}>
-                {editing.mode === 'edit' ? 'Save' : 'Create'}
-              </Button>
+              <div className="flex justify-end gap-2 border-t border-border pt-3">
+                <Button variant="outline" onClick={close} disabled={pending}>
+                  Cancel
+                </Button>
+                <Button onClick={submit} disabled={pending}>
+                  {editing.mode === 'edit' ? 'Save' : 'Create'}
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select a heartbeat to edit, or create a new one.
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              Select a heartbeat to edit, or create a new one.
+            </div>
+          )
+        }
+      />
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -1000,6 +1066,6 @@ export function HeartbeatsClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
