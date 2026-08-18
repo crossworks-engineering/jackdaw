@@ -194,45 +194,41 @@ Full environment, credentials and the nine landmines:
 
 ---
 
-## 8. Make every draggable edge visibly draggable
+## 8. ✅ Make every draggable edge visibly draggable — done
 
-Jason's ask, and it is separate from the ports above: **wherever a column can
-be dragged, the grip must be visible at rest** — including the nav and activity
-rails while they are expanded.
+Jason's ask, separate from the ports above: **wherever a column can be dragged,
+the grip must be visible at rest** — including the nav and activity rails while
+they are expanded. `RailHandle` used to render `after:bg-transparent` and no
+grip element at all, so the two rails a user meets on every screen read as
+fixed furniture until the pointer crossed an 8px strip.
 
-The two handles in the kit do not currently agree:
+`packages/web-ui/src/ui/rail-handle.tsx` now draws the **same chip**
+`ResizableHandle withHandle` does — `h-4 w-3`, bordered, `bg-border`, a
+`size-2.5` `GripVerticalIcon` — at rest. Only the positioning differs: the chip
+is centred on the handle's 1px rule so it straddles the rail's edge, the way
+`ResizableHandle`'s straddles its divider. Nothing else changed; the `role`,
+`aria-valuenow/min/max`, `tabIndex`, arrow-key nudging, Home/End and
+double-click escape hatch were already there.
 
-| | at rest | grip |
-|---|---|---|
-| `ResizableHandle withHandle` (`MasterDetail`) | 1px `bg-border` rule | **always drawn** — `GripVerticalIcon` in a bordered `h-4 w-3` chip |
-| `RailHandle` (nav + activity rails) | `after:bg-transparent` — invisible | **none** |
+Two things settled while doing it, worth not re-litigating:
 
-So a ported screen already shows a grip, and the shell rails show nothing until
-the pointer crosses an 8px strip. Same gesture, two different levels of
-discoverability.
+- **The `after:` rule stays transparent at rest.** `ResizableHandle`'s 1px
+  `bg-border` line exists because a panel divider has no border of its own; a
+  rail already has `border-r`/`border-l` in exactly that place, so painting the
+  rule too would double the border rather than strengthen the affordance.
+- **The rails' scrollbars are overlay** (0px of layout width on macOS), so the
+  chip's inboard half displaces nothing. It paints over the last ~6px of the
+  scroll area, which is only visible while actively scrolling.
 
-**The work is `packages/web-ui/src/ui/rail-handle.tsx`** — give it the same
-affordance `ResizableHandle` has. It already has the hard parts: `role`,
-`aria-valuenow/min/max`, `tabIndex`, arrow-key nudging (8px, 32px with shift),
-Home/End, and a double-click escape hatch. Only the visuals are missing.
+Covered by `shell-layout.spec.ts` → *"both shell rails show a drag grip at rest,
+the same one every divider shows"*. It measures the grip's painted box against
+the **divider's** chip with the pointer parked away, so the two cannot drift
+apart, and reads computed `opacity`/`background-color` so a hover-gated grip
+fails too. Both regressions were verified by reintroducing them.
 
-Points to settle when doing it:
-
-- **Match `ResizableHandle` exactly**, don't invent a second grip style. The
-  point is that one affordance means one thing everywhere.
-- **The rails are `position: fixed`, `z-40`, pinned to the viewport edge.** The
-  grip must sit ON the edge without covering rail content or the scrollbar —
-  `ResizableHandle` centres its chip on a flex divider, which the rails are not.
-  Check both sides: `side="left"` (nav) and `side="right"` (activity).
-- **Keep "a collapsed rail has no handle"** (§8). The toggle owns that width;
-  this ask is explicitly about the expanded state.
-- **The hand-rolled resizers in Notes / Pages / Tables are invisible too** —
-  but they get the grip for free when they move to `MasterDetail`, so don't
-  patch them separately. This item is `RailHandle` only.
-
-Verify it the way §6 says: the assertion is that the grip is **visible without
-interaction**, so drive it with no hover — take the element's box and assert it
-renders, rather than checking a class. Then revert and watch it fail.
+The hand-rolled resizers in Notes / Pages / Tables are still invisible — they
+get the grip for free when they move to `MasterDetail`. Do not patch them
+separately.
 
 ---
 
