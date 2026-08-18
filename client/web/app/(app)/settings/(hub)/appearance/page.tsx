@@ -57,7 +57,9 @@ function Controls() {
   );
 
   return (
-    <div className="space-y-6">
+    // `p-6` to match every other hub screen: this one carried no padding of its
+    // own because the old centred column supplied the gap.
+    <div className="space-y-6 p-6">
       <section className="space-y-2">
         <h2
           id="mode-heading"
@@ -130,7 +132,10 @@ function Controls() {
             value={colorTheme}
             onValueChange={setColorTheme}
             aria-labelledby="color-theme-heading"
-            className="gap-1.5"
+            // `RadioGroup` is a one-column grid by default, which left fifty
+            // themes as one tall stack with the rest of the pane empty. Now the
+            // list flows into however many columns the divider affords.
+            className="gap-1.5 sm:grid-cols-2 xl:grid-cols-3"
           >
             {matches.map((t) => {
               const active = colorTheme === t.id;

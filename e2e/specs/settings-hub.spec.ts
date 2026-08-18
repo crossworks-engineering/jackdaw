@@ -168,6 +168,34 @@ test.describe('settings hub', () => {
     await expect(statOf('Profile')).toHaveCount(0);
   });
 
+  test('the screens keep real padding against the divider', async ({ ownerPage }) => {
+    // The other half of dropping the `mx-auto max-w-*` caps: the centring used
+    // to supply the visual gap, so a screen whose own padding was `p-1` (or
+    // absent) went flush against the divider the moment it stopped being
+    // centred. `embedding` was 4px and `appearance` was 0.
+    //
+    // Measured as the gap between the pane's left edge and the first block of
+    // content — NOT the pane's `firstElementChild`, which is `MasterDetail`'s
+    // own scroll wrapper and is unpadded by design. (A first version of this
+    // test read that wrapper and failed at 0 with the padding correctly in
+    // place.) The locator also waits out the loading spinner for free: these
+    // screens render one before their data arrives, and it has no section.
+    await ownerPage.setViewportSize({ width: 1600, height: 900 });
+    for (const path of ['/settings/embedding', '/settings/appearance']) {
+      await ownerPage.goto(path);
+      const pane = ownerPage.locator('[data-testid="detail"]');
+      await expect(pane).toBeVisible();
+      const content = pane.locator('section, header, form').first();
+      await expect(content).toBeVisible();
+      const paneBox = (await pane.boundingBox())!;
+      const contentBox = (await content.boundingBox())!;
+      expect(
+        contentBox.x - paneBox.x,
+        `${path} is flush against the divider`,
+      ).toBeGreaterThanOrEqual(16);
+    }
+  });
+
   test('the screens fill the pane instead of centring in it', async ({ ownerPage }) => {
     // The half that actually answers "left-aligned, sizable content". All
     // thirteen carried an `mx-auto max-w-*` of their own, and a pane that is

@@ -57,7 +57,7 @@ function NetworkView({
   const sidecarUp = status.available; // tailscaled reachable (socket present)
 
   return (
-    <div className="w-full space-y-6 p-1">
+    <div className="w-full space-y-6 p-6">
       <header className="space-y-1">
         <h1 className="flex items-center gap-2 text-lg font-semibold">
           <Radio className="size-5 text-muted-foreground" />
