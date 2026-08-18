@@ -1,10 +1,18 @@
 # Mantle UI / Theme Style Guide
 
-A rulebook for keeping the `apps/web` front-end consistent. Read this before
-doing any styling work. When in doubt, **match an existing screen**: Notes and
-the settings screens (Agents, Tools, API keys, …) are the reference
-**master-detail** implementations (§8); Appearance is the reference for theme
-widgets.
+A rulebook for keeping the front-end consistent. Read this before doing any
+styling work. When in doubt, **match an existing screen**: `/tasks` is the
+reference **master-detail** implementation (§8) and the reference for forms
+(§6); Appearance is the reference for theme widgets.
+
+> **This file is the only copy.** The frontend left the mantle monorepo on
+> 2026-08-13, and `mantle/docs/ui-style-guide.md` lingered afterwards as a
+> fork — still teaching the hand-written grid, `space-y-1.5` field stacks and
+> `size="icon"`, all of which this guide has since retired. Because the brain
+> ingests the mantle image's `/app/docs`, that stale fork was what a search
+> returned. It was deleted on 2026-08-18 and nothing was carried over: every
+> line unique to it was a superseded idiom. If you find another copy, it is
+> wrong by construction — there is one guide, and it is this one.
 
 > TL;DR, shadcn primitives, semantic theme tokens only (pair every fill with
 > its OWN `-foreground`, never mix pairs), never native `prompt/confirm/alert`,
@@ -576,11 +584,33 @@ that width.
 > the long note in `globals.css`: the element stops tracking the variable
 > entirely. Animate the variable instead; the consumers follow.
 
-### Master-detail: THE pattern for list+editor screens
-Used by **Notes, Traces, Secrets, Events, Tasks**, and every settings list
-screen: **Accounts, Agents, AI workers, Heartbeats, Skills, Tools, API keys.**
-Left = scrollable list of **accent cards**; right = detail/form for the selected
-item. Proven scaffold (double-scrollbar-free):
+### Master-detail: the anatomy, and the rules that outlive the scaffold
+
+**This is THE pattern for a list+editor screen**, and it is one shape whichever
+scaffold renders it:
+
+- **Left: a scrollable list of `<ListCard>`s**, with the screen's search /
+  filter / New controls above it and an optional `<ListPager>` pinned below.
+  Fixed width, and **draggable** — the divider is the user's, not the screen's.
+- **Right: the detail for the selected row**, and it **hugs the divider —
+  tucked LEFT, never centred**. A `mx-auto max-w-*` in this pane is wrong
+  twice: it walks the content away from the list it belongs to, and it means
+  dragging the divider wider does nothing. The measure is the panel's job now
+  (§8's three-panel model), declared once, not re-declared per screen. §6c is
+  the same rule for the composer card.
+- **The detail opens with the §8 header row** — icon inside the `h2`, title
+  truncating, actions `shrink-0`, delete last. See "Detail header anatomy".
+
+Everything below applies to BOTH scaffolds. The rules about *behaviour* —
+selection, the card, pagination — are the durable part; the grid vs
+`<MasterDetail>` question is only about who owns the boxes.
+
+#### The legacy hand-written grid
+
+⚠ **Not for new work** — use `<MasterDetail>` above. Documented because the
+screens phase 2 has not reached yet still carry it (the 12 settings screens and
+`docs`/`team-admin`/`team-section`); port them as you touch them. Phase 2a's
+nine daily drivers are already on `<MasterDetail>`.
 
 ```tsx
 <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
@@ -602,7 +632,8 @@ item. Proven scaffold (double-scrollbar-free):
 </div>
 ```
 
-Rules:
+Rules — the first two are the legacy grid's; the rest are the pattern's and
+hold either way:
 - **Both panes need `md:min-h-0`** (see double-scrollbar note above). Left is a
   flex column; only its list div scrolls (`md:flex-1 md:overflow-y-auto`).
 - **The scrolling detail pane needs `relative`** (`position` only, no other
