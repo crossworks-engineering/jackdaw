@@ -275,6 +275,12 @@ them, each one's reading, and that Profile has none.
 
 ### Step 5 is NOT done, and cannot be done here
 
+**Written up for a mantle session in
+[`handover-settings-nav-mantle.md`](./handover-settings-nav-mantle.md)** —
+including two findings that contradict this plan: `discover` DOES have a nav
+entry (in the Review group, not Settings), and deleting the twelve items would
+break ⌘K name search, so they must be hidden rather than removed.
+
 The sidebar still lists all thirteen screens individually, so the nav and the
 hub are redundant but consistent. Collapsing those thirteen entries to one is a
 change to `NAV_GROUPS` in **`@crossworks/share-ui`, built in the mantle repo** —

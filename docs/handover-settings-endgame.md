@@ -11,8 +11,10 @@
 > **The settings hub is now built too** — steps 1–3 of
 > [`plan-settings-hub.md`](./plan-settings-hub.md), recorded in its §8. What is
 > left of it is **step 5 only: the mantle-side nav change**, which collapses the
-> thirteen Settings entries in `NAV_GROUPS` to one. That is a different repo and
-> a package release, exactly as §6 of this file warns.
+> Settings entries in `NAV_GROUPS`. That is a different repo and a package
+> release, exactly as §6 of this file warns, and it is written up for a mantle
+> session in
+> [`handover-settings-nav-mantle.md`](./handover-settings-nav-mantle.md).
 >
 > §3 (the idiom), §4 (what §6b means), §5 (environment and the suite) and §7
 > (decisions) are still current and still worth reading.
