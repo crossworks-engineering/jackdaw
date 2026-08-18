@@ -31,7 +31,7 @@ Per §8, and in the order a user notices:
 | screen | file | lines | today | the work |
 |---|---|---|---|---|
 | **Files** | `files/files-client.tsx` | 1215 | `grid-cols-[260px_1fr]`, no resize at all | pure swap, `defaultListSize="260px"` |
-| **Docs** | `docs/layout.tsx` | 37 | `md:grid-cols-[300px_1fr]`, no resize | pure swap, `defaultListSize="300px"` |
+| ~~**Docs**~~ | `docs/layout.tsx` | 37 | ✅ ported — `MasterDetail`, `defaultListSize="300px"` | done |
 | **Notes** | `notes/notes-client.tsx` | 634 | hand-rolled resizer + focus mode | replace the DIY resizer |
 | **Pages** | `pages/pages-client.tsx` | 1192 | hand-rolled resizer + `focusGridColumns` | replace the DIY resizer |
 | **Tables** | `tables/tables-shell.tsx` | 531 | hand-rolled resizer, own storage key | replace the DIY resizer |

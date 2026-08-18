@@ -10,7 +10,9 @@ import { DocumentationClient } from './documentation-client';
  */
 export default async function DocsLanding() {
   return (
-    <div className="mx-auto max-w-3xl p-4 md:p-6">
+    // Tucked left, not centred: this is a master-detail pane and the measure
+    // belongs to `MasterDetail`'s panel, not to this page (§8).
+    <div className="p-4 md:p-6">
       <div className="mb-4">
         <h1 className="text-xl font-semibold">Documentation</h1>
         <p className="mt-1 text-sm text-muted-foreground">
