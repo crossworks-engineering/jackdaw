@@ -208,6 +208,16 @@ against a brain with real data, not this one.
   stashed and it fails identically. It is the missing provisioning above, not
   a regression.
 
+⚠ **`field-primitives.spec.ts` is intermittent — roughly one full run in two.**
+It creates a task through the API and then searches for it by title, and the
+comment composer it measures only renders once that row is found and selected.
+Under a full run the brain does not always have the row indexed inside the 5s
+locator timeout, so the Textarea never appears and the spec fails claiming the
+iOS zoom guard is gone. It is not: the same spec passes in isolation
+(`-g "field primitives"`) and passed on the next full run unchanged. **Do not
+"fix" the guard when you see this.** The spec is what needs hardening — it
+should select the task by id rather than trusting search to have caught up.
+
 ---
 
 ## 5. Landmines
