@@ -10,7 +10,14 @@ import type { TraceStep } from '@mantle/content-core/formula-eval';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Label } from '@mantle/web-ui/ui/label';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
+import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import {
   Select,
   SelectContent,
@@ -27,7 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from '@mantle/web-ui/ui/table';
-import { Spinner } from '@mantle/web-ui/ui/spinner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -213,6 +219,9 @@ export function FormulaDetail({
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [result, setResult] = useState<EvalResponse | null>(null);
   const [running, setRunning] = useState(false);
+  /** Required symbols left empty at submit. Every one at once, not the first:
+   *  a six-variable equation asked for one box at a time is six round trips. */
+  const [missing, setMissing] = useState<Set<string>>(new Set());
 
   const activeTarget = useMemo(() => signature.find((s) => s.id === target), [signature, target]);
 
@@ -221,8 +230,31 @@ export function FormulaDetail({
   // equation rendered a dozen boxes and gave no clue which mattered.
   const inputFields: SignatureInput[] = activeTarget?.inputs ?? [];
 
-  async function run() {
+  /** Typing into a field clears its own mark, not the whole set — the others
+   *  are still empty and still wrong. */
+  function setInput(symbol: string, value: string) {
+    setInputs((prev) => ({ ...prev, [symbol]: value }));
+    setMissing((prev) => {
+      if (!prev.has(symbol) || !value.trim()) return prev;
+      const next = new Set(prev);
+      next.delete(symbol);
+      return next;
+    });
+  }
+
+  async function run(e: React.FormEvent) {
+    e.preventDefault();
     if (!target) return;
+    // A required input with no value used to be a server round trip that came
+    // back "unknown symbol" in the result panel — true, but it named the
+    // symbol rather than the box, and left nothing red to go and fill.
+    const blank = new Set(
+      inputFields
+        .filter((f) => f.required && !(inputs[f.symbol] ?? '').trim())
+        .map((f) => f.symbol),
+    );
+    setMissing(blank);
+    if (blank.size > 0) return;
     setRunning(true);
     try {
       const supplied: Record<string, FormulaValue> = {};
@@ -249,19 +281,22 @@ export function FormulaDetail({
   const header = (
     <header className="border-b border-border px-6 py-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Sigma className="size-4 shrink-0 text-muted-foreground" />
-            <h2 className="truncate text-base font-semibold text-foreground">{formula.title}</h2>
-          </div>
+        <div className="min-w-0 flex-1">
+          {/* §8 anatomy: the glyph lives INSIDE the h2 so it keeps the title's
+              baseline when the title wraps, and the unit system rides along as
+              an inline shrink-0 badge rather than on a line of its own. */}
+          <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold text-foreground">
+            <Sigma className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 truncate">{formula.title}</span>
+            {spec?.unitSystem ? (
+              <Badge variant="secondary" className="shrink-0">
+                {spec.unitSystem}
+              </Badge>
+            ) : null}
+          </h2>
           {cite ? <p className="mt-1 text-xs text-muted-foreground">{cite}</p> : null}
-          {spec?.unitSystem ? (
-            <Badge variant="secondary" className="mt-2">
-              {spec.unitSystem}
-            </Badge>
-          ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
           {/* The shared page is a live calculator, so team mode is offered:
               a colleague can put their own numbers in without an account.
               The hint is kind-specific because the DEFAULT one promises the
@@ -281,7 +316,16 @@ export function FormulaDetail({
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" title="Delete formula" disabled={deleting}>
+              {/* §8: grey until hover, no text label, and `icon-sm` — the
+                  square twin of the `sm` Edit button beside it, not `sm`
+                  itself (which is a 40x36 rectangle for a lone glyph). */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive-ink"
+                aria-label="Delete formula"
+                disabled={deleting}
+              >
                 <Trash2 />
               </Button>
             </AlertDialogTrigger>
@@ -315,9 +359,9 @@ export function FormulaDetail({
   // exists, the list shows it, and selecting it produced nothing at all.
   if (specErrors && specErrors.length > 0) {
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div>
         {header}
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto scrollbar-thin px-6 py-5">
+        <div className="space-y-4 px-6 py-5">
           <Notice tone="destructive" title="This formula no longer validates">
             <p className="text-muted-foreground">
               The stored spec fails to parse, so it cannot be rendered or evaluated. Fix it with the
@@ -340,10 +384,12 @@ export function FormulaDetail({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    // No `h-full` and no scroller of its own: `MasterDetail` owns the pane's
+    // single scrollbar. A second one here paints two bars side by side.
+    <div>
       {header}
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto scrollbar-thin px-6 py-5">
+      <div className="space-y-6 px-6 py-5">
         {coverageGaps.length > 0 ? (
           <Notice
             title={`The source leaves ${coverageGaps.length} combination${
@@ -542,143 +588,186 @@ export function FormulaDetail({
         <Separator />
 
         <Section title="Evaluate">
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="formula-target">Target</Label>
-              <Select value={target} onValueChange={setTarget}>
-                <SelectTrigger id="formula-target">
-                  <SelectValue placeholder="Choose a target" />
-                </SelectTrigger>
-                <SelectContent>
-                  {signature.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.id} · {t.kind}
-                      {t.produces ? ` → ${t.produces}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* A real `<form>`, so Enter submits from any box — this is a
+              calculator and typing a number then reaching for the mouse is the
+              wrong gesture. Nothing above is a form, so `SubmitButton`'s
+              `type="submit"` has no outer form to hijack (landmine 7). */}
+          <form onSubmit={run} noValidate>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="formula-target">Target</FieldLabel>
+                <Select
+                  value={target}
+                  onValueChange={(t) => {
+                    setTarget(t);
+                    // The new target has its own inputs, so last target's
+                    // missing-field marks name controls that are gone.
+                    setMissing(new Set());
+                  }}
+                >
+                  <SelectTrigger id="formula-target">
+                    <SelectValue placeholder="Choose a target" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {signature.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.id} · {t.kind}
+                        {t.produces ? ` → ${t.produces}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            {activeTarget && activeTarget.unverified.length > 0 ? (
-              <Notice tone="destructive" title="This result depends on an unverified equation">
-                <ul className="space-y-1 text-muted-foreground">
-                  {activeTarget.unverified.map((u) => (
-                    <li key={u.id}>
-                      <code>{u.id}</code> — {u.reason}
-                    </li>
-                  ))}
-                </ul>
-              </Notice>
-            ) : null}
+              {activeTarget && activeTarget.unverified.length > 0 ? (
+                <Notice tone="destructive" title="This result depends on an unverified equation">
+                  <ul className="space-y-1 text-muted-foreground">
+                    {activeTarget.unverified.map((u) => (
+                      <li key={u.id}>
+                        <code>{u.id}</code> — {u.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </Notice>
+              ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {inputFields.map((f) => (
-                <div key={f.symbol} className="space-y-1.5">
-                  <Label htmlFor={`in-${f.symbol}`} className="font-mono text-xs">
-                    {f.symbol}
-                    {f.unit ? (
-                      <span className="ml-1 font-sans text-muted-foreground">({f.unit})</span>
-                    ) : null}
-                    {f.required ? null : (
-                      <span className="ml-1 font-sans text-muted-foreground">optional</span>
-                    )}
-                  </Label>
-                  {/* An enum whose legal values are known becomes a picker, so a
-                      case-typo is impossible rather than merely loud — symbols
-                      are case-sensitive and 'a' would be an error, not an 'A'. */}
-                  {f.kind === 'enum' && f.domain?.length ? (
-                    <Select
-                      value={inputs[f.symbol] ?? ''}
-                      onValueChange={(v) => setInputs((prev) => ({ ...prev, [f.symbol]: v }))}
-                    >
-                      <SelectTrigger id={`in-${f.symbol}`}>
-                        <SelectValue placeholder={f.name ?? 'Choose…'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {f.domain.map((v) => (
-                          <SelectItem key={String(v)} value={String(v)}>
-                            {String(v)}
-                            {f.criteria?.[String(v)] ? ` — ${f.criteria[String(v)]}` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={`in-${f.symbol}`}
-                      value={inputs[f.symbol] ?? ''}
-                      placeholder={f.default !== undefined ? String(f.default) : (f.name ?? '')}
-                      onChange={(e) =>
-                        setInputs((prev) => ({ ...prev, [f.symbol]: e.target.value }))
-                      }
-                    />
-                  )}
-                  {f.undeclared ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      Not declared as a variable in the spec.
-                    </p>
-                  ) : null}
-                  {f.note ? <p className="text-[11px] text-muted-foreground">{f.note}</p> : null}
-                </div>
-              ))}
-            </div>
-
-            <Button onClick={run} disabled={running || !target}>
-              {running ? <Spinner /> : null}
-              Evaluate formula
-            </Button>
-
-            {result ? (
-              <div
-                className={cn(
-                  'space-y-3 rounded-md border p-3',
-                  result.ok ? 'border-border bg-muted/40' : 'border-destructive/40 bg-muted/40',
-                )}
-              >
-                {result.ok ? (
-                  <p className="font-mono text-lg text-foreground">{String(result.value)}</p>
-                ) : (
-                  <p className="text-xs text-destructive-ink">{result.error}</p>
-                )}
-                {result.trace.length > 0 ? (
-                  <details className="text-xs">
-                    <summary className="cursor-pointer text-muted-foreground">
-                      Derivation ({result.trace.length} steps)
-                    </summary>
-                    <ol className="mt-2 space-y-1 text-muted-foreground">
-                      {result.trace.map((step, i) => (
-                        <li key={i} className="font-mono">
-                          {step.kind === 'symbol' ? (
-                            <>
-                              {step.symbol} = {String(step.value)}{' '}
-                              <span className="opacity-60">({step.from})</span>
-                            </>
-                          ) : step.kind === 'expression' ? (
-                            <>
-                              {step.id} → {String(step.value)}
-                            </>
-                          ) : step.kind === 'branch' ? (
-                            <>
-                              {step.id}: {step.label ?? step.chose} — {step.when}
-                            </>
-                          ) : (
-                            <>
-                              {step.id}[
-                              {Object.entries(step.key)
-                                .map(([k, v]) => `${k}=${String(v)}`)
-                                .join(', ')}
-                              ] → {String(step.value)}
-                            </>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
-                  </details>
-                ) : null}
+              {/* Layout only — each cell is still a Field (§6a). */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {inputFields.map((f) => {
+                  const bad = missing.has(f.symbol);
+                  // `aria-describedby` takes a LIST, and a field can carry both
+                  // an error and one or two descriptions at once.
+                  const describedBy = [
+                    bad ? `in-${f.symbol}-error` : null,
+                    f.undeclared ? `in-${f.symbol}-undeclared` : null,
+                    f.note ? `in-${f.symbol}-note` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
+                  const flags = {
+                    'aria-invalid': bad || undefined,
+                    'aria-describedby': describedBy || undefined,
+                  };
+                  return (
+                    <Field key={f.symbol} data-invalid={bad || undefined}>
+                      <FieldLabel htmlFor={`in-${f.symbol}`} className="font-mono text-xs">
+                        {f.symbol}
+                        {f.unit ? (
+                          <span className="ml-1 font-sans text-muted-foreground">({f.unit})</span>
+                        ) : null}
+                        {f.required ? null : (
+                          <span className="ml-1 font-sans text-muted-foreground">optional</span>
+                        )}
+                      </FieldLabel>
+                      {/* An enum whose legal values are known becomes a picker, so a
+                          case-typo is impossible rather than merely loud — symbols
+                          are case-sensitive and 'a' would be an error, not an 'A'. */}
+                      {f.kind === 'enum' && f.domain?.length ? (
+                        <Select
+                          value={inputs[f.symbol] ?? ''}
+                          onValueChange={(v) => setInput(f.symbol, v)}
+                        >
+                          <SelectTrigger id={`in-${f.symbol}`} {...flags}>
+                            <SelectValue placeholder={f.name ?? 'Choose…'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {f.domain.map((v) => (
+                              <SelectItem key={String(v)} value={String(v)}>
+                                {String(v)}
+                                {f.criteria?.[String(v)] ? ` — ${f.criteria[String(v)]}` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={`in-${f.symbol}`}
+                          value={inputs[f.symbol] ?? ''}
+                          placeholder={f.default !== undefined ? String(f.default) : (f.name ?? '')}
+                          onChange={(e) => setInput(f.symbol, e.target.value)}
+                          {...flags}
+                        />
+                      )}
+                      <FieldError id={`in-${f.symbol}-error`}>
+                        {bad ? `${f.symbol} is required` : null}
+                      </FieldError>
+                      {f.undeclared ? (
+                        <FieldDescription id={`in-${f.symbol}-undeclared`}>
+                          Not declared as a variable in the spec.
+                        </FieldDescription>
+                      ) : null}
+                      {f.note ? (
+                        <FieldDescription id={`in-${f.symbol}-note`}>{f.note}</FieldDescription>
+                      ) : null}
+                    </Field>
+                  );
+                })}
               </div>
-            ) : null}
-          </div>
+
+              {/* A plain div, not a Field: a vertical Field stretches its direct
+                  children and this button would become a full-width bar (§6a). */}
+              <div>
+                <SubmitButton pending={running} disabled={!target}>
+                  Evaluate formula
+                </SubmitButton>
+              </div>
+
+              {result ? (
+                <div
+                  className={cn(
+                    'space-y-3 rounded-md border p-3',
+                    result.ok ? 'border-border bg-muted/40' : 'border-destructive/40 bg-muted/40',
+                  )}
+                >
+                  {result.ok ? (
+                    <p className="font-mono text-lg text-foreground">{String(result.value)}</p>
+                  ) : (
+                    // An evaluation that fails is an outcome, not a field
+                    // fault, so it stays a panel — but it still has to be
+                    // announced rather than only turning red.
+                    <p role="alert" className="text-xs text-destructive-ink">
+                      {result.error}
+                    </p>
+                  )}
+                  {result.trace.length > 0 ? (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        Derivation ({result.trace.length} steps)
+                      </summary>
+                      <ol className="mt-2 space-y-1 text-muted-foreground">
+                        {result.trace.map((step, i) => (
+                          <li key={i} className="font-mono">
+                            {step.kind === 'symbol' ? (
+                              <>
+                                {step.symbol} = {String(step.value)}{' '}
+                                <span className="opacity-60">({step.from})</span>
+                              </>
+                            ) : step.kind === 'expression' ? (
+                              <>
+                                {step.id} → {String(step.value)}
+                              </>
+                            ) : step.kind === 'branch' ? (
+                              <>
+                                {step.id}: {step.label ?? step.chose} — {step.when}
+                              </>
+                            ) : (
+                              <>
+                                {step.id}[
+                                {Object.entries(step.key)
+                                  .map(([k, v]) => `${k}=${String(v)}`)
+                                  .join(', ')}
+                                ] → {String(step.value)}
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  ) : null}
+                </div>
+              ) : null}
+            </FieldGroup>
+          </form>
         </Section>
       </div>
     </div>

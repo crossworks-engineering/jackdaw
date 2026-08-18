@@ -5,9 +5,10 @@
 the rest of the app, per
 [`plans/workspace-screen-consistency.md`](./plans/workspace-screen-consistency.md).
 
-**Phase 1 is done. Phase 2a is 7 of 9.** The plan document is the authority on
-what is left and what the ports taught us — read its §2a table before picking up
-a screen. This file is the state of the world around it.
+**Phase 1 is done. Phase 2a is 8 of 9 — every unblocked screen.** The plan
+document is the authority on what is left and what the ports taught us — read
+its §2a table before picking up a screen. This file is the state of the world
+around it.
 
 This supersedes the first handover of the same name; §1 of that one (write the
 Tasks e2e tests) is finished and its content now lives in §1a below.
@@ -19,12 +20,14 @@ Tasks e2e tests) is finished and its content now lives in §1a below.
 | Repo | Branch | State |
 |---|---|---|
 | **mantle** | `main` | Pushed. `v0.230.67` tagged; `@crossworks/*@0.230.67` on npm. |
-| **jackdaw** | `main` | **9 commits ahead of origin, unpushed.** Pre-dates this session. |
-| **jackdaw** | `claude/ui-consistency-handover-c2aac7` | **16 ahead of origin/main**, i.e. 7 new on top of main. Unpushed, unmerged. |
+| **jackdaw** | `main` | **10 ahead of origin, unpushed.** The rollout was merged here at `706f9d5`. |
+| **jackdaw** | `claude/heuristic-curie-9c542d` | **11 ahead of origin/main** — the `/formulas` port, one commit on top of main. Unpushed, unmerged. |
 
-The 7 on the branch:
+The rollout, in order:
 
 ```
+1ca0c6b refactor(formulas): port /formulas to the Tasks standard   ← on the branch
+706f9d5 Merge: UI consistency rollout — phase 1 and 2a (7 of 9)
 8b52101 refactor(models,runs,sandboxes): port the last three clean 2a screens
 1310d43 docs(ui): record what blocks /apps and the shape of the rest of 2a
 b9a7f66 refactor(secrets): port /secrets to the Tasks standard
@@ -35,12 +38,12 @@ b9a7f66 refactor(secrets): port /secrets to the Tasks standard
 ba2a9cf test(tasks): pin the Tasks UI and the resizable shell with e2e specs
 ```
 
-`pnpm verify` is clean. The e2e suite is 55 passing / 1 failing / 2 skipped —
+`pnpm verify` is clean. The e2e suite is 71 passing / 2 failing / 51 skipped —
 see §4 for which and why.
 
-**⚠ Nothing is pushed, merged, or deployed.** Sixteen commits of unreviewed work
-in one branch is the largest outstanding risk here, and it is Jason's call, not
-a coding decision. The specs exist to make that review cheap.
+**⚠ Nothing is pushed or deployed.** Eleven commits of unreviewed work is the
+largest outstanding risk here, and it is Jason's call, not a coding decision.
+The specs exist to make that review cheap.
 
 ---
 
@@ -60,10 +63,10 @@ a coding decision. The specs exist to make that review cheap.
   non-delete, text-only buttons stay red on purpose; §8 records why so nobody
   "finishes" the sweep.
 
-### Phase 2a — 7 of 9 screens
+### Phase 2a — 8 of 9 screens
 
-`events`, `contacts`, `journal`, `secrets`, `models`, `runs`, `sandboxes`.
-`formulas` and `apps` remain — **`apps` is blocked**, see §3.
+`events`, `contacts`, `journal`, `secrets`, `models`, `runs`, `sandboxes`,
+`formulas`. Only `apps` remains, and it is **blocked** — see §3.
 
 Per-screen detail is in the commits. The transferable lessons are in the plan's
 §2a "what the ports taught us" list; do not re-derive them.
@@ -89,9 +92,7 @@ Per-screen detail is in the commits. The transferable lessons are in the plan's
 
 **Read the plan's §2a table first.** Then, in preference order:
 
-1. **`formulas`** — the last unblocked 2a screen. ~2200 lines with a nested
-   `lg:grid` editor of its own; budget a session, not a slot in a batch.
-2. **Decide the `apps` question**, which unblocks the last 2a screen *and* is
+1. **Decide the `apps` question**, which unblocks the last 2a screen *and* is
    the same capability phase 3 wants for `pages` and `draw`. `apps` uses
    `focusGridClass` (`components/layout/focus-layout.ts`): in focus mode the
    list column collapses to zero and the preview goes full width, and the list
@@ -100,7 +101,10 @@ Per-screen detail is in the commits. The transferable lessons are in the plan's
    it has no third state. Teaching it to collapse a still-mounted list is a
    design change to a shared primitive. **Do not fake it by unmounting**; that
    is exactly what the helper's own comment exists to prevent.
-3. **Phase 2b, the 12 settings screens** — the largest cluster and the most
+   `formulas` now wants the same capability for a second reason: its editor
+   replaces the whole screen, so opening it unmounts `MasterDetail` and loses
+   the list's scroll position. One decision, two screens.
+2. **Phase 2b, the 12 settings screens** — the largest cluster and the most
    forms, so the most §6a/§6b value. Also the ones that need a brain with real
    data (§4).
 
@@ -148,6 +152,29 @@ E2E_EMAIL=audit@example.com E2E_PASSWORD=e2e-owner-password-1 \
 E2E_SKIP_PDF=1 pnpm -C e2e e2e
 ```
 
+⚠ **Check WHICH worktree the running client is serving, not just that a client
+is running.** Every worktree's dev server looks identical on `:3100`, so one
+left over from another worktree answers perfectly happily and serves *that*
+worktree's code: your edits appear to do nothing and the suite grades the wrong
+tree. And you cannot sidestep it by taking another port — the CORS allowlist is
+only 3000/3001/3100. Ask the listening process where it actually lives:
+
+```sh
+lsof -a -p "$(lsof -tiTCP:3100 -sTCP:LISTEN | head -1)" -d cwd -Fn
+```
+
+Restarting it on the same port from your own worktree is the fix — the port
+matters, the process does not.
+
+⚠ **`next dev` writes `client/web/AGENTS.md` and `client/web/CLAUDE.md`** on
+every boot. They arrive untracked; they are not part of anyone's change. Decide
+once whether to track them (their own text argues for it) — until then, leave
+them out of your `git add`.
+
+⚠ **A fresh worktree has no `node_modules`.** `pnpm install --frozen-lockfile`
+takes a few seconds off the store, but nothing — not `tsc`, not the dev server —
+works before it.
+
 The scratch brain's owner is `audit@example.com`. **Its password was reset to
 the suite's own** (`e2e-owner-password-1`, bcrypt cost 12) because the original
 was lost with the session that created it and signup is refused once an anchor
@@ -159,14 +186,17 @@ workstation. Disposable DB; a real box would want its own credentials.
 `/sandboxes` shows an explainer. Phase 2b is exactly that cluster — check it
 against a brain with real data, not this one.
 
-**Suite status on this brain:** 55 pass, 2 skip, 1 fail.
+**Suite status on this brain:** 71 pass, 51 skip, 2 fail — both projects, one
+`pnpm -C e2e e2e` run.
 
-- Skipped: the PDF spec (`E2E_SKIP_PDF=1`, no browserless sidecar) and the
-  `/sandboxes` row (feature off — it skips out loud, because a silent skip reads
-  like a pass).
-- Failing: `team.spec.ts` — it mints a contact team token and the gate never
-  renders. **Pre-existing**; it fails identically with none of this work
-  applied. It is the missing provisioning above, not a regression.
+- Skipped: most of the suite under `same-origin` (every spec added by this
+  rollout is `split`-only, and skips itself there), plus the PDF spec
+  (`E2E_SKIP_PDF=1`, no browserless sidecar) and the `/sandboxes` row (feature
+  off — it skips out loud, because a silent skip reads like a pass).
+- Failing: `team.spec.ts`, once per project. It mints a contact team token and
+  the gate never renders. **Pre-existing**; re-checked with all of this work
+  stashed and it fails identically. It is the missing provisioning above, not
+  a regression.
 
 ---
 
@@ -224,7 +254,8 @@ spec added this session is `split`-only — the owner UI lives on the client app
 | `secrets.spec.ts` | both former raw `<select>`s; edit reusing the create surface |
 | `shell-layout.spec.ts` | rail + panel width persistence; the CSS-var transition guard |
 | `field-primitives.spec.ts` | `Input`/`Textarea` font size at 375px and 1280px |
-| `master-detail-screens.spec.ts` | **table-driven across all 8 ported screens** |
+| `formulas.spec.ts` | the §8 header; §6b on the evaluator AND on the editor's YAML view |
+| `master-detail-screens.spec.ts` | **table-driven across all 9 ported screens** |
 
 Two habits worth keeping:
 

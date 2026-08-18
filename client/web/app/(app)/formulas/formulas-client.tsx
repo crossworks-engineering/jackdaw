@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { useListNav } from '@/lib/use-list-nav';
@@ -216,7 +217,10 @@ export function FormulasClient() {
   }
 
   return (
-    <div className="relative md:grid md:h-full md:grid-cols-[360px_1fr] md:overflow-hidden">
+    <>
+      {/* Outside the panes on purpose: Radix portals the content to the body,
+          so nesting the root in a resizable panel buys nothing and only makes
+          the list markup harder to read. */}
       <Dialog open={picking} onOpenChange={setPicking}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -263,182 +267,193 @@ export function FormulasClient() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Left: list ─────────────────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="space-y-2 border-b border-border p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={searchRef}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search formulas…"
-                className="pl-8"
-              />
-            </div>
-            <Button size="sm" onClick={() => setPicking(true)}>
-              <Plus />
-              New
-            </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select
-              value={standard || ANY}
-              onValueChange={(v) => go({ standard: v === ANY ? null : v, page: null })}
-            >
-              <SelectTrigger className="h-9 flex-1 text-xs">
-                <SelectValue placeholder="Any standard" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ANY}>Any standard</SelectItem>
-                {standards.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {tag ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => go({ tag: null, page: null })}
-                title="Clear the tag filter"
-              >
-                <X />
-                {tag}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-          {formulas.length === 0 && (query || standard || tag) ? (
-            // A FILTERED nothing is not an empty collection — "no formulas
-            // yet" plus a seed button here would be a lie with a call to action.
-            <div className="space-y-3 px-1 py-8 text-center">
-              <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => go({ q: null, standard: null, tag: null, page: null })}
-              >
-                Clear filters
-              </Button>
-            </div>
-          ) : formulas.length === 0 ? (
-            <div className="space-y-3 px-1 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No formulas yet. Write one from a standard, or ask the assistant to transcribe one.
-              </p>
-              <div className="flex flex-col items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
+      {/* `models` and `runs` keep 360px rather than being squeezed to the
+          340px default; formulas does too. The list rows carry a title, the
+          citing standard and a row of tag pills, and at 340px the standard
+          truncates on most of the seeded examples. */}
+      <MasterDetail
+        id="formulas"
+        defaultListSize="360px"
+        list={
+          <>
+            {/* ── Left: list ───────────────────────────────────────── */}
+            <div className="space-y-2 border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    ref={searchRef}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search formulas…"
+                    className="pl-8"
+                  />
+                </div>
+                <Button size="sm" onClick={() => setPicking(true)}>
                   <Plus />
-                  New formula
+                  New
                 </Button>
-                <Button variant="ghost" size="sm" disabled={seeding} onClick={addSeedSet}>
-                  {seeding ? <Spinner /> : null}
-                  Add 5 example formulas
-                </Button>
-                <p className="max-w-[260px] text-xs text-muted-foreground">
-                  Widely-known models — gas density, Reynolds number, head loss, orifice flow, pump
-                  power — that show how each part of the format is written. Delete them any time.
-                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={standard || ANY}
+                  onValueChange={(v) => go({ standard: v === ANY ? null : v, page: null })}
+                >
+                  <SelectTrigger className="h-9 flex-1 text-xs">
+                    <SelectValue placeholder="Any standard" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ANY}>Any standard</SelectItem>
+                    {standards.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {tag ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => go({ tag: null, page: null })}
+                    title="Clear the tag filter"
+                  >
+                    <X />
+                    {tag}
+                  </Button>
+                ) : null}
               </div>
             </div>
-          ) : (
-            formulas.map((f) => (
-              // The tags are filter buttons, so they sit OUTSIDE the row button
-              // rather than inside it — a button nested in a button is invalid
-              // and swallows the inner click in some browsers.
-              <ListCard key={f.id} asChild selected={activeId === f.id} className="p-0">
-                <div>
-                  <button
-                    onClick={() => select(f.id)}
-                    data-mark-id={f.id}
-                    data-mark-kind="formula"
-                    data-mark-label={f.title}
-                    className="block w-full rounded-lg p-2.5 text-left"
+
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+              {formulas.length === 0 && (query || standard || tag) ? (
+                // A FILTERED nothing is not an empty collection — "no formulas
+                // yet" plus a seed button here would be a lie with a call to action.
+                <div className="space-y-3 px-1 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => go({ q: null, standard: null, tag: null, page: null })}
                   >
-                    <div className="flex items-start gap-2">
-                      <Sigma className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{f.title}</div>
-                        {f.spec?.source?.standard ? (
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {f.spec.source.standard}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
-                  {f.tags.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
-                      {f.tags.map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => go({ tag: t === tag ? null : t, page: null })}
-                          title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
-                        >
-                          <TagPill
-                            tag={t}
-                            className={cn(
-                              'transition-opacity hover:opacity-80',
-                              t === tag && 'ring-1 ring-primary',
-                            )}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                    Clear filters
+                  </Button>
                 </div>
-              </ListCard>
-            ))
-          )}
-        </div>
+              ) : formulas.length === 0 ? (
+                <div className="space-y-3 px-1 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No formulas yet. Write one from a standard, or ask the assistant to transcribe
+                    one.
+                  </p>
+                  <div className="flex flex-col items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
+                      <Plus />
+                      New formula
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={seeding} onClick={addSeedSet}>
+                      {seeding ? <Spinner /> : null}
+                      Add 5 example formulas
+                    </Button>
+                    <p className="max-w-[260px] text-xs text-muted-foreground">
+                      Widely-known models — gas density, Reynolds number, head loss, orifice flow,
+                      pump power — that show how each part of the format is written. Delete them any
+                      time.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                formulas.map((f) => (
+                  // The tags are filter buttons, so they sit OUTSIDE the row button
+                  // rather than inside it — a button nested in a button is invalid
+                  // and swallows the inner click in some browsers.
+                  <ListCard key={f.id} asChild selected={activeId === f.id} className="p-0">
+                    <div>
+                      <button
+                        onClick={() => select(f.id)}
+                        data-mark-id={f.id}
+                        data-mark-kind="formula"
+                        data-mark-label={f.title}
+                        className="block w-full rounded-lg p-2.5 text-left"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Sigma className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium">{f.title}</div>
+                            {f.spec?.source?.standard ? (
+                              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                {f.spec.source.standard}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </button>
+                      {f.tags.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
+                          {f.tags.map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => go({ tag: t === tag ? null : t, page: null })}
+                              title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
+                            >
+                              <TagPill
+                                tag={t}
+                                className={cn(
+                                  'transition-opacity hover:opacity-80',
+                                  t === tag && 'ring-1 ring-primary',
+                                )}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </ListCard>
+                ))
+              )}
+            </div>
 
-        <ListPager
-          page={page}
-          total={listQuery.data?.total ?? 0}
-          pageSize={listQuery.data?.pageSize ?? 50}
-          pending={pending}
-          onGo={(p) => go({ page: p > 1 ? p : null })}
-        />
-      </div>
-
-      {/* ── Right: detail ──────────────────────────────────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-hidden">
-        {detailQuery.isLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <Spinner />
-          </div>
-        ) : detailQuery.data ? (
-          <FormulaDetail
-            // Remount per formula: the detail pane holds evaluator state
-            // (chosen target, typed inputs, last result). Without this, switching
-            // formulas would keep the previous one's inputs and show its result
-            // under the new title — and the target id would name a target the
-            // new spec may not even have.
-            key={detailQuery.data.formula.id}
-            formula={detailQuery.data.formula}
-            coverageGaps={detailQuery.data.coverageGaps}
-            dimensionIssues={detailQuery.data.dimensionIssues ?? []}
-            signature={detailQuery.data.signature ?? []}
-            specErrors={detailQuery.data.specErrors}
-            onEdit={() => setEditor({ mode: 'edit' })}
-            onDeleted={async () => {
-              setSelectedId(null);
-              syncSelectionParam('id', null);
-              await queryClient.invalidateQueries({ queryKey: ['formulas'] });
-            }}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">Select a formula.</p>
-          </div>
-        )}
-      </div>
-    </div>
+            <ListPager
+              page={page}
+              total={listQuery.data?.total ?? 0}
+              pageSize={listQuery.data?.pageSize ?? 50}
+              pending={pending}
+              onGo={(p) => go({ page: p > 1 ? p : null })}
+            />
+          </>
+        }
+        detail={
+          /* ── Right: detail ────────────────────────────────────── */
+          detailQuery.isLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Spinner />
+            </div>
+          ) : detailQuery.data ? (
+            <FormulaDetail
+              // Remount per formula: the detail pane holds evaluator state
+              // (chosen target, typed inputs, last result). Without this, switching
+              // formulas would keep the previous one's inputs and show its result
+              // under the new title — and the target id would name a target the
+              // new spec may not even have.
+              key={detailQuery.data.formula.id}
+              formula={detailQuery.data.formula}
+              coverageGaps={detailQuery.data.coverageGaps}
+              dimensionIssues={detailQuery.data.dimensionIssues ?? []}
+              signature={detailQuery.data.signature ?? []}
+              specErrors={detailQuery.data.specErrors}
+              onEdit={() => setEditor({ mode: 'edit' })}
+              onDeleted={async () => {
+                setSelectedId(null);
+                syncSelectionParam('id', null);
+                await queryClient.invalidateQueries({ queryKey: ['formulas'] });
+              }}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-muted-foreground">Select a formula.</p>
+            </div>
+          )
+        }
+      />
+    </>
   );
 }
