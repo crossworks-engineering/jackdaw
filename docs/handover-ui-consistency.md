@@ -149,7 +149,11 @@ server, so **`:3100`** is the one to use.
 # Brain (workstation; scratch Postgres in the kanban-pg-scratch container).
 # It leaves a stale `tsx watch` supervisor behind when it dies, and that
 # supervisor respawns the OLD code — so always kill before starting.
-ssh jasons@192.168.100.75 'pkill -f "tsx watch server/main.ts"'
+# NOTE the brackets. ssh runs this through the login shell, so the wrapper's
+# own command line contains the pattern — `pkill -f "tsx watch server/main.ts"`
+# matches it, kills the shell it is running in, and returns 255. `[t]sx` cannot
+# match the literal text `tsx`, so the pattern excludes its own wrapper.
+ssh jasons@192.168.100.75 'pkill -f "[t]sx watch server/main.ts"'
 ssh jasons@192.168.100.75 'cd /tmp/kanban-mig-verify/server/web && \
   PORT=3999 setsid nohup pnpm dev >> /tmp/kanban-brain.log 2>&1 < /dev/null & disown'
 
