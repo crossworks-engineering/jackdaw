@@ -20,14 +20,20 @@ Tasks e2e tests) is finished and its content now lives in §1a below.
 | Repo | Branch | State |
 |---|---|---|
 | **mantle** | `main` | Pushed. `v0.230.67` tagged; `@crossworks/*@0.230.67` on npm. |
-| **jackdaw** | `main` | **10 ahead of origin, unpushed.** The rollout was merged here at `706f9d5`. |
-| **jackdaw** | `claude/heuristic-curie-9c542d` | **11 ahead of origin/main** — the `/formulas` port, one commit on top of main. Unpushed, unmerged. |
+| **jackdaw** | `main` | **15 ahead of origin, unpushed.** Everything below is merged here. |
 
-The rollout, in order:
+**No unmerged branches.** Both rollout branches are in; the worktrees that carried
+them (`mantle-recall-skill-mentions-aad14e`, `heuristic-curie-9c542d`) are
+redundant and can be removed.
 
 ```
-1ca0c6b refactor(formulas): port /formulas to the Tasks standard   ← on the branch
+3ddfcf5 Merge: /formulas port — phase 2a now 8 of 9
+d15c79c fix(ui): follow the app theme on the React Flow canvases   ← not the rollout
+67fe033 docs: make the wrong-worktree check a command, not a hint
+b74b03b docs: bring the handover up to date after the /formulas port
+1ca0c6b refactor(formulas): port /formulas to the Tasks standard
 706f9d5 Merge: UI consistency rollout — phase 1 and 2a (7 of 9)
+b384e91 docs: handover for a fresh session
 8b52101 refactor(models,runs,sandboxes): port the last three clean 2a screens
 1310d43 docs(ui): record what blocks /apps and the shape of the rest of 2a
 b9a7f66 refactor(secrets): port /secrets to the Tasks standard
@@ -38,10 +44,14 @@ b9a7f66 refactor(secrets): port /secrets to the Tasks standard
 ba2a9cf test(tasks): pin the Tasks UI and the resizable shell with e2e specs
 ```
 
-`pnpm verify` is clean. The e2e suite is 71 passing / 2 failing / 51 skipped —
-see §4 for which and why.
+`d15c79c` landed directly on `main` from outside this rollout (React Flow
+canvases following the app theme). It is unrelated, but it is in the same
+unpushed pile, so a push ships it too.
 
-**⚠ Nothing is pushed or deployed.** Eleven commits of unreviewed work is the
+`pnpm verify` is clean. The e2e suite is 71 passing / 2 failing / 51 skipped —
+see §4 for which and why. Both failures are the SAME test, once per project.
+
+**⚠ Nothing is pushed or deployed.** Fifteen commits of unreviewed work is the
 largest outstanding risk here, and it is Jason's call, not a coding decision.
 The specs exist to make that review cheap.
 
