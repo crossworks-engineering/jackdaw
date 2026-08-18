@@ -135,6 +135,39 @@ test.describe('settings hub', () => {
     );
   });
 
+  test('five cards carry a live stat line, and the other eight do not', async ({ ownerPage }) => {
+    // A stat earns its place when it is ACTIONABLE — something worth knowing
+    // before deciding whether to open the screen. Five of the thirteen have
+    // such a reading; a line under Profile saying "you have a profile" would be
+    // noise, and it would also be eight more requests fired by opening
+    // /settings.
+    await ownerPage.setViewportSize({ width: 1600, height: 900 });
+    await ownerPage.goto('/settings');
+
+    const cards = ownerPage.locator('[data-testid="settings-nav-card"]');
+    await expect(cards.first()).toBeVisible();
+
+    const statOf = (label: string) =>
+      cards.filter({ hasText: label }).locator('[data-testid="settings-nav-stat"]');
+
+    // Each of these renders from something the brain always has an answer for,
+    // however empty the box: a version string, a candidate count, an on/off
+    // flag. Only the NUMBERS depend on what is configured.
+    await expect(statOf('Updates')).toContainText(/\d+\.\d+/);
+    await expect(statOf('Entities')).toContainText(/merge candidate|nothing to review/);
+    await expect(statOf('MCP connector')).toContainText(/^(on ·|off)/);
+    await expect(statOf('Backups')).toContainText(/last backup|never run yet|no scheduled backups/);
+    await expect(statOf('Local network')).not.toHaveCount(0);
+
+    // Five, and only five. Every extra one is another request fired by merely
+    // opening /settings.
+    await expect(
+      ownerPage.locator('[data-testid="settings-nav-stat"]'),
+      'a card gained or lost a stat line',
+    ).toHaveCount(5);
+    await expect(statOf('Profile')).toHaveCount(0);
+  });
+
   test('the screens fill the pane instead of centring in it', async ({ ownerPage }) => {
     // The half that actually answers "left-aligned, sizable content". All
     // thirteen carried an `mx-auto max-w-*` of their own, and a pane that is
