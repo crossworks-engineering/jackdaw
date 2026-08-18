@@ -54,6 +54,8 @@ const SCREENS = [
   // real work and get their own specs; this row is the scaffold half only.
   { path: '/settings/accounts', id: 'settings-accounts' },
   { path: '/settings/worker-groups', id: 'settings-worker-groups' },
+  { path: '/settings/tool-groups', id: 'settings-tool-groups' },
+  { path: '/settings/skills', id: 'settings-skills' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.

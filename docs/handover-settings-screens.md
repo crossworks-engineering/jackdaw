@@ -192,9 +192,7 @@ is a known flake, roughly 1 run in 2.
    (prose fills the pane, prose is not centred, toggle absent).
 2. ~~**`traces` + `runners`**~~ — **DONE.** See §7 for how the `minmax()`
    translation actually landed; it is not quite what this line assumed.
-3. **The four small settings screens** (`worker-groups`, `accounts`,
-   `tool-groups`, `skills`) — enough §6 work to establish the pattern without
-   1983 lines of it.
+3. ~~**The four small settings screens**~~ — **DONE.** See §8.
 4. **`keys`, `peers`, `config`, `ai-workers`** — the middle.
 5. **`tools`, `users`, `heartbeats`, `agents`** — the four biggest, last, once
    the form idiom is settled. `agents` alone is bigger than most of this list.
@@ -285,3 +283,71 @@ half.
 
 Suite after this port: **93 pass / 73 skip / 2 fail** — the two are still
 `team.spec.ts`.
+
+---
+
+## 8. The four "small" settings screens — done (2026-08-18)
+
+`worker-groups` · `accounts` · `tool-groups` · `skills`. All four on
+`MasterDetail` (each keeping its own 340/360 width, none taking `detailFills` —
+the detail is a form and the 672px measure is the point), and all four onto the
+`Field` family.
+
+### What §6b actually turned out to mean here
+
+The plan said "validation work". Concretely, it was **replacing three different
+bad deliveries**:
+
+1. **`required` / `pattern` / `min` / `max`** — the browser's own bubble.
+   Announced to nothing, gone on the next click, and unable to say WHICH of a
+   slug's rules broke. Every form is `noValidate` now; the attributes stay as
+   documentation of the rule, and `submit()` owns the message.
+2. **Toasts.** `tool-groups` announced "an integration needs a service" in a
+   corner; `skills` did the same for BOTH default-state JSON failures — under a
+   comment claiming they surfaced "inline". They did not. The skills one was the
+   worst of the set: it carries a PARSER message you have to read against the
+   text you just typed, and a toast takes it away while you are still looking at
+   the textarea.
+3. **Nothing at all** — fields that simply submitted and let the server 400.
+
+The rules themselves are unchanged in all four screens. This was a port.
+
+⚠ **Threading an error into a child component is normal here, not exotic.**
+`tool-groups`' service field lives in `components/tool-group-integration.tsx`.
+It takes a `serviceError?: string` prop now. Expect the same for `agents` and
+`heartbeats`, which have far more child sections.
+
+### Two things the plan's table got wrong
+
+- ⚠ **`accounts` is not a 0-work screen.** The table records 0 `<Label>` and 0
+  `FieldHint`, which is true of `accounts-client.tsx` and misses
+  `imap/imap-form.tsx` entirely — 342 lines, a dozen raw labels, a password
+  reveal, an SMTP block, and two raw `<input type="checkbox">`. It was the
+  BIGGEST §6 job of the four, not the smallest. **Re-count the remaining rows by
+  walking their child components**, not just the `*-client.tsx`.
+- §6d is not only `<select>`. `accounts` had two raw checkboxes and `skills` two
+  raw `<textarea>`s carrying hand-copied input classes — no focus ring, no
+  invalid state, and they drift the moment a token changes.
+
+### Also fixed in passing
+
+`accounts` carried `max-w-md` ×2 and `max-w-2xl` inside its detail pane. A pane
+that is already a measure AND draggable, with a second cap inside it, means the
+drag does nothing — the `/pages` bug. Dropped. **Check every remaining screen
+for this**; the singleton settings screens are full of `mx-auto max-w-2xl` (see
+[`plan-settings-hub.md`](./plan-settings-hub.md) §4).
+
+### Coverage
+
+Four scaffold rows, plus three per-screen specs: `settings-imap-form`,
+`settings-worker-groups`, `settings-tool-groups`, `settings-skills`. Each guard
+verified by reintroducing the bug and watching exactly the intended test fail.
+
+⚠ **`tool-groups`' integration section renders in EDIT mode only** — a new group
+starts unbound. A first version of that spec opened "New", found no switch and
+timed out. It seeds a group through the API instead.
+
+Suite: **108 pass / 88 skip / 2 fail** — the two are still `team.spec.ts`.
+
+Left in §2b: `keys`, `peers`, `config`, `ai-workers`, then `tools`, `users`,
+`heartbeats`, `agents`, then `team-admin` and `apps/[id]`.

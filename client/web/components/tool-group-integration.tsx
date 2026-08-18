@@ -29,6 +29,7 @@ import {
 } from '@mantle/web-ui/ui/dialog';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
 import {
   Select,
   SelectContent,
@@ -129,9 +130,18 @@ type KeyRow = { service: string; label: string; masked: string };
 export function ToolGroupIntegrationSection({
   value,
   onChange,
+  serviceError,
 }: {
   value: IntegrationForm;
   onChange: (next: IntegrationForm) => void;
+  /**
+   * §6b. `integrationToPayload` returns `undefined` for an enabled integration
+   * with no service, and the caller used to announce that as a TOAST — a
+   * message that names a control, appears in a corner, and is gone before you
+   * can look for it. The caller passes the message down here instead, so it
+   * lands under the field it is about.
+   */
+  serviceError?: string;
 }) {
   const keysQuery = useQuery({
     queryKey: ['keys'],
@@ -170,16 +180,19 @@ export function ToolGroupIntegrationSection({
       {value.enabled && (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="integration-service">Service</Label>
+            <Field data-invalid={!!serviceError || undefined}>
+              <FieldLabel htmlFor="integration-service">Service</FieldLabel>
               <Input
                 id="integration-service"
                 value={value.service}
                 onChange={(e) => patch({ service: e.target.value })}
                 placeholder="openweathermap"
                 className="font-mono"
+                aria-invalid={!!serviceError || undefined}
+                aria-describedby={serviceError ? 'integration-service-error' : undefined}
               />
-            </div>
+              <FieldError id="integration-service-error">{serviceError}</FieldError>
+            </Field>
             <div className="space-y-1.5">
               <Label htmlFor="integration-base-url">Base URL</Label>
               <Input
