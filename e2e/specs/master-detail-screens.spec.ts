@@ -28,6 +28,10 @@ const SCREENS = [
   // Left column is a nav TREE rather than a list of cards — a deliberate
   // exception. The scaffold contract this file holds is the same either way.
   { path: '/docs', id: 'docs' },
+  // Folder TREE on the left, same deliberate exception as /docs. Its right pane
+  // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
+  // below is the interesting one here.
+  { path: '/files', id: 'files' },
   // A box with the `sandboxes` compose profile off renders an explainer instead
   // of the screen, so this row SKIPS itself there rather than failing. Said out
   // loud, because a silently-skipped row is indistinguishable from a passing one.

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import {
   ChevronDown,
   ChevronRight,
@@ -409,289 +410,322 @@ function FilesView({
   const someSelected = selectedFileIds.size > 0 && !allSelected;
 
   return (
-    <div className="grid h-full grid-cols-[260px_1fr]">
-      {/* ── Tree rail ───────────────────────────────────────────── */}
-      <aside className="overflow-y-auto border-r border-border bg-muted/20 p-2">
-        <FolderTreeRail tree={tree} currentPath={currentPath} onNavigate={navigateFolder} />
-      </aside>
+    <>
+      <MasterDetail
+        id="files"
+        // 260px, the width this screen has always had — a starting point now
+        // rather than a decree.
+        defaultListSize="260px"
+        // The literal translation of the old `grid-cols-[260px_1fr]`: the tree
+        // keeps its draggable width and the right pane takes everything else.
+        // It is a six-column file table and, when a file is open, an editor with
+        // a side-by-side preview — not a measure of reading text, so the
+        // three-panel default's 672px cap would be actively wrong here.
+        detailFills
+        list={
+          /* ── Tree rail ─────────────────────────────────────────
+             No `border-r`: `MasterDetail`'s handle IS a 1px `bg-border` rule in
+             exactly that place, so keeping the border would draw it twice.
+             `h-full` because a grid item stretched to the row and a flex item
+             does not — without it the tinted background stops wherever the
+             tree happens to end. */
+          <aside className="h-full overflow-y-auto scrollbar-thin bg-muted/20 p-2">
+            <FolderTreeRail tree={tree} currentPath={currentPath} onNavigate={navigateFolder} />
+          </aside>
+        }
+        detail={
+          /* ── Main pane ─────────────────────────────────────────
+             KEEPS its own `flex h-full flex-col overflow-hidden` and the
+             `flex-1 overflow-y-auto` grid inside it, rather than handing the
+             scroll to `MasterDetail`'s pane (landmine 9). The breadcrumb header
+             and the toolbar are pinned by that structure; letting the outer
+             pane scroll would scroll them away. Only ONE scrollbar is ever
+             painted — `h-full` + `overflow-hidden` means the outer pane's
+             content can never exceed it, so it has nothing to scroll.
 
-      {/* ── Main pane ───────────────────────────────────────────── */}
-      <div
-        className="flex h-full flex-col overflow-hidden"
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (!dragOver) setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-      >
-        {openFileId ? (
-          <FileEditor
-            key={openFileId}
-            fileId={openFileId}
-            onClose={() => openFile(null)}
-            onSaved={refresh}
-          />
-        ) : (
-          <>
-            <SetPageTitle title={currentFolder?.slug ?? 'files'} />
-            {/* Header */}
-            <header className="border-b border-border px-6 py-3">
-              <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-                {breadcrumbs.map((c, i) => (
-                  <span key={c.path} className="flex items-center gap-1">
-                    {i > 0 && <ChevronRight className="size-3" aria-hidden />}
-                    <button
-                      onClick={() => navigateFolder(c.path)}
-                      className={
-                        i === breadcrumbs.length - 1
-                          ? 'font-medium text-foreground'
-                          : 'hover:text-foreground'
-                      }
-                    >
-                      {c.label}
-                    </button>
-                  </span>
-                ))}
-              </nav>
+             The drag-to-upload handlers stay on this element, so the drop zone
+             is still the whole right pane. */
+          <div
+            className="flex h-full flex-col overflow-hidden"
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!dragOver) setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+          >
+            {openFileId ? (
+              <FileEditor
+                key={openFileId}
+                fileId={openFileId}
+                onClose={() => openFile(null)}
+                onSaved={refresh}
+              />
+            ) : (
+              <>
+                <SetPageTitle title={currentFolder?.slug ?? 'files'} />
+                {/* Header */}
+                <header className="border-b border-border px-6 py-3">
+                  <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+                    {breadcrumbs.map((c, i) => (
+                      <span key={c.path} className="flex items-center gap-1">
+                        {i > 0 && <ChevronRight className="size-3" aria-hidden />}
+                        <button
+                          onClick={() => navigateFolder(c.path)}
+                          className={
+                            i === breadcrumbs.length - 1
+                              ? 'font-medium text-foreground'
+                              : 'hover:text-foreground'
+                          }
+                        >
+                          {c.label}
+                        </button>
+                      </span>
+                    ))}
+                  </nav>
 
-              {currentFolder && currentFolder.path !== FILES_ROOT && (
-                <div className="mt-1 flex items-center justify-end gap-1">
-                  <ShareControl
-                    nodeId={currentFolder.id}
-                    teamMode
-                    teamHint="Visitors must enter their team token to open the link. The link covers every file in this folder and its subfolders — including files added later."
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7"
-                    onClick={() =>
-                      setRenameTarget({
-                        kind: 'folder',
-                        id: currentFolder.id,
-                        slug: currentFolder.slug,
-                      })
-                    }
-                    disabled={busy}
-                  >
-                    <Pencil /> Rename
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-muted-foreground hover:text-destructive-ink"
-                    onClick={() => setDeleteFolderOpen(true)}
-                    disabled={busy}
-                  >
-                    <Trash2 /> Delete folder
-                  </Button>
-                </div>
-              )}
-
-              {/* Description */}
-              <div className="mt-2 text-sm">
-                {editingDesc ? (
-                  <div className="flex flex-col gap-2">
-                    <Textarea
-                      value={draftDesc}
-                      onChange={(e) => setDraftDesc(e.target.value)}
-                      rows={2}
-                      placeholder="Describe what lives in this folder…"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={saveDescription}>
-                        Save
+                  {currentFolder && currentFolder.path !== FILES_ROOT && (
+                    <div className="mt-1 flex items-center justify-end gap-1">
+                      <ShareControl
+                        nodeId={currentFolder.id}
+                        teamMode
+                        teamHint="Visitors must enter their team token to open the link. The link covers every file in this folder and its subfolders — including files added later."
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7"
+                        onClick={() =>
+                          setRenameTarget({
+                            kind: 'folder',
+                            id: currentFolder.id,
+                            slug: currentFolder.slug,
+                          })
+                        }
+                        disabled={busy}
+                      >
+                        <Pencil /> Rename
                       </Button>
                       <Button
+                        variant="ghost"
                         size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingDesc(false);
-                          setDraftDesc(currentFolder?.description ?? '');
-                        }}
+                        className="h-7 text-muted-foreground hover:text-destructive-ink"
+                        onClick={() => setDeleteFolderOpen(true)}
+                        disabled={busy}
                       >
-                        Cancel
+                        <Trash2 /> Delete folder
                       </Button>
                     </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setDraftDesc(currentFolder?.description ?? '');
-                      setEditingDesc(true);
-                    }}
-                    className="group flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <span>
-                      {currentFolder?.description ? (
-                        currentFolder.description
-                      ) : (
-                        <span className="italic">no description — click to add</span>
-                      )}
-                    </span>
-                    <Pencil className="size-3 opacity-0 group-hover:opacity-100" aria-hidden />
-                  </button>
-                )}
-              </div>
-            </header>
+                  )}
 
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm">
-                    <Plus /> New <ChevronDown className="opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-44">
-                  <DropdownMenuItem onSelect={() => setCreateFolderOpen(true)}>
-                    <FolderPlus /> Folder
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setCreateFileExt('md')}>
-                    <FileText /> Markdown file
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setCreateFileExt('txt')}>
-                    <FileText /> Text file
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setCreateFileExt('json')}>
-                    <FileJson /> JSON file
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <Button size="sm" variant="outline" onClick={triggerUpload}>
-                <Upload /> Upload
-              </Button>
-              <input ref={fileInputRef} type="file" multiple hidden onChange={onFileInput} />
-
-              {selectedFileIds.size > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="ml-auto text-muted-foreground hover:text-destructive-ink"
-                  onClick={() => setBulkDeleteOpen(true)}
-                >
-                  <Trash2 /> Delete {selectedFileIds.size}
-                </Button>
-              )}
-            </div>
-
-            {/* Grid */}
-            <div className="relative flex-1 overflow-y-auto">
-              {dragOver && (
-                <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary/50 bg-primary/5 text-sm font-medium text-primary-ink">
-                  Drop to upload to <code className="ml-1 font-mono">{currentPath}</code>
-                </div>
-              )}
-
-              {/* Child folders */}
-              <ChildFolders tree={tree} currentPath={currentPath} onNavigate={navigateFolder} />
-
-              {/* Files */}
-              {files.length === 0 ? (
-                <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-                  No files in this folder. Drop a file anywhere here, or use{' '}
-                  <span className="font-medium text-foreground">New</span> to create one.
-                </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="w-8 px-3 py-2">
-                        <Checkbox
-                          aria-label="Select all files"
-                          checked={allSelected ? true : someSelected ? 'indeterminate' : false}
-                          onCheckedChange={(v) =>
-                            setSelectedFileIds(v ? new Set(files.map((f) => f.id)) : new Set())
-                          }
+                  {/* Description */}
+                  <div className="mt-2 text-sm">
+                    {editingDesc ? (
+                      <div className="flex flex-col gap-2">
+                        <Textarea
+                          value={draftDesc}
+                          onChange={(e) => setDraftDesc(e.target.value)}
+                          rows={2}
+                          placeholder="Describe what lives in this folder…"
+                          autoFocus
                         />
-                      </th>
-                      <th className="px-3 py-2 text-left">Name</th>
-                      <th className="px-3 py-2 text-right">Size</th>
-                      <th className="px-3 py-2 text-left">Summary</th>
-                      <th className="px-3 py-2 text-left">Modified</th>
-                      <th className="w-10 px-3 py-2" aria-label="Actions" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {files.map((f) => (
-                      <tr key={f.id} className="hover:bg-muted/30">
-                        <td className="px-3 py-2">
-                          <Checkbox
-                            aria-label={`Select ${f.filename}`}
-                            checked={selectedFileIds.has(f.id)}
-                            onCheckedChange={(v) =>
-                              setSelectedFileIds((prev) => {
-                                const next = new Set(prev);
-                                if (v) next.add(f.id);
-                                else next.delete(f.id);
-                                return next;
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() => openFile(f.id)}
-                            data-mark-id={f.id}
-                            data-mark-kind="file"
-                            data-mark-label={f.filename}
-                            className="flex items-center gap-2 text-left hover:underline"
-                          >
-                            <FileText className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="font-medium">{f.filename}</span>
-                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                              {f.extension}
-                            </span>
-                            {f.summary && (
-                              <span
-                                title="Indexed — summary ready"
-                                className="inline-flex items-center text-primary-ink"
-                              >
-                                <ChevronsRight className="size-3.5 shrink-0" />
-                              </span>
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                          {fmtSize(f.sizeBytes)}
-                        </td>
-                        <td className="max-w-[40ch] truncate px-3 py-2 text-xs text-muted-foreground">
-                          {f.summary ?? <span className="italic">—</span>}
-                        </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">
-                          {fmtRelative(f.updatedAt)}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            aria-label={`Rename ${f.filename}`}
-                            onClick={() =>
-                              setRenameTarget({
-                                kind: 'file',
-                                id: f.id,
-                                filename: f.filename,
-                                extension: f.extension,
-                              })
-                            }
-                          >
-                            <Pencil className="size-3.5" />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={saveDescription}>
+                            Save
                           </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingDesc(false);
+                              setDraftDesc(currentFolder?.description ?? '');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setDraftDesc(currentFolder?.description ?? '');
+                          setEditingDesc(true);
+                        }}
+                        className="group flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                      >
+                        <span>
+                          {currentFolder?.description ? (
+                            currentFolder.description
+                          ) : (
+                            <span className="italic">no description — click to add</span>
+                          )}
+                        </span>
+                        <Pencil className="size-3 opacity-0 group-hover:opacity-100" aria-hidden />
+                      </button>
+                    )}
+                  </div>
+                </header>
+
+                {/* Toolbar */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm">
+                        <Plus /> New <ChevronDown className="opacity-70" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-44">
+                      <DropdownMenuItem onSelect={() => setCreateFolderOpen(true)}>
+                        <FolderPlus /> Folder
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setCreateFileExt('md')}>
+                        <FileText /> Markdown file
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setCreateFileExt('txt')}>
+                        <FileText /> Text file
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setCreateFileExt('json')}>
+                        <FileJson /> JSON file
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button size="sm" variant="outline" onClick={triggerUpload}>
+                    <Upload /> Upload
+                  </Button>
+                  <input ref={fileInputRef} type="file" multiple hidden onChange={onFileInput} />
+
+                  {selectedFileIds.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto text-muted-foreground hover:text-destructive-ink"
+                      onClick={() => setBulkDeleteOpen(true)}
+                    >
+                      <Trash2 /> Delete {selectedFileIds.size}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Grid */}
+                {/* The pane's ONE scrollbar. `scrollbar-thin` per §8 — there is
+                    no global default, so an element that scrolls without it
+                    gets a fat bar and nothing warns you. */}
+                <div className="relative flex-1 overflow-y-auto scrollbar-thin">
+                  {dragOver && (
+                    <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary/50 bg-primary/5 text-sm font-medium text-primary-ink">
+                      Drop to upload to <code className="ml-1 font-mono">{currentPath}</code>
+                    </div>
+                  )}
+
+                  {/* Child folders */}
+                  <ChildFolders tree={tree} currentPath={currentPath} onNavigate={navigateFolder} />
+
+                  {/* Files */}
+                  {files.length === 0 ? (
+                    <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+                      No files in this folder. Drop a file anywhere here, or use{' '}
+                      <span className="font-medium text-foreground">New</span> to create one.
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
+                        <tr>
+                          <th className="w-8 px-3 py-2">
+                            <Checkbox
+                              aria-label="Select all files"
+                              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                              onCheckedChange={(v) =>
+                                setSelectedFileIds(v ? new Set(files.map((f) => f.id)) : new Set())
+                              }
+                            />
+                          </th>
+                          <th className="px-3 py-2 text-left">Name</th>
+                          <th className="px-3 py-2 text-right">Size</th>
+                          <th className="px-3 py-2 text-left">Summary</th>
+                          <th className="px-3 py-2 text-left">Modified</th>
+                          <th className="w-10 px-3 py-2" aria-label="Actions" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {files.map((f) => (
+                          <tr key={f.id} className="hover:bg-muted/30">
+                            <td className="px-3 py-2">
+                              <Checkbox
+                                aria-label={`Select ${f.filename}`}
+                                checked={selectedFileIds.has(f.id)}
+                                onCheckedChange={(v) =>
+                                  setSelectedFileIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (v) next.add(f.id);
+                                    else next.delete(f.id);
+                                    return next;
+                                  })
+                                }
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={() => openFile(f.id)}
+                                data-mark-id={f.id}
+                                data-mark-kind="file"
+                                data-mark-label={f.filename}
+                                className="flex items-center gap-2 text-left hover:underline"
+                              >
+                                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                                <span className="font-medium">{f.filename}</span>
+                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                  {f.extension}
+                                </span>
+                                {f.summary && (
+                                  <span
+                                    title="Indexed — summary ready"
+                                    className="inline-flex items-center text-primary-ink"
+                                  >
+                                    <ChevronsRight className="size-3.5 shrink-0" />
+                                  </span>
+                                )}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                              {fmtSize(f.sizeBytes)}
+                            </td>
+                            <td className="max-w-[40ch] truncate px-3 py-2 text-xs text-muted-foreground">
+                              {f.summary ?? <span className="italic">—</span>}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground">
+                              {fmtRelative(f.updatedAt)}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                aria-label={`Rename ${f.filename}`}
+                                onClick={() =>
+                                  setRenameTarget({
+                                    kind: 'file',
+                                    id: f.id,
+                                    filename: f.filename,
+                                    extension: f.extension,
+                                  })
+                                }
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        }
+      />
 
       {/* ── Create folder dialog ──────────────────────────────────── */}
       <CreateFolderDialog
@@ -798,7 +832,7 @@ function FilesView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 
