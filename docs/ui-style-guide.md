@@ -561,7 +561,12 @@ still use it; port them as you touch them.
   screen, where leaving the list beside the content defeats the point. **The
   list stays mounted**, so its search text, scroll position and page survive
   the round trip; `{zen ? null : list}` looks identical and quietly makes focus
-  mode a reset button. Only `/apps` passes it today.
+  mode a reset button. Passed by `/apps`, `/notes`, `/draw`, `/pages` and
+  `/tables` — the four focus-mode screens plus Tables' own collapse toggle.
+  - **A screen with focus mode almost always wants `detailFills` too.** Under
+    the three-panel default the width the list gives up goes to the empty
+    SPACER, not to the detail, so the chrome disappears and the content stays
+    exactly as wide as it was.
   - **Passing it at all is what makes the panel collapsible**, which is why it
     has no default. `collapsible` also means "collapse when dragged below
     `minSize`", so setting it for everyone would let any list be dragged out of

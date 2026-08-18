@@ -231,7 +231,10 @@ the app's `FieldHint` usage, so they benefit most from §6a/§6b. They are also
 the screens I could not verify on the scratch brain (no agents, no workers, no
 heartbeats provisioned) — check them against a brain with real data.
 
-**2c. Remaining** — `docs/layout.tsx`, `team-admin`, `team-workspace/team-section`
+**2c. Remaining** — `team-admin`, `team-workspace/team-section`. (`docs/layout.tsx`
+is done, along with `files`, `tables`, `notes`, `draw` and `pages` — see
+[`handover-resizable-columns.md`](../handover-resizable-columns.md), which is
+closed out.)
 
 ## Phase 3 — the surfaces that are not master-detail
 
@@ -239,7 +242,7 @@ heartbeats provisioned) — check them against a brain with real data.
 |---|---|
 | Assistant dock | `assistant-client.tsx:1863` is a raw `<textarea>` — the last fat scrollbar in the app, and no focus ring. |
 | Mail | Already uses `ResizablePanelGroup`, but persists layout to a **cookie** via `onLayoutChanged` rather than `useDefaultLayout`. Converge on one mechanism. |
-| Pages / Draw / Tables | Their own editors. Audit against §6d and §8 only; do not force the master-detail shape onto them. |
+| Pages / Draw / Tables | Their own EDITORS, only. The three list screens are now `MasterDetail` (`detailFills` + `listCollapsed`); the editor bodies were deliberately left alone. Audit those against §6d and §8, and do not force the master-detail shape onto them. |
 
 ## Phase 4 — stop the drift coming back
 

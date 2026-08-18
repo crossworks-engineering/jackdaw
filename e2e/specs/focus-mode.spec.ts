@@ -4,8 +4,7 @@ import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
 
 /**
- * Focus mode on the list screens that have it — Notes and Draw; Pages joins the
- * table when it is ported.
+ * Focus mode on the three list screens that have it — Notes, Draw and Pages.
  *
  * Their scaffold half is one row each in `master-detail-screens.spec.ts`. What
  * is here is the half the port could get wrong for free: in focus mode the list
@@ -14,7 +13,7 @@ import { ARTIFACTS_DIR } from '../lib/env';
  * column away on every toggle.
  *
  * ⚠ `inputValue()` is deliberately NOT the guard here, unlike `apps.spec.ts`.
- * On every one of these screens the search box is a controlled input whose state lives in
+ * On all three screens the search box is a controlled input whose state lives in
  * the SCREEN component, not inside the list subtree — so React re-renders it
  * with the same text even after a real unmount, and an `inputValue` assertion
  * would pass with `{zen ? null : list}` deliberately put back. `count()` is what
@@ -61,6 +60,7 @@ const SCREENS: Screen[] = [
     },
   },
   { path: '/draw', search: 'Search drawings…', fixture: creates('draws') },
+  { path: '/pages', search: 'Search pages…', fixture: creates('pages') },
 ];
 
 test.describe('focus mode', () => {

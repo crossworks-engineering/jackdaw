@@ -1,15 +1,18 @@
 # Handover: the last screens without a real resizable column (2026-08-18)
 
-Six screens had a list column that a user could not drag properly. **Docs and
-Files are done** (Group A); Notes, Pages, Tables and Draw remain, and they are
-the ones with hand-rolled resizers and focus mode. The work is **mechanical** —
-every design question `<MasterDetail>` used to raise has been answered and
-shipped.
+## ✅ DONE — all six are ported, phase 2 of the rollout is complete
 
-Read [`ui-style-guide.md`](./ui-style-guide.md) §8 first — specifically
-"Master-detail: the anatomy, and the rules that outlive the scaffold". This
-file only says **where** the remaining work is and **what each screen will
-fight you with**.
+Six screens had a list column that a user could not drag properly. Docs and
+Files went first (Group A); Tables, Notes, Draw and Pages followed in that
+order and landed the same day. **`components/layout/focus-layout.ts` and its
+test are deleted** — Pages and Draw were its only importers, and that deletion
+was the agreed completion signal for this document.
+
+Nothing here is a to-do any more. What is left is the record: which screen took
+which props, and the handful of things the ports taught. Read
+[`ui-style-guide.md`](./ui-style-guide.md) §8 for the pattern itself —
+specifically "Master-detail: the anatomy, and the rules that outlive the
+scaffold".
 
 ---
 
@@ -28,16 +31,30 @@ Per §8, and in the order a user notices:
 
 ---
 
-## 2. The screens, and what each one actually has today
+## 2. The screens, and what each one ended up with
 
-| screen | file | lines | today | the work |
-|---|---|---|---|---|
-| ~~**Files**~~ | `files/files-client.tsx` | 1215 | ✅ ported — `MasterDetail`, `defaultListSize="260px"` + `detailFills` | done |
-| ~~**Docs**~~ | `docs/layout.tsx` | 37 | ✅ ported — `MasterDetail`, `defaultListSize="300px"` | done |
-| **Notes** | `notes/notes-client.tsx` | 634 | hand-rolled resizer + focus mode | replace the DIY resizer |
-| **Pages** | `pages/pages-client.tsx` | 1192 | hand-rolled resizer + `focusGridColumns` | replace the DIY resizer |
-| **Tables** | `tables/tables-shell.tsx` | 531 | hand-rolled resizer, own storage key | replace the DIY resizer |
-| **Draw** | `draw/draws-client.tsx` | 542 | `focusGridClass(zen)`, fixed 360px | swap + `listCollapsed` |
+All six are `<MasterDetail>` now. What each one ended up passing, and why:
+
+| screen | file | props | why |
+|---|---|---|---|
+| ~~**Files**~~ | `files/files-client.tsx` | `defaultListSize="260px"`, `detailFills` | a six-column file table, not prose |
+| ~~**Docs**~~ | `docs/layout.tsx` | `defaultListSize="300px"` | documentation prose — the only screen that takes the 672px default |
+| ~~**Tables**~~ | `tables/tables-shell.tsx` | `320px` (220–520), `detailFills`, `listCollapsed` | a data grid; `listCollapsed` drives the screen's own collapse toggle |
+| ~~**Notes**~~ | `notes/notes-client.tsx` | `380px` (300–760), `detailFills`, `listCollapsed` | a full-bleed markdown editor; focus mode is labelled "full width" |
+| ~~**Draw**~~ | `draw/draws-client.tsx` | `360px`, `detailFills`, `listCollapsed` | an SVG snapshot / pan-zoom canvas |
+| ~~**Pages**~~ | `pages/pages-client.tsx` | `300px` (220–560), `detailFills`, `listCollapsed` | the preview declares its OWN measure (per-page narrow/wide) and an xl outline rail |
+
+**Every one of the four late ports took `detailFills`, and that is not an
+accident.** Two rules pushed the same way:
+
+- All four had `1fr` on the right. `1fr` translates to `detailFills`, never to
+  the default — capping them at 672px would have been a visible regression on
+  screens where the port was supposed to change nothing but the divider.
+- **A screen with focus mode needs `detailFills` for focus mode to mean
+  anything.** Under the three-panel default, collapsing the list hands the
+  freed width to the empty SPACER, not to the detail; the chrome disappears and
+  the content stays the width it was. Only `/docs` — no focus mode, plain prose,
+  no measure of its own — takes the default.
 
 ### ✅ Apps is already done — do not port it again
 
@@ -60,13 +77,13 @@ but confirm that reads as deliberate rather than as the list vanishing.
 
 ---
 
-## 3. Three groups, easiest first
+## 3. The three groups, and what each taught
 
 ### ✅ Group A — fixed grid, no resize (Files, Docs) — both done
 
 Both left columns stayed trees rather than `<ListCard>` lists — the deliberate
-exception this section always recorded. Three things came out of doing them
-that the next port should expect:
+exception this section always recorded. Three things came out of doing them,
+and all three bit the four ports that followed:
 
 - **`1fr` translates to `detailFills`, not to the default.** `/files` was
   `grid-cols-[260px_1fr]`; the three-panel default would have capped its
@@ -84,56 +101,82 @@ that the next port should expect:
   item stretched to its row, a flex item does not, so a tinted rail stops
   wherever its content ends.
 
-### Group B — hand-rolled resizers (Notes, Pages, Tables)
+### ✅ Group B — hand-rolled resizers (Tables, Notes, Pages) — all done
 
-These already resize. What they lack is a handle a user can see or reach:
+All three had the same 2px `aria-hidden` strip on the divider — no grip, no
+keyboard path, and a `hover:bg-primary/20` that was the only hint it existed —
+plus three separate width stores (`tables.listWidth`,
+`mantle:notes-list-width`, `mantle:pages-list-width`) and three copies of the
+pointer maths. `MasterDetail`'s `id` + `useDefaultLayout` replaced all of it.
 
-```tsx
-// notes-client.tsx — and pages-client.tsx has the same shape
-<div
-  onPointerDown={startResize}
-  className="absolute inset-y-0 z-20 hidden w-2 -translate-x-1/2 cursor-col-resize
-             transition-colors hover:bg-primary/20 md:block"
-  style={{ left: `${listWidth}px` }}
-  aria-hidden
-/>
-```
+Each screen's old clamps were carried over verbatim rather than normalised, so
+the column lands and stops where its users are used to.
 
-A 2px invisible strip: no grip, `aria-hidden`, no keyboard path, and a
-`hover:bg-primary/20` that is the only hint it exists. That is why the report
-says "missing drag handles" on screens that technically resize.
+**⚠ Saved widths reset once, deliberately — no migration.** Decided on Tables
+and applied to all four. The reasons, so nobody re-opens it:
 
-**Each also persists its width its own way** — Notes and Pages share a
-`WIDTH_KEY`/`LIST_DEFAULT` idiom, Tables invented `tables.listWidth` with its
-own drag maths in `tables-shell.tsx`. Three implementations of one thing.
-`MasterDetail`'s `id` + `useDefaultLayout` replaces all three.
+- `useDefaultLayout` persists a **percentage array keyed by panel id**, not a
+  pixel number. A migration would have to convert px → % against a container
+  width that does not exist until after first layout, writing an unversioned
+  private shape that a library bump can change under it.
+- The old clamps disagree with the new ones (220–520 / 300–760 / 220–560 vs
+  `MasterDetail`'s 260–560 default band), so a migrated width can land out of
+  range anyway.
+- Migration code here is write-once, read-never: it has to live forever to
+  catch a returning user, and it can only be tested against itself.
 
-⚠ **Saved widths will reset once.** The new key is
-`master-detail:<id>`, so a user's dragged width does not carry over. Either
-accept the one-time reset (fine — it lands on a sane default) or migrate the
-old key on first mount. Decide deliberately; do not discover it in review.
+Each screen lands on a sane default, and one drag fixes it permanently.
 
-### Group C — focus mode (Draw, and the focus half of Notes/Pages)
+### ✅ Group C — focus mode (Draw, Notes, Pages) — all done
 
-`MasterDetail` learned this on 2026-08-18. **Do not hand-roll it and do not
-unmount the list.**
-
-| today | replacement |
+| was | now |
 |---|---|
 | `focusGridClass(zen)` (Draw) | `listCollapsed={zen}` |
 | `focusGridColumns(zen, listWidth)` (Pages) | `listCollapsed={zen}` |
 | `focus ? '0px minmax(0, 1fr)' : …` (Notes) | `listCollapsed={focus}` |
 
-All three already collapse to zero **while keeping the list mounted**, which is
-exactly `listCollapsed`'s contract — so this is a like-for-like swap, not a
-behaviour change. `components/layout/focus-layout.ts` can be deleted once the
-last caller goes; it is only Pages and Draw now.
+Like-for-like: all three already collapsed to zero while keeping the list
+mounted, which is exactly `listCollapsed`'s contract.
+
+**`components/layout/focus-layout.ts` and `focus-layout.test.ts` are deleted.**
+Pages and Draw were the last importers. `components/layout/zen-mode.ts` named
+the file in a doc comment (not an import, so nothing would have warned); it now
+points at `listCollapsed` instead.
+
+Two things the focus ports taught:
+
+- **Focus mode without `detailFills` is nearly a no-op.** The list collapses,
+  the shell's chrome goes, and the freed width lands in the empty SPACER
+  panel — the content stays exactly as wide as it was. If a screen has focus
+  mode, it wants `detailFills`.
+- **Notes' focus mode is LOCAL state, not the shell's `zen`.** It lives in the
+  note editor's header and does not touch `ZenModeContext`, so the shell keeps
+  its chrome. Draw and Pages use the shared `<FocusToggle>` and the shell's
+  `zen`. Same prop, different source — don't assume `useZenMode()` on Notes.
+
+### The port pattern, in the order it goes wrong
+
+1. Lift the list's children into `list={<>…</>}` and DROP the wrapper: its
+   `border-r` (the handle IS that 1px rule), its inline width, and the DIY
+   handle. `MasterDetail` supplies `flex h-full min-h-0 flex-col
+   overflow-hidden` around whatever you pass.
+2. Decide the detail wrapper. **A pane with its own pinned header keeps its own
+   scroller** — Tables (sticky toolbar over a grid) and Notes (sticky header
+   over a body) do, and take `h-full overflow-hidden` on the pane's root so
+   `MasterDetail`'s scroller can never overflow and only one bar is painted.
+   Draw and Pages have no pinned header, so their previews go in unwrapped.
+   Landmine 9 is "don't paint two bars", not "never nest a scroller".
+3. Gate that wrapper at `md:` if the screen used to (`md:h-full
+   md:overflow-hidden`). Below `md` the panes stack and `<main>` scrolls; an
+   unconditional `h-full` there is at best a no-op and at worst a trap.
+4. The old left column's closing `</div>` is easy to leave behind. It typechecks
+   as a JSX error two hundred lines later, not where you made it.
 
 ---
 
-## 4. The primitive is ready — no design work left
+## 4. The primitive — the whole prop surface, and the one rule about it
 
-Everything these screens need already exists and is covered by tests:
+Everything these screens needed already existed, and is covered by tests:
 
 | need | prop |
 |---|---|
@@ -151,16 +194,24 @@ holds this line; do not "tidy" it into a default.
 
 ---
 
-## 5. Scope note — this narrows the plan deliberately
+## 5. Scope note — what these ports deliberately did NOT touch
 
 `plans/workspace-screen-consistency.md` phase 3 says of Pages / Draw / Tables:
 *"Audit against §6d and §8 only; do not force the master-detail shape onto
-them."* That still stands **for their editors**. This handover is narrower:
-the **list column and its divider**, not the editor bodies, and not a §6 form
-sweep. Jason asked for the resizable column specifically.
+them."* That still stands **for their editors**. This work was narrower: the
+**list column and its divider**, not the editor bodies, and not a §6 form sweep.
 
-So: port the scaffold, get the handle, keep the content left. Leave each
-screen's editor alone unless it breaks.
+Two things were left alone on purpose, and are the obvious next questions:
+
+- **Pages' preview still declares its own measure.** `mx-auto max-w-3xl` /
+  `max-w-none`, driven by the per-page `width` setting that is persisted
+  server-side, plus an `xl:` outline rail. §8 says a `mx-auto max-w-*` in a
+  detail pane is wrong and that the measure is the panel's job. Reconciling
+  those two means retiring a shipped, user-facing control — a product decision,
+  not a port. `detailFills` was chosen so the existing control keeps working.
+- **Notes' preview prose runs the full pane width** (`prose max-w-none`), as it
+  did before. `detailFills` preserved that rather than introducing a measure
+  the screen never had.
 
 ---
 
@@ -168,7 +219,8 @@ screen's editor alone unless it breaks.
 
 **A scaffold-only port is ONE ROW** in `e2e/specs/master-detail-screens.spec.ts`
 — panes exist, width persists under a per-screen key, the detail pane owns at
-most one scrollbar. That is the whole cost for Files, Docs and Tables.
+most one scrollbar. That was the whole cost for Files, Docs and Tables; Notes,
+Draw and Pages take a row there too, plus one in `focus-mode.spec.ts`.
 
 The table also asserts the screen **server-renders** without falling back to
 client rendering. `MasterDetail` handed `useDefaultLayout` an explicit
@@ -185,12 +237,20 @@ elements where `scrollHeight > clientHeight`. Put enough rows in front of it to
 overflow before you believe it. On `/files` it counted 0 with one file in the
 folder and 1 (the right one) with thirty.
 
-Write a per-screen spec only where the port **changes behaviour**. On this list
-that means the focus-mode screens: assert the list is **collapsed but still
-mounted**, the way `apps.spec.ts` does — type into the search box, toggle focus,
-read the value back. Assert `count()` and `inputValue()`, deliberately **not**
-`toBeVisible()`: a zero-width element is correctly invisible, and that is the
-distinction the test exists to draw.
+Write a per-screen spec only where the port **changes behaviour**. Here that
+meant the focus-mode screens, and they share one file: `focus-mode.spec.ts`
+asserts the list is **collapsed but still mounted**.
+
+⚠ **`inputValue()` is NOT the guard on Notes / Draw / Pages, unlike
+`apps.spec.ts`.** On all three the search box is a controlled input whose state
+lives in the SCREEN component, not inside the list subtree — so React
+re-renders it with the same text after a real unmount, and an `inputValue`
+assertion passes with `list={zen ? null : …}` deliberately put back. `count()`
+is what separates the two. Still deliberately **not** `toBeVisible()`: a
+zero-width element is correctly invisible, and that is the distinction the test
+exists to draw. The file adds one more assertion worth keeping: **no divider
+survives a collapse**, or a handle sits at the screen edge dragging a column
+the user just asked to be rid of.
 
 **Verify every guard against the bug it exists for** before committing: revert
 the fix, watch the test fail, restore it. Landmine 6 in
@@ -200,7 +260,7 @@ reintroduced.
 
 ---
 
-## 7. Two traps that cost time on the last round
+## 7. Traps that cost time
 
 - **Leaving focus mode is not one frame.** The shell's chrome returns and the
   panel group narrows a moment after the list reappears, so a width sampled in
@@ -213,6 +273,17 @@ reintroduced.
   ```sh
   lsof -a -p "$(lsof -tiTCP:3100 -sTCP:LISTEN | head -1)" -d cwd -Fn
   ```
+
+- **A one-line revert does not always reintroduce the bug you are testing.**
+  On `/tables`, removing `overflow-hidden` from the detail root still gave ONE
+  scrollbar: the `h-full` chain means the pane and the grid cannot both
+  overflow. The row is live there (it counts 1 with 80 rows in the grid, 0 with
+  3), but that particular guard could not be falsified by editing that screen.
+  Falsify the assertion you can — pointing `/tables`' `id` at another screen's
+  key does fail "no saved layout under a key naming tables".
+- **`pnpm -C e2e e2e -- -g …` silently ignores the filter** and runs the whole
+  suite. Use `pnpm -C e2e exec playwright test --project=split <file>` when you
+  want one spec.
 
 Full environment, credentials and the nine landmines:
 [`handover-ui-consistency.md`](./handover-ui-consistency.md) §4–5.
@@ -251,32 +322,27 @@ the **divider's** chip with the pointer parked away, so the two cannot drift
 apart, and reads computed `opacity`/`background-color` so a hover-gated grip
 fails too. Both regressions were verified by reintroducing them.
 
-The hand-rolled resizers in Notes / Pages / Tables are still invisible — they
-get the grip for free when they move to `MasterDetail`. Do not patch them
-separately.
+The hand-rolled resizers in Notes / Pages / Tables got the grip for free when
+they moved to `MasterDetail`, exactly as this section predicted — they were
+never patched separately.
 
 ---
 
-## 9. Suggested order
+## 9. ✅ The order it was done in, and what is left
 
-1. ~~**Docs**~~ — ✅ done.
-2. ~~**Files**~~ — ✅ done.
-3. **Tables** — first DIY-resizer removal; decide the saved-width migration here
-   and apply that decision to the rest.
-4. **Notes** — DIY resizer + focus mode together.
-5. **Pages** — the biggest (1192 lines) and the one with both, so it goes last
-   with everything else already proven.
-6. **Draw** — focus mode, fixed width; could equally go earlier, it is small.
+1. ~~**Docs**~~ · 2. ~~**Files**~~ · 3. ~~**Tables**~~ · 4. ~~**Notes**~~ ·
+5. ~~**Draw**~~ · 6. ~~**Pages**~~ — and §8 (`RailHandle`'s grip), which was
+independent of all six.
 
-§8 (`RailHandle`'s grip) is ✅ done — it was independent of all six and touched
-one shared file.
+`components/layout/focus-layout.ts` is gone. **That was the completion signal
+for this document, so this document is finished.**
 
-After the last one, `components/layout/focus-layout.ts` and its test should be
-deletable — Pages and Draw are its only importers. That is the signal the job
-is finished.
+What this did NOT do, for the next reader:
 
-One loose end when you delete it: `components/layout/zen-mode.ts` names
-`focus-layout.ts` in a doc comment (not an import, so nothing breaks and
-nothing warns). Update that comment to point at `MasterDetail`'s
-`listCollapsed` instead, or the next reader goes looking for a file that is
-no longer there.
+- **The 12 settings screens plus `team-admin` / `team-section`** still use the
+  legacy hand-written grid (§8 documents it for exactly that reason). They were
+  never in scope here — phase 2b owns them.
+- **`/formulas` still wants `listCollapsed`** — its editor replaces the whole
+  screen, so opening it unmounts `MasterDetail` and loses the list's scroll
+  position. The primitive can express it; nobody has wired it.
+- **Pages' own measure** (§5 above) is a product decision waiting on Jason.

@@ -108,10 +108,11 @@ Per-screen detail is in the commits. The transferable lessons are in the plan's
    forms, so the most §6a/§6b value. Also the ones that need a brain with real
    data (§4). Expect the `formulas` lesson to repeat: a screen with its own
    form helper has usually skipped `htmlFor` altogether.
-2. **Phase 2c**, then phase 3. `pages` and `draw` still use `focusGridClass`
-   directly; `MasterDetail` can now express what they need (`listCollapsed`,
-   `detailFills`), but the plan's advice not to force the master-detail shape
-   onto an editor still stands — the capability existing is not a reason.
+2. **Phase 2c**, then phase 3. `pages` and `draw` are done — both moved to
+   `MasterDetail` with `listCollapsed` + `detailFills`, and `focusGridClass` /
+   `focus-layout.ts` are deleted. The plan's advice not to force the
+   master-detail shape onto an EDITOR still stands: the list screens moved, the
+   editor bodies did not.
 
 `/formulas` also still wants `listCollapsed`: its editor replaces the whole
 screen, so opening it unmounts `MasterDetail` and loses the list's scroll
