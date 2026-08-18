@@ -23,6 +23,7 @@ import {
 } from '@mantle/web-ui/runners-types';
 import { Button } from '@mantle/web-ui/ui/button';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -229,105 +230,130 @@ export function RunnersClient({
         </div>
       </div>
 
-      {/* Master-detail */}
-      <div className="md:grid md:min-h-0 md:flex-1 md:grid-cols-[minmax(340px,400px)_1fr] md:overflow-hidden">
-        {/* Left: run cards */}
-        <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-            {listQuery.isPending ? (
-              <div className="flex justify-center py-10">
-                <Spinner />
-              </div>
-            ) : listQuery.isError ? (
-              <Empty>Couldn&apos;t load runs.</Empty>
-            ) : rows.length === 0 ? (
-              <Empty>No runs match these filters.</Empty>
-            ) : (
-              rows.map((r) => (
-                <ListCard key={r.workflowID} asChild selected={selectedId === r.workflowID}>
-                  <Link href={href({ selected: r.workflowID })}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span
-                          className={cn('size-2 shrink-0 rounded-full', runnerStatusDot(r.status))}
-                          aria-hidden
-                        />
-                        <span className="truncate text-sm font-medium">{r.name}</span>
-                        <span
-                          className={cn(
-                            'shrink-0 text-[10px] uppercase tracking-wider',
-                            runnerStatusText(r.status),
-                          )}
-                        >
-                          {runnerStatusLabel(r.status)}
+      <MasterDetail
+        id="runners"
+        // The filter bar above is full-width and stays there, so the
+        // scaffold is the LOWER half of the screen rather than the whole
+        // of it: `flex-1` inside the page's flex column, `min-h-0` so it
+        // can actually shrink and let the panes own the scrolling.
+        className="min-h-0 flex-1"
+        // Same `minmax(340px, 400px)` the traces screen had, translated the
+        // same way and for the same reasons — these two screens are one shape.
+        // See the fuller note in `traces-client.tsx`.
+        defaultListSize="400px"
+        minListSize="340px"
+        maxListSize="560px"
+        // The `1fr` the detail used to get. Its content is a step
+        // timeline, not a measure of reading prose, so the default 672px
+        // cap would squeeze it and hand the slack to an empty spacer.
+        detailFills
+        list={
+          <>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {listQuery.isPending ? (
+                <div className="flex justify-center py-10">
+                  <Spinner />
+                </div>
+              ) : listQuery.isError ? (
+                <Empty>Couldn&apos;t load runs.</Empty>
+              ) : rows.length === 0 ? (
+                <Empty>No runs match these filters.</Empty>
+              ) : (
+                rows.map((r) => (
+                  <ListCard key={r.workflowID} asChild selected={selectedId === r.workflowID}>
+                    <Link href={href({ selected: r.workflowID })}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            className={cn(
+                              'size-2 shrink-0 rounded-full',
+                              runnerStatusDot(r.status),
+                            )}
+                            aria-hidden
+                          />
+                          <span className="truncate text-sm font-medium">{r.name}</span>
+                          <span
+                            className={cn(
+                              'shrink-0 text-[10px] uppercase tracking-wider',
+                              runnerStatusText(r.status),
+                            )}
+                          >
+                            {runnerStatusLabel(r.status)}
+                          </span>
+                        </div>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {formatDateTime(new Date(r.createdAt).toISOString())}
                         </span>
                       </div>
-                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {formatDateTime(new Date(r.createdAt).toISOString())}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground">
-                      <span>run {formatDuration(r.runMs ?? null)}</span>
-                      <span>queued {formatDuration(r.queuedMs ?? null)}</span>
-                      {r.queue && <span>{r.queue}</span>}
-                      {(r.recoveryAttempts ?? 0) > 1 && (
-                        <span className="text-amber-700 dark:text-amber-300">
-                          ↻ {r.recoveryAttempts}
-                        </span>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground">
+                        <span>run {formatDuration(r.runMs ?? null)}</span>
+                        <span>queued {formatDuration(r.queuedMs ?? null)}</span>
+                        {r.queue && <span>{r.queue}</span>}
+                        {(r.recoveryAttempts ?? 0) > 1 && (
+                          <span className="text-amber-700 dark:text-amber-300">
+                            ↻ {r.recoveryAttempts}
+                          </span>
+                        )}
+                      </div>
+                      {r.error && (
+                        <div className="mt-0.5 truncate text-xs text-destructive-ink">
+                          {r.error}
+                        </div>
                       )}
-                    </div>
-                    {r.error && (
-                      <div className="mt-0.5 truncate text-xs text-destructive-ink">{r.error}</div>
-                    )}
-                  </Link>
-                </ListCard>
-              ))
+                    </Link>
+                  </ListCard>
+                ))
+              )}
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+              <span className="tabular-nums">{rows.length} on this page</span>
+              <div className="flex items-center gap-1.5">
+                <span className="tabular-nums">page {page}</span>
+                <PagerLink
+                  href={href({ page: page - 1 })}
+                  disabled={page <= 1}
+                  label="Previous page"
+                >
+                  <ChevronLeft />
+                </PagerLink>
+                <PagerLink
+                  href={href({ page: page + 1 })}
+                  disabled={!listQuery.data?.hasMore}
+                  label="Next page"
+                >
+                  <ChevronRight />
+                </PagerLink>
+              </div>
+            </div>
+          </>
+        }
+        detail={
+          <>
+            {!selectedId ? (
+              <Centered>Select a run to inspect its steps and controls.</Centered>
+            ) : detailQuery.isPending ? (
+              <div className="flex h-full items-center justify-center py-10">
+                <Spinner />
+              </div>
+            ) : detailQuery.isError || !detail ? (
+              <Centered>Couldn&apos;t load this run.</Centered>
+            ) : (
+              <RunDetail
+                run={detail}
+                busy={actionMutation.isPending}
+                onAction={(action) => {
+                  if (action === 'fork') setForkOpen(true);
+                  else setConfirm({ action, run: detail });
+                }}
+                onCopyId={() => {
+                  void copyText(detail.workflowID);
+                  toast.info('Workflow id copied');
+                }}
+              />
             )}
-          </div>
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-            <span className="tabular-nums">{rows.length} on this page</span>
-            <div className="flex items-center gap-1.5">
-              <span className="tabular-nums">page {page}</span>
-              <PagerLink href={href({ page: page - 1 })} disabled={page <= 1} label="Previous page">
-                <ChevronLeft />
-              </PagerLink>
-              <PagerLink
-                href={href({ page: page + 1 })}
-                disabled={!listQuery.data?.hasMore}
-                label="Next page"
-              >
-                <ChevronRight />
-              </PagerLink>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: detail */}
-        <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-          {!selectedId ? (
-            <Centered>Select a run to inspect its steps and controls.</Centered>
-          ) : detailQuery.isPending ? (
-            <div className="flex h-full items-center justify-center py-10">
-              <Spinner />
-            </div>
-          ) : detailQuery.isError || !detail ? (
-            <Centered>Couldn&apos;t load this run.</Centered>
-          ) : (
-            <RunDetail
-              run={detail}
-              busy={actionMutation.isPending}
-              onAction={(action) => {
-                if (action === 'fork') setForkOpen(true);
-                else setConfirm({ action, run: detail });
-              }}
-              onCopyId={() => {
-                void copyText(detail.workflowID);
-                toast.info('Workflow id copied');
-              }}
-            />
-          )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Confirm cancel / resume / restart */}
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>

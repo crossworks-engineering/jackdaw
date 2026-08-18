@@ -44,6 +44,12 @@ const SCREENS = [
   // server-render check below meaningful here. The cards themselves are in
   // `debug-nav.spec.ts`.
   { path: '/debug', id: 'debug' },
+  // The only two screens whose grid declared a RANGE — `minmax(340px, 400px)`
+  // — rather than a fixed width. They keep that floor and where they land, and
+  // trade the 400px ceiling for a draggable one; the row below is what proves
+  // the divider actually has somewhere to go.
+  { path: '/traces', id: 'traces' },
+  { path: '/runners', id: 'runners' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.

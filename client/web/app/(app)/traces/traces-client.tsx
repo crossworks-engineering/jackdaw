@@ -15,6 +15,7 @@ import {
 } from '@mantle/web-ui/traces-format';
 import { Button } from '@mantle/web-ui/ui/button';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { TraceDetailView } from './trace-detail-view';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -212,117 +213,142 @@ export function TracesClient({
         </div>
       </div>
 
-      {/* Master-detail */}
-      <div className="md:grid md:min-h-0 md:flex-1 md:grid-cols-[minmax(340px,400px)_1fr] md:overflow-hidden">
-        {/* Left: trace cards */}
-        <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-            {listQuery.isPending ? (
-              <div className="flex justify-center py-10">
+      <MasterDetail
+        id="traces"
+        // The filter bar above is full-width and stays there, so the
+        // scaffold is the LOWER half of the screen rather than the whole
+        // of it: `flex-1` inside the page's flex column, `min-h-0` so it
+        // can actually shrink and let the panes own the scrolling.
+        className="min-h-0 flex-1"
+        // The old grid was `minmax(340px, 400px)`: a RANGE, not a fixed width,
+        // so the column lands at 400 and never went below 340. Both of those
+        // are kept — it opens and stops shrinking exactly where it did.
+        //
+        // The CEILING is deliberately NOT kept at 400. That 400 was the grid's
+        // way of saying "don't let this column eat the detail", a job the
+        // divider now does better because the reader decides. Every ported
+        // screen that set a range gave it real travel (220–520, 300–760,
+        // 220–560); a 60px sliver would be a divider you cannot meaningfully
+        // drag. 560 is `MasterDetail`'s own ceiling.
+        defaultListSize="400px"
+        minListSize="340px"
+        maxListSize="560px"
+        // The `1fr` the detail used to get. Its content is a step
+        // timeline, not a measure of reading prose, so the default 672px
+        // cap would squeeze it and hand the slack to an empty spacer.
+        detailFills
+        list={
+          <>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {listQuery.isPending ? (
+                <div className="flex justify-center py-10">
+                  <Spinner />
+                </div>
+              ) : listQuery.isError ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+                  Couldn&apos;t load traces.
+                </p>
+              ) : rows.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+                  No traces match these filters.
+                </p>
+              ) : (
+                rows.map((r) => (
+                  <ListCard key={r.id} asChild selected={selectedId === r.id}>
+                    <Link href={href({ selected: r.id })}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            className={cn('size-2 shrink-0 rounded-full', statusDot(r.status))}
+                            aria-hidden
+                          />
+                          <span className="truncate text-sm font-medium">
+                            {KIND_LABEL[r.kind] ?? r.kind}
+                          </span>
+                          <span
+                            className={cn(
+                              'shrink-0 text-[10px] uppercase tracking-wider',
+                              statusTextClass(r.status),
+                            )}
+                          >
+                            {r.status}
+                          </span>
+                        </div>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {formatDateTime(r.startedAt)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground">
+                        <span>{formatDuration(r.durationMs)}</span>
+                        <span>{formatMicroUsd(r.costMicroUsd)}</span>
+                        <span>
+                          {r.tokensIn + r.tokensOut > 0 ? `${r.tokensIn + r.tokensOut}` : '—'} tok
+                        </span>
+                        <span>{r.stepCount} steps</span>
+                      </div>
+                      {r.error ? (
+                        <div className="mt-0.5 truncate text-xs text-destructive-ink">
+                          {r.error}
+                        </div>
+                      ) : r.agentName ? (
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {r.agentName}
+                          {r.agentSlug ? ` / ${r.agentSlug}` : ''}
+                        </div>
+                      ) : null}
+                    </Link>
+                  </ListCard>
+                ))
+              )}
+            </div>
+            {total > 0 && (
+              <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                <span className="tabular-nums">{total} traces</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="tabular-nums">
+                    {page} / {totalPages}
+                  </span>
+                  <PagerLink
+                    href={href({ page: page - 1 })}
+                    disabled={page <= 1}
+                    label="Previous page"
+                  >
+                    <ChevronLeft />
+                  </PagerLink>
+                  <PagerLink
+                    href={href({ page: page + 1 })}
+                    disabled={page >= totalPages}
+                    label="Next page"
+                  >
+                    <ChevronRight />
+                  </PagerLink>
+                </div>
+              </div>
+            )}
+          </>
+        }
+        detail={
+          <>
+            {!selectedId ? (
+              <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+                Select a trace to view its steps.
+              </div>
+            ) : detailQuery.isPending ? (
+              <div className="flex h-full items-center justify-center py-10">
                 <Spinner />
               </div>
-            ) : listQuery.isError ? (
-              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-                Couldn&apos;t load traces.
-              </p>
-            ) : rows.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-                No traces match these filters.
-              </p>
-            ) : (
-              rows.map((r) => (
-                <ListCard key={r.id} asChild selected={selectedId === r.id}>
-                  <Link href={href({ selected: r.id })}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span
-                          className={cn('size-2 shrink-0 rounded-full', statusDot(r.status))}
-                          aria-hidden
-                        />
-                        <span className="truncate text-sm font-medium">
-                          {KIND_LABEL[r.kind] ?? r.kind}
-                        </span>
-                        <span
-                          className={cn(
-                            'shrink-0 text-[10px] uppercase tracking-wider',
-                            statusTextClass(r.status),
-                          )}
-                        >
-                          {r.status}
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {formatDateTime(r.startedAt)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground">
-                      <span>{formatDuration(r.durationMs)}</span>
-                      <span>{formatMicroUsd(r.costMicroUsd)}</span>
-                      <span>
-                        {r.tokensIn + r.tokensOut > 0 ? `${r.tokensIn + r.tokensOut}` : '—'} tok
-                      </span>
-                      <span>{r.stepCount} steps</span>
-                    </div>
-                    {r.error ? (
-                      <div className="mt-0.5 truncate text-xs text-destructive-ink">{r.error}</div>
-                    ) : r.agentName ? (
-                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {r.agentName}
-                        {r.agentSlug ? ` / ${r.agentSlug}` : ''}
-                      </div>
-                    ) : null}
-                  </Link>
-                </ListCard>
-              ))
-            )}
-          </div>
-          {total > 0 && (
-            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-              <span className="tabular-nums">{total} traces</span>
-              <div className="flex items-center gap-1.5">
-                <span className="tabular-nums">
-                  {page} / {totalPages}
-                </span>
-                <PagerLink
-                  href={href({ page: page - 1 })}
-                  disabled={page <= 1}
-                  label="Previous page"
-                >
-                  <ChevronLeft />
-                </PagerLink>
-                <PagerLink
-                  href={href({ page: page + 1 })}
-                  disabled={page >= totalPages}
-                  label="Next page"
-                >
-                  <ChevronRight />
-                </PagerLink>
+            ) : detailQuery.isError || !detailQuery.data ? (
+              <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+                Couldn&apos;t load this trace.
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: detail */}
-        <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-          {!selectedId ? (
-            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-              Select a trace to view its steps.
-            </div>
-          ) : detailQuery.isPending ? (
-            <div className="flex h-full items-center justify-center py-10">
-              <Spinner />
-            </div>
-          ) : detailQuery.isError || !detailQuery.data ? (
-            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-              Couldn&apos;t load this trace.
-            </div>
-          ) : (
-            <div className="p-6">
-              <TraceDetailView trace={detailQuery.data.trace} />
-            </div>
-          )}
-        </div>
-      </div>
+            ) : (
+              <div className="p-6">
+                <TraceDetailView trace={detailQuery.data.trace} />
+              </div>
+            )}
+          </>
+        }
+      />
     </div>
   );
 }

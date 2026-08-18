@@ -93,8 +93,8 @@ Check whether they genuinely have no form or hand-roll one entirely.
 | screen | file | scaffold | note |
 |---|---|---|---|
 | `team-admin` | `team-admin/page.tsx` | `md:grid-cols-[340px_1fr]` **×2** | 1082 lines, TWO scaffolds in one file — two `MasterDetail`s with different `id`s, or one reused view |
-| `traces` | `traces/traces-client.tsx` | `md:grid-cols-[minmax(340px,400px)_1fr]` | a RANGE, not a fixed width — becomes `minListSize`/`maxListSize` |
-| `runners` | `runners/runners-client.tsx` | `md:grid-cols-[minmax(340px,400px)_1fr]` | same shape as traces; do them together |
+| ~~`traces`~~ | `traces/traces-client.tsx` | ~~`md:grid-cols-[minmax(340px,400px)_1fr]`~~ | **DONE** — see §7 |
+| ~~`runners`~~ | `runners/runners-client.tsx` | ~~`md:grid-cols-[minmax(340px,400px)_1fr]`~~ | **DONE** — see §7 |
 | `apps/[id]` | `apps/[id]/app-detail-client.tsx` | `grid-cols-[200px_minmax(0,1fr)]` | the app EDITOR, not the list — `/apps` itself is done |
 | ~~`debug/context`~~ | `debug/context/context-client.tsx` | `md:grid-cols-[1fr_1.4fr_1fr]` | **THREE columns**, INSIDE the detail pane — untouched, and fine there. The whole `/debug` section is now one `MasterDetail` (see below), so this grid is the tab's own content, not a screen scaffold |
 
@@ -190,8 +190,8 @@ is a known flake, roughly 1 run in 2.
    `mx-auto`/`max-w-3xl` wrapper removed from `pages-client.tsx`; `detailFills`
    kept and its comment rewritten. Guard: `e2e/specs/pages-reading-width.spec.ts`
    (prose fills the pane, prose is not centred, toggle absent).
-2. **`traces` + `runners`** — identical scaffolds, small, and they prove the
-   `minmax()` → `minListSize`/`maxListSize` translation once for both.
+2. ~~**`traces` + `runners`**~~ — **DONE.** See §7 for how the `minmax()`
+   translation actually landed; it is not quite what this line assumed.
 3. **The four small settings screens** (`worker-groups`, `accounts`,
    `tool-groups`, `skills`) — enough §6 work to establish the pattern without
    1983 lines of it.
@@ -252,3 +252,36 @@ runs, as documented.
 
 Still open from §2: the twelve settings screens, `traces`, `runners`,
 `team-admin`, `apps/[id]`.
+
+### `traces` + `runners` — ported together
+One shape, two files. Both had a full-width filter bar above the grid, and that
+stays where it is: the `MasterDetail` is the LOWER half of the screen
+(`className="min-h-0 flex-1"`), not the whole of it. `detailFills` keeps the
+`1fr` the detail had — a step timeline is not a measure of reading prose.
+
+⚠ **The `minmax()` translation is not the one-liner this plan assumed.** Reading
+`minmax(340px, 400px)` off as `minListSize`/`maxListSize` gives a divider with
+**60px of travel** — and it also breaks the shared master-detail row, which
+drags RIGHT by 100px and finds a list already sitting at its ceiling. So:
+
+- `minListSize="340px"` — kept, it is a real floor the screen chose.
+- `defaultListSize="400px"` — kept, that is where the grid lands today.
+- `maxListSize="560px"` — **NOT kept at 400.** That 400 was the grid's way of
+  saying "don't let this column eat the detail", which the divider now does
+  better because the reader decides. Every ported screen that set a range gave
+  it real travel (220–520, 300–760, 220–560); a 60px sliver is a divider you
+  cannot meaningfully drag.
+
+If the 400px ceiling was a deliberate design limit rather than a grid mechanic,
+this is the line to revisit — it is the one judgement call in the port.
+
+⚠ **`/runners` was verified structurally only.** The scratch brain has
+`MANTLE_RUNS` off, so the screen renders "No runs match these filters" and its
+list is EMPTY. Panes, persisted width and server render are all genuinely
+checked; the one-scrollbar assertion is **vacuous there** — it only counts
+elements that actually overflow. `/traces` has 871 traces behind it and does
+exercise it. Re-check `/runners` against a brain with runs before trusting that
+half.
+
+Suite after this port: **93 pass / 73 skip / 2 fail** — the two are still
+`team.spec.ts`.
