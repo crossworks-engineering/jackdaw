@@ -50,6 +50,10 @@ const SCREENS = [
   // the divider actually has somewhere to go.
   { path: '/traces', id: 'traces' },
   { path: '/runners', id: 'runners' },
+  // The settings cluster, screen by screen as it is ported. Their FORMS are the
+  // real work and get their own specs; this row is the scaffold half only.
+  { path: '/settings/accounts', id: 'settings-accounts' },
+  { path: '/settings/worker-groups', id: 'settings-worker-groups' },
   // Folder TREE on the left, same deliberate exception as /docs. Its right pane
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.

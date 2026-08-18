@@ -18,6 +18,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { ImapForm } from './imap/imap-form';
 import { FolderPicker } from './[id]/folders/folder-picker';
@@ -81,189 +82,200 @@ export function AccountsClient() {
   }
 
   return (
-    <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">
-      {/* ── Left: account list ─────────────────────────────────── */}
-      <div className="flex flex-col border-b border-border md:h-full md:min-h-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Accounts
-          </h2>
-          <Button asChild size="sm">
-            <Link href="/settings/accounts?mode=add">
-              <Plus /> Add
-            </Link>
-          </Button>
-        </div>
-        <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-          {rows.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              No accounts yet. Click <strong>Add</strong> to connect one.
-            </p>
-          ) : (
-            rows.map((r) => {
-              const latest = latestRuns[r.id];
-              const isSelected = !showAdd && selectedId === r.id;
-              return (
-                <ListCard key={r.id} asChild selected={isSelected} dimmed={!r.enabled}>
-                  <Link href={`/settings/accounts?selected=${r.id}`}>
-                    <div className="flex items-center gap-2">
-                      <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <span className="truncate text-sm font-medium">{r.address}</span>
-                      <span className={cn('ml-auto shrink-0', statusBadgeClass(r, latest))}>
-                        {statusLabel(r, latest)}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {r.provider}
-                      {r.provider === 'imap' && r.imapHost ? ` · ${r.imapHost}:${r.imapPort}` : ''}
-                    </div>
-                    {r.lastSyncError && (
-                      <div className="mt-0.5 truncate text-xs text-destructive-ink">
-                        ⚠ {r.lastSyncError}
+    <MasterDetail
+      id="settings-accounts"
+      // The 340px this screen has always had — the cluster splits 340/360 for
+      // no reason anyone recorded, so each screen keeps its own.
+      defaultListSize="340px"
+      // No `detailFills`: the detail is the IMAP FORM, and the default 672px
+      // measure is what keeps it off 1200px line lengths on a wide display.
+      list={
+        <>
+          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Accounts
+            </h2>
+            <Button asChild size="sm">
+              <Link href="/settings/accounts?mode=add">
+                <Plus /> Add
+              </Link>
+            </Button>
+          </div>
+          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+            {rows.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                No accounts yet. Click <strong>Add</strong> to connect one.
+              </p>
+            ) : (
+              rows.map((r) => {
+                const latest = latestRuns[r.id];
+                const isSelected = !showAdd && selectedId === r.id;
+                return (
+                  <ListCard key={r.id} asChild selected={isSelected} dimmed={!r.enabled}>
+                    <Link href={`/settings/accounts?selected=${r.id}`}>
+                      <div className="flex items-center gap-2">
+                        <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="truncate text-sm font-medium">{r.address}</span>
+                        <span className={cn('ml-auto shrink-0', statusBadgeClass(r, latest))}>
+                          {statusLabel(r, latest)}
+                        </span>
                       </div>
-                    )}
-                  </Link>
-                </ListCard>
-              );
-            })
+                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {r.provider}
+                        {r.provider === 'imap' && r.imapHost
+                          ? ` · ${r.imapHost}:${r.imapPort}`
+                          : ''}
+                      </div>
+                      {r.lastSyncError && (
+                        <div className="mt-0.5 truncate text-xs text-destructive-ink">
+                          ⚠ {r.lastSyncError}
+                        </div>
+                      )}
+                    </Link>
+                  </ListCard>
+                );
+              })
+            )}
+          </div>
+        </>
+      }
+      detail={
+        <>
+          {(connected || error) && (
+            <div className="p-4 pb-0">
+              {connected && (
+                <p className="rounded-md border border-green-500/30 bg-green-50 px-3 py-2 text-sm text-green-900 dark:bg-green-950/40 dark:text-green-100">
+                  Connected <span className="font-medium">{connected}</span>. First sync runs within
+                  two minutes.
+                </p>
+              )}
+              {error && (
+                <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-ink">
+                  {error}
+                </p>
+              )}
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* ── Right: add / edit / folders / detail ───────────────── */}
-      <div className="md:h-full md:min-h-0 md:overflow-y-auto md:scrollbar-thin">
-        {(connected || error) && (
-          <div className="p-4 pb-0">
-            {connected && (
-              <p className="rounded-md border border-green-500/30 bg-green-50 px-3 py-2 text-sm text-green-900 dark:bg-green-950/40 dark:text-green-100">
-                Connected <span className="font-medium">{connected}</span>. First sync runs within
-                two minutes.
-              </p>
-            )}
-            {error && (
-              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-ink">
-                {error}
-              </p>
-            )}
-          </div>
-        )}
-
-        {showAdd ? (
-          <div className="max-w-md space-y-4 p-6">
-            <div>
-              <h2 className="text-lg font-semibold">Add IMAP account</h2>
-              <p className="text-xs text-muted-foreground">
-                Gmail and most providers connect over IMAP with an app password.
-              </p>
-            </div>
-            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              Microsoft 365 / Outlook.com mailbox? Connect it with OAuth on the{' '}
-              <Link
-                href="/settings/microsoft"
-                className="text-primary-ink underline-offset-2 hover:underline"
-              >
-                Microsoft page
-              </Link>{' '}
-              instead — Microsoft has retired app-password IMAP for most accounts.
-            </div>
-            <ImapForm />
-            <p className="text-xs text-muted-foreground">
-              Generate an app password (
-              <a
-                className="underline"
-                href="https://myaccount.google.com/apppasswords"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Google
-              </a>
-              ), enable 2FA, then paste it above with the provider&apos;s host (e.g.{' '}
-              <code className="font-mono">imap.gmail.com</code>).
-            </p>
-          </div>
-        ) : mode === 'edit' && selected ? (
-          <div className="max-w-md space-y-4 p-6">
-            <div className="space-y-1">
-              <BackLink href={`/settings/accounts?selected=${selected.id}`}>Back</BackLink>
-              <h2 className="text-lg font-semibold">Edit {selected.address}</h2>
-            </div>
-            {selected.provider === 'microsoft' ? (
-              <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                This mailbox is a connected Microsoft account — there&apos;s no IMAP config to edit.
-                Manage it (including the Outlook mail toggle) on the{' '}
+          {showAdd ? (
+            <div className="space-y-4 p-6">
+              <div>
+                <h2 className="text-lg font-semibold">Add IMAP account</h2>
+                <p className="text-xs text-muted-foreground">
+                  Gmail and most providers connect over IMAP with an app password.
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                Microsoft 365 / Outlook.com mailbox? Connect it with OAuth on the{' '}
                 <Link
                   href="/settings/microsoft"
                   className="text-primary-ink underline-offset-2 hover:underline"
                 >
                   Microsoft page
-                </Link>
-                .
-              </p>
-            ) : (
-              <ImapForm
-                account={{
-                  id: selected.id,
-                  address: selected.address,
-                  displayName: selected.displayName,
-                  imapHost: selected.imapHost,
-                  imapPort: selected.imapPort,
-                  imapSecure: selected.imapSecure,
-                  smtpHost: selected.smtpHost,
-                  smtpPort: selected.smtpPort,
-                  smtpSecure: selected.smtpSecure,
-                  firstScanDays: selected.firstScanDays,
-                }}
-              />
-            )}
-          </div>
-        ) : mode === 'folders' && selected ? (
-          <div className="max-w-2xl space-y-4 p-6">
-            <div className="space-y-1">
-              <BackLink href={`/settings/accounts?selected=${selected.id}`}>Back</BackLink>
-              <h2 className="text-lg font-semibold">Folders to scan — {selected.address}</h2>
-              <p className="text-sm text-muted-foreground">
-                Which IMAP folders Mantle scans. Mail is still only ingested from people in your{' '}
-                <Link
-                  href="/contacts"
-                  className="text-primary-ink underline-offset-2 hover:underline"
+                </Link>{' '}
+                instead — Microsoft has retired app-password IMAP for most accounts.
+              </div>
+              <ImapForm />
+              <p className="text-xs text-muted-foreground">
+                Generate an app password (
+                <a
+                  className="underline"
+                  href="https://myaccount.google.com/apppasswords"
+                  target="_blank"
+                  rel="noreferrer"
                 >
-                  contacts
-                </Link>
-                .
+                  Google
+                </a>
+                ), enable 2FA, then paste it above with the provider&apos;s host (e.g.{' '}
+                <code className="font-mono">imap.gmail.com</code>).
               </p>
             </div>
-            {foldersQuery.isPending ? (
-              <div className="flex items-center justify-center py-10">
-                <Spinner />
+          ) : mode === 'edit' && selected ? (
+            <div className="space-y-4 p-6">
+              <div className="space-y-1">
+                <BackLink href={`/settings/accounts?selected=${selected.id}`}>Back</BackLink>
+                <h2 className="text-lg font-semibold">Edit {selected.address}</h2>
               </div>
-            ) : foldersQuery.isError ? (
-              <FoldersError
-                accountId={selected.id}
-                message={
-                  foldersQuery.error instanceof Error ? foldersQuery.error.message : 'unknown error'
-                }
-              />
-            ) : foldersQuery.data.ok ? (
-              <FolderPicker
-                accountId={selected.id}
-                allFolders={foldersQuery.data.allFolders}
-                included={foldersQuery.data.included}
-                excluded={foldersQuery.data.excluded}
-                scanned={foldersQuery.data.scanned}
-              />
-            ) : (
-              <FoldersError accountId={selected.id} message={foldersQuery.data.error} />
-            )}
-          </div>
-        ) : selected ? (
-          <AccountDetail account={selected} latest={latestRuns[selected.id]} />
-        ) : (
-          <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-            Select an account, or add one.
-          </div>
-        )}
-      </div>
-    </div>
+              {selected.provider === 'microsoft' ? (
+                <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                  This mailbox is a connected Microsoft account — there&apos;s no IMAP config to
+                  edit. Manage it (including the Outlook mail toggle) on the{' '}
+                  <Link
+                    href="/settings/microsoft"
+                    className="text-primary-ink underline-offset-2 hover:underline"
+                  >
+                    Microsoft page
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <ImapForm
+                  account={{
+                    id: selected.id,
+                    address: selected.address,
+                    displayName: selected.displayName,
+                    imapHost: selected.imapHost,
+                    imapPort: selected.imapPort,
+                    imapSecure: selected.imapSecure,
+                    smtpHost: selected.smtpHost,
+                    smtpPort: selected.smtpPort,
+                    smtpSecure: selected.smtpSecure,
+                    firstScanDays: selected.firstScanDays,
+                  }}
+                />
+              )}
+            </div>
+          ) : mode === 'folders' && selected ? (
+            <div className="space-y-4 p-6">
+              <div className="space-y-1">
+                <BackLink href={`/settings/accounts?selected=${selected.id}`}>Back</BackLink>
+                <h2 className="text-lg font-semibold">Folders to scan — {selected.address}</h2>
+                <p className="text-sm text-muted-foreground">
+                  Which IMAP folders Mantle scans. Mail is still only ingested from people in your{' '}
+                  <Link
+                    href="/contacts"
+                    className="text-primary-ink underline-offset-2 hover:underline"
+                  >
+                    contacts
+                  </Link>
+                  .
+                </p>
+              </div>
+              {foldersQuery.isPending ? (
+                <div className="flex items-center justify-center py-10">
+                  <Spinner />
+                </div>
+              ) : foldersQuery.isError ? (
+                <FoldersError
+                  accountId={selected.id}
+                  message={
+                    foldersQuery.error instanceof Error
+                      ? foldersQuery.error.message
+                      : 'unknown error'
+                  }
+                />
+              ) : foldersQuery.data.ok ? (
+                <FolderPicker
+                  accountId={selected.id}
+                  allFolders={foldersQuery.data.allFolders}
+                  included={foldersQuery.data.included}
+                  excluded={foldersQuery.data.excluded}
+                  scanned={foldersQuery.data.scanned}
+                />
+              ) : (
+                <FoldersError accountId={selected.id} message={foldersQuery.data.error} />
+              )}
+            </div>
+          ) : selected ? (
+            <AccountDetail account={selected} latest={latestRuns[selected.id]} />
+          ) : (
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
+              Select an account, or add one.
+            </div>
+          )}
+        </>
+      }
+    />
   );
 }
 
