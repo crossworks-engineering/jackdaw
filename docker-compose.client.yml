@@ -12,13 +12,19 @@
 #     (MANTLE_CLIENT_SITE_ADDRESS in the server .env).
 #   Separate box: `--profile standalone` adds a dedicated Caddy front door.
 #
-# Version: the SAME MANTLE_IMAGE_TAG as the server stack — releases are
-# lockstep; never roll one without the other.
+# Version: MANTLE_CLIENT_IMAGE_TAG — this app has its OWN release stream since
+# the 2026-08-13 repo split, so its tags (v0.4.x) and the server's (v0.230.x)
+# are different numbers and cannot share a variable. Pin it explicitly: the
+# `latest` default follows whatever this repo published last.
+#
+# Rolling the server stack does NOT roll this one. `docker compose up -d` never
+# loads this file, every container reports healthy, and /api/version answers
+# from the SERVER — so a half-roll looks exactly like a whole one.
 name: mantle-client
 
 services:
   client-web:
-    image: ${MANTLE_IMAGE_NAMESPACE:-titanwest}/mantle-client:${MANTLE_IMAGE_TAG:-latest}
+    image: ${MANTLE_IMAGE_NAMESPACE:-titanwest}/mantle-client:${MANTLE_CLIENT_IMAGE_TAG:-latest}
     build:
       context: .
       target: client

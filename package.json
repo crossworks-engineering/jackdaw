@@ -1,6 +1,6 @@
 {
   "name": "jackdaw",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Jackdaw — the data-aware workspace. The web + desktop interface for Mantle brains.",
   "license": "SEE LICENSE IN LICENSE.md",
