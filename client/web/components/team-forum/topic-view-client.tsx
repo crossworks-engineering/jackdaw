@@ -12,9 +12,8 @@
  * carrying its author.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { AgentMediaStrip, mediaMarkdownComponents } from '@/components/team-media';
-import remarkGfm from 'remark-gfm';
+import { AgentMediaStrip } from '@/components/team-media';
+import { MemberProse } from '@/components/team-markdown';
 import { ArrowDown, Loader2, Search, SendHorizontal, X } from 'lucide-react';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -99,19 +98,11 @@ function ThinkingBubble({ label }: { label: string | null }) {
   );
 }
 
-/** The `![alt](media:<node-id>)` override is the only extension to standard
- *  markdown here — it places a picture the agent stored in the sentence it
- *  belongs to. See components/team-media.tsx. */
-const MEDIA_COMPONENTS = mediaMarkdownComponents('forum');
-
+/** The member dialect's renderer — standard markdown plus the media marker,
+ *  callouts and ==highlight==, shared with team chat so the two surfaces
+ *  cannot drift. See components/team-markdown.tsx. */
 function Prose({ markdown }: { markdown: string }) {
-  return (
-    <div className="prose prose-accent max-w-none break-words dark:prose-invert [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MEDIA_COMPONENTS}>
-        {markdown}
-      </ReactMarkdown>
-    </div>
-  );
+  return <MemberProse markdown={markdown} surface="forum" />;
 }
 
 function AuthorLine({ post }: { post: Post }) {

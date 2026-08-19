@@ -22,9 +22,8 @@
  * what mid-session revocation looks like.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { AgentMediaStrip, mediaMarkdownComponents } from '@/components/team-media';
-import remarkGfm from 'remark-gfm';
+import { AgentMediaStrip } from '@/components/team-media';
+import { MemberProse } from '@/components/team-markdown';
 import { ArrowDown, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
@@ -185,25 +184,14 @@ function LiveReply({ live }: { live: LiveTurn }) {
   );
 }
 
-/** Markdown reply body. A lightweight ReactMarkdown render on purpose —
- *  team replies are standard Markdown (chat_writing), never the TipTap rich
- *  dialect, and the same renderer serves the live stream buffer.
- *
- *  The ONE addition to plain markdown is `![alt](media:<node-id>)`, which the
- *  reply uses to place a stored picture in the sentence it belongs to. That is
- *  a single `components.img` override, not the owner's TipTap route — see
- *  components/team-media.tsx for why the dialect stays standard. */
+/** Markdown reply body — still ReactMarkdown on purpose, never the owner's
+ *  TipTap dialect. The additions (media marker, callouts, ==highlight==) live
+ *  in the shared MemberProse so this surface and the forum cannot drift; see
+ *  components/team-markdown.tsx for what is deliberately NOT supported. The
+ *  same renderer serves the live stream buffer. */
 function ReplyBody({ markdown }: { markdown: string }) {
-  return (
-    <div className="prose prose-accent max-w-none break-words dark:prose-invert [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MEDIA_COMPONENTS}>
-        {markdown}
-      </ReactMarkdown>
-    </div>
-  );
+  return <MemberProse markdown={markdown} surface="messages" />;
 }
-
-const MEDIA_COMPONENTS = mediaMarkdownComponents('messages');
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
