@@ -39,7 +39,7 @@ There are **two copies of this control, in two files** — confirmed, not assume
 | Preview toggle (`StretchHorizontal`, `aria-label="Toggle full width"`) | `pages/pages-client.tsx:1074–1083`, inside `PagePreview` |
 | The measure it drives | `pages-client.tsx:1130` — `mx-auto w-full` + `max-w-3xl` / `max-w-none` |
 | `applyWidth()` → `PATCH /api/pages/:id { width }` | `pages-client.tsx:1020–1029` |
-| **Editor toggle** (`<StretchHorizontal /> Full width`) | `pages/[id]/page-detail-client.tsx:970` |
+| ~~**Editor toggle**~~ (`<StretchHorizontal /> Full width`) | GONE — `/pages/[id]` now uses `MeasurePane`, a draggable measure. See `handover-pages-cards.md` §10 |
 | Its own `applyWidth`, same PATCH | `page-detail-client.tsx:442–446` |
 | The stored value both write | `data.width` on the page node, `'narrow' \| 'wide'` |
 

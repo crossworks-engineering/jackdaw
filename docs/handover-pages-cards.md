@@ -1,9 +1,8 @@
 # Handover: /pages — cards, drill-down, pagination, and the editor's width (2026-08-19)
 
-> **STATUS — 2026-08-19, later the same day.** Asks **1–4 are BUILT**; §8 says
-> what landed and where. Ask **5 is NOT built**, but its open question is now
-> **answered** — the drag bar REPLACES the per-page narrow/wide toggle (§3e).
-> The mantle follow-up in §3c is still outstanding. Line numbers below are from
+> **STATUS — 2026-08-19, end of day.** **All five asks are BUILT.** §8 is asks
+> 1–4, §9 is the list preview's width, §10 is the editor. The only thing still
+> outstanding is the mantle follow-up in §3c. Line numbers below are from
 > BEFORE that work; §1's `TreeRow` row no longer exists at all.
 
 **For the next session.** Four changes Jason asked for on `/pages`, in his words:
@@ -311,7 +310,7 @@ in the file.
 
 **Still open:**
 
-1. **Ask 5**, per the decision now recorded in §3e.
+1. ~~**Ask 5**~~ — done, §10.
 2. **The mantle half of §3c** — `?parent=`, `childCount`, real server-side level
    paging. Until it lands, `/pages` still ships the whole corpus on every visit.
    The components do not move when it does; only where two numbers come from.
@@ -355,7 +354,38 @@ around it. The style guide has been edited to say so; do not "fix" it back.
 opens at a measure, hugs the divider, has TWO scaffold handles, and that
 dragging the second one widens the prose past the old 1100px ceiling.
 
-**Still not done: the EDITOR at `/pages/[id]`.** It remains a standalone route
-with no divider and the `mx-auto max-w-3xl` / `max-w-none` toggle at :1043. The
-decision in §3e stands — the drag bar replaces the toggle — and the layout above
-is the shape to copy, with the outline rail folded into it.
+**Then done too — see §10.**
+
+---
+
+## 10. The editor's measure — ask 5 (2026-08-19)
+
+`/pages/[id]` is a full-page route with no list beside it, so it had nothing to
+drag against: an `mx-auto max-w-3xl` cap with a **Full width** button as the
+escape hatch. Two positions standing in for a measure.
+
+**New primitive: `MeasurePane`** (`packages/web-ui/src/ui/measure-pane.tsx`,
+exported as `@mantle/web-ui/ui/measure-pane`). It is `MasterDetail`'s third
+panel on its own — content plus the empty spacer, one remembered handle between
+them, `minSize="0px"` on the spacer so the drag runs to the window. Below `md`
+it renders the children plain, with no panels.
+
+**What changed in the editor:**
+
+- `PageWidth` state, `applyWidth()`, the `PATCH { width }` call and the
+  `<StretchHorizontal /> Full width` button are all **gone**.
+- The `mx-auto max-w-3xl` / `max-w-none` wrapper is gone. The pane is the
+  measure; the body tucks left inside it.
+- The rich-editor branch is wrapped in
+  `<MeasurePane id="page-editor" defaultSize="920px" minSize="520px">`. 920px
+  because this body carries the editor's marker gutter on top of the same 224px
+  outline aside the preview has.
+- **Markdown mode is deliberately NOT wrapped.** Raw source is not prose and
+  wants the whole pane, which is what that branch already did.
+- `type PageWidth` stays in the wire shape — mantle still stores the column, and
+  keeping the field is what stops the mapper and this file drifting. Drop it
+  here when mantle drops it there.
+
+**Covered by** `e2e/specs/pages-editor-width.spec.ts`: the button is gone, the
+prose tucks left, the route has exactly one handle, and dragging it widens the
+prose past anything `max-w-3xl` allowed.

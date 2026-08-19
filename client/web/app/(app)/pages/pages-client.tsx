@@ -581,13 +581,16 @@ export function PagesClient() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {tags.length > 0 && (
-                  <TagFilter
-                    tags={tags}
-                    activeTag={activeTag}
-                    onSelect={(t) => go({ tag: t, page: 1, parent: null })}
-                  />
-                )}
+                {/* Rendered even with no tags: it also holds the density
+                    switch, which is not about tags and must stay reachable on
+                    a brain that has never used one. */}
+                <TagFilter
+                  tags={tags}
+                  activeTag={activeTag}
+                  onSelect={(t) => go({ tag: t, page: 1, parent: null })}
+                  details={details}
+                  onDetailsChange={changeDetails}
+                />
 
                 {activeTag && (
                   <Button
@@ -600,23 +603,6 @@ export function PagesClient() {
                     Clear
                   </Button>
                 )}
-
-                {/* Card density. `ml-auto` parks it at the right of the row so
-                    it reads as a property of the LIST rather than one more
-                    filter — sort and tags change WHICH pages you see, this only
-                    changes how much of each one you see. */}
-                <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                  Details
-                  <Switch
-                    checked={details}
-                    onCheckedChange={changeDetails}
-                    aria-label="Show summaries and tags on cards"
-                    title={
-                      details ? 'Hide summaries and tags — titles only' : 'Show summaries and tags'
-                    }
-                    className="h-4 w-7 [&>span]:size-3 [&>span]:data-[state=checked]:translate-x-3"
-                  />
-                </label>
               </div>
             </div>
 
@@ -1075,10 +1061,14 @@ function TagFilter({
   tags,
   activeTag,
   onSelect,
+  details,
+  onDetailsChange,
 }: {
   tags: TagCount[];
   activeTag: string | null;
   onSelect: (tag: string | null) => void;
+  details: boolean;
+  onDetailsChange: (on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const choose = (tag: string | null) => {
@@ -1094,7 +1084,7 @@ function TagFilter({
           role="combobox"
           aria-expanded={open}
           className={cn('h-7 gap-1 px-2 text-muted-foreground', activeTag && 'text-foreground')}
-          title="Filter by tag"
+          title="Filter by tag, and choose how much of each card to show"
         >
           <Tag className="size-3.5" />
           <span className="max-w-32 truncate">{activeTag ?? 'All tags'}</span>
@@ -1102,9 +1092,27 @@ function TagFilter({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-60 p-0">
+        {/* Density lives here rather than in the toolbar row, where it read as
+            a fourth filter. It sits ABOVE `<Command>`, not inside it: cmdk owns
+            arrow keys and Enter for everything in its list, and a switch in
+            there would be reachable by typing at it. */}
+        <label className="flex cursor-pointer items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground">
+          Details
+          <Switch
+            checked={details}
+            onCheckedChange={onDetailsChange}
+            aria-label="Show summaries and tags on cards"
+            title={
+              details ? 'Hide summaries and tags — titles only' : 'Show summaries and tags on cards'
+            }
+            className="h-4 w-7 [&>span]:size-3 [&>span]:data-[state=checked]:translate-x-3"
+          />
+        </label>
         <Command>
           <CommandInput placeholder="Search tags…" className="border-0 focus:ring-0" />
-          <CommandList className="max-h-72">
+          {/* `scrollbar-thin`: a long tag list scrolls, and the platform
+              scrollbar is too heavy for a 240px popover. */}
+          <CommandList className="max-h-72 scrollbar-thin">
             <CommandEmpty className="px-3 py-6 text-center text-xs text-muted-foreground">
               No tags found.
             </CommandEmpty>

@@ -13,7 +13,6 @@ import {
   GitCompareArrows,
   Highlighter,
   Loader2,
-  StretchHorizontal,
   Trash2,
   Undo2,
 } from 'lucide-react';
@@ -31,6 +30,7 @@ import { PageEditor } from '@/components/page-editor/page-editor';
 import { docToMarkdown } from '@mantle/content-core/doc-to-markdown';
 import { markdownToDoc } from '@mantle/content-core/markdown';
 import { PageOutline } from '@mantle/web-ui/page-outline';
+import { MeasurePane } from '@mantle/web-ui/ui/measure-pane';
 import { PageBacklinks } from '@/components/page-editor/page-backlinks';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import type { SurfaceSelection } from '@/components/assistant/assistant-dock';
@@ -50,8 +50,11 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { cn } from '@mantle/web-ui/lib/utils';
 
+/** Still on the wire and still stored, but this route no longer reads it: the
+ *  narrow/wide toggle was replaced by the draggable measure (`MeasurePane`).
+ *  Kept in the shape so the mapper and this file cannot drift; drop it here
+ *  when mantle drops the column. */
 type PageWidth = 'narrow' | 'wide';
 
 type PageDetail = {
@@ -140,7 +143,6 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
   const [title, setTitle] = useState(initial.title);
   const [icon, setIcon] = useState<string | null>(initial.icon);
   const [tags, setTags] = useState<string[]>(initial.tags);
-  const [width, setWidth] = useState<PageWidth>(initial.width);
   const [docDirty, setDocDirty] = useState(
     JSON.stringify(initial.draft ?? initial.doc) !== JSON.stringify(initial.doc),
   );
@@ -436,16 +438,6 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
     if (e.key === 'Enter') {
       e.preventDefault();
       editorRef.current?.commands.focus('start');
-    }
-  };
-
-  const applyWidth = async (next: PageWidth) => {
-    if (next === width) return;
-    setWidth(next); // optimistic
-    try {
-      await apiSend(`/api/pages/${initial.id}`, 'PATCH', { width: next });
-    } catch {
-      // Width is a cosmetic preference; a failed write just reverts next load.
     }
   };
 
@@ -962,15 +954,6 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
           )}
           <Button
             size="sm"
-            variant={width === 'wide' ? 'default' : 'outline'}
-            onClick={() => void applyWidth(width === 'wide' ? 'narrow' : 'wide')}
-            aria-pressed={width === 'wide'}
-            title="Toggle full width"
-          >
-            <StretchHorizontal /> Full width
-          </Button>
-          <Button
-            size="sm"
             variant={mdMode ? 'default' : 'outline'}
             onClick={toggleMarkdown}
             aria-pressed={mdMode}
@@ -1004,8 +987,9 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
         {mdMode ? (
           /* Markdown mode is a flat, full-pane source view: header band pinned
              on top, the textarea filling the remaining height edge-to-edge with
-             its own internal scroll. The width preference deliberately doesn't
-             apply here, and backlinks stay hidden until the user toggles back. */
+             its own internal scroll. The measure deliberately doesn't apply
+             here — markdown source is not prose and wants the pane — and
+             backlinks stay hidden until the user toggles back. */
           <>
             {headerBand}
             {aiPending && (
@@ -1026,22 +1010,30 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
             />
           </>
         ) : (
-          <div className="min-w-0 flex-1 overflow-y-auto">
-            {headerBand}
+          /* The measure. This route has no list to drag against, so it brings
+             its own spacer: the body opens at a width, tucks LEFT, and carries
+             a handle on its right edge with nothing capping it. That replaces
+             the narrow/wide button, which was a two-position stand-in for a
+             measure the reader should simply set.
 
-            {/* Document body — outline rail (left, wide screens) + centred content. */}
-            <div className="flex w-full gap-6 px-6 py-8">
-              {toc.length > 0 && (
-                <aside className="hidden w-56 shrink-0 xl:block">
-                  <div className="sticky top-6 max-h-[calc(100vh-9rem)] overflow-y-auto scrollbar-thin">
-                    <PageOutline entries={toc} onJump={jumpToBlock} />
-                  </div>
-                </aside>
-              )}
-              <div className="min-w-0 flex-1">
-                <div
-                  className={cn('mx-auto w-full', width !== 'wide' ? 'max-w-3xl' : 'max-w-none')}
-                >
+             920px, not the 900px the list preview opens at: this body carries
+             the editor's left gutter (the marker rail) on top of the same
+             224px outline aside. */
+          <MeasurePane id="page-editor" defaultSize="920px" minSize="520px">
+            <div className="h-full min-h-0 overflow-y-auto scrollbar-thin">
+              {headerBand}
+
+              {/* Document body — outline rail (left, wide screens) + content
+                  that fills the rest of the measure. */}
+              <div className="flex w-full gap-6 px-6 py-8">
+                {toc.length > 0 && (
+                  <aside className="hidden w-56 shrink-0 xl:block">
+                    <div className="sticky top-6 max-h-[calc(100vh-9rem)] overflow-y-auto scrollbar-thin">
+                      <PageOutline entries={toc} onJump={jumpToBlock} />
+                    </div>
+                  </aside>
+                )}
+                <div className="min-w-0 flex-1">
                   <PageEditor
                     key={editorKey}
                     content={seedDoc ?? initialDoc}
@@ -1080,7 +1072,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
                 </div>
               </div>
             </div>
-          </div>
+          </MeasurePane>
         )}
       </div>
 

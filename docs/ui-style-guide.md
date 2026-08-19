@@ -583,6 +583,13 @@ still use it; port them as you touch them.
     `minSize`", so setting it for everyone would let any list be dragged out of
     existence. A screen that never passes it stops at `minListSize`, exactly as
     before.
+- **A full-page route with no list uses `<MeasurePane>`** (`ui/measure-pane`),
+  which is this scaffold's third panel on its own: content plus the empty
+  spacer, one remembered handle between them, no ceiling. A route holding prose
+  and nothing else has nothing to drag against, so it otherwise picks between
+  running 1400px line lengths and hard-coding a `max-w-*` the reader cannot
+  touch. `/pages/[id]` is the reference — it shipped the second, with a
+  narrow/wide button standing in for a measure.
 - **`id` is the persistence key**, saved to `localStorage`. Unique per screen,
   and per *view* where a screen has more than one: `tasks` and `tasks-board`
   are separate, because a board wants far more room than a 340px list.
