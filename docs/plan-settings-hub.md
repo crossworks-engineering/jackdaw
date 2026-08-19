@@ -57,6 +57,14 @@ route was linked from help text and bookmarks. It gets no card. Leave the stub.
 inside the mail client. Giving it a card is a small feature, not just a re-shape.
 Decide deliberately whether it should be discoverable.
 
+> **CORRECTION (2026-08-18): the paragraph above is wrong.** `discover` DOES
+> have a nav entry — `{ name: 'Discover', href: '/settings/discover', icon:
+> UserCheck }` in the **Review** group of `NAV_GROUPS`, beside Team, Pending and
+> Team Portal. It was given a hub card anyway (Jason's call), which stands on its
+> own merits, but the card is a SECOND door rather than the only one. The claim
+> was made by reading the settings DIRECTORY and not the nav list. See
+> [`handover-settings-nav-mantle.md`](./handover-settings-nav-mantle.md) §3a.
+
 ---
 
 ## 2. ⚠ The constraint that shapes everything: the nav is not in this repo
