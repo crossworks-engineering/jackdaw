@@ -604,6 +604,14 @@ intrinsic height) in a pane that was 400px tall.
   are separate, because a board wants far more room than a 340px list.
 - Below `md` it falls back to the CSS grid and nothing resizes.
 
+> ⚠ **Compose a card from `ListCard`'s own parts**, not from remembered
+> classes: `ListCardTitle` (add `wrap` where finding a record by name is the
+> point — `/pages`, `/team/pages`), `ListCardSnippet`, `ListCardTags`,
+> `ListCardMeta`. Thirty-odd screens pass `<ListCard>` and then hand-roll the
+> inside, which is how `truncate text-sm font-medium` becomes `truncate
+> font-medium` on one screen and loses `truncate` on another. The parts are the
+> only place those rules can be changed once.
+
 **Every draggable edge shows a grip, at rest, without hovering it.** If a
 column can be resized, the user must be able to see that before they go
 looking. `ResizableHandle withHandle` — what `MasterDetail` renders — is the

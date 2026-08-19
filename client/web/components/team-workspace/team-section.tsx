@@ -18,20 +18,24 @@
  * everything is linkable and refresh-safe. On mobile the list and reader
  * stack: list first, reader with a back button.
  *
- * The PAGES section (`tree` prop) mirrors the owner /pages pane exactly:
- * a collapsible sub-page TREE over the shared subset (an unshared parent
- * leaves its children as roots — buildChildrenIndex's orphan rule), compact
- * rows instead of cards, and the same search/sort/tag controls — minus every
- * owner action (no New, no drag, no delete). Search or a tag filter drops to
- * flat list mode, same as the owner screen.
+ * The PAGES section (`tree` prop) mirrors the owner /pages pane, which now
+ * DRILLS instead of expanding: the column shows one LEVEL of the shared subset
+ * at a time (an unshared parent leaves its children as roots —
+ * buildChildrenIndex's orphan rule), with a breadcrumb back out. That is what
+ * makes it pageable: a tree cannot be paged, because page 2 of a tree cuts a
+ * branch in half, and a level is just a list. Same cards as every other
+ * section, same search/sort/tag controls — minus every owner action (no New,
+ * no drag, no delete). Search or a tag filter drops to flat list mode, same as
+ * the owner screen.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowUpDown,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ExternalLink,
   Globe,
@@ -108,6 +112,12 @@ const SORT_LABELS: Record<Sort, string> = {
 
 const SORTS = Object.keys(SORT_LABELS) as Sort[];
 
+/** Cards in a drilled level page client-side at this size, because the tree
+ *  arrives whole (`?tree=1`) rather than paged. Matches the owner screen's
+ *  LEVEL_PAGE_SIZE; the server's own flat pageSize is bigger because a compact
+ *  row was smaller than a card. */
+const LEVEL_PAGE_SIZE = 25;
+
 /** The glyph a card falls back to when the shared item has none of its own, so
  *  the icon slot is never empty and the titles stay on one left edge. Per TYPE,
  *  the way each owner screen picks its own default (`/pages` uses 📄, `/apps`
@@ -144,6 +154,9 @@ export function TeamSection({
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const sortParam = searchParams.get('sort');
   const sort: Sort = SORTS.includes(sortParam as Sort) ? (sortParam as Sort) : 'newest';
+  // Which level the column is showing. Tree sections only — a search spans
+  // levels, so its results have no parent to sit under.
+  const parentParam = searchParams.get('parent')?.trim() || null;
 
   // Tree view only without filters — search/tag results are flat (owner rule).
   const treeActive = tree && !query && !activeTag;
@@ -151,7 +164,6 @@ export function TeamSection({
   const [data, setData] = useState<SectionResponse | null>(null);
   const [failed, setFailed] = useState(false);
   const [searchInput, setSearchInput] = useState(query);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Merge a patch into the query string (null/'' deletes a key) and replace —
   // keeps selection/pager out of history like the rest of the workspace.
@@ -203,11 +215,24 @@ export function TeamSection({
     }
     lastInputRef.current = searchInput;
     if (searchInput.trim() === query) return;
-    const t = setTimeout(() => go({ q: searchInput.trim() || null, page: null, s: null }), 300);
+    const t = setTimeout(
+      () => go({ q: searchInput.trim() || null, page: null, s: null, parent: null }),
+      300,
+    );
     return () => clearTimeout(t);
   }, [searchInput, query, go]);
 
   const select = (token: string | null) => go({ s: token });
+
+  /**
+   * Clicking a card opens it in the reader AND, when it has shared sub-pages,
+   * drills the column into them — both, exactly as the owner screen behaves.
+   * `page: null` because the level you land on starts at its own page 1.
+   */
+  const openItem = (item: (typeof treeItems)[number]) => {
+    if (treeActive && childCountOf(item.id) > 0) go({ s: item.token, parent: item.id, page: null });
+    else select(item.token);
+  };
 
   const items = data?.items ?? null;
   const total = data?.total ?? 0;
@@ -218,17 +243,29 @@ export function TeamSection({
   // Tree index over the loaded (shared) pages; sibling order = server sort.
   const treeItems = useMemo(() => (items ?? []).map((i) => ({ ...i, id: i.nodeId })), [items]);
   const childrenByParent = useMemo(() => buildChildrenIndex(treeItems), [treeItems]);
-  const hasChildren = useCallback(
-    (id: string) => (childrenByParent.get(id) ?? []).length > 0,
+  const childCountOf = useCallback(
+    (id: string) => (childrenByParent.get(id) ?? []).length,
     [childrenByParent],
   );
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+
+  // ── The level on screen ──────────────────────────────────────────────────
+  // A `parent` that isn't in the loaded (shared) subset falls back to the top
+  // level rather than showing an empty column — the same defensiveness
+  // buildChildrenIndex applies to an unshared parent's children.
+  const drillParent =
+    treeActive && parentParam ? (treeItems.find((i) => i.id === parentParam) ?? null) : null;
+  const drillId = drillParent?.id ?? null;
+  /** The level the breadcrumb returns to — the drilled page's own parent. */
+  const backParent = drillParent?.parentId
+    ? (treeItems.find((i) => i.id === drillParent.parentId) ?? null)
+    : null;
+
+  const levelItems = treeActive ? (childrenByParent.get(drillId) ?? []) : treeItems;
+  const levelTotal = treeActive ? levelItems.length : total;
+  const levelPageSize = treeActive ? LEVEL_PAGE_SIZE : pageSize;
+  const visibleItems = treeActive
+    ? levelItems.slice((page - 1) * LEVEL_PAGE_SIZE, page * LEVEL_PAGE_SIZE)
+    : treeItems;
 
   if (items === null) {
     return (
@@ -253,65 +290,68 @@ export function TeamSection({
     );
   }
 
-  // Compact row (the owner /pages look): icon + title + public badge, chevron
-  // when it has sub-pages. Used for tree AND flat modes of a tree section.
-  const compactRow = (item: (typeof treeItems)[number], depth: number) => {
-    const kids = treeActive && hasChildren(item.id);
-    const isExpanded = expanded.has(item.id);
-    return (
-      <li key={item.token}>
-        <div
-          className={cn(
-            'group flex items-center rounded-md border-l-[3px] border-l-transparent pr-2 transition-colors hover:bg-muted/50',
-            item.token === selectedToken && 'border-l-primary bg-muted/40',
-          )}
-          style={{ paddingLeft: depth * 16 }}
-        >
-          {kids ? (
-            <button
-              type="button"
-              onClick={() => toggle(item.id)}
-              aria-label={isExpanded ? 'Collapse' : 'Expand'}
-              className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-            >
-              <ChevronRight
-                className={cn('size-3.5 transition-transform', isExpanded && 'rotate-90')}
-              />
-            </button>
-          ) : (
-            <span className="size-6 shrink-0" aria-hidden />
-          )}
-          <button
-            type="button"
-            onClick={() => select(item.token)}
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left"
-          >
-            <span className="min-w-0 truncate text-sm">
-              {item.icon ? <span className="mr-1.5">{item.icon}</span> : null}
-              {item.title}
-            </span>
-            {item.mode === 'public' && (
-              <Globe
-                className="size-3 shrink-0 text-muted-foreground"
-                aria-label="Also shared publicly"
-              />
+  /**
+   * One shared item, as a card. The SAME anatomy for every section — icon in a
+   * fixed slot so the titles line up down the column, then title, summary,
+   * tags and the date. `subPages` is the tree sections' extra: a count that
+   * doubles as the affordance for the drill, since clicking the card is what
+   * opens that level.
+   *
+   * The title WRAPS here where the other sections truncate. This column exists
+   * to find a page by name, and two pages that differ only past the ellipsis
+   * are the same card to a reader.
+   */
+  const itemCard = (item: (typeof treeItems)[number], subPages: number | null) => (
+    <li key={item.token}>
+      <ListCard onClick={() => openItem(item)} selected={item.token === selectedToken}>
+        {/* The icon is a fixed-width SLOT, not an inline prefix. Inline, a row
+            with an icon starts further right than one without and the titles
+            stop lining up down the column — which is most of what makes a list
+            hard to scan. The owner cards resolved this the same way. */}
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+            {item.icon ?? TYPE_ICON[type] ?? '📄'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <ListCardTitle wrap={subPages !== null} className="min-w-0 flex-1">
+                {item.title}
+              </ListCardTitle>
+              {item.mode === 'public' && (
+                <Globe
+                  className="size-3 shrink-0 text-muted-foreground"
+                  aria-label="Also shared publicly"
+                />
+              )}
+            </div>
+            {item.summary && <ListCardSnippet>{item.summary}</ListCardSnippet>}
+            {/* The tags were in the payload all along and never rendered, while
+                the header above offers a tag FILTER built from them — so a
+                member could filter by a tag no card ever showed. */}
+            {item.tags.length > 0 && (
+              <ListCardTags>
+                {item.tags.map((t) => (
+                  <TagPill key={t} tag={t} />
+                ))}
+              </ListCardTags>
             )}
-          </button>
+            <ListCardMeta className="flex items-center gap-1.5">
+              <span>{formatDate(item.updatedAt)}</span>
+              {subPages !== null && subPages > 0 && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="inline-flex items-center gap-0.5 tabular-nums">
+                    {subPages} sub-page{subPages === 1 ? '' : 's'}
+                    <ChevronRight className="size-3.5 opacity-70" aria-hidden />
+                  </span>
+                </>
+              )}
+            </ListCardMeta>
+          </div>
         </div>
-      </li>
-    );
-  };
-
-  // Flatten the tree into rows honoring expand/collapse (owner renderTree).
-  const renderTree = (parentId: string | null, depth: number): ReactNode[] => {
-    const kids = childrenByParent.get(parentId) ?? [];
-    const rows: ReactNode[] = [];
-    for (const p of kids) {
-      rows.push(compactRow(p, depth));
-      if (hasChildren(p.id) && expanded.has(p.id)) rows.push(...renderTree(p.id, depth + 1));
-    }
-    return rows;
-  };
+      </ListCard>
+    </li>
+  );
 
   return (
     <MasterDetail
@@ -372,7 +412,7 @@ export function TeamSection({
                 <TagFilter
                   tags={tags}
                   activeTag={activeTag}
-                  onSelect={(t) => go({ tag: t, page: null, s: null })}
+                  onSelect={(t) => go({ tag: t, page: null, s: null, parent: null })}
                 />
               )}
             </div>
@@ -391,79 +431,65 @@ export function TeamSection({
             </p>
           )}
 
-          {/* Scrollable list — tree rows for pages, cards for the other types */}
-          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-            {items.length === 0 ? (
+          {/* Scrollable list — the same cards for every section. Keyed on the
+              level so a drill can't leave the previous one's cards on screen. */}
+          <div key={drillId ?? 'root'} className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+            {drillParent && (
+              <div className="border-b border-border px-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => go({ parent: backParent?.id ?? null, page: null })}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronLeft className="size-3.5" />
+                  <span className="truncate">
+                    Back to {backParent ? backParent.title : 'all pages'}
+                  </span>
+                </button>
+                <div className="mt-0.5 flex items-center gap-1.5 pl-0.5">
+                  <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+                    {drillParent.icon ?? TYPE_ICON[type] ?? '📄'}
+                  </span>
+                  <span className="min-w-0 break-words text-sm font-semibold">
+                    {drillParent.title}
+                  </span>
+                </div>
+              </div>
+            )}
+            {visibleItems.length === 0 ? (
               <p className="p-8 text-center text-sm text-muted-foreground">
-                {query ? <>No matches for “{query}”.</> : <>Nothing tagged “{activeTag}”.</>}
+                {query ? (
+                  <>No matches for “{query}”.</>
+                ) : activeTag ? (
+                  <>Nothing tagged “{activeTag}”.</>
+                ) : (
+                  <>Nothing shared under this page.</>
+                )}
               </p>
             ) : tree ? (
-              <ul className="flex flex-col gap-0.5 p-2">
-                {treeActive ? renderTree(null, 0) : treeItems.map((i) => compactRow(i, 0))}
+              <ul className="flex flex-col gap-1 p-2">
+                {visibleItems.map((item) =>
+                  itemCard(item, treeActive ? childCountOf(item.id) : null),
+                )}
               </ul>
             ) : (
               <ul className="flex flex-col gap-1 p-2">
-                {items.map((item) => (
-                  <li key={item.token}>
-                    <ListCard
-                      onClick={() => select(item.token)}
-                      selected={item.token === selectedToken}
-                    >
-                      {/* The icon is a fixed-width SLOT, not an inline prefix.
-                          Inline, a row with an icon starts further right than
-                          one without and the titles stop lining up down the
-                          column — which is most of what makes a list hard to
-                          scan. The owner cards resolved this the same way. */}
-                      <div className="flex items-start gap-2">
-                        <span
-                          className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4"
-                          aria-hidden
-                        >
-                          {item.icon ?? TYPE_ICON[type] ?? '📄'}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <ListCardTitle className="min-w-0 flex-1">{item.title}</ListCardTitle>
-                            {item.mode === 'public' && (
-                              <Globe
-                                className="size-3 shrink-0 text-muted-foreground"
-                                aria-label="Also shared publicly"
-                              />
-                            )}
-                          </div>
-                          {item.summary && <ListCardSnippet>{item.summary}</ListCardSnippet>}
-                          {/* The tags were in the payload all along and never
-                              rendered, while the header above offers a tag
-                              FILTER built from them — so a member could filter
-                              by a tag no card ever showed. */}
-                          {item.tags.length > 0 && (
-                            <ListCardTags>
-                              {item.tags.map((t) => (
-                                <TagPill key={t} tag={t} />
-                              ))}
-                            </ListCardTags>
-                          )}
-                          <ListCardMeta>{formatDate(item.updatedAt)}</ListCardMeta>
-                        </div>
-                      </div>
-                    </ListCard>
-                  </li>
-                ))}
+                {visibleItems.map((item) => itemCard(item, null))}
               </ul>
             )}
           </div>
 
-          {/* Tree mode is unpaged (the whole hierarchy is loaded); page/total/
-            pageSize otherwise come from the same response snapshot, so the
-            pager never mixes a new URL page with a stale total. */}
-          {!treeActive && (
-            <ListPager
-              page={data?.page ?? page}
-              total={total}
-              pageSize={pageSize}
-              onGo={(p) => go({ page: p <= 1 ? null : p })}
-            />
-          )}
+          {/* Every mode pages now. In tree mode the numbers are the LEVEL's
+              and the slicing is client-side, because `?tree=1` returns the
+              hierarchy whole; in flat mode page/total/pageSize come from the
+              same response snapshot, so the pager never mixes a new URL page
+              with a stale total. */}
+          <ListPager
+            page={treeActive ? page : (data?.page ?? page)}
+            total={levelTotal}
+            pageSize={levelPageSize}
+            onGo={(p) => go({ page: p <= 1 ? null : p })}
+          />
         </div>
       }
       detail={

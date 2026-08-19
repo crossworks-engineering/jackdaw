@@ -85,7 +85,7 @@ import { Skeleton } from '@mantle/web-ui/ui/skeleton';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { TagInput } from '@/components/tag-input';
 import { PageView } from '@/components/page-editor/page-view';
 import { ShareControl } from '@/components/share-control';
@@ -863,9 +863,9 @@ function PageCard({
           <span className="mt-px size-4 shrink-0 text-center text-sm leading-5" aria-hidden>
             {row.icon ?? '📄'}
           </span>
-          <span className="min-w-0 flex-1 break-words text-sm font-medium leading-5">
+          <ListCardTitle wrap className="min-w-0 flex-1">
             {row.title}
-          </span>
+          </ListCardTitle>
         </button>
 
         {details && row.summary && (

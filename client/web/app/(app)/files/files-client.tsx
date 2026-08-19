@@ -1167,7 +1167,7 @@ function ChildFolders({
             >
               <Folder className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{f.slug}</div>
+                <div className="truncate text-sm font-medium">{f.slug}</div>
                 {f.description && (
                   <div className="mt-0.5 truncate text-xs text-muted-foreground">
                     {f.description}

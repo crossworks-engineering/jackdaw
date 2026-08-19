@@ -42,9 +42,29 @@ export const ListCard = React.forwardRef<HTMLButtonElement, ListCardProps>(
 );
 ListCard.displayName = 'ListCard';
 
-/** Card title — pair with a leading icon in a flex row where the screen has one. */
-export function ListCardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('truncate text-sm font-medium', className)} {...props} />;
+/**
+ * Card title — pair with a leading icon in a flex row where the screen has one.
+ *
+ * `wrap` writes the title out in full over as many lines as it needs, instead
+ * of clipping it. For a list whose whole job is FINDING a record by name — the
+ * `/pages` and `/team/pages` columns — where two records that differ only past
+ * the ellipsis are indistinguishable. It is a prop and not a class the caller
+ * passes, because `truncate` is three declarations (`overflow`, `text-overflow`
+ * and `white-space`) under one name and `tailwind-merge` does not unpick it:
+ * `cn('truncate', 'whitespace-normal')` keeps BOTH and the winner is whichever
+ * Tailwind happened to emit last.
+ */
+export function ListCardTitle({
+  className,
+  wrap = false,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { wrap?: boolean }) {
+  return (
+    <div
+      className={cn('text-sm font-medium', wrap ? 'break-words leading-5' : 'truncate', className)}
+      {...props}
+    />
+  );
 }
 
 /** Two-line body/summary preview under the title. */
