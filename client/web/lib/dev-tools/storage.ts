@@ -10,11 +10,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DraftRequest, Environment, HistoryEntry, KeyValueEntry } from './types';
 
+/**
+ * ⚠ NAMESPACED, and it has to stay that way.
+ *
+ * These were bare `dev-tools:*` keys, which is a name any localhost app might
+ * pick — and one of Jason's did. Both apps were served on `http://localhost:3000`
+ * at different times, so they share an origin and therefore share localStorage,
+ * and this console read the OTHER app's environments: sixteen collections and a
+ * different schema (`variables` where this type has `vars`). That is what threw
+ * "env.vars is not iterable" on load; it was never corrupt data, it was somebody
+ * else's data.
+ *
+ * The `mantle:` prefix makes that impossible: no other app writes these, and the
+ * old keys are left alone rather than cleaned up, because they are not ours to
+ * delete.
+ */
 export const STORAGE_KEYS = {
-  environments: 'dev-tools:environments:v1',
-  activeEnvId: 'dev-tools:active-env:v1',
-  collections: 'dev-tools:collections:v1',
-  history: 'dev-tools:history:v1',
+  environments: 'mantle:dev-tools:environments:v1',
+  activeEnvId: 'mantle:dev-tools:active-env:v1',
+  collections: 'mantle:dev-tools:collections:v1',
+  history: 'mantle:dev-tools:history:v1',
 } as const;
 
 export const HISTORY_LIMIT = 200;
