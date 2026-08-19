@@ -230,16 +230,26 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         }
         detail={
           /* The app gets the full pane (viewport frame) and handles its own
-             scrolling, matching how it renders when shared. */
+             scrolling, matching how it renders when shared.
+
+             `h-full`, NOT `flex-1`. MasterDetail's detail wrapper is a BLOCK
+             (`relative h-full min-h-0 overflow-y-auto`), so `flex-1` on this
+             node is inert — flex properties only apply to flex ITEMS. The node
+             then sizes to its content, every percentage height below it has no
+             definite parent to resolve against, and the sandbox's `h-full`
+             collapses to the iframe's intrinsic 150px. Measured: a 400px pane
+             gave a 150px app under `flex-1` and the full 382px under `h-full`.
+             The viewport frame reports no height of its own to fall back on,
+             so the app is simply cut off at 150px with no scrollbar. */
           !selected ? (
-            <div className="flex flex-1 items-center justify-center p-10 text-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
               <div className="flex flex-col items-center gap-2">
                 <AppWindow className="size-8 opacity-50" />
                 Select an app to preview it.
               </div>
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
+            <div className="flex h-full min-h-0 flex-col gap-4 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
