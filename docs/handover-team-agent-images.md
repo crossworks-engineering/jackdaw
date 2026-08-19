@@ -1,10 +1,11 @@
 # Handover: the team responder cannot show a picture (2026-08-19)
 
-> **STATUS — 2026-08-19, same day. BUILT.** §3 steps 1–3 shipped in mantle
-> v0.230.69 and jackdaw v0.4.1. What remains is step 4: roll NATREF, then grant
-> the tool group — until that grant lands the responder still has no
-> `show_image` and nothing changes. §7 records what was built and the two
-> things the plan did not anticipate.
+> **STATUS — 2026-08-19, evening. DONE, VERIFIED LIVE.** §3 steps 1–3 shipped
+> in mantle v0.230.69 and jackdaw v0.4.1; step 4 completed the same day —
+> NATREF rolled (server v0.230.70, client v0.4.2), the `files` group granted
+> to `team-responder`, and the LVC question re-asked in the original topic:
+> **the chart renders inline in the forum thread.** §7 records what was built
+> and the two things the plan did not anticipate.
 
 **Reported by Jason**, from the NATREF forum: *"the system was unable to render
 some images. Can we make sure our capabilities match the owner chat agent."*
