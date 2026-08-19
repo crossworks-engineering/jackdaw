@@ -23,7 +23,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTags, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   Dialog,
@@ -352,17 +352,17 @@ export function TablesShell() {
                       )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{t.title}</div>
-                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <ListCardTitle>{t.title}</ListCardTitle>
+                      <ListCardMeta>
                         Updated {new Date(t.updatedAt).toLocaleDateString()} · {t.columnCount} cols
                         · {t.rowCount} rows
-                      </div>
+                      </ListCardMeta>
                       {t.tags.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
+                        <ListCardTags>
                           {t.tags.map((tag) => (
                             <TagPill key={tag} tag={tag} />
                           ))}
-                        </div>
+                        </ListCardTags>
                       )}
                     </div>
                     <span

@@ -22,7 +22,7 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardSnippet, ListCardTags } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { TaskForm, emptyTaskForm, type TaskPayload } from './task-form';
@@ -561,9 +561,9 @@ export function TasksClient() {
                           )}
                         </div>
                         {(t.body || t.summary) && (
-                          <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                          <ListCardSnippet className="line-clamp-1">
                             {t.body || t.summary}
-                          </p>
+                          </ListCardSnippet>
                         )}
                         {(t.status === 'in_progress' ||
                           t.status === 'blocked' ||
@@ -587,11 +587,11 @@ export function TasksClient() {
                           </div>
                         )}
                         {t.tags.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
+                          <ListCardTags>
                             {t.tags.map((tag) => (
                               <TagPill key={tag} tag={tag} />
                             ))}
-                          </div>
+                          </ListCardTags>
                         )}
                       </button>
                     </div>

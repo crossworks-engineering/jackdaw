@@ -32,7 +32,12 @@ import { ShareControl } from '@/components/share-control';
 import { ExportButton } from '@/components/export/export-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import {
+  ListCard,
+  ListCardSnippet,
+  ListCardTags,
+  ListCardTitle,
+} from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { syncSelectionParam } from '@/lib/url-sync';
@@ -391,18 +396,16 @@ export function NotesClient() {
                     <div className="flex items-start gap-2">
                       <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{n.title}</div>
+                        <ListCardTitle>{n.title}</ListCardTitle>
                         {(n.summary || n.content) && (
-                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                            {n.summary ?? n.content.slice(0, 200)}
-                          </p>
+                          <ListCardSnippet>{n.summary ?? n.content.slice(0, 200)}</ListCardSnippet>
                         )}
                         {n.tags.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
+                          <ListCardTags>
                             {n.tags.map((t) => (
                               <TagPill key={t} tag={t} />
                             ))}
-                          </div>
+                          </ListCardTags>
                         )}
                       </div>
                     </div>

@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { WorkerForm } from './worker-form';
 
@@ -311,7 +311,7 @@ export function AiWorkersClient() {
                                 )}
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="truncate text-sm font-medium">{w.name}</span>
+                                    <ListCardTitle>{w.name}</ListCardTitle>
                                     {!w.enabled && (
                                       <span className="shrink-0 rounded-sm bg-muted px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
                                         off

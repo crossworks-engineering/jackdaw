@@ -29,7 +29,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { timeAgo } from '@mantle/web-ui/forum-meta';
 import { useListNav } from '@/lib/use-list-nav';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -360,7 +360,7 @@ export function SandboxesClient() {
                   selected={selected === s.id}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-mono text-sm font-medium">{s.name}</span>
+                    <ListCardTitle className="font-mono">{s.name}</ListCardTitle>
                     <span
                       className={cn(
                         'ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider',
@@ -370,9 +370,7 @@ export function SandboxesClient() {
                       {s.status}
                     </span>
                   </div>
-                  {s.description && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{s.description}</p>
-                  )}
+                  {s.description && <ListCardMeta>{s.description}</ListCardMeta>}
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     used {timeAgo(s.lastUsedAt)}
                   </div>

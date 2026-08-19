@@ -26,7 +26,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useRealtime } from '@/components/realtime/use-realtime';
@@ -410,7 +410,7 @@ export function RunsClient() {
                     selected={selected === r.id}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{r.title}</span>
+                      <ListCardTitle>{r.title}</ListCardTitle>
                       <span
                         className={cn(
                           'ml-auto shrink-0 font-mono text-[10px] uppercase tracking-wider',

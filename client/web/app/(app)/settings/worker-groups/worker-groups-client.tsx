@@ -35,7 +35,7 @@ import {
   FieldLabel,
 } from '@mantle/web-ui/ui/field';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
@@ -233,7 +233,7 @@ export function WorkerGroupsClient() {
                     dimmed={!g.enabled}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{g.name}</span>
+                      <ListCardTitle>{g.name}</ListCardTitle>
                       <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                         {g.memberSlugs.length} member{g.memberSlugs.length === 1 ? '' : 's'}
                       </span>
@@ -243,9 +243,7 @@ export function WorkerGroupsClient() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                      {g.slug}
-                    </div>
+                    <ListCardMeta className="font-mono">{g.slug}</ListCardMeta>
                   </ListCard>
                 ))
               )}

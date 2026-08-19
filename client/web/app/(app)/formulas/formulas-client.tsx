@@ -32,7 +32,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import type { CoverageGap } from '@mantle/content-core/formula-spec';
 import type { DimensionIssue } from '@mantle/content-core/formula-dimensions';
 import type { TargetSignature } from '@mantle/content-core/formula-signature';
@@ -378,11 +378,9 @@ export function FormulasClient() {
                         <div className="flex items-start gap-2">
                           <Sigma className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium">{f.title}</div>
+                            <ListCardTitle>{f.title}</ListCardTitle>
                             {f.spec?.source?.standard ? (
-                              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                {f.spec.source.standard}
-                              </p>
+                              <ListCardMeta>{f.spec.source.standard}</ListCardMeta>
                             ) : null}
                           </div>
                         </div>

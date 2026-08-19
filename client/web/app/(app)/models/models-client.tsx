@@ -19,7 +19,7 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import type { ExplorerModel, ModelSort } from '@mantle/client-types';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 
@@ -288,7 +288,7 @@ function ModelsView({ data }: { data: ExploreBundle }) {
                   selected={selectedId === m.id}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{m.name ?? m.id}</span>
+                    <ListCardTitle>{m.name ?? m.id}</ListCardTitle>
                     {m.kind && (
                       <Badge variant="secondary" className="shrink-0 text-[10px]">
                         {m.kind}

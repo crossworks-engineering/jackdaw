@@ -18,7 +18,7 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTags, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { SecretForm, emptySecretForm, KINDS, type SecretBody } from './secret-form';
 import { SecretDetail, type SecretRow } from './secret-detail';
@@ -230,7 +230,7 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
                   >
                     <div className="flex items-center gap-2">
                       <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <span className="truncate text-sm font-medium">{s.title}</span>
+                      <ListCardTitle>{s.title}</ListCardTitle>
                       <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                         {s.kind}
                       </span>
@@ -251,11 +251,11 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
                       </div>
                     )}
                     {s.tags.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
+                      <ListCardTags>
                         {s.tags.map((t) => (
                           <TagPill key={t} tag={t} />
                         ))}
-                      </div>
+                      </ListCardTags>
                     )}
                   </ListCard>
                 );

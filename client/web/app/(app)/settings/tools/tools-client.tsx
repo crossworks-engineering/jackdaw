@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardSnippet } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
@@ -995,9 +995,7 @@ function ToolCard({
           </span>
         )}
       </div>
-      {tool.description && (
-        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{tool.description}</p>
-      )}
+      {tool.description && <ListCardSnippet>{tool.description}</ListCardSnippet>}
     </ListCard>
   );
 }

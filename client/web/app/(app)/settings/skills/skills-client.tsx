@@ -31,7 +31,12 @@ import {
 } from '@mantle/web-ui/ui/field';
 import { FieldHint } from '@mantle/web-ui/ui/field-hint';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import {
+  ListCard,
+  ListCardMeta,
+  ListCardSnippet,
+  ListCardTitle,
+} from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { slugify } from '@mantle/web-ui/slugify';
 
@@ -301,21 +306,15 @@ export function SkillsClient() {
                       dimmed={!s.enabled}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{s.name}</span>
+                        <ListCardTitle>{s.name}</ListCardTitle>
                         {!s.enabled && (
                           <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                             off
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                        {s.slug}
-                      </div>
-                      {s.description && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {s.description}
-                        </p>
-                      )}
+                      <ListCardMeta className="font-mono">{s.slug}</ListCardMeta>
+                      {s.description && <ListCardSnippet>{s.description}</ListCardSnippet>}
                       {refs.length > 0 && (
                         <div
                           className="mt-1 text-xs text-sky-700 dark:text-sky-300"

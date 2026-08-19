@@ -22,7 +22,7 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { useNow } from '@/components/use-now';
 import {
   dayGroup,
@@ -201,7 +201,7 @@ export function EventsClient() {
         className={cn(live && !isSel && 'border-primary')}
       >
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{e.title}</span>
+          <ListCardTitle>{e.title}</ListCardTitle>
           <span
             className={cn(
               'ml-auto shrink-0 text-xs tabular-nums',

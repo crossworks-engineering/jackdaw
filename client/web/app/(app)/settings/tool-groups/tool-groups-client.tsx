@@ -38,7 +38,12 @@ import {
   integrationToPayload,
   type IntegrationForm,
 } from '@/components/tool-group-integration';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import {
+  ListCard,
+  ListCardMeta,
+  ListCardSnippet,
+  ListCardTitle,
+} from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { slugify } from '@mantle/web-ui/slugify';
 
@@ -279,7 +284,7 @@ export function ToolGroupsClient() {
                       dimmed={!g.enabled}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{g.name}</span>
+                        <ListCardTitle>{g.name}</ListCardTitle>
                         <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                           {g.toolSlugs.length} tool{g.toolSlugs.length === 1 ? '' : 's'}
                         </span>
@@ -297,14 +302,8 @@ export function ToolGroupsClient() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                        {g.slug}
-                      </div>
-                      {g.description && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {g.description}
-                        </p>
-                      )}
+                      <ListCardMeta className="font-mono">{g.slug}</ListCardMeta>
+                      {g.description && <ListCardSnippet>{g.description}</ListCardSnippet>}
                       {agents.length > 0 && (
                         <div
                           className="mt-1 text-xs text-sky-700 dark:text-sky-300"

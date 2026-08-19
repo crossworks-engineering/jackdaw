@@ -32,7 +32,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
@@ -501,7 +501,7 @@ export function HeartbeatsClient() {
                       dimmed={h.status !== 'active'}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{h.name}</span>
+                        <ListCardTitle>{h.name}</ListCardTitle>
                         <span
                           className={cn(
                             'shrink-0 rounded px-1.5 py-0.5 text-xs font-medium',
@@ -511,15 +511,13 @@ export function HeartbeatsClient() {
                           {h.status}
                         </span>
                       </div>
-                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <ListCardMeta>
                         {h.agentSlug} · {h.skillSlug} · {h.scheduleKind} ·{' '}
                         {h.surface.kind === 'telegram' ? `tg:${h.surface.chat_id}` : 'web'} · fires=
                         {h.fireCount}
-                      </div>
+                      </ListCardMeta>
                       {h.nextFireAt && h.status === 'active' && (
-                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                          next {formatDateTime(h.nextFireAt)}
-                        </div>
+                        <ListCardMeta>next {formatDateTime(h.nextFireAt)}</ListCardMeta>
                       )}
                     </ListCard>
                   );

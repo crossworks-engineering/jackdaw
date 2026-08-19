@@ -14,7 +14,7 @@ import {
   type TraceSummary,
 } from '@mantle/web-ui/traces-format';
 import { Button } from '@mantle/web-ui/ui/button';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { TraceDetailView } from './trace-detail-view';
@@ -262,9 +262,7 @@ export function TracesClient({
                             className={cn('size-2 shrink-0 rounded-full', statusDot(r.status))}
                             aria-hidden
                           />
-                          <span className="truncate text-sm font-medium">
-                            {KIND_LABEL[r.kind] ?? r.kind}
-                          </span>
+                          <ListCardTitle>{KIND_LABEL[r.kind] ?? r.kind}</ListCardTitle>
                           <span
                             className={cn(
                               'shrink-0 text-[10px] uppercase tracking-wider',
@@ -287,14 +285,12 @@ export function TracesClient({
                         <span>{r.stepCount} steps</span>
                       </div>
                       {r.error ? (
-                        <div className="mt-0.5 truncate text-xs text-destructive-ink">
-                          {r.error}
-                        </div>
+                        <ListCardMeta className="text-destructive-ink">{r.error}</ListCardMeta>
                       ) : r.agentName ? (
-                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <ListCardMeta>
                           {r.agentName}
                           {r.agentSlug ? ` / ${r.agentSlug}` : ''}
-                        </div>
+                        </ListCardMeta>
                       ) : null}
                     </Link>
                   </ListCard>

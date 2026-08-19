@@ -36,7 +36,7 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { syncSelectionParam } from '@/lib/url-sync';
@@ -317,11 +317,9 @@ export function JournalClient() {
                     {md?.emoji || <NotebookPen className="size-4 text-muted-foreground" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{n.title}</div>
+                    <ListCardTitle>{n.title}</ListCardTitle>
                     {(n.summary || n.body) && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {n.summary ?? n.body}
-                      </p>
+                      <ListCardSnippet>{n.summary ?? n.body}</ListCardSnippet>
                     )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {cat && (

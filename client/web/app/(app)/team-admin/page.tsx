@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 import { MemberActivityPager } from '@/components/team-admin/member-activity-pager';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -226,7 +226,7 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
           <ListCard asChild selected={m.contactId === selectedId}>
             <Link href={`/team-admin?contact=${m.contactId}`}>
               <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-sm font-medium">{m.contactName}</span>
+                <ListCardTitle>{m.contactName}</ListCardTitle>
                 <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                   {(m.forum?.unread ?? 0) > 0 ? (
                     <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
@@ -236,11 +236,11 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
                   {fmtWhen(m.forum?.lastPostAt ?? null)}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <ListCardMeta>
                 {m.forum?.lastPostBody
                   ? `${m.forum.lastPostTopicTitle ? `${m.forum.lastPostTopicTitle} — ` : ''}${m.forum.lastPostBody}`
                   : `member since ${fmtWhen(m.memberSince)} — no posts yet`}
-              </p>
+              </ListCardMeta>
             </Link>
           </ListCard>
         </li>
@@ -762,7 +762,7 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
                                     aria-hidden
                                   />
                                 ) : null}
-                                <span className="truncate text-sm font-medium">{t.title}</span>
+                                <ListCardTitle>{t.title}</ListCardTitle>
                               </span>
                               <span className="shrink-0 text-xs text-muted-foreground">
                                 {fmtWhen(t.lastPostAt)}

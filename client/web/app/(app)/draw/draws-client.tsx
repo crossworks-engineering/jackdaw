@@ -26,7 +26,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { drawSnapshotClass } from '@/components/draw/snapshot-theme';
 import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
@@ -261,9 +261,7 @@ export function DrawsClient() {
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                              <span className="min-w-0 truncate text-sm font-medium">
-                                {d.title}
-                              </span>
+                              <ListCardTitle className="min-w-0">{d.title}</ListCardTitle>
                               {/* A dot, not a word: the row is a scan target and the
                             preview pane carries the full explanation. */}
                               {d.hasDraft && (
@@ -274,11 +272,7 @@ export function DrawsClient() {
                                 />
                               )}
                             </div>
-                            {d.summary ? (
-                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                                {d.summary}
-                              </p>
-                            ) : null}
+                            {d.summary ? <ListCardSnippet>{d.summary}</ListCardSnippet> : null}
                           </div>
                         </div>
                       </button>

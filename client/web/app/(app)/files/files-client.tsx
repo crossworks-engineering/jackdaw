@@ -27,7 +27,7 @@ import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { ShareControl } from '@/components/share-control';
 import { Button } from '@mantle/web-ui/ui/button';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
@@ -1167,12 +1167,8 @@ function ChildFolders({
             >
               <Folder className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{f.slug}</div>
-                {f.description && (
-                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {f.description}
-                  </div>
-                )}
+                <ListCardTitle>{f.slug}</ListCardTitle>
+                {f.description && <ListCardMeta>{f.description}</ListCardMeta>}
                 <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                   {f.childFolderCount} folders · {f.fileCount} files
                 </div>

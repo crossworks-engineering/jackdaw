@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
@@ -185,7 +185,7 @@ function PeersView({ initialPeers }: { initialPeers: Peer[] }) {
                     >
                       <div className="flex items-center gap-2">
                         <Network className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate text-sm font-medium">{p.displayName}</span>
+                        <ListCardTitle>{p.displayName}</ListCardTitle>
                         <span
                           className={cn(
                             'ml-auto size-2 shrink-0 rounded-full',

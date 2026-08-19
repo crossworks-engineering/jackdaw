@@ -16,7 +16,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Ban, CheckSquare, Flag, MessageSquare } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTags } from '@mantle/web-ui/ui/list-card';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import type { TaskRow, TaskStatus } from '@mantle/client-types';
 import { rankBetween } from '@/lib/rank';
@@ -120,11 +120,11 @@ function BoardCard({
           </div>
         )}
         {task.tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          <ListCardTags>
             {task.tags.slice(0, 4).map((tag) => (
               <TagPill key={tag} tag={tag} />
             ))}
-          </div>
+          </ListCardTags>
         )}
       </div>
     </ListCard>

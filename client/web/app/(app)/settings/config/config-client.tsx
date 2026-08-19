@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { diffLines } from 'diff';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -378,12 +378,10 @@ function ConfigView({ report }: { report: ConfigDiffReport }) {
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{e.name}</span>
+                        <ListCardTitle>{e.name}</ListCardTitle>
                         <StatusPill status={e.status} />
                       </div>
-                      <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                        {e.slug}
-                      </div>
+                      <ListCardMeta className="font-mono">{e.slug}</ListCardMeta>
                     </ListCard>
                   );
                 })}

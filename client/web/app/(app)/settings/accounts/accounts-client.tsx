@@ -17,7 +17,7 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { ImapForm } from './imap/imap-form';
@@ -115,21 +115,21 @@ export function AccountsClient() {
                     <Link href={`/settings/accounts?selected=${r.id}`}>
                       <div className="flex items-center gap-2">
                         <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        <span className="truncate text-sm font-medium">{r.address}</span>
+                        <ListCardTitle>{r.address}</ListCardTitle>
                         <span className={cn('ml-auto shrink-0', statusBadgeClass(r, latest))}>
                           {statusLabel(r, latest)}
                         </span>
                       </div>
-                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <ListCardMeta>
                         {r.provider}
                         {r.provider === 'imap' && r.imapHost
                           ? ` · ${r.imapHost}:${r.imapPort}`
                           : ''}
-                      </div>
+                      </ListCardMeta>
                       {r.lastSyncError && (
-                        <div className="mt-0.5 truncate text-xs text-destructive-ink">
+                        <ListCardMeta className="text-destructive-ink">
                           ⚠ {r.lastSyncError}
-                        </div>
+                        </ListCardMeta>
                       )}
                     </Link>
                   </ListCard>

@@ -607,10 +607,14 @@ intrinsic height) in a pane that was 400px tall.
 > ⚠ **Compose a card from `ListCard`'s own parts**, not from remembered
 > classes: `ListCardTitle` (add `wrap` where finding a record by name is the
 > point — `/pages`, `/team/pages`), `ListCardSnippet`, `ListCardTags`,
-> `ListCardMeta`. Thirty-odd screens pass `<ListCard>` and then hand-roll the
-> inside, which is how `truncate text-sm font-medium` becomes `truncate
-> font-medium` on one screen and loses `truncate` on another. The parts are the
-> only place those rules can be changed once.
+> `ListCardMeta`. Every list screen does this now. It did not use to: thirty of
+> them passed `<ListCard>` and then wrote the inside out by hand, which is how
+> `truncate text-sm font-medium` came to lose its `truncate` on one screen and
+> its `text-sm` on another. The parts are the only place those rules can be
+> changed once — a class you type into a card is a class that will drift.
+>
+> `/docs` is the one exception and a deliberate one: its left column is a nav
+> TREE, not a list of records (`handover-resizable-columns.md` §3).
 
 **Every draggable edge shows a grip, at rest, without hovering it.** If a
 column can be resized, the user must be able to see that before they go

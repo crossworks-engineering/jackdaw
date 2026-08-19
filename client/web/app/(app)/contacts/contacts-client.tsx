@@ -70,7 +70,7 @@ import {
   normalizeCountryCode,
   type ContactRow,
 } from '@mantle/content-core/contacts-format';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 
 type ContactsListResponse = {
@@ -186,7 +186,7 @@ export function ContactsClient() {
                     className="text-sm"
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate font-medium">{c.title}</span>
+                      <ListCardTitle>{c.title}</ListCardTitle>
                       {c.team && (
                         <Users
                           className="size-3.5 shrink-0 text-muted-foreground"

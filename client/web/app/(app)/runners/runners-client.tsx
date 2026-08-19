@@ -22,7 +22,7 @@ import {
   type RunnerRunDetail,
 } from '@mantle/web-ui/runners-types';
 import { Button } from '@mantle/web-ui/ui/button';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -271,7 +271,7 @@ export function RunnersClient({
                             )}
                             aria-hidden
                           />
-                          <span className="truncate text-sm font-medium">{r.name}</span>
+                          <ListCardTitle>{r.name}</ListCardTitle>
                           <span
                             className={cn(
                               'shrink-0 text-[10px] uppercase tracking-wider',
@@ -296,9 +296,7 @@ export function RunnersClient({
                         )}
                       </div>
                       {r.error && (
-                        <div className="mt-0.5 truncate text-xs text-destructive-ink">
-                          {r.error}
-                        </div>
+                        <ListCardMeta className="text-destructive-ink">{r.error}</ListCardMeta>
                       )}
                     </Link>
                   </ListCard>

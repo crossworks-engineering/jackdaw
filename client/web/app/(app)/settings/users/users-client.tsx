@@ -15,7 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardMeta } from '@mantle/web-ui/ui/list-card';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
@@ -172,13 +172,13 @@ export function UsersClient() {
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                  <ListCardMeta>
                     {u.displayName
                       ? u.email
                       : u.lastLoginAt
                         ? `Last login ${formatDateTime(u.lastLoginAt)}`
                         : 'Never signed in'}
-                  </div>
+                  </ListCardMeta>
                 </ListCard>
               ))}
             </div>

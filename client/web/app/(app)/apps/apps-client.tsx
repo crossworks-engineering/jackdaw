@@ -34,7 +34,7 @@ import { useListNav } from '@/lib/use-list-nav';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
@@ -202,16 +202,16 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                       >
                         <span className="flex items-center gap-2 text-sm font-medium">
                           <span aria-hidden>{app.icon ?? '🧩'}</span>
-                          <span className="truncate">{app.title}</span>
+                          <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
                           <span className="ml-auto flex shrink-0 items-center gap-1">
                             {app.hasDraft && <Badge variant="secondary">draft</Badge>}
                             <ExposureBadge app={app} />
                           </span>
                         </span>
                         {app.description && (
-                          <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                          <ListCardSnippet className="line-clamp-1">
                             {app.description}
-                          </span>
+                          </ListCardSnippet>
                         )}
                       </ListCard>
                     </li>

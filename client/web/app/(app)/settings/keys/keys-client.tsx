@@ -44,7 +44,7 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { SUPPORTED_PROVIDERS, wiredCapabilitiesFor } from '@mantle/voice-client';
@@ -295,7 +295,7 @@ export function KeysClient() {
                       selected={selected}
                     >
                       <div className="flex items-baseline gap-2">
-                        <span className="truncate text-sm font-medium">{k.service}</span>
+                        <ListCardTitle>{k.service}</ListCardTitle>
                         <span className="shrink-0 text-xs text-muted-foreground">/ {k.label}</span>
                       </div>
                       <code className="font-mono text-xs text-muted-foreground">{k.masked}</code>
