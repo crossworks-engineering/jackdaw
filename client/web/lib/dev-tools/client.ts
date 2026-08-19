@@ -63,9 +63,14 @@ async function readCappedText(
 export function buildVarMap(env: Environment | null): Record<string, string> {
   const map: Record<string, string> = {};
   if (!env) return map;
-  map.baseUrl = env.baseUrl;
+  map.baseUrl = env.baseUrl ?? '';
+  // Belt and braces: `reviveEnvironments` guarantees an array out of storage,
+  // but this is also reachable with an environment built anywhere else, and a
+  // bad one here used to throw "env.vars is not iterable" during render — which
+  // takes the console down rather than degrading it.
+  if (!Array.isArray(env.vars)) return map;
   for (const v of env.vars) {
-    if (v.enabled && v.key) map[v.key] = v.value;
+    if (v?.enabled && v.key) map[v.key] = v.value ?? '';
   }
   return map;
 }

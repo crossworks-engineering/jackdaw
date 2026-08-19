@@ -91,6 +91,60 @@ export function scrubDraftSecrets(d: DraftRequest): DraftRequest {
 }
 
 /** Same heuristic for environment variables — they persist on every edit. */
+/**
+ * Normalise whatever `dev-tools:environments:v1` actually holds into a shape the
+ * console can use, dropping anything unrecognisable.
+ *
+ * ⚠ This exists because the value is UNTRUSTED. It is JSON from localStorage —
+ * hand-edited, half-written by a crashed tab, or left by a build that predates a
+ * field — and the reader used to cast it straight to `Environment[]`. One
+ * malformed entry then crashed the whole console at first render with
+ * "env.vars is not iterable", and the only way out was clearing storage from a
+ * devtools console the crash made it hard to reach.
+ *
+ * Missing pieces are filled rather than rejected: a saved environment the user
+ * still recognises by name is worth keeping even if a field went missing.
+ */
+export function reviveEnvironments(parsed: unknown): Environment[] | null {
+  if (!Array.isArray(parsed)) return null;
+  const out: Environment[] = [];
+  for (const raw of parsed) {
+    if (!raw || typeof raw !== 'object') continue;
+    const e = raw as Partial<Environment>;
+    out.push({
+      id: typeof e.id === 'string' && e.id ? e.id : genId('env'),
+      name: typeof e.name === 'string' ? e.name : 'Environment',
+      baseUrl: typeof e.baseUrl === 'string' ? e.baseUrl : '',
+      vars: reviveKvs(e.vars),
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+function reviveKvs(parsed: unknown): KeyValueEntry[] {
+  if (!Array.isArray(parsed)) return [];
+  const out: KeyValueEntry[] = [];
+  for (const raw of parsed) {
+    if (!raw || typeof raw !== 'object') continue;
+    const v = raw as Partial<KeyValueEntry>;
+    out.push({
+      id: typeof v.id === 'string' && v.id ? v.id : genId('kv'),
+      enabled: v.enabled !== false,
+      key: typeof v.key === 'string' ? v.key : '',
+      value: typeof v.value === 'string' ? v.value : '',
+    });
+  }
+  return out;
+}
+
+/** The other persisted lists are only ever mapped and filtered, so "is it an
+ *  array of objects" is the whole contract. A non-array would break them the
+ *  same way a missing `vars` broke environments. */
+export function reviveObjectArray<T>(parsed: unknown): T[] | null {
+  if (!Array.isArray(parsed)) return null;
+  return parsed.filter((x): x is T => !!x && typeof x === 'object');
+}
+
 export function scrubEnvSecrets(envs: Environment[]): Environment[] {
   return envs.map((e) => ({ ...e, vars: scrubKv(e.vars) }));
 }
@@ -119,18 +173,29 @@ export function usePersistedState<T>(
    *  in-memory state is unchanged. Use to scrub secrets from the persisted
    *  copy without blanking values the live session still needs. */
   persistTransform?: (v: T) => T,
+  /** Validate/repair what came out of localStorage. Return `null` to reject it
+   *  and keep `initial()`. WITHOUT this the parsed JSON is cast blind, and a
+   *  malformed entry takes the screen down on first render. */
+  revive?: (parsed: unknown) => T | null,
 ): [T, (next: T | ((prev: T) => T)) => void] {
   const [value, setValue] = useState<T>(initial);
   const loaded = useRef(false);
   const transformRef = useRef(persistTransform);
   transformRef.current = persistTransform;
 
+  const reviveRef = useRef(revive);
+  reviveRef.current = revive;
+
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(key);
-      if (raw !== null) setValue(JSON.parse(raw) as T);
+      if (raw !== null) {
+        const parsed: unknown = JSON.parse(raw);
+        const revived = reviveRef.current ? reviveRef.current(parsed) : (parsed as T);
+        if (revived !== null && revived !== undefined) setValue(revived);
+      }
     } catch {
-      /* keep initial */
+      /* unparseable or rejected — keep initial */
     }
     loaded.current = true;
   }, [key]);

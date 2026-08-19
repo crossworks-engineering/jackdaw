@@ -26,6 +26,8 @@ import {
   defaultEnvironments,
   emptyDraft,
   genId,
+  reviveEnvironments,
+  reviveObjectArray,
   scrubDraftSecrets,
   scrubEnvSecrets,
   usePersistedState,
@@ -96,20 +98,34 @@ export function DevToolsProvider({
   initialAgentTools?: AgentToolInfo[];
   children: React.ReactNode;
 }) {
+  // Every one of these is revived rather than cast: the values are JSON from
+  // localStorage, and a malformed one used to crash the console on first render
+  // (`env.vars is not iterable`) with no way back except clearing storage by
+  // hand. A rejected value falls back to the initial state instead.
   const [environments, setEnvironments] = usePersistedState<Environment[]>(
     STORAGE_KEYS.environments,
     defaultEnvironments,
     scrubEnvSecrets,
+    reviveEnvironments,
   );
   const [activeEnvId, setActiveEnvId] = usePersistedState<string | null>(
     STORAGE_KEYS.activeEnvId,
     () => 'env_local',
+    undefined,
+    (parsed) => (typeof parsed === 'string' || parsed === null ? (parsed as string | null) : null),
   );
   const [collections, setCollections] = usePersistedState<SavedCollection[]>(
     STORAGE_KEYS.collections,
     () => [],
+    undefined,
+    reviveObjectArray<SavedCollection>,
   );
-  const [history, setHistory] = usePersistedState<HistoryEntry[]>(STORAGE_KEYS.history, () => []);
+  const [history, setHistory] = usePersistedState<HistoryEntry[]>(
+    STORAGE_KEYS.history,
+    () => [],
+    undefined,
+    reviveObjectArray<HistoryEntry>,
+  );
 
   const [draft, setDraftState] = useState<DraftRequest>(emptyDraft);
   const [response, setResponse] = useState<ConsoleResponse | null>(null);
