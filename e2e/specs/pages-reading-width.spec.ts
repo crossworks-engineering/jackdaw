@@ -1,27 +1,41 @@
 import { expect, test } from '../lib/fixtures';
 
 /**
- * `/pages` used to declare its reading width TWICE — the `MasterDetail` divider,
- * and a per-page narrow/wide toggle that predates it (`mx-auto` + `max-w-3xl` /
- * `max-w-none`, persisted as `data.width`). Two controls for one measure, and
- * dragging the divider on a "narrow" page moved the pane but not the prose.
+ * `/pages` has declared its reading width three different ways.
  *
- * The workspace toggle is gone: the divider is the measure, and the preview sits
- * TUCKED LEFT against it (§8 — a detail pane hugs the divider and never centres).
- * The EDITOR at /pages/[id] keeps its own toggle, deliberately: it is a full-page
- * route with no divider, so removing it there would leave a long page with no
- * width choice at all. `data.width` therefore lives on, now written from one
- * place instead of two.
+ * First a per-page narrow/wide toggle (`mx-auto` + `max-w-3xl` / `max-w-none`,
+ * persisted as `data.width`) sitting inside a draggable pane — two controls for
+ * one measure, and dragging the divider on a "narrow" page moved the pane but
+ * not the prose. The toggle went; `detailFills` replaced it, so the pane took
+ * every spare pixel.
  *
- * This spec is the guard for the half a scaffold check cannot see. The
- * master-detail row proves the panes resize; only geometry proves the PROSE
- * followed. Re-add `mx-auto` and the second assertion fails; re-add `max-w-3xl`
- * and the first one does.
+ * That was the second mistake, and it is the one this spec now guards. Under
+ * `detailFills` the page sprawled the full window with NO right edge to take
+ * hold of: the reader could widen the list, and nothing else. Jason's words —
+ * the content "is all just full width", with "no drag handle to resize
+ * content". A document the reader READS wants what the settings hub has: an
+ * opening measure, tucked left against the divider, with its own handle on the
+ * right and `maxDetailSize="100%"` so that handle has no ceiling.
+ *
+ * Three assertions, because three different regressions are possible. Re-add an
+ * inner `mx-auto` and (2) fails. Re-add `detailFills` — or drop the spacer any
+ * other way — and (3) fails, because the pane loses its own handle. Put the
+ * 1100px default ceiling back and (4) fails.
  */
 test.describe('pages reading width', () => {
   test.skip(({ topology }) => topology === 'same-origin', 'owner UI lives on the client app');
 
-  test('the divider is the measure — prose fills the pane and is not centred', async ({
+  /** The scaffold's OWN handles. `[data-slot="resizable-handle"]` alone also
+   *  matches the app shell's nav rail, so scope to the group holding the list
+   *  and take only its direct children — same helper as
+   *  `master-detail-screens.spec.ts` and `settings-hub.spec.ts`. */
+  const scaffoldHandles = (page: import('@playwright/test').Page) =>
+    page
+      .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
+      .last()
+      .locator(':scope > [data-slot="resizable-handle"]');
+
+  test('the preview opens at a measure, hugs the divider, and has its own drag bar', async ({
     ownerApi,
     ownerPage,
   }) => {
@@ -57,17 +71,19 @@ test.describe('pages reading width', () => {
       });
       expect(seeded.ok(), 'could not seed a body to measure').toBeTruthy();
 
-      // Wide enough that a 768px cap is unmistakably narrower than the pane.
-      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      // Wide enough that a 900px opening measure leaves real slack in the
+      // spacer for the drag to eat.
+      await ownerPage.setViewportSize({ width: 1920, height: 1080 });
       await ownerPage.goto(`/pages?q=${encodeURIComponent(title)}`);
+      await expect(scaffoldHandles(ownerPage).first()).toBeVisible({ timeout: 15_000 });
       await ownerPage.getByText(title).first().click();
 
       const detail = ownerPage.locator('[data-testid="detail"]');
       const prose = detail.locator('.ProseMirror').first();
       await expect(prose).toBeVisible({ timeout: 15_000 });
 
-      // The control is gone from the workspace. (It is still the editor's, so
-      // this is scoped to the pane rather than the page.)
+      // 1. The per-page toggle is still gone from the workspace. (The EDITOR at
+      //    /pages/[id] is a separate route and a separate decision.)
       await expect(
         detail.getByRole('button', { name: 'Toggle full width' }),
         'the workspace width toggle is back — the divider is meant to be the only measure',
@@ -76,18 +92,39 @@ test.describe('pages reading width', () => {
       const pane = (await detail.boundingBox())!;
       const body = (await prose.boundingBox())!;
 
-      // 1. No cap. `max-w-3xl` is 768px; the pane here is ~1200.
-      expect(
-        body.width,
-        `prose is ${Math.round(body.width)}px inside a ${Math.round(pane.width)}px pane — capped again?`,
-      ).toBeGreaterThan(900);
-
       // 2. Not centred. `mx-auto` would split the slack evenly and push the left
       //    edge well clear of the divider; tucked left keeps it at the padding.
       expect(
         body.x - pane.x,
         'prose is not hugging the divider — `mx-auto` back on the wrapper?',
       ).toBeLessThan(40);
+
+      // 3. The pane opens at a MEASURE, not at the whole window, and it has a
+      //    second handle of its own. Under `detailFills` there is exactly one
+      //    scaffold handle and the pane runs to the shell's edge.
+      const handles = scaffoldHandles(ownerPage);
+      expect(
+        await handles.count(),
+        'the preview has no right edge to drag — `detailFills` is back and the spacer is gone',
+      ).toBe(2);
+      expect(
+        pane.width,
+        `the pane opened at ${Math.round(pane.width)}px — it is filling, not opening at a measure`,
+      ).toBeLessThan(1200);
+
+      // 4. And the drag has NO ceiling: `maxDetailSize="100%"` lets it run the
+      //    spacer down to nothing. The 1100px default would stop it short.
+      const grip = (await handles.last().boundingBox())!;
+      await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+      await ownerPage.mouse.down();
+      await ownerPage.mouse.move(1900, grip.y + grip.height / 2, { steps: 12 });
+      await ownerPage.mouse.up();
+
+      await expect
+        .poll(async () => (await prose.boundingBox())!.width, {
+          message: 'the prose ignored its own handle — capped from inside, or the ceiling is back',
+        })
+        .toBeGreaterThan(body.width + 200);
     } finally {
       const del = await ownerApi.delete(`/api/pages/${row.id}`);
       expect(del.ok()).toBeTruthy();

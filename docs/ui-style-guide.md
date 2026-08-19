@@ -555,6 +555,12 @@ still use it; port them as you touch them.
   DETAIL takes the slack. For a detail pane that is not reading text — Apps
   embeds an app viewport, and the 672px measure exists to protect a FORM's
   line length, not to shrink the thing the screen is for.
+  - ⚠ **PROSE is not one of those.** `detailFills` leaves the pane with no
+    right edge, so the reader can widen the list and nothing else — the page
+    just sprawls to the window. `/pages` shipped that and it was wrong. A
+    document the reader READS wants the three-panel default with a bigger
+    opening measure and `maxDetailSize="100%"`: it tucks left, it opens
+    readable, and its own handle has no ceiling.
 - **`detailFirst`** puts the detail on the left. The board reads left-to-right
   across its columns, so the form belongs where that sweep starts.
 - **`listCollapsed`** drives the list column to zero — focus mode on a list
@@ -563,10 +569,15 @@ still use it; port them as you touch them.
   the round trip; `{zen ? null : list}` looks identical and quietly makes focus
   mode a reset button. Passed by `/apps`, `/notes`, `/draw`, `/pages` and
   `/tables` — the four focus-mode screens plus Tables' own collapse toggle.
-  - **A screen with focus mode almost always wants `detailFills` too.** Under
-    the three-panel default the width the list gives up goes to the empty
-    SPACER, not to the detail, so the chrome disappears and the content stays
-    exactly as wide as it was.
+  - **Know what focus mode gives back.** Under the three-panel default the
+    width the list gives up goes to the empty SPACER, not to the detail — the
+    chrome disappears and the content stays exactly as wide as it was. With
+    `detailFills` the content absorbs it instead.
+    That is a reason to prefer `detailFills` for a viewport, and NOT a reason
+    to prefer it for prose: `/pages` keeps the spacer deliberately, because a
+    reader who has chosen a measure wants focus mode to remove the chrome, not
+    to re-flow the paragraph they are in the middle of. The width is theirs to
+    set with the handle; focus mode only clears what is around it.
   - **Passing it at all is what makes the panel collapsible**, which is why it
     has no default. `collapsible` also means "collapse when dragged below
     `minSize`", so setting it for everyone would let any list be dragged out of
@@ -618,7 +629,8 @@ subtle — it shows up as dead space or as a divider that does nothing.
 | the detail is | prop | why |
 |---|---|---|
 | a form | *(default)* | the 672px measure is what stops fields running to 1200px line lengths |
-| a document, table, diff, transcript, app viewport | `detailFills` | not reading text; the cap would shrink the thing the screen exists for |
+| prose the reader READS | *(default)*, wider opening + `maxDetailSize="100%"` | it wants a measure AND a right edge; `/pages` opens at 900px because its `xl:` outline rail eats 224px of whatever it gets |
+| a table, diff, transcript, app viewport | `detailFills` | not reading text; the cap would shrink the thing the screen exists for |
 | columns read left-to-right | `listFills` | the board wants every pixel |
 
 **2. Can it reach the window edge?** The default ceiling is `maxDetailSize`

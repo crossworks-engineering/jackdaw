@@ -125,6 +125,10 @@ and one request per card is not a list.
 
 ### 3e. Ask 5 is about the EDITOR, and it revisits a decision already recorded
 
+> ⚠ **CORRECTION (2026-08-19, after Jason looked at it).** The paragraph below
+> was wrong, and so was the shipped screen. Ask 5 turned out to be about BOTH
+> routes. See §9.
+
 The list screen's preview **already hugs left and already has no cap** — it
 passes `detailFills` (:459) with a comment explaining why, and
 `e2e/specs/pages-reading-width.spec.ts` pins it. Nothing to do there.
@@ -310,3 +314,47 @@ in the file.
 2. **The mantle half of §3c** — `?parent=`, `childCount`, real server-side level
    paging. Until it lands, `/pages` still ships the whole corpus on every visit.
    The components do not move when it does; only where two numbers come from.
+
+---
+
+## 9. The list preview's width — §3e was wrong (2026-08-19)
+
+§3e said the list preview needed nothing. Jason looked at the shipped screen and
+said otherwise, in these words:
+
+> the page's actual content … is not like other screens, tugs to the left
+> towards the item card lists, with no drag handle to resize content, it is all
+> just full width.
+
+He is right, and `settings-hub.spec.ts` had already named it — its comment calls
+this "the `/pages` bug". `detailFills` hands the pane every spare pixel, so the
+preview had **no right edge at all**: the only handle on the screen resizes the
+LIST. "Hugging left" and "no cap" were both true and both beside the point — a
+reader could not narrow the measure, only widen the chrome.
+
+**Fixed:** `/pages` drops `detailFills` and takes the settings-hub treatment —
+the three-panel default (list | detail | spacer), so the preview carries its own
+handle on the right.
+
+| prop | value | why |
+|---|---|---|
+| `defaultDetailSize` | `900px` | not the 672px default: this pane also holds the `xl:` outline rail, a 224px aside that would eat a third of 672px |
+| `minDetailSize` | `480px` | below this the rail and the prose fight |
+| `maxDetailSize` | `100%` | "no limit on its horizontal space" — the drag runs the spacer to nothing |
+
+**The trade-off, stated out loud.** `docs/ui-style-guide.md` said a focus-mode
+screen almost always wants `detailFills`, because under the spacer the width the
+list gives up goes to the SPACER and not to the content. That is now true of
+`/pages`: turning focus mode on removes the list, and the prose stays exactly as
+wide as the reader set it. That is the intended reading, not an oversight — the
+width is the reader's to set with the handle, and focus mode only clears what is
+around it. The style guide has been edited to say so; do not "fix" it back.
+
+`pages-reading-width.spec.ts` was rewritten for this: it now asserts the pane
+opens at a measure, hugs the divider, has TWO scaffold handles, and that
+dragging the second one widens the prose past the old 1100px ceiling.
+
+**Still not done: the EDITOR at `/pages/[id]`.** It remains a standalone route
+with no divider and the `mx-auto max-w-3xl` / `max-w-none` toggle at :1043. The
+decision in §3e stands — the drag bar replaces the toggle — and the layout above
+is the shape to copy, with the outline rail folded into it.

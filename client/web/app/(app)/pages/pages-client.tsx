@@ -485,13 +485,20 @@ export function PagesClient() {
         defaultListSize="300px"
         minListSize="220px"
         maxListSize="560px"
-        // The divider is the measure here: the per-page narrow/wide toggle is
-        // gone from this screen, so the preview reads at whatever width the
-        // drag leaves it, tucked left against the divider. Capping the pane at
-        // the 672px prose default would take that choice back and leave the xl
-        // outline rail eating a third of the body. It also has to absorb the
-        // list's width in focus mode, which is the whole point of that mode.
-        detailFills
+        // The preview gets the SPACER treatment the settings hub has, not
+        // `detailFills`. `detailFills` gave the pane every spare pixel, so the
+        // page sprawled the full window with no right edge to take hold of —
+        // the reader could not narrow it, only widen the list. With a spacer
+        // the preview opens at a measure, tucks left against the divider, and
+        // carries its OWN handle on the right that the reader drags.
+        //
+        // 900px, not the 672px default: this pane also holds the `xl:` outline
+        // rail (a 224px aside), and at 672px that rail eats a third of the
+        // body. `100%` for the ceiling so the drag can run the spacer down to
+        // nothing — "no limit" is the whole ask.
+        defaultDetailSize="900px"
+        minDetailSize="480px"
+        maxDetailSize="100%"
         // Focus mode. The list COLLAPSES rather than unmounting, so the search
         // box, scroll position and page survive the round trip — see the prop's
         // note in master-detail.tsx.
