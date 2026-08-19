@@ -98,6 +98,19 @@
 .mantle-shell[data-resizing='true'] {
   transition: none;
 }
+
+/* The /team member shell's rail, which animates the SAME registered `--nav-w`
+ * and for the same reason. It is a separate class rather than a reuse of
+ * `.mantle-shell` because that class also declares `--top-bar-h`, and /team
+ * has its own mobile bar that nothing offsets against — inheriting a variable
+ * this surface neither sets nor reads would be a false signal to whoever reads
+ * it next. The @property registration above is global, so both get it. */
+.mantle-team-shell {
+  transition: --nav-w 200ms ease-in-out;
+}
+.mantle-team-shell[data-resizing='true'] {
+  transition: none;
+}
 /* 48rem, NOT 768px: this must flip at exactly the same instant as the bar's
  * own `md:hidden` and the rail's `md:flex`. Tailwind v4 emits `md` as
  * `min-width: 48rem`, and rem in a media query resolves against the BROWSER
