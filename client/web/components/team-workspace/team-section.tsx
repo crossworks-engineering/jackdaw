@@ -65,7 +65,14 @@ import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { OpenShare } from './open-on-server';
 import { ShareReader } from './share-reader';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard } from '@mantle/web-ui/ui/list-card';
+import {
+  ListCard,
+  ListCardMeta,
+  ListCardSnippet,
+  ListCardTags,
+  ListCardTitle,
+} from '@mantle/web-ui/ui/list-card';
+import { TagPill } from '@mantle/web-ui/tag-pill';
 
 type Item = {
   token: string;
@@ -100,6 +107,22 @@ const SORT_LABELS: Record<Sort, string> = {
 };
 
 const SORTS = Object.keys(SORT_LABELS) as Sort[];
+
+/** The glyph a card falls back to when the shared item has none of its own, so
+ *  the icon slot is never empty and the titles stay on one left edge. Per TYPE,
+ *  the way each owner screen picks its own default (`/pages` uses 📄, `/apps`
+ *  uses 🧩); a literal map because Tailwind aside, a lookup reads better than a
+ *  switch and this is data, not logic. */
+const TYPE_ICON: Record<string, string> = {
+  note: '📝',
+  page: '📄',
+  table: '🧮',
+  draw: '✏️',
+  app: '🧩',
+  task: '✅',
+  event: '📅',
+  branch: '📁',
+};
 
 export function TeamSection({
   type,
@@ -323,8 +346,8 @@ export function TeamSection({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-muted-foreground"
+                    size="xs"
+                    className="gap-1 text-muted-foreground"
                     title="Sort"
                   >
                     <ArrowUpDown className="size-3.5" />
@@ -386,28 +409,43 @@ export function TeamSection({
                       onClick={() => select(item.token)}
                       selected={item.token === selectedToken}
                     >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="min-w-0 truncate text-sm font-medium">
-                          {item.icon ? <span className="mr-1.5">{item.icon}</span> : null}
-                          {item.title}
+                      {/* The icon is a fixed-width SLOT, not an inline prefix.
+                          Inline, a row with an icon starts further right than
+                          one without and the titles stop lining up down the
+                          column — which is most of what makes a list hard to
+                          scan. The owner cards resolved this the same way. */}
+                      <div className="flex items-start gap-2">
+                        <span
+                          className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4"
+                          aria-hidden
+                        >
+                          {item.icon ?? TYPE_ICON[type] ?? '📄'}
                         </span>
-                        {item.mode === 'public' && (
-                          <span
-                            className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
-                            title="Also shared publicly"
-                          >
-                            <Globe className="size-3" aria-hidden />
-                          </span>
-                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <ListCardTitle className="min-w-0 flex-1">{item.title}</ListCardTitle>
+                            {item.mode === 'public' && (
+                              <Globe
+                                className="size-3 shrink-0 text-muted-foreground"
+                                aria-label="Also shared publicly"
+                              />
+                            )}
+                          </div>
+                          {item.summary && <ListCardSnippet>{item.summary}</ListCardSnippet>}
+                          {/* The tags were in the payload all along and never
+                              rendered, while the header above offers a tag
+                              FILTER built from them — so a member could filter
+                              by a tag no card ever showed. */}
+                          {item.tags.length > 0 && (
+                            <ListCardTags>
+                              {item.tags.map((t) => (
+                                <TagPill key={t} tag={t} />
+                              ))}
+                            </ListCardTags>
+                          )}
+                          <ListCardMeta>{formatDate(item.updatedAt)}</ListCardMeta>
+                        </div>
                       </div>
-                      {item.summary && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {item.summary}
-                        </p>
-                      )}
-                      <p className="mt-0.5 text-xs text-muted-foreground/70">
-                        {formatDate(item.updatedAt)}
-                      </p>
                     </ListCard>
                   </li>
                 ))}
@@ -432,23 +470,31 @@ export function TeamSection({
         <div className={cn('flex h-full min-h-0 flex-col', !selected && 'max-md:hidden')}>
           {selected ? (
             <>
-              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5">
+              {/* The §8 detail header: the entity title at `text-xl
+                  font-semibold` with its glyph INSIDE the h2 (so the two share
+                  a baseline and the icon can't drift when the title wraps),
+                  `min-w-0 truncate` on the title and `shrink-0` on the actions.
+                  It used to be a centred `text-sm` paragraph, which walked the
+                  title away from the list it belongs to and read a step
+                  quieter than the cards it was heading. */}
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 px-3 py-2">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="md:hidden"
+                  size="icon-sm"
+                  className="shrink-0 md:hidden"
                   onClick={() => select(null)}
+                  aria-label="Back to the list"
                 >
-                  <ArrowLeft /> Back
+                  <ArrowLeft />
                 </Button>
-                <p className="min-w-0 flex-1 truncate text-sm font-medium max-md:text-right md:text-center">
-                  {selected.icon ? <span className="mr-1.5">{selected.icon}</span> : null}
-                  {selected.title}
-                </p>
+                <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
+                  <span aria-hidden>{selected.icon ?? TYPE_ICON[type] ?? '📄'}</span>
+                  <span className="min-w-0 truncate">{selected.title}</span>
+                </h2>
                 <OpenShare
                   token={selected.token}
                   ariaLabel="Open in a new tab"
-                  className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                  className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'shrink-0')}
                 >
                   <ExternalLink />
                 </OpenShare>
@@ -509,10 +555,10 @@ function TagFilter({
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size="xs"
           role="combobox"
           aria-expanded={open}
-          className={cn('h-7 gap-1 px-2 text-muted-foreground', activeTag && 'text-foreground')}
+          className={cn('gap-1 text-muted-foreground', activeTag && 'text-foreground')}
           title="Filter by tag"
         >
           <Tag className="size-3.5" />

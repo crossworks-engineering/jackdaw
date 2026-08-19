@@ -108,10 +108,10 @@ function PromptCard({ message }: { message: TeamMessage }) {
       }
     >
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           You
         </span>
-        <span className="text-[10px] text-muted-foreground" title={formatFull(message.createdAt)}>
+        <span className="text-xs text-muted-foreground" title={formatFull(message.createdAt)}>
           {formatTime(message.createdAt)}
         </span>
       </div>

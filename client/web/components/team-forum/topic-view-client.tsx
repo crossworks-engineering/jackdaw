@@ -117,7 +117,7 @@ function AuthorLine({ post }: { post: Post }) {
           {roleTag}
         </span>
       )}
-      <span className="text-[11px] text-muted-foreground">{formatTime(post.createdAt)}</span>
+      <span className="text-xs text-muted-foreground">{formatTime(post.createdAt)}</span>
     </div>
   );
 }
@@ -695,8 +695,8 @@ export function TopicViewClient({
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{topic.title}</h1>
             <Button
               variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
+              size="icon-xs"
+              className="text-muted-foreground"
               aria-label={searchOpen ? 'Close search' : 'Search this topic'}
               onClick={() => {
                 setSearchOpen((o) => !o);
@@ -733,7 +733,7 @@ export function TopicViewClient({
                 )}
               </div>
               {searchInput.trim() && (
-                <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
+                <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border scrollbar-thin">
                   {matches === null ? (
                     <p className="px-3 py-4 text-center text-xs text-muted-foreground">
                       Searching…
