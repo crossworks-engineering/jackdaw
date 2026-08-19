@@ -615,6 +615,14 @@ intrinsic height) in a pane that was 400px tall.
 >
 > `/docs` is the one exception and a deliberate one: its left column is a nav
 > TREE, not a list of records (`handover-resizable-columns.md` §3).
+>
+> **Marking a card for attention: the `accent` prop**, never a class. It draws
+> the slim `border-l-[3px]` bar (the compact-nav idiom) in a semantic status
+> token — `primary` | `info` | `warning` | `success` — and composes with
+> `selected`, whose ring and tint stay legible beside it. Status tokens only:
+> `chart-*` is DATA ink and a literal green/red ignores the theme (§2). One
+> marker per card, most urgent wins. The Forum is the reference: `primary` =
+> pinned announcement, `info` = unread, `warning` = open bug.
 
 **Every draggable edge shows a grip, at rest, without hovering it.** If a
 column can be resized, the user must be able to see that before they go

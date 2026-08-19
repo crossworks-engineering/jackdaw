@@ -12,9 +12,24 @@ import { cn } from '../lib/utils';
  * tint. The tint sits on `bg-card` under normal `foreground` text, so it stays
  * readable where a full `bg-accent` fill would not (§2). `data-dimmed` fades
  * disabled/past/off records.
+ *
+ * `accent` marks a card that wants ATTENTION — the slim `border-l-[3px]` bar
+ * the compact nav rows use, in a semantic status token. It is deliberately not
+ * a full border: selection owns that idiom, and a second full border would be
+ * ambiguous the moment a card is both marked and selected. The two compose —
+ * the side-specific `border-l-*` colour utilities cascade after the general
+ * `border-*` ones, so an accent bar stays its own colour on a selected card
+ * while the ring and tint keep saying "selected". One marker per card, most
+ * urgent wins; two accent bars is not a marker, it is a gradient.
  */
 export const listCardClass =
-  'block w-full rounded-lg border border-border bg-card p-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[selected=true]:border-primary data-[selected=true]:ring-1 data-[selected=true]:ring-primary data-[selected=true]:bg-accent/50 data-[dimmed=true]:opacity-60';
+  'block w-full rounded-lg border border-border bg-card p-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[selected=true]:border-primary data-[selected=true]:ring-1 data-[selected=true]:ring-primary data-[selected=true]:bg-accent/50 data-[dimmed=true]:opacity-60 data-[accent]:border-l-[3px] data-[accent=primary]:border-l-primary data-[accent=info]:border-l-info data-[accent=warning]:border-l-warning data-[accent=success]:border-l-success';
+
+/** Semantic accent-bar tones. Status tokens only — never `chart-*` (DATA ink)
+ *  and never a literal colour. What each means is the caller's contract; the
+ *  Forum uses `primary` = pinned/announcement, `info` = unread, `warning` =
+ *  open bug. */
+export type ListCardAccent = 'primary' | 'info' | 'warning' | 'success';
 
 export interface ListCardProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Render the child element (a `<Link>`, `<div>`, …) instead of a `<button>`. */
@@ -23,16 +38,19 @@ export interface ListCardProps extends React.ButtonHTMLAttributes<HTMLButtonElem
   selected?: boolean;
   /** Fades the card — disabled agents, past events, drafts, … */
   dimmed?: boolean;
+  /** Attention marker: a 3px left bar in a semantic status token. */
+  accent?: ListCardAccent;
 }
 
 export const ListCard = React.forwardRef<HTMLButtonElement, ListCardProps>(
-  ({ className, asChild = false, selected, dimmed, type, ...props }, ref) => {
+  ({ className, asChild = false, selected, dimmed, accent, type, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
     return (
       <Comp
         ref={ref}
         data-selected={selected || undefined}
         data-dimmed={dimmed || undefined}
+        data-accent={accent}
         type={asChild ? type : (type ?? 'button')}
         className={cn(listCardClass, className)}
         {...props}
