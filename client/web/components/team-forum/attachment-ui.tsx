@@ -23,7 +23,11 @@ export type PostAttachment = {
   kind?: string;
   mime?: string;
   caption?: string;
+  /** A member UPLOAD (forum_uploads blob). */
   fileId?: string;
+  /** An AGENT artifact — a file node `show_image` produced. The same column
+   *  carries both, so the two renderers split on which id is present. */
+  nodeId?: string;
 };
 
 export type UploadState = { id: string; status: string; sizeBytes: number };
@@ -116,7 +120,10 @@ export function AttachmentChips({
   attachments: PostAttachment[];
   states: Map<string, UploadState>;
 }) {
-  const visible = attachments.filter((a) => a.caption || a.fileId);
+  // An agent artifact is a PICTURE, drawn by AgentMediaStrip. Skipping it here
+  // is what stops a captioned one appearing twice — once as an image, once as
+  // a chip repeating its caption.
+  const visible = attachments.filter((a) => !a.nodeId && (a.caption || a.fileId));
   if (visible.length === 0) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">

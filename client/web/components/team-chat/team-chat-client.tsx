@@ -23,6 +23,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { AgentMediaStrip, mediaMarkdownComponents } from '@/components/team-media';
 import remarkGfm from 'remark-gfm';
 import { ArrowDown, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -48,7 +49,7 @@ type TeamMessage = {
   text: string;
   status: 'pending' | 'complete' | 'failed';
   error: string | null;
-  attachments: { kind: string; nodeId?: string; mime?: string }[];
+  attachments: { kind: string; nodeId?: string; mime?: string; caption?: string }[];
   createdAt: string;
 };
 
@@ -118,17 +119,23 @@ function PromptCard({ message }: { message: TeamMessage }) {
       {message.text && (
         <p className="whitespace-pre-wrap break-words text-foreground">{message.text}</p>
       )}
-      {message.attachments.length > 0 && (
+      {/* An agent artifact is a picture, drawn below; a member's own upload
+          stays a chip. Splitting on `nodeId` is what stops one row rendering
+          as both. */}
+      <AgentMediaStrip surface="messages" attachments={message.attachments} />
+      {message.attachments.some((a) => !a.nodeId) && (
         <div className="mt-2 flex flex-col gap-1">
-          {message.attachments.map((a, i) => (
-            <span
-              key={`${message.id}-att-${i}`}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-            >
-              <Paperclip className="size-3" aria-hidden />
-              {a.kind === 'file' ? 'attachment' : a.kind}
-            </span>
-          ))}
+          {message.attachments
+            .filter((a) => !a.nodeId)
+            .map((a, i) => (
+              <span
+                key={`${message.id}-att-${i}`}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
+                <Paperclip className="size-3" aria-hidden />
+                {a.kind === 'file' ? 'attachment' : a.kind}
+              </span>
+            ))}
         </div>
       )}
       {optimistic && <div className="mt-1 text-[10px] italic text-muted-foreground">sending…</div>}
@@ -180,14 +187,23 @@ function LiveReply({ live }: { live: LiveTurn }) {
 
 /** Markdown reply body. A lightweight ReactMarkdown render on purpose —
  *  team replies are standard Markdown (chat_writing), never the TipTap rich
- *  dialect, and the same renderer serves the live stream buffer. */
+ *  dialect, and the same renderer serves the live stream buffer.
+ *
+ *  The ONE addition to plain markdown is `![alt](media:<node-id>)`, which the
+ *  reply uses to place a stored picture in the sentence it belongs to. That is
+ *  a single `components.img` override, not the owner's TipTap route — see
+ *  components/team-media.tsx for why the dialect stays standard. */
 function ReplyBody({ markdown }: { markdown: string }) {
   return (
     <div className="prose prose-accent max-w-none break-words dark:prose-invert [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MEDIA_COMPONENTS}>
+        {markdown}
+      </ReactMarkdown>
     </div>
   );
 }
+
+const MEDIA_COMPONENTS = mediaMarkdownComponents('messages');
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
