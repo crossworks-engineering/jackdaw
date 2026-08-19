@@ -1,11 +1,14 @@
 'use client';
 
 /**
- * The Forum topic index — the member's landing surface, replacing the 1:1
- * assistant chat. Pinned topics first (owner announcements), then latest
- * activity; every 'team' topic is visible to every member, plus the member's
- * own private ones. The "New topic" dialog is where a thread (and usually the
- * agent's first answer) begins.
+ * The Forum — the member's landing surface, replacing the 1:1 assistant chat,
+ * now the style guide's master-detail: topic CARDS in a draggable list pane,
+ * the selected thread inline beside them (?t=<id>), so opening a topic keeps
+ * the list mounted — search text, scroll position and page survive. Pinned
+ * topics first (owner announcements), then latest activity; every 'team'
+ * topic is visible to every member, plus the member's own private ones. The
+ * "New topic" dialog is where a thread (and usually the agent's first answer)
+ * begins; /team/forum/[id] stays alive as the deep link.
  *
  * Public surface conventions match the team shell: raw fetch (team cookie
  * auth), inline errors, no toasts. The shell TokenGates before children
@@ -32,6 +35,16 @@ import {
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import {
+  ListCard,
+  ListCardMeta,
+  ListCardSnippet,
+  ListCardTitle,
+  type ListCardAccent,
+} from '@mantle/web-ui/ui/list-card';
+import { cn } from '@mantle/web-ui/lib/utils';
+import { TopicViewClient } from './topic-view-client';
 import {
   Dialog,
   DialogContent,
@@ -130,8 +143,10 @@ function NewTopicDialog() {
         setSubmitting(false);
         return;
       }
-      const turn = data.turnId ? `?turn=${encodeURIComponent(data.turnId)}` : '';
-      router.push(`/team/forum/${data.topicId}${turn}`);
+      // Open the new topic INLINE (?t=), keeping the list mounted; ?turn=
+      // attaches the view to the in-flight stream instead of a refetch wait.
+      const turn = data.turnId ? `&turn=${encodeURIComponent(data.turnId)}` : '';
+      router.push(`/team/forum?t=${encodeURIComponent(data.topicId)}${turn}`);
     } catch {
       setError('Could not reach the server — try again.');
       setSubmitting(false);
@@ -328,39 +343,57 @@ export function TopicListClient() {
   const total = data?.total ?? 0;
   const pageSize = data?.pageSize ?? 20;
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="border-b border-border/60 px-6 py-3">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
-          <div>
+  // Selection is URL-driven (?t=), so a topic link is copyable and the whole
+  // view is refresh-safe. Auto-select the first topic so the right pane is
+  // never blank — but only as a RENDER fallback, never written to the URL:
+  // below `md` the panes stack, and there the thread renders only for an
+  // explicit selection (the team-section trade), so the phone lands on the
+  // list, not on a thread it didn't ask for.
+  const urlSelectedId = searchParams.get('t');
+  const turnParam = searchParams.get('turn') ?? undefined;
+  const selectedId = urlSelectedId ?? topics?.[0]?.id ?? null;
+
+  // Card hrefs keep the list's own state (?q / ?sort / ?page) and drop a stale
+  // ?turn — that param belongs to the topic it was minted with.
+  const hrefFor = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('t', id);
+    params.delete('turn');
+    return `/team/forum?${params.toString()}`;
+  };
+
+  const listPane = (
+    // `h-full`, not `flex-1`: MasterDetail's pane wrappers are blocks, so a
+    // flex property here would be inert and the column would size to its
+    // content. The mobile hides are `max-md:` because below `md` the scaffold
+    // stacks the panes instead of dropping them.
+    <div className={cn('flex h-full min-h-0 flex-col', urlSelectedId && 'max-md:hidden')}>
+      <div className="shrink-0 space-y-2 border-b border-border p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
             <h1 className="text-sm font-semibold">Forum</h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               Shared with the whole team · the brain answers
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
-              <Link href="/team/assistant">Chat archive</Link>
-            </Button>
-            <NewTopicDialog />
-          </div>
+          <NewTopicDialog />
         </div>
-        <div className="mx-auto mt-3 flex w-full max-w-4xl items-center gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search topics and posts…"
-              className="pl-8"
-            />
-          </div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search topics and posts…"
+            className="pl-8"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size="sm"
-                className="shrink-0 gap-1 px-2 text-muted-foreground"
+                size="xs"
+                className="gap-1 text-muted-foreground"
                 title="Sort topics"
               >
                 <ArrowUpDown className="size-3.5" />
@@ -368,7 +401,7 @@ export function TopicListClient() {
                 <ChevronDown className="size-3.5 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="start">
               <DropdownMenuRadioGroup
                 value={sort}
                 onValueChange={(v) => go({ sort: v === 'activity' ? null : v, page: null })}
@@ -381,73 +414,73 @@ export function TopicListClient() {
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-4">
-        <div className="mx-auto w-full max-w-4xl">
-          {error ? (
-            <p className="py-10 text-center text-sm text-destructive-ink">{error}</p>
-          ) : topics === null ? (
-            <div className="flex items-center justify-center py-10 text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-label="Loading topics" />
-            </div>
-          ) : topics.length === 0 ? (
-            query ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                No topics or posts match “{query}”.
-              </p>
-            ) : (
-              <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border bg-muted/30 px-4 py-12 text-center">
-                <MessagesSquare className="size-6 text-muted-foreground" aria-hidden />
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  No topics yet. Start one — questions, ideas, reviews, bugs. The whole team sees
-                  the thread, and the brain answers.
-                </p>
-                <NewTopicDialog />
-              </div>
-            )
-          ) : (
-            <ul className="flex flex-col">
-              {topics.map((t) => (
-                <li key={t.id} className="border-b border-border/60 last:border-b-0">
-                  <Link
-                    href={`/team/forum/${t.id}`}
-                    className="flex flex-col gap-1 rounded-md px-3 py-3 transition-colors hover:bg-foreground/[0.04]"
-                  >
-                    <div className="flex items-center gap-2">
-                      {t.unread > 0 && (
-                        <span
-                          className="size-2 shrink-0 rounded-full bg-primary"
-                          aria-label={`${t.unread} unread`}
-                        />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{t.title}</span>
-                      <TopicFlags pinned={t.pinned} visibility={t.visibility} status={t.status} />
-                      <KindBadge kind={t.kind} />
-                    </div>
-                    <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
-                      <span className="shrink-0">
-                        {t.authorName} · {t.postCount} {t.postCount === 1 ? 'post' : 'posts'} ·{' '}
-                        {timeAgo(t.lastPostAt)}
-                      </span>
-                      {t.lastPostPreview && (
-                        <span className="min-w-0 truncate">
-                          {t.lastPostAuthor ? `${t.lastPostAuthor}: ` : ''}
-                          {t.lastPostPreview}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Button variant="ghost" size="xs" className="text-muted-foreground" asChild>
+            <Link href="/team/assistant">Chat archive</Link>
+          </Button>
         </div>
       </div>
 
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3 scrollbar-thin">
+        {error ? (
+          <p className="py-10 text-center text-sm text-destructive-ink">{error}</p>
+        ) : topics === null ? (
+          <div className="flex items-center justify-center py-10 text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-label="Loading topics" />
+          </div>
+        ) : topics.length === 0 ? (
+          query ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              No topics or posts match “{query}”.
+            </p>
+          ) : (
+            <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border bg-muted/30 px-4 py-12 text-center">
+              <MessagesSquare className="size-6 text-muted-foreground" aria-hidden />
+              <p className="max-w-sm text-sm text-muted-foreground">
+                No topics yet. Start one — questions, ideas, reviews, bugs. The whole team sees the
+                thread, and the brain answers.
+              </p>
+              <NewTopicDialog />
+            </div>
+          )
+        ) : (
+          topics.map((t) => (
+            <ListCard
+              key={t.id}
+              asChild
+              selected={t.id === selectedId}
+              accent={topicAccent(t)}
+              dimmed={t.status === 'closed'}
+            >
+              <Link href={hrefFor(t.id)}>
+                <div className="flex items-center gap-2">
+                  {t.unread > 0 && (
+                    <span
+                      className="size-2 shrink-0 rounded-full bg-primary"
+                      aria-label={`${t.unread} unread`}
+                    />
+                  )}
+                  <ListCardTitle className="min-w-0 flex-1">{t.title}</ListCardTitle>
+                  <TopicFlags pinned={t.pinned} visibility={t.visibility} status={t.status} />
+                  <KindBadge kind={t.kind} />
+                </div>
+                {t.lastPostPreview && (
+                  <ListCardSnippet>
+                    {t.lastPostAuthor ? `${t.lastPostAuthor}: ` : ''}
+                    {t.lastPostPreview}
+                  </ListCardSnippet>
+                )}
+                <ListCardMeta>
+                  {t.authorName} · {t.postCount} {t.postCount === 1 ? 'post' : 'posts'} ·{' '}
+                  {timeAgo(t.lastPostAt)}
+                </ListCardMeta>
+              </Link>
+            </ListCard>
+          ))
+        )}
+      </div>
+
       {topics !== null && (
-        <div className="mx-auto w-full max-w-4xl px-6">
+        <div className="shrink-0 px-3">
           {/* page/total/pageSize all come from the same response snapshot, so
               the pager never mixes a new URL page with a stale total. */}
           <ListPager
@@ -460,4 +493,56 @@ export function TopicListClient() {
       )}
     </div>
   );
+
+  const detailPane = (
+    <div className={cn('h-full min-h-0', !urlSelectedId && 'max-md:hidden')}>
+      {selectedId ? (
+        // `key` remounts the view per topic, so thread state (scroll, search,
+        // composer draft) never leaks between topics. `initialTurnId` applies
+        // only to the topic it was minted with.
+        <TopicViewClient
+          key={selectedId}
+          topicId={selectedId}
+          initialTurnId={urlSelectedId === selectedId ? turnParam : undefined}
+          embedded
+          markRead={urlSelectedId !== null}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <p className="text-sm text-muted-foreground">Select a topic to read it.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  // Three panels (a thread is prose the reader READS — it wants a measure AND
+  // a right edge, so not `detailFills`), opening at 900px with the ceiling at
+  // the window (`maxDetailSize="100%"` lets the drag run the spacer to zero).
+  // The list range is wider than the scaffold default both ways: 220px still
+  // reads (title truncates, snippet clamps), and 720px serves a member
+  // scanning what's new by snippet.
+  return (
+    <MasterDetail
+      id="team-forum"
+      list={listPane}
+      detail={detailPane}
+      minListSize="220px"
+      defaultListSize="360px"
+      maxListSize="720px"
+      minDetailSize="420px"
+      defaultDetailSize="900px"
+      maxDetailSize="100%"
+    />
+  );
+}
+
+/** The card's attention marker (§8: the `accent` bar, one per card, most
+ *  urgent wins): a pinned topic is an owner announcement, unread is what the
+ *  member came to find, and an open bug wants eyes. Answered/closed topics
+ *  are `dimmed` instead — an accent on a settled thread is noise. */
+function topicAccent(t: ForumTopicItem): ListCardAccent | undefined {
+  if (t.pinned) return 'primary';
+  if (t.unread > 0) return 'info';
+  if (t.kind === 'bug' && t.status === 'open') return 'warning';
+  return undefined;
 }

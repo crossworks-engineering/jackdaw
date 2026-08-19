@@ -210,9 +210,21 @@ function PostRow({
 export function TopicViewClient({
   topicId,
   initialTurnId,
+  embedded = false,
+  markRead = true,
 }: {
   topicId: string;
   initialTurnId?: string;
+  /** Rendered inside the forum's master-detail pane: the list is beside the
+   *  thread, so the BackLink would point at the screen the reader is already
+   *  on. The standalone deep link (/team/forum/[id]) keeps it. */
+  embedded?: boolean;
+  /** The list AUTO-selects its first topic so the pane is never blank — but a
+   *  view the member didn't ask for must not clear the unread cursor, or
+   *  merely opening /team/forum silently eats the newest topic's "new to you"
+   *  signal (the thing the cards exist to carry). False while auto-selected;
+   *  an explicit click flips it true and the next refetch marks read. */
+  markRead?: boolean;
 }) {
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -288,12 +300,17 @@ export function TopicViewClient({
       setTopic(data.topic);
       setPosts(data.posts);
       setUploadStateRows(data.uploadStates ?? []);
-      // Mark read — best-effort, clears the unread dot on the list.
-      void teamFetch(`/api/team/forum/topics/${topicId}/read`, { method: 'POST' }).catch(() => {});
+      // Mark read — best-effort, clears the unread dot on the list. Gated:
+      // an auto-selected preview must not eat the unread signal (see prop).
+      if (markRead) {
+        void teamFetch(`/api/team/forum/topics/${topicId}/read`, { method: 'POST' }).catch(
+          () => {},
+        );
+      }
     } catch {
       /* network blip */
     }
-  }, [topicId]);
+  }, [topicId, markRead]);
 
   const finishTurn = useCallback(() => {
     esRef.current?.();
@@ -671,7 +688,7 @@ export function TopicViewClient({
 
   if (notFound) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-6">
         <p className="text-sm text-muted-foreground">
           That topic doesn&rsquo;t exist, or you don&rsquo;t have access to it.
         </p>
@@ -683,7 +700,7 @@ export function TopicViewClient({
   }
   if (!topic) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex h-full min-h-0 items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
@@ -699,12 +716,12 @@ export function TopicViewClient({
   const hasPendingHost = allPosts.some((p) => p.authorKind === 'agent' && p.status === 'pending');
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col">
+    <div className="flex h-full min-h-0 w-full flex-col">
       <header className="border-b border-border/60 px-6 py-3">
-        <div className="mx-auto w-full max-w-3xl">
-          <BackLink href="/team/forum">Forum</BackLink>
+        <div className="w-full">
+          {!embedded && <BackLink href="/team/forum">Forum</BackLink>}
           <div className="mt-1 flex items-center gap-2">
-            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{topic.title}</h1>
+            <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{topic.title}</h1>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -790,7 +807,7 @@ export function TopicViewClient({
           onScroll={onScroll}
           className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6"
         >
-          <div ref={contentRef} className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+          <div ref={contentRef} className="flex w-full flex-col gap-6">
             {hasEarlier && (
               <div className="flex justify-center">
                 <Button
@@ -838,7 +855,7 @@ export function TopicViewClient({
       </div>
 
       <div className={`border-t border-border/60 ${COMPOSER_BAND_GRADIENT} px-6 py-4`}>
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="w-full">
           {sendError ? <p className="mb-2 text-sm text-destructive-ink">{sendError}</p> : null}
           {topic.status === 'closed' ? (
             <p className="py-2 text-center text-sm text-muted-foreground">This topic is closed.</p>
