@@ -608,6 +608,114 @@ fails.
 > the long note in `globals.css`: the element stops tracking the variable
 > entirely. Animate the variable instead; the consumers follow.
 
+### Choosing the three widths (and the padding that comes with them)
+
+The scaffold gives you two decisions per screen. Getting them wrong is not
+subtle — it shows up as dead space or as a divider that does nothing.
+
+**1. Who absorbs the slack?** Pick by asking what the DETAIL holds:
+
+| the detail is | prop | why |
+|---|---|---|
+| a form | *(default)* | the 672px measure is what stops fields running to 1200px line lengths |
+| a document, table, diff, transcript, app viewport | `detailFills` | not reading text; the cap would shrink the thing the screen exists for |
+| columns read left-to-right | `listFills` | the board wants every pixel |
+
+**2. Can it reach the window edge?** The default ceiling is `maxDetailSize`
+(1100px), with the leftover parked in the empty spacer. That is right for a
+form and wrong for a gallery: `/settings/appearance` shows 43 theme swatches
+beside 34 avatar styles, and at the default it clipped mid-card while ~570px
+of a 1920px window sat empty. **`maxDetailSize="100%"` lets the drag run the
+spacer to zero**, so the ceiling becomes the window minus the rails.
+
+> Keep the OPENING measure at 672px even then. Widening the ceiling is an
+> ability, not a new default — the twelve settings forms behind the same
+> divider still want to open readable.
+
+⚠ **`minListSize` must be ≤ `defaultListSize`.** `/apps/[id]`'s Code tab opens
+its file tree at 200px, so its floor comes down to 160; leaving
+`MasterDetail`'s 260px default would put the minimum ABOVE the opening width
+and the divider could only ever travel one way.
+
+#### Padding: 24px inside the pane, and the trap that hides it
+
+**Every detail pane insets its content by `p-6`.** That is the number, and the
+settings hub's thirteen screens are the reference.
+
+⚠ **A screen that was centred has no padding of its own.** `mx-auto max-w-2xl`
+supplied the visual gap for free, so the moment you drop the cap (as you must —
+see the anatomy section below) the content goes flush against the divider.
+Three screens were sitting on `p-1` and one on nothing at all, and it was
+invisible until the centring went. **Check the inset after removing a cap; do
+not assume the screen had any.**
+
+⚠ **The opposite mistake is as easy.** `/settings/appearance` pads the row that
+holds its two columns, so adding `p-6` to the inner column too inset it twice —
+48px against its neighbour's 24. Read the whole page wrapper before adding
+padding, not just the component you are looking at.
+
+**Rules span, content insets.** A divider under a filter bar or above a pager
+runs the full width of the pane; only what sits between them is inset. The
+audit log is the worked example: filter bar, table and pager all at 24px, with
+both rules edge to edge.
+
+#### Finding the scaffold's own divider
+
+`[data-slot="resizable-handle"]` on its own is **ambiguous**, and increasingly
+so: the shell rails have handles, and a detail pane may bring its own group
+(`/team-admin` splits a member transcript from its access log). Scope to the
+innermost panel group that holds the list, then take only its direct children:
+
+```ts
+page.locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
+    .last()
+    .locator(':scope > [data-slot="resizable-handle"]')
+```
+
+A test that grabs `.last()` unscoped drags the wrong divider sideways and then
+reports "the divider did not move" — which reads exactly like a scaffold bug.
+
+⚠ **Wait for a handle before touching the list.** `MasterDetail` paints the CSS
+grid until `useMediaQuery` resolves and then swaps to panels — a different tree,
+so the list subtree is rebuilt once on mount, on every screen. A test that tags
+or measures the list before that swap is racing a remount: green alone, red
+under a full run. The handle exists only in the panel branch, so it is the
+"settled" signal. It has already cost more than one debugging cycle; do not rediscover it.
+
+### A layout-owned list: card lists of SCREENS, not records
+
+Two sections use the scaffold for navigation rather than for records — `/debug`
+(twelve tabs) and `/settings` (thirteen single-panel screens). The shape is
+worth copying whenever a cluster of sibling screens has no collection behind it.
+
+- **The list is a `<ListCard>` per SCREEN**: title, a line saying what it is
+  for, and optionally one live stat. It replaced a horizontal tab strip on
+  `/debug` — twelve tabs never fitted the row.
+- **It lives in a Next `layout.tsx`, and the detail IS `children`.** That is
+  what makes the cards' queries mount ONCE for the section instead of re-firing
+  on every click. `focus-mode`-style tests should assert the nav element
+  survives navigation.
+- ⚠ **Use a route group when the cluster has siblings that must stay out.** A
+  layout applies to everything beneath it, so `settings/layout.tsx` would put
+  the hub rail beside `/settings/agents` — a list inside a list. The hub lives
+  at `settings/(hub)/layout.tsx`; a route group changes the file tree and NOT
+  the path, so every `/settings/<name>` URL and deep link is untouched.
+- **`/settings` is a landing explainer, not a redirect** to the first card. A
+  redirect answers a question the reader has not asked and makes the back button
+  bounce.
+
+#### When a stat line earns its place
+
+A stat is worth a request when it is **actionable** — something that changes
+whether you open the screen at all. "3 merge candidates waiting" and "0.230.66 →
+0.230.67 available" qualify; "you have a profile" does not. Five of the settings
+hub's thirteen carry one, and the other eight deliberately do not: thirteen
+stat queries on merely opening `/settings` is the other half of the argument.
+
+**Reuse the screen's own `queryKey` and URL** so the card and the screen share
+one react-query cache entry instead of fetching the same thing twice. Opening a
+screen whose card has loaded is then free, and the list warms the cache.
+
 ### Master-detail: the anatomy, and the rules that outlive the scaffold
 
 **This is THE pattern for a list+editor screen**, and it is one shape whichever
