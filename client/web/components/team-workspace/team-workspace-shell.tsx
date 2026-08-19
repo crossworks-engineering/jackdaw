@@ -1,10 +1,23 @@
 'use client';
 
 /**
- * The /team member workspace shell — a read-only mirror of the owner app
- * shell's geometry: wordmark header (brain's site name, owner colour theme),
- * left section nav (Notes/Pages/Tables/Apps/Tasks/Events), footer with the
- * shared folders + Assistant. No Highlight, no owner chrome, no edit anywhere.
+ * The /team member workspace shell — the owner app shell's geometry, member-sized.
+ *
+ * NO HEADER, NO FOOTER. The rail owns the chrome, exactly as the owner shell
+ * does (style guide §8): the brand block (wordmark or logo + peer name) heads
+ * the column, the section nav and the shared-folder links fill it, and the
+ * member's name with the light/dark toggle sit at its foot. What a member has
+ * is a subset of what an owner has — no account menu, no search, no Highlight,
+ * no Assistant — so this mirrors the SHAPE and carries only the controls that
+ * mean something here.
+ *
+ * Below `md` the rail becomes a drawer and a 3rem bar holds the trigger, the
+ * brand and the theme toggle — the same trade the owner's MobileBar makes: a
+ * closed drawer needs something to open it, and a phone has no room to keep
+ * the column open. Unlike the owner shell this surface lays out with flex
+ * rather than fixed regions, so the bar is a `md:hidden` flex row and needs no
+ * `--top-bar-h` for others to offset against; nothing here is positioned
+ * against it.
  *
  * Client-fetch on purpose (teamFetch, not apiFetch): /team is the external
  * member surface — auth is the team credential (cookie same-origin, bearer on
@@ -29,19 +42,21 @@ import {
   Table2,
   type LucideIcon,
 } from 'lucide-react';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { navItemMatches } from '@mantle/web-ui/layout/nav-items';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@mantle/web-ui/ui/sheet';
 import { ThemeToggle } from '@mantle/web-ui/theme-toggle';
+import { BrandBlock } from '@/components/layout/rail/brand-block';
+import { BrandLogo } from '@/components/layout/rail/brand-logo';
 import { TokenGate } from '@/components/team-chat/token-gate';
 import { teamFetch, upgradeTeamCookie } from '@mantle/web-ui/team-fetch';
-import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { cn } from '@mantle/web-ui/lib/utils';
 
 export type WorkspaceData = {
   memberName: string | null;
   siteName: string | null;
-  /** The brain's federation label — centred in the header like the owner shell. */
+  /** The brain's federation label — set beside the wordmark, as in the owner rail. */
   peerName: string | null;
   /** Brand logo version; set ⇒ an image replaces the wordmark text. */
   logoVersion: string | null;
@@ -76,7 +91,7 @@ export const WORKSPACE_NAV: Array<{
   { type: 'app', name: 'Apps', href: '/team/apps', icon: AppWindow },
   { type: 'task', name: 'Tasks', href: '/team/tasks', icon: CheckSquare },
   { type: 'event', name: 'Events', href: '/team/events', icon: CalendarDays },
-  // Shared folders — the same section the footer's folder chips deep-link into
+  // Shared folders — the same section the rail's folder links deep-link into
   // (count = shared folders, not files; every file under one is downloadable).
   { type: 'branch', name: 'Files', href: '/team/files', icon: FolderTree },
 ];
@@ -90,33 +105,105 @@ export function useWorkspace(): WorkspaceData | null {
   return useContext(WorkspaceContext);
 }
 
-function NavList({ data, onNavigate }: { data: WorkspaceData; onNavigate?: () => void }) {
+/** One nav row. Matches the owner sidebar's row: same active fill, same
+ *  `aria-current`, same `<Badge>` for the count, and the label truncates so a
+ *  long section name can't shove the badge out of the column. The hover is the
+ *  neutral `foreground/[0.06]` overlay §2 requires on a `bg-sidebar` surface —
+ *  a coloured accent tint muddies grey text there. */
+function NavRow({
+  item,
+  count,
+  active,
+  onNavigate,
+}: {
+  item: (typeof WORKSPACE_NAV)[number];
+  count: number;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        active
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+      )}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span className="flex-1 truncate">{item.name}</span>
+      {count > 0 && (
+        <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5 text-[11px]">
+          {count > 99 ? '99+' : count}
+        </Badge>
+      )}
+    </Link>
+  );
+}
+
+/** Everything between the brand block and the rail's foot. Shared by the aside
+ *  and the mobile drawer so the two cannot drift. */
+function RailBody({ data, onNavigate }: { data: WorkspaceData; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-0.5 p-2">
-      {WORKSPACE_NAV.map((item) => {
-        const active = navItemMatches(item, pathname);
-        const count = data.counts[item.type] ?? 0;
-        const Icon = item.icon;
-        return (
-          <Link
+    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+      <nav className="flex flex-col gap-0.5 p-2">
+        {WORKSPACE_NAV.map((item) => (
+          <NavRow
             key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-              active
-                ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-            )}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden />
-            <span className="flex-1">{item.name}</span>
-            {count > 0 && <span className="text-xs text-muted-foreground">{count}</span>}
-          </Link>
-        );
-      })}
-    </nav>
+            item={item}
+            count={data.counts[item.type] ?? 0}
+            active={navItemMatches(item, pathname)}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </nav>
+
+      {/* The shared folders, which used to be chips in a footer bar spanning
+          the window. They are links into one section, so the rail is where
+          they belong — and it can show more than two of them. */}
+      {data.folders.length > 0 && (
+        <div className="border-t border-sidebar-border p-2">
+          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Shared folders
+          </p>
+          {data.folders.map((f) => (
+            <Link
+              key={f.token}
+              href={`/team/files?s=${encodeURIComponent(f.token)}`}
+              onClick={onNavigate}
+              className="flex items-center gap-3 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            >
+              <Folder className="size-4 shrink-0" aria-hidden />
+              <span className="flex-1 truncate">{f.title}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The rail's foot: who you are, and the one setting a member owns. The owner
+ *  shell's equivalent strip holds four controls; a member has one, so this is
+ *  the same position carrying the same weight, not the same list. */
+function RailFoot({ memberName }: { memberName: string | null }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-t border-sidebar-border px-3 py-2">
+      {memberName && (
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={memberName}>
+          {memberName}
+        </span>
+      )}
+      <div className={cn('shrink-0', !memberName && 'ml-auto')}>
+        <ThemeToggle />
+      </div>
+    </div>
   );
 }
 
@@ -124,7 +211,6 @@ export function TeamWorkspaceShell({ children }: { children: ReactNode }) {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null); // null = resolving
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const pathname = usePathname();
 
   const refetch = useCallback(async () => {
     try {
@@ -164,123 +250,78 @@ export function TeamWorkspaceShell({ children }: { children: ReactNode }) {
     return <TokenGate heading="Team Workspace" onAuthed={() => void refetch()} />;
   }
 
-  const sectionLabel =
-    pathname === '/team'
-      ? null
-      : pathname.startsWith('/team/assistant')
-        ? 'Chat archive'
-        : (WORKSPACE_NAV.find((i) => navItemMatches(i, pathname))?.name ?? null);
+  const brand = (inDrawer: boolean) => (
+    <BrandBlock
+      siteName={data.siteName}
+      peerName={data.peerName}
+      logoVersion={data.logoVersion}
+      logoDarkVersion={data.logoDarkVersion}
+      // A member has no route to `/` — this surface's home is the overview.
+      href="/team"
+      inDrawer={inDrawer}
+      onNavigate={inDrawer ? () => setMobileNavOpen(false) : undefined}
+    />
+  );
 
   return (
     <WorkspaceContext.Provider value={data}>
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* ── Header — the owner shell's brand treatment, member-sized:
-               wordmark in the user-selectable wordmark font, the brain's peer
-               name centred (page-title font, primary ink), the primary-tinted
-               gradient. Below md the centre shows the section label instead
-               (the sidebar that names the section is hidden there). ─────── */}
-        <header className="relative flex h-14 shrink-0 items-center gap-3 border-b border-border bg-gradient-to-b from-primary/10 to-background px-4">
+        {/* ── Mobile bar: the only chrome across the top, and only below md.
+               The rail is a closed drawer at this width, so something has to
+               open it and name the brain. ─────────────────────────────── */}
+        <header className="flex h-12 shrink-0 items-center gap-1 border-b border-sidebar-border bg-sidebar px-2 md:hidden">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open sections">
+              <Button variant="ghost" size="icon" aria-label="Open menu">
                 <Menu />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 bg-sidebar p-0 pt-10">
+            <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-0">
               <SheetTitle className="sr-only">Sections</SheetTitle>
-              <NavList data={data} onNavigate={() => setMobileNavOpen(false)} />
+              {brand(true)}
+              <RailBody data={data} onNavigate={() => setMobileNavOpen(false)} />
+              <RailFoot memberName={data.memberName} />
             </SheetContent>
           </Sheet>
+
           <Link
             href="/team"
-            className="flex min-w-0 items-baseline"
+            className="flex min-w-0 flex-1 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             aria-label={`${data.siteName || 'Mantle'} team home`}
           >
-            {data.logoVersion || data.logoDarkVersion ? (
-              /* Uploaded brand logo — fixed height, width free, never
-                 distorted; bounded by the h-14 header like the peer name.
-                 Light/dark are two imgs swapped by the `dark:` classes, same
-                 as the owner header: dark shows the dark variant when set,
-                 else the base; light shows the base, else the wordmark. */
-              <>
-                {data.logoVersion ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={serverUrl(`/api/appearance/logo?v=${data.logoVersion}`)}
-                    alt={data.siteName || 'Mantle'}
-                    className={
-                      'h-9 w-auto max-w-[45vw] object-contain' +
-                      (data.logoDarkVersion ? ' dark:hidden' : '')
-                    }
-                  />
-                ) : (
-                  <span className="wordmark -mx-2 max-w-[45vw] overflow-x-clip overflow-y-visible whitespace-nowrap px-2 py-1 text-primary-ink dark:hidden">
-                    {data.siteName || 'mantle'}
-                  </span>
-                )}
-                {data.logoDarkVersion && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={serverUrl(`/api/appearance/logo?variant=dark&v=${data.logoDarkVersion}`)}
-                    alt={data.siteName || 'Mantle'}
-                    className="hidden h-9 w-auto max-w-[45vw] object-contain dark:block"
-                  />
-                )}
-              </>
-            ) : (
-              /* Script/display faces overshoot the em box — clip only the WIDTH
-                 and let the height overflow, same as the owner header. */
-              <span className="wordmark -mx-2 max-w-[45vw] overflow-x-clip overflow-y-visible whitespace-nowrap px-2 py-1 text-primary-ink">
-                {data.siteName || 'mantle'}
-              </span>
-            )}
+            <BrandLogo
+              name={data.siteName || 'mantle'}
+              logoVersion={data.logoVersion}
+              logoDarkVersion={data.logoDarkVersion}
+              imgClassName="h-7 w-auto max-w-[40vw] object-contain object-left"
+              renderWordmark={(visibility) => (
+                /* Width-only clipping: the wordmark faces overshoot the em box
+                   and a plain `truncate` shaves the letterforms rather than
+                   ending the line. The visibility class MUST be forwarded, or a
+                   brain with only a DARK logo shows wordmark and logo at once. */
+                <span
+                  className={cn(
+                    'wordmark -mx-1 max-w-[40vw] overflow-x-clip overflow-y-visible whitespace-nowrap px-1 leading-none text-primary-ink',
+                    visibility,
+                  )}
+                >
+                  {data.siteName || 'mantle'}
+                </span>
+              )}
+            />
           </Link>
-          {data.peerName && (
-            <span className="peer-name pointer-events-none absolute left-1/2 top-1/2 hidden max-w-[40vw] -translate-x-1/2 -translate-y-1/2 overflow-x-clip overflow-y-visible whitespace-nowrap px-2 py-[2px] text-center font-bold leading-normal text-primary-ink md:block">
-              {data.peerName}
-            </span>
-          )}
-          <p className="min-w-0 flex-1 truncate text-center text-sm font-medium text-muted-foreground md:hidden">
-            {sectionLabel}
-          </p>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {data.memberName && (
-              <span className="hidden text-xs text-muted-foreground sm:inline">
-                {data.memberName}
-              </span>
-            )}
-            <ThemeToggle />
-          </div>
+          <ThemeToggle />
         </header>
 
-        {/* ── Body: left nav + main ──────────────────────────────── */}
+        {/* ── Body: the rail + the screen ─────────────────────────── */}
         <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-border bg-sidebar scrollbar-thin md:block">
-            <NavList data={data} />
+          <aside className="hidden w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+            {brand(false)}
+            <RailBody data={data} />
+            <RailFoot memberName={data.memberName} />
           </aside>
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
         </div>
-
-        {/* ── Footer: shared folders + Assistant ─────────────────── */}
-        <footer className="flex h-11 shrink-0 items-center gap-2 border-t border-border bg-sidebar px-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-thin">
-            {data.folders.map((f) => (
-              <Link
-                key={f.token}
-                href={`/team/files?s=${encodeURIComponent(f.token)}`}
-                className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
-              >
-                <Folder className="size-3.5" aria-hidden />
-                {f.title}
-              </Link>
-            ))}
-          </div>
-          <Button variant="ghost" size="sm" className="h-8 shrink-0" asChild>
-            <Link href="/team/forum">
-              <MessagesSquare /> Forum
-            </Link>
-          </Button>
-        </footer>
       </div>
     </WorkspaceContext.Provider>
   );

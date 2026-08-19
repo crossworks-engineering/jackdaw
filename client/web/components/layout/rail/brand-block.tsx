@@ -54,6 +54,7 @@ export function BrandBlock({
   peerName,
   logoVersion,
   logoDarkVersion,
+  href = '/',
   inDrawer = false,
   onNavigate,
 }: {
@@ -66,6 +67,10 @@ export function BrandBlock({
   /** Optional dark-mode variant, shown while `.dark` is active; falls back to
    *  the base logo, then to the wordmark. */
   logoDarkVersion?: string | null;
+  /** Where the brand links. The owner shell's home is `/`; the /team member
+   *  workspace reuses this block and points it at `/team`, which is that
+   *  surface's home — a member has no route to `/`. */
+  href?: string;
   /** Rendered inside the mobile Sheet, which floats its own close button over
    *  the top-right corner. The identity lines reserve room for it there; in the
    *  aside there is nothing to dodge and the full column width is usable. */
@@ -99,7 +104,7 @@ export function BrandBlock({
 
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 group-data-[nav-collapsed=true]/shell:justify-center">
         <Link
-          href="/"
+          href={href}
           onClick={onNavigate}
           aria-label={`${name} home`}
           title={name}
