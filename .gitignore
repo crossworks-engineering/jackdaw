@@ -24,6 +24,15 @@ client/web/public/app-runtime/
 # regenerated on demand, so nothing needs the committed copy.
 client/web/AGENTS.md
 client/web/CLAUDE.md
+# Per-developer MCP server config, deliberately NOT shared. The obvious entry is
+# the shadcn server, and this repo is the one place it must not be handed out by
+# default: `packages/web-ui/src/ui/*` is a vendored 2024-generation FORK, edited
+# in place ever since, with no components.json — so `shadcn add` overwrites
+# rather than merges (style guide §4a). Committing the config would give every
+# session on every machine the tool whose first instinct clobbers that fork.
+# Reading the registry by hand is still useful; that stays each developer's
+# choice to configure locally.
+.mcp.json
 # Electron: the staged copy of the built owner UI + packaged artifacts
 client/desktop/ui/
 client/desktop/release/
