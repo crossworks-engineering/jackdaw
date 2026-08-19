@@ -281,6 +281,7 @@ All in `client/web/app/(app)/pages/pages-client.tsx`, plus a new spec
 | `?parent=<id>` | Drill state in the URL, threaded through `buildHref`/`go` beside `q`/`tag`/`sort`/`page`. An id that does not resolve falls back to the top level. |
 | `LEVEL_PAGE_SIZE = 25` | Client-side slice of the level. A card is ~4× the height of the old row, hence 25 against the server's 50. |
 | `UP_LEVEL_DROP_ID` | Breadcrumb sentinel, same rule as `TOP_LEVEL_DROP_ID`. |
+| **Details** switch | Card density, at the right of the filter row. **Default OFF** — a card is its title, its sub-page count and its controls; turning it on adds the summary and the tags. Persisted in `localStorage` under `mantle_pages_card_details_v1`, NOT in the URL: it says nothing about which pages you are looking at, and a URL preference gets pasted into every shared link. |
 
 **Decisions taken while building:**
 

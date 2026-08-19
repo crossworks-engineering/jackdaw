@@ -205,6 +205,61 @@ test.describe('pages drill-down', () => {
     }
   });
 
+  test('the Details switch adds summaries and tags, and is remembered', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    const stamp = Date.now();
+    const tag = `e2e-density-${stamp}`;
+    // Tags, not the summary: a tag is settable at create time, where `summary`
+    // is derived from the body server-side and would make this spec depend on
+    // how that derivation works.
+    const title = `E2E density ${stamp}`;
+    const res = await ownerApi.post('/api/pages', { data: { title, tags: [tag] } });
+    expect(res.ok()).toBeTruthy();
+    const { page: row } = (await res.json()) as { page: { id: string } };
+
+    try {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto(`/pages?q=${encodeURIComponent(title)}`);
+      const list = await listReady(ownerPage);
+
+      const card = list.getByText(title, { exact: true });
+      await expect(card).toBeVisible({ timeout: 15_000 });
+
+      // Details are OFF by default — the column is for finding a page, so a
+      // card opens as its title plus its controls and nothing else.
+      await expect(
+        list.getByText(tag, { exact: true }),
+        'tags are showing before the switch was touched — the default flipped back on',
+      ).toHaveCount(0);
+
+      const density = list.getByRole('switch', { name: 'Show summaries and tags on cards' });
+      await expect(density).toBeVisible();
+      await density.click();
+
+      // On: the tag appears, and the title and footer controls are still there.
+      await expect(list.getByText(tag, { exact: true })).toBeVisible();
+      await expect(card).toBeVisible();
+      await expect(list.getByRole('button', { name: 'Delete page' }).first()).toBeVisible();
+
+      // It is a preference, not a query — it survives a reload and stays out of
+      // the URL, which is what stops it being pasted into a shared link.
+      await ownerPage.reload();
+      await listReady(ownerPage);
+      await expect(list.getByText(title, { exact: true })).toBeVisible({ timeout: 15_000 });
+      await expect(list.getByText(tag, { exact: true })).toBeVisible();
+      await expect(ownerPage).not.toHaveURL(/details/);
+
+      // Back to the default, so a shared browser profile does not carry this
+      // into the next spec that measures a card.
+      await list.getByRole('switch', { name: 'Show summaries and tags on cards' }).click();
+      await expect(list.getByText(tag, { exact: true })).toHaveCount(0);
+    } finally {
+      expect((await ownerApi.delete(`/api/pages/${row.id}`)).ok()).toBeTruthy();
+    }
+  });
+
   test('dragging one card onto another re-parents it', async ({ ownerApi, ownerPage }) => {
     const stamp = Date.now();
     const parent = await makePage(ownerApi, `E2E drag parent ${stamp}`);

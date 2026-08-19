@@ -82,6 +82,7 @@ import {
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { Skeleton } from '@mantle/web-ui/ui/skeleton';
+import { Switch } from '@mantle/web-ui/ui/switch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ListCard } from '@mantle/web-ui/ui/list-card';
@@ -118,6 +119,11 @@ const UP_LEVEL_DROP_ID = '__pages_up__';
  *  ships the whole corpus (see the handover §3b) — when mantle grows
  *  `?parent=` + `childCount`, this becomes the server's `pageSize`. */
 const LEVEL_PAGE_SIZE = 25;
+
+/** Card density, remembered per browser. A display preference, not part of the
+ *  query — putting it in the URL would paste it into every link someone
+ *  shares, and it says nothing about WHICH pages you are looking at. */
+const DETAILS_KEY = 'mantle_pages_card_details_v1';
 
 const SORT_LABELS: Record<PageSort, string> = {
   edited: 'Last edited',
@@ -187,6 +193,31 @@ export function PagesClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [searchInput, setSearchInput] = useState(query);
+
+  // Card density. Defaults to OFF: the column is for FINDING a page, and a
+  // title plus its sub-page count is what you scan. Summaries and tags are for
+  // the reader who asks for them.
+  //
+  // Read AFTER mount — `localStorage` does not exist during the server render,
+  // so seeding `useState` from it would hydrate-mismatch. The cost is a brief
+  // flash of the compact card for someone who turned details on; the cost of
+  // the alternative is a cookie.
+  const [details, setDetails] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(DETAILS_KEY) === '1') setDetails(true);
+    } catch {
+      /* private mode / quota — the preference just won't persist */
+    }
+  }, []);
+  const changeDetails = (on: boolean) => {
+    setDetails(on);
+    try {
+      window.localStorage.setItem(DETAILS_KEY, on ? '1' : '0');
+    } catch {
+      /* as above */
+    }
+  };
 
   // Focus mode drops the list column so a page can be READ full-width, not
   // only written that way. The toggle lives in the preview header below.
@@ -430,6 +461,7 @@ export function PagesClient() {
           key={p.id}
           row={p}
           childCount={kids}
+          details={details}
           selected={selected?.id === p.id}
           allPages={pages}
           descendantIdsOf={descendantIdsOf}
@@ -568,6 +600,23 @@ export function PagesClient() {
                     Clear
                   </Button>
                 )}
+
+                {/* Card density. `ml-auto` parks it at the right of the row so
+                    it reads as a property of the LIST rather than one more
+                    filter — sort and tags change WHICH pages you see, this only
+                    changes how much of each one you see. */}
+                <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                  Details
+                  <Switch
+                    checked={details}
+                    onCheckedChange={changeDetails}
+                    aria-label="Show summaries and tags on cards"
+                    title={
+                      details ? 'Hide summaries and tags — titles only' : 'Show summaries and tags'
+                    }
+                    className="h-4 w-7 [&>span]:size-3 [&>span]:data-[state=checked]:translate-x-3"
+                  />
+                </label>
               </div>
             </div>
 
@@ -756,6 +805,7 @@ export function PagesClient() {
 function PageCard({
   row,
   childCount,
+  details,
   selected,
   allPages,
   descendantIdsOf,
@@ -771,6 +821,10 @@ function PageCard({
   /** Children in this level's index, or null in search mode where the client
    *  holds only the hits and so cannot derive it (handover §3d). */
   childCount: number | null;
+  /** Card density. Off strips the summary and the tags, leaving the title and
+   *  the footer controls — the compact column the cards replaced, but still a
+   *  card. */
+  details: boolean;
   selected: boolean;
   allPages: PageRow[];
   descendantIdsOf: (id: string) => Set<string>;
@@ -828,8 +882,10 @@ function PageCard({
           </span>
         </button>
 
-        {row.summary && <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>}
-        {row.tags.length > 0 && (
+        {details && row.summary && (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>
+        )}
+        {details && row.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {row.tags.map((t) => (
               <TagPill key={t} tag={t} />
