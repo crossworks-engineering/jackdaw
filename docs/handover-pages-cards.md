@@ -1,5 +1,11 @@
 # Handover: /pages — cards, drill-down, pagination, and the editor's width (2026-08-19)
 
+> **STATUS — 2026-08-19, later the same day.** Asks **1–4 are BUILT**; §8 says
+> what landed and where. Ask **5 is NOT built**, but its open question is now
+> **answered** — the drag bar REPLACES the per-page narrow/wide toggle (§3e).
+> The mantle follow-up in §3c is still outstanding. Line numbers below are from
+> BEFORE that work; §1's `TreeRow` row no longer exists at all.
+
 **For the next session.** Four changes Jason asked for on `/pages`, in his words:
 
 1. **The list column should be CARDS**, like the rest of the system. Today each
@@ -27,7 +33,7 @@ work actually is.
 | what | where |
 |---|---|
 | List screen (the subject) | `client/web/app/(app)/pages/pages-client.tsx` (1103 lines) |
-| The tree row Jason is describing | same file, `TreeRow` at **:719–878** (its doc comment from :714 is worth reading first) |
+| The tree row Jason is describing | same file, `TreeRow` at **:719–878** — ⚠ DELETED by the §8 work; `PageCard` replaced it |
 | The card that ALREADY exists | same file, **:559–590** (filtered mode) |
 | The pager that ALREADY exists | same file, **:595–625** |
 | Editor route (ask 5) | `client/web/app/(app)/pages/[id]/page-detail-client.tsx`, width at **:1043** |
@@ -142,10 +148,12 @@ resizable pair (content + spacer) with its own persisted id, the same primitive
 :1035) sits beside the content, so it has to be part of whatever new layout
 holds the drag bar.
 
-**Open decision:** does `data.width` disappear (replaced by the dragged width,
-persisted per screen), or does it survive as the seed for a page that has never
-been dragged? Jason has not said. The narrow/wide toggle and a free drag are two
-answers to one question, and keeping both is the worst of it.
+**~~Open decision~~ — DECIDED 2026-08-19.** Jason chose: **the drag bar replaces
+the toggle.** `data.width` and the narrow/wide control come OUT of the editor;
+the width becomes whatever the drag leaves, persisted per screen under its own
+resizable id. This deliberately overrides
+[`handover-settings-endgame.md`](./handover-settings-endgame.md) §7 — say so in
+the commit, and edit §7 there rather than leaving the two documents disagreeing.
 
 ---
 
@@ -242,6 +250,63 @@ already.
   per row.
 - **Do not touch the list preview's width.** It already hugs left and fills;
   `pages-reading-width.spec.ts` will tell you so. Ask 5 is the editor route.
-- **Do not keep the narrow/wide toggle AND a free drag** without deciding which
-  wins. §3e.
+- **Do not keep the narrow/wide toggle AND a free drag.** Decided: the drag
+  wins, the toggle goes. §3e.
 - **Do not delete `Move to…`** when the controls move into the card. §5.2.
+  (Kept — see §8.)
+- **Do not split the list back into two renderers per `mode`.** §8: search hits
+  and level cards are now ONE component, and the search list gained the footer
+  controls as a side effect. That is intended, not an accident.
+
+---
+
+## 8. What landed for asks 1–4 (2026-08-19)
+
+All in `client/web/app/(app)/pages/pages-client.tsx`, plus a new spec
+`e2e/specs/pages-drilldown.spec.ts`.
+
+**Gone:** `TreeRow`, `expanded`, `toggle()`, `renderTree()`, the chevrons and the
+`depth * 16` indent. The hierarchy is no longer rendered as a tree.
+
+**New:**
+
+| thing | note |
+|---|---|
+| `PageCard` | One card for BOTH modes. The title wraps at full width; grip, sub-page count and move / add / delete sit in a footer row. Keeps `data-mark-*` on the title button (§5.1). |
+| `Breadcrumb` | `← Back to <level>` plus the current parent's title. Doubles as the un-nest drop target (§5.3). It lives INSIDE the `DndContext` — a `useDroppable` rendered outside one registers with nothing and never fires. |
+| `?parent=<id>` | Drill state in the URL, threaded through `buildHref`/`go` beside `q`/`tag`/`sort`/`page`. An id that does not resolve falls back to the top level. |
+| `LEVEL_PAGE_SIZE = 25` | Client-side slice of the level. A card is ~4× the height of the old row, hence 25 against the server's 50. |
+| `UP_LEVEL_DROP_ID` | Breadcrumb sentinel, same rule as `TOP_LEVEL_DROP_ID`. |
+
+**Decisions taken while building:**
+
+- **One `DndContext` wraps both modes**, with `draggable={false}` in search mode.
+  `PageCard` can then call the dnd hooks unconditionally instead of the file
+  carrying two card components.
+- **Search cards gained the footer controls too.** Unifying was cheaper than
+  keeping two components, and it makes the two modes finally consistent — which
+  was ask 1's actual complaint.
+- **No child count in search mode** (§3d): `childCount` is `null` there and the
+  count does not render. Nothing fetches per card.
+- **Controls are always visible**, not hover-revealed. At the foot of a card they
+  no longer crowd the title, and hover-only controls are unreachable on touch.
+- **`TopLevelDropZone` shows only at the top level.** Deeper levels use the
+  breadcrumb, which un-nests by exactly one level.
+- **The list container is keyed on `parent`**, so `placeholderData` cannot leave
+  the previous level's cards on screen (§5.5).
+
+**Verified:** `pnpm -C client/web typecheck`, `pnpm lint`, `pnpm format:check`,
+`vitest run` (304 pass) and `pnpm -C client/web build` — all green.
+
+⚠ **NOT verified: the e2e suite.** It needs the hermetic local stack
+(`e2e/scripts/run-local.sh`), which was not available. `pages-drilldown.spec.ts`
+typechecks and lints but has never been executed. Run it before trusting it —
+the drag test especially, since a synthetic dnd-kit drag is the flakiest thing
+in the file.
+
+**Still open:**
+
+1. **Ask 5**, per the decision now recorded in §3e.
+2. **The mantle half of §3c** — `?parent=`, `childCount`, real server-side level
+   paging. Until it lands, `/pages` still ships the whole corpus on every visit.
+   The components do not move when it does; only where two numbers come from.

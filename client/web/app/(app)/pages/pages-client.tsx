@@ -109,6 +109,16 @@ type TagCount = { tag: string; count: number };
  *  nested page. A literal sentinel — page ids are uuids, so it never collides. */
 const TOP_LEVEL_DROP_ID = '__pages_root__';
 
+/** Droppable id for the breadcrumb, which un-nests a page by one level while
+ *  drilled in (§5.3 of the handover). Same sentinel rule as above. */
+const UP_LEVEL_DROP_ID = '__pages_up__';
+
+/** Cards are ~4x the height of the old tree rows, so a level pages at 25 where
+ *  the server's flat search list pages at 50. Client-side for now: tree mode
+ *  ships the whole corpus (see the handover §3b) — when mantle grows
+ *  `?parent=` + `childCount`, this becomes the server's `pageSize`. */
+const LEVEL_PAGE_SIZE = 25;
+
 const SORT_LABELS: Record<PageSort, string> = {
   edited: 'Last edited',
   newest: 'Newest',
@@ -142,6 +152,9 @@ export function PagesClient() {
   const activeTag = searchParams.get('tag')?.trim() || null;
   const sortParam = searchParams.get('sort');
   const sort: PageSort = SORTS.includes(sortParam as PageSort) ? (sortParam as PageSort) : 'edited';
+  // Drill-down: which level the list column is showing. null = top level.
+  // Only meaningful in tree mode — a search spans levels, so it has no parent.
+  const parentParam = searchParams.get('parent')?.trim() || null;
 
   const listQuery = useQuery({
     queryKey: ['pages', { q: query, tag: activeTag, sort, page }],
@@ -172,7 +185,6 @@ export function PagesClient() {
   // doesn't hold the whole tree). null = not yet loaded.
   const [deleteDescendants, setDeleteDescendants] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const [searchInput, setSearchInput] = useState(query);
 
@@ -181,13 +193,35 @@ export function PagesClient() {
   const { zen } = useZenMode();
 
   const selected = pages.find((p) => p.id === selectedId) ?? pages[0] ?? null;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Tree index: parent id → sorted children (null key = top-level). See
   // buildChildrenIndex for the orphan-as-root + cycle-safety rules.
   const childrenByParent = useMemo(() => buildChildrenIndex(pages), [pages]);
 
-  const hasChildren = (id: string) => (childrenByParent.get(id)?.length ?? 0) > 0;
+  const childCountOf = (id: string) => childrenByParent.get(id)?.length ?? 0;
+  const hasChildren = (id: string) => childCountOf(id) > 0;
+
+  // ── The level on screen ──────────────────────────────────────────────────
+  // Drill-down turns the hierarchy into ONE FLAT LIST at a time, which is what
+  // makes paging it meaningful — page 2 of a tree would cut a branch in half.
+  // A `parent` that isn't loaded falls back to the top level rather than
+  // showing an empty column.
+  const drillParent =
+    mode === 'tree' && parentParam ? (pages.find((p) => p.id === parentParam) ?? null) : null;
+  const drillId = drillParent?.id ?? null;
+  /** The level the breadcrumb returns to — the drilled page's own parent. */
+  const backParent = drillParent?.parentId
+    ? (pages.find((p) => p.id === drillParent.parentId) ?? null)
+    : null;
+
+  const levelPages = mode === 'tree' ? (childrenByParent.get(drillId) ?? []) : pages;
+  const levelTotal = mode === 'tree' ? levelPages.length : total;
+  const levelPageSize = mode === 'tree' ? LEVEL_PAGE_SIZE : pageSize;
+  const totalPages = Math.max(1, Math.ceil(levelTotal / levelPageSize));
+  const visiblePages =
+    mode === 'tree'
+      ? levelPages.slice((page - 1) * LEVEL_PAGE_SIZE, page * LEVEL_PAGE_SIZE)
+      : pages;
   const deleteHasChildren = deleteTarget ? hasChildren(deleteTarget.id) : false;
   useEffect(() => {
     if (!deleteTarget) {
@@ -206,19 +240,12 @@ export function PagesClient() {
     };
   }, [deleteTarget]);
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  // ── Drag-to-reparent (tree mode) ─────────────────────────────────────────
+  // ── Drag-to-reparent (level mode) ────────────────────────────────────────
   // The whole hierarchy is client-side here, so re-parenting is a drag of one
-  // row onto another (→ nest under it) or onto the top-level zone (→ un-nest).
-  // There's no manual sibling ordering (children sort by title), so a drop is
-  // purely "set parent". A 6px activation distance keeps plain clicks selecting.
+  // card onto another (→ nest under it), onto the top-level zone (→ un-nest),
+  // or onto the breadcrumb (→ up one level). There's no manual sibling
+  // ordering (children sort by title), so a drop is purely "set parent". A 6px
+  // activation distance keeps plain clicks selecting.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeRow = activeId ? (pages.find((p) => p.id === activeId) ?? null) : null;
@@ -250,8 +277,8 @@ export function PagesClient() {
 
   const move = async (id: string, parentId: string | null) => {
     // Surface the result immediately, then re-pull the SSR tree (the same
-    // refresh pattern create/delete use). Expand the new parent so the moved
-    // page is visible where it landed instead of hiding in a collapsed branch.
+    // refresh pattern create/delete use). The moved page lands in its new
+    // parent's level; the breadcrumb is how you follow it there.
     try {
       await apiSend(`/api/pages/${id}/move`, 'POST', { parentId });
     } catch (e) {
@@ -259,7 +286,6 @@ export function PagesClient() {
       toast.error(e instanceof Error ? e.message : 'Could not move page');
       return;
     }
-    if (parentId) setExpanded((prev) => new Set(prev).add(parentId));
     toast.success(parentId ? 'Page moved' : 'Moved to top level');
     void queryClient.invalidateQueries({ queryKey: ['pages'] });
   };
@@ -271,7 +297,12 @@ export function PagesClient() {
     const sourceId = String(active.id);
     const src = pages.find((p) => p.id === sourceId);
     if (!src) return;
-    const targetParent = over.id === TOP_LEVEL_DROP_ID ? null : String(over.id);
+    const targetParent =
+      over.id === TOP_LEVEL_DROP_ID
+        ? null
+        : over.id === UP_LEVEL_DROP_ID
+          ? (drillParent?.parentId ?? null) // breadcrumb = up one level
+          : String(over.id);
     if (targetParent === (src.parentId ?? null)) return; // already there — no-op
     // Belt-and-braces with the disabled drop targets + the server cycle guard.
     if (
@@ -289,16 +320,21 @@ export function PagesClient() {
     tag?: string | null;
     q?: string | null;
     sort?: PageSort;
+    parent?: string | null;
   }) => {
     const nextTag = over.tag !== undefined ? over.tag : activeTag;
     const nextQ = over.q !== undefined ? over.q : query || null;
     const nextPage = over.page !== undefined ? over.page : page;
     const nextSort = over.sort !== undefined ? over.sort : sort;
+    const nextParent = over.parent !== undefined ? over.parent : drillId;
     const params = new URLSearchParams();
     if (nextTag) params.set('tag', nextTag);
     if (nextQ) params.set('q', nextQ);
     if (nextPage && nextPage > 1) params.set('page', String(nextPage));
     if (nextSort && nextSort !== 'edited') params.set('sort', nextSort); // 'edited' is default
+    // A search spans levels, so it has no parent to sit under — callers that
+    // set `q`/`tag` pass `parent: null` and this drops the param.
+    if (nextParent) params.set('parent', nextParent);
     const s = params.toString();
     return s ? `${pathname}?${s}` : pathname;
   };
@@ -309,7 +345,7 @@ export function PagesClient() {
   useEffect(() => {
     const handle = setTimeout(() => {
       if (searchInput.trim() === query) return;
-      go({ q: searchInput.trim() || null, page: 1 });
+      go({ q: searchInput.trim() || null, page: 1, parent: null });
     }, 350);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -383,42 +419,41 @@ export function PagesClient() {
     void queryClient.invalidateQueries({ queryKey: ['pages'] });
   };
 
-  // Flatten the tree into rows honoring expand/collapse state.
-  const renderTree = (parentId: string | null, depth: number): ReactNode[] => {
-    const kids = childrenByParent.get(parentId) ?? [];
-    const rows: ReactNode[] = [];
-    for (const p of kids) {
-      const kidHasChildren = hasChildren(p.id);
-      const isExpanded = expanded.has(p.id);
-      rows.push(
-        <TreeRow
+  // One card per page in the CURRENT LEVEL (or per search hit). Clicking a
+  // card always previews it; a card with children also drills the column into
+  // them, which is what Jason described and what makes the pager meaningful.
+  const renderCards = (): ReactNode[] =>
+    visiblePages.map((p) => {
+      const kids = mode === 'tree' ? childCountOf(p.id) : null;
+      return (
+        <PageCard
           key={p.id}
           row={p}
-          depth={depth}
-          hasChildren={kidHasChildren}
-          expanded={isExpanded}
+          childCount={kids}
           selected={selected?.id === p.id}
           allPages={pages}
           descendantIdsOf={descendantIdsOf}
+          draggable={mode === 'tree'}
           disabledDrop={invalidDropIds.has(p.id)}
           dragging={activeId === p.id}
-          onToggle={() => toggle(p.id)}
-          onSelect={() => setSelectedId(p.id)}
+          onSelect={() => {
+            setSelectedId(p.id);
+            if (kids && kids > 0) go({ parent: p.id, page: 1 });
+          }}
           onAddChild={() => void createChild(p.id)}
           onDelete={() => setDeleteTarget(p)}
           onMove={(parentId) => void move(p.id, parentId)}
-        />,
+        />
       );
-      if (kidHasChildren && isExpanded) rows.push(...renderTree(p.id, depth + 1));
-    }
-    return rows;
-  };
+    });
 
   const emptyState = (
     <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
       {mode === 'list'
         ? 'No pages match your search or filter.'
-        : 'No pages yet. Click “New” to start writing.'}
+        : drillParent
+          ? 'This page has no sub-pages.'
+          : 'No pages yet. Click “New” to start writing.'}
     </div>
   );
 
@@ -511,7 +546,7 @@ export function PagesClient() {
                   <TagFilter
                     tags={tags}
                     activeTag={activeTag}
-                    onSelect={(t) => go({ tag: t, page: 1 })}
+                    onSelect={(t) => go({ tag: t, page: 1, parent: null })}
                   />
                 )}
 
@@ -529,75 +564,63 @@ export function PagesClient() {
               </div>
             </div>
 
+            {/* One DndContext for BOTH modes so `PageCard` can call the dnd
+                hooks unconditionally; drag itself is off in search mode, where
+                a cross-level hit list has no level to re-parent within. Keyed
+                on the level so `placeholderData` can't leave the previous
+                level's cards on screen mid-navigation. */}
             <div
+              key={drillId ?? 'root'}
               className={cn(
-                'p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
-                mode === 'list' && 'space-y-2',
-                mode === 'tree' && 'space-y-0.5',
+                'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
                 navPending && 'opacity-60',
               )}
             >
-              {pages.length === 0 ? (
-                emptyState
-              ) : mode === 'tree' ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={pointerWithin}
-                  onDragStart={(e) => setActiveId(String(e.active.id))}
-                  onDragEnd={onDragEnd}
-                  onDragCancel={() => setActiveId(null)}
-                >
-                  {/* Un-nest target — only while dragging a page that has a parent. */}
-                  {activeRow && activeRow.parentId !== null && <TopLevelDropZone />}
-                  {renderTree(null, 0)}
-                  <DragOverlay dropAnimation={null}>
-                    {activeRow ? <DragGhost row={activeRow} /> : null}
-                  </DragOverlay>
-                </DndContext>
-              ) : (
-                pages.map((p) => (
-                  <ListCard
-                    key={p.id}
-                    onClick={() => setSelectedId(p.id)}
-                    data-mark-id={p.id}
-                    data-mark-kind="page"
-                    data-mark-label={p.title}
-                    selected={selected?.id === p.id}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span
-                        className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4"
-                        aria-hidden
-                      >
-                        {p.icon ?? '📄'}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{p.title}</div>
-                        {p.summary && (
-                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                            {p.summary}
-                          </p>
-                        )}
-                        {p.tags.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {p.tags.map((t) => (
-                              <TagPill key={t} tag={t} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </ListCard>
-                ))
-              )}
+              {/* The breadcrumb is itself a drop target, so it has to sit
+                  INSIDE the context — a `useDroppable` rendered outside one
+                  registers with nothing and silently never fires. */}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={pointerWithin}
+                onDragStart={(e) => setActiveId(String(e.active.id))}
+                onDragEnd={onDragEnd}
+                onDragCancel={() => setActiveId(null)}
+              >
+                {drillParent && (
+                  <Breadcrumb
+                    parent={drillParent}
+                    backLabel={backParent ? backParent.title : 'all pages'}
+                    // The breadcrumb doubles as the un-nest target while
+                    // dragging — in a drilled level it is the "move up" gesture.
+                    dropActive={activeRow !== null && activeRow.parentId === drillParent.id}
+                    onBack={() => go({ parent: backParent?.id ?? null, page: 1 })}
+                  />
+                )}
+                {visiblePages.length === 0 ? (
+                  emptyState
+                ) : (
+                  <>
+                    {/* Un-nest-to-root target — only at the top level, and only
+                        while dragging a page that actually has a parent. Deeper
+                        levels use the breadcrumb instead. */}
+                    {drillId === null && activeRow && activeRow.parentId !== null && (
+                      <TopLevelDropZone />
+                    )}
+                    {renderCards()}
+                  </>
+                )}
+                <DragOverlay dropAnimation={null}>
+                  {activeRow ? <DragGhost row={activeRow} /> : null}
+                </DragOverlay>
+              </DndContext>
             </div>
 
-            {total > 0 && (
+            {levelTotal > 0 && (
               <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
                 <span className="tabular-nums">
-                  {total} {total === 1 ? 'page' : 'pages'}
+                  {levelTotal} {levelTotal === 1 ? 'page' : 'pages'}
                 </span>
-                {mode === 'list' && (
+                {totalPages > 1 && (
                   <div className="flex items-center gap-1.5">
                     <span className="tabular-nums">
                       {page} / {totalPages}
@@ -711,44 +734,56 @@ export function PagesClient() {
   );
 }
 
-/** One row in the hierarchy tree. Chevron toggles expand; the body selects
- *  (drives the preview); the left grip drags the page to re-parent it; hover
- *  reveals move / add-sub-page / delete. The row is a drop target — dropping
- *  another page onto it nests that page underneath. Indentation is an inline
- *  `paddingLeft` (depth-driven, so not a Tailwind dynamic class). */
-function TreeRow({
+/** One page in the list column — the card treatment the rest of the system
+ *  uses (style guide §8), replacing the old one-line tree row.
+ *
+ *  Anatomy, per Jason's ask: the TITLE gets the full width and wraps instead
+ *  of truncating, and every control moved to a footer row inside the card so
+ *  nothing crowds it. The footer carries the drag handle, the sub-page count
+ *  (which also signals "clicking me drills in") and move / add / delete.
+ *
+ *  The whole card is a drop target — dropping another page onto it nests that
+ *  page underneath, and a card is a far bigger target than the 28px row was.
+ *  There is no indentation: drill-down shows ONE LEVEL at a time, so depth is
+ *  carried by the breadcrumb rather than by padding. */
+function PageCard({
   row,
-  depth,
-  hasChildren,
-  expanded,
+  childCount,
   selected,
   allPages,
   descendantIdsOf,
+  draggable,
   disabledDrop,
   dragging,
-  onToggle,
   onSelect,
   onAddChild,
   onDelete,
   onMove,
 }: {
   row: PageRow;
-  depth: number;
-  hasChildren: boolean;
-  expanded: boolean;
+  /** Children in this level's index, or null in search mode where the client
+   *  holds only the hits and so cannot derive it (handover §3d). */
+  childCount: number | null;
   selected: boolean;
   allPages: PageRow[];
   descendantIdsOf: (id: string) => Set<string>;
+  draggable: boolean;
   disabledDrop: boolean;
   dragging: boolean;
-  onToggle: () => void;
   onSelect: () => void;
   onAddChild: () => void;
   onDelete: () => void;
   onMove: (parentId: string | null) => void;
 }) {
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: row.id, disabled: disabledDrop });
-  const { setNodeRef: setDragRef, attributes, listeners } = useDraggable({ id: row.id });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: row.id,
+    disabled: disabledDrop || !draggable,
+  });
+  const {
+    setNodeRef: setDragRef,
+    attributes,
+    listeners,
+  } = useDraggable({ id: row.id, disabled: !draggable });
 
   // Valid "Move to…" parents: every other page except this one and its own
   // descendants (those would cycle). Built lazily — the menu mounts on open.
@@ -759,117 +794,182 @@ function TreeRow({
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [allPages, descendantIdsOf, row.id]);
 
-  const nesting = isOver && !disabledDrop;
+  const nesting = isOver && !disabledDrop && draggable;
+  const drills = childCount !== null && childCount > 0;
 
   return (
-    <div
-      ref={setDropRef}
-      className={cn(
-        'group flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-muted/50',
-        selected && 'bg-accent/60',
-        nesting && 'ring-2 ring-inset ring-primary bg-primary/10',
-        dragging && 'opacity-40',
-      )}
-    >
-      {/* Grip stays in a fixed left gutter for every row — depth indents the
-          chevron + title below, not the handle, so all handles line up. */}
-      <button
-        type="button"
-        ref={setDragRef}
-        {...listeners}
-        {...attributes}
-        aria-label={`Drag to move “${row.title}”`}
-        title="Drag to move"
-        className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100 active:cursor-grabbing focus-visible:opacity-100"
+    <ListCard asChild selected={selected} dimmed={dragging}>
+      <div
+        ref={setDropRef}
+        className={cn('space-y-1.5', nesting && 'border-primary bg-primary/10 ring-1 ring-primary')}
       >
-        <GripVertical className="size-3.5" />
-      </button>
-
-      {hasChildren ? (
+        {/* The page itself. Keeps the marking attributes the marking system
+            reads — moving them off this element silently breaks it. */}
         <button
           type="button"
-          onClick={onToggle}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          style={{ marginLeft: depth * 16 }}
+          onClick={onSelect}
+          data-mark-id={row.id}
+          data-mark-kind="page"
+          data-mark-label={row.title}
+          className="flex w-full items-start gap-2 text-left"
         >
-          {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          <span className="mt-px size-4 shrink-0 text-center text-sm leading-5" aria-hidden>
+            {row.icon ?? '📄'}
+          </span>
+          <span className="min-w-0 flex-1 break-words text-sm font-medium leading-5">
+            {row.title}
+          </span>
         </button>
-      ) : (
-        <span className="size-6 shrink-0" aria-hidden style={{ marginLeft: depth * 16 }} />
-      )}
 
-      <button
-        type="button"
-        onClick={onSelect}
-        data-mark-id={row.id}
-        data-mark-kind="page"
-        data-mark-label={row.title}
-        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
-      >
-        <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
-          {row.icon ?? '📄'}
-        </span>
-        <span className="min-w-0 truncate text-sm font-medium">{row.title}</span>
-      </button>
+        {row.summary && <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>}
+        {row.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {row.tags.map((t) => (
+              <TagPill key={t} tag={t} />
+            ))}
+          </div>
+        )}
 
-      <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        {/* Controls, at the FOOT of the card so they never eat the title. */}
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex min-w-0 items-center gap-1">
+            {draggable && (
+              <button
+                type="button"
+                ref={setDragRef}
+                {...listeners}
+                {...attributes}
+                aria-label={`Drag to move “${row.title}”`}
+                title="Drag onto another page to nest it there"
+                className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground active:cursor-grabbing"
+              >
+                <GripVertical className="size-3.5" />
+              </button>
+            )}
+            {drills && (
+              <button
+                type="button"
+                onClick={onSelect}
+                className="flex min-w-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                title={`Open the ${childCount} sub-page${childCount === 1 ? '' : 's'}`}
+              >
+                <span className="truncate tabular-nums">
+                  {childCount} sub-page{childCount === 1 ? '' : 's'}
+                </span>
+                <ChevronRight className="size-3.5 shrink-0 opacity-70" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center">
+            {/* Kept even though the card is now a big drop target: once a level
+                pages, the page you want to drop onto may be on page 2, and this
+                is the only way to reach it. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-muted-foreground"
+                  aria-label="Move page"
+                  title="Move to…"
+                >
+                  <FolderInput />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+                <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
+                  <CornerLeftUp />
+                  Top level
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {moveTargets.length === 0 ? (
+                  <DropdownMenuItem disabled>No other pages</DropdownMenuItem>
+                ) : (
+                  moveTargets.map((t) => (
+                    <DropdownMenuItem
+                      key={t.id}
+                      disabled={t.id === row.parentId}
+                      onClick={() => onMove(t.id)}
+                    >
+                      <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+                        {t.icon ?? '📄'}
+                      </span>
+                      <span className="min-w-0 truncate">{t.title}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="icon"
               className="size-7 text-muted-foreground"
-              aria-label="Move page"
-              title="Move to…"
+              onClick={onAddChild}
+              aria-label="Add sub-page"
+              title="Add sub-page"
             >
-              <FolderInput />
+              <Plus />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
-            <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
-              <CornerLeftUp />
-              Top level
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {moveTargets.length === 0 ? (
-              <DropdownMenuItem disabled>No other pages</DropdownMenuItem>
-            ) : (
-              moveTargets.map((t) => (
-                <DropdownMenuItem
-                  key={t.id}
-                  disabled={t.id === row.parentId}
-                  onClick={() => onMove(t.id)}
-                >
-                  <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
-                    {t.icon ?? '📄'}
-                  </span>
-                  <span className="min-w-0 truncate">{t.title}</span>
-                </DropdownMenuItem>
-              ))
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 text-muted-foreground"
-          onClick={onAddChild}
-          aria-label="Add sub-page"
-          title="Add sub-page"
-        >
-          <Plus />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 text-muted-foreground hover:text-destructive-ink"
-          onClick={onDelete}
-          aria-label="Delete page"
-        >
-          <Trash2 />
-        </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-destructive-ink"
+              onClick={onDelete}
+              aria-label="Delete page"
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </div>
       </div>
+    </ListCard>
+  );
+}
+
+/** Header of a drilled-in level: which page you are inside, and the way back
+ *  out. While dragging one of this level's own pages it is ALSO the un-nest
+ *  target — dropping there moves that page up beside its current parent. */
+function Breadcrumb({
+  parent,
+  backLabel,
+  dropActive,
+  onBack,
+}: {
+  parent: PageRow;
+  backLabel: string;
+  dropActive: boolean;
+  onBack: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: UP_LEVEL_DROP_ID, disabled: !dropActive });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-md border px-2 py-1.5 transition-colors',
+        dropActive ? 'border-dashed' : 'border-transparent',
+        isOver && dropActive && 'border-primary bg-primary/10',
+      )}
+    >
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="size-3.5" />
+        <span className="truncate">Back to {backLabel}</span>
+      </button>
+      <div className="mt-0.5 flex items-center gap-1.5 pl-0.5">
+        <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+          {parent.icon ?? '📄'}
+        </span>
+        <span className="min-w-0 break-words text-sm font-semibold">{parent.title}</span>
+      </div>
+      {dropActive && (
+        <p className="mt-1 pl-0.5 text-[11px] text-muted-foreground">
+          Drop here to move it out of “{parent.title}”
+        </p>
+      )}
     </div>
   );
 }
