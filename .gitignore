@@ -14,6 +14,16 @@ coverage/
 client/web/next-env.d.ts
 # Generated at build time by @mantle/app-build's build-runtime (npm: @crossworks/app-build)
 client/web/public/app-runtime/
+# Written and re-added by `next dev` (node_modules/next/dist/server/lib/
+# generate-agent-files.js): AGENTS.md is one delimited block of Next's own
+# coding-agent guidance, CLAUDE.md is a single `@AGENTS.md` include. The file's
+# own text says committing it keeps the tree clean, and that is true on ONE
+# machine — across two it means whichever box last ran `next dev` rewrites the
+# block from ITS installed Next, so the pair drifts with the dependency rather
+# than with anything anybody wrote. Same reasoning as next-env.d.ts above:
+# regenerated on demand, so nothing needs the committed copy.
+client/web/AGENTS.md
+client/web/CLAUDE.md
 # Electron: the staged copy of the built owner UI + packaged artifacts
 client/desktop/ui/
 client/desktop/release/
