@@ -194,13 +194,16 @@ function TeamTabs({
     </Link>
   );
   return (
-    <div className="flex items-center gap-1 border-b border-border px-3">
+    // A labelled `nav`, not a bare div: these five are navigation, and the name
+    // is what tells "Settings the tab" apart from "Settings the sidebar row"
+    // now that the sidebar has one. Screen readers get the same benefit.
+    <nav aria-label="Team admin" className="flex items-center gap-1 border-b border-border px-3">
       {tab('Members', '/team-admin', active === 'members')}
       {tab('Topics', '/team-admin?view=topics', active === 'topics')}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', openRequestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Settings', '/team-admin?view=settings', active === 'settings')}
-    </div>
+    </nav>
   );
 }
 

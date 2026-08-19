@@ -168,6 +168,72 @@ test.describe('settings hub', () => {
     await expect(statOf('Profile')).toHaveCount(0);
   });
 
+  test('the sidebar offers Settings once, and none of the screens it holds', async ({
+    ownerPage,
+  }) => {
+    // The sidebar listed all twenty-four settings screens beside a hub that
+    // lists thirteen of them. `lib/settings-hub-nav.ts` collapses those thirteen
+    // into one row AT RENDER — the list itself is defined in a mantle-built
+    // package and cannot be edited from this repo.
+    await ownerPage.setViewportSize({ width: 1600, height: 1100 });
+    await ownerPage.goto('/settings/profile');
+    const rail = ownerPage.locator('nav[aria-label="Primary"]');
+    await expect(rail).toBeVisible();
+
+    // The row's first line is its label; the rest is a stat or a badge.
+    const names = await rail.locator('a').allInnerTexts();
+    const rows = names.map((t) => (t.split('\n')[0] ?? '').trim());
+
+    expect(
+      rows.filter((r) => r === 'Settings'),
+      'the hub row is missing or doubled',
+    ).toHaveLength(1);
+    // ⚠ `discover` is NOT collapsed: it lives in the REVIEW group, and a first
+    // version of the collapse keyed off "any /settings/ href" and put a second
+    // Settings row at the top of Review because of it.
+    expect(rows, 'Discover was collapsed — it belongs to Review').toContain('Discover');
+    // The collection screens keep their own rows.
+    for (const keep of ['Accounts', 'Agents']) {
+      expect(rows, `${keep} should still have its own entry`).toContain(keep);
+    }
+  });
+
+  test('one row lights, and it is the most specific one', async ({ ownerPage }) => {
+    // "Settings" at `/settings` is a prefix of every other settings route, so
+    // the old per-item test would light it alongside Agents on
+    // `/settings/agents`. And `/settings/profile` has no row of its own any
+    // more, so it has to fall through to the hub rather than lighting nothing.
+    await ownerPage.setViewportSize({ width: 1600, height: 1100 });
+    const rail = ownerPage.locator('nav[aria-label="Primary"]');
+    for (const [path, expected] of [
+      ['/settings/profile', 'Settings'],
+      ['/settings/agents', 'Agents'],
+      ['/settings', 'Settings'],
+    ] as const) {
+      await ownerPage.goto(path);
+      await expect(rail).toBeVisible();
+      const lit = rail.locator('a.bg-sidebar-accent');
+      await expect(lit, `${path} lit more than one row`).toHaveCount(1);
+      await expect(lit).toContainText(expected);
+    }
+  });
+
+  test('⌘K still finds a screen the sidebar no longer lists', async ({ ownerPage }) => {
+    // This is the whole argument for collapsing in the CONSUMER rather than
+    // deleting the items upstream: `ALL_NAV_ITEMS` is untouched, so the command
+    // palette still finds "Backups" by name even though no sidebar row says it.
+    await ownerPage.setViewportSize({ width: 1600, height: 1100 });
+    await ownerPage.goto('/settings');
+    await ownerPage.keyboard.press('Meta+k');
+    const dialog = ownerPage.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await ownerPage.keyboard.type('backups');
+    await expect(
+      dialog.getByRole('option', { name: /Backups/i }).first(),
+      'the palette lost a screen the sidebar stopped listing',
+    ).toBeVisible();
+  });
+
   test('the screens keep real padding against the divider', async ({ ownerPage }) => {
     // The other half of dropping the `mx-auto max-w-*` caps: the centring used
     // to supply the visual gap, so a screen whose own padding was `p-1` (or

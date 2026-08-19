@@ -12,19 +12,22 @@ test.describe('team admin (owner, client origin)', () => {
   test.skip(({ topology }) => topology === 'same-origin', 'owner UI lives on the client app');
   test('tabs render from the per-tab API routes', async ({ ownerPage }) => {
     await ownerPage.goto('/team-admin');
+    // Scoped to the tab strip: the sidebar now carries a "Settings" row of its
+    // own (the settings hub), so an unscoped link-by-name is ambiguous.
+    const tabs = ownerPage.getByRole('navigation', { name: 'Team admin' });
     // Members tab (default): the roster pane header.
     await expect(ownerPage.getByRole('heading', { name: 'Team members' })).toBeVisible({
       timeout: 30_000,
     });
 
     // Requests tab: empty-state or queue — either way the pane rendered.
-    await ownerPage.getByRole('link', { name: /^Requests/ }).click();
+    await tabs.getByRole('link', { name: /^Requests/ }).click();
     await expect(
       ownerPage.getByText(/No change requests or uploads yet|Uploads awaiting review/).first(),
     ).toBeVisible({ timeout: 15_000 });
 
     // Settings tab: the three surface-wide switches.
-    await ownerPage.getByRole('link', { name: 'Settings' }).click();
+    await tabs.getByRole('link', { name: 'Settings' }).click();
     await expect(ownerPage.getByRole('heading', { name: 'Read posture' })).toBeVisible({
       timeout: 15_000,
     });
@@ -61,7 +64,10 @@ test.describe('team admin (owner, client origin)', () => {
     const widened = await widthOf();
     expect(widened, 'the Members divider did not move').toBeGreaterThan(before + 60);
 
-    await ownerPage.getByRole('link', { name: /^Topics/ }).click();
+    await ownerPage
+      .getByRole('navigation', { name: 'Team admin' })
+      .getByRole('link', { name: /^Topics/ })
+      .click();
     await expect(ownerPage.getByRole('heading', { name: 'Forum topics' })).toBeVisible({
       timeout: 15_000,
     });

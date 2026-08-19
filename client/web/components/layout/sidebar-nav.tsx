@@ -15,9 +15,9 @@ import {
 } from '@mantle/web-ui/ui/tooltip';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useGroupHead } from '@/lib/nav-usage';
+import { activeNavHref, collapseSettingsNav } from '@/lib/settings-hub-nav';
 import {
   NAV_GROUPS,
-  navItemMatches,
   type NavGroup as BaseNavGroup,
   type NavItem as BaseNavItem,
 } from '@mantle/web-ui/layout/nav-items';
@@ -63,15 +63,23 @@ export function SidebarNav({
   useRealtime(['pending_tool_call'], () => router.refresh());
 
   // The shared nav list, with the live pending-approvals badge injected onto the
-  // Pending item at render time.
-  const groups: NavGroup[] = NAV_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.map((item) =>
-      item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
-    ),
-  }));
+  // Pending item at render time, and the thirteen hub screens collapsed into
+  // one "Settings" row (see `lib/settings-hub-nav.ts` — it is the SIDEBAR's
+  // copy that changes, so ⌘K and usage attribution still see every screen).
+  const groups: NavGroup[] = collapseSettingsNav(
+    NAV_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.map((item) =>
+        item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
+      ),
+    })),
+  );
 
-  const isActive = (item: NavItem) => navItemMatches(item, pathname);
+  // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
+  // is a prefix of every other settings route, so an independent test would
+  // light it beside Agents on `/settings/agents`.
+  const activeHref = activeNavHref(groups, pathname);
+  const isActive = (item: NavItem) => item.href === activeHref;
 
   // Filter by item name (case-insensitive substring), dropping now-empty groups.
   // The filter is an expanded-only affordance — at icon-rail width there's no
