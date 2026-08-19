@@ -57,6 +57,7 @@ import {
   CommandList,
 } from '@mantle/web-ui/ui/command';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
@@ -290,183 +291,200 @@ export function TeamSection({
   };
 
   return (
-    <div className="grid min-h-0 flex-1 md:grid-cols-[340px_1fr]">
-      {/* List pane — hidden on mobile while reading */}
-      <div
-        className={cn('flex min-h-0 flex-col border-r border-border', selected && 'hidden md:flex')}
-      >
-        {/* Search + sort + tag header */}
-        <div className="space-y-2 border-b border-border p-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search…"
-              className="pl-8"
-            />
+    <MasterDetail
+      // Per SECTION, so Notes and Tables each remember their own width — the
+      // same per-view rule /tasks and /tasks-board follow.
+      id={`team-${type}`}
+      // The reader is not a form. The 672px default measure exists to stop a
+      // form running to 1200px line lengths; a shared page, table or app
+      // viewport wants every pixel, so the detail takes the slack and there is
+      // no spacer.
+      detailFills
+      list={
+        // `h-full`, not `flex-1`: MasterDetail's pane wrappers are blocks, so a
+        // flex property here would be inert and the column would size to its
+        // content. Below `md` the scaffold falls back to a stacked grid, where
+        // this resolves to `auto` and the panes flow — which is why the
+        // mobile-only hides below are `max-md:` and not unconditional.
+        <div className={cn('flex h-full min-h-0 flex-col', selected && 'max-md:hidden')}>
+          {/* Search + sort + tag header */}
+          <div className="space-y-2 border-b border-border p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search…"
+                className="pl-8"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-muted-foreground"
+                    title="Sort"
+                  >
+                    <ArrowUpDown className="size-3.5" />
+                    {SORT_LABELS[sort]}
+                    <ChevronDown className="size-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuRadioGroup
+                    value={sort}
+                    onValueChange={(v) => go({ sort: v === 'newest' ? null : v, page: null })}
+                  >
+                    {SORTS.map((s) => (
+                      <DropdownMenuRadioItem key={s} value={s}>
+                        {SORT_LABELS[s]}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {tags.length > 0 && (
+                <TagFilter
+                  tags={tags}
+                  activeTag={activeTag}
+                  onSelect={(t) => go({ tag: t, page: null, s: null })}
+                />
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+
+          {/* A later fetch failed (params changed, session hiccup) — the list
+            below is the last successful load, say so instead of going silent. */}
+          {failed && (
+            <p className="border-b border-border bg-destructive/5 px-3 py-1.5 text-xs text-destructive-ink">
+              Couldn&rsquo;t refresh — showing the last loaded results.
+            </p>
+          )}
+          {data?.truncated && (
+            <p className="border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+              Showing the first {items.length} shared pages — search to find the rest.
+            </p>
+          )}
+
+          {/* Scrollable list — tree rows for pages, cards for the other types */}
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+            {items.length === 0 ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">
+                {query ? <>No matches for “{query}”.</> : <>Nothing tagged “{activeTag}”.</>}
+              </p>
+            ) : tree ? (
+              <ul className="flex flex-col gap-0.5 p-2">
+                {treeActive ? renderTree(null, 0) : treeItems.map((i) => compactRow(i, 0))}
+              </ul>
+            ) : (
+              <ul className="flex flex-col gap-1 p-2">
+                {items.map((item) => (
+                  <li key={item.token}>
+                    <ListCard
+                      onClick={() => select(item.token)}
+                      selected={item.token === selectedToken}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-medium">
+                          {item.icon ? <span className="mr-1.5">{item.icon}</span> : null}
+                          {item.title}
+                        </span>
+                        {item.mode === 'public' && (
+                          <span
+                            className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+                            title="Also shared publicly"
+                          >
+                            <Globe className="size-3" aria-hidden />
+                          </span>
+                        )}
+                      </div>
+                      {item.summary && (
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {item.summary}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-xs text-muted-foreground/70">
+                        {formatDate(item.updatedAt)}
+                      </p>
+                    </ListCard>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Tree mode is unpaged (the whole hierarchy is loaded); page/total/
+            pageSize otherwise come from the same response snapshot, so the
+            pager never mixes a new URL page with a stale total. */}
+          {!treeActive && (
+            <ListPager
+              page={data?.page ?? page}
+              total={total}
+              pageSize={pageSize}
+              onGo={(p) => go({ page: p <= 1 ? null : p })}
+            />
+          )}
+        </div>
+      }
+      detail={
+        <div className={cn('flex h-full min-h-0 flex-col', !selected && 'max-md:hidden')}>
+          {selected ? (
+            <>
+              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 gap-1 px-2 text-muted-foreground"
-                  title="Sort"
+                  className="md:hidden"
+                  onClick={() => select(null)}
                 >
-                  <ArrowUpDown className="size-3.5" />
-                  {SORT_LABELS[sort]}
-                  <ChevronDown className="size-3.5 opacity-60" />
+                  <ArrowLeft /> Back
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuRadioGroup
-                  value={sort}
-                  onValueChange={(v) => go({ sort: v === 'newest' ? null : v, page: null })}
+                <p className="min-w-0 flex-1 truncate text-sm font-medium max-md:text-right md:text-center">
+                  {selected.icon ? <span className="mr-1.5">{selected.icon}</span> : null}
+                  {selected.title}
+                </p>
+                <OpenShare
+                  token={selected.token}
+                  ariaLabel="Open in a new tab"
+                  className={buttonVariants({ variant: 'ghost', size: 'sm' })}
                 >
-                  {SORTS.map((s) => (
-                    <DropdownMenuRadioItem key={s} value={s}>
-                      {SORT_LABELS[s]}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {tags.length > 0 && (
-              <TagFilter
-                tags={tags}
-                activeTag={activeTag}
-                onSelect={(t) => go({ tag: t, page: null, s: null })}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* A later fetch failed (params changed, session hiccup) — the list
-            below is the last successful load, say so instead of going silent. */}
-        {failed && (
-          <p className="border-b border-border bg-destructive/5 px-3 py-1.5 text-xs text-destructive-ink">
-            Couldn&rsquo;t refresh — showing the last loaded results.
-          </p>
-        )}
-        {data?.truncated && (
-          <p className="border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
-            Showing the first {items.length} shared pages — search to find the rest.
-          </p>
-        )}
-
-        {/* Scrollable list — tree rows for pages, cards for the other types */}
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-          {items.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">
-              {query ? <>No matches for “{query}”.</> : <>Nothing tagged “{activeTag}”.</>}
-            </p>
-          ) : tree ? (
-            <ul className="flex flex-col gap-0.5 p-2">
-              {treeActive ? renderTree(null, 0) : treeItems.map((i) => compactRow(i, 0))}
-            </ul>
-          ) : (
-            <ul className="flex flex-col gap-1 p-2">
-              {items.map((item) => (
-                <li key={item.token}>
-                  <ListCard
-                    onClick={() => select(item.token)}
-                    selected={item.token === selectedToken}
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {item.icon ? <span className="mr-1.5">{item.icon}</span> : null}
-                        {item.title}
-                      </span>
-                      {item.mode === 'public' && (
-                        <span
-                          className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
-                          title="Also shared publicly"
-                        >
-                          <Globe className="size-3" aria-hidden />
-                        </span>
-                      )}
-                    </div>
-                    {item.summary && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {item.summary}
-                      </p>
-                    )}
-                    <p className="mt-0.5 text-xs text-muted-foreground/70">
-                      {formatDate(item.updatedAt)}
+                  <ExternalLink />
+                </OpenShare>
+              </div>
+              {!isCrossOrigin() ? (
+                <ShareReader
+                  key={selected.token}
+                  token={selected.token}
+                  title={selected.title}
+                  nodeId={selected.nodeId}
+                />
+              ) : (
+                // Genuinely cross-origin client: inline reading would strand the
+                // cookie-authenticated subresources (page images, downloads), so
+                // shares open top-level on the server origin via the SSO handoff.
+                <div className="flex flex-1 items-center justify-center p-6">
+                  <div className="max-w-sm text-center">
+                    <p className="text-sm text-muted-foreground">
+                      This item opens on the brain&rsquo;s own site.
                     </p>
-                  </ListCard>
-                </li>
-              ))}
-            </ul>
+                    <OpenShare token={selected.token} className={cn(buttonVariants(), 'mt-4')}>
+                      <ExternalLink />
+                      <span className="max-w-56 truncate">Open {selected.title}</span>
+                    </OpenShare>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center">
+              <p className="text-sm text-muted-foreground">Select an item to read it.</p>
+            </div>
           )}
         </div>
-
-        {/* Tree mode is unpaged (the whole hierarchy is loaded); page/total/
-            pageSize otherwise come from the same response snapshot, so the
-            pager never mixes a new URL page with a stale total. */}
-        {!treeActive && (
-          <ListPager
-            page={data?.page ?? page}
-            total={total}
-            pageSize={pageSize}
-            onGo={(p) => go({ page: p <= 1 ? null : p })}
-          />
-        )}
-      </div>
-
-      {/* Reader pane */}
-      <div className={cn('flex min-h-0 flex-col', !selected && 'hidden md:flex')}>
-        {selected ? (
-          <>
-            <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1.5">
-              <Button variant="ghost" size="sm" className="md:hidden" onClick={() => select(null)}>
-                <ArrowLeft /> Back
-              </Button>
-              <p className="min-w-0 flex-1 truncate text-sm font-medium max-md:text-right md:text-center">
-                {selected.icon ? <span className="mr-1.5">{selected.icon}</span> : null}
-                {selected.title}
-              </p>
-              <OpenShare
-                token={selected.token}
-                ariaLabel="Open in a new tab"
-                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-              >
-                <ExternalLink />
-              </OpenShare>
-            </div>
-            {!isCrossOrigin() ? (
-              <ShareReader
-                key={selected.token}
-                token={selected.token}
-                title={selected.title}
-                nodeId={selected.nodeId}
-              />
-            ) : (
-              // Genuinely cross-origin client: inline reading would strand the
-              // cookie-authenticated subresources (page images, downloads), so
-              // shares open top-level on the server origin via the SSO handoff.
-              <div className="flex flex-1 items-center justify-center p-6">
-                <div className="max-w-sm text-center">
-                  <p className="text-sm text-muted-foreground">
-                    This item opens on the brain&rsquo;s own site.
-                  </p>
-                  <OpenShare token={selected.token} className={cn(buttonVariants(), 'mt-4')}>
-                    <ExternalLink />
-                    <span className="max-w-56 truncate">Open {selected.title}</span>
-                  </OpenShare>
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <p className="text-sm text-muted-foreground">Select an item to read it.</p>
-          </div>
-        )}
-      </div>
-    </div>
+      }
+    />
   );
 }
 
