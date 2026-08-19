@@ -22,11 +22,20 @@
  * offers the top-level open, which can re-establish one via SSO); anything
  * else = a plain retry.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { teamFetch, upgradeTeamCookie } from '@mantle/web-ui/team-fetch';
 import { buttonVariants } from '@mantle/web-ui/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@mantle/web-ui/ui/table';
 import { formatBytes } from '@mantle/web-ui/lib/format-bytes';
+import { describeFile } from '@mantle/web-ui/lib/mime-label';
 import { cn } from '@mantle/web-ui/lib/utils';
 import type { ShareViewPayload, ShareFolderListing } from '@mantle/share-ui/view-payload';
 import { NotePresenter } from '@mantle/share-ui/note-presenter';
@@ -38,7 +47,13 @@ import { TablePresenter } from '@mantle/share-ui/table-presenter';
 import { FormulaPresenter } from '@mantle/share-ui/formula-presenter';
 import { FormulaCalculator } from '@mantle/share-ui/formula-calculator';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
-import { Download, File as FileIcon, Folder as FolderIcon, ExternalLink } from 'lucide-react';
+import {
+  ChevronsUpDown,
+  Download,
+  ExternalLink,
+  Folder as FolderIcon,
+  type LucideIcon,
+} from 'lucide-react';
 import { OpenShare } from './open-on-server';
 import { TeamTaskComments } from './team-task-comments';
 
@@ -219,8 +234,54 @@ function PageReader({ view }: { view: Extract<ShareViewPayload, { kind: 'page' }
   );
 }
 
-/** Inline folder listing — FolderPresenter's layout with in-place navigation
- *  (refetch `?p=`) instead of anchor loads. Downloads keep real hrefs. */
+/** How many rows are in the DOM before the sentinel grows the window. A shared
+ *  drive folder can hold hundreds of files, and the listing arrives WHOLE — the
+ *  share view has no `?page`, so the cap is the only thing between a member and
+ *  800 rows painted at once. */
+const FOLDER_PAGE = 200;
+
+type SortKey = 'name' | 'type' | 'size';
+
+/** One listing row, folders and files flattened to the same shape so a single
+ *  comparator can sort both — with `isFolder` kept so folders still group
+ *  first, the way every file manager behaves. */
+type Row = {
+  id: string;
+  isFolder: boolean;
+  name: string;
+  typeLabel: string;
+  icon: LucideIcon;
+  /** Bytes for a file; a folder sorts by its child count instead, which is why
+   *  the two never share a sort bucket. */
+  size: number;
+  sizeLabel: string;
+  /** Folders navigate, files download. Exactly one is set. */
+  sub?: string;
+  href?: string;
+  filename?: string;
+};
+
+/**
+ * Inline folder listing — a full-bleed table, not the centred column the public
+ * `/s` page draws.
+ *
+ * Three things changed from the share layout, all for the same reason: this
+ * renders inside `TeamSection`'s detail pane, which can be two thousand pixels
+ * wide, not on a standalone page.
+ *
+ * - **No `max-w`.** The centred cap was what made dragging the divider feel
+ *   broken: the handle worked, the content ignored it and only the margins grew.
+ * - **No `<h1>`.** `TeamSection` already draws the title in its §8 detail header
+ *   (team-section.tsx), so the presenter's own hero title was the second of
+ *   three on screen. The breadcrumb stays — it is the part that says *where*.
+ * - **A table, with a real Type column.** The old row printed
+ *   `f.mimeType` raw, so a member read
+ *   `application/vnd.openxmlformats-officedocument…` instead of "Word document".
+ *
+ * There is no Modified column because the share view does not carry one
+ * (`ShareFolderListing` is `{id, filename, mimeType, sizeBytes}`); adding it is
+ * a mantle-side change to the share payload.
+ */
 function FolderReader({
   rootTitle,
   rootPath,
@@ -235,6 +296,12 @@ function FolderReader({
   onNavigate: (sub: string) => void;
 }) {
   const { currentPath, folders, files } = listing;
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'name', desc: false });
+  const [shown, setShown] = useState(FOLDER_PAGE);
+  // Memoised because it is a `rows` dependency: `assetUrl(token)` returns a new
+  // closure every call, so an inline one would bust the sort on every render.
+  const toAsset = useMemo(() => assetUrl(token), [token]);
+
   const relLabels =
     currentPath === rootPath ? [] : currentPath.slice(rootPath.length + 1).split('.');
   const crumbs = [
@@ -244,75 +311,225 @@ function FolderReader({
       sub: relLabels.slice(0, i + 1).join('.'),
     })),
   ];
-  const toAsset = assetUrl(token);
+
+  const rows = useMemo<Row[]>(() => {
+    const all: Row[] = [
+      ...folders.map((f) => ({
+        id: f.id,
+        isFolder: true,
+        name: f.slug,
+        typeLabel: 'Folder',
+        icon: FolderIcon as LucideIcon,
+        size: f.fileCount,
+        sizeLabel: `${f.fileCount} file${f.fileCount === 1 ? '' : 's'}`,
+        sub: f.path.slice(rootPath.length + 1),
+      })),
+      ...files.map((f) => {
+        const described = describeFile(f.mimeType, f.filename);
+        return {
+          id: f.id,
+          isFolder: false,
+          name: f.filename,
+          typeLabel: described.label,
+          icon: described.icon,
+          size: f.sizeBytes,
+          sizeLabel: formatBytes(f.sizeBytes),
+          href: toAsset(f.id),
+          filename: f.filename,
+        };
+      }),
+    ];
+
+    const dir = sort.desc ? -1 : 1;
+    return all.sort((a, b) => {
+      // Folders first regardless of direction — reversing the sort should flip
+      // the names, not turn the listing inside out.
+      if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+      if (sort.key === 'size') return (a.size - b.size) * dir;
+      const left = sort.key === 'type' ? a.typeLabel : a.name;
+      const right = sort.key === 'type' ? b.typeLabel : b.name;
+      // `numeric` so `page2` sorts before `page10`, which plain lexical order
+      // gets backwards on any folder of numbered scans.
+      return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+    });
+  }, [folders, files, rootPath, toAsset, sort]);
+
+  // A new folder is a new listing: start again at the top of the window, or
+  // navigating into a small folder inherits a huge one's already-grown cap.
+  useEffect(() => setShown(FOLDER_PAGE), [currentPath, sort]);
+
+  const visible = rows.slice(0, shown);
+  const more = rows.length - visible.length;
+
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) => ({ key, desc: prev.key === key ? !prev.desc : false }));
+
+  const sortProps = (key: SortKey) => ({
+    'aria-sort': (sort.key === key ? (sort.desc ? 'descending' : 'ascending') : 'none') as
+      'ascending' | 'descending' | 'none',
+    onClick: () => toggleSort(key),
+  });
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
-      <header className="mb-6">
-        <h1 className="text-center text-xl font-semibold tracking-tight">{rootTitle}</h1>
-        <nav className="mt-2 flex flex-wrap items-center justify-center gap-1 text-xs text-muted-foreground">
-          {crumbs.map((c, i) => (
-            <span key={c.sub} className="flex items-center gap-1">
-              {i > 0 && <span aria-hidden>/</span>}
-              {i === crumbs.length - 1 ? (
-                <span className="text-foreground">{c.label}</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onNavigate(c.sub)}
-                  className="hover:text-foreground hover:underline"
-                >
-                  {c.label}
-                </button>
-              )}
-            </span>
-          ))}
-        </nav>
-      </header>
-
-      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-        {folders.map((f) => {
-          const childSub = f.path.slice(rootPath.length + 1);
-          return (
-            <li key={f.id}>
+    <div className="flex min-h-0 flex-col">
+      {/* Rules span the pane; only what sits between them insets. */}
+      <nav
+        aria-label="Folder"
+        className="flex flex-wrap items-center gap-1 border-b border-border/60 px-4 py-2.5 text-xs text-muted-foreground"
+      >
+        {crumbs.map((c, i) => (
+          <span key={c.sub} className="flex items-center gap-1">
+            {i > 0 && <span aria-hidden>/</span>}
+            {i === crumbs.length - 1 ? (
+              <span className="font-medium text-foreground">{c.label}</span>
+            ) : (
               <button
                 type="button"
-                onClick={() => onNavigate(childSub)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                onClick={() => onNavigate(c.sub)}
+                className="rounded-sm hover:text-foreground hover:underline"
               >
-                <FolderIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{f.slug}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {f.fileCount} file{f.fileCount === 1 ? '' : 's'}
-                </span>
+                {c.label}
               </button>
-            </li>
-          );
-        })}
-        {files.map((f) => (
-          <li key={f.id} className="flex items-center gap-3 px-4 py-3">
-            <FileIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{f.filename}</p>
-              <p className="text-xs text-muted-foreground">
-                {f.mimeType || 'file'} · {formatBytes(f.sizeBytes)}
-              </p>
-            </div>
-            <a
-              href={toAsset(f.id)}
-              download={f.filename}
-              className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              <Download className="size-4" aria-hidden /> Download
-            </a>
-          </li>
+            )}
+          </span>
         ))}
-        {folders.length === 0 && files.length === 0 && (
-          <li className="px-4 py-8 text-center text-sm text-muted-foreground">
-            This folder is empty.
-          </li>
+      </nav>
+
+      {rows.length === 0 ? (
+        <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+          This folder is empty.
+        </p>
+      ) : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <SortableHead className="pl-4" {...sortProps('name')} active={sort.key === 'name'}>
+                  Name
+                </SortableHead>
+                <SortableHead className="w-48" {...sortProps('type')} active={sort.key === 'type'}>
+                  Type
+                </SortableHead>
+                <SortableHead
+                  className="w-28 text-right"
+                  {...sortProps('size')}
+                  active={sort.key === 'size'}
+                >
+                  Size
+                </SortableHead>
+                <TableHead className="w-32 pr-4">
+                  <span className="sr-only">Download</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visible.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="max-w-0 pl-4">
+                    {r.isFolder ? (
+                      <button
+                        type="button"
+                        onClick={() => onNavigate(r.sub!)}
+                        className="flex w-full min-w-0 items-center gap-2 text-left font-medium hover:underline"
+                      >
+                        <r.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="truncate">{r.name}</span>
+                      </button>
+                    ) : (
+                      <span className="flex min-w-0 items-center gap-2 font-medium">
+                        <r.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="truncate">{r.name}</span>
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {r.typeLabel}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-muted-foreground">
+                    {r.sizeLabel}
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">
+                    {r.href && (
+                      <a
+                        href={r.href}
+                        download={r.filename}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted"
+                      >
+                        <Download className="size-3.5" aria-hidden /> Download
+                      </a>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {more > 0 && (
+            // Auto-reveal rather than a "Load more" button: scrolling toward the
+            // end is already the gesture that means "show me the rest". The root
+            // is the viewport, which is correct even though the pane is the
+            // element that scrolls — a row inside it still enters the viewport.
+            <MoreSentinel
+              onReveal={() => setShown((n) => n + FOLDER_PAGE)}
+              label={`${visible.length} of ${rows.length}`}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A `<TableHead>` that sorts on click and says so to a screen reader. */
+function SortableHead({
+  active,
+  className,
+  children,
+  onClick,
+  ...rest
+  // `onClick` is re-declared because it lands on the inner <button>, not on the
+  // cell — inheriting the cell's handler type would type the event wrong.
+}: Omit<ComponentProps<typeof TableHead>, 'onClick'> & { active: boolean; onClick: () => void }) {
+  return (
+    <TableHead className={className} {...rest}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'inline-flex items-center gap-1 transition-colors hover:text-foreground',
+          active && 'text-foreground',
         )}
-      </ul>
+      >
+        {children}
+        <ChevronsUpDown className="size-3 opacity-60" aria-hidden />
+      </button>
+    </TableHead>
+  );
+}
+
+/** Grows the visible window when it scrolls into view. */
+function MoreSentinel({ onReveal, label }: { onReveal: () => void; label: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The callback changes identity every render, so the observer reads it from a
+  // ref — re-creating the observer on each render would disconnect it mid-scroll
+  // and the listing would stop growing until the member scrolled again.
+  const reveal = useRef(onReveal);
+  reveal.current = onReveal;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => entries[0]?.isIntersecting && reveal.current(),
+      { rootMargin: '400px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="px-4 py-6 text-center text-xs text-muted-foreground">
+      {label}
     </div>
   );
 }
