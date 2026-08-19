@@ -1,5 +1,11 @@
 # Handover: the team responder cannot show a picture (2026-08-19)
 
+> **STATUS — 2026-08-19, same day. BUILT.** §3 steps 1–3 shipped in mantle
+> v0.230.69 and jackdaw v0.4.1. What remains is step 4: roll NATREF, then grant
+> the tool group — until that grant lands the responder still has no
+> `show_image` and nothing changes. §7 records what was built and the two
+> things the plan did not anticipate.
+
 **Reported by Jason**, from the NATREF forum: *"the system was unable to render
 some images. Can we make sure our capabilities match the owner chat agent."*
 
@@ -195,3 +201,56 @@ or `tool_group_slugs`), and re-ask the LVC question in the same topic.
   reasons that do not transfer to a member-facing responder.
 - **Do not assume a tool is safe on the team surface because others are.** The
   refusal is opt-in per tool. §2.
+
+
+---
+
+## 7. What was built (2026-08-19)
+
+**mantle v0.230.69** — `feat(team): let the member surfaces carry a picture`
+
+- `durableAttachmentsFor` in `inline-images.ts`: the artifacts → column mapping,
+  written ONCE. All three surfaces had to learn the same three steps and two of
+  them had learned it as "not at all". The owner turn now calls it too; its
+  behaviour is unchanged byte for byte.
+- `finalizeForumPost` / `updateTeamMessageOutcome` accept `attachments`; both
+  runners pass them. **No migration** — both columns already existed.
+- `GET /api/team/forum/media/[nodeId]` and `/api/team/messages/media/[nodeId]`,
+  over a shared `server/web/lib/team-media.ts`.
+- Authorization helpers `forumTopicsWithAttachedNode` /
+  `teamThreadHasAttachedNode` — jsonb containment against the POSTS, per §3.
+
+**jackdaw v0.4.1** — `feat(team): draw the pictures the agent sends`
+
+- `components/team-media.tsx`: `AgentImage`, `AgentMediaStrip`,
+  `mediaMarkdownComponents`.
+- `lib/team-media.ts` + tests: the pure addressing half, because jackdaw's suite
+  has no React renderer.
+- Both member surfaces take the `components.img` override and the strip. No
+  TipTap, per §3 step 3.
+
+### Two things the plan did not anticipate
+
+1. ⚠ **An `<img>` tag cannot carry the member's credential.** The routes accept
+   either the `mantle_team_chat` cookie or a localStorage bearer, and a tag can
+   only ever send the cookie — so `<img src=…>` works same-origin and 401s on a
+   split box. That is the same shape as the inline-share-reader limitation, and
+   adding a second one would have been careless. `AgentImage` fetches through
+   `teamFetch` and renders an object URL, which works on both; the URL is
+   revoked on unmount.
+
+2. **The agent's rows share `attachments` with member uploads.** A member upload
+   carries `fileId`, an agent artifact carries `nodeId`, and both surfaces
+   already rendered that array as paperclip chips. They now split on which id is
+   present — without it a captioned artifact renders twice, once as a picture
+   and once as a chip repeating the caption.
+
+### Still not done
+
+- **The tool grant.** Nothing changes on NATREF until `team-responder` gets a
+  group containing `show_image`. Jason chose `files`; §2 is what that costs and
+  the narrowing is still one line.
+- **e2e.** Never run against any of this — it needs the hermetic local stack.
+  The `media:` parsing is unit-tested (including that
+  `media:../../api/files/files/secret` reads as "not a marker"); the routes are
+  not, matching the attachment route they copy.
