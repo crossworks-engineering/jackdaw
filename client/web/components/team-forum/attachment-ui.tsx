@@ -271,8 +271,8 @@ export function ComposerAttachments({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="size-8 text-muted-foreground"
+          size="icon-xs"
+          className="text-muted-foreground"
           onClick={pick}
           disabled={disabled || uploading || atCap}
           aria-label="Attach files"

@@ -14,7 +14,9 @@
  *
  * `app` mounts AppSandbox exactly like the /s island — the sandbox iframe
  * (opaque origin, allow-scripts only) is the app's EXECUTION boundary, not a
- * reading surface, and stays.
+ * reading surface, and stays. It renders in the `viewport` frame and returns
+ * BEFORE the scroll container below: an app scrolls itself, and the 'card'
+ * frame's reported-height sizing cuts a tall one off at its 4000px clamp.
  *
  * Failure shapes: 401 = no live team session for a team-mode share (the pane
  * offers the top-level open, which can re-establish one via SSO); anything
@@ -136,8 +138,28 @@ export function ShareReader({
   }
 
   const { view } = state;
+
+  // An APP owns its own viewport and its own scrolling, so it must not sit in
+  // the reader's scroll container below. In the default 'card' frame the iframe
+  // is sized to the height the app REPORTS, clamped to 4000px — a taller app is
+  // simply cut off, with no scrollbar of its own to recover it. 'viewport' hands
+  // the app the pane and lets it scroll itself, which is what the owner /apps
+  // screen and /hub already do.
+  if (view.kind === 'app') {
+    return (
+      <div className="min-h-0 flex-1">
+        <AppSandbox appId={view.appId} shareToken={token} frame="viewport" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin bg-background">
+    // `relative` is load-bearing, not decoration: a position:static
+    // overflow-y-auto pane leaks its scrollable overflow into the outer region
+    // once the content is much taller than the viewport, which paints a second
+    // scrollbar that clips the bottom of a long page or table. See the style
+    // guide §8 — min-h-0 sizes the pane, `relative` closes the boundary.
+    <div className="relative min-h-0 flex-1 overflow-y-auto scrollbar-thin bg-background">
       {view.kind === 'page' && <PageReader view={view} />}
       {view.kind === 'note' && <NotePresenter view={view} />}
       {view.kind === 'draw' && <DrawPresenter view={view} src={`/s/${token}/draw`} />}
@@ -155,11 +177,6 @@ export function ShareReader({
           view={view}
           calculator={<FormulaCalculator token={token} signature={view.signature} />}
         />
-      )}
-      {view.kind === 'app' && (
-        <div className="p-4">
-          <AppSandbox appId={view.appId} shareToken={token} />
-        </div>
       )}
       {view.kind === 'folder' && (
         <FolderReader

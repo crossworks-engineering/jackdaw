@@ -14,6 +14,25 @@ coverage/
 client/web/next-env.d.ts
 # Generated at build time by @mantle/app-build's build-runtime (npm: @crossworks/app-build)
 client/web/public/app-runtime/
+# Written and re-added by `next dev` (node_modules/next/dist/server/lib/
+# generate-agent-files.js): AGENTS.md is one delimited block of Next's own
+# coding-agent guidance, CLAUDE.md is a single `@AGENTS.md` include. The file's
+# own text says committing it keeps the tree clean, and that is true on ONE
+# machine — across two it means whichever box last ran `next dev` rewrites the
+# block from ITS installed Next, so the pair drifts with the dependency rather
+# than with anything anybody wrote. Same reasoning as next-env.d.ts above:
+# regenerated on demand, so nothing needs the committed copy.
+client/web/AGENTS.md
+client/web/CLAUDE.md
+# Per-developer MCP server config, deliberately NOT shared. The obvious entry is
+# the shadcn server, and this repo is the one place it must not be handed out by
+# default: `packages/web-ui/src/ui/*` is a vendored 2024-generation FORK, edited
+# in place ever since, with no components.json — so `shadcn add` overwrites
+# rather than merges (style guide §4a). Committing the config would give every
+# session on every machine the tool whose first instinct clobbers that fork.
+# Reading the registry by hand is still useful; that stays each developer's
+# choice to configure locally.
+.mcp.json
 # Electron: the staged copy of the built owner UI + packaged artifacts
 client/desktop/ui/
 client/desktop/release/

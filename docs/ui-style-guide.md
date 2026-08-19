@@ -538,8 +538,17 @@ Two consequences worth knowing:
 **New screens use `@mantle/web-ui/ui/master-detail` rather than hand-rolling
 the grid below.** It owns the rules that make the scaffold work — both panes
 `min-h-0`, the detail pane `relative`, `scrollbar-thin` on both — so they
-cannot be dropped. The hand-written grid is documented below because 24 screens
-still use it; port them as you touch them.
+cannot be dropped. **Every list+detail screen is now on it**; the hand-written
+grid below is kept as documentation of what the scaffold does, not as a live
+pattern. If you find a screen still using it, port it.
+
+⚠ **Size the node you pass to `list` / `detail` with `h-full`, never
+`flex-1`.** The pane wrappers are blocks, so a flex property on your node is
+inert: the node falls back to its content height, nothing under it has a
+definite parent to resolve a percentage against, and any `h-full` descendant
+collapses. It is silent — the screen looks fine until something inside wants
+real height. `/apps` shipped a 150px app viewport this way (an iframe's
+intrinsic height) in a pane that was 400px tall.
 
 ```tsx
 <MasterDetail id="tasks" list={…} detail={…} />
@@ -758,10 +767,12 @@ selection, the card, pagination — are the durable part; the grid vs
 
 #### The legacy hand-written grid
 
-⚠ **Not for new work** — use `<MasterDetail>` above. Documented because the
-screens phase 2 has not reached yet still carry it (the 12 settings screens and
-`docs`/`team-admin`/`team-section`); port them as you touch them. Phase 2a's
-nine daily drivers are already on `<MasterDetail>`.
+⚠ **Not for new work, and nothing uses it any more** — use `<MasterDetail>`
+above. The settings screens, `docs` and `team-admin` were ported during phase 2;
+`team-section` (the /team member workspace) was the last holdout and went over
+on 2026-08-19. It is kept here because the rules underneath it are the
+scaffold's reasons, and reading them is how you know what `<MasterDetail>` is
+protecting you from.
 
 ```tsx
 <div className="md:grid md:h-full md:grid-cols-[340px_1fr] md:overflow-hidden">

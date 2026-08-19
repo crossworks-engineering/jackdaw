@@ -280,7 +280,7 @@ function CollapsedRail({
         onClick={onToggle}
         aria-label="Expand activity"
         title="Expand activity (⌘J)"
-        className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <PanelRight className="size-4" aria-hidden />
       </button>
@@ -335,7 +335,7 @@ function StatusPip({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className="relative flex size-9 items-center justify-center rounded-md transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="relative flex size-9 items-center justify-center rounded-md transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {icon}
       {count > 0 && (

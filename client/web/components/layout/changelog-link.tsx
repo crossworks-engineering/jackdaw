@@ -71,7 +71,7 @@ export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
           'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
           active
             ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+            : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
         )}
       >
         <Megaphone

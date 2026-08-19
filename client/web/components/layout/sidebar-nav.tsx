@@ -110,7 +110,7 @@ export function SidebarNav({
       'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
       active
         ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+        : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
     );
     const inner = (
       <>
@@ -198,7 +198,7 @@ export function SidebarNav({
                   type="button"
                   onClick={() => setQuery('')}
                   aria-label="Clear filter"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -291,7 +291,7 @@ function NavGroupBlock({
               type="button"
               onClick={onRequestExpandRail}
               aria-label={`Show all ${group.label.toLowerCase()}`}
-              className="flex items-center justify-center rounded-md px-0 py-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex items-center justify-center rounded-md px-0 py-2 text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MoreHorizontal className="size-4 shrink-0" aria-hidden />
             </button>
@@ -325,7 +325,7 @@ function NavGroupBlock({
           <button
             type="button"
             onClick={onToggle}
-            className="flex items-center gap-3 rounded-md px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-3 rounded-md px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden>
               <MoreHorizontal className="size-3.5" />

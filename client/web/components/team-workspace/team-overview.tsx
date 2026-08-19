@@ -42,7 +42,7 @@ export function TeamOverview() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
+                className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/40"
               >
                 <Icon className="size-5 text-muted-foreground" aria-hidden />
                 <p className="mt-2 text-sm font-medium">{item.name}</p>
