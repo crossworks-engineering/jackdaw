@@ -354,6 +354,18 @@ async function openAppWindow(profile: Profile): Promise<void> {
   const partition = `persist:brain-${profile.id}`;
   fenceBrainSession(session.fromPartition(partition), profile.origin, rendererOrigin);
 
+  // NO `title` here, deliberately. The window title follows the loaded page's
+  // <title>, which the web app now sets from the brain's own name (site name,
+  // else peer name, else Jackdaw — client/web/lib/brand.ts). That is what makes
+  // two brains open side by side tellable apart in the window list, and it is
+  // the same answer the browser tab gives.
+  //
+  // Electron's own contract, both halves of it: the `title` option is "ignored"
+  // once the loaded document defines <title>, and `page-title-updated` keeps the
+  // native title in step unless a listener calls preventDefault(). So hardcoding
+  // a title here would either do nothing or, worse, freeze every window on one
+  // string. If a default is ever needed for the moment before the page loads,
+  // that is what it would be for — not an identity.
   const win = new BrowserWindow({
     width: 1440,
     height: 920,
