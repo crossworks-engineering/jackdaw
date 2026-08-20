@@ -36,6 +36,7 @@ import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-ca
 import type { CoverageGap } from '@mantle/content-core/formula-spec';
 import type { DimensionIssue } from '@mantle/content-core/formula-dimensions';
 import type { TargetSignature } from '@mantle/content-core/formula-signature';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { FormulaDetail, type FormulaRow } from './formula-detail';
 
 type ListResponse = {
@@ -125,6 +126,17 @@ export function FormulasClient() {
     queryKey: ['formula', activeId],
     queryFn: () => apiFetch<DetailResponse>(`/api/formulas/${activeId}`),
     enabled: Boolean(activeId),
+  });
+
+  // Pin the open formula. The label comes from the list row when it's in the
+  // current slice and from the detail fetch otherwise, so a deep link doesn't
+  // sit as a bare uuid in the chip while the row loads.
+  const activeTitle =
+    formulas.find((f) => f.id === activeId)?.title ?? detailQuery.data?.formula.title;
+  useSurfaceAssist({
+    node: activeId
+      ? { id: activeId, kind: 'formula', label: activeTitle || 'Untitled formula' }
+      : null,
   });
 
   function select(id: string) {

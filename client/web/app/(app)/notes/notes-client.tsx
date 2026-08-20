@@ -44,6 +44,7 @@ import { syncSelectionParam } from '@/lib/url-sync';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
@@ -145,6 +146,16 @@ export function NotesClient() {
     }
     return notes[0] ?? null;
   }, [selectedId, notes, selectedNoteQuery.data]);
+
+  // Pin whatever the right pane is showing. That includes the `notes[0]`
+  // fallback above: nothing was clicked, but the note is on screen and read,
+  // so "summarise this" should mean it. The chip is removable when it isn't
+  // what the user meant.
+  useSurfaceAssist({
+    node: selected
+      ? { id: selected.id, kind: 'note', label: selected.title || 'Untitled note' }
+      : null,
+  });
 
   /** Run an action, but if the editor has unsaved changes, confirm first. */
   const guard = useCallback(

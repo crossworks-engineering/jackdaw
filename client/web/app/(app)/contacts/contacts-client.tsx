@@ -72,6 +72,7 @@ import {
 } from '@mantle/content-core/contacts-format';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 
 type ContactsListResponse = {
   contacts: ContactRow[];
@@ -118,6 +119,13 @@ export function ContactsClient() {
     (selectedId ? contacts.find((c) => c.id === selectedId) : null) ??
     (selectedContactQuery.data?.id === selectedId ? selectedContactQuery.data : null) ??
     null;
+
+  // Pin the contact on screen, so "draft an email to them" has a referent.
+  useSurfaceAssist({
+    node: selected
+      ? { id: selected.id, kind: 'contact', label: selected.title || 'Unnamed contact' }
+      : null,
+  });
 
   const [q, setQ] = useState(query);
 

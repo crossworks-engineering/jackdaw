@@ -40,6 +40,7 @@ import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { syncSelectionParam } from '@/lib/url-sync';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { JournalEditor, type JournalRow } from './journal-editor';
 
 const ALL = '__all__';
@@ -115,6 +116,14 @@ export function JournalClient() {
     }
     return entries[0] ?? null;
   }, [selectedId, entries, selectedEntryQuery.data]);
+
+  // Pin whatever the right pane is showing, including the first-row fallback —
+  // it's on screen and read, so "what did I write about this?" should mean it.
+  useSurfaceAssist({
+    node: selected
+      ? { id: selected.id, kind: 'journal', label: selected.title || 'Untitled entry' }
+      : null,
+  });
 
   const guard = useCallback(
     (run: () => void) => {
