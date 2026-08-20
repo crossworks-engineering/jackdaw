@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import {
   ChevronDown,
@@ -263,6 +264,33 @@ function FilesView({
   }, [initialFiles]);
 
   const openFileId = searchParams.get('file');
+
+  // Pin the open file when the preview is up, else the folder being browsed —
+  // in both cases the thing the screen is actually about.
+  //
+  // The folder path rides as meta because a filename alone is ambiguous: two
+  // `report.pdf`s in different folders produce identical chips and identical
+  // preamble lines, and the agent has no way to tell which one is meant. The
+  // path is a handful of bytes and settles it. Content deliberately stays out —
+  // once the ref resolves, the node tools can read the body.
+  const openFileRow = openFileId ? (files.find((f) => f.id === openFileId) ?? null) : null;
+  useSurfaceAssist({
+    node: openFileRow
+      ? {
+          id: openFileRow.id,
+          kind: 'file',
+          label: openFileRow.filename,
+          meta: { folder: openFileRow.parentPath },
+        }
+      : currentFolder
+        ? {
+            id: currentFolder.id,
+            kind: 'folder',
+            label: currentFolder.title || currentFolder.path,
+            meta: { path: currentFolder.path },
+          }
+        : null,
+  });
 
   const refresh = useCallback(() => {
     startTransition(() => {

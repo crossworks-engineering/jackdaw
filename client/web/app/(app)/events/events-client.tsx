@@ -32,6 +32,7 @@ import {
 } from '@mantle/client-types/lib/event-time';
 import { EventForm, emptyEventForm, type EventPayload } from './event-form';
 import { EventDetail, type EventRow } from './event-detail';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
 
@@ -134,6 +135,15 @@ export function EventsClient() {
 
   const all = events;
   const selected = sel?.mode === 'view' ? (all.find((e) => e.id === sel.id) ?? null) : null;
+
+  // Pin the open event. Same shape as the /events/[id] deep link, which pins
+  // the same ref — whichever route you arrived by, "this event" is the same
+  // thing, and only one of the two is ever mounted.
+  useSurfaceAssist({
+    node: selected
+      ? { id: selected.id, kind: 'event', label: selected.title || 'Untitled event' }
+      : null,
+  });
 
   // Group by day once mounted; before that, a flat upcoming→past list (SSR-safe).
   const groups = useMemo(() => {

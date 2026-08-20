@@ -84,7 +84,10 @@ export function useSurfaceAssist(opts: {
   useEffect(() => {
     if (!enabled || !nodeId || !nodeKind) return;
     const meta = nodeMetaKey
-      ? (Object.fromEntries(JSON.parse(nodeMetaKey) as [string, string][]) as Record<string, string>)
+      ? (Object.fromEntries(JSON.parse(nodeMetaKey) as [string, string][]) as Record<
+          string,
+          string
+        >)
       : undefined;
     setPinnedContext([
       { id: nodeId, kind: nodeKind, label: nodeLabel ?? nodeId, ...(meta ? { meta } : {}) },

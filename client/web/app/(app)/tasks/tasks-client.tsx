@@ -28,6 +28,7 @@ import { useRealtime } from '@/components/realtime/use-realtime';
 import { TaskForm, emptyTaskForm, type TaskPayload } from './task-form';
 import { TaskDetail, type TaskPatch, type TaskRow } from './task-detail';
 import { TaskBoard, type BoardMove } from './task-board';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import {
   PRIORITIES,
   STATUSES,
@@ -178,6 +179,16 @@ export function TasksClient() {
 
   const filtering = !!query || statusParam !== 'active' || priority !== 'all';
   const selected = sel?.mode === 'view' ? (tasks.find((t) => t.id === sel.id) ?? null) : null;
+
+  // Pin the open task. The list auto-selects row one like its siblings, so it
+  // pins on arrival; the BOARD deliberately stays unselected until a card is
+  // clicked, and pins nothing until then. That asymmetry is right — a board is
+  // a view of many tasks, and there is no one task it is "about".
+  useSurfaceAssist({
+    node: selected
+      ? { id: selected.id, kind: 'task', label: selected.title || 'Untitled task' }
+      : null,
+  });
 
   const createTask = async (payload: TaskPayload) => {
     let task: TaskRow;
