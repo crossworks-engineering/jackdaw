@@ -1,0 +1,113 @@
+import type { BrainAppearance } from '@mantle/web-ui/appearance';
+
+/**
+ * The brain's own identity, read off the PUBLIC appearance payload.
+ *
+ * ⚠ These four fields are not on `BrainAppearance` yet. `GET /api/appearance`
+ * is public and already carries the colour theme, all four fonts and their
+ * sizes; the site name, the peer name and whether a logo exists live behind
+ * `GET /api/shell`, which needs a session — and the login screen runs before
+ * there is one. Adding them to the public payload is the MANTLE half of this
+ * work (dev task `db6b72e9`), and it has not shipped.
+ *
+ * So this reads them DEFENSIVELY off the same payload rather than waiting: the
+ * type says they are absent, the runtime may already know better, and the
+ * moment mantle adds them every surface below lights up with no change here.
+ * Until then every field reads null and the screens fall back exactly as they
+ * do today. That is the whole reason for the `unknown` cast in `readBrandFields`
+ * — it is a forward-compatible read, not a type escape.
+ *
+ * The logo BYTES need nothing new: `GET /api/appearance/logo` is already public
+ * and sha-addressed. What is missing is only the knowledge that one exists.
+ */
+
+/** Longest site name the settings screen accepts (`SITE_NAME_MAX` in mantle). */
+export const SITE_NAME_MAX = 40;
+
+/** The product's own name — the last fallback, never a stored value. */
+export const FALLBACK_NAME = 'Jackdaw';
+
+export type BrandFields = {
+  siteName: string | null;
+  peerName: string | null;
+  /** Cache-busting version of the light/base logo; set ⇒ an upload exists. */
+  logoVersion: string | null;
+  /** The dark upload. Either variant may exist alone — a supported state. */
+  logoDarkVersion: string | null;
+};
+
+/** Trimmed non-empty string, or null. Anything else (number, object, '') is
+ *  treated as absent rather than coerced — a half-typed payload must not put
+ *  `[object Object]` on the login screen. */
+function str(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t ? t : null;
+}
+
+export function readBrandFields(a: BrainAppearance | null | undefined): BrandFields {
+  // One cast, here, for the reason in the file header: the pinned
+  // `BrainAppearance` does not declare these, and the runtime may still send
+  // them. Read through `str` so nothing unexpected reaches the DOM.
+  const raw = (a ?? {}) as Record<string, unknown>;
+  return {
+    siteName: str(raw.siteName)?.slice(0, SITE_NAME_MAX) ?? null,
+    peerName: str(raw.peerName),
+    logoVersion: str(raw.logoVersion),
+    logoDarkVersion: str(raw.logoDarkVersion),
+  };
+}
+
+/**
+ * Which rung of the ladder the login screen shows.
+ *
+ *  - `logo`    — an upload exists; show it (either variant counts).
+ *  - `name`    — no upload, but the brain is named; set the name in the chosen
+ *                logo face at the chosen size.
+ *  - `jackdaw` — neither; the stacked Jackdaw lockup, exactly as before.
+ *
+ * The lockup stays the FINAL fallback rather than being replaced. Its own note
+ * on the login page calls it "the only surface that gets the full mark", so
+ * overriding it is deliberate and only ever when the owner has said what to
+ * put there instead.
+ */
+export type LoginBrand = {
+  kind: 'logo' | 'name' | 'jackdaw';
+  /** What to call this brain: the site name, else the product name. Used for
+   *  the wordmark, the logo's alt text and the tab. */
+  name: string;
+  /**
+   * Whether that name is the OWNER's or ours — which `kind` cannot answer on
+   * its own. A brain with a logo AND a name is `kind: 'logo'`, and if only the
+   * dark variant was uploaded the light theme still has to fall back to
+   * something: this says whether that something is the name or the lockup.
+   */
+  named: boolean;
+  logoVersion: string | null;
+  logoDarkVersion: string | null;
+  peerName: string | null;
+};
+
+export function resolveLoginBrand(fields: BrandFields): LoginBrand {
+  const { siteName, peerName, logoVersion, logoDarkVersion } = fields;
+  return {
+    kind: logoVersion || logoDarkVersion ? 'logo' : siteName ? 'name' : 'jackdaw',
+    name: siteName ?? FALLBACK_NAME,
+    named: Boolean(siteName),
+    logoVersion,
+    logoDarkVersion,
+    peerName,
+  };
+}
+
+/**
+ * The browser tab's title.
+ *
+ * Every tab reads "Jackdaw" today, so several brains — or several tabs on one
+ * brain — are indistinguishable without clicking through, which is the one job
+ * a tab title has (dev task `b05a5f17`). The fallback is kept: a brain with no
+ * site name must not end up with a blank tab.
+ */
+export function brandTitle(fields: BrandFields): string {
+  return fields.siteName ?? FALLBACK_NAME;
+}
