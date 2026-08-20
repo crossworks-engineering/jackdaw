@@ -2,18 +2,13 @@
 
 import { useEffect } from 'react';
 import { SquareDashedMousePointer } from 'lucide-react';
-import { useAssistantDock, type ContextKind } from './assistant-dock';
+import { useAssistantDock, CONTEXT_KINDS, type ContextKind } from './assistant-dock';
 
-const KINDS: ReadonlySet<string> = new Set<ContextKind>([
-  'file',
-  'folder',
-  'page',
-  'note',
-  'table',
-  'journal',
-  'task',
-  'event',
-]);
+/** Derived from the union's own source of truth rather than restated, so a new
+ *  kind cannot be markable in the type but unknown here. It previously restated
+ *  the list and had already drifted — it omitted `app`, and screens emitting
+ *  `draw`/`formula` fell through to the `'file'` fallback below. */
+const KINDS: ReadonlySet<string> = new Set<string>(CONTEXT_KINDS);
 
 /**
  * Global marker pick layer. Active only while `picking`, it turns any element
@@ -23,7 +18,13 @@ const KINDS: ReadonlySet<string> = new Set<ContextKind>([
  * you navigate to a screen, then click its rows. Multi-pick: it stays on until
  * you dismiss it (the marker bubble, the Done button, or Esc).
  *
- * The highlight itself is pure CSS, keyed off `body[data-picking]` (globals.css).
+ * ⚠ There is NO highlight. This comment used to claim one — "pure CSS, keyed off
+ * `body[data-picking]` (globals.css)" — but no rule anywhere in the repo targets
+ * that attribute, so the mode turns on and nothing looks any different: there is
+ * no way to see what is markable. That missing affordance is most of why the
+ * feature goes unused. It is deliberately NOT being fixed, because the mode is
+ * slated for removal once the automatic pinned context finishes rolling out.
+ * `data-picking` is still set below — it is the mode's own state flag.
  */
 export function PickMode() {
   const { picking, stopPicking, attachContext, pendingContext, agentName } = useAssistantDock();

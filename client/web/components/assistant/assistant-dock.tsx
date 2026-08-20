@@ -73,11 +73,33 @@ type DockMsg = {
  *  `closed` is the initial/dismissed state — both render the bubble. */
 export type AssistantPanelState = 'closed' | 'open' | 'min';
 
-/** The content surfaces a marker pick can attach as assistant context. Every
- *  one is a graph node addressed by `id`; `kind` only drives the chip icon +
- *  the wording of the reference preamble the agent reads. */
-export type ContextKind =
-  'file' | 'folder' | 'page' | 'note' | 'table' | 'journal' | 'task' | 'event' | 'app';
+/** The content surfaces that can be attached as assistant context — the single
+ *  source of truth for the set. `ContextKind` is derived from it, so runtime
+ *  consumers (pick-mode's guard) and the type cannot drift apart: adding a kind
+ *  here is the only edit needed.
+ *
+ *  Every entry names a `nodes.type` in the brain, but see `ContextRef` — that
+ *  does NOT mean `id` is always a node id. */
+export const CONTEXT_KINDS = [
+  'file',
+  'folder',
+  'page',
+  'note',
+  'table',
+  'journal',
+  'task',
+  'event',
+  'app',
+  'draw',
+  'formula',
+  'email',
+  'contact',
+] as const;
+
+/** What kind of thing a context ref points at. Drives the chip icon, the wording
+ *  of the reference preamble the agent reads, and — since the ref is a typed
+ *  union — how the brain resolves `id`. */
+export type ContextKind = (typeof CONTEXT_KINDS)[number];
 
 /** A turn has settled (succeeded or failed). Surface hooks subscribe to refresh
  *  the open editor when a specialist edited the node they're showing. `nodeId`
@@ -86,8 +108,28 @@ export type ContextKind =
 export type TurnSettled = { agentSlug?: string; nodeId: string | null; status: 'done' | 'error' };
 type TurnSettledListener = (detail: TurnSettled) => void;
 
-/** A node the user marked to send to the assistant as context. */
-export type ContextRef = { id: string; kind: ContextKind; label: string };
+/** A thing the assistant should treat as context — either pinned automatically
+ *  by the open surface (`useSurfaceAssist`) or marked by hand.
+ *
+ *  ⚠ `id` is KIND-RELATIVE: it is the id the *surface* holds, which is not
+ *  always a node id. For every kind except `email` the surface id IS the node
+ *  id, so the brain's resolver is a pass-through. For `email` it is the
+ *  `emails` row id — the node id is deliberately never sent to the client — and
+ *  the brain maps it via `emails.id → emails.node_id`. Pass a node id for an
+ *  `email` ref and it resolves to nothing, silently. The brain owns resolution;
+ *  never resolve kind-relative ids on this side.
+ *
+ *  `meta` carries cheap identifying data that is NOT a node lookup, and rides
+ *  every turn alongside the ref. Use it for what disambiguates the label — a
+ *  file's folder path (two `report.pdf`s are indistinguishable otherwise), a
+ *  table's active tab, an email's `threadId`/`accountId`. Heavy content is not
+ *  meta: once the ref resolves, the agent's node tools can read the body. */
+export type ContextRef = {
+  id: string;
+  kind: ContextKind;
+  label: string;
+  meta?: Record<string, string>;
+};
 
 /** An in-node selection the current screen published — e.g. the Pages gutter
  *  marks, each with a human-readable snippet of the marked block. Rendered as
