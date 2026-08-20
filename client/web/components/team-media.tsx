@@ -22,7 +22,13 @@ import { useEffect, useState } from 'react';
 import { ImageOff, Loader2 } from 'lucide-react';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { mediaNodeId, teamMediaPath, type MediaSurface } from '@/lib/team-media';
+import {
+  drawingNodeId,
+  mediaNodeId,
+  teamDrawingPath,
+  teamMediaPath,
+  type MediaSurface,
+} from '@/lib/team-media';
 
 export type { MediaSurface };
 
@@ -50,11 +56,17 @@ export function AgentImage({
   nodeId,
   alt,
   className,
+  kind = 'image',
 }: {
   surface: MediaSurface;
   nodeId: string;
   alt?: string;
   className?: string;
+  /** Which door the bytes come from. A drawing is a `draw` NODE, not a file,
+   *  so it has its own route — the media one serves file bytes and refuses any
+   *  mime that is not an image. Everything after the fetch is identical, which
+   *  is why this is a prop and not a second component. */
+  kind?: 'image' | 'drawing';
 }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -64,7 +76,9 @@ export function AgentImage({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await teamFetch(teamMediaPath(surface, nodeId), { cache: 'no-store' });
+        const path =
+          kind === 'drawing' ? teamDrawingPath(surface, nodeId) : teamMediaPath(surface, nodeId);
+        const res = await teamFetch(path, { cache: 'no-store' });
         if (!res.ok) throw new Error(String(res.status));
         const blob = await res.blob();
         if (cancelled) return;
@@ -78,13 +92,17 @@ export function AgentImage({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [surface, nodeId]);
+  }, [surface, nodeId, kind]);
 
   if (failed) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
         <ImageOff className="size-3.5" aria-hidden />
-        {alt?.trim() ? `Couldn’t load “${alt}”` : 'Couldn’t load this image'}
+        {alt?.trim()
+          ? `Couldn’t load “${alt}”`
+          : kind === 'drawing'
+            ? 'Couldn’t load this drawing'
+            : 'Couldn’t load this image'}
       </span>
     );
   }
@@ -92,7 +110,7 @@ export function AgentImage({
     return (
       <span className="inline-flex items-center gap-1.5 px-1 py-1 text-xs text-muted-foreground">
         <Loader2 className="size-3.5 animate-spin" aria-hidden />
-        Loading image…
+        Loading {kind === 'drawing' ? 'drawing' : 'image'}…
       </span>
     );
   }
@@ -102,9 +120,14 @@ export function AgentImage({
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
-      alt={alt || 'image'}
+      alt={alt || kind}
       className={cn(
         'max-h-96 w-full cursor-zoom-in rounded-lg border border-border object-contain',
+        // A snapshot is exported light-mode WITH its own background, so it
+        // reads as a framed drawing on either page theme rather than adapting
+        // — and mangling — its own colours. The share DrawPresenter mats it the
+        // same way, deliberately.
+        kind === 'drawing' && 'bg-white',
         className,
       )}
       onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
@@ -153,8 +176,14 @@ export function AgentMediaStrip({
  * purpose (see the note in team-chat-client.tsx). This is the one marker they
  * need, and nothing else.
  *
- * A non-`media:` src falls through to a normal image, so an ordinary link to a
- * public picture still works.
+ * Two markers now: `media:<id>` for a picture the responder produced, and
+ * `draw:<id>` for a drawing. They are separate because they resolve through
+ * different routes, and a reply cannot be trusted to know which kind of node an
+ * id belongs to — `media:` pointed at a drawing should read as a broken
+ * picture, not quietly become one.
+ *
+ * A src matching neither falls through to a normal image, so an ordinary link
+ * to a public picture still works.
  */
 export function mediaMarkdownComponents(surface: MediaSurface) {
   return {
@@ -162,6 +191,8 @@ export function mediaMarkdownComponents(surface: MediaSurface) {
       const raw = typeof src === 'string' ? src : '';
       const nodeId = mediaNodeId(raw);
       if (nodeId) return <AgentImage surface={surface} nodeId={nodeId} alt={alt} />;
+      const drawId = drawingNodeId(raw);
+      if (drawId) return <AgentImage surface={surface} nodeId={drawId} alt={alt} kind="drawing" />;
       return (
         /* An author-supplied remote URL in a reply; next/image would need every
            such host allowlisted. */

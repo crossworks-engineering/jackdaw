@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mediaNodeId, teamMediaPath } from './team-media';
+import { drawingNodeId, mediaNodeId, teamDrawingPath, teamMediaPath } from './team-media';
 
 /**
  * `![alt](media:<node-id>)` is how a reply places a stored picture in the
@@ -40,5 +40,48 @@ describe('teamMediaPath', () => {
   it('routes each surface to its own authorization', () => {
     expect(teamMediaPath('forum', 'n1')).toBe('/api/team/forum/media/n1');
     expect(teamMediaPath('messages', 'n1')).toBe('/api/team/messages/media/n1');
+  });
+});
+
+/**
+ * `![alt](draw:<node-id>)` is the drawing twin. It is a SEPARATE marker on
+ * purpose: the two resolve through different routes, and a reply cannot be
+ * trusted to know which kind of node an id belongs to.
+ */
+describe('drawingNodeId', () => {
+  const ID = '0f9b1c2d-3e4f-4a5b-8c7d-9e0f1a2b3c4d';
+
+  it('reads the node id out of a draw marker', () => {
+    expect(drawingNodeId(`draw:${ID}`)).toBe(ID);
+    expect(drawingNodeId(`draw: ${ID} `)).toBe(ID);
+  });
+
+  it('does not answer for the other marker, in either direction', () => {
+    // The whole reason they are separate. `media:` on a drawing must read as a
+    // broken picture, not quietly become a drawing.
+    expect(drawingNodeId(`media:${ID}`)).toBeNull();
+    expect(mediaNodeId(`draw:${ID}`)).toBeNull();
+  });
+
+  it('rejects a malformed id rather than turning it into a request', () => {
+    expect(drawingNodeId('draw:not-a-uuid')).toBeNull();
+    expect(drawingNodeId('draw:')).toBeNull();
+    expect(drawingNodeId('draw:../../api/draws/secret')).toBeNull();
+  });
+
+  it('handles absent srcs', () => {
+    expect(drawingNodeId(undefined)).toBeNull();
+    expect(drawingNodeId(null)).toBeNull();
+  });
+});
+
+describe('teamDrawingPath', () => {
+  it('routes each surface to its own authorization', () => {
+    expect(teamDrawingPath('forum', 'n1')).toBe('/api/team/forum/drawing/n1');
+    expect(teamDrawingPath('messages', 'n1')).toBe('/api/team/messages/drawing/n1');
+  });
+
+  it('is not the media path — a drawing is a node, not a file', () => {
+    expect(teamDrawingPath('forum', 'n1')).not.toBe(teamMediaPath('forum', 'n1'));
   });
 });
