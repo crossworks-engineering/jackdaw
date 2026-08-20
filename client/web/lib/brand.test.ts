@@ -33,14 +33,14 @@ describe('readBrandFields', () => {
     // will send, arriving through a type that knows nothing about it.
     const payload = {
       colorTheme: 'slate',
-      siteName: 'Pinnacle',
-      peerName: 'natref',
+      siteName: 'Northwind',
+      peerName: 'westmill',
       logoVersion: 'a1b2c3d4',
       logoDarkVersion: 'e5f6a7b8',
     } as never;
     expect(readBrandFields(payload)).toEqual({
-      siteName: 'Pinnacle',
-      peerName: 'natref',
+      siteName: 'Northwind',
+      peerName: 'westmill',
       logoVersion: 'a1b2c3d4',
       logoDarkVersion: 'e5f6a7b8',
     });
@@ -67,9 +67,9 @@ describe('readBrandFields', () => {
   });
 
   it('trims, and treats whitespace-only as absent', () => {
-    const padded = { siteName: '  Pinnacle  ', peerName: '   ' } as never;
+    const padded = { siteName: '  Northwind  ', peerName: '   ' } as never;
     const got = readBrandFields(padded);
-    expect(got.siteName).toBe('Pinnacle');
+    expect(got.siteName).toBe('Northwind');
     expect(got.peerName).toBeNull();
   });
 
@@ -81,10 +81,10 @@ describe('readBrandFields', () => {
 
 describe('resolveLoginBrand', () => {
   it('shows an uploaded logo when there is one', () => {
-    const brand = resolveLoginBrand({ ...NONE, siteName: 'Pinnacle', logoVersion: 'a1b2c3d4' });
+    const brand = resolveLoginBrand({ ...NONE, siteName: 'Northwind', logoVersion: 'a1b2c3d4' });
     expect(brand.kind).toBe('logo');
     // The name still travels — it is the logo's alt text.
-    expect(brand.name).toBe('Pinnacle');
+    expect(brand.name).toBe('Northwind');
   });
 
   it('shows the logo when only the DARK variant was uploaded', () => {
@@ -94,9 +94,9 @@ describe('resolveLoginBrand', () => {
   });
 
   it('falls back to the site name when there is no logo', () => {
-    const brand = resolveLoginBrand({ ...NONE, siteName: 'Pinnacle' });
+    const brand = resolveLoginBrand({ ...NONE, siteName: 'Northwind' });
     expect(brand.kind).toBe('name');
-    expect(brand.name).toBe('Pinnacle');
+    expect(brand.name).toBe('Northwind');
   });
 
   it('falls back to the Jackdaw lockup when the brain has said nothing', () => {
@@ -108,29 +108,29 @@ describe('resolveLoginBrand', () => {
   it('carries the peer name on every rung', () => {
     // It is a second line under the mark, not an alternative to it.
     for (const fields of [
-      { ...NONE, peerName: 'natref', logoVersion: 'a1b2c3d4' },
-      { ...NONE, peerName: 'natref', siteName: 'Pinnacle' },
-      { ...NONE, peerName: 'natref' },
+      { ...NONE, peerName: 'westmill', logoVersion: 'a1b2c3d4' },
+      { ...NONE, peerName: 'westmill', siteName: 'Northwind' },
+      { ...NONE, peerName: 'westmill' },
     ]) {
-      expect(resolveLoginBrand(fields).peerName).toBe('natref');
+      expect(resolveLoginBrand(fields).peerName).toBe('westmill');
     }
   });
 });
 
 describe('brandTitle', () => {
   it('names the brain when it has a name', () => {
-    expect(brandTitle({ ...NONE, siteName: 'Pinnacle' })).toBe('Pinnacle');
+    expect(brandTitle({ ...NONE, siteName: 'Northwind' })).toBe('Northwind');
   });
 
   it('falls back to the PEER name — the whole point of the complaint', () => {
     // Naming the box is part of standing it up; a site name is branding someone
     // chooses to set. Without this rung a fleet of unbranded boxes stays a row
     // of identical "Jackdaw" tabs, which is exactly what was being reported.
-    expect(brandTitle({ ...NONE, peerName: 'natref' })).toBe('natref');
+    expect(brandTitle({ ...NONE, peerName: 'westmill' })).toBe('westmill');
   });
 
   it('prefers the site name over the peer name when both are set', () => {
-    expect(brandTitle({ ...NONE, siteName: 'Pinnacle', peerName: 'natref' })).toBe('Pinnacle');
+    expect(brandTitle({ ...NONE, siteName: 'Northwind', peerName: 'westmill' })).toBe('Northwind');
   });
 
   it('never yields a blank tab', () => {
@@ -150,11 +150,11 @@ describe('the mark and the tab disagree on purpose', () => {
     // name identifies a box — it is not a thing to set in a display face where
     // a logo would go, and the login screen already shows it on its own line
     // under the mark.
-    const fields = { ...NONE, peerName: 'natref' };
-    expect(brandTitle(fields)).toBe('natref');
+    const fields = { ...NONE, peerName: 'westmill' };
+    expect(brandTitle(fields)).toBe('westmill');
     const brand = resolveLoginBrand(fields);
     expect(brand.kind).toBe('jackdaw');
     expect(brand.name).toBe(FALLBACK_NAME);
-    expect(brand.peerName).toBe('natref');
+    expect(brand.peerName).toBe('westmill');
   });
 });

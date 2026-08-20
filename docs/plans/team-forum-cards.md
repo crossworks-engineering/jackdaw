@@ -239,7 +239,7 @@ cookie or a localStorage bearer, and a tag can only send the cookie — so a pla
 fetches through `teamFetch` and renders an object URL. Anything new that loads
 bytes goes through the same door.
 
-**And the thing that actually blocks pictures on NATREF is still not code.**
+**And the thing that actually blocks pictures on the customer brain is still not code.**
 `team-responder` holds two tool groups (`team-read`, `formulas-eval`);
 `show_image` lives in `files`, which is not granted. Until that grant lands
 nothing in this section changes what a member sees. Jason chose to grant the
@@ -261,7 +261,7 @@ Each step ships on its own. The numbering is dependency, not priority.
    lands before §3 so the Forum consumes it rather than inventing a class.
 3. **§2 + §3 + §4 together** — the scaffold, the card and inline opening are one
    change; splitting them ships a screen that is half-ported.
-4. **§5 the renderer** — separable, and paced by the NATREF tool grant it is
+4. **§5 the renderer** — separable, and paced by the customer's tool grant it is
    waiting on anyway.
 
 ## Verify

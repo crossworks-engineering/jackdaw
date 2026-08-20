@@ -2,12 +2,12 @@
 
 > **STATUS — 2026-08-19, evening. DONE, VERIFIED LIVE.** §3 steps 1–3 shipped
 > in mantle v0.230.69 and jackdaw v0.4.1; step 4 completed the same day —
-> NATREF rolled (server v0.230.70, client v0.4.2), the `files` group granted
+> the customer brain rolled (server v0.230.70, client v0.4.2), the `files` group granted
 > to `team-responder`, and the LVC question re-asked in the original topic:
 > **the chart renders inline in the forum thread.** §7 records what was built
 > and the two things the plan did not anticipate.
 
-**Reported by Jason**, from the NATREF forum: *"the system was unable to render
+**Reported by Jason**, from the customer's forum: *"the system was unable to render
 some images. Can we make sure our capabilities match the owner chat agent."*
 
 It is not a rendering bug. The agent diagnosed itself correctly, in public, in
@@ -30,7 +30,7 @@ Fixing any one alone changes nothing a member can see.
 
 ### 1a. The tool is not granted (data, per brain)
 
-Measured on NATREF, `agents.tool_group_slugs`:
+Measured on the customer brain, `agents.tool_group_slugs`:
 
 | agent | groups |
 |---|---|
@@ -92,9 +92,9 @@ opt-in**. It exists on exactly four tools:
 
 **No `files` tool carries it.** So the grant is literal: a member-facing
 responder gets `file_read` over the owner's entire file store, plus
-`file_create`, `file_rename` and `folder_rename` — writes. On NATREF that store
+`file_create`, `file_rename` and `folder_rename` — writes. On the customer brain that store
 holds the RBI status reports the LVC charts were extracted from, and whatever
-else Pinnacle has ingested.
+else the customer has ingested.
 
 If that is not intended, the narrowing is one line — a new tool group holding
 `show_image` + `file_get` only, granted instead of `files`. Everything else in
@@ -147,12 +147,12 @@ Two decisions, in order:
 
 ### Step 4 — release and roll
 
-mantle release, jackdaw release, then NATREF: `MANTLE_IMAGE_TAG` +
+mantle release, jackdaw release, then the customer brain: `MANTLE_IMAGE_TAG` +
 `MANTLE_CLIENT_IMAGE_TAG`, both stacks. See the roll journal
 (`bada3bce-ff39-4e97-a509-a96e3ab35ff0` on the dev brain) — the client stack is
 rolled SEPARATELY and a plain `compose up` silently skips it.
 
-Then grant the group on NATREF (owner UI → Settings → Agents → Team Responder,
+Then grant the group on the customer brain (owner UI → Settings → Agents → Team Responder,
 or `tool_group_slugs`), and re-ask the LVC question in the same topic.
 
 ---
@@ -172,7 +172,7 @@ or `tool_group_slugs`), and re-ask the LVC question in the same topic.
 5. **Team chat's `attachments` column is unused today.** Writing it changes what
    `/api/team/messages` returns; check the member client tolerates the new field
    before the server ships.
-6. **NATREF's team chat is dormant** — newest message 2026-07-17. The forum is
+6. **The customer's team chat is dormant** — newest message 2026-07-17. The forum is
    the live surface (199 posts, active today). Test there.
 
 ---
@@ -248,7 +248,7 @@ or `tool_group_slugs`), and re-ask the LVC question in the same topic.
 
 ### Still not done
 
-- **The tool grant.** Nothing changes on NATREF until `team-responder` gets a
+- **The tool grant.** Nothing changes on the customer brain until `team-responder` gets a
   group containing `show_image`. Jason chose `files`; §2 is what that costs and
   the narrowing is still one line.
 - **e2e.** Never run against any of this — it needs the hermetic local stack.
