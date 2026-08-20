@@ -20,7 +20,12 @@ export function TeamOverview() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-      <div className="mx-auto w-full max-w-3xl px-6 py-10">
+      {/* Centred, unlike every SECTION on this shell — a landing page has no
+          list beside it to align to, and a welcome that starts at the far left
+          of a 2000px display reads as a fragment rather than a front door.
+          5xl rather than 3xl because the tile grid is nine sections: at 3xl the
+          third column ended mid-display with the rest of the width unused. */}
+      <div className="mx-auto w-full max-w-5xl px-6 py-10">
         <h1 className="text-2xl font-semibold tracking-tight">
           {firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
         </h1>
@@ -33,7 +38,7 @@ export function TeamOverview() {
           <StartTopicComposer />
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {/* Sections only — the Dashboard nav entry IS this screen. */}
           {WORKSPACE_NAV.filter((item) => item.type !== 'dashboard').map((item) => {
             const count = data.counts[item.type] ?? 0;

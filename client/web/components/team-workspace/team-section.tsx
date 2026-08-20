@@ -63,7 +63,7 @@ import {
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
-import { formatDate } from '@mantle/web-ui/lib/format-datetime';
+import { formatDate, formatDayTime } from '@mantle/web-ui/lib/format-datetime';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { OpenShare } from './open-on-server';
@@ -88,6 +88,10 @@ type Item = {
   mode: 'team' | 'public';
   parentId: string | null;
   tags: string[];
+  /** EVENTS ONLY — when the event HAPPENS, not when its row was written.
+   *  Optional: it arrives with the brain that ships it, and an older server
+   *  simply omits it, in which case the card falls back to `updatedAt`. */
+  startsAt?: string | null;
 };
 
 type TagCount = { tag: string; count: number };
@@ -346,57 +350,79 @@ export function TeamSection({
    * to find a page by name, and two pages that differ only past the ellipsis
    * are the same card to a reader.
    */
-  const itemCard = (item: (typeof treeItems)[number], subPages: number | null) => (
-    <li key={item.token}>
-      <ListCard onClick={() => openItem(item)} selected={item.token === selectedToken}>
-        {/* The icon is a fixed-width SLOT, not an inline prefix. Inline, a row
+  const itemCard = (item: (typeof treeItems)[number], subPages: number | null) => {
+    // Guarded on the type as well as the field: only the events section should
+    // grow a lead time line, and only when the brain actually sent one.
+    const eventStart = type === 'event' ? (item.startsAt ?? null) : null;
+    return (
+      <li key={item.token}>
+        <ListCard onClick={() => openItem(item)} selected={item.token === selectedToken}>
+          {/* The icon is a fixed-width SLOT, not an inline prefix. Inline, a row
             with an icon starts further right than one without and the titles
             stop lining up down the column — which is most of what makes a list
             hard to scan. The owner cards resolved this the same way. */}
-        <div className="flex items-start gap-2">
-          <span className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
-            {item.icon ?? TYPE_ICON[type] ?? '📄'}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <ListCardTitle wrap={subPages !== null} className="min-w-0 flex-1">
-                {item.title}
-              </ListCardTitle>
-              {item.mode === 'public' && (
-                <Globe
-                  className="size-3 shrink-0 text-muted-foreground"
-                  aria-label="Also shared publicly"
-                />
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+              {item.icon ?? TYPE_ICON[type] ?? '📄'}
+            </span>
+            <div className="min-w-0 flex-1">
+              {/* An event's WHEN is its identity — a member scanning this column
+                is asking "what is coming up", and a title alone cannot answer
+                that. So the time leads, above the title, rather than sitting
+                in the muted meta line where every other type's date goes.
+                Inside `min-w-0 flex-1`, so the titles still line up down the
+                column against the icon slot. */}
+              {eventStart && (
+                <p className="mb-0.5 text-xs font-medium tabular-nums text-primary-ink">
+                  {formatDayTime(eventStart)}
+                </p>
               )}
-            </div>
-            {item.summary && <ListCardSnippet>{item.summary}</ListCardSnippet>}
-            {/* The tags were in the payload all along and never rendered, while
+              <div className="flex items-baseline justify-between gap-2">
+                <ListCardTitle wrap={subPages !== null} className="min-w-0 flex-1">
+                  {item.title}
+                </ListCardTitle>
+                {item.mode === 'public' && (
+                  <Globe
+                    className="size-3 shrink-0 text-muted-foreground"
+                    aria-label="Also shared publicly"
+                  />
+                )}
+              </div>
+              {item.summary && <ListCardSnippet>{item.summary}</ListCardSnippet>}
+              {/* The tags were in the payload all along and never rendered, while
                 the header above offers a tag FILTER built from them — so a
                 member could filter by a tag no card ever showed. */}
-            {item.tags.length > 0 && (
-              <ListCardTags>
-                {item.tags.map((t) => (
-                  <TagPill key={t} tag={t} />
-                ))}
-              </ListCardTags>
-            )}
-            <ListCardMeta className="flex items-center gap-1.5">
-              <span>{formatDate(item.updatedAt)}</span>
-              {subPages !== null && subPages > 0 && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span className="inline-flex items-center gap-0.5 tabular-nums">
-                    {subPages} sub-page{subPages === 1 ? '' : 's'}
-                    <ChevronRight className="size-3.5 opacity-70" aria-hidden />
-                  </span>
-                </>
+              {item.tags.length > 0 && (
+                <ListCardTags>
+                  {item.tags.map((t) => (
+                    <TagPill key={t} tag={t} />
+                  ))}
+                </ListCardTags>
               )}
-            </ListCardMeta>
+              <ListCardMeta className="flex items-center gap-1.5">
+                {/* `Updated` is only worth the word where a bare date would now
+                  be ambiguous — an event card already shows one above. */}
+                <span>
+                  {eventStart
+                    ? `Updated ${formatDate(item.updatedAt)}`
+                    : formatDate(item.updatedAt)}
+                </span>
+                {subPages !== null && subPages > 0 && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="inline-flex items-center gap-0.5 tabular-nums">
+                      {subPages} sub-page{subPages === 1 ? '' : 's'}
+                      <ChevronRight className="size-3.5 opacity-70" aria-hidden />
+                    </span>
+                  </>
+                )}
+              </ListCardMeta>
+            </div>
           </div>
-        </div>
-      </ListCard>
-    </li>
-  );
+        </ListCard>
+      </li>
+    );
+  };
 
   return (
     <MasterDetail
@@ -417,6 +443,14 @@ export function TeamSection({
       // Style guide §8 is explicit that the prop belongs to content that is
       // NOT reading text, so it is granted by type rather than by default.
       {...paneShape(type)}
+      // The list clamps match the FORUM's (topic-list-client.tsx), because the
+      // cards are the same shape: an icon slot, a title, a summary line, tags
+      // and a meta row. The scaffold's 260/340/560 defaults were tuned for a
+      // one-line settings row, so the summary had ~120px less than the forum
+      // gave the identical element on the screen next door.
+      minListSize="220px"
+      defaultListSize="360px"
+      maxListSize="720px"
       list={
         // `h-full`, not `flex-1`: MasterDetail's pane wrappers are blocks, so a
         // flex property here would be inert and the column would size to its
