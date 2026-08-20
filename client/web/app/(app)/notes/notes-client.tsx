@@ -270,12 +270,26 @@ export function NotesClient() {
         defaultListSize="380px"
         minListSize="300px"
         maxListSize="760px"
-        // The detail is a full-bleed markdown EDITOR (and the preview beside
-        // it), not a form that needs protecting from a long line. It also has
-        // to absorb the list's width in focus mode — that mode is literally
-        // called "full width", and with the default spacer the freed pixels
-        // would go to an empty panel instead.
-        detailFills
+        // A note is PROSE, so it takes the three-panel default: a bounded card
+        // with a real grab handle and the spacer holding the slack, the way
+        // Formulas and Contacts read. It opens at 900px — the measure /pages
+        // chose — and `maxDetailSize="100%"` leaves its own handle no ceiling,
+        // so a member who wants the whole window can still drag for it.
+        //
+        // ⚠ This was `detailFills`, and both halves of the comment defending it
+        // were wrong. A markdown editor is text the writer READS while writing;
+        // style guide §8 puts prose under the default and says so twice,
+        // naming `/pages` shipping `detailFills` as the mistake. And the mode
+        // below is not "literally called full width" — focus-toggle.tsx labels
+        // it "Focus mode". For prose the guide is explicit that focus should
+        // remove the CHROME, not re-flow the paragraph the writer is in the
+        // middle of, which is exactly what the spacer absorbing the freed width
+        // does. `/pages` keeps its spacer for that reason; so does this now.
+        defaultDetailSize="900px"
+        // 480, like /pages: this pane holds the editor AND the preview beside
+        // it, and two columns inside the 420px default is not two columns.
+        minDetailSize="480px"
+        maxDetailSize="100%"
         // Focus mode. The list COLLAPSES rather than unmounting, so the search
         // box, scroll position and page survive the round trip — see the prop's
         // note in master-detail.tsx.

@@ -134,6 +134,51 @@ const TYPE_ICON: Record<string, string> = {
   branch: '📁',
 };
 
+/**
+ * How the detail pane is shaped, per section type — style guide §8's table,
+ * applied to the eight `/team` sections.
+ *
+ * Three shapes, and the question that picks one is always the same: is this
+ * content the member READS, or content that was short of room?
+ *
+ * - **Fills** — `table`, `branch` (a file listing), `app`, `draw`. Not reading
+ *   text. A cap would shrink the thing the screen exists for, so the detail
+ *   takes the slack and there is no spacer.
+ * - **Prose** — `note`, `page`. Wants a measure AND a right edge. The
+ *   three-panel default gives it both: it opens readable at 900px, tucks left,
+ *   and `maxDetailSize="100%"` means its own handle has no ceiling, so a member
+ *   who wants the whole window can still drag for it. `/pages` shipped
+ *   `detailFills` for prose once and it was wrong — the page just sprawled.
+ * - **Bounded** — `task`, `event`. A short stack of metadata: status chips, a
+ *   time, a location, a body. The 672px default is the measure that stops it
+ *   spreading a four-line item across a 2000px pane.
+ *
+ * ⚠ Safe to vary per type because `type` is fixed for the life of a mount —
+ * each section is its own route. `detailFills` changes the PANEL SET, not just
+ * sizing, and `react-resizable-panels` keys saved layout on panel identity, so
+ * a value that toggled at runtime would swap `[LIST, DETAIL]` ↔
+ * `[LIST, DETAIL, SPACER]` under a saved layout. Nothing here toggles, and
+ * `id={team-<type>}` already gives each section its own storage key.
+ */
+function paneShape(type: string): {
+  detailFills?: true;
+  defaultDetailSize?: string;
+  maxDetailSize?: string;
+} {
+  switch (type) {
+    case 'table':
+    case 'branch':
+    case 'app':
+    case 'draw':
+      return { detailFills: true };
+    case 'note':
+    case 'page':
+      return { defaultDetailSize: '900px', maxDetailSize: '100%' };
+    default:
+      return {};
+  }
+}
+
 export function TeamSection({
   type,
   emptyHint,
@@ -358,11 +403,20 @@ export function TeamSection({
       // Per SECTION, so Notes and Tables each remember their own width — the
       // same per-view rule /tasks and /tasks-board follow.
       id={`team-${type}`}
-      // The reader is not a form. The 672px default measure exists to stop a
-      // form running to 1200px line lengths; a shared page, table or app
-      // viewport wants every pixel, so the detail takes the slack and there is
-      // no spacer.
-      detailFills
+      // ⚠ Per TYPE. This used to be an unconditional `detailFills`, and that
+      // one word is what made the pane feel wrong in two different directions.
+      //
+      // `detailFills` drops the SPACER and the detail's max size, so the pane
+      // has no right edge and the divider shoves a boundary instead of sizing
+      // a card. With the presenters' old `mx-auto max-w-2xl` inside it, that
+      // read as a box floating in the middle of a 2000px pane; once the
+      // presenters went `chrome="embedded"` and lost the cap, the same pane
+      // read as content hugging the left with dead space beside it. One prop,
+      // both complaints.
+      //
+      // Style guide §8 is explicit that the prop belongs to content that is
+      // NOT reading text, so it is granted by type rather than by default.
+      {...paneShape(type)}
       list={
         // `h-full`, not `flex-1`: MasterDetail's pane wrappers are blocks, so a
         // flex property here would be inert and the column would size to its
