@@ -62,10 +62,12 @@ export function TeamTaskComments({ nodeId }: { nodeId: string }) {
       pending={commentsQuery.isPending}
       roleChip={ROLE_CHIP}
       onSend={send}
-      // Matches `TaskPresenter`'s own measure above it (`mx-auto max-w-2xl
-      // px-6`), so the thread lines up with the task it discusses instead of
-      // running the full width of the reader.
-      className="mx-auto max-w-2xl px-6 pb-12"
+      // Tracks `TaskPresenter` above it, which is why this changed with it:
+      // the presenter runs `chrome="embedded"` on this surface now (`w-full
+      // px-6`), so a `mx-auto max-w-2xl` thread would sit centred under a
+      // full-width task — the mismatch the shared measure existed to prevent,
+      // just inverted. Same padding, no cap.
+      className="w-full px-6 pb-12"
     />
   );
 }

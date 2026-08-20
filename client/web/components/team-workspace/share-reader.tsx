@@ -35,6 +35,7 @@ import {
   TableRow,
 } from '@mantle/web-ui/ui/table';
 import { formatBytes } from '@mantle/web-ui/lib/format-bytes';
+import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { describeFile } from '@mantle/web-ui/lib/mime-label';
 import { cn } from '@mantle/web-ui/lib/utils';
 import type { ShareViewPayload, ShareFolderListing } from '@mantle/share-ui/view-payload';
@@ -175,18 +176,27 @@ export function ShareReader({
     // scrollbar that clips the bottom of a long page or table. See the style
     // guide §8 — min-h-0 sizes the pane, `relative` closes the boundary.
     <div className="relative min-h-0 flex-1 overflow-y-auto scrollbar-thin bg-background">
+      {/* `chrome="embedded"` on every presenter: this pane already draws the
+          title in TeamSection's §8 header and owns the padding, so the
+          standalone page's hero title and centred cap are both wrong here.
+          The public /s page passes nothing and keeps the centred form —
+          'share' is the default for exactly that reason. share-ui ≥ 0.231.0. */}
       {view.kind === 'page' && <PageReader view={view} />}
-      {view.kind === 'note' && <NotePresenter view={view} />}
-      {view.kind === 'draw' && <DrawPresenter view={view} src={`/s/${token}/draw`} />}
+      {view.kind === 'note' && <NotePresenter view={view} chrome="embedded" />}
+      {view.kind === 'draw' && (
+        <DrawPresenter view={view} src={`/s/${token}/draw`} chrome="embedded" />
+      )}
       {view.kind === 'task' && (
         <>
-          <TaskPresenter view={view} />
+          <TaskPresenter view={view} chrome="embedded" />
           {nodeId && <TeamTaskComments nodeId={nodeId} />}
         </>
       )}
-      {view.kind === 'event' && <EventPresenter view={view} />}
-      {view.kind === 'file' && <FilePresenter view={view} assetUrl={assetUrl(token)} />}
-      {view.kind === 'table' && <TablePresenter view={view} token={token} />}
+      {view.kind === 'event' && <EventPresenter view={view} chrome="embedded" />}
+      {view.kind === 'file' && (
+        <FilePresenter view={view} assetUrl={assetUrl(token)} chrome="embedded" />
+      )}
+      {view.kind === 'table' && <TablePresenter view={view} token={token} chrome="embedded" />}
       {view.kind === 'formula' && (
         <FormulaPresenter
           view={view}
@@ -208,14 +218,22 @@ export function ShareReader({
 
 /** Pre-rendered page html + outline — the inline twin of PagePresenter (which
  *  stays server-side with renderPageDoc). Same container classes, so the
- *  editor CSS in globals.css styles it identically. */
+ *  editor CSS in globals.css styles it identically.
+ *
+ *  This one is jackdaw-local, so it takes the embedded treatment directly
+ *  rather than through a `chrome` prop. It keeps its measure — a page is prose,
+ *  and the owner's own `width` choice decides it — and drops only the
+ *  standalone page's tall top padding, which is the shell's to own here. */
 function PageReader({ view }: { view: Extract<ShareViewPayload, { kind: 'page' }> }) {
   const widthClass = view.width === 'wide' ? 'max-w-5xl' : 'max-w-3xl';
   return (
-    <div className="flex w-full gap-8 px-6 py-12 md:py-16">
+    <div className="flex w-full gap-8 px-6 py-6">
       {view.toc.length > 0 && (
         <aside className="hidden w-56 shrink-0 xl:block">
-          <div className="sticky top-12 max-h-[calc(100dvh-6rem)] overflow-y-auto scrollbar-thin">
+          {/* `top-0`, not `top-12`: the offset was matching the py-12 the
+              container no longer has, so the outline would have stuck a
+              half-screen below where the prose starts. */}
+          <div className="sticky top-0 max-h-[calc(100dvh-6rem)] overflow-y-auto scrollbar-thin">
             <PageOutline entries={view.toc} />
           </div>
         </aside>
@@ -240,7 +258,7 @@ function PageReader({ view }: { view: Extract<ShareViewPayload, { kind: 'page' }
  *  800 rows painted at once. */
 const FOLDER_PAGE = 200;
 
-type SortKey = 'name' | 'type' | 'size';
+type SortKey = 'name' | 'type' | 'size' | 'modified';
 
 /** One listing row, folders and files flattened to the same shape so a single
  *  comparator can sort both — with `isFolder` kept so folders still group
@@ -255,6 +273,11 @@ type Row = {
    *  the two never share a sort bucket. */
   size: number;
   sizeLabel: string;
+  /** Epoch ms for sorting; 0 when the server did not send one. A folder has no
+   *  mtime of its own in the share payload, so it sorts to the bottom of its
+   *  own group rather than pretending to a date. */
+  modified: number;
+  modifiedLabel: string;
   /** Folders navigate, files download. Exactly one is set. */
   sub?: string;
   href?: string;
@@ -322,6 +345,8 @@ function FolderReader({
         icon: FolderIcon as LucideIcon,
         size: f.fileCount,
         sizeLabel: `${f.fileCount} file${f.fileCount === 1 ? '' : 's'}`,
+        modified: 0,
+        modifiedLabel: '—',
         sub: f.path.slice(rootPath.length + 1),
       })),
       ...files.map((f) => {
@@ -334,6 +359,11 @@ function FolderReader({
           icon: described.icon,
           size: f.sizeBytes,
           sizeLabel: formatBytes(f.sizeBytes),
+          // `updatedAt` is optional: it arrived with share-ui 0.231.0, so a
+          // brain still on an older server sends a payload without it. An
+          // em dash is the honest answer, not a fabricated date.
+          modified: f.updatedAt ? Date.parse(f.updatedAt) : 0,
+          modifiedLabel: f.updatedAt ? formatDateTime(f.updatedAt) : '—',
           href: toAsset(f.id),
           filename: f.filename,
         };
@@ -346,6 +376,12 @@ function FolderReader({
       // the names, not turn the listing inside out.
       if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
       if (sort.key === 'size') return (a.size - b.size) * dir;
+      // Undated rows hold the bottom in BOTH directions — flipping the sort
+      // should reorder the dates, not float the blanks to the top.
+      if (sort.key === 'modified') {
+        if (!a.modified || !b.modified) return a.modified ? -1 : b.modified ? 1 : 0;
+        return (a.modified - b.modified) * dir;
+      }
       const left = sort.key === 'type' ? a.typeLabel : a.name;
       const right = sort.key === 'type' ? b.typeLabel : b.name;
       // `numeric` so `page2` sorts before `page10`, which plain lexical order
@@ -417,6 +453,13 @@ function FolderReader({
                 >
                   Size
                 </SortableHead>
+                <SortableHead
+                  className="hidden w-44 lg:table-cell"
+                  {...sortProps('modified')}
+                  active={sort.key === 'modified'}
+                >
+                  Modified
+                </SortableHead>
                 <TableHead className="w-32 pr-4">
                   <span className="sr-only">Download</span>
                 </TableHead>
@@ -447,6 +490,11 @@ function FolderReader({
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-right tabular-nums text-muted-foreground">
                     {r.sizeLabel}
+                  </TableCell>
+                  {/* Hidden below lg: the pane can be dragged down to 420px,
+                      and Name/Type/Size are what a member is scanning for. */}
+                  <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">
+                    {r.modifiedLabel}
                   </TableCell>
                   <TableCell className="pr-4 text-right">
                     {r.href && (
