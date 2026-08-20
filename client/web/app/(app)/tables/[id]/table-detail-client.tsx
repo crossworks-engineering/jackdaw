@@ -391,8 +391,19 @@ export function TableDetailClient({
       // re-read failed; the edit still landed server-side — a reload reconciles.
     }
   }, [reloadTab]);
+  // The open tab rides along as meta. A workbook's title alone doesn't say which
+  // sheet you're looking at, so "sort this by date" would be ambiguous without
+  // it: the name is what the user means by "this tab", the id is what the table
+  // tools act on. Legacy JSONB tables have no tabs, and then there's nothing to
+  // say — a single grid is unambiguous.
+  const activeTabInfo = tabs?.find((t) => t.id === activeTab);
   const { busy: assistBusy } = useSurfaceAssist({
-    node: { id: initial.id, kind: 'table', label: title || 'Untitled table' },
+    node: {
+      id: initial.id,
+      kind: 'table',
+      label: title || 'Untitled table',
+      ...(activeTabInfo ? { meta: { tab: activeTabInfo.name, tabId: activeTabInfo.id } } : {}),
+    },
     onEdited: onTableEdited,
   });
 
