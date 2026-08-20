@@ -20,6 +20,7 @@ import { ShareControl } from '@/components/share-control';
 import { ExportMenu } from '@/components/export/export-menu';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { SetPageTitle } from '@/components/layout/page-title';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { ExcalidrawCanvas, type SceneChange } from '@/components/draw/excalidraw-canvas';
 import { loadSceneFiles, uploadNewSceneFiles } from '@/components/draw/scene-files';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -122,6 +123,11 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
   const toast = useToast();
 
   const [title, setTitle] = useState(initial.title);
+
+  // Pin the open drawing. Until `draw` became a context kind this screen could
+  // only be reached by marking it, which reported it to the agent as a file.
+  useSurfaceAssist({ node: { id: initial.id, kind: 'draw', label: title || 'Untitled drawing' } });
+
   const [icon, setIcon] = useState<string | null>(initial.icon);
   const [description, setDescription] = useState(initial.description ?? '');
   const [tags, setTags] = useState<string[]>(initial.tags);

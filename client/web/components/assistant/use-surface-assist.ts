@@ -33,8 +33,12 @@ import {
  * specialist is mid-edit on.
  */
 export function useSurfaceAssist(opts: {
-  /** The open node (null while it's still loading — the hook no-ops until set). */
-  node: { id: string; kind: ContextKind; label: string } | null;
+  /** The open node (null while it's still loading — the hook no-ops until set).
+   *  `meta` is cheap identifying data that rides every turn beside the ref — a
+   *  file's folder path, a table's active tab. Compared by value, so an inline
+   *  object is fine here (unlike `selection`, which is compared by identity).
+   *  See `ContextRef` for what belongs in it. */
+  node: { id: string; kind: ContextKind; label: string; meta?: Record<string, string> } | null;
   /** Focus directive to fold into the sent text, or null when nothing's focused. */
   focusDirective?: string | null;
   /** The in-node selection behind the focus directive, with human-readable
@@ -69,13 +73,27 @@ export function useSurfaceAssist(opts: {
   const nodeId = node?.id;
   const nodeKind = node?.kind;
   const nodeLabel = node?.label;
+  // Serialised for the dep array below, so a caller passing an inline `meta`
+  // object doesn't re-pin on every render. Entries are sorted so key order
+  // can't produce a spurious change.
+  const nodeMetaKey = node?.meta
+    ? JSON.stringify(Object.entries(node.meta).sort(([a], [b]) => a.localeCompare(b)))
+    : '';
 
   // Pin the open node so it rides every turn; drop it on leave / node change.
   useEffect(() => {
     if (!enabled || !nodeId || !nodeKind) return;
-    setPinnedContext([{ id: nodeId, kind: nodeKind, label: nodeLabel ?? nodeId }]);
+    const meta = nodeMetaKey
+      ? (Object.fromEntries(JSON.parse(nodeMetaKey) as [string, string][]) as Record<
+          string,
+          string
+        >)
+      : undefined;
+    setPinnedContext([
+      { id: nodeId, kind: nodeKind, label: nodeLabel ?? nodeId, ...(meta ? { meta } : {}) },
+    ]);
     return () => setPinnedContext([]);
-  }, [enabled, nodeId, nodeKind, nodeLabel, setPinnedContext]);
+  }, [enabled, nodeId, nodeKind, nodeLabel, nodeMetaKey, setPinnedContext]);
 
   // Fold the focus directive into the sent text; clear on leave / change.
   useEffect(() => {

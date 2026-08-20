@@ -7,6 +7,7 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { EventDetail, type EventRow } from '../event-detail';
 
 /**
@@ -46,6 +47,10 @@ export function EventDetailClient({ eventId }: { eventId: string }) {
 function EventDetailInner({ initial }: { initial: EventRow }) {
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
+  // Pin the open event so the assistant knows what "this" means. The title is
+  // kept in state because editing renames it live, and a stale label in the
+  // composer chip would say one thing while the screen says another.
+  useSurfaceAssist({ node: { id: initial.id, kind: 'event', label: title || 'Untitled event' } });
   return (
     <>
       <SetPageTitle title={title} />

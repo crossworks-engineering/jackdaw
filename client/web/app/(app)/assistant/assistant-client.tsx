@@ -204,7 +204,17 @@ const CONTEXT_KIND_LABEL: Record<ContextKind, string> = {
   task: 'task',
   event: 'event',
   app: 'app',
+  draw: 'drawing',
+  formula: 'formula',
+  email: 'email',
+  contact: 'contact',
 };
+
+/** Kinds whose surface `id` is NOT a node id, so the preamble must not call it
+ *  one — the brain resolves these (see `ContextRef`). Today only `email`, whose
+ *  id is the `emails` row id. Naming it "node <id>" would send the agent's node
+ *  tools after an id that cannot resolve. */
+const NON_NODE_KINDS: ReadonlySet<ContextKind> = new Set<ContextKind>(['email']);
 
 /** Render context nodes as a reference block appended to the sent message. The
  *  agent reads them via its tools (file_read / note_get / page_get / …) — node
@@ -213,7 +223,18 @@ const CONTEXT_KIND_LABEL: Record<ContextKind, string> = {
  *  responder may delegate the actual editing to a specialist, the preamble
  *  tells her to pass the node id (and any FOCUS SET) along verbatim. */
 function buildContextPreamble(pinned: ContextRef[], picked: ContextRef[]): string {
-  const line = (r: ContextRef) => `- ${CONTEXT_KIND_LABEL[r.kind]} "${r.label}" (node ${r.id})`;
+  const line = (r: ContextRef) => {
+    // `id` is kind-relative. Only claim "node" when it actually is one.
+    const ref = NON_NODE_KINDS.has(r.kind) ? `${r.kind} id ${r.id}` : `node ${r.id}`;
+    // Cheap identifying data rides along — a folder path, an active tab, a mail
+    // thread key. Sorted so the same ref always renders identically.
+    const meta = Object.entries(r.meta ?? {})
+      .filter(([, v]) => v !== '')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+    return `- ${CONTEXT_KIND_LABEL[r.kind]} "${r.label}" (${ref})${meta ? ` [${meta}]` : ''}`;
+  };
   const parts: string[] = [];
   if (pinned.length > 0) {
     parts.push(
@@ -1642,10 +1663,12 @@ export function AssistantClient({
               </div>
             )}
             {/* Context chips. The screen-pinned node (the open page/table/app)
-                shows first with a pin glyph and no remove — it's managed by the
-                screen and rides every turn. Focused-section chips (the Pages
-                gutter marks, with a snippet of each marked block) follow, so
-                it's unambiguous the assistant sees exactly what you selected.
+                shows first with a pin glyph and a distinct fill — it's managed
+                by the screen and rides every turn. It DOES render a remove: the
+                `X` dismisses it for this chat, which is how you ask a general
+                question without leaving the screen. Focused-section chips (the
+                Pages gutter marks, with a snippet of each marked block) follow,
+                so it's unambiguous the assistant sees exactly what you selected.
                 Pick-mode chips come last and clear after a send. */}
             {(allContext.length > 0 || (surfaceSelection?.items.length ?? 0) > 0) && (
               <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin">

@@ -16,6 +16,7 @@ import { MailClient } from '@/components/mail/mail-client';
 import { folderLabel } from '@/components/mail/folder-icon';
 import type { FolderLink } from '@/components/mail/mail-nav';
 import type { MailAccount } from '@/components/mail/account-switcher';
+import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 
 type MessageDetail = MessageDetailDTO;
 
@@ -102,6 +103,22 @@ export function InboxClient() {
     queryKey: ['email', 'message', selectedId],
     queryFn: () => apiFetch<MessageDetail>(`/api/email/messages/${selectedId}`),
     enabled: !!selectedId,
+  });
+
+  // Pin the open message — the case that started all of this: "respond to the
+  // opened email" had no referent, because nothing on this screen was ever
+  // markable. Note `id` here is the EMAILS-ROW id, not a node id: the node id is
+  // deliberately kept off the wire, and the brain maps it. That is what makes
+  // `kind` load-bearing rather than cosmetic. The thread key is added
+  // brain-side during resolution — the DTO doesn't carry one to send.
+  useSurfaceAssist({
+    node: selectedId
+      ? {
+          id: selectedId,
+          kind: 'email',
+          label: messageQuery.data?.email.subject || '(no subject)',
+        }
+      : null,
   });
 
   // Mark-read-on-select — mirrors the SSR page's unconditional setReadStatus on
