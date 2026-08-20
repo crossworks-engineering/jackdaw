@@ -122,11 +122,39 @@ describe('brandTitle', () => {
     expect(brandTitle({ ...NONE, siteName: 'Pinnacle' })).toBe('Pinnacle');
   });
 
+  it('falls back to the PEER name — the whole point of the complaint', () => {
+    // Naming the box is part of standing it up; a site name is branding someone
+    // chooses to set. Without this rung a fleet of unbranded boxes stays a row
+    // of identical "Jackdaw" tabs, which is exactly what was being reported.
+    expect(brandTitle({ ...NONE, peerName: 'natref' })).toBe('natref');
+  });
+
+  it('prefers the site name over the peer name when both are set', () => {
+    expect(brandTitle({ ...NONE, siteName: 'Pinnacle', peerName: 'natref' })).toBe('Pinnacle');
+  });
+
   it('never yields a blank tab', () => {
     expect(brandTitle(NONE)).toBe(FALLBACK_NAME);
   });
 
   it('does NOT follow the logo — a tab shows a name, not a picture', () => {
+    // A branded brain with no name of any kind still has nothing to WRITE in a
+    // tab, so the product name stands in rather than the logo's alt text.
     expect(brandTitle({ ...NONE, logoVersion: 'a1b2c3d4' })).toBe(FALLBACK_NAME);
+  });
+});
+
+describe('the mark and the tab disagree on purpose', () => {
+  it('a peer-named brain shows its peer in the TAB and the lockup on the SCREEN', () => {
+    // `brandTitle` takes the peer name; `resolveLoginBrand` does not. A peer
+    // name identifies a box — it is not a thing to set in a display face where
+    // a logo would go, and the login screen already shows it on its own line
+    // under the mark.
+    const fields = { ...NONE, peerName: 'natref' };
+    expect(brandTitle(fields)).toBe('natref');
+    const brand = resolveLoginBrand(fields);
+    expect(brand.kind).toBe('jackdaw');
+    expect(brand.name).toBe(FALLBACK_NAME);
+    expect(brand.peerName).toBe('natref');
   });
 });

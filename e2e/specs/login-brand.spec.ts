@@ -78,8 +78,9 @@ test.describe('login branding', () => {
     expect(res.ok()).toBeTruthy();
     const html = await res.text();
     const title = /<title[^>]*>([^<]*)<\/title>/.exec(html)?.[1];
-    // Unbranded brain ⇒ the product name. Never blank: a nameless tab is worse
-    // than a generic one.
+    // A brain with NEITHER name ⇒ the product name. Never blank: a nameless tab
+    // is worse than a generic one. (The site-name and peer-name rungs above it
+    // need the mantle field, so they live in `lib/brand.test.ts`.)
     expect(title, 'no <title> in the server-rendered HTML').toBeTruthy();
     expect(title).toBe('Jackdaw');
 

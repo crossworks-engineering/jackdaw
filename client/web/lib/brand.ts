@@ -101,13 +101,26 @@ export function resolveLoginBrand(fields: BrandFields): LoginBrand {
 }
 
 /**
- * The browser tab's title.
+ * The browser tab's title: the site name, else the PEER name, else ours.
  *
- * Every tab reads "Jackdaw" today, so several brains — or several tabs on one
- * brain — are indistinguishable without clicking through, which is the one job
- * a tab title has (dev task `b05a5f17`). The fallback is kept: a brain with no
- * site name must not end up with a blank tab.
+ * Every tab read "Jackdaw", so several brains — or several tabs on one brain —
+ * were indistinguishable without clicking through, which is the one job a tab
+ * title has (dev task `b05a5f17`).
+ *
+ * The peer name is the middle rung because it is the one thing a brain almost
+ * always has and a site name is not: naming the box is part of standing it up,
+ * whereas a site name is branding somebody chooses to set. Falling straight
+ * through to "Jackdaw" would leave a fleet of unbranded boxes looking exactly
+ * as identical as before — the whole complaint. It is also the name the login
+ * screen already shows under the mark, so the tab and the screen agree.
+ *
+ * Distinct from `LoginBrand.name`, which is a MARK and stays the site name or
+ * the product's: a peer name is an identifier for a box, not a thing to set in
+ * a display face where a logo would go.
+ *
+ * The last fallback is kept either way — a brain that has said nothing at all
+ * must not end up with a blank tab.
  */
 export function brandTitle(fields: BrandFields): string {
-  return fields.siteName ?? FALLBACK_NAME;
+  return fields.siteName ?? fields.peerName ?? FALLBACK_NAME;
 }
