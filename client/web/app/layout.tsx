@@ -19,12 +19,11 @@ import {
   resolveAppearanceAttrs,
 } from '@mantle/web-ui/appearance';
 import { loadBrainAppearance } from '@/lib/appearance';
+import { brandTitle, readBrandFields } from '@/lib/brand';
 import { MEMBER_SURFACE_HEADER } from '@/lib/member-surface';
 
 /**
- * ZERO-SECRET client root layout. No DB, no session read — the tab title is
- * the static default (the server app's logged-in metadata personalization
- * doesn't apply here; the shell adopts siteName client-side after /api/shell).
+ * ZERO-SECRET client root layout. No DB, no session read.
  *
  * The brain's SYSTEM-WIDE appearance (colour theme, the four fonts and their
  * sizes, avatar style) is
@@ -38,10 +37,31 @@ import { MEMBER_SURFACE_HEADER } from '@/lib/member-surface';
  */
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Jackdaw',
-  description: 'The data-aware workspace.',
-};
+/**
+ * The tab carries the brain's OWN name.
+ *
+ * It was the static string 'Jackdaw' on every route, so several brains — or
+ * several tabs on one brain — were indistinguishable without clicking through,
+ * which is the one job a tab title has. That was a documented compromise of the
+ * zero-secret rule, but the rule does not actually block this: the layout
+ * already fetches PUBLIC brain config server-to-server (`loadBrainAppearance`)
+ * precisely so the document arrives correct, and a site name is public branding
+ * of the same kind — not a secret.
+ *
+ * `generateMetadata` rather than the static `metadata` object, and the two
+ * cannot both be exported from one segment. Same cached fetch the layout body
+ * awaits below, so this costs no extra request.
+ *
+ * ⚠ Reads `siteName` off the appearance payload, which does not carry it YET —
+ * see `lib/brand.ts`. Until mantle ships that field the title is 'Jackdaw',
+ * exactly as before.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: brandTitle(readBrandFields(await loadBrainAppearance())),
+    description: 'The data-aware workspace.',
+  };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [appearance, hdrs] = await Promise.all([

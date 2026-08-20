@@ -126,3 +126,21 @@
 .mantle-shell[data-zen='true'] {
   --top-bar-h: 0px;
 }
+
+/* The login screen's wordmark: the brain's own name where the Jackdaw lockup
+ * would be, when an owner has named the brain but uploaded no logo.
+ *
+ * Derived from share-ui's `.wordmark` (styles/app.css) and deliberately NOT a
+ * `wordmark text-5xl` — utilities outrank that class on purpose, so a size
+ * utility would silently DEFEAT the owner's chosen logo size, which is the one
+ * thing this is supposed to honour. Same face var and same user scale; only the
+ * base changes, because a sign-in hero stands where a 180px lockup stood and
+ * the rail's 1.5rem would read as a caption there.
+ *
+ * `--wordmark-scale` still multiplies it, so Settings → Appearance → Fonts
+ * moves this exactly as it moves the rail. */
+.wordmark-login {
+  font-family: var(--font-wordmark);
+  font-size: calc(3rem * var(--wordmark-scale, 1));
+  line-height: 1.1;
+}
