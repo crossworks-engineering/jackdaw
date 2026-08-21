@@ -584,35 +584,67 @@ export function TeamSection({
         <div className={cn('flex h-full min-h-0 flex-col', !selected && 'max-md:hidden')}>
           {selected ? (
             <>
-              {/* The §8 detail header: the entity title at `text-xl
-                  font-semibold` with its glyph INSIDE the h2 (so the two share
-                  a baseline and the icon can't drift when the title wraps),
-                  `min-w-0 truncate` on the title and `shrink-0` on the actions.
-                  It used to be a centred `text-sm` paragraph, which walked the
-                  title away from the list it belongs to and read a step
-                  quieter than the cards it was heading. */}
-              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 px-3 py-2">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 md:hidden"
-                  onClick={() => select(null)}
-                  aria-label="Back to the list"
-                >
-                  <ArrowLeft />
-                </Button>
-                <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
-                  <span aria-hidden>{selected.icon ?? TYPE_ICON[type] ?? '📄'}</span>
-                  <span className="min-w-0 truncate">{selected.title}</span>
-                </h2>
-                <OpenShare
-                  token={selected.token}
-                  ariaLabel="Open in a new tab"
-                  className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'shrink-0')}
-                >
-                  <ExternalLink />
-                </OpenShare>
-              </div>
+              {type === 'app' ? (
+                /* Apps get NO title header — an app names itself in its own
+                   UI (and the card in the list already carries it), so the §8
+                   h2 was a duplicate stealing height from the app's viewport.
+                   Only the controls remain, in one slim row. */
+                <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-2 py-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 md:hidden"
+                    onClick={() => select(null)}
+                    aria-label="Back to the list"
+                  >
+                    <ArrowLeft />
+                  </Button>
+                  <div className="flex-1" />
+                  <OpenShare
+                    token={selected.token}
+                    ariaLabel="Open in a new tab"
+                    className={cn(
+                      buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
+                      'shrink-0',
+                    )}
+                  >
+                    <ExternalLink />
+                  </OpenShare>
+                </div>
+              ) : (
+                /* The §8 detail header: the entity title at `text-xl
+                   font-semibold` with its glyph INSIDE the h2 (so the two share
+                   a baseline and the icon can't drift when the title wraps),
+                   `min-w-0 truncate` on the title and `shrink-0` on the actions.
+                   It used to be a centred `text-sm` paragraph, which walked the
+                   title away from the list it belongs to and read a step
+                   quieter than the cards it was heading. */
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 px-3 py-2">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 md:hidden"
+                    onClick={() => select(null)}
+                    aria-label="Back to the list"
+                  >
+                    <ArrowLeft />
+                  </Button>
+                  <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
+                    <span aria-hidden>{selected.icon ?? TYPE_ICON[type] ?? '📄'}</span>
+                    <span className="min-w-0 truncate">{selected.title}</span>
+                  </h2>
+                  <OpenShare
+                    token={selected.token}
+                    ariaLabel="Open in a new tab"
+                    className={cn(
+                      buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
+                      'shrink-0',
+                    )}
+                  >
+                    <ExternalLink />
+                  </OpenShare>
+                </div>
+              )}
               {!isCrossOrigin() ? (
                 <ShareReader
                   key={selected.token}

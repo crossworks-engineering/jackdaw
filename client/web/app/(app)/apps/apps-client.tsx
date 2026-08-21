@@ -249,57 +249,43 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
               </div>
             </div>
           ) : (
-            <div className="flex h-full min-h-0 flex-col gap-4 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
-                    <span aria-hidden>{selected.icon ?? '🧩'}</span>
-                    <span className="min-w-0 truncate">{selected.title}</span>
-                  </h2>
-                  {selected.description && (
-                    <p className="text-sm text-muted-foreground">{selected.description}</p>
-                  )}
-                  <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>
-                      {selected.toolCount} tool{selected.toolCount === 1 ? '' : 's'} ·{' '}
-                      {selected.hasBuild ? 'published build' : 'no published build'}
-                      {selected.hasDraft ? ' · unpublished draft' : ''}
-                    </span>
-                    <ExposureBadge app={selected} />
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {/* Share the published app at a full-screen /s/<token> URL —
+            <div className="flex h-full min-h-0 flex-col">
+              {/* Controls only — no title/description here. Apps name
+                  themselves in their own UI (and the list card already carries
+                  both), so a pane header just repeated them a third time above
+                  the app's own heading. The pane belongs to the app; one slim
+                  row keeps the controls reachable. */}
+              <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border px-2 py-1.5">
+                {/* Share the published app at a full-screen /s/<token> URL —
                     only once there's a published build to point the link at.
                     Same control and hint as the editor header. */}
-                  {selected.hasBuild && (
-                    <ShareControl
-                      nodeId={selected.id}
-                      teamMode
-                      teamHint="Visitors must enter their team token, and every action is audited to that member. Team members can use the app’s Mantle tools and write to its data — a public link can only read the app’s own data. Grant it to people you trust."
-                    />
-                  )}
-                  {/* Focus mode: the shell drops its chrome and the list column
+                {selected.hasBuild && (
+                  <ShareControl
+                    nodeId={selected.id}
+                    teamMode
+                    teamHint="Visitors must enter their team token, and every action is audited to that member. Team members can use the app’s Mantle tools and write to its data — a public link can only read the app’s own data. Grant it to people you trust."
+                  />
+                )}
+                {/* Focus mode: the shell drops its chrome and the list column
                     collapses, leaving the app alone in the viewport — the same
                     read-only preview Pages offers outside its editor. This
-                    header survives focus mode, so the toggle stays reachable. */}
-                  <FocusToggle />
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/apps/${selected.id}`}>
-                      <Pencil />
-                      Open editor
-                    </Link>
-                  </Button>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    className="text-muted-foreground hover:text-destructive-ink"
-                    onClick={() => setDeleteTarget(selected)}
-                    aria-label="Delete app"
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
+                    row survives focus mode, so the toggle stays reachable. */}
+                <FocusToggle />
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/apps/${selected.id}`}>
+                    <Pencil />
+                    Open editor
+                  </Link>
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive-ink"
+                  onClick={() => setDeleteTarget(selected)}
+                  aria-label="Delete app"
+                >
+                  <Trash2 />
+                </Button>
               </div>
               <div className="min-h-0 flex-1">
                 <AppSandbox appId={selected.id} frame="viewport" />
