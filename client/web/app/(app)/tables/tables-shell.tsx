@@ -6,7 +6,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Table2, Trash2 } from 'lucide-react';
+import {
+  AppWindow,
+  Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Table2,
+  Trash2,
+} from 'lucide-react';
 import { useListNav } from '@/lib/use-list-nav';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -36,6 +44,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import type { AdminPrivateListRow } from '@mantle/client-types';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { ItemCard, ItemCardAction, ItemIcon, UpdatedStamp } from '@/components/item-list/item-card';
@@ -492,6 +501,15 @@ export function TablesShell() {
                           </ItemCardAction>
                         }
                       >
+                        {/* App-bound export: read-only here, edited in the app.
+                            The card is one big click target, so the chip is a
+                            plain badge; the DETAIL's badge is the link. */}
+                        {t.appLink && (
+                          <Badge variant="secondary" className="gap-1 font-normal">
+                            <AppWindow className="size-3" aria-hidden />
+                            App table{t.appLink.appName ? ` · ${t.appLink.appName}` : ''}
+                          </Badge>
+                        )}
                         {details && t.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             {t.tags.map((tag) => (
