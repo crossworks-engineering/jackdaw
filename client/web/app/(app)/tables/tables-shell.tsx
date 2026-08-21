@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AppWindow,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -43,13 +44,15 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { TableDetailClient } from './[id]/table-detail-client';
 import type { TableDetail, TableRow, TableSort } from '@mantle/content-core/table-model';
+import type { TableRowWithApp } from '@/lib/table-app-link';
 
 const SORTS: TableSort[] = ['edited', 'newest', 'oldest', 'title'];
 
 type TablesListResponse = {
-  tables: TableRow[];
+  tables: TableRowWithApp[];
   total: number;
   page: number;
   pageSize: number;
@@ -357,6 +360,15 @@ export function TablesShell() {
                         Updated {new Date(t.updatedAt).toLocaleDateString()} · {t.columnCount} cols
                         · {t.rowCount} rows
                       </ListCardMeta>
+                      {/* App-bound export: read-only here, edited in the app.
+                          The card is one big click target, so the chip is a
+                          plain badge — the DETAIL's badge is the link. */}
+                      {t.appLink && (
+                        <Badge variant="secondary" className="mt-1 gap-1 font-normal">
+                          <AppWindow className="size-3" aria-hidden />
+                          App table{t.appLink.appName ? ` · ${t.appLink.appName}` : ''}
+                        </Badge>
+                      )}
                       {t.tags.length > 0 && (
                         <ListCardTags>
                           {t.tags.map((tag) => (

@@ -185,6 +185,7 @@ export function TableGrid({
   tableId,
   tabs,
   activeTabId,
+  readOnly = false,
 }: {
   doc: TableDoc;
   onChange: (next: TableDoc) => void;
@@ -197,6 +198,9 @@ export function TableGrid({
   /** The tab this grid is showing — so the picker can exclude the column
    *  itself when the source tab is this one (self-reference guard). */
   activeTabId?: string;
+  /** App-bound tables: every edit affordance goes away (the server refuses
+   *  grid mutations anyway), leaving display + client-side sorting. */
+  readOnly?: boolean;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -226,6 +230,7 @@ export function TableGrid({
       header: ({ column }) => (
         <HeaderCell
           col={col}
+          readOnly={readOnly}
           aggregate={docRef.current.aggregates?.[col.id] ?? 'none'}
           sortDir={column.getIsSorted() || null}
           onSort={(dir) => column.toggleSorting(dir === 'desc')}
@@ -270,6 +275,7 @@ export function TableGrid({
       cell: (info) => (
         <EditableCell
           col={col}
+          readOnly={readOnly}
           tableId={tableId}
           value={info.getValue() as CellValue}
           rawValue={(info.row.original.cells[col.id] ?? null) as CellValue}
@@ -285,7 +291,7 @@ export function TableGrid({
       ),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [structureKey, tableId]);
+  }, [structureKey, tableId, readOnly]);
 
   const table = useReactTable({
     data: doc.rows,
@@ -339,20 +345,22 @@ export function TableGrid({
                 </th>
               ))}
               <th className="w-10 px-1 py-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-7 text-muted-foreground"
-                  onClick={() =>
-                    onChange(
-                      addColumn(doc, { name: `Column ${doc.columns.length + 1}`, type: 'text' })
-                        .doc,
-                    )
-                  }
-                  aria-label="Add column"
-                >
-                  <Plus />
-                </Button>
+                {!readOnly && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-muted-foreground"
+                    onClick={() =>
+                      onChange(
+                        addColumn(doc, { name: `Column ${doc.columns.length + 1}`, type: 'text' })
+                          .doc,
+                      )
+                    }
+                    aria-label="Add column"
+                  >
+                    <Plus />
+                  </Button>
+                )}
               </th>
             </tr>
           ))}
@@ -373,14 +381,16 @@ export function TableGrid({
                 className="group border-b border-border hover:bg-muted/40"
               >
                 <td className="px-2 py-1 text-center align-middle text-xs text-muted-foreground">
-                  <button
-                    className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive-ink"
-                    onClick={() => onChange(deleteRow(doc, row.id))}
-                    aria-label="Delete row"
-                    type="button"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive-ink"
+                      onClick={() => onChange(deleteRow(doc, row.id))}
+                      aria-label="Delete row"
+                      type="button"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  )}
                 </td>
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="border-l border-border p-0 align-middle">
@@ -436,16 +446,18 @@ export function TableGrid({
         )}
       </table>
 
-      <div className="px-2 py-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-muted-foreground"
-          onClick={() => onChange(addRow(doc).doc)}
-        >
-          <Plus /> Add row
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="px-2 py-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() => onChange(addRow(doc).doc)}
+          >
+            <Plus /> Add row
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -466,6 +478,7 @@ function HeaderCell({
   tableId,
   tabs,
   activeTabId,
+  readOnly = false,
 }: {
   col: Column;
   aggregate: AggregateKind;
@@ -482,6 +495,7 @@ function HeaderCell({
   tableId?: string;
   tabs?: { id: string; name: string }[];
   activeTabId?: string;
+  readOnly?: boolean;
 }) {
   const [name, setName] = useState(col.name);
   const [refDlgOpen, setRefDlgOpen] = useState(false);
@@ -496,6 +510,61 @@ function HeaderCell({
   // is what says "linked".
   const TypeIcon = TYPE_ICON[linked ? storageType(col) : col.type];
   const AggIcon = aggregate !== 'none' ? AGG_ICON[aggregate] : null;
+  // Read-only header: the name is a label (no rename), the link/type icons are
+  // inert markers, and the one menu left is client-side sorting — a view
+  // operation, not an edit.
+  if (readOnly) {
+    return (
+      <span className="flex w-full items-center gap-1">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{col.name}</span>
+        {sortDir === 'asc' && (
+          <ArrowUp className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+        )}
+        {sortDir === 'desc' && (
+          <ArrowDown className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+        )}
+        {linked && <Link2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        {AggIcon && (
+          <span className="shrink-0" title={`Total: ${AGG_LABEL[aggregate]}`}>
+            <AggIcon
+              className="size-3 text-muted-foreground"
+              aria-label={`Total: ${AGG_LABEL[aggregate]}`}
+            />
+          </span>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-6 shrink-0 text-muted-foreground"
+              aria-label={`Column type: ${TYPE_LABEL[col.type]} — sort options`}
+              title={`${TYPE_LABEL[col.type]} column`}
+            >
+              <TypeIcon className="size-3.5" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {TYPE_LABEL[col.type]} column
+            </DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onSort('asc')}>
+              <ArrowUp className="mr-2 size-3.5" /> Sort ascending
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onSort('desc')}>
+              <ArrowDown className="mr-2 size-3.5" /> Sort descending
+            </DropdownMenuItem>
+            {sortDir && (
+              <DropdownMenuItem onClick={onClearSort}>
+                <ChevronsUpDown className="mr-2 size-3.5" /> Clear sort
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </span>
+    );
+  }
+
   return (
     <span className="flex w-full items-center gap-1">
       <input
@@ -843,6 +912,7 @@ function EditableCell({
   onSet,
   onApplyOption,
   tableId,
+  readOnly = false,
 }: {
   col: Column;
   value: CellValue; // resolved (formula columns computed)
@@ -851,7 +921,23 @@ function EditableCell({
   /** Set the cell, optionally creating a new select/multiselect option first. */
   onApplyOption: (p: { value: CellValue; newOption?: string }) => void;
   tableId?: string;
+  readOnly?: boolean;
 }) {
+  if (readOnly) {
+    if (col.type === 'checkbox') {
+      return (
+        <span className="flex items-center justify-center py-1.5">
+          <Checkbox checked={Boolean(rawValue)} disabled aria-label={col.name} />
+        </span>
+      );
+    }
+    const text = displayValue(value, col);
+    return (
+      <span className="block truncate px-2 py-1.5 text-sm" title={text || undefined}>
+        {text || <span className="text-muted-foreground">—</span>}
+      </span>
+    );
+  }
   if (col.type === 'formula') {
     return (
       <span className="block px-2 py-1.5 text-sm text-muted-foreground">

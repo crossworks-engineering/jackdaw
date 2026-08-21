@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  AppWindow,
   Check,
   GitCommitHorizontal,
   Loader2,
@@ -35,15 +37,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { ExportMenu } from '@/components/export/export-menu';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { ShareControl } from '@/components/share-control';
 import { TableGrid } from '@/components/table-grid/table-grid';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { useRealtime } from '@/components/realtime/use-realtime';
 import { diffTableDocs, ensureTableDoc, type TableDoc } from '@mantle/content-core/table-model';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import type { TableDetail } from '@mantle/content-core/table-model';
+import type { TableDetailWithApp } from '@/lib/table-app-link';
 
 const DRAFT_DEBOUNCE_MS = 1200;
 const META_DEBOUNCE_MS = 800;
@@ -54,12 +59,18 @@ export function TableDetailClient({
   initial,
   embedded = false,
 }: {
-  initial: TableDetail;
+  initial: TableDetailWithApp;
   embedded?: boolean;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const toast = useToast();
+
+  // App-bound table (mantle v0.232.14): a derived, read-only export of one
+  // table in a mini-app's SQLite. The server refuses every grid mutation
+  // (AppBoundTableError), so the whole draft/commit cycle is off — only
+  // metadata (title/icon/tags/sharing) stays editable here.
+  const appLink = initial.appLink ?? null;
 
   const published = ensureTableDoc(initial.data);
   const [doc, setDoc] = useState<TableDoc>(ensureTableDoc(initial.draft ?? initial.data));
@@ -124,7 +135,8 @@ export function TableDetailClient({
     }
   }, [initial.draft, initial.id, loadingMore, toast]);
 
-  const dirty = hasDraft || (!clipped && JSON.stringify(doc) !== committedRef.current);
+  const dirty =
+    !appLink && (hasDraft || (!clipped && JSON.stringify(doc) !== committedRef.current));
 
   /** Re-read the detail for a tab (or the current one) and reset the local
    *  refs to the server truth. */
@@ -166,6 +178,7 @@ export function TableDetailClient({
   // commit MUST abort then, or it would promote the PREVIOUS autosave and
   // mark the newest edits committed while silently dropping them (audit). ──
   const runSaveDraft = useCallback(async (): Promise<boolean> => {
+    if (appLink) return true; // app-bound — the grid is read-only, nothing drafts
     if (clipped) return true; // read-only window — nothing autosaves
     // ONE snapshot for the whole save: the user can keep editing during the
     // network await, and marking the LIVE doc as saved would silently drop
@@ -232,7 +245,7 @@ export function TableDetailClient({
     } finally {
       setDraftSaving(false);
     }
-  }, [clipped, fileBacked, initial.id, reloadTab, tabs?.length, toast]);
+  }, [appLink, clipped, fileBacked, initial.id, reloadTab, tabs?.length, toast]);
 
   // Saves are SERIALIZED: a debounce tick and a commit flush can otherwise
   // overlap, and the second diff would run from a base the first hasn't
@@ -246,12 +259,23 @@ export function TableDetailClient({
 
   // Debounced draft autosave whenever the grid changes.
   useEffect(() => {
-    if (clipped) return;
+    if (appLink || clipped) return;
     const s = JSON.stringify(doc);
     if (s === savedKeyRef.current) return;
     const h = setTimeout(() => void saveDraft(), DRAFT_DEBOUNCE_MS);
     return () => clearTimeout(h);
-  }, [clipped, doc, saveDraft]);
+  }, [appLink, clipped, doc, saveDraft]);
+
+  // App-bound: the app writes, the server re-derives the export, and a
+  // realtime 'table' ping is the only signal — pull the fresh grid in place.
+  // This is what the banner's "refreshes automatically" promises.
+  useRealtime(['table'], (c) => {
+    if (appLink && c.id === initial.id) {
+      void reloadTab().catch(() => {
+        /* transient refetch failure; the next ping retries */
+      });
+    }
+  });
 
   // Title saves live (cheap metadata; never indexes).
   useEffect(() => {
@@ -503,15 +527,32 @@ export function TableDetailClient({
           />
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileRef.current?.click()}
-            disabled={importing}
-          >
-            {importing ? <Loader2 className="animate-spin" /> : <Upload />} Import
-          </Button>
+          {/* App-bound: no draft cycle, so the badge takes the status slot and
+              Import/Commit/Discard don't render at all. */}
+          {appLink ? (
+            <Link
+              href={`/apps/${appLink.appId}`}
+              title={`Open ${appLink.appName ?? 'the app'}`}
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Badge variant="secondary" className="gap-1.5 font-normal">
+                <AppWindow className="size-3.5" aria-hidden />
+                App table{appLink.appName ? ` · ${appLink.appName}` : ''}
+              </Badge>
+            </Link>
+          ) : (
+            <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />
+          )}
+          {!appLink && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              disabled={importing}
+            >
+              {importing ? <Loader2 className="animate-spin" /> : <Upload />} Import
+            </Button>
+          )}
           <ExportMenu nodeId={initial.id} kind="table" />
           <ShareControl
             nodeId={initial.id}
@@ -529,13 +570,15 @@ export function TableDetailClient({
               <Undo2 /> Discard
             </Button>
           )}
-          <Button
-            size="sm"
-            onClick={() => void commit()}
-            disabled={(clipped ? !hasDraft : !dirty) || committing}
-          >
-            <GitCommitHorizontal /> Commit
-          </Button>
+          {!appLink && (
+            <Button
+              size="sm"
+              onClick={() => void commit()}
+              disabled={(clipped ? !hasDraft : !dirty) || committing}
+            >
+              <GitCommitHorizontal /> Commit
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"
@@ -553,6 +596,7 @@ export function TableDetailClient({
           tabs={tabs ?? []}
           activeTab={activeTab}
           switching={tabSwitching}
+          readOnly={!!appLink}
           onSwitch={(id) => void switchTab(id)}
           onAdd={() => {
             // Seed a fresh sheet with a labeled first column + a few empty rows
@@ -586,12 +630,27 @@ export function TableDetailClient({
             (assistBusy || tabSwitching ? ' pointer-events-none opacity-60' : '')
           }
         >
+          {appLink && (
+            <div className="border-b border-border bg-accent px-3 py-1.5 text-xs text-accent-foreground">
+              Read-only — this table is exported from the app{' '}
+              <Link
+                href={`/apps/${appLink.appId}`}
+                className="font-medium underline underline-offset-2"
+              >
+                {appLink.appName ?? 'app'}
+              </Link>{' '}
+              (table <span className="font-mono">{appLink.sqliteTable}</span>). Data is edited in
+              the app and refreshes here automatically.
+            </div>
+          )}
           {clipped && (
             <div className="flex items-center justify-between gap-3 border-b border-border bg-accent px-3 py-1.5 text-xs text-accent-foreground">
               <span>
                 Large table — showing {doc.rows.length.toLocaleString()} of{' '}
-                {loadedTotal.toLocaleString()} rows, read-only in the grid. Edit rows via the
-                assistant, or query with SQL.
+                {loadedTotal.toLocaleString()} rows
+                {appLink
+                  ? '.'
+                  : ', read-only in the grid. Edit rows via the assistant, or query with SQL.'}
               </span>
               {doc.rows.length < loadedTotal && (
                 <Button
@@ -609,10 +668,11 @@ export function TableDetailClient({
           <div className="min-h-0 flex-1 overflow-hidden">
             <TableGrid
               doc={doc}
-              onChange={clipped ? () => {} : setDoc}
+              onChange={clipped || appLink ? () => {} : setDoc}
               tableId={initial.id}
               tabs={tabs}
               activeTabId={activeTab}
+              readOnly={!!appLink}
             />
           </div>
         </div>
@@ -649,11 +709,13 @@ export function TableDetailClient({
 
 /** The workbook tab bar (v2.1 P5): switch, add, rename (double-click or menu),
  *  delete. Every change lands on the DRAFT — Discard reverts, Commit
- *  publishes. */
+ *  publishes. `readOnly` (app-bound tables) keeps switching and drops the
+ *  add/rename/delete affordances — tab structure belongs to the app. */
 function TabBar({
   tabs,
   activeTab,
   switching,
+  readOnly = false,
   onSwitch,
   onAdd,
   onRename,
@@ -662,6 +724,7 @@ function TabBar({
   tabs: { id: string; name: string; rows: number }[];
   activeTab: string | undefined;
   switching: boolean;
+  readOnly?: boolean;
   onSwitch: (id: string) => void;
   onAdd: () => void;
   onRename: (id: string, name: string) => void;
@@ -705,63 +768,75 @@ function TabBar({
                 aria-selected={active}
                 disabled={switching}
                 onClick={() => onSwitch(t.id)}
-                onDoubleClick={() => {
-                  setEditing(t.id);
-                  setEditName(t.name);
-                }}
+                onDoubleClick={
+                  readOnly
+                    ? undefined
+                    : () => {
+                        setEditing(t.id);
+                        setEditName(t.name);
+                      }
+                }
                 className={
                   'flex items-center gap-1.5 whitespace-nowrap rounded-t-md border-b-2 px-3 py-1.5 text-sm transition-colors ' +
                   (active
                     ? 'border-primary font-medium text-foreground'
                     : 'border-transparent text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground')
                 }
-                title={`${t.name} — ${t.rows.toLocaleString()} rows (double-click to rename)`}
+                title={
+                  readOnly
+                    ? `${t.name} — ${t.rows.toLocaleString()} rows`
+                    : `${t.name} — ${t.rows.toLocaleString()} rows (double-click to rename)`
+                }
               >
                 {t.name}
               </button>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-6 text-muted-foreground opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
-                  aria-label={`Tab options: ${t.name}`}
-                >
-                  <MoreHorizontal className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setEditing(t.id);
-                    setEditName(t.name);
-                  }}
-                >
-                  <Pencil className="mr-2 size-3.5" /> Rename tab
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive-ink focus:text-destructive-ink"
-                  disabled={tabs.length <= 1}
-                  onClick={() => onDelete(t.id)}
-                >
-                  <Trash2 className="mr-2 size-3.5" /> Delete tab
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {readOnly ? null : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-6 text-muted-foreground opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+                    aria-label={`Tab options: ${t.name}`}
+                  >
+                    <MoreHorizontal className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEditing(t.id);
+                      setEditName(t.name);
+                    }}
+                  >
+                    <Pencil className="mr-2 size-3.5" /> Rename tab
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive-ink focus:text-destructive-ink"
+                    disabled={tabs.length <= 1}
+                    onClick={() => onDelete(t.id)}
+                  >
+                    <Trash2 className="mr-2 size-3.5" /> Delete tab
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </span>
         );
       })}
-      <Button
-        size="icon"
-        variant="ghost"
-        className="size-7 shrink-0 text-muted-foreground"
-        onClick={onAdd}
-        disabled={switching}
-        aria-label="Add tab"
-      >
-        <Plus className="size-4" />
-      </Button>
+      {!readOnly && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 shrink-0 text-muted-foreground"
+          onClick={onAdd}
+          disabled={switching}
+          aria-label="Add tab"
+        >
+          <Plus className="size-4" />
+        </Button>
+      )}
     </div>
   );
 }
