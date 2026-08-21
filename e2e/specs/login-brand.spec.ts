@@ -129,7 +129,7 @@ test.describe('login branding', () => {
     await expect(visitorPage.getByRole('button', { name: /^sign in$/i })).toBeVisible();
     // The first-run gate resolves client-side and defaults to "sign in" — the
     // create-account copy is for a genuinely fresh install.
-    await expect(visitorPage.getByText('Sign in to your data aware workspace.')).toBeVisible();
+    await expect(visitorPage.getByText('Sign in to your data-aware workspace.')).toBeVisible();
 
     // Controlled input ⇒ the client child hydrated. Server HTML alone would
     // keep whatever was typed only in the DOM, never in React's state, and

@@ -2,7 +2,7 @@ import { loadBrainAppearance } from '@/lib/appearance';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { LoginClient } from './login-client';
 import { LoginMark } from './login-mark';
-import { JackdawCredit } from './jackdaw-credit';
+import { LoginCredit } from './login-credit';
 
 /**
  * Owner sign-in screen, zero-secret flavor: no server session read (this app
@@ -26,12 +26,6 @@ export default async function LoginPage({
 }) {
   const [params, appearance] = await Promise.all([searchParams, loadBrainAppearance()]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
-  // Where an uploaded logo's bytes live. Read here, in the SERVER pass, because
-  // that is the half of the render that can see it: the browser gets the same
-  // value from /env.js, but this HTML is built before any script runs. Passing
-  // it down is what keeps a custom logo working when the client and the brain
-  // are on different origins — see `components/layout/rail/brand-logo.tsx`.
-  const srcBase = (process.env.MANTLE_SERVER_ORIGIN ?? '').replace(/\/+$/, '');
 
   return (
     // A COLUMN, not a single centred box, so the product's mark can sit at the
@@ -43,15 +37,22 @@ export default async function LoginPage({
       <div className="flex w-full flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-8">
           <LoginClient
-            mark={<LoginMark brand={brand} srcBase={srcBase} />}
+            // `srcBase` is where an uploaded logo's bytes live, read in the
+            // SERVER pass because that is the half of the render that can see
+            // it: the browser gets the same value from /env.js, but this HTML
+            // is built before any script runs. Passing it down is what keeps a
+            // custom logo working when the client and the brain sit on
+            // different origins — see `components/layout/rail/brand-logo.tsx`,
+            // which also normalises the trailing slash for every caller.
+            mark={<LoginMark brand={brand} srcBase={process.env.MANTLE_SERVER_ORIGIN} />}
             next={params.next}
             error={params.error}
           />
         </div>
       </div>
       {/* Only once the owner's branding has taken the hero slot — otherwise the
-          Jackdaw mark would appear twice on one screen. See `jackdaw-credit.tsx`. */}
-      {brand.kind !== 'jackdaw' && <JackdawCredit />}
+          Jackdaw mark would appear twice on one screen. See `login-credit.tsx`. */}
+      {brand.kind !== 'jackdaw' && <LoginCredit />}
     </main>
   );
 }

@@ -1,5 +1,3 @@
-import { cn } from '@mantle/web-ui/lib/utils';
-
 /**
  * The small Jackdaw mark at the foot of the sign-in screen.
  *
@@ -7,6 +5,11 @@ import { cn } from '@mantle/web-ui/lib/utils';
  * left to sit — so it moves here: quiet, small, and out of the way of the thing
  * the owner chose to put in the hero slot. The brand says whose brain this is;
  * this says what it is built on. Both are true and they want different weights.
+ *
+ * Named `LoginCredit` rather than `JackdawCredit` to match the folder — every
+ * component here is `Login*` in a `login-*.tsx`, and the Jackdaw-specific piece
+ * stays an internal detail, exactly as `login-mark.tsx` keeps `JackdawLockup`
+ * private to itself.
  *
  * ── Why it is not always shown ─────────────────────────────────────────────
  * On an UNBRANDED brain the hero slot is already the Jackdaw lockup, and the
@@ -33,14 +36,14 @@ import { cn } from '@mantle/web-ui/lib/utils';
  * `width`/`height` are declared so the footer reserves its box and the form
  * above never shifts when the image decodes.
  */
-export function JackdawCredit({ className }: { className?: string }) {
+export function LoginCredit() {
   return (
-    <footer className={cn('flex justify-center pt-8', className)}>
+    <footer className="flex justify-center pt-8">
       {/* Softened rather than shrunk further: below ~24px the wordmark stops
           being readable, so the way to make a credit recede is opacity, not
-          size. It lifts on hover only to confirm it is a real mark and not an
-          artefact — there is nothing to click. */}
-      <span className="opacity-50 transition-opacity hover:opacity-80">
+          size. Fixed opacity, no hover change — there is nothing to click here,
+          and a mark that reacts to the pointer claims to be a control. */}
+      <span className="opacity-50">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/jackdaw-row-light.png"
