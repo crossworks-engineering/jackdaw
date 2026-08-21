@@ -1,41 +1,65 @@
-# Mantle brand assets
+# Jackdaw brand assets
 
-The official Mantle logo files. **This directory is the source of truth** — if
-you need the logo for anything (docs, a deck, a favicon, the companion app, a
-partner's site), take it from here rather than exporting a fresh one or reusing
-a copy you found elsewhere in the tree.
+The marks for **Jackdaw** — this repo's web and desktop clients, and the
+Jackdaw mobile app. **This directory is the source of truth**: take the mark
+from here rather than exporting a fresh one or copying one you found elsewhere
+in the tree.
 
-## The files
+Mantle's own marks are a different brand and live in [`../brand-mantle/`](../brand-mantle/).
 
-Two lockups, each in a mono and a colour variant, each as SVG and PNG:
+`dark` and `light` name the **background the mark is drawn for**, not the mark's
+own colour. The `dark` variants are cream and belong on a dark ground; the
+`light` variants are dark brown and belong on a pale one.
+
+## The current mark — `redesign/`
+
+The illustrated jackdaw in a ringed circle, from 2026-08-12. **This is the
+current brand** and supersedes the flat SVG marks below. It is what
+`client/web` serves from `public/brand/`, what the desktop app uses as its
+icon, and what Jackdaw mobile generates its app icon and launch screen from.
 
 | file | what it is |
 |---|---|
-| `mantle-logo-icon.svg` / `.png` | Icon (the `m` in a filled circle), solid black |
-| `mantle-logo-icon-color.svg` / `.png` | Icon, blue gradient circle with a white `m` |
-| `mantle-logo-full.svg` / `.png` | Full wordmark (`mantle`), solid black |
-| `mantle-logo-full-color.svg` / `.png` | Full wordmark, blue-to-purple gradient |
+| `redesign/jackdaw-icon-logo-{dark,light}-trans.png` | The badge alone |
+| `redesign/jackdaw-name-logo-{dark,light}-trans.png` | The wordmark alone |
+| `redesign/jackdaw-icon-name-logo-{dark,light}-row-trans.png` | Horizontal lockup |
+| `redesign/jackdaw-icon-name-logo-{dark,light}-trans.png` | Stacked lockup |
+| `redesign/jackdaw-redesign.afpalette` | The Affinity palette |
 
-- **SVG is the master.** Scale it, recolour the mono version, or export a new
-  raster size from it. All four are true vectors — no embedded bitmaps and no
-  external references, so they render standalone anywhere.
-- **PNG is a convenience export** for places that can't take SVG. Both are RGBA
-  with a transparent background: icon at 2000x2000, wordmark at 1400x400.
+### Colours
 
-## Which one to use
+| swatch | hex | where it comes from |
+|---|---|---|
+| Brand brown | `#2D1500` | the ring of the light-background badge; the darkest swatch in the palette |
+| Brand cream | `#FDE7BC` | the ring and wordmark of the dark variants (the wordmark is 100% this one colour) |
 
-- **Icon** where the mark has to work small or square: favicons, app icons,
-  avatars, social profile images.
-- **Full wordmark** where there's horizontal room and the name should be
-  readable: docs headers, READMEs, decks, site navigation.
-- **Colour** on light or neutral backgrounds, when the brand should carry the
-  moment.
-- **Mono** when it must sit on a busy or coloured background, when it's being
-  printed in one colour, or when it needs to be recoloured to match a theme.
-  The mono files are solid black — recolour by setting `fill` on the SVG.
+### ⚠️ The badge's cream field is semi-transparent
+
+Only about **32% opaque**. The artwork was drawn against a light page, so
+compositing it straight onto the brand brown turns the interior a muddy olive.
+It looks correct in any image viewer — which shows it on white — and wrong in
+the app, which is what makes this worth writing down.
+
+Anywhere the badge goes onto a dark ground, slide an opaque `#FDE7BC` disc
+under it first, inset ~1.5% so the disc edge hides beneath the cream ring.
+Both consumers already do this: `client/desktop/README.md` carries the
+ImageMagick recipe, and Jackdaw mobile does it in `tool/generate_app_icon.dart`.
+
+## The earlier flat marks — `jackdaw-*.svg`
+
+From 2026-08-10/11, a bolder minimal jackdaw head. **Superseded** by the
+redesign; kept because they are true vectors and still useful where a flat
+single-colour mark is wanted (a favicon, a monochrome print, a stencil).
+
+| file | what it is |
+|---|---|
+| `jackdaw-icon-{dark,light}.svg` | Square 1024² icon mark |
+| `jackdaw-logo-{dark,light}.svg` | Wordmark |
+| `jackdaw-icon-logo-{dark,light}.svg` | Horizontal lockup |
 
 ## Don't
 
-- Don't stretch, rotate, recolour the gradient, or add effects to the mark.
+- Don't composite the redesign badge onto a dark ground without the disc above.
+- Don't stretch, rotate, or add effects to the mark.
 - Don't rebuild the wordmark by setting type — it's custom lettering, not a font.
-- Don't re-export a raster from a raster. Always go back to the SVG.
+- Don't re-export a raster from a raster.
