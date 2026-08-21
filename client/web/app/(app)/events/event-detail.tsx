@@ -255,9 +255,10 @@ export function EventDetail({
 
   return (
     <div className={cn('space-y-5 p-6', className)}>
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-        <Countdown event={meta} now={now} />
-
+      {/* Title first, countdown second: the heading owns the LEFT edge (§8 —
+          it lines up with every other detail header), and the ring reads as
+          the at-a-glance flourish beside it rather than displacing the name. */}
+      <div className="flex flex-col-reverse gap-5 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1 space-y-2">
           {/* §8 "Detail header anatomy": the glyph lives INSIDE the h2 so it
               shares the title's baseline, the title is `min-w-0 truncate`, the
@@ -338,6 +339,8 @@ export function EventDetail({
             </div>
           )}
         </div>
+
+        <Countdown event={meta} now={now} />
       </div>
 
       {meta.body && (

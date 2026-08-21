@@ -7,8 +7,8 @@
  * the list mounted — search text, scroll position and page survive. Pinned
  * topics first (owner announcements), then latest activity; every 'team'
  * topic is visible to every member, plus the member's own private ones. The
- * "New topic" dialog is where a thread (and usually the agent's first answer)
- * begins; /team/forum/[id] stays alive as the deep link.
+ * "New topic" composer (?new=1) renders INLINE in the reader pane — where the
+ * thread will live — not as a modal; /team/forum/[id] stays the deep link.
  *
  * Public surface conventions match the team shell: raw fetch (team cookie
  * auth), inline errors, no toasts. The shell TokenGates before children
@@ -45,14 +45,6 @@ import {
 } from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { TopicViewClient } from './topic-view-client';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@mantle/web-ui/ui/dialog';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
 import {
@@ -94,9 +86,11 @@ export type ForumTopicItem = {
   unread: number;
 };
 
-function NewTopicDialog() {
+/** The new-topic COMPOSER — an inline form rendered in the reader pane
+ *  (?new=1), not a modal: writing a post is reading-adjacent work and the
+ *  content area is where the thread will live. Cancel returns to the reader. */
+function NewTopicComposer({ onCancel }: { onCancel: () => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [kind, setKind] = useState<ForumKind>('question');
@@ -154,20 +148,13 @@ function NewTopicDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <MessageSquarePlus /> New topic
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>New topic</DialogTitle>
-          <DialogDescription>
-            Start a thread the whole team can read. The assistant answers unless you wave it off.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
+    <div className="h-full min-h-0 overflow-y-auto scrollbar-thin">
+      <div className="mx-auto w-full max-w-lg px-6 py-8">
+        <h2 className="text-xl font-semibold">New topic</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Start a thread the whole team can read. The assistant answers unless you wave it off.
+        </p>
+        <div className="mt-5 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="forum-topic-title">Title</Label>
             <Input
@@ -236,16 +223,21 @@ function NewTopicDialog() {
             </p>
           )}
           {error && <p className="text-sm text-destructive-ink">{error}</p>}
-          <SubmitButton
-            pending={submitting}
-            onClick={() => void create()}
-            disabled={!title.trim() || !body.trim() || attachBusy}
-          >
-            Create topic
-          </SubmitButton>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" onClick={onCancel} disabled={submitting}>
+              Cancel
+            </Button>
+            <SubmitButton
+              pending={submitting}
+              onClick={() => void create()}
+              disabled={!title.trim() || !body.trim() || attachBusy}
+            >
+              Create topic
+            </SubmitButton>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
 
@@ -352,6 +344,10 @@ export function TopicListClient() {
   const urlSelectedId = searchParams.get('t');
   const turnParam = searchParams.get('turn') ?? undefined;
   const selectedId = urlSelectedId ?? topics?.[0]?.id ?? null;
+  // ?new=1 turns the reader pane into the new-topic composer (no modal — the
+  // form lives where the thread will). Mutually exclusive with ?t=.
+  const newMode = searchParams.get('new') === '1';
+  const openComposer = () => go({ new: '1', t: null, turn: null });
 
   // Card hrefs keep the list's own state (?q / ?sort / ?page) and drop a stale
   // ?turn — that param belongs to the topic it was minted with.
@@ -367,7 +363,9 @@ export function TopicListClient() {
     // flex property here would be inert and the column would size to its
     // content. The mobile hides are `max-md:` because below `md` the scaffold
     // stacks the panes instead of dropping them.
-    <div className={cn('flex h-full min-h-0 flex-col', urlSelectedId && 'max-md:hidden')}>
+    <div
+      className={cn('flex h-full min-h-0 flex-col', (urlSelectedId || newMode) && 'max-md:hidden')}
+    >
       <div className="shrink-0 space-y-2 border-b border-border p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -376,7 +374,9 @@ export function TopicListClient() {
               Shared with the whole team · the brain answers
             </p>
           </div>
-          <NewTopicDialog />
+          <Button size="sm" onClick={openComposer}>
+            <MessageSquarePlus /> New topic
+          </Button>
         </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -439,7 +439,9 @@ export function TopicListClient() {
                 No topics yet. Start one — questions, ideas, reviews, bugs. The whole team sees the
                 thread, and the brain answers.
               </p>
-              <NewTopicDialog />
+              <Button size="sm" onClick={openComposer}>
+                <MessageSquarePlus /> New topic
+              </Button>
             </div>
           )
         ) : (
@@ -495,8 +497,10 @@ export function TopicListClient() {
   );
 
   const detailPane = (
-    <div className={cn('h-full min-h-0', !urlSelectedId && 'max-md:hidden')}>
-      {selectedId ? (
+    <div className={cn('h-full min-h-0', !urlSelectedId && !newMode && 'max-md:hidden')}>
+      {newMode ? (
+        <NewTopicComposer onCancel={() => go({ new: null })} />
+      ) : selectedId ? (
         // `key` remounts the view per topic, so thread state (scroll, search,
         // composer draft) never leaks between topics. `initialTurnId` applies
         // only to the topic it was minted with.

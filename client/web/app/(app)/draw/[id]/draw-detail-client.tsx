@@ -532,7 +532,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
           </Button>
           {/* Share publishes first (beforeEnable=commit, the pages pattern) so
               the minted link never points at a stale or absent snapshot. */}
-          <ShareControl nodeId={initial.id} beforeEnable={commit} />
+          <ShareControl nodeId={initial.id} beforeEnable={commit} teamMode />
           <ExportMenu nodeId={initial.id} kind="draw" />
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the

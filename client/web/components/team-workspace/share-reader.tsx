@@ -169,6 +169,18 @@ export function ShareReader({
     );
   }
 
+  // A TABLE also owns its height: the embedded presenter is a full-bleed
+  // column with its own bounded scroller (sticky header/totals stick to it).
+  // Nesting it in the reader's overflow-y-auto pane painted a scroller inside
+  // a scroller inside a border — the "boxed grid with an outer margin".
+  if (view.kind === 'table') {
+    return (
+      <div className="min-h-0 flex-1 overflow-hidden bg-background">
+        <TablePresenter view={view} token={token} chrome="embedded" />
+      </div>
+    );
+  }
+
   return (
     // `relative` is load-bearing, not decoration: a position:static
     // overflow-y-auto pane leaks its scrollable overflow into the outer region
@@ -196,7 +208,6 @@ export function ShareReader({
       {view.kind === 'file' && (
         <FilePresenter view={view} assetUrl={assetUrl(token)} chrome="embedded" />
       )}
-      {view.kind === 'table' && <TablePresenter view={view} token={token} chrome="embedded" />}
       {view.kind === 'formula' && (
         <FormulaPresenter
           view={view}

@@ -435,7 +435,7 @@ function DrawPreview({
               the editor, which a list screen cannot do, so the link serves the
               last COMMITTED scene. The "Draft · uncommitted" badge says when
               that is behind. */}
-          <ShareControl nodeId={draw.id} />
+          <ShareControl nodeId={draw.id} teamMode />
           {/* The snapshot can't be panned or zoomed, so a diagram bigger than
               the pane was unreadable without opening it for EDITING. This
               mounts the real canvas in upstream's view mode instead: pan and
