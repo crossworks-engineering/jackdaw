@@ -22,7 +22,7 @@ function canStore(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
-/** Inside Mantle Desktop the bearer lives in the shell's OS-keychain-backed
+/** Inside the Jackdaw desktop shell the bearer lives in the shell's OS-keychain-backed
  *  vault (safeStorage) instead of localStorage — same at-rest posture as the
  *  mobile companion's Keychain. Feature-detected; browsers get localStorage
  *  exactly as before. */

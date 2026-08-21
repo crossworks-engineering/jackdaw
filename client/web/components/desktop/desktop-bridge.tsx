@@ -5,7 +5,7 @@ import { apiEventStream } from '@mantle/web-ui/api-fetch';
 import { desktopShell } from '@mantle/web-ui/desktop-shell';
 
 /**
- * Mantle Desktop integration. Renders nothing and does nothing in a browser —
+ * Jackdaw desktop integration. Renders nothing and does nothing in a browser —
  * it activates only when the page runs inside the desktop shell, which
  * injects `window.mantleDesktop` from its preload.
  *

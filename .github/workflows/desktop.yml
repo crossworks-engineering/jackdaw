@@ -1,5 +1,5 @@
 # Desktop pipeline — fires on the same version tags as the image release.
-# Builds Mantle Desktop for Linux/macOS/Windows and uploads the installers to
+# Builds the Jackdaw desktop app for Linux/macOS/Windows and uploads the installers to
 # a DRAFT GitHub release (electron-builder's default on tag builds) —
 # publishing the release stays a human act, exactly like deploys.
 #
@@ -57,7 +57,7 @@ jobs:
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
-          name: mantle-desktop-${{ matrix.os }}
+          name: jackdaw-desktop-${{ matrix.os }}
           path: |
             client/desktop/dist/*.AppImage
             client/desktop/dist/*.deb

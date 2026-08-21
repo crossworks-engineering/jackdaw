@@ -1,5 +1,5 @@
 /**
- * The Mantle Desktop shell's injected API — `window.mantleDesktop`, exposed
+ * The Jackdaw desktop shell's injected API — `window.mantleDesktop`, exposed
  * by the shell's preload (client/desktop). Feature-detect via
  * `desktopShell()`: a browser returns null and every caller falls back to
  * plain web behavior. This module is the single owner of the global

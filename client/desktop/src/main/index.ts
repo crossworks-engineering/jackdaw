@@ -21,7 +21,7 @@ import {
 import { autoUpdater } from 'electron-updater';
 
 /**
- * Mantle Desktop — shell around the owner UI.
+ * Jackdaw desktop — shell around the owner UI.
  *
  * The UI is the standalone `next build` of client/web, staged into ui/ by
  * scripts/build-ui.sh and run here as a utilityProcess bound to 127.0.0.1
@@ -267,7 +267,7 @@ function fenceBrainSession(
   // The Next app's /env.js (which reads the SERVER PROCESS's env) must not win
   // over the preload-injected __MANTLE_ENV__ carrying this window's brain.
   ses.webRequest.onBeforeRequest({ urls: [`${rendererOrigin}/env.js*`] }, (_details, callback) => {
-    callback({ redirectURL: 'data:text/javascript,// Mantle Desktop provides __MANTLE_ENV__' });
+    callback({ redirectURL: 'data:text/javascript,// Jackdaw provides __MANTLE_ENV__' });
   });
 }
 
@@ -403,7 +403,7 @@ async function openAppWindow(profile: Profile): Promise<void> {
 
   win.webContents.on('did-fail-load', (_event, _code, description, _url, isMainFrame) => {
     if (!isMainFrame) return;
-    dialog.showErrorBox('Mantle Desktop', `Could not load the owner UI (${description}).`);
+    dialog.showErrorBox('Jackdaw', `Could not load the owner UI (${description}).`);
     openConnectWindow();
     win.close();
   });
@@ -426,7 +426,7 @@ async function openAppWindow(profile: Profile): Promise<void> {
 }
 
 function reportWindowError(error: unknown): void {
-  dialog.showErrorBox('Mantle Desktop', error instanceof Error ? error.message : String(error));
+  dialog.showErrorBox('Jackdaw', error instanceof Error ? error.message : String(error));
   openConnectWindow();
 }
 
@@ -548,7 +548,7 @@ let tray: Tray | null = null;
 function setupTray(): void {
   const icon = nativeImage.createFromPath(ICON_PATH).resize({ width: 22, height: 22 });
   tray = new Tray(icon);
-  tray.setToolTip('Mantle Desktop');
+  tray.setToolTip('Jackdaw');
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open Mantle', click: focusOrOpen },
@@ -570,7 +570,7 @@ function setupAutoUpdate(): void {
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('update-downloaded', (info) => {
     const notification = new Notification({
-      title: 'Mantle Desktop update ready',
+      title: 'Jackdaw update ready',
       body: `v${info.version} installs when you quit the app.`,
       icon: ICON_PATH,
     });
