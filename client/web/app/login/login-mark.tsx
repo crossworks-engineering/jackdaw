@@ -82,7 +82,16 @@ export function LoginMark({ brand, srcBase }: { brand: LoginBrand; srcBase?: str
       {brand.peerName && (
         // Which BRAIN this is, under whatever it calls itself — the reason two
         // tabs on two boxes can be told apart at a glance.
-        <p className="peer-name truncate text-center text-muted-foreground" title={brand.peerName}>
+        //
+        // `.peer-name-login`, not `.peer-name`: same face and same user scale,
+        // a larger base, and the reason it is a class instead of a `text-*`
+        // utility is written next to it in globals.css. `font-semibold` is a
+        // utility because weight is NOT an owner setting — and it is what the
+        // rail's own peer name already uses, so the two surfaces now agree.
+        <p
+          className="peer-name-login truncate text-center font-semibold text-muted-foreground"
+          title={brand.peerName}
+        >
           {brand.peerName}
         </p>
       )}

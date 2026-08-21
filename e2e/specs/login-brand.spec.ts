@@ -106,7 +106,7 @@ test.describe('login branding', () => {
     // Rendering an empty line would reserve space for nothing and leave the
     // strapline sitting oddly low.
     await visitorPage.goto('/login');
-    await expect(visitorPage.locator('.peer-name')).toHaveCount(0);
+    await expect(visitorPage.locator('.peer-name-login')).toHaveCount(0);
   });
 
   test('the form still renders and hydrates after the server/client split', async ({

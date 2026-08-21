@@ -144,3 +144,23 @@
   font-size: calc(3rem * var(--wordmark-scale, 1));
   line-height: 1.1;
 }
+
+/* The peer name beneath that mark — which box this is, under whatever the brain
+ * calls itself. Same reasoning as `.wordmark-login` directly above, and the same
+ * reason it is a class rather than `peer-name text-xl`: share-ui's `.peer-name`
+ * is `calc(1.125rem * var(--peer-name-scale))` in @layer components, so ANY
+ * `text-*` utility outranks it and would silently discard the owner's chosen
+ * title size. Only the base moves; the face var and the user scale are carried
+ * through untouched, so Settings → Appearance still drives this exactly as it
+ * drives the rail.
+ *
+ * 1.25rem rather than the rail's 1.125rem: the login screen has one job and no
+ * competing chrome, and at the rail's size this line reads as a caption under a
+ * 3rem mark instead of the identifier someone is scanning for. Weight comes from
+ * a `font-semibold` utility at the call site, not from here — weight is not an
+ * owner setting, and the rail's own peer name already does it that way, so this
+ * brings the two surfaces into agreement rather than inventing a third look. */
+.peer-name-login {
+  font-family: var(--font-page-title);
+  font-size: calc(1.25rem * var(--peer-name-scale, 1));
+}
