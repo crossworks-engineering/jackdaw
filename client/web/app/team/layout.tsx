@@ -1,4 +1,5 @@
 import { TeamWorkspaceShell } from '@/components/team-workspace/team-workspace-shell';
+import { ToastProvider } from '@mantle/web-ui/ui/toast';
 
 /**
  * Team Workspace shell — the EXTERNAL member surface. Deliberately outside
@@ -17,7 +18,13 @@ export default function TeamWorkspaceLayout({ children }: { children: React.Reac
     // the app shell, so this surface must manage its own height. Panes inside
     // the shell own their inner scrolling.
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      <TeamWorkspaceShell>{children}</TeamWorkspaceShell>
+      {/* ToastProvider: the member surface sits OUTSIDE the (app) shell, and
+          the shell was the only mount — so every team component calling
+          useToast() (task comments, forum admin controls) threw the moment it
+          rendered. Clicking a task blanked the screen; this is the fix. */}
+      <ToastProvider>
+        <TeamWorkspaceShell>{children}</TeamWorkspaceShell>
+      </ToastProvider>
     </div>
   );
 }
