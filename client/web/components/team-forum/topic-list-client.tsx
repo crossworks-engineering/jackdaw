@@ -149,91 +149,99 @@ function NewTopicComposer({ onCancel }: { onCancel: () => void }) {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto scrollbar-thin">
-      <div className="mx-auto w-full max-w-lg px-6 py-8">
-        <h2 className="text-xl font-semibold">New topic</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Start a thread the whole team can read. The assistant answers unless you wave it off.
-        </p>
-        <div className="mt-5 flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="forum-topic-title">Title</Label>
-            <Input
-              id="forum-topic-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={200}
-              placeholder="One line the team will recognize it by"
-            />
+      <div className="p-6">
+        {/* §6c boxed, left-aligned card, full width — the same container the
+            owner's New task / New event composers use, so the two sides of
+            the product agree on what "a create form" looks like. */}
+        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <MessageSquarePlus className="size-5 text-primary-ink" aria-hidden />
+            <h2 className="text-lg font-semibold">New topic</h2>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Kind</Label>
-            <Select value={kind} onValueChange={(v) => setKind(v as ForumKind)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FORUM_KINDS.map((k) => (
-                  <SelectItem key={k.value} value={k.value}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className={`size-1.5 rounded-full ${k.dot}`} aria-hidden />
-                      {k.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{kindMeta(kind).hint}</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="forum-topic-body">Your post</Label>
-            <Textarea
-              id="forum-topic-body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={5}
-              placeholder="Ask, propose, or report — the more context, the better the answer."
-            />
-            <ComposerAttachments
-              staged={staged}
-              onStagedChange={setStaged}
-              onUploadingChange={setAttachBusy}
-              disabled={submitting}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={effectiveNoReply}
-                onCheckedChange={(v) => {
-                  setNoReplyTouched(true);
-                  setNoReply(v === true);
-                }}
+          <p className="text-sm text-muted-foreground">
+            Start a thread the whole team can read. The assistant answers unless you wave it off.
+          </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="forum-topic-title">Title</Label>
+              <Input
+                id="forum-topic-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={200}
+                placeholder="One line the team will recognize it by"
               />
-              No answer needed
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              Private
-              <Switch checked={isPrivate} onCheckedChange={setIsPrivate} />
-            </label>
-          </div>
-          {isPrivate && (
-            <p className="text-xs text-muted-foreground">
-              Private topics are visible only to you and the brain owner, and are never added to the
-              brain&rsquo;s shared knowledge.
-            </p>
-          )}
-          {error && <p className="text-sm text-destructive-ink">{error}</p>}
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={onCancel} disabled={submitting}>
-              Cancel
-            </Button>
-            <SubmitButton
-              pending={submitting}
-              onClick={() => void create()}
-              disabled={!title.trim() || !body.trim() || attachBusy}
-            >
-              Create topic
-            </SubmitButton>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Kind</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as ForumKind)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORUM_KINDS.map((k) => (
+                    <SelectItem key={k.value} value={k.value}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`size-1.5 rounded-full ${k.dot}`} aria-hidden />
+                        {k.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{kindMeta(kind).hint}</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="forum-topic-body">Your post</Label>
+              <Textarea
+                id="forum-topic-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={5}
+                placeholder="Ask, propose, or report — the more context, the better the answer."
+              />
+              <ComposerAttachments
+                staged={staged}
+                onStagedChange={setStaged}
+                onUploadingChange={setAttachBusy}
+                disabled={submitting}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={effectiveNoReply}
+                  onCheckedChange={(v) => {
+                    setNoReplyTouched(true);
+                    setNoReply(v === true);
+                  }}
+                />
+                No answer needed
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                Private
+                <Switch checked={isPrivate} onCheckedChange={setIsPrivate} />
+              </label>
+            </div>
+            {isPrivate && (
+              <p className="text-xs text-muted-foreground">
+                Private topics are visible only to you and the brain owner, and are never added to
+                the brain&rsquo;s shared knowledge.
+              </p>
+            )}
+            {error && <p className="text-sm text-destructive-ink">{error}</p>}
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={onCancel} disabled={submitting}>
+                Cancel
+              </Button>
+              <SubmitButton
+                pending={submitting}
+                onClick={() => void create()}
+                disabled={!title.trim() || !body.trim() || attachBusy}
+              >
+                Create topic
+              </SubmitButton>
+            </div>
           </div>
         </div>
       </div>

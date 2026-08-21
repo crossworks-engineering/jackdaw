@@ -232,11 +232,14 @@ export function ShareReader({
  *  editor CSS in globals.css styles it identically.
  *
  *  This one is jackdaw-local, so it takes the embedded treatment directly
- *  rather than through a `chrome` prop. It keeps its measure — a page is prose,
- *  and the owner's own `width` choice decides it — and drops only the
- *  standalone page's tall top padding, which is the shell's to own here. */
+ *  rather than through a `chrome` prop.
+ *
+ *  No max-width cap: the pane DIVIDER is the measure here, exactly like the
+ *  owner editor (`max-w-none`). The old `max-w-3xl/5xl` cap meant dragging
+ *  the handle wider just grew empty gutter once the cap was hit — the pane
+ *  opens at a readable 900px default, and a member who drags wider gets the
+ *  width they asked for. */
 function PageReader({ view }: { view: Extract<ShareViewPayload, { kind: 'page' }> }) {
-  const widthClass = view.width === 'wide' ? 'max-w-5xl' : 'max-w-3xl';
   return (
     <div className="flex w-full gap-8 px-6 py-6">
       {view.toc.length > 0 && (
@@ -250,7 +253,7 @@ function PageReader({ view }: { view: Extract<ShareViewPayload, { kind: 'page' }
         </aside>
       )}
       <div className="min-w-0 flex-1">
-        <article className={`mx-auto w-full ${widthClass}`}>
+        <article className="w-full">
           <div
             className="ProseMirror prose dark:prose-invert prose-accent prose-document max-w-none"
             // Sanitized server-side by renderPageDoc — built from a known tag
