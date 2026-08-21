@@ -52,7 +52,7 @@ export function LoginClient({
       <div className="space-y-2 text-center">
         {mark}
         <p className="text-sm text-muted-foreground">
-          {firstRun ? 'Create your login to begin.' : 'Sign in to your tree.'}
+          {firstRun ? 'Create your login to begin.' : 'Sign in to your data aware workspace.'}
         </p>
       </div>
       <LoginForm mode={firstRun ? 'signup' : 'login'} next={next} error={error} />

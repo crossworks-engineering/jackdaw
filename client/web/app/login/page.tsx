@@ -2,6 +2,7 @@ import { loadBrainAppearance } from '@/lib/appearance';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { LoginClient } from './login-client';
 import { LoginMark } from './login-mark';
+import { JackdawCredit } from './jackdaw-credit';
 
 /**
  * Owner sign-in screen, zero-secret flavor: no server session read (this app
@@ -25,12 +26,32 @@ export default async function LoginPage({
 }) {
   const [params, appearance] = await Promise.all([searchParams, loadBrainAppearance()]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
+  // Where an uploaded logo's bytes live. Read here, in the SERVER pass, because
+  // that is the half of the render that can see it: the browser gets the same
+  // value from /env.js, but this HTML is built before any script runs. Passing
+  // it down is what keeps a custom logo working when the client and the brain
+  // are on different origins — see `components/layout/rail/brand-logo.tsx`.
+  const srcBase = (process.env.MANTLE_SERVER_ORIGIN ?? '').replace(/\/+$/, '');
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
-        <LoginClient mark={<LoginMark brand={brand} />} next={params.next} error={params.error} />
+    // A COLUMN, not a single centred box, so the product's mark can sit at the
+    // foot without fighting the card for the middle. The card keeps the centre
+    // of whatever height is left (`flex-1` + `items-center`), and the credit
+    // sits below it in normal flow rather than absolutely positioned — so on a
+    // short viewport the page scrolls instead of the two overlapping.
+    <main className="flex min-h-screen flex-col bg-background px-4 py-8">
+      <div className="flex w-full flex-1 items-center justify-center">
+        <div className="w-full max-w-sm space-y-8">
+          <LoginClient
+            mark={<LoginMark brand={brand} srcBase={srcBase} />}
+            next={params.next}
+            error={params.error}
+          />
+        </div>
       </div>
+      {/* Only once the owner's branding has taken the hero slot — otherwise the
+          Jackdaw mark would appear twice on one screen. See `jackdaw-credit.tsx`. */}
+      {brand.kind !== 'jackdaw' && <JackdawCredit />}
     </main>
   );
 }

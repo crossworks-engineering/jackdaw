@@ -26,6 +26,25 @@ import { serverUrl } from '@mantle/web-ui/runtime-env';
  * surface, and `renderWordmark` supplies the surface's own text fallback (the
  * visibility class passed to it MUST be forwarded onto the rendered node, or
  * the dark-only case shows wordmark AND logo together in dark mode).
+ *
+ * ── `srcBase`, and why a SERVER-rendered caller must pass it ───────────────
+ * `serverUrl()` reads `window.__MANTLE_ENV__`, which only exists in the
+ * browser. Every original caller renders after mount (the rail waits on
+ * /api/shell), so it was always there. The LOGIN mark is different: it is
+ * resolved server-side on purpose, to avoid flashing the wrong brand — and on
+ * the server `serverUrl()` finds no origin and falls back to a RELATIVE path.
+ *
+ * That relative path is correct on the default one-domain deployment, where
+ * the reverse proxy routes /api to the brain — which is why this went unseen.
+ * It is wrong wherever the client and the brain are on different origins: a
+ * split-origin install, and the Electron desktop shell, where it resolves
+ * against the app's own origin and the logo simply fails to load. Hydration
+ * does not rescue it either; React keeps the server's `src`.
+ *
+ * So a server-rendered caller passes the origin it already has
+ * (`process.env.MANTLE_SERVER_ORIGIN` — the very string /env.js hands the
+ * browser, so there is one value, not two). Omitted, the behavior is exactly
+ * as before.
  */
 export function BrandLogo({
   name,
@@ -33,6 +52,7 @@ export function BrandLogo({
   logoDarkVersion,
   imgClassName,
   renderWordmark,
+  srcBase,
 }: {
   name: string;
   logoVersion?: string | null;
@@ -42,14 +62,19 @@ export function BrandLogo({
   /** The surface's text fallback; `visibility` is a class to merge in (e.g.
    *  `dark:hidden` when the wordmark only stands in for a missing light logo). */
   renderWordmark: (visibility?: string) => React.ReactNode;
+  /** Brain origin for the img srcs. REQUIRED of server-rendered callers, which
+   *  have no `window` for `serverUrl()` to read — see the note above. */
+  srcBase?: string;
 }) {
+  const url = (path: string) =>
+    srcBase ? `${srcBase.replace(/\/+$/, '')}${path}` : serverUrl(path);
   if (!logoVersion && !logoDarkVersion) return <>{renderWordmark()}</>;
   return (
     <>
       {logoVersion ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={serverUrl(`/api/appearance/logo?v=${logoVersion}`)}
+          src={url(`/api/appearance/logo?v=${logoVersion}`)}
           alt={name}
           className={cn(imgClassName, logoDarkVersion && 'dark:hidden')}
         />
@@ -59,7 +84,7 @@ export function BrandLogo({
       {logoDarkVersion && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={serverUrl(`/api/appearance/logo?variant=dark&v=${logoDarkVersion}`)}
+          src={url(`/api/appearance/logo?variant=dark&v=${logoDarkVersion}`)}
           alt={name}
           className={cn('hidden dark:block', imgClassName)}
         />

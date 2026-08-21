@@ -42,7 +42,7 @@ import type { LoginBrand } from '@/lib/brand';
  * is why it is shared). All this adds is what to fall back TO — the name when
  * there is one, the lockup when there is not.
  */
-export function LoginMark({ brand }: { brand: LoginBrand }) {
+export function LoginMark({ brand, srcBase }: { brand: LoginBrand; srcBase?: string }) {
   return (
     <div className="space-y-2">
       {/* Fixed slot. The lockup is 180px tall and the alternatives are not, so
@@ -55,6 +55,10 @@ export function LoginMark({ brand }: { brand: LoginBrand }) {
           name={brand.name}
           logoVersion={brand.logoVersion}
           logoDarkVersion={brand.logoDarkVersion}
+          // The brain's origin, resolved on the server and handed down. Without
+          // it the img src comes out relative, which is wrong on any split-origin
+          // install and in the desktop shell — see the note in `brand-logo.tsx`.
+          srcBase={srcBase}
           imgClassName="max-h-[180px] w-auto max-w-full object-contain"
           renderWordmark={(visibility) =>
             brand.named ? (

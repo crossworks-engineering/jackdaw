@@ -3,19 +3,20 @@ import type { BrainAppearance } from '@mantle/web-ui/appearance';
 /**
  * The brain's own identity, read off the PUBLIC appearance payload.
  *
- * ⚠ These four fields are not on `BrainAppearance` yet. `GET /api/appearance`
- * is public and already carries the colour theme, all four fonts and their
- * sizes; the site name, the peer name and whether a logo exists live behind
- * `GET /api/shell`, which needs a session — and the login screen runs before
- * there is one. Adding them to the public payload is the MANTLE half of this
- * work (dev task `db6b72e9`), and it has not shipped.
+ * `GET /api/appearance` is public and carries the colour theme, all four fonts
+ * and their sizes. The site name, the peer name and whether a logo exists used
+ * to live ONLY behind `GET /api/shell`, which needs a session — and the login
+ * screen runs before there is one. Mantle now serves them on the public payload
+ * too (dev task `db6b72e9`, 2026-08-21), which is what lights these screens up.
  *
- * So this reads them DEFENSIVELY off the same payload rather than waiting: the
- * type says they are absent, the runtime may already know better, and the
- * moment mantle adds them every surface below lights up with no change here.
- * Until then every field reads null and the screens fall back exactly as they
- * do today. That is the whole reason for the `unknown` cast in `readBrandFields`
- * — it is a forward-compatible read, not a type escape.
+ * The read stays DEFENSIVE anyway, and the `unknown` cast in `readBrandFields`
+ * with it. Two versions move independently here: this client pins PUBLISHED
+ * `@crossworks/*` contract packages, so the widened `BrainAppearance` type only
+ * arrives on the next publish; and a client can be newer than the brain it is
+ * pointed at, where the fields genuinely will not come. Absence must therefore
+ * stay a normal answer rather than a type error or a crash — every field reads
+ * null and the screens fall back exactly as an unbranded brain does. It is a
+ * version-tolerant read, not a type escape.
  *
  * The logo BYTES need nothing new: `GET /api/appearance/logo` is already public
  * and sha-addressed. What is missing is only the knowledge that one exists.

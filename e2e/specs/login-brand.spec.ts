@@ -10,17 +10,20 @@ import { expect, test } from '../lib/fixtures';
  * The branding is resolved SERVER-side, from the public `GET /api/appearance`
  * that the root layout already fetches — so there is no request in the browser
  * for a test to intercept, and the two branded rungs cannot be driven from
- * here. They also cannot be driven from a real brain yet: that payload does not
- * carry `siteName`, `peerName` or a logo flag until the mantle half of the task
- * ships. The ladder itself is therefore covered by `client/web/lib/brand.test.ts`
- * — pure and exhaustive — and what is covered HERE is everything that has to
- * keep working on a brain that has said nothing about itself:
+ * here. (The mantle half HAS now shipped, so the payload does carry `siteName`,
+ * `peerName` and the logo versions; what is still missing is a way for this
+ * harness to SET them on the scratch brain mid-run.) The ladder itself is
+ * therefore covered by `client/web/lib/brand.test.ts` — pure and exhaustive —
+ * and what is covered HERE is everything that has to keep working on a brain
+ * that has said nothing about itself:
  *
  *  - the Jackdaw lockup is still the fallback, in both themes;
  *  - the tab still says Jackdaw rather than going blank;
  *  - the title is in the SERVER's HTML, not painted in after hydration;
  *  - the form still renders and HYDRATES after the page was split into a
- *    server component plus a client child.
+ *    server component plus a client child;
+ *  - the small footer mark stays AWAY, so the unbranded screen does not show
+ *    the Jackdaw mark twice.
  *
  * That last one is the real regression risk in this change and the reason this
  * file exists at all.
@@ -88,6 +91,17 @@ test.describe('login branding', () => {
     await expect(visitorPage).toHaveTitle('Jackdaw');
   });
 
+  test('an unbranded brain does not show the Jackdaw mark twice', async ({ visitorPage }) => {
+    // The footer credit exists for the case where the OWNER's branding has
+    // taken the hero slot. With nothing set, the hero is already the Jackdaw
+    // lockup, and repeating the same mark lower down reads as a bug rather
+    // than a credit — so on this brain the row lockup must be absent entirely.
+    await visitorPage.goto('/login');
+    await expect(visitorPage.locator('img[src^="/brand/jackdaw-row-"]')).toHaveCount(0);
+    // ...while the hero it defers to is still there.
+    await expect(visitorPage.locator('img[src="/brand/jackdaw-lockup-light.png"]')).toHaveCount(1);
+  });
+
   test('an unnamed brain shows no peer line at all', async ({ visitorPage }) => {
     // Rendering an empty line would reserve space for nothing and leave the
     // strapline sitting oddly low.
@@ -115,7 +129,7 @@ test.describe('login branding', () => {
     await expect(visitorPage.getByRole('button', { name: /^sign in$/i })).toBeVisible();
     // The first-run gate resolves client-side and defaults to "sign in" — the
     // create-account copy is for a genuinely fresh install.
-    await expect(visitorPage.getByText('Sign in to your tree.')).toBeVisible();
+    await expect(visitorPage.getByText('Sign in to your data aware workspace.')).toBeVisible();
 
     // Controlled input ⇒ the client child hydrated. Server HTML alone would
     // keep whatever was typed only in the DOM, never in React's state, and

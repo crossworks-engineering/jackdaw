@@ -52,13 +52,21 @@ export const dynamic = 'force-dynamic';
  * cannot both be exported from one segment. Same cached fetch the layout body
  * awaits below, so this costs no extra request.
  *
- * ⚠ Reads `siteName` off the appearance payload, which does not carry it YET —
- * see `lib/brand.ts`. Until mantle ships that field the title is 'Jackdaw',
- * exactly as before.
+ * A TEMPLATE, not a bare string, and that is the half that makes this actually
+ * work. A child segment's own `metadata.title` REPLACES the root's outright, so
+ * with a plain string here every /team route still read "Team · Files" on every
+ * brain — the exact indistinguishability this set out to fix, surviving on all
+ * the pages someone leaves open. `template` appends the brain's name to
+ * whatever a child sets instead; `default` covers the segments that set none.
+ *
+ * The brain's name goes LAST because a tab strip truncates from the right and
+ * the page is what you are scanning for first — the name is the disambiguator
+ * you read once you have found the right kind of tab.
  */
 export async function generateMetadata(): Promise<Metadata> {
+  const name = brandTitle(readBrandFields(await loadBrainAppearance()));
   return {
-    title: brandTitle(readBrandFields(await loadBrainAppearance())),
+    title: { default: name, template: `%s · ${name}` },
     description: 'The data-aware workspace.',
   };
 }
