@@ -19,7 +19,7 @@ import type { NavGroup, NavItem } from '@mantle/web-ui/layout/nav-items';
  *   the items in mantle would have taken both away; that is finding §3b of the
  *   handover, and this route avoids it entirely.
  * - It is **reversible in one file**. When mantle collapses the list properly,
- *   delete this module and its two call sites.
+ *   delete this module and its call sites in `sidebar-nav.tsx`.
  *
  * ⚠ IDEMPOTENT ON PURPOSE. When the mantle change does land, the hub screens
  * will already be absent and a "Settings" row already present — so this must
@@ -27,8 +27,8 @@ import type { NavGroup, NavItem } from '@mantle/web-ui/layout/nav-items';
  */
 
 /** The thirteen the hub lists. Twelve live in the Settings group; `discover`
- *  sits in REVIEW (beside Team and Pending) and deliberately stays there — its
- *  hub card is a second door, not a replacement. */
+ *  sits in REVIEW (beside Team and Pending) and is handled by
+ *  `HUB_HIDDEN_ROWS` below instead. */
 const HUB_HREFS = new Set([
   '/settings/profile',
   '/settings/appearance',
@@ -43,6 +43,15 @@ const HUB_HREFS = new Set([
   '/settings/updates',
   '/settings/audit',
 ]);
+
+/** Rows hidden from the sidebar WITHOUT hosting the hub row. `discover` had
+ *  two doors — a Review-group row and a hub card, both at the same route —
+ *  and the row is the one that goes (2026-08-21, reversing the "second door"
+ *  call from the hub plan). It cannot join `HUB_HREFS`: the collapse plants a
+ *  "Settings" row in whichever group it removed items from, and Review must
+ *  never grow one. The filter still finds Discover — it searches the
+ *  untransformed list. */
+const HUB_HIDDEN_ROWS = new Set(['/settings/discover']);
 
 export const SETTINGS_HUB_HREF = '/settings';
 
@@ -66,21 +75,46 @@ const COLLAPSED_DEFAULT_HEAD = [
 
 export function collapseSettingsNav<G extends NavGroup>(groups: G[]): G[] {
   return groups.map((group) => {
-    const kept = group.items.filter((item) => !HUB_HREFS.has(item.href));
-    const removedAny = kept.length !== group.items.length;
+    const visible = group.items.filter((item) => !HUB_HIDDEN_ROWS.has(item.href));
+    const kept = visible.filter((item) => !HUB_HREFS.has(item.href));
+    const removedAny = kept.length !== visible.length;
     const hasHub = kept.some((item) => item.href === SETTINGS_HUB_HREF);
 
     // The hub row goes in the group we actually COLLAPSED — not in "any group
     // holding a /settings/ href", which is a trap: `discover` lives under
     // `/settings/discover` but sits in the REVIEW group, so that test put a
-    // second "Settings" row at the top of Review.
-    if (!removedAny) return group;
+    // second "Settings" row at the top of Review. (Its row is dropped via
+    // HUB_HIDDEN_ROWS above, which must never count as a collapse here.)
+    if (!removedAny)
+      return visible.length === group.items.length ? group : { ...group, items: visible };
 
     return {
       ...group,
       items: hasHub ? kept : [HUB_ITEM as G['items'][number], ...kept],
       defaultHead: COLLAPSED_DEFAULT_HEAD,
     };
+  });
+}
+
+/**
+ * The sidebar FILTER's copy: hub row inserted, hub screens KEPT.
+ *
+ * The collapse above hides the twelve hub screens from the rendered nav, which
+ * also hid them from the sidebar's "Filter menu…" box — typing "backups" found
+ * nothing, even though ⌘K still found it. While a query is live the sidebar
+ * filters over this list instead, so every hub screen matches by name and
+ * links straight to its own route; "Settings" itself stays findable too.
+ *
+ * Idempotent for the same reason `collapseSettingsNav` is: once mantle ships
+ * the collapsed list, the hub children are already gone and the hub row is
+ * already present, so this returns the group untouched.
+ */
+export function expandSettingsNavForFilter<G extends NavGroup>(groups: G[]): G[] {
+  return groups.map((group) => {
+    const hasHubChildren = group.items.some((item) => HUB_HREFS.has(item.href));
+    const hasHub = group.items.some((item) => item.href === SETTINGS_HUB_HREF);
+    if (!hasHubChildren || hasHub) return group;
+    return { ...group, items: [HUB_ITEM as G['items'][number], ...group.items] };
   });
 }
 

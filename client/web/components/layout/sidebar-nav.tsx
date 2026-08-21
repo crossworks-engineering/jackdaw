@@ -15,7 +15,11 @@ import {
 } from '@mantle/web-ui/ui/tooltip';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useGroupHead } from '@/lib/nav-usage';
-import { activeNavHref, collapseSettingsNav } from '@/lib/settings-hub-nav';
+import {
+  activeNavHref,
+  collapseSettingsNav,
+  expandSettingsNavForFilter,
+} from '@/lib/settings-hub-nav';
 import {
   NAV_GROUPS,
   type NavGroup as BaseNavGroup,
@@ -66,28 +70,34 @@ export function SidebarNav({
   // Pending item at render time, and the thirteen hub screens collapsed into
   // one "Settings" row (see `lib/settings-hub-nav.ts` — it is the SIDEBAR's
   // copy that changes, so ⌘K and usage attribution still see every screen).
-  const groups: NavGroup[] = collapseSettingsNav(
-    NAV_GROUPS.map((g) => ({
-      ...g,
-      items: g.items.map((item) =>
-        item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
-      ),
-    })),
-  );
-
-  // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
-  // is a prefix of every other settings route, so an independent test would
-  // light it beside Agents on `/settings/agents`.
-  const activeHref = activeNavHref(groups, pathname);
-  const isActive = (item: NavItem) => item.href === activeHref;
+  const baseGroups: NavGroup[] = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.map((item) =>
+      item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
+    ),
+  }));
+  const groups: NavGroup[] = collapseSettingsNav(baseGroups);
 
   // Filter by item name (case-insensitive substring), dropping now-empty groups.
   // The filter is an expanded-only affordance — at icon-rail width there's no
   // box to type in, so a collapsed rail always shows its heads unfiltered.
+  //
+  // A live query searches the EXPANDED list: the hub screens have no sidebar
+  // row of their own, but "backups" must still find Backups and link straight
+  // to /settings/backups rather than coming back with "No matches."
   const q = query.trim().toLowerCase();
   const filtering = !collapsed && q.length > 0;
+  const displayGroups = filtering ? expandSettingsNavForFilter(baseGroups) : groups;
+
+  // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
+  // is a prefix of every other settings route, so an independent test would
+  // light it beside Agents on `/settings/agents`. Computed over the groups
+  // being DISPLAYED, so a filtered-in hub screen highlights its own row.
+  const activeHref = activeNavHref(displayGroups, pathname);
+  const isActive = (item: NavItem) => item.href === activeHref;
+
   const visibleGroups = filtering
-    ? groups
+    ? displayGroups
         .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
         .filter((g) => g.items.length > 0)
     : groups;
