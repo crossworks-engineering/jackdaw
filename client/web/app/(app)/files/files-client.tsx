@@ -1969,7 +1969,12 @@ function FilePane({
   onOpenFile: (id: string, parentPath: string) => void;
 }) {
   const filesQuery = useQuery({
-    queryKey: ['files', 'list', path],
+    // Own namespace, NOT ['files','list',…]: the outer folder view caches the
+    // {files} ENVELOPE under that key while this pane caches the bare array —
+    // sharing the key hands one component the other's shape and `.map`
+    // explodes on the envelope. Same-shape-or-separate-key is the rule; the
+    // ['files'] prefix keeps it inside the invalidation blast radius.
+    queryKey: ['files', 'pane', path],
     queryFn: () =>
       apiFetch<{ files: FileRow[] }>(`/api/files/files?parent=${encodeURIComponent(path)}`).then(
         (r) => r.files,
