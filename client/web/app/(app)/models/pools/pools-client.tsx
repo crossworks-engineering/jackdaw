@@ -138,7 +138,8 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
       <MasterDetail
         id="model-pools"
         defaultListSize="300px"
-        detailFills
+        defaultDetailSize="900px"
+        maxDetailSize="100%"
         list={
           <>
             <div className="flex items-center justify-between gap-2 border-b border-border p-3">
