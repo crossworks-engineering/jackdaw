@@ -59,6 +59,18 @@ type KeyRow = {
   updatedAt: string;
 };
 
+/** A non-LLM service the brain's runtime can consume a key for (firecrawl,
+ *  mapbox, …). Served by GET /api/keys so the list is brain-versioned — no
+ *  contract-package release needed to add one. Older brains omit the field. */
+type KnownService = {
+  service: string;
+  label: string;
+  description: string;
+  signupUrl: string;
+  usedFor: string;
+  configured: boolean;
+};
+
 // Note: per-capability wired/unwired status comes from
 // `wiredCapabilitiesFor(provider)` (see @mantle/voice/adapters/registry).
 // The dropdown surfaces this inline so operators see exactly what their
@@ -83,7 +95,7 @@ export function KeysClient() {
   const toast = useToast();
   const keysQuery = useQuery({
     queryKey: ['keys'],
-    queryFn: () => apiFetch<{ keys: KeyRow[] }>('/api/keys').then((r) => r.keys),
+    queryFn: () => apiFetch<{ keys: KeyRow[]; knownServices?: KnownService[] }>('/api/keys'),
   });
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [pending, startTransition] = useTransition();
@@ -97,19 +109,20 @@ export function KeysClient() {
   // auto-select the deep-linked key (else the first) once loaded.
   useEffect(() => {
     if (!keysQuery.data) return;
-    setKeys(keysQuery.data);
+    const rows = keysQuery.data.keys;
+    setKeys(rows);
     const want = deepLinkRef.current?.trim();
     deepLinkRef.current = null;
     const hit = want
-      ? keysQuery.data.find((k) => k.id === want || k.label === want || k.service === want)
+      ? rows.find((k) => k.id === want || k.label === want || k.service === want)
       : undefined;
     setSel(
       (prev) =>
         prev ??
         (hit
           ? { mode: 'view', id: hit.id }
-          : keysQuery.data[0]
-            ? { mode: 'view', id: keysQuery.data[0].id }
+          : rows[0]
+            ? { mode: 'view', id: rows[0].id }
             : { mode: 'create' }),
     );
   }, [keysQuery.data]);
@@ -253,6 +266,14 @@ export function KeysClient() {
   const isCustom = service === CUSTOM_SERVICE;
   const effectiveService = (isCustom ? customService : service).trim().toLowerCase();
   const provider = SUPPORTED_PROVIDERS.find((p) => p.id === service);
+  const knownServices = keysQuery.data?.knownServices ?? [];
+  // Configured-ness is derived from the LIVE local list (not the server flag)
+  // so a just-created or just-deleted key flips the placeholder immediately.
+  const unconfiguredServices = knownServices.filter(
+    (s) => !keys.some((k) => k.service === s.service),
+  );
+  const knownService =
+    !provider && !isCustom ? knownServices.find((s) => s.service === service) : undefined;
 
   if (keysQuery.isPending) {
     return (
@@ -303,6 +324,32 @@ export function KeysClient() {
                   );
                 })
               )}
+              {unconfiguredServices.length > 0 && (
+                <>
+                  <p className="pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Available integrations
+                  </p>
+                  {unconfiguredServices.map((s) => (
+                    <ListCard
+                      key={s.service}
+                      className="border-dashed"
+                      onClick={() => {
+                        setSel({ mode: 'create' });
+                        setService(s.service);
+                      }}
+                      selected={sel?.mode === 'create' && service === s.service}
+                    >
+                      <div className="flex items-baseline gap-2">
+                        <ListCardTitle>{s.label}</ListCardTitle>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          not configured
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{s.usedFor}</span>
+                    </ListCard>
+                  ))}
+                </>
+              )}
             </div>
           </>
         }
@@ -348,6 +395,11 @@ export function KeysClient() {
                               </SelectItem>
                             );
                           })}
+                          {knownServices.map((s) => (
+                            <SelectItem key={s.service} value={s.service}>
+                              {s.label} · {s.usedFor}
+                            </SelectItem>
+                          ))}
                           <SelectItem value={CUSTOM_SERVICE}>Custom / other API…</SelectItem>
                         </SelectContent>
                       </Select>
@@ -379,6 +431,21 @@ export function KeysClient() {
                             {createErrors['custom-service']}
                           </FieldError>
                         </Field>
+                      )}
+                      {knownService && (
+                        <p className="text-xs text-muted-foreground">
+                          {knownService.description}{' '}
+                          <a
+                            href={knownService.signupUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            Get a key →
+                          </a>
+                          <br />
+                          <span className="font-medium">Used by:</span> {knownService.usedFor}
+                        </p>
                       )}
                       {provider &&
                         (() => {
