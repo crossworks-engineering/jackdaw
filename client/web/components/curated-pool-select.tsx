@@ -15,6 +15,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { Pencil } from 'lucide-react';
+import { Button } from '@mantle/web-ui/ui/button';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import {
   Select,
@@ -113,8 +115,8 @@ export function CuratedPoolSelect({
           setValue('');
         }}
       >
-        <SelectTrigger className="h-8 flex-1 text-xs" aria-label="Curated picks">
-          <SelectValue placeholder={`Curated picks (${entries.length}) — quick select…`} />
+        <SelectTrigger className="flex-1" aria-label="Curated picks">
+          <SelectValue placeholder="Select from curated list..." />
         </SelectTrigger>
         <SelectContent>
           {entries.map((e) => (
@@ -122,17 +124,23 @@ export function CuratedPoolSelect({
               {e.name}
               {e.rating ? ` ${'★'.repeat(e.rating)}` : ''}
               {priceLabel(e.pricing)}
-              {e.note ? ` — ${e.note.length > 60 ? `${e.note.slice(0, 57)}…` : e.note}` : ''}
+              {e.note ? ` · ${e.note.length > 60 ? `${e.note.slice(0, 57)}…` : e.note}` : ''}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <Link
-        href={`/models/pools?pool=${pool}`}
-        className="shrink-0 text-xs text-muted-foreground underline"
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        className="shrink-0"
+        asChild
+        aria-label="Edit this pool"
       >
-        edit pool
-      </Link>
+        <Link href={`/models/pools?pool=${pool}`} title="Edit this pool">
+          <Pencil />
+        </Link>
+      </Button>
     </div>
   );
 }
