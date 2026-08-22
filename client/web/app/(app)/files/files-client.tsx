@@ -13,9 +13,13 @@ import {
   ChevronRight,
   ChevronsRight,
   FileJson,
+  ArrowDown,
+  ArrowUp,
   Eye,
   EyeOff,
   FileText,
+  LayoutGrid,
+  List,
   Folder,
   FolderPlus,
   Pencil,
@@ -24,6 +28,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { describeFile, KIND_TINT } from '@mantle/web-ui/lib/mime-label';
+import { assetUrl } from '@mantle/web-ui/asset-url';
 import { FileEditor } from './file-editor';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
@@ -274,6 +279,53 @@ function FilesView({
   // header toggle displays and what un-flagged file rows badge under.
   const foldersByPath = useMemo(() => new Map(tree.map((f) => [f.path, f])), [tree]);
   const folderIndexing = effectiveFolderIndexing(currentPath, foldersByPath);
+
+  // ── View + sort ────────────────────────────────────────────────
+  // 'list' is the details table; 'grid' is thumbnail tiles. The choice is a
+  // lasting preference, not per-folder state, so it lives in localStorage.
+  const [view, setView] = useState<'list' | 'grid'>(() => {
+    if (typeof window === 'undefined') return 'list';
+    return window.localStorage.getItem('files:view') === 'grid' ? 'grid' : 'list';
+  });
+  const switchView = (v: 'list' | 'grid') => {
+    setView(v);
+    try {
+      window.localStorage.setItem('files:view', v);
+    } catch {
+      /* private mode */
+    }
+  };
+  type SortKey = 'name' | 'type' | 'size' | 'modified';
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
+    key: 'name',
+    dir: 'asc',
+  });
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : // Size and recency are usually asked as "biggest / newest first".
+          { key, dir: key === 'size' || key === 'modified' ? 'desc' : 'asc' },
+    );
+  const sortedFiles = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const label = (f: FileRow) => describeFile(f.mimeType, f.filename).label;
+    return [...files].sort((a, b) => {
+      switch (sort.key) {
+        case 'size':
+          return (a.sizeBytes - b.sizeBytes) * dir;
+        case 'modified':
+          return (Date.parse(a.updatedAt) - Date.parse(b.updatedAt)) * dir;
+        case 'type': {
+          const c = label(a).localeCompare(label(b));
+          // Same type sorts by name so the order is stable and scannable.
+          return (c !== 0 ? c : a.filename.localeCompare(b.filename)) * dir;
+        }
+        default:
+          return a.filename.localeCompare(b.filename, undefined, { numeric: true }) * dir;
+      }
+    });
+  }, [files, sort]);
 
   // Dialog open-state.
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
@@ -720,6 +772,29 @@ function FilesView({
                   </Button>
                   <input ref={fileInputRef} type="file" multiple hidden onChange={onFileInput} />
 
+                  <div className="ml-auto flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant={view === 'list' ? 'secondary' : 'ghost'}
+                      className="h-7 w-7 p-0"
+                      aria-label="Details view"
+                      title="Details view"
+                      onClick={() => switchView('list')}
+                    >
+                      <List className="size-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={view === 'grid' ? 'secondary' : 'ghost'}
+                      className="h-7 w-7 p-0"
+                      aria-label="Thumbnail view"
+                      title="Thumbnail view"
+                      onClick={() => switchView('grid')}
+                    >
+                      <LayoutGrid className="size-4" />
+                    </Button>
+                  </div>
+
                   {selectedFileIds.size > 0 && (
                     <Button
                       size="sm"
@@ -752,6 +827,72 @@ function FilesView({
                       No files in this folder. Drop a file anywhere here, or use{' '}
                       <span className="font-medium text-foreground">New</span> to create one.
                     </div>
+                  ) : view === 'grid' ? (
+                    /* Thumbnail tiles. Images load ?thumb=1 (cached 512px JPEG
+                       server-side); a 404 — not an image, render failed —
+                       flips the tile to the type icon via onError. Selection
+                       stays a list-view feature; a tile click opens. */
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3 p-4">
+                      {sortedFiles.map((f) => {
+                        const described = describeFile(f.mimeType, f.filename);
+                        const TypeIcon = described.icon;
+                        const isImage = f.mimeType.startsWith('image/');
+                        return (
+                          <button
+                            key={f.id}
+                            onClick={() => openFile(f.id)}
+                            data-mark-id={f.id}
+                            data-mark-kind="file"
+                            data-mark-label={f.filename}
+                            title={`${f.filename} — ${described.label}, ${fmtSize(f.sizeBytes)}`}
+                            className="group flex flex-col overflow-hidden rounded-md border border-border bg-card text-left hover:border-primary/40 hover:shadow-sm"
+                          >
+                            <span className="flex aspect-square w-full items-center justify-center overflow-hidden bg-muted/40">
+                              {isImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- authed same-origin thumbnail; next/image can't carry the asset token
+                                <img
+                                  src={assetUrl(`/api/files/files/${f.id}?thumb=1`)}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    // Swap to the icon fallback: hide the img,
+                                    // reveal the sibling icon span.
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className={
+                                  isImage
+                                    ? 'hidden items-center justify-center'
+                                    : 'flex items-center justify-center'
+                                }
+                              >
+                                <TypeIcon
+                                  aria-hidden
+                                  className={`size-10 ${KIND_TINT[described.kind]}`}
+                                />
+                              </span>
+                            </span>
+                            <span className="flex flex-col gap-0.5 px-2 py-1.5">
+                              <span className="truncate text-xs font-medium">{f.filename}</span>
+                              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                {fmtSize(f.sizeBytes)}
+                                {(f.indexing === 'metadata' ||
+                                  f.indexingApplied === 'metadata' ||
+                                  (!f.indexing && folderIndexing.mode === 'metadata')) && (
+                                  <span className="inline-flex items-center gap-0.5">
+                                    <EyeOff className="size-2.5" /> name only
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
@@ -765,15 +906,48 @@ function FilesView({
                               }
                             />
                           </th>
-                          <th className="px-3 py-2 text-left">Name</th>
-                          <th className="px-3 py-2 text-right">Size</th>
+                          {(
+                            [
+                              ['name', 'Name', 'text-left'],
+                              ['type', 'Type', 'text-left'],
+                              ['size', 'Size', 'text-right'],
+                            ] as const
+                          ).map(([key, label, align]) => (
+                            <th key={key} className={`px-3 py-2 ${align}`}>
+                              <button
+                                onClick={() => toggleSort(key)}
+                                className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground ${align === 'text-right' ? 'flex-row-reverse' : ''}`}
+                              >
+                                {label}
+                                {sort.key === key &&
+                                  (sort.dir === 'asc' ? (
+                                    <ArrowUp className="size-3" />
+                                  ) : (
+                                    <ArrowDown className="size-3" />
+                                  ))}
+                              </button>
+                            </th>
+                          ))}
                           <th className="px-3 py-2 text-left">Summary</th>
-                          <th className="px-3 py-2 text-left">Modified</th>
+                          <th className="px-3 py-2 text-left">
+                            <button
+                              onClick={() => toggleSort('modified')}
+                              className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground"
+                            >
+                              Modified
+                              {sort.key === 'modified' &&
+                                (sort.dir === 'asc' ? (
+                                  <ArrowUp className="size-3" />
+                                ) : (
+                                  <ArrowDown className="size-3" />
+                                ))}
+                            </button>
+                          </th>
                           <th className="w-10 px-3 py-2" aria-label="Actions" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {files.map((f) => {
+                        {sortedFiles.map((f) => {
                           // MIME first, filename as tie-breaker — files uploaded
                           // before the server's mime map learned audio/video/
                           // archives are stored as octet-stream, and the
@@ -838,6 +1012,9 @@ function FilesView({
                                     </span>
                                   )}
                                 </button>
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+                                {described.label}
                               </td>
                               <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                                 {fmtSize(f.sizeBytes)}
