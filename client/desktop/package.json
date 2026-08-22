@@ -1,11 +1,11 @@
 {
   "name": "@mantle/client-desktop",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "private": true,
   "productName": "Jackdaw",
   "homepage": "https://github.com/crossworks-engineering/jackdaw",
   "author": "Jason Schoeman <jason@schoeman.me>",
-  "description": "Jackdaw desktop — Electron shell around the owner UI. A native client alongside Jackdaw mobile: connect screen picks a brain, bearer auth, no server secrets in the app.",
+  "description": "Jackdaw desktop \u2014 Electron shell around the owner UI. A native client alongside Jackdaw mobile: connect screen picks a brain, bearer auth, no server secrets in the app.",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

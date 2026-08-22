@@ -1,8 +1,8 @@
 {
   "name": "@mantle/client-web",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "private": true,
-  "description": "Mantle owner UI — the zero-secret client Next app. Talks to the server origin via bearer + CORS; holds no SESSION_SECRET, no DB, no server packages.",
+  "description": "Mantle owner UI \u2014 the zero-secret client Next app. Talks to the server origin via bearer + CORS; holds no SESSION_SECRET, no DB, no server packages.",
   "scripts": {
     "app-runtime": "tsx node_modules/@mantle/app-build/scripts/build-runtime.ts",
     "excalidraw-assets": "node scripts/copy-excalidraw-assets.mjs",
