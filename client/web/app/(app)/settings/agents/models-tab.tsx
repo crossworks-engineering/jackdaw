@@ -34,6 +34,7 @@ import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { CuratedPoolSelect } from '@/components/curated-pool-select';
 import { ModelSelect } from '@/components/ui/model-select';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
@@ -502,6 +503,22 @@ function ModelSetPicker({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
+          <Field>
+            <FieldLabel>Curated picks</FieldLabel>
+            {/* One-shot quick select from the shared `agents` pool: staging
+                the route + a matching key in one click. Falls back silently
+                (renders nothing) on brains without /api/model-pools. */}
+            <CuratedPoolSelect
+              pool="agents"
+              preferProviders={[provider, 'openrouter', ...apiKeys.map((k) => k.service)]}
+              onPick={(route) => {
+                setProvider(route.provider);
+                setModel(route.model);
+                setApiKeyId(apiKeys.find((k) => k.service === route.provider)?.id ?? '');
+                setErrors({});
+              }}
+            />
+          </Field>
           <Field>
             <FieldLabel htmlFor="picker-provider">Provider</FieldLabel>
             <Select value={provider} onValueChange={onProviderChange}>

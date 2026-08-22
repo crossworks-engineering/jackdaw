@@ -72,6 +72,7 @@ import {
 } from '@mantle/web-ui/ui/select';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { Switch } from '@mantle/web-ui/ui/switch';
+import { CuratedPoolSelect } from '@/components/curated-pool-select';
 import { ModelSelect } from '@/components/ui/model-select';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { ExplorerModel } from '@mantle/client-types';
@@ -773,6 +774,16 @@ export function WorkerForm({
 
         <Field data-invalid={!!errors.model || undefined}>
           <FieldLabel htmlFor="model">Model</FieldLabel>
+          {/* Curated quick pick for this worker kind — strict: only entries
+              reachable through the CURRENTLY selected provider, so a pick can
+              never leave the route half-switched. Renders nothing when the
+              pool is empty or the brain predates /api/model-pools. */}
+          <CuratedPoolSelect
+            pool={kind}
+            preferProviders={[provider]}
+            strict
+            onPick={(route) => setModel(route.model)}
+          />
           {supportsDiscovery ? (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
