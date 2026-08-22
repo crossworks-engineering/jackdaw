@@ -1,9 +1,28 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Copy, ExternalLink, KeyRound, Loader2, RefreshCw, Search } from 'lucide-react';
-import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
+import {
+  Boxes,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
+import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@mantle/web-ui/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@mantle/web-ui/ui/field';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -222,6 +241,17 @@ function ModelsView({ data }: { data: ExploreBundle }) {
             >
               {refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="shrink-0"
+              asChild
+              aria-label="Curated pools"
+            >
+              <Link href="/models/pools" title="Curated pools">
+                <Boxes />
+              </Link>
+            </Button>
           </div>
 
           <div className="flex flex-col gap-2 border-b border-border p-3">
@@ -417,6 +447,7 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 
 function ModelDetail({ model, provider }: { model: ExplorerModel; provider?: ProviderMeta }) {
   const toast = useToast();
+  const [poolDialog, setPoolDialog] = useState(false);
   const rawJson = useMemo(() => JSON.stringify(model.raw, null, 2), [model.raw]);
 
   const copy = async (text: string, what: string) => {
@@ -446,8 +477,14 @@ function ModelDetail({ model, provider }: { model: ExplorerModel; provider?: Pro
         <div className="flex shrink-0 items-center gap-2">
           {model.kind && <Badge variant="secondary">{model.kind}</Badge>}
           {provider?.isAggregator && <Badge variant="outline">aggregator</Badge>}
+          <Button type="button" size="sm" variant="outline" onClick={() => setPoolDialog(true)}>
+            <Plus /> Add to pool
+          </Button>
         </div>
       </div>
+      {poolDialog && (
+        <AddToPoolDialog model={model} provider={provider} onClose={() => setPoolDialog(false)} />
+      )}
 
       {model.description && <p className="text-sm text-muted-foreground">{model.description}</p>}
 
@@ -492,5 +529,122 @@ function ModelDetail({ model, provider }: { model: ExplorerModel; provider?: Pro
         </pre>
       </div>
     </div>
+  );
+}
+
+// ── add-to-pool dialog (the curator's entry point) ───────────────────────────
+
+type PoolDef = { id: string; label: string; description: string; group: 'agents' | 'workers' };
+
+function AddToPoolDialog({
+  model,
+  provider,
+  onClose,
+}: {
+  model: ExplorerModel;
+  provider?: ProviderMeta;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const poolsQuery = useQuery({
+    queryKey: ['model-pools'],
+    queryFn: () => apiFetch<{ pools: PoolDef[] }>('/api/model-pools'),
+  });
+  const pools = poolsQuery.data?.pools ?? [];
+  const [poolId, setPoolId] = useState('agents');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const pool = pools.find((p) => p.id === poolId);
+
+  // 'anthropic/claude-sonnet-5' on an aggregator → vendor 'anthropic'; direct
+  // providers vend their own models.
+  const vendor = provider?.isAggregator
+    ? (model.id.split('/')[0] ?? provider.id)
+    : (provider?.label ?? '');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!provider) return;
+    setSaving(true);
+    try {
+      await apiSend('/api/model-pools', 'POST', {
+        pool: poolId,
+        name: model.name ?? model.id,
+        vendor: vendor || undefined,
+        routes: [{ provider: provider.id, model: model.id }],
+        ...(model.inputPricePerM != null || model.outputPricePerM != null
+          ? {
+              pricing: {
+                inputPerM: model.inputPricePerM ?? null,
+                outputPerM: model.outputPricePerM ?? null,
+                currency: 'USD',
+                capturedAt: new Date().toISOString(),
+                source: provider.id,
+              },
+            }
+          : {}),
+        ...(note.trim() ? { note: note.trim() } : {}),
+      });
+      toast.success(`Added to ${pool?.label ?? poolId} — see /models/pools`);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Add failed.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add “{model.name ?? model.id}” to a pool</DialogTitle>
+          <DialogDescription>
+            Copies the current pricing snapshot in, so the cost comparison works even on brains
+            connected directly to a provider.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="add-pool">Pool</FieldLabel>
+              <Select value={poolId} onValueChange={setPoolId}>
+                <SelectTrigger id="add-pool">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pools.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {pool && <p className="text-xs text-muted-foreground">{pool.description}</p>}
+              {!poolsQuery.isPending && pools.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Couldn’t load the pool list — this needs a brain running v0.232.42+.
+                </p>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="add-note">Note</FieldLabel>
+              <Input
+                id="add-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. flagship / gets the job done"
+              />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Cancel
+              </Button>
+              <SubmitButton pending={saving}>Add to pool</SubmitButton>
+            </div>
+          </FieldGroup>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
