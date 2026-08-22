@@ -57,3 +57,23 @@ describe('formatters', () => {
     expect(fmtPerM(null)).toBe('—');
   });
 });
+
+describe('free models', () => {
+  it('a $0/$0 model blends to 0, not null', () => {
+    expect(
+      blendedPerM({ inputPerM: 0, outputPerM: 0, currency: 'USD', capturedAt: '', source: 's' }),
+    ).toBe(0);
+  });
+  it('a free model gets an Infinity multiplier against a paid anchor', () => {
+    const rows = comparisonRows([entry('paid', 4, 8), entry('free', 0, 0)]);
+    expect(rows[1]?.blended).toBe(0);
+    expect(rows[1]?.multiplier).toBe(Infinity);
+  });
+  it('an all-free pool has no usable anchor', () => {
+    const rows = comparisonRows([entry('free-a', 0, 0), entry('free-b', 0, 0)]);
+    expect(rows[0]?.multiplier).toBeNull();
+  });
+  it('fmtPerM renders zero as Free', () => {
+    expect(fmtPerM(0)).toBe('Free');
+  });
+});

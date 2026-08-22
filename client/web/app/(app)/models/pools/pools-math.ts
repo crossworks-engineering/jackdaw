@@ -45,8 +45,9 @@ export function blendedPerM(pricing: PoolPricing | null): number | null {
   // A missing half falls back to the other so a one-sided price still ranks.
   const inP = i ?? o ?? 0;
   const outP = o ?? i ?? 0;
-  const blended = INPUT_SHARE * inP + (1 - INPUT_SHARE) * outP;
-  return blended > 0 ? blended : null;
+  // 0 is a REAL value: a free model ($0/$0) blends to 0 and must not be
+  // confused with "no pricing known" (null).
+  return INPUT_SHARE * inP + (1 - INPUT_SHARE) * outP;
 }
 
 export type ComparisonRow = {
@@ -66,7 +67,14 @@ export function comparisonRows(entries: PoolEntry[]): ComparisonRow[] {
     return {
       entry,
       blended,
-      multiplier: blended != null && anchor != null ? anchor / blended : null,
+      // A free model is infinitely cheaper than the anchor — the UI renders
+      // Infinity as "free" rather than a number.
+      multiplier:
+        blended != null && anchor != null && anchor > 0
+          ? blended === 0
+            ? Infinity
+            : anchor / blended
+          : null,
     };
   });
 }
@@ -82,5 +90,6 @@ export function fmtMTokens(millions: number): string {
 /** '$3.00' / '$0.075' per 1M tokens; em-dash when unknown. */
 export function fmtPerM(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return '—';
+  if (v === 0) return 'Free';
   return `$${v >= 1 ? v.toFixed(2) : v.toPrecision(2)}`;
 }

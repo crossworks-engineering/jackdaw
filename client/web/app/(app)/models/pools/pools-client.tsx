@@ -253,14 +253,20 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
                             {fmtPerM(r.entry.pricing?.outputPerM ?? null)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {r.blended != null ? fmtMTokens(100 / r.blended) : '—'}
+                            {r.blended == null
+                              ? '—'
+                              : r.blended === 0
+                                ? 'unlimited'
+                                : fmtMTokens(100 / r.blended)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {r.multiplier != null
-                              ? r.multiplier <= 1.001
-                                ? 'anchor'
-                                : `${r.multiplier.toFixed(r.multiplier >= 10 ? 0 : 1)}× cheaper`
-                              : '—'}
+                            {r.multiplier == null
+                              ? '—'
+                              : r.multiplier === Infinity
+                                ? 'free'
+                                : r.multiplier <= 1.001
+                                  ? 'anchor'
+                                  : `${r.multiplier.toFixed(r.multiplier >= 10 ? 0 : 1)}× cheaper`}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-0.5">
