@@ -18,8 +18,11 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Clock,
   LayoutGrid,
   List,
+  Search,
+  X,
   Folder,
   FolderPlus,
   Pencil,
@@ -97,6 +100,17 @@ type FileRow = {
   indexing: 'full' | 'metadata' | null;
   indexingApplied: 'full' | 'metadata' | null;
   createdAt: string;
+  updatedAt: string;
+};
+
+/** One `/api/search?branch=files` hit — the server's node shape, trimmed to
+ *  what the results list renders. */
+type FileSearchHit = {
+  id: string;
+  type: string;
+  title: string;
+  path: string;
+  summary: string | null;
   updatedAt: string;
 };
 
@@ -307,6 +321,63 @@ function FilesView({
         : // Size and recency are usually asked as "biggest / newest first".
           { key, dir: key === 'size' || key === 'modified' ? 'desc' : 'asc' },
     );
+  // ── Left-pane search ─────────────────────────────────────────
+  // ONE input, two behaviours: the tree filters instantly on every keystroke
+  // (pure client work — the whole tree is already here), and content search
+  // fires debounced against /api/search?branch=files, which ranks by meaning,
+  // not just filename. A metadata-only file (P1) matches on its name-spine.
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState<FileSearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setHits(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch<{ results: FileSearchHit[] }>(
+          `/api/search?q=${encodeURIComponent(q)}&branch=files&limit=30`,
+        );
+        // Folders surface through the filtered tree; the results list is files.
+        setHits(res.results.filter((r) => r.type === 'file'));
+      } catch {
+        setHits([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+  const searchActive = query.trim().length >= 2;
+
+  // ── Path jump — type/paste a path, Enter navigates ──────────
+  const [pathJump, setPathJump] = useState<string | null>(null);
+  const submitPathJump = () => {
+    if (pathJump === null) return;
+    // Accept 'files.work.x', 'files/work/x', or '/files/work/x'.
+    const normalized = pathJump.trim().replace(/^\/+/, '').replace(/\//g, '.').replace(/\.+$/, '');
+    if (!normalized) return setPathJump(null);
+    if (!foldersByPath.has(normalized)) {
+      toast.error(`No folder at '${normalized}' — check the path in the tree`);
+      return;
+    }
+    setPathJump(null);
+    navigateFolder(normalized);
+  };
+
+  // ── Recent — the cross-tree "where did that upload land" view ──
+  const [recentView, setRecentView] = useState(false);
+  const recentQuery = useQuery({
+    queryKey: ['files', 'recent'],
+    queryFn: () =>
+      apiFetch<{ files: FileRow[] }>('/api/files/files?recent=1&limit=100').then((r) => r.files),
+    enabled: recentView,
+  });
+
   const sortedFiles = useMemo(() => {
     const dir = sort.dir === 'asc' ? 1 : -1;
     const label = (f: FileRow) => describeFile(f.mimeType, f.filename).label;
@@ -566,8 +637,53 @@ function FilesView({
              `h-full` because a grid item stretched to the row and a flex item
              does not — without it the tinted background stops wherever the
              tree happens to end. */
-          <aside className="h-full overflow-y-auto scrollbar-thin bg-muted/20 p-2">
-            <FolderTreeRail tree={tree} currentPath={currentPath} onNavigate={navigateFolder} />
+          <aside className="flex h-full flex-col bg-muted/20">
+            <div className="p-2 pb-1">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Filter folders, search files…"
+                  className="h-8 pl-7 pr-7 text-sm"
+                />
+                {query && (
+                  <button
+                    aria-label="Clear search"
+                    onClick={() => setQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-2 pt-1">
+              {!searchActive && (
+                <button
+                  onClick={() => setRecentView(true)}
+                  className={
+                    'mb-1 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-sm ' +
+                    (recentView
+                      ? 'bg-primary/10 font-semibold text-primary-ink'
+                      : 'hover:bg-muted/40')
+                  }
+                >
+                  <Clock className="size-3.5 text-muted-foreground" />
+                  Recent
+                </button>
+              )}
+              <FolderTreeRail
+                tree={tree}
+                currentPath={recentView ? '' : currentPath}
+                onNavigate={(p) => {
+                  setRecentView(false);
+                  setQuery('');
+                  navigateFolder(p);
+                }}
+                filter={query.trim()}
+              />
+            </div>
           </aside>
         }
         detail={
@@ -598,27 +714,174 @@ function FilesView({
                 onClose={() => openFile(null)}
                 onSaved={refresh}
               />
+            ) : searchActive ? (
+              /* ── Search results ────────────────────────────────── */
+              <div className="flex h-full flex-col overflow-hidden">
+                <SetPageTitle title="Search files" />
+                <header className="border-b border-border px-6 py-3">
+                  <h2 className="text-sm font-medium">
+                    {searching
+                      ? 'Searching…'
+                      : `${(hits ?? []).length} result${(hits ?? []).length === 1 ? '' : 's'} for “${query.trim()}”`}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Ranked by meaning across file names, summaries and content. Name-only files
+                    match on name, type and tags.
+                  </p>
+                </header>
+                <div className="flex-1 overflow-y-auto scrollbar-thin">
+                  {(hits ?? []).length === 0 && !searching ? (
+                    <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+                      Nothing matched. Content search needs indexed files — name-only files match by
+                      filename and tags alone.
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {(hits ?? []).map((h) => {
+                        const d = describeFile(null, h.title);
+                        const HitIcon = d.icon;
+                        return (
+                          <li key={h.id}>
+                            <button
+                              onClick={() => {
+                                setQuery('');
+                                const sp = new URLSearchParams();
+                                sp.set('path', h.path);
+                                sp.set('file', h.id);
+                                router.push(`/files?${sp.toString()}`);
+                              }}
+                              className="flex w-full items-start gap-3 px-6 py-2.5 text-left hover:bg-muted/30"
+                            >
+                              <HitIcon
+                                aria-hidden
+                                className={`mt-0.5 size-4 shrink-0 ${KIND_TINT[d.kind]}`}
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium">
+                                  {h.title}
+                                </span>
+                                <span className="block truncate text-xs text-muted-foreground">
+                                  {h.path}
+                                  {h.summary ? ` — ${h.summary}` : ''}
+                                </span>
+                              </span>
+                              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                                {fmtRelative(h.updatedAt)}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            ) : recentView ? (
+              /* ── Recent files, whole tree ──────────────────────── */
+              <div className="flex h-full flex-col overflow-hidden">
+                <SetPageTitle title="Recent files" />
+                <header className="border-b border-border px-6 py-3">
+                  <h2 className="text-sm font-medium">Recent files</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Newest changes across every folder — an upload or edit puts a file back on top.
+                  </p>
+                </header>
+                <div className="flex-1 overflow-y-auto scrollbar-thin">
+                  <ul className="divide-y divide-border">
+                    {(recentQuery.data ?? []).map((f) => {
+                      const d = describeFile(f.mimeType, f.filename);
+                      const RecentIcon = d.icon;
+                      return (
+                        <li key={f.id}>
+                          <button
+                            onClick={() => {
+                              setRecentView(false);
+                              const sp = new URLSearchParams();
+                              sp.set('path', f.parentPath);
+                              sp.set('file', f.id);
+                              router.push(`/files?${sp.toString()}`);
+                            }}
+                            className="flex w-full items-center gap-3 px-6 py-2 text-left hover:bg-muted/30"
+                          >
+                            <RecentIcon
+                              aria-hidden
+                              className={`size-4 shrink-0 ${KIND_TINT[d.kind]}`}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium">
+                                {f.filename}
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {f.parentPath}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                              {fmtSize(f.sizeBytes)}
+                            </span>
+                            <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
+                              {fmtRelative(f.updatedAt)}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {recentQuery.data && recentQuery.data.length === 0 && (
+                    <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+                      No files yet.
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
               <>
                 <SetPageTitle title={currentFolder?.slug ?? 'files'} />
                 {/* Header */}
                 <header className="border-b border-border px-6 py-3">
                   <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-                    {breadcrumbs.map((c, i) => (
-                      <span key={c.path} className="flex items-center gap-1">
-                        {i > 0 && <ChevronRight className="size-3" aria-hidden />}
+                    {pathJump !== null ? (
+                      <Input
+                        autoFocus
+                        value={pathJump}
+                        onChange={(e) => setPathJump(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') submitPathJump();
+                          if (e.key === 'Escape') setPathJump(null);
+                        }}
+                        onBlur={() => setPathJump(null)}
+                        placeholder="files.work.reports — Enter to jump"
+                        className="h-7 max-w-md font-mono text-xs"
+                      />
+                    ) : (
+                      <>
+                        {breadcrumbs.map((c, i) => (
+                          <span key={c.path} className="flex items-center gap-1">
+                            {i > 0 && <ChevronRight className="size-3" aria-hidden />}
+                            <button
+                              onClick={() => navigateFolder(c.path)}
+                              className={
+                                i === breadcrumbs.length - 1
+                                  ? 'font-medium text-foreground'
+                                  : 'hover:text-foreground'
+                              }
+                            >
+                              {c.label}
+                            </button>
+                          </span>
+                        ))}
+                        {/* Click-to-type path entry — the file-manager address
+                            bar. The breadcrumb stays the primary affordance;
+                            this is for pasting a path from chat or a doc. */}
                         <button
-                          onClick={() => navigateFolder(c.path)}
-                          className={
-                            i === breadcrumbs.length - 1
-                              ? 'font-medium text-foreground'
-                              : 'hover:text-foreground'
-                          }
+                          aria-label="Go to path"
+                          title="Go to path (type or paste, Enter to jump)"
+                          onClick={() => setPathJump(currentPath)}
+                          className="ml-1 rounded p-0.5 text-muted-foreground opacity-60 hover:bg-muted/40 hover:opacity-100"
                         >
-                          {c.label}
+                          <Pencil className="size-3" />
                         </button>
-                      </span>
-                    ))}
+                      </>
+                    )}
                   </nav>
 
                   {currentFolder && currentFolder.path !== FILES_ROOT && (
@@ -1514,13 +1777,29 @@ function FolderTreeRail({
   tree,
   currentPath,
   onNavigate,
+  filter,
 }: {
   tree: FolderRow[];
   currentPath: string;
   onNavigate: (path: string) => void;
+  /** Substring filter over slug/path. Ancestors of a match stay visible so
+   *  the result still reads as a tree, not a flat list of orphans. */
+  filter?: string;
 }) {
   // Sort by path so parents appear before children.
-  const sorted = useMemo(() => [...tree].sort((a, b) => a.path.localeCompare(b.path)), [tree]);
+  const sorted = useMemo(() => {
+    const all = [...tree].sort((a, b) => a.path.localeCompare(b.path));
+    const q = (filter ?? '').toLowerCase();
+    if (!q) return all;
+    const keep = new Set<string>();
+    for (const f of all) {
+      if (!f.path.toLowerCase().includes(q) && !f.slug.toLowerCase().includes(q)) continue;
+      // The match plus every ancestor path.
+      const segs = f.path.split('.');
+      for (let i = 1; i <= segs.length; i++) keep.add(segs.slice(0, i).join('.'));
+    }
+    return all.filter((f) => keep.has(f.path));
+  }, [tree, filter]);
   return (
     <ul className="text-sm">
       {sorted.map((f) => {
