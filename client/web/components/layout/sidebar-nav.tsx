@@ -72,30 +72,42 @@ export function SidebarNav({
   // screen must survive the narrowing, which is the whole reason narrowing is
   // safe. Scoping first would make a star silently stop working in Work mode.
   const pinned = favoriteItems(favorites, groups);
-  const scoped = scopeGroups(groups, scope);
-  // Not collapsible: a list the owner curated by hand is already the short
-  // list, so ranking a head out of it would be second-guessing them. Absent
-  // entirely when nothing is starred — an empty heading is worse than none,
-  // and it is how this stays invisible until someone uses it.
-  const allGroups: NavGroup[] =
-    pinned.length > 0 ? [{ label: 'Favorites', items: pinned }, ...scoped] : scoped;
+  // Favorites is not collapsible: a list the owner curated by hand is already
+  // the short list. Absent entirely when nothing is starred — an empty heading
+  // is worse than none, and it is how this stays invisible until it is used.
+  const withFavorites = (gs: NavGroup[]): NavGroup[] =>
+    pinned.length > 0 ? [{ label: 'Favorites', items: pinned }, ...gs] : gs;
+
+  // Two bases, and which one is in play depends on whether you are TYPING.
+  //
+  // Browsing shows the scope you chose. Searching ignores it and looks at
+  // everything, because a filter that only finds what is already on screen is
+  // not a filter — in Work mode, typing "backups" found nothing at all, and
+  // the box gave no hint that it was answering for a subset. A search box that
+  // can return "no matches" for something that plainly exists teaches people
+  // not to trust it.
+  //
+  // Nothing has to be said about where a hit came from: results keep their
+  // group heading, so a match under "System" is visibly outside Work.
+  const browseGroups = withFavorites(scopeGroups(groups, scope));
+  const searchGroups = withFavorites(groups);
 
   // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
   // is a prefix of every other settings route, so an independent test would
   // light it beside Agents on `/settings/agents`.
-  const activeHref = activeNavHref(allGroups, pathname);
+  const activeHref = activeNavHref(browseGroups, pathname);
   const isActive = (item: NavItem) => item.href === activeHref;
 
   // Filter by item name (case-insensitive substring), dropping now-empty groups.
   // The filter is an expanded-only affordance — at icon-rail width there's no
-  // box to type in, so a collapsed rail always shows its heads unfiltered.
+  // box to type in, so a collapsed rail is never filtered.
   const q = query.trim().toLowerCase();
   const filtering = !collapsed && q.length > 0;
   const visibleGroups = filtering
-    ? allGroups
+    ? searchGroups
         .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
         .filter((g) => g.items.length > 0)
-    : allGroups;
+    : browseGroups;
 
   const renderItem = (item: NavItem) => {
     const active = isActive(item);
