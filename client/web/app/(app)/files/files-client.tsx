@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ChevronsRight,
   FileJson,
+  Eye,
+  EyeOff,
   FileText,
   Folder,
   FolderPlus,
@@ -68,6 +70,8 @@ type FolderRow = {
   title: string;
   slug: string;
   description: string;
+  /** The folder's own indexing flag; null = inherit from ancestors. */
+  indexing: 'full' | 'metadata' | null;
   childFolderCount: number;
   fileCount: number;
   createdAt: string;
@@ -83,6 +87,10 @@ type FileRow = {
   sizeBytes: number;
   isText: boolean;
   summary: string | null;
+  /** Own flag (null = folder chain decides) and the mode the extractor last
+   *  actually ran — the badge reads the latter. */
+  indexing: 'full' | 'metadata' | null;
+  indexingApplied: 'full' | 'metadata' | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -175,6 +183,25 @@ function slugify(input: string): string {
  * resolves the `?path` param against the tree (falling back to root), and
  * derives the current folder from the tree — no dedicated endpoint needed.
  */
+/**
+ * Effective indexing mode for a path, resolved from the loaded folder tree the
+ * same way the server resolves it at extract time: own flag, else the nearest
+ * flagged ancestor, else full. The tree always loads whole, so every ancestor
+ * is present — no extra request needed.
+ */
+function effectiveFolderIndexing(
+  path: string,
+  byPath: Map<string, FolderRow>,
+): { mode: 'full' | 'metadata'; from: string | null } {
+  const segs = path.split('.');
+  for (let i = segs.length; i >= 1; i--) {
+    const p = segs.slice(0, i).join('.');
+    const own = byPath.get(p)?.indexing;
+    if (own) return { mode: own, from: p === path ? null : p };
+  }
+  return { mode: 'full', from: null };
+}
+
 export function FilesClient() {
   const searchParams = useSearchParams();
   const requestedPath = searchParams.get('path') || FILES_ROOT;
@@ -243,6 +270,10 @@ function FilesView({
   const [files, setFiles] = useState<FileRow[]>(initialFiles);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [busy, startTransition] = useTransition();
+  // Effective brain-indexing mode for the folder being viewed — what the
+  // header toggle displays and what un-flagged file rows badge under.
+  const foldersByPath = useMemo(() => new Map(tree.map((f) => [f.path, f])), [tree]);
+  const folderIndexing = effectiveFolderIndexing(currentPath, foldersByPath);
 
   // Dialog open-state.
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
@@ -423,6 +454,31 @@ function FilesView({
     refresh();
   };
 
+  /** Flip the current folder's indexing flag. The server sweeps descendants
+   *  and reports how many files it re-queued — surface that, because the
+   *  effect is otherwise invisible until the extractor gets there. */
+  const setFolderIndexing = async (mode: 'full' | 'metadata' | 'inherit') => {
+    if (!currentFolder) return;
+    try {
+      const res = await apiSend<{ requeued?: number }>(
+        `/api/files/folders/${currentFolder.id}`,
+        'PATCH',
+        { indexing: mode },
+      );
+      const n = res.requeued ?? 0;
+      toast.success(
+        mode === 'metadata'
+          ? `Content indexing off — files stay findable by name/type/tags${n ? ` (${n} re-indexing)` : ''}`
+          : mode === 'full'
+            ? `Content indexing on${n ? ` — ${n} file(s) queued for extraction` : ''}`
+            : 'Folder now follows its parent for indexing',
+      );
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not change indexing');
+    }
+  };
+
   // ─── Breadcrumbs ─────────────────────────────────────────────────
   const breadcrumbs = useMemo(() => {
     const segments = currentPath.split('.');
@@ -520,6 +576,45 @@ function FilesView({
                         teamMode
                         teamHint="Visitors must enter their team token to open the link. The link covers every file in this folder and its subfolders — including files added later."
                       />
+                      {/* Brain-indexing toggle. The trigger shows the
+                          EFFECTIVE mode (own flag or inherited) because that
+                          is what happens to files here; the menu edits the
+                          OWN flag. */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7"
+                            disabled={busy}
+                            title={
+                              folderIndexing.mode === 'metadata'
+                                ? `File content here is not indexed into the brain${folderIndexing.from ? ` (inherited from ${folderIndexing.from})` : ''}`
+                                : 'File content here is indexed into the brain'
+                            }
+                          >
+                            {folderIndexing.mode === 'metadata' ? <EyeOff /> : <Eye />}
+                            {folderIndexing.mode === 'metadata' ? 'Name-only' : 'Indexed'}
+                            {folderIndexing.mode === 'metadata' && folderIndexing.from && (
+                              <span className="text-[10px] text-muted-foreground">(inherited)</span>
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => setFolderIndexing('full')}>
+                            <Eye /> Index content (search can read inside files)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setFolderIndexing('metadata')}>
+                            <EyeOff /> Name only (store &amp; share, don&apos;t index content)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!currentFolder.indexing}
+                            onSelect={() => setFolderIndexing('inherit')}
+                          >
+                            Inherit from parent
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -720,7 +815,21 @@ function FilesView({
                                   >
                                     {f.extension}
                                   </span>
-                                  {f.summary && (
+                                  {(f.indexing === 'metadata' ||
+                                    f.indexingApplied === 'metadata' ||
+                                    (!f.indexing && folderIndexing.mode === 'metadata')) && (
+                                    <span
+                                      title={
+                                        f.indexing === 'metadata'
+                                          ? 'Name-only: content not indexed (set on this file)'
+                                          : 'Name-only: content not indexed (inherited from the folder)'
+                                      }
+                                      className="inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground"
+                                    >
+                                      <EyeOff className="size-3 shrink-0" /> name only
+                                    </span>
+                                  )}
+                                  {f.summary && f.indexingApplied !== 'metadata' && (
                                     <span
                                       title="Indexed — summary ready"
                                       className="inline-flex items-center text-primary-ink"

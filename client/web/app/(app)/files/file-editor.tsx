@@ -1,7 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, Eye, Loader2, PencilLine, Save, SplitSquareHorizontal, X } from 'lucide-react';
+import {
+  Download,
+  Eye,
+  EyeOff,
+  Loader2,
+  PencilLine,
+  Save,
+  SplitSquareHorizontal,
+  X,
+} from 'lucide-react';
 import { describeFile, fileTypeLabel, KIND_TINT } from '@mantle/web-ui/lib/mime-label';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,6 +32,8 @@ type FileRow = {
   sizeBytes: number;
   isText: boolean;
   summary: string | null;
+  indexing: 'full' | 'metadata' | null;
+  indexingApplied: 'full' | 'metadata' | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -175,6 +186,51 @@ export function FileEditor({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Per-file brain-indexing override. One click flips between
+              content-indexed and name-only; the folder chain's mode is
+              restored via the files screen ('inherit' lives there — this
+              button is the quick per-file escape hatch). */}
+          <Button
+            variant="ghost"
+            size="sm"
+            title={
+              file.indexing === 'metadata' || file.indexingApplied === 'metadata'
+                ? 'Name-only: content not indexed into the brain. Click to index content.'
+                : 'Content is indexed into the brain. Click for name-only (store & share without indexing content).'
+            }
+            onClick={async () => {
+              const next =
+                file.indexing === 'metadata' || file.indexingApplied === 'metadata'
+                  ? 'full'
+                  : 'metadata';
+              try {
+                const { file: updated } = await apiSend<{ file: FileRow }>(
+                  `/api/files/files/${fileId}`,
+                  'PATCH',
+                  { indexing: next },
+                );
+                setState((prev) => (prev.kind === 'loaded' ? { ...prev, file: updated } : prev));
+                toast.success(
+                  next === 'metadata'
+                    ? 'Name-only — content will be removed from the index'
+                    : 'Content indexing queued',
+                );
+                onSaved();
+              } catch (err) {
+                toast.error(err instanceof ApiError ? err.message : 'Could not change indexing');
+              }
+            }}
+          >
+            {file.indexing === 'metadata' || file.indexingApplied === 'metadata' ? (
+              <>
+                <EyeOff /> Name-only
+              </>
+            ) : (
+              <>
+                <Eye /> Indexed
+              </>
+            )}
+          </Button>
           {isMarkdown && (
             <ToggleGroup
               type="single"
