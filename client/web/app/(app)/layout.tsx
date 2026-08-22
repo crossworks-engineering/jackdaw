@@ -45,17 +45,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const navWidth = clampNavWidth(cookieStore.get(NAV_W_COOKIE)?.value);
   const activityWidth = clampActivityWidth(cookieStore.get(ACTIVITY_W_COOKIE)?.value);
   const spendRange = readSpendRange(cookieStore.get('mantle_spend_range')?.value);
-  // Which collapsible nav groups the user left unfolded. Seeded server-side for
-  // the same reason as the rail-collapse cookies: so the fold doesn't flash.
-  const expandedGroups = (cookieStore.get('mantle_nav_groups')?.value ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
 
   return (
     <AppShell
       contextCard={<UsageCard initialRange={spendRange} />}
-      initialExpandedGroups={expandedGroups}
       initialNavCollapsed={navCollapsed}
       initialNavWidth={navWidth}
       initialActivityWidth={activityWidth}

@@ -40,8 +40,6 @@ import { PendingQuestionWatcher } from '@/components/pending/question-watcher';
 import { DesktopBridge } from '@/components/desktop/desktop-bridge';
 import { PickMode } from '@/components/assistant/pick-mode';
 import { ZenModeContext } from '@/components/layout/zen-mode';
-import { recordNavVisit } from '@/lib/nav-usage';
-import { matchNavItem } from '@mantle/web-ui/layout/nav-items';
 import { SearchPalette } from '@/components/search/search-palette';
 
 /**
@@ -128,9 +126,6 @@ export function AppShell(props: {
   initialNavWidth?: number;
   initialActivityWidth?: number;
   initialActivityCollapsed?: boolean;
-  /** Nav groups the user last left unfolded, seeded from the cookie so a
-   *  folded group never flashes open on first paint. */
-  initialExpandedGroups?: string[];
   children: React.ReactNode;
 }) {
   // Providers only — the frame itself lives in <ShellFrame/>, which sits INSIDE
@@ -157,7 +152,6 @@ function ShellFrame({
   initialNavWidth = NAV_W_DEFAULT,
   initialActivityWidth = ACTIVITY_W_DEFAULT,
   initialActivityCollapsed = true,
-  initialExpandedGroups = [],
   children,
 }: {
   contextCard: React.ReactNode;
@@ -165,7 +159,6 @@ function ShellFrame({
   initialNavWidth?: number;
   initialActivityWidth?: number;
   initialActivityCollapsed?: boolean;
-  initialExpandedGroups?: string[];
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -295,15 +288,6 @@ function ShellFrame({
     setMobileOpen(false);
   }, [pathname]);
 
-  // Tally which primary menu the user landed on, so a collapsible nav group can
-  // rank its folded HEAD by actual usage (see useGroupHead). Attributed to one
-  // canonical nav item (sub-routes fold into their section); unmatched paths are
-  // ignored.
-  useEffect(() => {
-    const item = matchNavItem(pathname);
-    if (item) recordNavVisit(item.href);
-  }, [pathname]);
-
   // Distraction-free ("focus") mode — hides all four chrome regions and gives
   // the content the whole viewport. Ephemeral by design (no cookie); the
   // floating exit button below is the way back.
@@ -418,12 +402,6 @@ function ShellFrame({
         <ContractBanner onNavigate={onNavigate} />
         <UpdateBanner onNavigate={onNavigate} />
         <SidebarNav
-          initialExpandedGroups={initialExpandedGroups}
-          onRequestExpandRail={() => {
-            if (!navCollapsed) return;
-            setNavCollapsed(false);
-            writeCookie(NAV_COOKIE, false);
-          }}
           pendingApprovals={pendingApprovals}
           onNavigate={onNavigate}
           collapsed={collapsed}

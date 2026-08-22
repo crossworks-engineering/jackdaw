@@ -7,22 +7,22 @@ import type { NavGroup, NavItem } from '@mantle/web-ui/layout/nav-items';
  * The destinations this owner has starred, pinned to a Favorites group at the
  * top of the sidebar.
  *
- * Stored per BROWSER in localStorage, beside `nav-usage`'s counters and for the
- * same reasons: a personalisation convenience, no server surface, no PII, safe
- * to lose. Jason chose this over a synced account preference — that would need
- * a mantle change, a new preference key and a paired release, for a list of
- * menu shortcuts.
+ * Stored per BROWSER in localStorage: a personalisation convenience, no server
+ * surface, no PII, safe to lose. Jason chose this over a synced account
+ * preference — that would need a mantle change, a new preference key and a
+ * paired release, for a list of menu shortcuts.
  *
  * ⚠ So favourites do NOT follow you to another machine, another browser, or
  * through a "clear site data". If that becomes the wrong trade, only the two
  * functions below change: the sidebar talks to `useNavFavorites` and knows
  * nothing about where the list lives.
  *
- * ── Why this one is LIVE and `nav-usage` is frozen ─────────────────────────
- * `useGroupHead` computes once per mount on purpose, because a menu that
- * reorders under the cursor moves the row you were aiming at. That reasoning
- * does not apply here and inverting it would be a bug: starring is a DELIBERATE
- * act, and the whole feedback for it is the row appearing in Favorites. So this
+ * ── Why this one is LIVE ──────────────────────────────────────────────────
+ * The nav's old usage ranking deliberately froze per mount, because a menu that
+ * reorders under the cursor moves the row you were aiming at. (That ranking is
+ * gone — it fed the group fold, which Jason removed.) The reasoning does not
+ * transfer here, and copying it would be a bug: starring is a DELIBERATE act,
+ * and the whole feedback for it is the row appearing under Favorites. So this
  * subscribes, and a star fills and the group updates in the same frame.
  */
 const KEY = 'mantle_nav_favorites_v1';
