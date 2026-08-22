@@ -63,6 +63,15 @@ export function SystemVitals() {
   if (!data) return <SystemVitalsSkeleton />;
 
   const { host, postgres, storage, tika, browser, embedder, network, sandboxes } = data;
+  // Media sidecar (yt-dlp + ffmpeg behind video_ingest) — servers ship it from
+  // v0.232.32. Read defensively off the payload rather than the pinned
+  // contract type so this renders against a new brain and simply hides on an
+  // older one that doesn't send the field yet.
+  const media = (
+    data as SystemHealth & {
+      media?: { up: boolean | null; ytDlpVersion: string | null; ffmpegVersion: string | null };
+    }
+  ).media;
   const memValue = host.mem
     ? `${formatBytes(host.mem.usedBytes)} / ${formatBytes(host.mem.totalBytes)}`
     : '—';
@@ -98,6 +107,19 @@ export function SystemVitals() {
                   : 'not enabled on this box (compose profile `sandboxes`)'
             }
           />
+          {media !== undefined && (
+            <Pill
+              ok={media.up}
+              label="Media"
+              title={
+                media.up
+                  ? `yt-dlp ${media.ytDlpVersion ?? '?'} · ffmpeg ${media.ffmpegVersion ?? '?'}`
+                  : media.up === false
+                    ? 'media sidecar unreachable'
+                    : 'not enabled on this box (compose profile `media`)'
+              }
+            />
+          )}
           <Pill ok={network.up} label="Tailnet" title={network.detail ?? undefined} />
           <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
             {data.scope}
