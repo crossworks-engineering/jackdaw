@@ -1097,12 +1097,10 @@ function FilesView({
                   <ChildFolders tree={tree} currentPath={currentPath} onNavigate={navigateFolder} />
 
                   {/* Files */}
-                  {files.length === 0 ? (
-                    <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-                      No files in this folder. Drop a file anywhere here, or use{' '}
-                      <span className="font-medium text-foreground">New</span> to create one.
-                    </div>
-                  ) : view === 'dual' ? (
+                  {/* Dual pane FIRST: an empty current folder is exactly where
+                      a two-pane view earns its keep (you're moving things INTO
+                      it), so the empty state must not shadow it (audit A3). */}
+                  {view === 'dual' ? (
                     <DualPane
                       tree={tree}
                       leftStart={currentPath}
@@ -1117,6 +1115,11 @@ function FilesView({
                         queryClient.invalidateQueries({ queryKey: ['files'] });
                       }}
                     />
+                  ) : files.length === 0 ? (
+                    <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+                      No files in this folder. Drop a file anywhere here, or use{' '}
+                      <span className="font-medium text-foreground">New</span> to create one.
+                    </div>
                   ) : view === 'grid' ? (
                     /* Thumbnail tiles. Images load ?thumb=1 (cached 512px JPEG
                        server-side); a 404 — not an image, render failed —
