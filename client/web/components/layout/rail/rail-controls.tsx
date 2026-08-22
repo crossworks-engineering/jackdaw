@@ -1,23 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
-import { cn } from '@mantle/web-ui/lib/utils';
 import { ProfileMenu, type ProfileIdentity } from './profile-menu';
 
 /**
- * The old header's right-hand cluster, rebuilt as three stacked rows under the
- * brand block: who you are, what the app looks like, and the way into search.
+ * The old header's right-hand cluster, now down to a single row under the brand
+ * block: who you are.
  *
- * One row per job rather than a single strip of icons — a 16rem column has the
- * height to spend and not the width, and the row that names the current theme
- * or shows your own name is worth more than the four pixels it costs. At
- * icon-rail width every row degrades to the icon that was always inside it.
+ * It held three. Appearance went into the profile menu first — a once-a-month
+ * decision should not hold a permanent row in a column that has to carry the
+ * whole nav — and search has now followed it for the same reason plus a better
+ * one: it was a BUTTON dressed as a text field, sitting a few pixels above the
+ * nav's "Filter menu…" box, which is a real text field that does something
+ * else entirely. Two controls that look alike and behave differently is worse
+ * than one control in a menu, and search is the one that can afford the move
+ * because it has a keyboard shortcut. The chord is still shown on the menu
+ * item, so it is still discoverable.
  *
- * The search control is deliberately a BUTTON that looks like a field, not a
- * field: the palette it opens is the real input, and two live text inputs in
- * one column (this and the nav's "Filter menu…" box further down) would be one
- * too many. The shortcut badge is what tells them apart at a glance.
+ * What remains is one row, and this band stays rather than folding into the
+ * brand block: the border below it is what separates identity from navigation.
  */
 export function RailControls({
   identity,
@@ -34,64 +34,9 @@ export function RailControls({
     // statically-positioned band paints UNDER it while its siblings paint over
     // — this was the one band that missed it.
     <div className="relative flex shrink-0 flex-col gap-1 border-b border-sidebar-border px-3 py-2 group-data-[nav-collapsed=true]/shell:items-center group-data-[nav-collapsed=true]/shell:gap-1.5 group-data-[nav-collapsed=true]/shell:px-2">
-      {/* Appearance used to be a row of its own here. It now hangs off the
-          profile menu (Appearance / Theme submenus): a column that has to hold
-          the entire nav should not also spend a permanent row on a decision
-          made about once a month. */}
-      <ProfileMenu identity={identity} onNavigate={onNavigate} />
-
-      <SearchButton onClick={onSearchClick} />
+      {/* Everything this band used to hold separately — appearance, theme,
+          search — now hangs off this one control. See the note above. */}
+      <ProfileMenu identity={identity} onNavigate={onNavigate} onSearchClick={onSearchClick} />
     </div>
-  );
-}
-
-/**
- * How this keyboard spells the search chord. The shortcut itself is registered
- * on `metaKey || ctrlKey` either way, so this only decides what the badge says.
- *
- * Each platform gets its own notation, not a substituted word: ⌘ is a modifier
- * GLYPH and sits flush against the letter, while "Ctrl" is a word and needs the
- * plus or it reads as "CtrlK".
- *
- * It starts as the Mac spelling and corrects itself after mount rather than
- * reading the platform during render: the server has no `navigator`, and a
- * first client render that disagrees with the server's HTML is a hydration
- * mismatch. Everywhere else in the shell this shortcut is spelled ⌘ inside a
- * `title`, which a Linux user only sees on hover; a badge sitting permanently
- * in the rail has to be right.
- */
-function useSearchChord(): string {
-  const [chord, setChord] = useState('⌘K');
-  useEffect(() => {
-    if (!/Mac|iPhone|iPad|iPod/.test(navigator.userAgent)) setChord('Ctrl+K');
-  }, []);
-  return chord;
-}
-
-function SearchButton({ onClick }: { onClick: () => void }) {
-  const chord = useSearchChord();
-  const hint = `Search (${chord})`;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={hint}
-      title={hint}
-      className={cn(
-        'flex w-full items-center gap-2 rounded-lg border border-sidebar-border bg-foreground/[0.03] px-2.5 py-1.5 text-xs text-muted-foreground transition-colors',
-        'hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-        'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:border-transparent group-data-[nav-collapsed=true]/shell:bg-transparent group-data-[nav-collapsed=true]/shell:px-0 group-data-[nav-collapsed=true]/shell:py-2',
-      )}
-    >
-      <Search className="size-4 shrink-0" aria-hidden />
-      <span className="flex-1 text-left group-data-[nav-collapsed=true]/shell:hidden">Search</span>
-      <kbd
-        className="shrink-0 rounded border border-sidebar-border bg-sidebar px-1 py-px font-sans text-[10px] font-medium leading-normal text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden"
-        aria-hidden
-      >
-        {chord}
-      </kbd>
-    </button>
   );
 }

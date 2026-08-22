@@ -7,6 +7,7 @@ import { ChevronRight, MoreHorizontal, Search, Star, X } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Input } from '@mantle/web-ui/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import {
   Tooltip,
   TooltipContent,
@@ -17,6 +18,7 @@ import { useRealtime } from '@/components/realtime/use-realtime';
 import { useGroupHead } from '@/lib/nav-usage';
 import { activeNavHref } from '@/lib/nav-active';
 import { favoriteItems, useNavFavorites } from '@/lib/nav-favorites';
+import { NAV_SCOPES, scopeGroups, useNavScope } from '@/lib/nav-scope';
 import {
   NAV_GROUPS,
   type NavGroup as BaseNavGroup,
@@ -64,6 +66,7 @@ export function SidebarNav({
   useRealtime(['pending_tool_call'], () => router.refresh());
 
   const { favorites, isFavorite, toggleFavorite } = useNavFavorites();
+  const { scope, setScope } = useNavScope();
 
   // The shared nav list, with the live pending-approvals badge injected onto
   // the Pending item at render time.
@@ -82,13 +85,17 @@ export function SidebarNav({
   // starred screen keeps its home row, exactly as pinning works everywhere
   // else. `favoriteItems` resolves each href against the LIVE list, which is
   // what stops a star on a since-retired route becoming a dead row.
+  // Favourites resolve against the FULL list, never the scoped one: a starred
+  // screen must survive the narrowing, which is the whole reason narrowing is
+  // safe. Scoping first would make a star silently stop working in Work mode.
   const pinned = favoriteItems(favorites, groups);
+  const scoped = scopeGroups(groups, scope);
   // Not collapsible: a list the owner curated by hand is already the short
   // list, so ranking a head out of it would be second-guessing them. Absent
   // entirely when nothing is starred — an empty heading is worse than none,
   // and it is how this stays invisible until someone uses it.
   const allGroups: NavGroup[] =
-    pinned.length > 0 ? [{ label: 'Favorites', items: pinned }, ...groups] : groups;
+    pinned.length > 0 ? [{ label: 'Favorites', items: pinned }, ...scoped] : scoped;
 
   // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
   // is a prefix of every other settings route, so an independent test would
@@ -248,6 +255,30 @@ export function SidebarNav({
                 </button>
               )}
             </div>
+
+            {/* How much of the map to show. Directly under the filter because
+                the two are the same question at different scales — one narrows
+                by NAME, this one by JOB — and a narrowed menu that cannot
+                explain itself is just a menu with things missing.
+
+                `type="single"` with no deselect: `onValueChange` fires with ''
+                when the pressed item is clicked again, and honouring that would
+                leave the sidebar in no scope at all. */}
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={scope}
+              onValueChange={(v) => v && setScope(v as typeof scope)}
+              aria-label="How much of the menu to show"
+              className="mt-2 grid w-full grid-cols-3"
+            >
+              {NAV_SCOPES.map((s) => (
+                <ToggleGroupItem key={s.id} value={s.id} className="text-xs">
+                  {s.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
         )}
 

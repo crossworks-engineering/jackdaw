@@ -1,9 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronsUpDown, Dices, LogOut, SunMoon, User as UserIcon } from 'lucide-react';
+import {
+  ChevronsUpDown,
+  Dices,
+  LogOut,
+  Search as SearchIcon,
+  SunMoon,
+  User as UserIcon,
+} from 'lucide-react';
 import { performSignOut } from '@mantle/web-ui/sign-out';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
@@ -13,6 +20,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -63,20 +71,47 @@ function identityOf({ displayName, email }: ProfileIdentity) {
  * than one login, this names the person at the keyboard rather than the account
  * that owns the data.
  */
+/**
+ * How this keyboard spells the search chord. The shortcut is registered on
+ * `metaKey || ctrlKey` either way, so this only decides what the badge says.
+ *
+ * Each platform gets its own notation, not a substituted word: ⌘ is a modifier
+ * GLYPH and sits flush against the letter, while "Ctrl" is a word and needs the
+ * plus or it reads as "CtrlK".
+ *
+ * Starts as the Mac spelling and corrects after mount rather than reading the
+ * platform during render — the server has no `navigator`, and a first client
+ * render that disagrees with the HTML is a hydration mismatch.
+ *
+ * Moved here from `rail-controls.tsx` with the search control itself.
+ */
+function useSearchChord(): string {
+  const [chord, setChord] = useState('⌘K');
+  useEffect(() => {
+    if (!/Mac|iPhone|iPad|iPod/.test(navigator.userAgent)) setChord('Ctrl+K');
+  }, []);
+  return chord;
+}
+
 export function ProfileMenu({
   identity,
   variant = 'rail',
   onNavigate,
+  onSearchClick,
 }: {
   identity: ProfileIdentity;
   variant?: 'rail' | 'bar';
   onNavigate?: () => void;
+  /** Opens the search palette. Absent on surfaces that have no palette to open
+   *  — the item is then not rendered rather than rendered inert. */
+  onSearchClick?: () => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const { primary, initials } = identityOf(identity);
   const { avatar, email } = identity;
   const { colorTheme } = useColorTheme();
+  const chord = useSearchChord();
 
   async function signOut() {
     setBusy(true);
@@ -136,6 +171,27 @@ export function ProfileMenu({
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+
+        {/* Search lives here rather than as its own rail row. It was a
+            full-width button pretending to be a field, permanently occupying a
+            column that has to hold the entire nav — and sitting a few pixels
+            from the nav's real "Filter menu…" input, which is a different
+            thing that looks the same. One of the two had to go, and the one
+            with a keyboard shortcut is the one that can afford to.
+            The chord stays visible: it is how anyone learns the shortcut
+            exists, and after that they never open this menu for it again. */}
+        {onSearchClick && (
+          <DropdownMenuItem
+            onClick={onSearchClick}
+            className="cursor-pointer"
+            aria-keyshortcuts="Meta+K Control+K"
+          >
+            <SearchIcon className="size-4" />
+            <span className="flex-1">Search everywhere…</span>
+            <DropdownMenuShortcut>{chord}</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
+
         <DropdownMenuItem asChild>
           <Link href="/settings/profile" onClick={onNavigate} className="cursor-pointer">
             <UserIcon className="size-4" /> Profile
