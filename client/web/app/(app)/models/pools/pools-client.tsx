@@ -145,11 +145,16 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Curated pools
               </h2>
-              <Button type="button" size="sm" variant="ghost" asChild>
-                <Link href="/models">
-                  <ArrowLeft /> Explorer
-                </Link>
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button type="button" size="sm" variant="ghost" asChild>
+                  <Link href="/models">
+                    <ArrowLeft /> Explorer
+                  </Link>
+                </Button>
+                <Button type="button" size="sm" variant="ghost" asChild>
+                  <Link href="/models/combos">Combos</Link>
+                </Button>
+              </div>
             </div>
             <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
               {groups.map((g) => (
