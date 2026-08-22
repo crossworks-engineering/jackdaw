@@ -21,6 +21,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
+import { describeFile, KIND_TINT } from '@mantle/web-ui/lib/mime-label';
 import { FileEditor } from './file-editor';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
@@ -677,74 +678,88 @@ function FilesView({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {files.map((f) => (
-                          <tr key={f.id} className="hover:bg-muted/30">
-                            <td className="px-3 py-2">
-                              <Checkbox
-                                aria-label={`Select ${f.filename}`}
-                                checked={selectedFileIds.has(f.id)}
-                                onCheckedChange={(v) =>
-                                  setSelectedFileIds((prev) => {
-                                    const next = new Set(prev);
-                                    if (v) next.add(f.id);
-                                    else next.delete(f.id);
-                                    return next;
-                                  })
-                                }
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <button
-                                onClick={() => openFile(f.id)}
-                                data-mark-id={f.id}
-                                data-mark-kind="file"
-                                data-mark-label={f.filename}
-                                className="flex items-center gap-2 text-left hover:underline"
-                              >
-                                <FileText className="size-4 shrink-0 text-muted-foreground" />
-                                <span className="font-medium">{f.filename}</span>
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                                  {f.extension}
-                                </span>
-                                {f.summary && (
+                        {files.map((f) => {
+                          // MIME first, filename as tie-breaker — files uploaded
+                          // before the server's mime map learned audio/video/
+                          // archives are stored as octet-stream, and the
+                          // extension still names them correctly.
+                          const described = describeFile(f.mimeType, f.filename);
+                          const TypeIcon = described.icon;
+                          return (
+                            <tr key={f.id} className="hover:bg-muted/30">
+                              <td className="px-3 py-2">
+                                <Checkbox
+                                  aria-label={`Select ${f.filename}`}
+                                  checked={selectedFileIds.has(f.id)}
+                                  onCheckedChange={(v) =>
+                                    setSelectedFileIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (v) next.add(f.id);
+                                      else next.delete(f.id);
+                                      return next;
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <button
+                                  onClick={() => openFile(f.id)}
+                                  data-mark-id={f.id}
+                                  data-mark-kind="file"
+                                  data-mark-label={f.filename}
+                                  className="flex items-center gap-2 text-left hover:underline"
+                                >
+                                  <TypeIcon
+                                    aria-hidden
+                                    className={`size-4 shrink-0 ${KIND_TINT[described.kind]}`}
+                                  />
+                                  <span className="font-medium">{f.filename}</span>
                                   <span
-                                    title="Indexed — summary ready"
-                                    className="inline-flex items-center text-primary-ink"
+                                    title={described.label}
+                                    className="text-[10px] uppercase tracking-wider text-muted-foreground"
                                   >
-                                    <ChevronsRight className="size-3.5 shrink-0" />
+                                    {f.extension}
                                   </span>
-                                )}
-                              </button>
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {fmtSize(f.sizeBytes)}
-                            </td>
-                            <td className="max-w-[40ch] truncate px-3 py-2 text-xs text-muted-foreground">
-                              {f.summary ?? <span className="italic">—</span>}
-                            </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">
-                              {fmtRelative(f.updatedAt)}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0"
-                                aria-label={`Rename ${f.filename}`}
-                                onClick={() =>
-                                  setRenameTarget({
-                                    kind: 'file',
-                                    id: f.id,
-                                    filename: f.filename,
-                                    extension: f.extension,
-                                  })
-                                }
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
+                                  {f.summary && (
+                                    <span
+                                      title="Indexed — summary ready"
+                                      className="inline-flex items-center text-primary-ink"
+                                    >
+                                      <ChevronsRight className="size-3.5 shrink-0" />
+                                    </span>
+                                  )}
+                                </button>
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                {fmtSize(f.sizeBytes)}
+                              </td>
+                              <td className="max-w-[40ch] truncate px-3 py-2 text-xs text-muted-foreground">
+                                {f.summary ?? <span className="italic">—</span>}
+                              </td>
+                              <td className="px-3 py-2 text-xs text-muted-foreground">
+                                {fmtRelative(f.updatedAt)}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  aria-label={`Rename ${f.filename}`}
+                                  onClick={() =>
+                                    setRenameTarget({
+                                      kind: 'file',
+                                      id: f.id,
+                                      filename: f.filename,
+                                      extension: f.extension,
+                                    })
+                                  }
+                                >
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}

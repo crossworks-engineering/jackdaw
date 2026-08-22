@@ -204,6 +204,28 @@ export function describeFile(
   return { kind: 'file', label: 'File', icon: ICONS.file };
 }
 
+/**
+ * A muted colour accent per kind, as Tailwind classes with a dark variant.
+ * The families follow the conventions every desktop file manager trained
+ * people on — red PDFs, blue Word, green spreadsheets — because the point of
+ * an icon colour is recognition at a glance, not decoration. Kinds that have
+ * no such convention stay muted-foreground on purpose: an accent on
+ * everything is an accent on nothing.
+ */
+export const KIND_TINT: Record<FileKind, string> = {
+  pdf: 'text-red-600 dark:text-red-400',
+  word: 'text-blue-600 dark:text-blue-400',
+  spreadsheet: 'text-emerald-600 dark:text-emerald-400',
+  presentation: 'text-orange-600 dark:text-orange-400',
+  image: 'text-violet-600 dark:text-violet-400',
+  video: 'text-pink-600 dark:text-pink-400',
+  audio: 'text-sky-600 dark:text-sky-400',
+  archive: 'text-amber-600 dark:text-amber-400',
+  code: 'text-teal-600 dark:text-teal-400',
+  text: 'text-muted-foreground',
+  file: 'text-muted-foreground',
+};
+
 /** Just the label, for callers that draw their own icon (or none). */
 export function fileTypeLabel(mimeType?: string | null, filename?: string | null): string {
   return describeFile(mimeType, filename).label;

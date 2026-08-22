@@ -1,16 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Download,
-  Eye,
-  FileText,
-  Loader2,
-  PencilLine,
-  Save,
-  SplitSquareHorizontal,
-  X,
-} from 'lucide-react';
+import { Download, Eye, Loader2, PencilLine, Save, SplitSquareHorizontal, X } from 'lucide-react';
+import { describeFile, fileTypeLabel, KIND_TINT } from '@mantle/web-ui/lib/mime-label';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -140,7 +132,11 @@ export function FileEditor({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <header className="flex items-center gap-3 border-b border-border px-6 py-2">
-        <FileText className="size-4 shrink-0 text-muted-foreground" />
+        {(() => {
+          const d = describeFile(file.mimeType, file.filename);
+          const Icon = d.icon;
+          return <Icon aria-hidden className={`size-4 shrink-0 ${KIND_TINT[d.kind]}`} />;
+        })()}
         {renaming ? (
           <form onSubmit={submitRename} className="flex items-center gap-1.5">
             <Input
@@ -175,7 +171,7 @@ export function FileEditor({
           </button>
         )}
         <span className="hidden text-xs text-muted-foreground sm:inline">
-          {file.parentPath} · {file.mimeType}
+          {file.parentPath} · {fileTypeLabel(file.mimeType, file.filename)}
         </span>
 
         <div className="ml-auto flex items-center gap-2">

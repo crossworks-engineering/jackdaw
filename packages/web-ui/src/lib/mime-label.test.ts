@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeFile, fileTypeLabel } from './mime-label';
+import { describeFile, fileTypeLabel, KIND_TINT } from './mime-label';
 
 describe('fileTypeLabel', () => {
   it('names the office types a person would recognise', () => {
@@ -55,5 +55,24 @@ describe('describeFile', () => {
     expect(describeFile('application/zip', 'bundle.zip').kind).toBe('archive');
     expect(describeFile('text/csv', 'rows.csv').kind).toBe('spreadsheet');
     expect(describeFile(null, 'unknown.qqq').kind).toBe('file');
+  });
+});
+
+describe('KIND_TINT', () => {
+  it('carries a class for every kind describeFile can return', () => {
+    // The files grid indexes KIND_TINT[described.kind] directly; a kind
+    // without an entry would render `undefined` into className.
+    for (const [input, expected] of [
+      ['application/pdf', 'pdf'],
+      ['image/png', 'image'],
+      ['audio/ogg', 'audio'],
+      ['video/mp4', 'video'],
+      ['application/zip', 'archive'],
+      ['application/octet-stream', 'file'],
+    ] as const) {
+      const kind = describeFile(input, null).kind;
+      expect(kind).toBe(expected);
+      expect(KIND_TINT[kind]).toBeTruthy();
+    }
   });
 });
