@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronRight, MoreHorizontal, Search, X } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Search, Star, X } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -15,7 +15,8 @@ import {
 } from '@mantle/web-ui/ui/tooltip';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useGroupHead } from '@/lib/nav-usage';
-import { activeNavHref, collapseSettingsNav } from '@/lib/settings-hub-nav';
+import { activeNavHref } from '@/lib/nav-active';
+import { favoriteItems, useNavFavorites } from '@/lib/nav-favorites';
 import {
   NAV_GROUPS,
   type NavGroup as BaseNavGroup,
@@ -62,23 +63,37 @@ export function SidebarNav({
   // bridge pings us and we refetch the server-computed count. No polling.
   useRealtime(['pending_tool_call'], () => router.refresh());
 
-  // The shared nav list, with the live pending-approvals badge injected onto the
-  // Pending item at render time, and the thirteen hub screens collapsed into
-  // one "Settings" row (see `lib/settings-hub-nav.ts` — it is the SIDEBAR's
-  // copy that changes, so ⌘K and usage attribution still see every screen).
-  const groups: NavGroup[] = collapseSettingsNav(
-    NAV_GROUPS.map((g) => ({
-      ...g,
-      items: g.items.map((item) =>
-        item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
-      ),
-    })),
-  );
+  const { favorites, isFavorite, toggleFavorite } = useNavFavorites();
+
+  // The shared nav list, with the live pending-approvals badge injected onto
+  // the Pending item at render time.
+  //
+  // Every screen is a row again. Thirteen of them were briefly folded behind a
+  // single "Settings" row pointing at a card hub; that is undone, so the menu
+  // filter finds "Backups" or "Audit log" by typing again rather than only ⌘K.
+  const groups: NavGroup[] = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.map((item) =>
+      item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
+    ),
+  }));
+
+  // Favorites is a VIEW over the groups above, not a place items move to: a
+  // starred screen keeps its home row, exactly as pinning works everywhere
+  // else. `favoriteItems` resolves each href against the LIVE list, which is
+  // what stops a star on a since-retired route becoming a dead row.
+  const pinned = favoriteItems(favorites, groups);
+  // Not collapsible: a list the owner curated by hand is already the short
+  // list, so ranking a head out of it would be second-guessing them. Absent
+  // entirely when nothing is starred — an empty heading is worse than none,
+  // and it is how this stays invisible until someone uses it.
+  const allGroups: NavGroup[] =
+    pinned.length > 0 ? [{ label: 'Favorites', items: pinned }, ...groups] : groups;
 
   // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
   // is a prefix of every other settings route, so an independent test would
   // light it beside Agents on `/settings/agents`.
-  const activeHref = activeNavHref(groups, pathname);
+  const activeHref = activeNavHref(allGroups, pathname);
   const isActive = (item: NavItem) => item.href === activeHref;
 
   // Filter by item name (case-insensitive substring), dropping now-empty groups.
@@ -87,10 +102,10 @@ export function SidebarNav({
   const q = query.trim().toLowerCase();
   const filtering = !collapsed && q.length > 0;
   const visibleGroups = filtering
-    ? groups
+    ? allGroups
         .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
         .filter((g) => g.items.length > 0)
-    : groups;
+    : allGroups;
 
   const toggleGroup = (label: string) => {
     setExpandedGroups((prev) => {
@@ -138,18 +153,19 @@ export function SidebarNav({
 
     const trigger = (
       <Link
-        key={item.href}
         href={item.href}
         onClick={() => onNavigate?.()}
         aria-current={active ? 'page' : undefined}
         title={collapsed ? undefined : item.name}
-        className={className}
+        className={cn(className, !collapsed && 'min-w-0 flex-1')}
       >
         {inner}
       </Link>
     );
 
-    // Collapsed rail: the label lives in a shadcn tooltip on hover/focus.
+    // Collapsed rail: the label lives in a shadcn tooltip on hover/focus, and
+    // there is no star — an icon column has no room for a second control, and
+    // the gesture belongs where the labels are.
     if (collapsed) {
       return (
         <Tooltip key={item.href}>
@@ -165,7 +181,35 @@ export function SidebarNav({
         </Tooltip>
       );
     }
-    return trigger;
+
+    const starred = isFavorite(item.href);
+    return (
+      // A SIBLING of the link, never inside it: nested interactive elements are
+      // invalid, and a star within the anchor would navigate as well as toggle.
+      <div key={item.href} className="group/nav-row flex items-center gap-0.5">
+        {trigger}
+        <button
+          type="button"
+          onClick={() => toggleFavorite(item.href)}
+          aria-pressed={starred}
+          aria-label={
+            starred ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`
+          }
+          title={starred ? 'Remove from favorites' : 'Add to favorites'}
+          className={cn(
+            'shrink-0 rounded p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            // Quiet until wanted: fifty always-lit stars would compete with the
+            // labels they sit beside. It still occupies its space when hidden,
+            // so no row jumps when the pointer arrives.
+            starred
+              ? 'text-foreground/70 hover:text-foreground'
+              : 'text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/nav-row:opacity-100',
+          )}
+        >
+          <Star className={cn('size-3.5', starred && 'fill-current')} aria-hidden />
+        </button>
+      </div>
+    );
   };
 
   return (
