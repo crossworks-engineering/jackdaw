@@ -1010,11 +1010,12 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
             />
           </>
         ) : (
-          /* The measure. This route has no list to drag against, so it brings
-             its own spacer: the body opens at a width, tucks LEFT, and carries
-             a handle on its right edge with nothing capping it. That replaces
-             the narrow/wide button, which was a two-position stand-in for a
-             measure the reader should simply set.
+          /* The measure. The body opens at a width, sits CENTERED with the
+             margins splitting the slack equally, and carries a handle on its
+             right edge with nothing capping it. That replaces the narrow/wide
+             button, which was a two-position stand-in for a measure the
+             reader should simply set — and the earlier panel-plus-spacer cut,
+             which pinned the page against the left edge of the window.
 
              920px, not the 900px the list preview opens at: this body carries
              the editor's left gutter (the marker rail) on top of the same

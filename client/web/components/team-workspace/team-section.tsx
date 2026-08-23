@@ -62,6 +62,7 @@ import {
 } from '@mantle/web-ui/ui/command';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { MeasurePane } from '@mantle/web-ui/ui/measure-pane';
 import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
 import { formatDate, formatDayTime } from '@mantle/web-ui/lib/format-datetime';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
@@ -165,6 +166,7 @@ const TYPE_ICON: Record<string, string> = {
  * `id={team-<type>}` already gives each section its own storage key.
  */
 function paneShape(type: string): {
+  idSuffix?: string;
   detailFills?: true;
   defaultDetailSize?: string;
   maxDetailSize?: string;
@@ -177,10 +179,36 @@ function paneShape(type: string): {
       return { detailFills: true };
     case 'note':
     case 'page':
-      return { defaultDetailSize: '900px', maxDetailSize: '100%' };
+      // Reading types ALSO fill now — but with a `MeasurePane` inside the
+      // detail (see below), so the prose centers at a reader-dragged width
+      // instead of hugging the divider the way the old spacer treatment left
+      // it. `-reader` bumps the storage key because the panel set changed
+      // under it ([LIST, DETAIL, SPACER] → [LIST, DETAIL]) and a saved
+      // three-panel layout must not be replayed onto two panels.
+      return { idSuffix: '-reader', detailFills: true };
     default:
       return {};
   }
+}
+
+/** The types whose detail is prose — the ones `paneShape` marks `-reader` and
+ *  the render wraps in a centered `MeasurePane`. */
+function isReadingType(type: string): boolean {
+  return type === 'note' || type === 'page';
+}
+
+/** Wrap a reading type's detail in the centered measure: the prose sits in
+ *  the middle of the pane at a width the reader drags, margins splitting the
+ *  slack equally. Everything else passes through — a table or an app viewport
+ *  wants the whole pane, not a measure. The `ShareReader` inside owns its own
+ *  scrolling, which keeps the measure's handle pinned to the viewport. */
+function withReaderMeasure(type: string, detail: React.ReactNode) {
+  if (!isReadingType(type)) return detail;
+  return (
+    <MeasurePane id={`team-${type}-reader`} defaultSize="900px">
+      {detail}
+    </MeasurePane>
+  );
 }
 
 export function TeamSection({
@@ -424,25 +452,22 @@ export function TeamSection({
     );
   };
 
+  const { idSuffix, ...shape } = paneShape(type);
+
   return (
     <MasterDetail
       // Per SECTION, so Notes and Tables each remember their own width — the
       // same per-view rule /tasks and /tasks-board follow.
-      id={`team-${type}`}
-      // ⚠ Per TYPE. This used to be an unconditional `detailFills`, and that
-      // one word is what made the pane feel wrong in two different directions.
-      //
-      // `detailFills` drops the SPACER and the detail's max size, so the pane
-      // has no right edge and the divider shoves a boundary instead of sizing
-      // a card. With the presenters' old `mx-auto max-w-2xl` inside it, that
-      // read as a box floating in the middle of a 2000px pane; once the
-      // presenters went `chrome="embedded"` and lost the cap, the same pane
-      // read as content hugging the left with dead space beside it. One prop,
-      // both complaints.
-      //
-      // Style guide §8 is explicit that the prop belongs to content that is
-      // NOT reading text, so it is granted by type rather than by default.
-      {...paneShape(type)}
+      id={`team-${type}${idSuffix ?? ''}`}
+      // ⚠ Per TYPE. An unconditional `detailFills` once made the pane feel
+      // wrong in two different directions: with the presenters' old
+      // `mx-auto max-w-2xl` inside it, an UNTOUCHABLE box floating in a
+      // 2000px pane; without the cap, content hugging the left with dead
+      // space beside it. The centered `MeasurePane` (below) is what resolves
+      // that pair for the reading types — the box is back in the middle, and
+      // the reader now owns its edge. Viewport types (table, app, draw,
+      // branch) fill outright, per style guide §8.
+      {...shape}
       // The list clamps match the FORUM's (topic-list-client.tsx), because the
       // cards are the same shape: an icon slot, a title, a summary line, tags
       // and a meta row. The scaffold's 260/340/560 defaults were tuned for a
@@ -580,7 +605,8 @@ export function TeamSection({
           />
         </div>
       }
-      detail={
+      detail={withReaderMeasure(
+        type,
         <div className={cn('flex h-full min-h-0 flex-col', !selected && 'max-md:hidden')}>
           {selected ? (
             <>
@@ -674,8 +700,8 @@ export function TeamSection({
               <p className="text-sm text-muted-foreground">Select an item to read it.</p>
             </div>
           )}
-        </div>
-      }
+        </div>,
+      )}
     />
   );
 }

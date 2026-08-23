@@ -94,6 +94,7 @@ import { buildPageToc } from '@mantle/content-core/page-toc';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { MeasurePane } from '@mantle/web-ui/ui/measure-pane';
 import { ExportMenu } from '@/components/export/export-menu';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
@@ -512,25 +513,21 @@ export function PagesClient() {
   return (
     <>
       <MasterDetail
-        id="pages"
+        // `-reader`, not the old `pages`: the panel set changed under this key
+        // ([LIST, DETAIL, SPACER] → [LIST, DETAIL]) when the spacer treatment
+        // gave way to the centered measure, and a saved three-panel layout
+        // must not be replayed onto two panels.
+        id="pages-reader"
         // The screen's old clamps, so the column lands and stops where it did.
         defaultListSize="300px"
         minListSize="220px"
         maxListSize="560px"
-        // The preview gets the SPACER treatment the settings hub has, not
-        // `detailFills`. `detailFills` gave the pane every spare pixel, so the
-        // page sprawled the full window with no right edge to take hold of —
-        // the reader could not narrow it, only widen the list. With a spacer
-        // the preview opens at a measure, tucks left against the divider, and
-        // carries its OWN handle on the right that the reader drags.
-        //
-        // 900px, not the 672px default: this pane also holds the `xl:` outline
-        // rail (a 224px aside), and at 672px that rail eats a third of the
-        // body. `100%` for the ceiling so the drag can run the spacer down to
-        // nothing — "no limit" is the whole ask.
-        defaultDetailSize="900px"
-        minDetailSize="480px"
-        maxDetailSize="100%"
+        // `detailFills`, WITH a `MeasurePane` inside the detail. The pane takes
+        // every spare pixel; the page centers within it at a width the reader
+        // drags, margins splitting the slack equally. The earlier spacer
+        // treatment solved only the width — the page always tucked left
+        // against the divider, and in focus mode against the screen edge.
+        detailFills
         // Focus mode. The list COLLAPSES rather than unmounting, so the search
         // box, scroll position and page survive the round trip — see the prop's
         // note in master-detail.tsx.
@@ -693,15 +690,21 @@ export function PagesClient() {
             )}
           </>
         }
-        // No wrapper: the preview is a plain document with no pinned header of
-        // its own, so `MasterDetail`'s pane is the only scroller.
+        // The measure owns the scroller: it has to sit INSIDE the centered
+        // column, or the handle (pinned to the column's viewport height)
+        // would scroll away with the page. 900px, not the 672px default: the
+        // preview also holds the `xl:` outline rail (a 224px aside).
         detail={
           selected ? (
-            <PagePreview
-              key={selected.id}
-              row={selected}
-              onDelete={() => setDeleteTarget(selected)}
-            />
+            <MeasurePane id="pages-preview" defaultSize="900px" minSize="480px">
+              <div className="h-full min-h-0 overflow-y-auto scrollbar-thin">
+                <PagePreview
+                  key={selected.id}
+                  row={selected}
+                  onDelete={() => setDeleteTarget(selected)}
+                />
+              </div>
+            </MeasurePane>
           ) : (
             <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
               Select a page to preview.
