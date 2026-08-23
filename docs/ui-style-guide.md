@@ -580,25 +580,30 @@ intrinsic height) in a pane that was 400px tall.
   `/tables` — the four focus-mode screens plus Tables' own collapse toggle.
   - **Know what focus mode gives back.** Under the three-panel default the
     width the list gives up goes to the empty SPACER, not to the detail — the
-    chrome disappears and the content stays exactly as wide as it was. With
-    `detailFills` the content absorbs it instead.
-    That is a reason to prefer `detailFills` for a viewport, and NOT a reason
-    to prefer it for prose: `/pages` keeps the spacer deliberately, because a
-    reader who has chosen a measure wants focus mode to remove the chrome, not
-    to re-flow the paragraph they are in the middle of. The width is theirs to
-    set with the handle; focus mode only clears what is around it.
+    chrome disappears and the content stays exactly as wide as it was, pinned
+    against the left edge. With `detailFills` the content absorbs it instead.
+    Prose wants a THIRD shape: `detailFills` with a `<MeasurePane>` inside the
+    detail (`/pages` and the team readers are the reference). The pane takes
+    the slack; the page keeps its chosen measure and re-CENTERS in the wider
+    room — focus mode removes the chrome without re-flowing the paragraph the
+    reader is in the middle of, and without stranding it at the screen edge.
   - **Passing it at all is what makes the panel collapsible**, which is why it
     has no default. `collapsible` also means "collapse when dragged below
     `minSize`", so setting it for everyone would let any list be dragged out of
     existence. A screen that never passes it stops at `minListSize`, exactly as
     before.
-- **A full-page route with no list uses `<MeasurePane>`** (`ui/measure-pane`),
-  which is this scaffold's third panel on its own: content plus the empty
-  spacer, one remembered handle between them, no ceiling. A route holding prose
-  and nothing else has nothing to drag against, so it otherwise picks between
-  running 1400px line lengths and hard-coding a `max-w-*` the reader cannot
-  touch. `/pages/[id]` is the reference — it shipped the second, with a
-  narrow/wide button standing in for a measure.
+- **Prose sits in a `<MeasurePane>`** (`ui/measure-pane`): a CENTERED column
+  with a remembered width, one handle on its right edge, no ceiling. The
+  margins split the slack equally and grow together as the room does; when the
+  room is narrower than the measure the column simply fills it. The drag moves
+  the width at 2× the pointer — both edges give way at once, which is what
+  keeps the handle under the pointer — and double-click resets. A full-page
+  prose route (`/pages/[id]`, a forum topic) uses it directly; a list screen
+  whose detail is prose uses it INSIDE `detailFills` (`/pages`, the team
+  readers). Without it a prose route picks between 1400px line lengths, a
+  hard-coded `max-w-*` the reader cannot touch, or — the first cut of this
+  component — a left-pinned panel-plus-spacer that could never reach the
+  middle of the window.
 - **`id` is the persistence key**, saved to `localStorage`. Unique per screen,
   and per *view* where a screen has more than one: `tasks` and `tasks-board`
   are separate, because a board wants far more room than a 340px list.
