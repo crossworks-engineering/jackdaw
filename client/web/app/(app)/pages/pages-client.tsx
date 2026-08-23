@@ -97,7 +97,7 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { MeasurePane } from '@mantle/web-ui/ui/measure-pane';
 import { ExportMenu } from '@/components/export/export-menu';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
+import { formatDateTime, updatedAgo } from '@mantle/web-ui/lib/format-datetime';
 import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
 import type { PageRow } from '@mantle/client-types';
 
@@ -898,7 +898,7 @@ function PageCard({
                 <GripVertical className="size-3.5" />
               </button>
             )}
-            {drills && (
+            {drills ? (
               <button
                 type="button"
                 onClick={onSelect}
@@ -910,6 +910,16 @@ function PageCard({
                 </span>
                 <ChevronRight className="size-3.5 shrink-0 opacity-70" />
               </button>
+            ) : (
+              /* A leaf page leaves this slot empty, so it carries the updated
+                 stamp instead — relative while fresh, the date once it's 5+
+                 days old (updatedAgo). Hover gives the exact timestamp. */
+              <span
+                className="truncate px-1 py-0.5 text-xs text-muted-foreground"
+                title={`Updated ${formatDateTime(row.updatedAt)}`}
+              >
+                {updatedAgo(row.updatedAt)}
+              </span>
             )}
           </div>
 
