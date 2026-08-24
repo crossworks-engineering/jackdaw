@@ -48,14 +48,18 @@ export function LoginClient({
   const firstRun = bootQuery.data?.firstRun ?? false;
 
   return (
-    <>
-      <div className="space-y-2 text-center">
+    // The settings-card shell (ui-style-guide §6e): a form in a content area
+    // wears the sectioned card, brand block in the header, form in the body.
+    <section className="rounded-xl border border-border bg-card">
+      <div className="space-y-2 border-b border-border p-4 text-center md:p-5">
         {mark}
         <p className="text-sm text-muted-foreground">
           {firstRun ? 'Create your login to begin.' : 'Sign in to your data-aware workspace.'}
         </p>
       </div>
-      <LoginForm mode={firstRun ? 'signup' : 'login'} next={next} error={error} />
-    </>
+      <div className="p-4 md:p-5">
+        <LoginForm mode={firstRun ? 'signup' : 'login'} next={next} error={error} />
+      </div>
+    </section>
   );
 }

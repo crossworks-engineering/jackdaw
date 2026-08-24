@@ -448,6 +448,30 @@ width under you.
   All / On / Off selection filter, shown once a list exceeds ~6 items). Used by
   the agents Tools/Skills/Delegates pickers and AI workers.
 
+### 6e. The outer settings-card: a form in a content area wears the card
+
+**A form that stands in a content area** — a settings hub screen, a standalone
+centred screen like `/login` — is wrapped in the sectioned card used by
+`settings/(hub)/mcp` (`mcp-client.tsx`). This is the expected treatment
+whenever a form is involved; don't lay the form bare on the page surface.
+
+```tsx
+<section className="rounded-xl border border-border bg-card">
+  <div className="border-b border-border p-4 md:p-5">
+    {/* header: title + description (+ an optional header control, e.g. a Switch) */}
+  </div>
+  <div className="p-4 md:p-5">{/* the form / body */}</div>
+</section>
+```
+
+- The shell is `rounded-xl border border-border bg-card`; the header block is
+  separated from the body by `border-b border-border`; both inset `p-4 md:p-5`.
+- **References:** `/settings/mcp` (sectioned settings cards) and `/login`
+  (brand block + strapline in the header section, the form in the body).
+- **Distinct from §6c:** the master-detail COMPOSER keeps its own
+  `rounded-lg … shadow-sm` card inside the detail pane. This section covers
+  forms OUTSIDE that scaffold — standalone and hub content areas.
+
 ---
 
 ## 7. Dialogs, confirmations & feedback
@@ -768,6 +792,20 @@ stat queries on merely opening `/settings` is the other half of the argument.
 **Reuse the screen's own `queryKey` and URL** so the card and the screen share
 one react-query cache entry instead of fetching the same thing twice. Opening a
 screen whose card has loaded is then free, and the list warms the cache.
+
+### Sibling-view tabs: top of the list pane
+
+When a screen offers a **selection between sibling views or routes** and lives
+in the resizable card-list scaffold, the switcher goes in the **navigation area
+at the top of the LIST pane** — its own `border-b border-border p-3` row,
+above the search / filter / New controls. Not in the detail pane, and not an
+on-page tab strip above the whole scaffold.
+
+**The reference is `/models`** (`models-nav.tsx`): a segmented switcher styled
+like `TabsList` (the `bg-muted` pill is what makes the navigation findable),
+built from real `<Link>`s with `aria-current="page"` because the tabs are
+routes. Use Radix `Tabs` only when the selection is genuinely local state;
+the placement rule is the same either way.
 
 ### Master-detail: the anatomy, and the rules that outlive the scaffold
 
