@@ -24,6 +24,7 @@ import { FocusToggle } from '@/components/layout/focus-toggle';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { ShareControl } from '@/components/share-control';
+import { RecallBadge } from './recall-badge';
 import { ExportMenu } from '@/components/export/export-menu';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
@@ -878,6 +879,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
         <BackLink href="/pages">All pages</BackLink>
         <div className="flex flex-wrap items-center gap-2 gap-y-1.5">
+          <RecallBadge pageId={initial.id} />
           <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={docDirty} />
           <Button size="sm" onClick={() => void commit()} disabled={!docDirty || committing}>
             <GitCommitHorizontal /> Commit
