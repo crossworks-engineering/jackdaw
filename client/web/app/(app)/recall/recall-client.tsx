@@ -1,23 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Map as MapIcon } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ExternalLink, Map as MapIcon, Search } from 'lucide-react';
 import type { RecallMapSummaryDTO } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Input } from '@mantle/web-ui/ui/input';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@mantle/web-ui/ui/select';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
+import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
 import { CompileBadge } from './compile-badge';
 import { MapDetail } from './map-detail';
@@ -25,23 +20,48 @@ import { MapCanvas } from './map-canvas';
 
 export type RecallTab = 'map' | 'nodes';
 
-/** Outer query-gate so the page stays data-free. `selected` and `view` ride the
- *  URL so the editor lint badge can deep-link straight to a map. */
-export function RecallClient({ selected, view }: { selected: string | null; view: RecallTab }) {
+type MapsPage = {
+  maps: RecallMapSummaryDTO[];
+  /** Absent on a pre-pagination brain, which returns the whole catalog. */
+  total?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+/** Outer query-gate so the page stays data-free. `selected`, `view`, `q` and
+ *  `page` ride the URL so the editor lint badge can deep-link straight to a
+ *  map and searches survive a reload. */
+export function RecallClient({
+  selected,
+  view,
+  q,
+  page,
+}: {
+  selected: string | null;
+  view: RecallTab;
+  q: string;
+  page: number;
+}) {
   const mapsQuery = useQuery({
-    queryKey: ['recall', 'maps'],
-    queryFn: () =>
-      apiFetch<{ maps: RecallMapSummaryDTO[] }>('/api/recall/maps').then((r) => r.maps),
+    queryKey: ['recall', 'maps', { q, page }],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (page > 1) params.set('page', String(page));
+      const qs = params.toString();
+      return apiFetch<MapsPage>(`/api/recall/maps${qs ? `?${qs}` : ''}`);
+    },
+    placeholderData: (prev) => prev,
   });
 
-  if (mapsQuery.isPending) {
+  if (mapsQuery.isPending && !mapsQuery.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-6" />
       </div>
     );
   }
-  if (mapsQuery.isError) {
+  if (mapsQuery.isError && !mapsQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>Could not load the Recall maps.</p>
@@ -51,27 +71,51 @@ export function RecallClient({ selected, view }: { selected: string | null; view
       </div>
     );
   }
-  return <RecallView maps={mapsQuery.data} selected={selected} view={view} />;
+  return <RecallView data={mapsQuery.data} selected={selected} view={view} q={q} page={page} />;
 }
 
 function RecallView({
-  maps,
+  data,
   selected,
   view,
+  q,
+  page,
 }: {
-  maps: RecallMapSummaryDTO[];
+  data: MapsPage;
   selected: string | null;
   view: RecallTab;
+  q: string;
+  page: number;
 }) {
-  const { go } = useListNav();
+  const { pending: navPending, go } = useListNav();
+  const maps = data.maps;
+  const total = data.total ?? maps.length;
+  const pageSize = data.pageSize ?? Math.max(1, maps.length);
 
-  // Auto-select the first map (style guide §8); a stale ?selected falls back.
+  // Auto-select the first map of the page (style guide §8); a stale or
+  // filtered-out ?selected falls back.
   const selectedId = useMemo(() => {
     if (selected && maps.some((m) => m.id === selected)) return selected;
     return maps[0]?.id ?? null;
   }, [maps, selected]);
+  const selectedMap = maps.find((m) => m.id === selectedId) ?? null;
 
-  if (maps.length === 0) {
+  // Debounced URL-driven search, same shape as the models explorer: never
+  // rewind the box while the user is typing in it.
+  const [searchInput, setSearchInput] = useState(q);
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (document.activeElement === searchRef.current) return;
+    setSearchInput(q);
+  }, [q]);
+  useEffect(() => {
+    const h = setTimeout(() => {
+      if (searchInput.trim() !== q) go({ q: searchInput.trim() || null, page: null });
+    }, 350);
+    return () => clearTimeout(h);
+  }, [searchInput, q, go]);
+
+  if (total === 0 && !q) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
         <MapIcon className="size-8 opacity-50" aria-hidden />
@@ -84,39 +128,57 @@ function RecallView({
     );
   }
 
+  // ONE list pane, shared by both tabs — search on top, cards, pager.
   const list = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 p-3 pb-1">
-        <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-          Maps
-        </h2>
-        <span className="text-xs text-muted-foreground tabular-nums">{maps.length}</span>
+      <div className="border-b border-border p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            ref={searchRef}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search maps…"
+            className="h-9 pl-8"
+          />
+        </div>
       </div>
       <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-        {maps.map((m) => (
-          <ListCard
-            key={m.id}
-            selected={m.id === selectedId}
-            onClick={() => go({ selected: m.id })}
-          >
-            <ListCardTitle className="flex items-center gap-2">
-              <span className="min-w-0 truncate">{m.title}</span>
-              <CompileBadge ok={m.lastCompileOk} compiled={m.nodeCount > 0} />
-            </ListCardTitle>
-            <ListCardMeta>
-              <span className="truncate font-mono text-[11px]">{m.slug}</span>
-              <span>·</span>
-              <span className="tabular-nums">
-                {m.nodeCount} {m.nodeCount === 1 ? 'node' : 'nodes'}
-              </span>
-            </ListCardMeta>
-          </ListCard>
-        ))}
+        {maps.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            No maps match.
+          </p>
+        ) : (
+          maps.map((m) => (
+            <ListCard
+              key={m.id}
+              selected={m.id === selectedId}
+              onClick={() => go({ selected: m.id })}
+            >
+              <ListCardTitle className="flex items-center gap-2">
+                <span className="min-w-0 truncate">{m.title}</span>
+                <CompileBadge ok={m.lastCompileOk} compiled={m.nodeCount > 0} />
+              </ListCardTitle>
+              <ListCardMeta>
+                <span className="truncate font-mono text-[11px]">{m.slug}</span>
+                <span>·</span>
+                <span className="tabular-nums">
+                  {m.nodeCount} {m.nodeCount === 1 ? 'node' : 'nodes'}
+                </span>
+              </ListCardMeta>
+            </ListCard>
+          ))
+        )}
       </div>
+      <ListPager
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        pending={navPending}
+        onGo={(p) => go({ page: p > 1 ? p : null })}
+      />
     </div>
   );
-
-  const selectedMap = maps.find((m) => m.id === selectedId) ?? null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -127,22 +189,9 @@ function RecallView({
             <TabsTrigger value="nodes">Nodes</TabsTrigger>
           </TabsList>
         </Tabs>
-        {/* The map tab has no list pane, so the map picker lives up here. The
-            nodes tab picks via its own list; `selected` is shared through the URL. */}
         {view === 'map' && selectedMap && (
           <>
-            <Select value={selectedMap.id} onValueChange={(id) => go({ selected: id })}>
-              <SelectTrigger className="h-9 w-56" aria-label="Map">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {maps.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="min-w-0 truncate text-sm font-medium">{selectedMap.title}</span>
             <CompileBadge ok={selectedMap.lastCompileOk} compiled={selectedMap.nodeCount > 0} />
             <div className="ml-auto">
               <Button asChild variant="outline" size="sm">
@@ -156,9 +205,14 @@ function RecallView({
       </div>
       <div className="relative min-h-0 flex-1">
         {view === 'map' ? (
-          selectedId ? (
-            <MapCanvas mapId={selectedId} />
-          ) : null
+          /* The graph is a viewport, not reading text — it absorbs the slack
+             (detailFills), and the shared list keeps its draggable width. */
+          <MasterDetail
+            id="recall-map"
+            list={list}
+            detail={selectedId ? <MapCanvas mapId={selectedId} /> : null}
+            detailFills
+          />
         ) : (
           <MasterDetail
             id="recall"

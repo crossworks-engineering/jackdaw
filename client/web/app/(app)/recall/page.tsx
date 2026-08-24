@@ -11,7 +11,7 @@ import { RecallClient } from './recall-client';
 export default async function RecallPage({
   searchParams,
 }: {
-  searchParams: Promise<{ selected?: string; view?: string }>;
+  searchParams: Promise<{ selected?: string; view?: string; q?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   return (
@@ -20,6 +20,8 @@ export default async function RecallPage({
       <RecallClient
         selected={sp.selected?.trim() || null}
         view={sp.view === 'nodes' ? 'nodes' : 'map'}
+        q={sp.q?.trim() || ''}
+        page={Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)}
       />
     </>
   );

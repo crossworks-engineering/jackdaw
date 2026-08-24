@@ -5,6 +5,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  Position,
   type Edge,
   type Node,
   ReactFlowProvider,
@@ -66,7 +67,9 @@ export function RecallGraph({
 
 function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 50 });
+  // LR, not TB: ranks run left→right, so SIBLINGS stack vertically and a map
+  // grows DOWN as options multiply — breadth scrolls, depth stays on screen.
+  g.setGraph({ rankdir: 'LR', nodesep: 24, ranksep: 80 });
   g.setDefaultEdgeLabel(() => ({}));
 
   const bySlug = new Set(map.nodes.map((n) => n.slug));
@@ -94,6 +97,9 @@ function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edges: Edge[] } {
     return {
       id: n.slug,
       position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },
+      // LR layout: edges leave the right edge and land on the left one.
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
       data: { label: <NodeLabel node={n} orphan={orphan} isEntry={n.slug === indexSlug} /> },
       style: {
         width: NODE_W,
