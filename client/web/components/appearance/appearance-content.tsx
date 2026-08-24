@@ -4,6 +4,7 @@ import { FontRows } from '@/components/appearance/font-rows';
 import { LogoControl } from '@/components/appearance/logo-control';
 import { AvatarStyleControls, AvatarStyleList } from '@/components/appearance/avatar-style-gallery';
 import { BackgroundGallery } from '@/components/appearance/background-gallery';
+import { NeatGenerator } from '@/components/appearance/neat-generator';
 import { ColorPalette } from '@/components/theme-preview/color-palette';
 
 /**
@@ -51,6 +52,12 @@ export function AppearanceContent() {
           thing on this screen that genuinely needs the room. Its heading and the
           tint live up in the controls column with the other settings. */}
       <AvatarStyleList />
+
+      {/* Full-width: the generated Neat gradient — the whole-surface animated
+          background (login screen, and possibly the content area). Sits with
+          the other background setting so "how does the app look behind
+          content" is answered in one place. */}
+      <NeatGenerator />
 
       {/* Full-width for the same reason: one scrollable row per area, and the
           rows only read as a comparison at their natural width. */}

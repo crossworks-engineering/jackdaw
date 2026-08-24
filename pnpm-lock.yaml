@@ -277,6 +277,9 @@ importers:
       '@dicebear/styles':
         specifier: ^10.3.0
         version: 10.4.0
+      '@firecms/neat':
+        specifier: 1.0.2
+        version: 1.0.2
       '@mantle/client-types':
         specifier: npm:@crossworks/client-types@0.232.60
         version: '@crossworks/client-types@0.232.60'
@@ -1000,6 +1003,9 @@ packages:
   '@excalidraw/random-username@1.1.0':
     resolution: {integrity: sha512-nULYsQxkWHnbmHvcs+efMkJ4/9TtvNyFeLyHdeGxW0zHs6P+jYVqcRff9A6Vq9w9JXeDRnRh2VKvTtS19GW2qA==}
     engines: {node: '>=10'}
+
+  '@firecms/neat@1.0.2':
+    resolution: {integrity: sha512-hP9Qqz3mPEgwMKOZygjkFMqDyKjrQwuSYt352+QJfg1SfAlGOfHzpQSeIAgeeLmdtSjE45zekBpnJPgtRhxclA==}
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -6410,6 +6416,8 @@ snapshots:
       nanoid: 4.0.2
 
   '@excalidraw/random-username@1.1.0': {}
+
+  '@firecms/neat@1.0.2': {}
 
   '@floating-ui/core@1.8.0':
     dependencies:
