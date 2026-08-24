@@ -55,42 +55,54 @@ export function NeatBackdrop({
     const decoded = decodeNeatSpec(specKey);
     if (!canvas || !decoded) return;
 
-    const cs = getComputedStyle(document.documentElement);
-    const read = (name: string) => cs.getPropertyValue(name).trim();
-    const tokens = {
-      background: read('--background'),
-      primary: read('--primary'),
-      accent: read('--accent'),
-      secondary: read('--secondary'),
-    };
-    // No resolvable theme (a test DOM, a broken stylesheet) — paint nothing
-    // rather than a wrong guess; the surface underneath is already themed.
-    if (!tokens.background || !tokens.primary) return;
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const mode = resolvedTheme === 'dark' ? 'dark' : 'light';
 
     let disposed = false;
+    let raf = 0;
     let gradient: { destroy: () => void } | null = null;
     void import('@firecms/neat').then(({ NeatGradient }) => {
       if (disposed) return;
-      const config = neatConfigFromSpec(decoded, tokens, mode);
-      try {
-        gradient = new NeatGradient({
-          ...config,
-          ref: canvas,
-          seed: decoded.seed,
-          resolution,
-          speed: reduced ? 0 : config.speed,
-          ...(LICENSE_KEY ? { licenseKey: LICENSE_KEY } : {}),
-        });
-      } catch {
-        // WebGL unavailable (headless browser, exhausted contexts) — the plain
-        // themed surface below is the designed fallback, not an error state.
-      }
+      // Token read deferred to a frame ON PURPOSE. The in-app mode toggle
+      // updates React state first and next-themes applies the `.dark` class in
+      // a PARENT effect — which runs after this child effect. Reading
+      // getComputedStyle here directly rebuilt the gradient from the OUTGOING
+      // theme's tokens, so a mode switch didn't repaint until a reload. An rAF
+      // callback runs after the whole commit (class applied, styles resolved),
+      // whichever order the providers fire in.
+      raf = requestAnimationFrame(() => {
+        if (disposed) return;
+        const cs = getComputedStyle(document.documentElement);
+        const read = (name: string) => cs.getPropertyValue(name).trim();
+        const tokens = {
+          background: read('--background'),
+          primary: read('--primary'),
+          accent: read('--accent'),
+          secondary: read('--secondary'),
+        };
+        // No resolvable theme (a test DOM, a broken stylesheet) — paint nothing
+        // rather than a wrong guess; the surface underneath is already themed.
+        if (!tokens.background || !tokens.primary) return;
+
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const config = neatConfigFromSpec(decoded, tokens, mode);
+        try {
+          gradient = new NeatGradient({
+            ...config,
+            ref: canvas,
+            seed: decoded.seed,
+            resolution,
+            speed: reduced ? 0 : config.speed,
+            ...(LICENSE_KEY ? { licenseKey: LICENSE_KEY } : {}),
+          });
+        } catch {
+          // WebGL unavailable (headless browser, exhausted contexts) — the
+          // plain themed surface below is the designed fallback, not an error.
+        }
+      });
     });
     return () => {
       disposed = true;
+      cancelAnimationFrame(raf);
       gradient?.destroy();
     };
   }, [specKey, resolvedTheme, colorTheme, resolution]);
