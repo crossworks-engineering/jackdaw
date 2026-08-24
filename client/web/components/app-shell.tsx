@@ -19,6 +19,7 @@ import {
 } from '@/lib/nav-width';
 import { maybeRefreshToken } from '@mantle/web-ui/token-refresh';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
+import { NeatSurface } from '@/components/neat-surface';
 import { BrandBlock } from '@/components/layout/rail/brand-block';
 import { RailControls } from '@/components/layout/rail/rail-controls';
 import { RailToolbar } from '@/components/layout/rail/rail-toolbar';
@@ -525,6 +526,17 @@ function ShellFrame({
             server is slow enough to stream). Containing it here, beside the
             chrome rather than around it, keeps the chrome's tree-context
             symmetric. Same rationale as UsageCard's boundary in layout.tsx. */}
+        {/* The saved Neat background, pinned to the SAME box as <main> below —
+            a sibling rather than a child, because <main> scrolls and an
+            absolute child would scroll away with the content. Earlier in DOM
+            order, so the (also positioned) main and chrome paint over it. */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 top-[var(--top-bar-h)] md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]"
+        >
+          <NeatSurface />
+        </div>
+
         {/* No `transition-[left,right]` — see the aside above and globals.css. */}
         <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]">
           <Suspense fallback={null}>{children}</Suspense>

@@ -1,3 +1,5 @@
+import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
+import { decodeNeatSpec } from '@mantle/web-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { LoginClient } from './login-client';
@@ -26,6 +28,10 @@ export default async function LoginPage({
 }) {
   const [params, appearance] = await Promise.all([searchParams, loadBrainAppearance()]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
+  // The saved Neat background, decoded defensively like every appearance field.
+  // Cast because the pinned @crossworks/share-ui contract predates the field —
+  // absence simply decodes to null (the plain fill), per its own optional rule.
+  const neat = decodeNeatSpec((appearance as { neatBackground?: unknown } | null)?.neatBackground);
 
   return (
     // A COLUMN, not a single centred box, so the product's mark can sit at the
@@ -33,7 +39,10 @@ export default async function LoginPage({
     // of whatever height is left (`flex-1` + `items-center`), and the credit
     // sits below it in normal flow rather than absolutely positioned — so on a
     // short viewport the page scrolls instead of the two overlapping.
-    <main className="flex min-h-screen flex-col bg-background px-4 py-8">
+    // `isolate` + the backdrop's -z-10 keep the gradient above this main's own
+    // bg-background but below the card and credit — the chat AreaBackdrop idiom.
+    <main className="relative isolate flex min-h-screen flex-col bg-background px-4 py-8">
+      {neat && <NeatBackdrop spec={neat} className="-z-10" resolution={0.75} />}
       <div className="flex w-full flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-8">
           <LoginClient
