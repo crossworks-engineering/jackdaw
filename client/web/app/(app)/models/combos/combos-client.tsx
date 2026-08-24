@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { invalidateAgentQueries } from '@mantle/web-ui/agent-invalidation';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -29,7 +28,9 @@ import {
 } from '@mantle/web-ui/ui/table';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
+import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { ModelsNav } from '../models-nav';
 
 type ComboTarget = {
   id: string;
@@ -117,23 +118,12 @@ export function CombosClient({ initialCombo }: { initialCombo: string }) {
     }
   }
 
-  return (
-    <div className="mx-auto max-w-4xl space-y-4 p-6">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Model combinations</h2>
-        <Button type="button" size="sm" variant="ghost" asChild>
-          <Link href="/models/pools">
-            <ArrowLeft /> Curated pools
-          </Link>
-        </Button>
+  const list = (
+    <>
+      <div className="border-b border-border p-3">
+        <ModelsNav />
       </div>
-      <p className="text-sm text-muted-foreground">
-        One decision instead of thirteen: each combination picks a model from every curated pool.
-        Derived live from your pools — re-curate and the combinations follow. Applying changes what
-        the selected agents and workers actually run; nothing is automatic.
-      </p>
-
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
         {combos.map((c) => (
           <ListCard
             key={c.key}
@@ -144,14 +134,28 @@ export function CombosClient({ initialCombo }: { initialCombo: string }) {
             selected={c.key === combo.key}
           >
             <ListCardTitle>{c.label}</ListCardTitle>
-            <span className="text-xs text-muted-foreground">{c.description}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="block text-xs text-muted-foreground">{c.description}</span>
+            <span className="block text-xs tabular-nums text-muted-foreground">
               {c.changed} change{c.changed === 1 ? '' : 's'}
               {c.blocked ? ` · ${c.blocked} blocked` : ''}
             </span>
           </ListCard>
         ))}
       </div>
+    </>
+  );
+
+  const detail = (
+    <div className="space-y-4 p-6">
+      <div>
+        <h2 className="text-lg font-semibold">{combo.label}</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{combo.description}</p>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        One decision instead of thirteen: each combination picks a model from every curated pool.
+        Derived live from your pools — re-curate and the combinations follow. Applying changes what
+        the selected agents and workers actually run; nothing is automatic.
+      </p>
 
       {changedRows.length === 0 && blockedRows.length === 0 ? (
         <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -253,7 +257,21 @@ export function CombosClient({ initialCombo }: { initialCombo: string }) {
           {applying ? 'Applying…' : `Apply ${combo.label}`}
         </Button>
       </div>
+    </div>
+  );
 
+  return (
+    <>
+      {/* Same scaffold and widths as /models/pools: the diff table tucks left
+          with a draggable right edge, and the spacer holds the slack. */}
+      <MasterDetail
+        id="model-combos"
+        defaultListSize="300px"
+        defaultDetailSize="900px"
+        maxDetailSize="100%"
+        list={list}
+        detail={detail}
+      />
       <AlertDialog open={confirming} onOpenChange={(o) => !o && setConfirming(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -272,6 +290,6 @@ export function CombosClient({ initialCombo }: { initialCombo: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

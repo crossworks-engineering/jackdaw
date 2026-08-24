@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, Pencil, Plus, Star, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -42,6 +42,7 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { comparisonRows, fmtMTokens, fmtPerM, type PoolDef, type PoolEntry } from './pools-math';
+import { ModelsNav } from '../models-nav';
 
 type Bundle = { pools: PoolDef[]; entries: PoolEntry[] };
 
@@ -142,20 +143,8 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
         maxDetailSize="100%"
         list={
           <>
-            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Curated pools
-              </h2>
-              <div className="flex items-center gap-1">
-                <Button type="button" size="sm" variant="ghost" asChild>
-                  <Link href="/models">
-                    <ArrowLeft /> Explorer
-                  </Link>
-                </Button>
-                <Button type="button" size="sm" variant="ghost" asChild>
-                  <Link href="/models/combos">Combos</Link>
-                </Button>
-              </div>
+            <div className="border-b border-border p-3">
+              <ModelsNav />
             </div>
             <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
               {groups.map((g) => (

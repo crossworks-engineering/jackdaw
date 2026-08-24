@@ -9,11 +9,11 @@ import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { CompileBadge } from './compile-badge';
-import { RecallGraph } from './recall-graph';
 import { RoutingEditor } from './routing-editor';
 
-/** Right pane: one compiled map — compile state, the lint report, the routing
- *  graph, and the node list with the routing editor. */
+/** Right pane of the Nodes tab: one compiled map — compile state, the lint
+ *  report, and the node list with the routing editor. The routing graph lives
+ *  on the Map tab (map-canvas.tsx), where it gets the full content area. */
 export function MapDetail({ mapId }: { mapId: string }) {
   const mapQuery = useQuery({
     queryKey: ['recall', 'maps', mapId],
@@ -110,15 +110,6 @@ export function MapDetail({ mapId }: { mapId: string }) {
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {map.nodes.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Routing
-          </h3>
-          <RecallGraph map={map} onEditNode={(n) => setEditNode(n)} />
         </section>
       )}
 

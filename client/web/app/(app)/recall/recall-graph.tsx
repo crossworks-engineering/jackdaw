@@ -12,6 +12,7 @@ import {
 import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import { useFlowColorMode } from '@mantle/web-ui/hooks/use-flow-color-mode';
+import { cn } from '@mantle/web-ui/lib/utils';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
 
 /**
@@ -28,21 +29,23 @@ const NODE_H = 64;
 export function RecallGraph({
   map,
   onEditNode,
+  className,
 }: {
   map: RecallMapDetailDTO;
   onEditNode: (node: RecallNodeDTO) => void;
+  className?: string;
 }) {
   const colorMode = useFlowColorMode();
   const { nodes, edges } = useMemo(() => buildGraph(map), [map]);
 
   return (
-    <div className="h-[420px] rounded-md border border-border bg-muted/20">
+    <div className={cn('h-[420px] rounded-md border border-border bg-muted/20', className)}>
       <ReactFlowProvider>
         <ReactFlow
           colorMode={colorMode}
           nodes={nodes}
           edges={edges}
-          onNodeDoubleClick={(_e, n) => {
+          onNodeClick={(_e, n) => {
             const row = map.nodes.find((r) => r.slug === n.id);
             if (row) onEditNode(row);
           }}

@@ -2,20 +2,32 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Map as MapIcon } from 'lucide-react';
+import Link from 'next/link';
+import { ExternalLink, Map as MapIcon } from 'lucide-react';
 import type { RecallMapSummaryDTO } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { useListNav } from '@/lib/use-list-nav';
 import { CompileBadge } from './compile-badge';
 import { MapDetail } from './map-detail';
+import { MapCanvas } from './map-canvas';
 
-/** Outer query-gate so the page stays data-free. `selected` rides the URL so
- *  the editor lint badge can deep-link straight to a map. */
-export function RecallClient({ selected }: { selected: string | null }) {
+export type RecallTab = 'map' | 'nodes';
+
+/** Outer query-gate so the page stays data-free. `selected` and `view` ride the
+ *  URL so the editor lint badge can deep-link straight to a map. */
+export function RecallClient({ selected, view }: { selected: string | null; view: RecallTab }) {
   const mapsQuery = useQuery({
     queryKey: ['recall', 'maps'],
     queryFn: () =>
@@ -39,10 +51,18 @@ export function RecallClient({ selected }: { selected: string | null }) {
       </div>
     );
   }
-  return <RecallView maps={mapsQuery.data} selected={selected} />;
+  return <RecallView maps={mapsQuery.data} selected={selected} view={view} />;
 }
 
-function RecallView({ maps, selected }: { maps: RecallMapSummaryDTO[]; selected: string | null }) {
+function RecallView({
+  maps,
+  selected,
+  view,
+}: {
+  maps: RecallMapSummaryDTO[];
+  selected: string | null;
+  view: RecallTab;
+}) {
   const { go } = useListNav();
 
   // Auto-select the first map (style guide §8); a stale ?selected falls back.
@@ -96,19 +116,65 @@ function RecallView({ maps, selected }: { maps: RecallMapSummaryDTO[]; selected:
     </div>
   );
 
+  const selectedMap = maps.find((m) => m.id === selectedId) ?? null;
+
   return (
-    <MasterDetail
-      id="recall"
-      list={list}
-      detail={
-        selectedId ? (
-          <div className="h-full">
-            <MapDetail mapId={selectedId} />
-          </div>
-        ) : null
-      }
-      defaultDetailSize="880px"
-      maxDetailSize="1200px"
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <Tabs value={view} onValueChange={(v) => go({ view: v === 'nodes' ? 'nodes' : null })}>
+          <TabsList>
+            <TabsTrigger value="map">Map</TabsTrigger>
+            <TabsTrigger value="nodes">Nodes</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {/* The map tab has no list pane, so the map picker lives up here. The
+            nodes tab picks via its own list; `selected` is shared through the URL. */}
+        {view === 'map' && selectedMap && (
+          <>
+            <Select value={selectedMap.id} onValueChange={(id) => go({ selected: id })}>
+              <SelectTrigger className="h-9 w-56" aria-label="Map">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {maps.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <CompileBadge ok={selectedMap.lastCompileOk} compiled={selectedMap.nodeCount > 0} />
+            <div className="ml-auto">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/pages/${selectedMap.id}`}>
+                  <ExternalLink /> Open index page
+                </Link>
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="relative min-h-0 flex-1">
+        {view === 'map' ? (
+          selectedId ? (
+            <MapCanvas mapId={selectedId} />
+          ) : null
+        ) : (
+          <MasterDetail
+            id="recall"
+            list={list}
+            detail={
+              selectedId ? (
+                <div className="h-full">
+                  <MapDetail mapId={selectedId} />
+                </div>
+              ) : null
+            }
+            defaultDetailSize="880px"
+            maxDetailSize="1200px"
+          />
+        )}
+      </div>
+    </div>
   );
 }

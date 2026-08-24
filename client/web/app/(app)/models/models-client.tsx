@@ -37,6 +37,7 @@ import {
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
+import { ModelsNav } from './models-nav';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import type { ExplorerModel, ModelSort } from '@mantle/client-types';
@@ -209,7 +210,10 @@ function ModelsView({ data }: { data: ExploreBundle }) {
       id="models"
       list={
         <>
-          {/* LEFT: provider picker + model list */}
+          {/* LEFT: screen switcher + provider picker + model list */}
+          <div className="border-b border-border p-3">
+            <ModelsNav />
+          </div>
           <div className="flex items-center gap-2 border-b border-border p-3">
             <Select
               value={provider}
