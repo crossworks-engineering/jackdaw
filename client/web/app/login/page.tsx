@@ -28,10 +28,10 @@ export default async function LoginPage({
 }) {
   const [params, appearance] = await Promise.all([searchParams, loadBrainAppearance()]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
-  // The saved Neat background, decoded defensively like every appearance field.
-  // Cast because the pinned @crossworks/share-ui contract predates the field —
-  // absence simply decodes to null (the plain fill), per its own optional rule.
-  const neat = decodeNeatSpec((appearance as { neatBackground?: unknown } | null)?.neatBackground);
+  // The saved Neat background, decoded defensively like every appearance field —
+  // absence simply decodes to null (the plain fill), per the contract's own
+  // optional-field rule.
+  const neat = decodeNeatSpec(appearance?.neatBackground);
 
   return (
     // A COLUMN, not a single centred box, so the product's mark can sit at the
