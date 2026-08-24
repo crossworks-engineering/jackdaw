@@ -98,6 +98,7 @@ const CAP_LABELS: Record<keyof Capabilities, string> = {
   embedding: 'Embedder',
   summarizer: 'Summarizer',
   reflector: 'Reflector',
+  media: 'Media',
   stt: 'STT (voice)',
 };
 

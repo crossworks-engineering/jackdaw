@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { NotebookPen, Pencil, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
 import {
-  MOODS,
-  CATEGORIES,
-  moodDisplay,
-  categoryLabel,
-} from '@mantle/content-core/journal-options';
+  Bot,
+  GraduationCap,
+  HelpCircle,
+  NotebookPen,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Target,
+  Trash2,
+} from 'lucide-react';
+import { KINDS, kindLabel } from '@mantle/content-core/journal-options';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import {
@@ -41,9 +47,19 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { GapAnswerForm } from '@/components/journal/gap-answer';
 import { JournalEditor, type JournalRow } from './journal-editor';
 
 const ALL = '__all__';
+
+/** The three ways into the journal. 'you' = the user lane (self-knowledge),
+ *  'agents' = the agent lane (working notes), 'questions' = open gaps only. */
+const VIEWS = [
+  { key: 'you', label: 'You' },
+  { key: 'agents', label: 'Agent notes' },
+  { key: 'questions', label: 'Questions' },
+] as const;
+type ViewKey = (typeof VIEWS)[number]['key'];
 
 type JournalListResponse = {
   journals: JournalRow[];
@@ -52,6 +68,16 @@ type JournalListResponse = {
   pageSize: number;
   tags: { tag: string; count: number }[];
 };
+
+/** Per-kind list glyph. User-lane entries keep the notebook; agent-lane kinds
+ *  get their own so the Agent-notes view scans by shape. */
+function KindIcon({ kind, className }: { kind: string | null; className?: string }) {
+  const cls = cn('size-4 text-muted-foreground', className);
+  if (kind === 'lesson') return <GraduationCap className={cls} />;
+  if (kind === 'expectation') return <Target className={cls} />;
+  if (kind === 'gap') return <HelpCircle className={cls} />;
+  return <NotebookPen className={cls} />;
+}
 
 export function JournalClient() {
   const searchParams = useSearchParams();
@@ -62,24 +88,33 @@ export function JournalClient() {
   // URL is the source of truth (matches the old SSR page).
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
-  const activeMood = searchParams.get('mood')?.trim() || null;
-  const activeCategory = searchParams.get('category')?.trim() || null;
+  const viewRaw = searchParams.get('view')?.trim();
+  const view: ViewKey = viewRaw === 'agents' || viewRaw === 'questions' ? viewRaw : 'you';
+  const activeKind = searchParams.get('kind')?.trim() || null;
   const activeTag = searchParams.get('tag')?.trim() || null;
 
+  // The kinds the current view's narrow-filter offers.
+  const viewKinds = useMemo(
+    () => KINDS.filter((k) => (view === 'you' ? k.lane === 'user' : k.lane === 'agent')),
+    [view],
+  );
+
   const listQuery = useQuery({
-    queryKey: [
-      'journal',
-      { q: query, mood: activeMood, category: activeCategory, tag: activeTag, page },
-    ],
+    queryKey: ['journal', { view, q: query, kind: activeKind, tag: activeTag, page }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
-      if (activeMood) qs.set('mood', activeMood);
-      if (activeCategory) qs.set('category', activeCategory);
+      if (view === 'questions') {
+        // Open questions only — the whole point of the view.
+        qs.set('kind', 'gap');
+        qs.set('status', 'open');
+      } else {
+        qs.set('lane', view === 'agents' ? 'agent' : 'user');
+        if (activeKind) qs.set('kind', activeKind);
+      }
       if (activeTag) qs.set('tag', activeTag);
       if (page > 1) qs.set('page', String(page));
-      const s = qs.toString();
-      return apiFetch<JournalListResponse>(`/api/journal${s ? `?${s}` : ''}`);
+      return apiFetch<JournalListResponse>(`/api/journal?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
   });
@@ -146,6 +181,15 @@ export function JournalClient() {
       exitEdit();
     });
 
+  const switchView = (v: ViewKey) =>
+    guard(() => {
+      // Kind filters don't carry across lanes; selection rarely survives either.
+      go({ view: v === 'you' ? null : v, kind: null, page: null });
+      setSelectedId(null);
+      syncSelectionParam('selected', null);
+      exitEdit();
+    });
+
   const startCreate = () =>
     guard(() => {
       setCreating(true);
@@ -161,6 +205,10 @@ export function JournalClient() {
     exitEdit();
     setSelectedId(saved.id);
     syncSelectionParam('selected', saved.id);
+    void queryClient.invalidateQueries({ queryKey: ['journal'] });
+  };
+
+  const onGapResolved = () => {
     void queryClient.invalidateQueries({ queryKey: ['journal'] });
   };
 
@@ -215,6 +263,15 @@ export function JournalClient() {
     );
   }
 
+  const emptyCopy =
+    query || activeKind || activeTag
+      ? 'No journal entries match your search or filters.'
+      : view === 'questions'
+        ? 'No open questions — the brain has everything it needs right now.'
+        : view === 'agents'
+          ? 'No agent notes yet. Agents log lessons, expectations, and questions here as they work.'
+          : 'No journal entries yet. Click “New” to record who you are, or let your assistant log one.';
+
   const listPane = (
     <>
       {/* ── Left: list ─────────────────────────────────────────────── */}
@@ -234,40 +291,41 @@ export function JournalClient() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Select
-            value={activeMood ?? ALL}
-            onValueChange={(v) => go({ mood: v === ALL ? null : v, page: null })}
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Any mood" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Any mood</SelectItem>
-              {MOODS.map((m) => (
-                <SelectItem key={m.key} value={m.key}>
-                  {m.emoji} {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={activeCategory ?? ALL}
-            onValueChange={(v) => go({ category: v === ALL ? null : v, page: null })}
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Any area" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Any area</SelectItem>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c.key} value={c.key}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* The three views. A lane is a different question ("who am I" vs
+            "what have my agents learned"), so it's a view switch, not a
+            filter chip. */}
+        <div className="flex items-center gap-1.5">
+          {VIEWS.map((v) => (
+            <Button
+              key={v.key}
+              size="sm"
+              variant={view === v.key ? 'default' : 'outline'}
+              className="h-7 rounded-full px-3"
+              onClick={() => switchView(v.key)}
+            >
+              {v.label}
+            </Button>
+          ))}
         </div>
+
+        {view !== 'questions' && (
+          <Select
+            value={activeKind ?? ALL}
+            onValueChange={(v) => go({ kind: v === ALL ? null : v, page: null })}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Any kind" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any kind</SelectItem>
+              {viewKinds.map((k) => (
+                <SelectItem key={k.key} value={k.key}>
+                  {k.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {tags.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -304,14 +362,12 @@ export function JournalClient() {
       >
         {entries.length === 0 ? (
           <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
-            {query || activeMood || activeCategory || activeTag
-              ? 'No journal entries match your search or filters.'
-              : 'No journal entries yet. Click “New” to record who you are, or let your assistant log a thought.'}
+            {emptyCopy}
           </div>
         ) : (
           entries.map((n) => {
-            const md = moodDisplay(n.mood);
-            const cat = categoryLabel(n.category);
+            const kind = kindLabel(n.kind);
+            const openGap = n.kind === 'gap' && n.status !== 'resolved';
             return (
               <ListCard
                 key={n.id}
@@ -322,8 +378,8 @@ export function JournalClient() {
                 selected={selected?.id === n.id && !creating}
               >
                 <div className="flex items-start gap-2">
-                  <span className="mt-0.5 w-4 shrink-0 text-center text-sm" aria-hidden>
-                    {md?.emoji || <NotebookPen className="size-4 text-muted-foreground" />}
+                  <span className="mt-0.5 w-4 shrink-0 text-center" aria-hidden>
+                    <KindIcon kind={n.kind} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <ListCardTitle>{n.title}</ListCardTitle>
@@ -331,9 +387,27 @@ export function JournalClient() {
                       <ListCardSnippet>{n.summary ?? n.body}</ListCardSnippet>
                     )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      {cat && (
+                      {kind && (
                         <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-                          {cat}
+                          {kind}
+                        </span>
+                      )}
+                      {n.kind === 'gap' && (
+                        <span
+                          className={cn(
+                            'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                            openGap
+                              ? 'bg-warning text-warning-foreground'
+                              : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {openGap ? 'Open' : 'Resolved'}
+                        </span>
+                      )}
+                      {n.author === 'agent' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                          <Bot className="size-3" aria-hidden />
+                          {n.agentSlug ?? 'agent'}
                         </span>
                       )}
                       {n.tags.map((t) => (
@@ -362,6 +436,7 @@ export function JournalClient() {
   const detailPane = editing ? (
     <JournalEditor
       entry={creating ? null : selected}
+      defaultKind={view === 'agents' ? 'lesson' : view === 'questions' ? 'gap' : 'context'}
       onSaved={onSaved}
       onCancel={() => guard(exitEdit)}
       onDirtyChange={setDirty}
@@ -371,11 +446,18 @@ export function JournalClient() {
       entry={selected}
       onEdit={startEdit}
       onDelete={() => setDeleteTarget(selected)}
+      onResolved={onGapResolved}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-      Select a journal entry, or click <span className="mx-1 font-medium text-foreground">New</span>{' '}
-      to start one.
+      {view === 'questions' ? (
+        <>Nothing to answer right now.</>
+      ) : (
+        <>
+          Select a journal entry, or click{' '}
+          <span className="mx-1 font-medium text-foreground">New</span> to start one.
+        </>
+      )}
     </div>
   );
 
@@ -436,13 +518,15 @@ function JournalPreview({
   entry,
   onEdit,
   onDelete,
+  onResolved,
 }: {
   entry: JournalRow;
   onEdit: () => void;
   onDelete: () => void;
+  onResolved: () => void;
 }) {
-  const md = moodDisplay(entry.mood);
-  const cat = categoryLabel(entry.category);
+  const kind = kindLabel(entry.kind);
+  const openGap = entry.kind === 'gap' && entry.status !== 'resolved';
   return (
     // No inner scroller: the pane owns it (MasterDetail), so the sticky header
     // sticks to the pane's scroller instead of a second one nested inside it.
@@ -450,23 +534,33 @@ function JournalPreview({
       <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
         <div className="min-w-0 flex-1">
           {/* §8: the glyph lives INSIDE the h2 so it shares the title's
-              baseline. The mood emoji is the entry's own identity, so it is the
-              glyph when there is one; the notebook stands in when there isn't. */}
+              baseline. The kind is the entry's identity now. */}
           <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
             <span className="shrink-0" aria-hidden>
-              {md?.emoji || <NotebookPen className="size-5 text-primary-ink" />}
+              <KindIcon kind={entry.kind} className="size-5 text-primary-ink" />
             </span>
             <span className="min-w-0 truncate">{entry.title}</span>
           </h2>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {md && (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {md.emoji} {md.label}
+            {kind && (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+                {kind}
               </span>
             )}
-            {cat && (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
-                {cat}
+            {entry.kind === 'gap' && (
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-xs font-medium',
+                  openGap ? 'bg-warning text-warning-foreground' : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {openGap ? 'Open question' : 'Resolved'}
+              </span>
+            )}
+            {entry.author === 'agent' && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                <Bot className="size-3.5" aria-hidden />
+                logged by {entry.agentSlug ?? 'an agent'}
               </span>
             )}
             {entry.tags.map((t) => (
@@ -495,6 +589,16 @@ function JournalPreview({
           <p className="whitespace-pre-wrap text-base leading-relaxed">{entry.body}</p>
         ) : (
           <p className="text-sm italic text-muted-foreground">No content.</p>
+        )}
+
+        {openGap && (
+          <aside className="rounded-md border border-border bg-muted/40 p-4">
+            <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+              <HelpCircle className="size-4 text-primary-ink" aria-hidden />
+              The brain is missing this — your answer becomes shared knowledge.
+            </div>
+            <GapAnswerForm gap={entry} onResolved={onResolved} />
+          </aside>
         )}
 
         {entry.summary && (

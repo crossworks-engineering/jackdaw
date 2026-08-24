@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { MOODS, CATEGORIES } from '@mantle/content-core/journal-options';
+import { KINDS } from '@mantle/content-core/journal-options';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -12,7 +12,9 @@ import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
@@ -26,24 +28,28 @@ import type { JournalRow } from '@mantle/client-types';
 // compile error.
 export type { JournalRow };
 
-// Radix Select forbids an empty-string item value, so "no selection" rides a
-// sentinel that maps to '' on save (clears the field).
-const NONE = '__none__';
+const USER_KINDS = KINDS.filter((k) => k.lane === 'user');
+const AGENT_KINDS = KINDS.filter((k) => k.lane === 'agent');
 
 /**
- * Journal entry editor — a small, plain-text paragraph plus mood + category.
- * No markdown editor by design: entries are short and atomic so they chunk
- * cleanly into the identity context. Handles create (`entry=null` → POST) and
- * edit (PATCH). ⌘/Ctrl+S saves, Esc cancels. Reports `dirty` up so the host
- * can guard against discarding unsaved changes.
+ * Journal entry editor — a small, plain-text paragraph plus a kind. No
+ * markdown editor by design: entries are short and atomic so they chunk
+ * cleanly into the context blocks. The kind picks the lane: user kinds feed
+ * the "About the user" block, agent kinds the per-turn "Working notes".
+ * Handles create (`entry=null` → POST) and edit (PATCH). ⌘/Ctrl+S saves, Esc
+ * cancels. Reports `dirty` up so the host can guard unsaved changes.
  */
 export function JournalEditor({
   entry,
+  defaultKind = 'context',
   onSaved,
   onCancel,
   onDirtyChange,
 }: {
   entry: JournalRow | null;
+  /** Kind pre-selected on create — the hosting view passes its own lane's
+   *  default ('context' on You, 'lesson' on Agent notes). */
+  defaultKind?: string;
   onSaved: (saved: JournalRow) => void;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -52,8 +58,7 @@ export function JournalEditor({
   const creating = entry === null;
   const [title, setTitle] = useState(entry?.title ?? '');
   const [body, setBody] = useState(entry?.body ?? '');
-  const [mood, setMood] = useState(entry?.mood ?? '');
-  const [category, setCategory] = useState(entry?.category ?? '');
+  const [kind, setKind] = useState(entry?.kind ?? defaultKind);
   const [entryDate, setEntryDate] = useState<Date | null>(
     entry?.entryDate ? new Date(entry.entryDate) : null,
   );
@@ -65,8 +70,7 @@ export function JournalEditor({
   useEffect(() => {
     setTitle(entry?.title ?? '');
     setBody(entry?.body ?? '');
-    setMood(entry?.mood ?? '');
-    setCategory(entry?.category ?? '');
+    setKind(entry?.kind ?? defaultKind);
     setEntryDate(entry?.entryDate ? new Date(entry.entryDate) : null);
     setTags(entry?.tags ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-seed only on identity switch; keying on the fields would clobber in-progress edits when the parent re-passes the same entry
@@ -74,11 +78,10 @@ export function JournalEditor({
 
   const initialDate = entry?.entryDate ? new Date(entry.entryDate).getTime() : null;
   const dirty = creating
-    ? body.trim() !== '' || mood !== '' || category !== '' || tags.length > 0
+    ? body.trim() !== '' || tags.length > 0
     : title !== (entry?.title ?? '') ||
       body !== (entry?.body ?? '') ||
-      mood !== (entry?.mood ?? '') ||
-      category !== (entry?.category ?? '') ||
+      kind !== (entry?.kind ?? defaultKind) ||
       (entryDate?.getTime() ?? null) !== initialDate ||
       tags.join(' ') !== (entry?.tags ?? []).join(' ');
 
@@ -100,18 +103,14 @@ export function JournalEditor({
       const payload = {
         body: body.trim(),
         title: title.trim() || undefined,
-        mood,
-        category,
+        kind,
         entryDate: entryDate ? entryDate.toISOString() : '',
         tags,
       };
       let saved: JournalRow;
       try {
-        // `apiSend`, NOT a bare `fetch`. This was the last raw `fetch('/api/…')`
-        // in the client, and on the detached topology it was broken outright:
-        // the request went to the CLIENT origin, which has no /api routes at
-        // all, so every journal save was redirected to /login. Everything else
-        // in the app already went through apiFetch/apiSend to the brain.
+        // `apiSend`, NOT a bare `fetch` — on the detached topology a raw fetch
+        // goes to the CLIENT origin, which has no /api routes at all.
         ({ journal: saved } = await apiSend<{ journal: JournalRow }>(
           creating ? '/api/journal' : `/api/journal/${entry!.id}`,
           creating ? 'POST' : 'PATCH',
@@ -142,7 +141,7 @@ export function JournalEditor({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, body, mood, category, entryDate, tags, creating]);
+  }, [title, body, kind, entryDate, tags, creating]);
 
   return (
     <form
@@ -184,7 +183,7 @@ export function JournalEditor({
               id="journal-body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="A short, honest note — who you are, what you’re doing, how you feel…"
+              placeholder="A short, durable note — who you are, what you expect, what was learned…"
               autoFocus
               aria-invalid={!!error || undefined}
               aria-describedby={error ? 'journal-body-error' : undefined}
@@ -195,53 +194,43 @@ export function JournalEditor({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel htmlFor="journal-mood">Mood</FieldLabel>
-              <Select value={mood || NONE} onValueChange={(v) => setMood(v === NONE ? '' : v)}>
-                <SelectTrigger id="journal-mood">
-                  <SelectValue placeholder="How did it feel?" />
+              <FieldLabel htmlFor="journal-kind">Kind</FieldLabel>
+              <Select value={kind} onValueChange={setKind}>
+                <SelectTrigger id="journal-kind">
+                  <SelectValue placeholder="What is this?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE}>— None —</SelectItem>
-                  {MOODS.map((m) => (
-                    <SelectItem key={m.key} value={m.key}>
-                      {m.emoji} {m.label}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>About you</SelectLabel>
+                    {USER_KINDS.map((k) => (
+                      <SelectItem key={k.key} value={k.key}>
+                        {k.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Agent notes</SelectLabel>
+                    {AGENT_KINDS.map((k) => (
+                      <SelectItem key={k.key} value={k.key}>
+                        {k.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="journal-category">Area of life</FieldLabel>
-              <Select
-                value={category || NONE}
-                onValueChange={(v) => setCategory(v === NONE ? '' : v)}
-              >
-                <SelectTrigger id="journal-category">
-                  <SelectValue placeholder="What is this about?" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>— None —</SelectItem>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.key} value={c.key}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FieldLabel htmlFor="journal-date">When (optional)</FieldLabel>
+              <DateTimePicker
+                id="journal-date"
+                value={entryDate}
+                onChange={setEntryDate}
+                placeholder="Defaults to now"
+                clearable
+              />
             </Field>
           </div>
-
-          <Field>
-            <FieldLabel htmlFor="journal-date">When (optional)</FieldLabel>
-            <DateTimePicker
-              id="journal-date"
-              value={entryDate}
-              onChange={setEntryDate}
-              placeholder="Defaults to now"
-              clearable
-            />
-          </Field>
 
           <Field>
             <FieldLabel asChild>

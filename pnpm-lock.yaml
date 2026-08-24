@@ -85,17 +85,17 @@ importers:
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(immer@11.1.16)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@mantle/client-types':
-        specifier: npm:@crossworks/client-types@0.232.17
-        version: '@crossworks/client-types@0.232.17'
+        specifier: npm:@crossworks/client-types@0.232.56
+        version: '@crossworks/client-types@0.232.56'
       '@mantle/content-core':
-        specifier: npm:@crossworks/content-core@0.232.17
-        version: '@crossworks/content-core@0.232.17'
+        specifier: npm:@crossworks/content-core@0.232.56
+        version: '@crossworks/content-core@0.232.56'
       '@mantle/share-ui':
-        specifier: npm:@crossworks/share-ui@0.232.17
-        version: '@crossworks/share-ui@0.232.17(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@crossworks/share-ui@0.232.56
+        version: '@crossworks/share-ui@0.232.56(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       '@mantle/voice-client':
-        specifier: npm:@crossworks/voice-client@0.232.17
-        version: '@crossworks/voice-client@0.232.17'
+        specifier: npm:@crossworks/voice-client@0.232.56
+        version: '@crossworks/voice-client@0.232.56'
       '@mantle/web-ui':
         specifier: workspace:*
         version: link:../../packages/web-ui
@@ -221,8 +221,8 @@ importers:
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.16)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
       '@mantle/app-build':
-        specifier: npm:@crossworks/app-build@0.232.17
-        version: '@crossworks/app-build@0.232.17(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)'
+        specifier: npm:@crossworks/app-build@0.232.56
+        version: '@crossworks/app-build@0.232.56(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)'
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -278,14 +278,14 @@ importers:
         specifier: ^10.3.0
         version: 10.4.0
       '@mantle/client-types':
-        specifier: npm:@crossworks/client-types@0.232.17
-        version: '@crossworks/client-types@0.232.17'
+        specifier: npm:@crossworks/client-types@0.232.56
+        version: '@crossworks/client-types@0.232.56'
       '@mantle/content-core':
-        specifier: npm:@crossworks/content-core@0.232.17
-        version: '@crossworks/content-core@0.232.17'
+        specifier: npm:@crossworks/content-core@0.232.56
+        version: '@crossworks/content-core@0.232.56'
       '@mantle/share-ui':
-        specifier: npm:@crossworks/share-ui@0.232.17
-        version: '@crossworks/share-ui@0.232.17(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@crossworks/share-ui@0.232.56
+        version: '@crossworks/share-ui@0.232.56(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.20
         version: 1.1.23(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -522,23 +522,23 @@ packages:
   '@chevrotain/utils@11.0.3':
     resolution: {integrity: sha512-YslZMgtJUyuMbZ+aKvfF3x1f5liK4mWNxghFRv7jqRR9C3R3fAOGTTKvxXDa2Y1s9zSbcpuO0cAxDYsc9SrXoQ==}
 
-  '@crossworks/app-build@0.232.17':
-    resolution: {integrity: sha512-f4Dm7NXP3f+R6av0UF7HOxD27Ipjg+OXvRgbS5aRhGL6N/PXTL630EK5DxCQM1zoTM9kUMSmmUyktji6w1LU1w==}
+  '@crossworks/app-build@0.232.56':
+    resolution: {integrity: sha512-ZJwIoS3W2qWisGzqWRHT0MzGUbtHWcFNN71L/6GRI9JcZ9UdE/ECPCpbChLKxtCWKrNIaBhAoRU+iK10VPjRlw==}
 
-  '@crossworks/client-types@0.232.17':
-    resolution: {integrity: sha512-+mTi3YldRwShWVBJBoaVoXHb0EP0KrM8iRxX/BdJGz7topWLCkWCstEfAEmPBVDvg8HaiCwvQ9adR5wdBXhc2A==}
+  '@crossworks/client-types@0.232.56':
+    resolution: {integrity: sha512-Hn63xgZKol/yt17WdUxaYD9GVnhnd2FEsNO7zPNoYii9breM+A36wsNiWWTwRF8MO6gb0ShBPr4B4RiVz99SZg==}
 
-  '@crossworks/content-core@0.232.17':
-    resolution: {integrity: sha512-zngLtUnRQA5UNBTpfTWdtzhv3mee3yS0C30WcbuXWqi5hxRWBPVqcktPESM+RFALDG1gKasaRuMx0R00Xdlg2A==}
+  '@crossworks/content-core@0.232.56':
+    resolution: {integrity: sha512-iwKqGqsltlEq6YUSEQuEWHk+ElbRGiF/EZLtunmVORyDdlqlsMEs1O7jRBTOXQba5wTuidMo762xaJY37848dQ==}
 
-  '@crossworks/share-ui@0.232.17':
-    resolution: {integrity: sha512-dEjz1PQ25V5d/idMoa/dVyUl+ZJtipbnIm9gaV3e0rmdIaWHYFfsxE+pwoQDUWpTS7rbcljIPEM6Y/qG8bjZKg==}
+  '@crossworks/share-ui@0.232.56':
+    resolution: {integrity: sha512-atLn42bCPyfzyTUAo1dSAhNSldefV64GfzlrClvXJjNKAaiFPbKVk/nw424qvPTIHhlvQlf8esb9HSb+nEtwBg==}
     peerDependencies:
       react: ^19.2.7
       react-dom: ^19.2.7
 
-  '@crossworks/voice-client@0.232.17':
-    resolution: {integrity: sha512-avqeknDHoSTckvjmrI04+wo4rQ36GPUJSrfrgu29KcOuMetVcyNVZfoMaWEeklur2N+2bv9VaBJblQjBgvlx/w==}
+  '@crossworks/voice-client@0.232.56':
+    resolution: {integrity: sha512-mUcFTVS8HNk0jwdDidHiEFDlpt+3sX/KD+x8tFsoh08+isD93dpn0BG5I0Ovm3D8sodN7zJmm4Ub53TzarhDWA==}
 
   '@date-fns/tz@1.5.0':
     resolution: {integrity: sha512-lwYN/vDPeNRULcepoE/LO2Pgx+7/RV+S9ARfbc9lr2DtGkOD7pAiruHvbR1RX3Qyf6ja47EWJDMsNK5vK08DJg==}
@@ -5981,9 +5981,9 @@ snapshots:
 
   '@chevrotain/utils@11.0.3': {}
 
-  '@crossworks/app-build@0.232.17(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)':
+  '@crossworks/app-build@0.232.56(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)':
     dependencies:
-      '@mantle/share-ui': '@crossworks/share-ui@0.232.17(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+      '@mantle/share-ui': '@crossworks/share-ui@0.232.56(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       '@tailwindcss/oxide': 4.3.3
       esbuild: 0.28.2
       lucide-react: 1.31.0(react@19.2.8)
@@ -5995,19 +5995,19 @@ snapshots:
       - '@types/react-dom'
       - supports-color
 
-  '@crossworks/client-types@0.232.17': {}
+  '@crossworks/client-types@0.232.56': {}
 
-  '@crossworks/content-core@0.232.17':
+  '@crossworks/content-core@0.232.56':
     dependencies:
       marked: 18.0.9
       mathjs: 15.2.0
 
-  '@crossworks/share-ui@0.232.17(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@crossworks/share-ui@0.232.56(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@dicebear/core': 10.5.0
       '@dicebear/styles': 10.4.0
-      '@mantle/client-types': '@crossworks/client-types@0.232.17'
-      '@mantle/content-core': '@crossworks/content-core@0.232.17'
+      '@mantle/client-types': '@crossworks/client-types@0.232.56'
+      '@mantle/content-core': '@crossworks/content-core@0.232.56'
       '@radix-ui/react-label': 2.1.15(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-slot': 1.3.3(@types/react@19.2.18)(react@19.2.8)
       class-variance-authority: 0.7.1
@@ -6024,7 +6024,7 @@ snapshots:
       - '@types/react-dom'
       - supports-color
 
-  '@crossworks/voice-client@0.232.17': {}
+  '@crossworks/voice-client@0.232.56': {}
 
   '@date-fns/tz@1.5.0': {}
 
