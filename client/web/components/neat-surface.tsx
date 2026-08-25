@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
-import { decodeNeatSpec } from '@mantle/web-ui/neat-background';
+import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 
 /**
  * The brain's SAVED Neat background on a real surface (the shell's content

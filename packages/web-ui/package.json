@@ -54,7 +54,7 @@
     "./live-turn": "./src/live-turn.tsx",
     "./model-choices": "./src/model-choices.ts",
     "./neat-backdrop": "./src/neat-backdrop.tsx",
-    "./neat-background": "./src/neat-background.ts",
+    
     "./page-outline": "./src/page-outline.tsx",
     "./page-tree": "./src/page-tree.ts",
     "./query-provider": "./src/query-provider.tsx",
@@ -143,10 +143,10 @@
   "dependencies": {
     "@dicebear/core": "^10.4.0",
     "@dicebear/styles": "^10.3.0",
-    "@firecms/neat": "1.0.2",
-    "@mantle/client-types": "npm:@crossworks/client-types@0.232.65",
-    "@mantle/content-core": "npm:@crossworks/content-core@0.232.65",
-    "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.65",
+    
+    "@mantle/client-types": "npm:@crossworks/client-types@0.232.66",
+    "@mantle/content-core": "npm:@crossworks/content-core@0.232.66",
+    "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.66",
     "@radix-ui/react-alert-dialog": "^1.1.20",
     "@radix-ui/react-avatar": "^1.2.3",
     "@radix-ui/react-checkbox": "^1.3.8",

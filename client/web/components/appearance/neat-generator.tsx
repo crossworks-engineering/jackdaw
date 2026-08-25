@@ -17,7 +17,7 @@ import {
   randomNeatSpec,
   type NeatBackgroundSpec,
   type NeatTone,
-} from '@mantle/web-ui/neat-background';
+} from '@mantle/share-ui/neat-background';
 
 /**
  * The Neat background generator (Settings → Appearance) — one animated

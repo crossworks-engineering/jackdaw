@@ -1,5 +1,5 @@
 import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
-import { decodeNeatSpec } from '@mantle/web-ui/neat-background';
+import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { LoginClient } from './login-client';
