@@ -2,7 +2,7 @@
   "name": "jackdaw",
   "version": "0.6.18",
   "private": true,
-  "description": "Jackdaw \u2014 the data-aware workspace. The web + desktop interface for Mantle brains.",
+  "description": "Jackdaw — the data-aware workspace. The web + desktop interface for Mantle brains.",
   "license": "SEE LICENSE IN LICENSE.md",
   "packageManager": "pnpm@11.1.2",
   "engines": {
@@ -17,7 +17,9 @@
     "format:check": "prettier --check \"{client,packages,e2e,scripts}/**/*.{ts,tsx,mjs,cjs}\" \"*.{ts,tsx,mjs,cjs}\"",
     "test": "vitest run",
     "verify": "pnpm -r typecheck && pnpm lint && pnpm format:check && vitest run",
-    "themes:pull": "echo 'themes are generated in the mantle repo (packages/share-ui) and consumed from @crossworks/share-ui'"
+    "themes:pull": "echo 'themes are generated in the mantle repo (packages/share-ui) and consumed from @crossworks/share-ui'",
+    "dev:fe": "scripts/dev-frontend.sh",
+    "version:bump": "node scripts/bump-version.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
