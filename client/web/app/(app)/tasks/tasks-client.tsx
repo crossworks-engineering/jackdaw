@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ListTodo, MessageSquare, Plus, Search, SquareKanban, List } from 'lucide-react';
+import { formShellClass } from '@mantle/web-ui/ui/form-shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -330,7 +331,7 @@ export function TasksClient() {
   const detailPane =
     sel?.mode === 'create' ? (
       <div className="p-6">
-        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className={formShellClass}>
           <div className="flex items-center gap-2">
             <ListTodo className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">New task</h2>

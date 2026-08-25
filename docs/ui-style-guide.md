@@ -357,8 +357,10 @@ view gets the same column, so opening a record and editing it do not change
 width under you.
 
 ```tsx
+import { formShellClass } from '@mantle/web-ui/ui/form-shell'; // or <FormShell>
+
 <div className="p-6">
-  <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+  <div className={formShellClass}>
     <div className="flex items-center gap-2">
       <ListTodo className="size-5 text-primary-ink" aria-hidden />
       <h2 className="text-lg font-semibold">New task</h2>
@@ -367,6 +369,10 @@ width under you.
   </div>
 </div>
 ```
+
+The shell is `space-y-4 rounded-lg border border-border bg-card/70 p-5
+shadow-sm`, exported once as `formShellClass` (the `listCardClass`
+arrangement) — do not hand-roll the string.
 
 - **No `max-w-*` here.** The form fills its panel, and `<MasterDetail>` gives
   that panel a default width of `672px` with a drag handle on its right edge
@@ -378,9 +384,10 @@ width under you.
   the right so the form does not drift to the middle of a wide display.
   Events and contacts still centre theirs (`mx-auto max-w-2xl`); **Tasks is
   the norm** and they are the ones to change.
-- `bg-card` + `shadow-sm` is what separates the composer from the pane. It is
-  also what exposes any field that does not match its siblings, which is a
-  feature.
+- `bg-card/70` + `shadow-sm` is what separates the composer from the pane. It
+  is also what exposes any field that does not match its siblings, which is a
+  feature. The fill is translucent (70, the idle `ListCard` alpha) so the
+  workspace's Neat backdrop reads through the shell like every other surface.
 - The read view takes the card treatment only if its content is *not* already
   cards. Tasks does not box it, because the body, checklist and comments are
   cards already and a wrapper would nest borders three deep.

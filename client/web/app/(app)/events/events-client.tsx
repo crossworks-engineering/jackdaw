@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, MapPin, Plus, Repeat, Search } from 'lucide-react';
 import { useRealtime } from '@/components/realtime/use-realtime';
+import { formShellClass } from '@mantle/web-ui/ui/form-shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -271,7 +272,7 @@ export function EventsClient() {
         {/* §6c: boxed, left-aligned card. It used to be `mx-auto max-w-2xl`,
             which centred a form in a pane that is now draggable — the composer
             drifted away from the list it belongs to as the pane grew. */}
-        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className={formShellClass}>
           <div className="flex items-center gap-2">
             <CalendarClock className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">New event</h2>

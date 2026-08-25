@@ -26,6 +26,7 @@ import {
   MessagesSquare,
   Search,
 } from 'lucide-react';
+import { formShellClass } from '@mantle/web-ui/ui/form-shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   DropdownMenu,
@@ -153,7 +154,7 @@ function NewTopicComposer({ onCancel }: { onCancel: () => void }) {
         {/* §6c boxed, left-aligned card, full width — the same container the
             owner's New task / New event composers use, so the two sides of
             the product agree on what "a create form" looks like. */}
-        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className={formShellClass}>
           <div className="flex items-center gap-2">
             <MessageSquarePlus className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">New topic</h2>

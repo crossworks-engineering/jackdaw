@@ -101,6 +101,7 @@
     "./ui/dialog": "./src/ui/dialog.tsx",
     "./ui/dropdown-menu": "./src/ui/dropdown-menu.tsx",
     "./ui/field": "./src/ui/field.tsx",
+    "./ui/form-shell": "./src/ui/form-shell.tsx",
     "./ui/field-hint": "./src/ui/field-hint.tsx",
     "./ui/master-detail": "./src/ui/master-detail.tsx",
     "./ui/measured-pane": "./src/ui/measured-pane.tsx",

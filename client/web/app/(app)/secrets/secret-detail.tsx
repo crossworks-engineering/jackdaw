@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { formShellClass } from '@mantle/web-ui/ui/form-shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import {
@@ -168,7 +169,7 @@ export function SecretDetail({
       // Same boxed composer as the "New secret" pane (§6c) — create and edit
       // are the same form, so they get the same surface.
       <div className="p-6">
-        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className={formShellClass}>
           <div className="flex items-center gap-2">
             <Pencil className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">Edit secret</h2>

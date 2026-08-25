@@ -12,6 +12,7 @@ import {
   Repeat,
   Trash2,
 } from 'lucide-react';
+import { formShellClass } from '@mantle/web-ui/ui/form-shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
@@ -234,7 +235,7 @@ export function EventDetail({
       // Same boxed composer as the "New event" pane (§6c) — create and edit are
       // the same form, so they get the same surface.
       <div className={cn('p-6', className)}>
-        <div className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className={formShellClass}>
           <div className="flex items-center gap-2">
             <Pencil className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">Edit event</h2>
