@@ -89,7 +89,14 @@ export function NeatBackdrop({
           gradient = new NeatGradient({
             ...config,
             ref: canvas,
-            seed: decoded.seed,
+            // Neat's `seed` is NOT a randomness seed — it is the animation
+            // clock's starting value (u_time), normally elapsed-seconds-in-
+            // the-hour (≤3600). Our raw 32-bit seed (~3e9) exceeds fp32
+            // precision on the GPU: the shader's small spatial/time offsets
+            // collapse against it and the gradient renders as ONE FLAT
+            // COLOUR with no motion. Mod into the library's own clock range;
+            // the full seed still drives the parameter PRNG.
+            seed: decoded.seed % 3600,
             resolution,
             speed: reduced ? 0 : config.speed,
             ...(LICENSE_KEY ? { licenseKey: LICENSE_KEY } : {}),
