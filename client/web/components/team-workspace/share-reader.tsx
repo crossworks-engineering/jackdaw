@@ -175,7 +175,7 @@ export function ShareReader({
   // a scroller inside a border — the "boxed grid with an outer margin".
   if (view.kind === 'table') {
     return (
-      <div className="min-h-0 flex-1 overflow-hidden bg-background">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <TablePresenter view={view} token={token} chrome="embedded" />
       </div>
     );
@@ -187,7 +187,11 @@ export function ShareReader({
     // once the content is much taller than the viewport, which paints a second
     // scrollbar that clips the bottom of a long page or table. See the style
     // guide §8 — min-h-0 sizes the pane, `relative` closes the boundary.
-    <div className="relative min-h-0 flex-1 overflow-y-auto scrollbar-thin bg-background">
+    // No pane fill: the workspace shell's Neat backdrop shows through here the
+    // same way it does behind the owner reader panes; the shell's layout root
+    // already paints `bg-background` when no background is saved. The sticky
+    // rows that need an opaque ground (table header/totals) carry their own.
+    <div className="relative min-h-0 flex-1 overflow-y-auto scrollbar-thin">
       {/* `chrome="embedded"` on every presenter: this pane already draws the
           title in TeamSection's §8 header and owns the padding, so the
           standalone page's hero title and centred cap are both wrong here.
