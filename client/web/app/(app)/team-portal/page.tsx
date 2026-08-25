@@ -1,4 +1,5 @@
 import { SetPageTitle } from '@/components/layout/page-title';
+import { MeasuredPane } from '@mantle/web-ui/ui/measured-pane';
 import { TeamPortalClient } from './team-portal-client';
 
 /**
@@ -13,12 +14,16 @@ import { TeamPortalClient } from './team-portal-client';
  *
  * Data-free (the /pages convention): TeamPortalClient fetches the roster from
  * GET /api/team-portal.
+ *
+ * The settings-hub treatment: one measured column tucked left with a draggable
+ * right edge, remembered per screen. Opens at the 3xl measure the old centred
+ * column used.
  */
 export default async function TeamPortalPage() {
   return (
-    <>
+    <MeasuredPane id="team-portal" defaultSize="768px">
       <SetPageTitle title="Team Portal" />
       <TeamPortalClient />
-    </>
+    </MeasuredPane>
   );
 }
