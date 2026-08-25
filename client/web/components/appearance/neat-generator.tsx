@@ -114,8 +114,8 @@ export function NeatGenerator() {
         <p className="text-xs text-muted-foreground">
           An animated gradient drawn from the current colour theme — it follows every theme and
           light/dark mode, and stays close to the page surface so text on it keeps reading. Roll
-          until one lands, then save it for the whole brain: it paints the sign-in screen and the
-          area behind every screen&apos;s content.
+          until one lands, then save it for the whole brain: it paints the sign-in screen, the area
+          behind every screen&apos;s content, and public share pages.
         </p>
       </div>
 

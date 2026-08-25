@@ -67,6 +67,7 @@ import {
 import { BrandBlock } from '@/components/layout/rail/brand-block';
 import { BrandLogo } from '@/components/layout/rail/brand-logo';
 import { TokenGate } from '@/components/team-chat/token-gate';
+import { NeatSurface } from '@/components/neat-surface';
 import { teamFetch, upgradeTeamCookie } from '@mantle/web-ui/team-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 
@@ -521,7 +522,9 @@ export function TeamWorkspaceShell({ children }: { children: ReactNode }) {
           </header>
 
           {/* ── Body: the rail + the screen ─────────────────────────── */}
-          <div className="flex min-h-0 flex-1">
+          {/* `relative` anchors the Neat backdrop below as well as the rail
+              handle's positioning chain. */}
+          <div className="relative flex min-h-0 flex-1">
             {/* `relative` is what the handle positions against — it is `absolute
               inset-y-0`, and the owner's rails give it a `fixed` ancestor
               instead. No `transition-[width]` here: `--nav-w` animates (see
@@ -547,7 +550,19 @@ export function TeamWorkspaceShell({ children }: { children: ReactNode }) {
                 />
               )}
             </aside>
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
+            {/* The saved Neat background behind the screen — the same shared-
+                surface treatment the /s reader gets (honours the shareNeat
+                switch). A sibling pinned to the row, not a child of <main>:
+                screens scroll internally and an absolute child would scroll
+                away with the content. Earlier in DOM order, so the positioned
+                <main> paints over it. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0 right-0 md:left-[var(--nav-w)]"
+            >
+              <NeatSurface shared />
+            </div>
+            <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
           </div>
         </div>
       </TooltipProvider>

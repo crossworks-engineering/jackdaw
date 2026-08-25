@@ -5,6 +5,7 @@ import { LogoControl } from '@/components/appearance/logo-control';
 import { AvatarStyleControls, AvatarStyleList } from '@/components/appearance/avatar-style-gallery';
 import { BackgroundGallery } from '@/components/appearance/background-gallery';
 import { NeatGenerator } from '@/components/appearance/neat-generator';
+import { ShareModeControl } from '@/components/appearance/share-mode-control';
 import { ColorPalette } from '@/components/theme-preview/color-palette';
 
 /**
@@ -58,6 +59,10 @@ export function AppearanceContent() {
           the other background setting so "how does the app look behind
           content" is answered in one place. */}
       <NeatGenerator />
+
+      {/* The public face follows the background it applies to: what mode a
+          share link opens in, next to the gradient it would paint. */}
+      <ShareModeControl />
 
       {/* Full-width for the same reason: one scrollable row per area, and the
           rows only read as a comparison at their natural width. */}
