@@ -16,10 +16,14 @@ export function RequestReply({
   taskId,
   contactName,
   done,
+  onDone,
 }: {
   taskId: string;
   contactName: string | null;
   done: boolean;
+  /** Fired after a successful send — the Requests view lives on a client
+   *  query, which `router.refresh()` cannot reach. */
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -39,6 +43,7 @@ export function RequestReply({
       );
       setText('');
       router.refresh();
+      onDone?.();
     } catch {
       toast.error('Could not send the reply — try again.');
     } finally {

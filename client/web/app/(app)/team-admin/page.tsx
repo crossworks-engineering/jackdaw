@@ -15,7 +15,7 @@
  * actually on screen.
  */
 import Link from 'next/link';
-import { use, useEffect, type ReactNode } from 'react';
+import { use, useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type {
@@ -58,6 +58,7 @@ import { MemberActivityPager } from '@/components/team-admin/member-activity-pag
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { MeasuredPane } from '@mantle/web-ui/ui/measured-pane';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -249,76 +250,19 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
   );
 }
 
-function UploadsSection({
-  uploads,
-  moreUploads,
-  onDone,
-}: {
-  uploads: PendingForumUpload[];
-  moreUploads: number;
-  onDone: () => void;
-}) {
-  if (uploads.length === 0) return null;
-  const groups = new Map<string, PendingForumUpload[]>();
-  for (const u of uploads) {
-    const key = u.topicId ?? 'unbound';
-    const list = groups.get(key);
-    if (list) list.push(u);
-    else groups.set(key, [u]);
-  }
+/** A request's open/done pill — inline beside the title, per the detail-header
+ *  anatomy, and on the list cards. */
+function RequestStatusPill({ done }: { done: boolean }) {
   return (
-    <section className="space-y-3">
-      <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-        <Paperclip className="size-4" aria-hidden />
-        Uploads awaiting review
-        <span className="text-xs font-normal text-muted-foreground">
-          — files stay out of the brain until you move them to files/review
-        </span>
-      </h2>
-      {moreUploads > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Showing the {uploads.length} longest-waiting — {moreUploads} more appear as you clear
-          these.
-        </p>
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs',
+        done ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary-ink',
       )}
-      {[...groups.entries()].map(([topicId, blobs]) => (
-        <div key={topicId} className="rounded-lg border border-border bg-card text-card-foreground">
-          <div className="border-b border-border/60 px-4 py-2">
-            <Link
-              href={`/team-admin?view=topics&topic=${topicId}`}
-              className="text-sm font-medium underline-offset-2 hover:underline"
-            >
-              {blobs[0]?.topicTitle ?? 'Untitled topic'} →
-            </Link>
-          </div>
-          <ul className="divide-y divide-border/60">
-            {blobs.map((u) => (
-              <li
-                key={u.id}
-                className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm">
-                    {u.filename}
-                    <span className="text-muted-foreground"> ({formatSize(u.sizeBytes)})</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    from {u.contactName ?? 'a team member'} ·{' '}
-                    {new Date(u.createdAt).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-                <UploadReviewActions uploadId={u.id} filename={u.filename} onDone={onDone} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </section>
+    >
+      {done ? <CheckCircle2 className="size-3" /> : null}
+      {done ? 'done' : 'open'}
+    </span>
   );
 }
 
@@ -427,17 +371,7 @@ function MemberRequestList({ requests }: { requests: TeamRequest[] }) {
             >
               {r.title}
             </Link>
-            <span
-              className={cn(
-                'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs',
-                r.status === 'done'
-                  ? 'bg-muted text-muted-foreground'
-                  : 'bg-primary/10 text-primary-ink',
-              )}
-            >
-              {r.status === 'done' ? <CheckCircle2 className="size-3" /> : null}
-              {r.status === 'done' ? 'done' : 'open'}
-            </span>
+            <RequestStatusPill done={r.status === 'done'} />
             <span className="ml-auto shrink-0 text-xs text-muted-foreground">
               {fmtWhen(r.createdAt)}
             </span>
@@ -566,11 +500,12 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
         className="min-h-0 flex-1"
         // The 340px this tab has always had.
         defaultListSize="340px"
-        // The detail is an activity transcript, not a form, so it keeps the
-        // `1fr` it had rather than the 672px measure. Its own `max-w-3xl`
-        // inside still centres the reading column — that cap is not a second
-        // measure on a fixed pane here, because this pane fills.
-        detailFills
+        // Three panels, not two: the transcript is reading text, so it gets the
+        // master-detail default — a fixed, draggable width tucked against the
+        // list, with the spacer as its right edge. It opens at the 3xl measure
+        // the old centred column used, and the cap is the window itself.
+        defaultDetailSize="768px"
+        maxDetailSize="100%"
         list={
           <>
             <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
@@ -608,7 +543,7 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
                 <ThreadAccessSplit
                   thread={
                     <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-                      <div className="mx-auto w-full max-w-3xl space-y-5 p-4">
+                      <div className="w-full space-y-5 p-4">
                         {selected.requests.length > 0 && (
                           <MemberRequestList requests={selected.requests} />
                         )}
@@ -729,8 +664,10 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
         id="team-admin-topics"
         className="min-h-0 flex-1"
         defaultListSize="340px"
-        // A forum transcript, not a form: same reasoning as Members.
-        detailFills
+        // A forum transcript is reading text: same three-panel reasoning as
+        // Members — tucked left, draggable, opening at the old 3xl measure.
+        defaultDetailSize="768px"
+        maxDetailSize="100%"
         list={
           <>
             <div className="flex flex-col gap-2 border-b border-border px-4 py-3">
@@ -817,7 +754,7 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
                   />
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
-                  <div className="mx-auto flex max-w-3xl flex-col gap-3">
+                  <div className="flex w-full flex-col gap-3">
                     {selected.posts.map((p) => (
                       <div
                         key={p.id}
@@ -894,13 +831,11 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
                   </div>
                 </div>
                 <div className="border-t border-border px-4 py-3">
-                  <div className="mx-auto max-w-3xl">
-                    <TopicReplyForm
-                      topicId={selected.topic.id}
-                      status={selected.topic.status}
-                      onDone={() => void refetch()}
-                    />
-                  </div>
+                  <TopicReplyForm
+                    topicId={selected.topic.id}
+                    status={selected.topic.status}
+                    onDone={() => void refetch()}
+                  />
                 </div>
               </>
             ) : (
@@ -918,12 +853,39 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
   );
 }
 
+/** What the Requests list has selected: an upload awaiting review or a change
+ *  request. Client state, not URL — the one GET carries every row in full, so
+ *  there is no per-item fetch to deep-link. */
+type RequestSelection = { kind: 'upload' | 'request'; id: string } | null;
+
 function RequestsTab() {
   const q = useQuery({
     queryKey: ['team-admin', 'requests'],
     queryFn: () => apiFetch<RequestsResponse>('/api/team-admin/requests'),
   });
   const data = q.data;
+  const [sel, setSel] = useState<RequestSelection>(null);
+
+  // Auto-select the first row (uploads first, matching the list order), and
+  // re-select when the current row disappears — a cleared upload or a filtered
+  // refetch must not leave a detail pane showing a ghost.
+  useEffect(() => {
+    if (!data) return;
+    const stillThere =
+      sel &&
+      (sel.kind === 'upload'
+        ? data.uploads.some((u) => u.id === sel.id)
+        : data.requests.some((r) => r.taskId === sel.id));
+    if (stillThere) return;
+    setSel(
+      data.uploads[0]
+        ? { kind: 'upload', id: data.uploads[0].id }
+        : data.requests[0]
+          ? { kind: 'request', id: data.requests[0].taskId }
+          : null,
+    );
+  }, [data, sel]);
+
   if (!data)
     return (
       <Tab active="requests">
@@ -931,9 +893,10 @@ function RequestsTab() {
       </Tab>
     );
   const refetch = () => void q.refetch();
-  return (
-    <Tab active="requests" badges={data.badges}>
-      {data.requests.length === 0 && data.uploads.length === 0 ? (
+
+  if (data.requests.length === 0 && data.uploads.length === 0) {
+    return (
+      <Tab active="requests" badges={data.badges}>
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-center text-sm text-muted-foreground">
             <Inbox className="mx-auto mb-2 size-6" />
@@ -941,76 +904,202 @@ function RequestsTab() {
             <p>updated or attaches a file, it lands here for a specialist to review.</p>
           </div>
         </div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-          <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
-            <UploadsSection
-              uploads={data.uploads}
-              moreUploads={data.moreUploads}
-              onDone={refetch}
-            />
-            {data.requests.map((r) => (
-              <div
-                key={r.taskId}
-                className={cn(
-                  'rounded-lg border border-border bg-card p-4 text-card-foreground',
-                  r.status === 'done' && 'opacity-70',
+      </Tab>
+    );
+  }
+
+  const selUpload =
+    sel?.kind === 'upload' ? (data.uploads.find((u) => u.id === sel.id) ?? null) : null;
+  const selRequest =
+    sel?.kind === 'request' ? (data.requests.find((r) => r.taskId === sel.id) ?? null) : null;
+
+  return (
+    <Tab active="requests" badges={data.badges}>
+      <MasterDetail
+        id="team-admin-requests"
+        className="min-h-0 flex-1"
+        defaultListSize="340px"
+        maxDetailSize="100%"
+        list={
+          <>
+            <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold">Requests</h2>
+              <span className="text-xs text-muted-foreground">
+                {data.requests.length + data.uploads.length}
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+              <div className="space-y-4 p-3">
+                {data.uploads.length > 0 && (
+                  <section className="space-y-2">
+                    <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Paperclip className="size-3.5" aria-hidden />
+                      Uploads awaiting review
+                    </h3>
+                    {data.moreUploads > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Showing the {data.uploads.length} longest-waiting — {data.moreUploads} more
+                        appear as you clear these.
+                      </p>
+                    )}
+                    <ul className="flex flex-col gap-2">
+                      {data.uploads.map((u) => (
+                        <li key={u.id}>
+                          <ListCard
+                            selected={sel?.kind === 'upload' && sel.id === u.id}
+                            onClick={() => setSel({ kind: 'upload', id: u.id })}
+                          >
+                            <div className="flex items-baseline justify-between gap-2">
+                              <ListCardTitle>{u.filename}</ListCardTitle>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {fmtWhen(u.createdAt)}
+                              </span>
+                            </div>
+                            <ListCardMeta>
+                              from {u.contactName ?? 'a team member'} · {formatSize(u.sizeBytes)}
+                            </ListCardMeta>
+                          </ListCard>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
                 )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold">{r.title}</h3>
+                {data.requests.length > 0 && (
+                  <section className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Change requests
+                    </h3>
+                    <ul className="flex flex-col gap-2">
+                      {data.requests.map((r) => (
+                        <li key={r.taskId}>
+                          <ListCard
+                            selected={sel?.kind === 'request' && sel.id === r.taskId}
+                            dimmed={r.status === 'done'}
+                            onClick={() => setSel({ kind: 'request', id: r.taskId })}
+                          >
+                            <div className="flex items-baseline justify-between gap-2">
+                              <ListCardTitle>{r.title}</ListCardTitle>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {fmtWhen(r.createdAt)}
+                              </span>
+                            </div>
+                            <ListCardMeta>
+                              from {r.contactName ?? 'a team member'} ·{' '}
+                              {r.status === 'done' ? 'done' : r.notifiedAt ? 'replied' : 'open'}
+                            </ListCardMeta>
+                          </ListCard>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            </div>
+          </>
+        }
+        detail={
+          <section className="flex h-full min-h-0 flex-col">
+            {selRequest ? (
+              <>
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="min-w-0">
+                    <h2 className="flex items-center gap-2 text-sm font-semibold">
+                      <span className="truncate">{selRequest.title}</span>
+                      <RequestStatusPill done={selRequest.status === 'done'} />
+                    </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      from {r.contactName ?? 'a team member'} ·{' '}
-                      {new Date(r.createdAt).toLocaleDateString()}
-                      {r.notifiedAt ? ' · replied' : ''}
+                      from {selRequest.contactName ?? 'a team member'} ·{' '}
+                      {new Date(selRequest.createdAt).toLocaleDateString()}
+                      {selRequest.notifiedAt ? ' · replied' : ''}
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs',
-                      r.status === 'done'
-                        ? 'bg-muted text-muted-foreground'
-                        : 'bg-primary/10 text-primary-ink',
-                    )}
-                  >
-                    {r.status === 'done' ? <CheckCircle2 className="size-3" /> : null}
-                    {r.status === 'done' ? 'done' : 'open'}
-                  </span>
-                </div>
-                {r.body ? (
-                  <div className="prose prose-accent prose-sm mt-2 max-w-none dark:prose-invert">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{r.body}</ReactMarkdown>
-                  </div>
-                ) : null}
-                <div className="mt-2 flex gap-3 text-xs">
-                  <Link
-                    href={`/tasks?selected=${r.taskId}`}
-                    className="text-muted-foreground underline-offset-2 hover:underline"
-                  >
-                    Open task →
-                  </Link>
-                  {r.contactId ? (
+                  <div className="flex shrink-0 gap-3 text-xs">
                     <Link
-                      href={`/team-admin?contact=${r.contactId}`}
+                      href={`/tasks?selected=${selRequest.taskId}`}
                       className="text-muted-foreground underline-offset-2 hover:underline"
                     >
-                      View their chat →
+                      Open task →
                     </Link>
-                  ) : null}
+                    {selRequest.contactId ? (
+                      <Link
+                        href={`/team-admin?contact=${selRequest.contactId}`}
+                        className="text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        View their chat →
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
-                {r.contactId ? (
-                  <RequestReply
-                    taskId={r.taskId}
-                    contactName={r.contactName}
-                    done={r.status === 'done'}
-                  />
-                ) : null}
+                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+                  <div className="w-full space-y-2 p-4">
+                    {selRequest.body ? (
+                      <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{selRequest.body}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No further detail — the title is the whole request.
+                      </p>
+                    )}
+                    {selRequest.contactId ? (
+                      <RequestReply
+                        key={selRequest.taskId}
+                        taskId={selRequest.taskId}
+                        contactName={selRequest.contactName}
+                        done={selRequest.status === 'done'}
+                        onDone={refetch}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            ) : selUpload ? (
+              <>
+                <div className="border-b border-border px-4 py-3">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <Paperclip className="size-4 shrink-0" aria-hidden />
+                    <span className="truncate">{selUpload.filename}</span>
+                  </h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    from {selUpload.contactName ?? 'a team member'} ·{' '}
+                    {formatSize(selUpload.sizeBytes)} · {fmtWhen(selUpload.createdAt)}
+                  </p>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+                  <div className="w-full space-y-3 p-4">
+                    {selUpload.topicId ? (
+                      <p className="text-sm">
+                        Posted in{' '}
+                        <Link
+                          href={`/team-admin?view=topics&topic=${selUpload.topicId}`}
+                          className="font-medium underline-offset-2 hover:underline"
+                        >
+                          {selUpload.topicTitle ?? 'Untitled topic'} →
+                        </Link>
+                      </p>
+                    ) : null}
+                    <p className="text-sm text-muted-foreground">
+                      Files stay out of the brain until you move them to files/review.
+                    </p>
+                    <UploadReviewActions
+                      uploadId={selUpload.id}
+                      filename={selUpload.filename}
+                      onDone={refetch}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <div className="text-center text-sm text-muted-foreground">
+                  <Inbox className="mx-auto mb-2 size-6" />
+                  <p>Select a request or upload to review it here.</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
+          </section>
+        }
+      />
     </Tab>
   );
 }
@@ -1047,44 +1136,50 @@ function SettingsTab() {
     );
   return (
     <Tab active="settings" badges={data.badges}>
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-        <div className="mx-auto w-full max-w-2xl space-y-4 p-4">
-          <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
-            <h2 className="text-sm font-semibold">Read posture</h2>
-            <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
-              Members always get brain-knowledge reads. This gates your PRIVATE corpus (email and
-              journal) for every team surface — the Forum included. Default off.
-            </p>
-            <PrivateReadsToggle initial={data.privateReads} />
-          </div>
+      {/* No list behind these three cards, so no MasterDetail — the settings-hub
+          pattern instead: one measured column with a draggable right edge,
+          tucked left, remembered per screen (see settings/(hub)/layout.tsx). */}
+      <div className="min-h-0 flex-1">
+        <MeasuredPane id="team-admin-settings">
+          <div className="w-full space-y-4 p-4">
+            <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
+              <h2 className="text-sm font-semibold">Read posture</h2>
+              <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                Members always get brain-knowledge reads. This gates your PRIVATE corpus (email and
+                journal) for every team surface — the Forum included. Default off.
+              </p>
+              <PrivateReadsToggle initial={data.privateReads} />
+            </div>
 
-          {/* Keyed by the current designation so a server-side change (another
+            {/* Keyed by the current designation so a server-side change (another
               tab, MCP) resyncs the Select on refetch. */}
-          <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
-            <h2 className="text-sm font-semibold">Hub app</h2>
-            <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
-              Which published app renders full-bleed at <code>/hub</code> for members. The built-in
-              briefing hub is the fallback.
-            </p>
-            <HubAppPicker
-              key={data.hubAppId ?? 'builtin'}
-              currentAppId={data.hubAppId}
-              apps={data.hubCandidates}
-            />
-          </div>
+            <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
+              <h2 className="text-sm font-semibold">Hub app</h2>
+              <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                Which published app renders full-bleed at <code>/hub</code> for members. The
+                built-in briefing hub is the fallback.
+              </p>
+              <HubAppPicker
+                key={data.hubAppId ?? 'builtin'}
+                currentAppId={data.hubAppId}
+                apps={data.hubCandidates}
+              />
+            </div>
 
-          <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
-            <h2 className="text-sm font-semibold">Dashboard sections</h2>
-            <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
-              Curated tag sections on the <code>/team</code> overview, drawn from your shared pages.
-            </p>
-            <DashboardTagsPanel
-              key={data.dashboardTags.selected.join(',')}
-              initialTags={data.dashboardTags.selected}
-              available={data.dashboardTags.available}
-            />
+            <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
+              <h2 className="text-sm font-semibold">Dashboard sections</h2>
+              <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                Curated tag sections on the <code>/team</code> overview, drawn from your shared
+                pages.
+              </p>
+              <DashboardTagsPanel
+                key={data.dashboardTags.selected.join(',')}
+                initialTags={data.dashboardTags.selected}
+                available={data.dashboardTags.available}
+              />
+            </div>
           </div>
-        </div>
+        </MeasuredPane>
       </div>
     </Tab>
   );
