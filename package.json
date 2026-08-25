@@ -36,11 +36,11 @@
   },
   "pnpm": {
     "overrides": {
-      "@mantle/client-types": "npm:@crossworks/client-types@0.232.67",
-      "@mantle/content-core": "npm:@crossworks/content-core@0.232.67",
-      "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.67",
-      "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.67",
-      "@mantle/app-build": "npm:@crossworks/app-build@0.232.67",
+      "@mantle/client-types": "npm:@crossworks/client-types@0.232.68",
+      "@mantle/content-core": "npm:@crossworks/content-core@0.232.68",
+      "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.68",
+      "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.68",
+      "@mantle/app-build": "npm:@crossworks/app-build@0.232.68",
       "pdfjs-dist": "6.1.200",
       "@napi-rs/canvas": "1.0.2"
     },
