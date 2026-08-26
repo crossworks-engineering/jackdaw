@@ -711,7 +711,7 @@ export function HeartbeatsClient() {
                       setForm((f) => ({ ...f, state_text: e.target.value, state_touched: true }))
                     }
                     rows={6}
-                    className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                    className="w-full rounded-md border bg-transparent px-3 py-2 font-mono text-xs"
                     placeholder={'{\n  "answered": [],\n  "expecting_reply": false\n}'}
                   />
                   <p className="text-xs text-muted-foreground">

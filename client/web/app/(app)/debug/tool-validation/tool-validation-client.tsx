@@ -78,7 +78,7 @@ export function ToolValidationClient() {
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Window
           <select
-            className="rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
+            className="rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground"
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
           >

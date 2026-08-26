@@ -189,7 +189,7 @@ export function PersonaNotesEditor({
       </div>
 
       {addOpen && (
-        <div className="space-y-2 rounded-md border border-border bg-background p-2">
+        <div className="space-y-2 rounded-md border border-border p-2">
           <KindSelect value={addKind} onChange={setAddKind} />
           <Textarea
             value={addText}
@@ -240,7 +240,7 @@ export function PersonaNotesEditor({
             return (
               <li
                 key={k}
-                className="rounded-md border border-border bg-background px-2.5 py-2 text-sm"
+                className="rounded-md border border-border bg-transparent px-2.5 py-2 text-sm"
               >
                 {isEditing ? (
                   <div className="space-y-2">

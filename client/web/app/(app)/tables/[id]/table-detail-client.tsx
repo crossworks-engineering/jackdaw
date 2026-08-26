@@ -694,7 +694,7 @@ function TabBar({
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                   if (e.key === 'Escape') setEditing(null);
                 }}
-                className="mx-1 h-7 w-28 rounded-sm border border-border bg-background px-2 text-sm outline-none focus:ring-0"
+                className="mx-1 h-7 w-28 rounded-sm border border-border bg-transparent px-2 text-sm outline-none focus:ring-0"
                 aria-label={`Rename tab ${t.name}`}
                 autoFocus
               />

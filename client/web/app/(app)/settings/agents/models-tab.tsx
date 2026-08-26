@@ -347,7 +347,7 @@ export function ModelsTab({
       {/* Sticky apply bar — the staged diff above IS the confirmation surface,
           so no AlertDialog on Apply. */}
       {staged.size > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-background px-4 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-background/60 px-4 py-3 backdrop-blur">
           <div className="text-sm">
             <span className="font-medium">
               {staged.size} change{staged.size === 1 ? '' : 's'} staged
