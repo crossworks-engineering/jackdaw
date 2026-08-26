@@ -233,7 +233,7 @@ export function SidebarNav({
                 onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
                 placeholder="Filter menu…"
                 aria-label="Filter navigation"
-                className="h-9 bg-background/60 pl-8 pr-8"
+                className="h-9 pl-8 pr-8"
               />
               {query && (
                 <button

@@ -851,7 +851,21 @@ function PageCard({
     <ListCard asChild selected={selected} dimmed={dragging}>
       <div
         ref={setDropRef}
-        className={cn('space-y-1.5', nesting && 'border-primary bg-primary/10 ring-1 ring-primary')}
+        // The WHOLE card navigates — summary, tags and the dead space between,
+        // not just the title row (the natural expectation on a card). Real
+        // controls inside keep their own clicks: anything button-ish under the
+        // pointer wins, and a text selection (someone copying the summary)
+        // must not fire a navigation on mouse-up. Keyboard access rides the
+        // title button below, so this div needs no key handler of its own.
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('button, a, [role="menuitem"]')) return;
+          if (window.getSelection()?.toString()) return;
+          onSelect();
+        }}
+        className={cn(
+          'cursor-pointer space-y-1.5',
+          nesting && 'border-primary bg-primary/10 ring-1 ring-primary',
+        )}
       >
         {/* The page itself. Keeps the marking attributes the marking system
             reads — moving them off this element silently breaks it. */}

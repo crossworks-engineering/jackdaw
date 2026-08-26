@@ -666,7 +666,7 @@ export function TeamChatClient({ archive = false }: { archive?: boolean } = {}) 
                 }}
                 placeholder="Ask the brain… (Enter to send, Shift+Enter for a new line)"
                 rows={2}
-                className={`${COMPOSER_BOX} flex-1 resize-none bg-background`}
+                className={`${COMPOSER_BOX} flex-1 resize-none`}
                 disabled={sending}
               />
               <Button

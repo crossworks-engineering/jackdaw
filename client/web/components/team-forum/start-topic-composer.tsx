@@ -68,7 +68,7 @@ export function StartTopicComposer() {
         }}
         rows={3}
         placeholder="Ask or share something… a forum topic is started for you, titled automatically. (Enter to start, Shift+Enter for a new line)"
-        className="resize-none bg-background"
+        className="resize-none"
         disabled={submitting}
       />
       <div className="mt-3 flex items-center justify-between gap-4">

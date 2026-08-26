@@ -1892,7 +1892,7 @@ export function AssistantClient({
                 // the old lock — it has no cancel primitive.
                 disabled={!agentReady || (sending && !streamingOn)}
                 rows={2}
-                className={`${COMPOSER_BOX} flex-1 resize-none rounded-md border-input bg-background px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                className={`${COMPOSER_BOX} flex-1 resize-none rounded-md border-input px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
                 onKeyDown={(e) => {
                   // Decision table lives in lib/composer-keys (pure + tested):
                   // the chip claims Enter/ArrowRight STRICTLY when the draft is

@@ -864,7 +864,7 @@ export function TopicViewClient({
                   }}
                   placeholder="Reply… (Enter to send, Shift+Enter for a new line)"
                   rows={2}
-                  className={`${COMPOSER_BOX} flex-1 resize-none bg-background`}
+                  className={`${COMPOSER_BOX} flex-1 resize-none`}
                   disabled={sending}
                 />
                 <Button
