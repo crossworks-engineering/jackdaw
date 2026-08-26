@@ -60,7 +60,7 @@ export function ReadingPane({
               disabled={patch.isPending}
               title={email.isStarred ? 'Unstar' : 'Star'}
               aria-label={email.isStarred ? 'Unstar' : 'Star'}
-              className="inline-flex items-center rounded-md border border-input bg-background p-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              className="inline-flex items-center rounded-md border border-input bg-transparent p-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             >
               <Star
                 className={cn('size-3.5', email.isStarred && 'fill-amber-400 text-amber-400')}
@@ -73,7 +73,7 @@ export function ReadingPane({
               disabled={patch.isPending}
               title={email.isRead ? 'Mark unread' : 'Mark read'}
               aria-label={email.isRead ? 'Mark unread' : 'Mark read'}
-              className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             >
               {email.isRead ? (
                 <>

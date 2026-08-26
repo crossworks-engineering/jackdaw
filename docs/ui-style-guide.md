@@ -148,6 +148,36 @@ Rules:
   itself carry dark mode (over near-black ink). `themes.test.ts` asserts the pairs,
   extend its `describe` rather than eyeballing a new palette.
 
+### 2a. Translucent surfaces — the workspace shows through
+
+The brain's saved Neat background paints behind every content area (owner
+shell, team workspace, and — via a server-resolved copy — inside app frames).
+Surfaces between the reader and that backdrop are translucent by rule, so the
+background reads through the whole screen instead of dying at the first
+rectangle. One alpha per role; do not invent new numbers per screen:
+
+| Surface | Treatment | Where it is encoded |
+|---|---|---|
+| Idle list card | `bg-card/70` | `listCardClass` (`ui/list-card`) |
+| Composer / form shell (§6c) | `bg-card/70` | `formShellClass` (`ui/form-shell`) |
+| Sticky chrome bar (pane headers, the rail's filter block) | surface token at `/60` + `backdrop-blur` | per screen, e.g. the notes/journal/pages/draw/tables headers |
+| Field-look controls (`Input`, `Textarea`, `SelectTrigger`, `TagInput`, the outline `Button`, bordered filter chips) | `bg-transparent` — the `border-input` outline IS the affordance | the kit components; never re-add a fill at a call site (`border-input bg-background` is the smell to grep for) |
+| Reader / detail panes | no fill at all | the pane inherits the shell's ground |
+
+- **Floating layers stay opaque**: `popover`, dialogs, dropdown/select menus,
+  toasts, tooltips. A menu floating over arbitrary content needs a solid
+  ground — translucency there is noise, not continuity.
+- **Sticky bars take the blur**: content scrolls UNDER them, and `/60` alone
+  would let it fight the bar's own text. `backdrop-blur` + `/60` keeps the
+  hue of the backdrop without the legibility fight. (`/80` was tried first
+  and reads as fully solid over a gradient — hence the one number, `/60`.)
+- **The plain brain costs nothing**: with no background saved, every one of
+  these sits on the shell's solid `bg-background` ground and the alphas are
+  invisible. Translucency is only ever VISIBLE when a backdrop exists.
+- **App frames**: apps consume `var(--card)`; the frame document overrides
+  the token to 70% only when it painted a Neat ground (`app-frame-html.ts`
+  in `@mantle/share-ui`) — mirror the workspace numbers there, not new ones.
+
 ---
 
 ## 3. Typography & fonts

@@ -54,7 +54,7 @@ export function ChatAgentOverride({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={pending}
-        className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+        className="h-7 rounded-md border border-input bg-transparent px-2 text-xs"
         title="Pin a specific responder agent to this chat. Default = global priority."
       >
         <option value="">— default —</option>

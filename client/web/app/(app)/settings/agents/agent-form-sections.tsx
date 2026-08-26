@@ -582,7 +582,7 @@ function NodeTypePicker({ value, onChange }: { value: string; onChange: (next: s
   // token-based (no hardcoded emerald/amber) so it tracks the active theme.
   const chipBase = 'rounded-full border px-2.5 py-0.5 text-xs transition';
   const chipOff =
-    'border-input bg-background text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground';
+    'border-input bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground';
   // On = a primary BORDER, no background fill — a saturated bg drowns the label
   // in many themes (content text is foreground, not accent-foreground).
   const chipOn = 'border-primary bg-background text-foreground';

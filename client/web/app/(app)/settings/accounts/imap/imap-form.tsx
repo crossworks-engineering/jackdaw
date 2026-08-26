@@ -328,7 +328,7 @@ export function ImapForm({ account }: { account?: ImapFormAccount }) {
               <FieldError id="smtpPort-error">{errors.smtpPort}</FieldError>
             </Field>
           </div>
-          <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+          <div className="flex items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm">
             <Checkbox
               id="smtpSecure"
               checked={smtpSecure}

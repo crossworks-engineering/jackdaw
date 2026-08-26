@@ -216,11 +216,11 @@ export function SidebarNav({
             query is live it reaches into folded groups too, so this is also how
             you see the whole map without unfolding anything by hand. */}
         {!collapsed && (
-          // `bg-sidebar/80 backdrop-blur`, not solid: the rail's generated
+          // `bg-sidebar/60 backdrop-blur`, not solid: the rail's generated
           // backdrop should read through this block like everywhere else in
           // the rail; the blur keeps rows scrolling under it from fighting
           // the filter text.
-          <div className="sticky top-0 z-10 -mt-3 -mx-3 bg-sidebar/80 px-3 pb-2 pt-3 backdrop-blur group-data-[nav-collapsed=true]/shell:hidden">
+          <div className="sticky top-0 z-10 -mt-3 -mx-3 bg-sidebar/60 px-3 pb-2 pt-3 backdrop-blur group-data-[nav-collapsed=true]/shell:hidden">
             <div className="relative">
               <Search
                 className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"

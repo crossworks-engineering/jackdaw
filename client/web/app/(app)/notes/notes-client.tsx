@@ -565,7 +565,7 @@ function NotePreview({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/60 px-6 py-3 backdrop-blur">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-xl font-semibold">{note.title}</h2>
           {note.tags.length > 0 && (

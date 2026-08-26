@@ -206,7 +206,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
           }
         }}
         placeholder={binding ? 'Paste a new token to rotate…' : 'Paste your bot token…'}
-        className="h-9 w-full rounded-md border border-input bg-background px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-9 w-full rounded-md border border-input bg-transparent px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       />
 
       <div className="flex gap-2">

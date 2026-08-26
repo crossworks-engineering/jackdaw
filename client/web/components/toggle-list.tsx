@@ -107,7 +107,7 @@ export function ToggleList({
           }}
           placeholder="Search…"
           aria-label="Search"
-          className="h-8 w-full rounded-md border border-input bg-background pl-7 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 w-full rounded-md border border-input bg-transparent pl-7 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
       <div className="flex shrink-0 items-center rounded-md border border-input p-0.5 text-xs">

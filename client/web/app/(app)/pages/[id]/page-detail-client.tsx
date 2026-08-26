@@ -876,7 +876,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
       {/* flex-wrap: the toolbar must stay fully reachable when the docked
           assistant column narrows this pane — buttons flow to a second row
           instead of clipping (Mark/Revert/Share used to fall off the edge). */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         <BackLink href="/pages">All pages</BackLink>
         <div className="flex flex-wrap items-center gap-2 gap-y-1.5">
           <RecallBadge pageId={initial.id} />

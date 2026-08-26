@@ -523,7 +523,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
     <div className="flex h-full min-h-0 flex-col">
       <SetPageTitle title={title || 'Untitled drawing'} />
 
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         <BackLink href="/draw">All drawings</BackLink>
         <div className="flex flex-wrap items-center gap-2 gap-y-1.5">
           <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />

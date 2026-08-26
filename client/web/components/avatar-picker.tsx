@@ -65,7 +65,7 @@ export function AvatarPicker({
         <button
           type="button"
           onClick={() => onChange({ seed: randomAvatarSeed() })}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-transparent px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Shuffle className="size-3.5" aria-hidden /> Randomize
         </button>

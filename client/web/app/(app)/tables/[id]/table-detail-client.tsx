@@ -467,7 +467,7 @@ export function TableDetailClient({
           e.target.value = '';
         }}
       />
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         {!embedded && (
           <div className="shrink-0 whitespace-nowrap">
             <BackLink href="/tables">All tables</BackLink>

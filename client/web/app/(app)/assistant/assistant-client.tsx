@@ -1805,7 +1805,7 @@ export function AssistantClient({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={!agentReady || sending || !!attachedFile}
-                  className="rounded-md border border-input bg-background p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                  className="rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
                   title="Attach image or document"
                 >
                   <Paperclip className="h-4 w-4" />
@@ -1816,7 +1816,7 @@ export function AssistantClient({
                   type="button"
                   onClick={startPicking}
                   disabled={!agentReady || sending}
-                  className="rounded-md border border-input bg-background p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                  className="rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
                   title="Pick content to attach (files, pages, notes…)"
                 >
                   <SquareDashedMousePointer className="h-4 w-4" />
@@ -1832,7 +1832,7 @@ export function AssistantClient({
                   className={
                     shareLocation
                       ? 'rounded-md bg-primary p-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-40'
-                      : 'rounded-md border border-input bg-background p-2 text-muted-foreground hover:bg-muted disabled:opacity-40'
+                      : 'rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40'
                   }
                   title={
                     shareLocation
@@ -1859,7 +1859,7 @@ export function AssistantClient({
                     type="button"
                     onClick={startRecording}
                     disabled={!agentReady || sending || transcribing}
-                    className="rounded-md border border-input bg-background p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                    className="rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
                     title={transcribing ? 'Transcribing…' : 'Record voice note'}
                   >
                     {transcribing ? (

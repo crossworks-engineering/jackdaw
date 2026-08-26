@@ -154,7 +154,7 @@ export function JournalEditor({
       {/* Sticky against the PANE's scroller now (MasterDetail owns it), not an
           inner one of its own — two nested scrollers put two bars side by side
           and made the sticky header stick to the wrong one. */}
-      <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}

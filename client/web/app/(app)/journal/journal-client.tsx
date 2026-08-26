@@ -531,7 +531,7 @@ function JournalPreview({
     // No inner scroller: the pane owns it (MasterDetail), so the sticky header
     // sticks to the pane's scroller instead of a second one nested inside it.
     <div>
-      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/60 px-6 py-3 backdrop-blur">
         <div className="min-w-0 flex-1">
           {/* §8: the glyph lives INSIDE the h2 so it shares the title's
               baseline. The kind is the entry's identity now. */}
