@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
+import type { ToolGroupIntegrationDTO } from '@mantle/client-types';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -43,35 +44,16 @@ import {
 } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 
-/**
- * Local mirrors of the brain's connector shapes. `ToolGroupIntegrationDTO`
- * gains the `mcp` block in @crossworks/client-types 0.232.70+; the pins are
- * still on 0.232.69, so the fields are typed here — swap for the DTO when the
- * pins move.
- */
-type McpOAuthInfo = {
-  enabled: true;
-  status: 'pending' | 'connected' | 'needs_reconnect';
-  connectedAt?: string;
-  lastError?: string;
-};
-type McpBinding = {
-  url: string;
-  secretRef?: string;
-  authHeader?: string;
-  authScheme?: string;
-  oauth?: McpOAuthInfo;
-  lastSyncAt?: string;
-  toolCount?: number;
-  serverInfo?: { name?: string; version?: string };
-};
+/** Connector shapes come from the contract package (pins ≥ 0.232.73). */
+type McpBinding = NonNullable<ToolGroupIntegrationDTO['mcp']>;
+type McpOAuthInfo = NonNullable<McpBinding['oauth']>;
 type ConnectorRow = {
   id: string;
   slug: string;
   name: string;
   description: string;
   toolSlugs: string[];
-  integration: { service: string; mcp?: McpBinding } | null;
+  integration: ToolGroupIntegrationDTO | null;
   enabled: boolean;
   grantedTo: string[];
 };
