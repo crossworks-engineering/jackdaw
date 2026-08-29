@@ -59,6 +59,7 @@ const SCREENS = [
   { path: '/settings/accounts', id: 'settings-accounts' },
   { path: '/settings/worker-groups', id: 'settings-worker-groups' },
   { path: '/settings/tool-groups', id: 'settings-tool-groups' },
+  { path: '/settings/connectors', id: 'settings-connectors' },
   { path: '/settings/skills', id: 'settings-skills' },
   { path: '/settings/keys', id: 'settings-keys' },
   { path: '/settings/peers', id: 'settings-peers' },
