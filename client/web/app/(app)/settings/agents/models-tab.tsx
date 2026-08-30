@@ -37,6 +37,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { CuratedPoolSelect } from '@/components/curated-pool-select';
 import { ModelSelect } from '@/components/ui/model-select';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
 import type { ExplorerModel } from '@mantle/client-types';
 import type { AgentDTO } from '@mantle/client-types';
@@ -230,7 +231,11 @@ export function ModelsTab({
                 <TableRow key={agent.id} className={cn(!agent.enabled && 'opacity-60')}>
                   <TableCell>
                     <div className="flex items-center gap-2.5">
-                      <GeneratedAvatar seed={agent.avatar?.seed || agent.slug} size={28} />
+                      <GeneratedAvatar
+                        seed={agent.avatar?.seed || agent.slug}
+                        parts={avatarPartsOf(agent.avatar)}
+                        size={28}
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="truncate text-sm font-medium">{agent.name}</span>

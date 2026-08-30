@@ -8,6 +8,7 @@ import { agentAccent } from '@/lib/agent-color';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { AssistantDockToggle, useAssistantDock } from '@/components/assistant/assistant-dock';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
@@ -104,6 +105,7 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
           {agent && (
             <GeneratedAvatar
               seed={agent.avatar?.seed || agent.slug}
+              parts={avatarPartsOf(agent.avatar)}
               size={40}
               className="ring-2"
               containerStyle={{ '--tw-ring-color': accent?.border } as React.CSSProperties}

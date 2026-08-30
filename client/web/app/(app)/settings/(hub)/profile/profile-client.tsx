@@ -127,11 +127,15 @@ function ProfileForm({ data }: { data: ProfileData }) {
   const [reminderChannel, setReminderChannel] = useState<string>(
     defaults.reminderChannel ?? 'telegram',
   );
-  // Seed only — the STYLE is the brain's, set in Settings → Appearance. A
-  // stored seed is what makes this avatar this person's.
-  const [avatar, setAvatar] = useState<AvatarValue | null>(
-    defaults.avatarSeed ? { seed: defaults.avatarSeed } : null,
-  );
+  // Seed + builder pins — the STYLE is the brain's, set in Settings →
+  // Appearance. A stored seed is what makes this avatar this person's.
+  // `avatarParts` is read through a cast until the @mantle/client-types pin
+  // learns the field (the wire already carries it on updated brains).
+  const [avatar, setAvatar] = useState<AvatarValue | null>(() => {
+    if (!defaults.avatarSeed) return null;
+    const parts = (defaults as { avatarParts?: Record<string, string | null> }).avatarParts;
+    return { seed: defaults.avatarSeed, ...(parts ? { parts } : {}) };
+  });
   const [purpose, setPurpose] = useState(defaults.purpose ?? '');
   const [houseStyle, setHouseStyle] = useState(defaults.houseStyle ?? '');
   const [siteName, setSiteName] = useState(defaults.siteName ?? '');
@@ -204,6 +208,9 @@ function ProfileForm({ data }: { data: ProfileData }) {
       timezone: tz,
       locale: loc,
       avatarSeed: avatar?.seed ?? '',
+      // Builder pins. {} clears on an updated brain; an old brain's schema
+      // isn't strict here, so it simply ignores the key — nothing breaks.
+      avatarParts: avatar?.parts ?? {},
       reminderAgentSlug: reminderAgent === REMINDER_AUTO ? '' : reminderAgent,
       reminderChannel,
       purpose,

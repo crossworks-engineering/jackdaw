@@ -39,7 +39,7 @@ export type ProfileIdentity = {
   displayName?: string | null;
   /** The actor's email — the fallback label, and the menu's secondary line. */
   email?: string | null;
-  avatar?: { style: string; seed: string } | null;
+  avatar?: { style: string; seed: string; parts?: Record<string, string | null> | null } | null;
 };
 
 /** Whichever of name/email is the better thing to call this person, plus the
@@ -121,7 +121,7 @@ export function ProfileMenu({
   }
 
   const face = avatar ? (
-    <GeneratedAvatar seed={avatar.seed} size={28} />
+    <GeneratedAvatar seed={avatar.seed} parts={avatar.parts} size={28} />
   ) : (
     <Avatar className="size-7">
       <AvatarFallback className="text-[10px] font-semibold">{initials}</AvatarFallback>

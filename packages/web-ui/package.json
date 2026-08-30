@@ -19,6 +19,7 @@
     "./aside-style": "./src/aside-style.ts",
     "./asset-url": "./src/asset-url.ts",
     "./avatar": "./src/avatar.ts",
+    "./avatar-parts": "./src/avatar-parts.ts",
     "./avatar-style-provider": "./src/avatar-style-provider.tsx",
     "./backdrop": "./src/backdrop.ts",
     "./background-provider": "./src/background-provider.tsx",

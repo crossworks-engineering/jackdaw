@@ -51,6 +51,7 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { ToggleList, type ToggleListItem } from '@/components/toggle-list';
 import { TelegramBotSection } from '@/components/telegram/telegram-bot-section';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { useAvatarStyle } from '@mantle/web-ui/avatar-style-provider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { PersonaNotesEditor } from './persona-notes-editor';
@@ -140,7 +141,9 @@ const AGENT_ERROR_ORDER: { field: keyof AgentErrors; section: AgentSection }[] =
 // names below keep the rest of this file unchanged. `AgentSummary` is the agent
 // DTO; the others are aliases for the jsonb sub-shapes the form reads/writes.
 type MemoryConfig = AgentMemoryConfigDTO;
-type AgentAvatar = AgentAvatarDTO;
+// `parts` (avatar-builder pins) is local until the @mantle/client-types pin
+// catches up with the server's AgentAvatarDTO — same wire shape.
+type AgentAvatar = AgentAvatarDTO & { parts?: Record<string, string | null> };
 
 type AgentSummary = AgentDTO;
 
@@ -909,8 +912,27 @@ export function AgentsClient() {
     setSaving(true);
     try {
       // Both POST and PATCH return `{ agent: row }` (dates already ISO).
-      const { agent: saved } = await apiSend<{ agent: AgentSummary }>(url, method, body);
-      toast.success(editing.mode === 'create' ? 'Agent created' : 'Agent saved');
+      let saved: AgentSummary | undefined;
+      let droppedParts = false;
+      try {
+        ({ agent: saved } = await apiSend<{ agent: AgentSummary }>(url, method, body));
+      } catch (err) {
+        // A brain that predates the avatar builder rejects the whole save over
+        // the one unknown `parts` key (its Avatar schema is strict). Retry once
+        // without the pins so the rest of the form still lands, and say so.
+        const strict = err instanceof Error && /unrecognized key/i.test(err.message);
+        if (!strict || !form.avatar?.parts) throw err;
+        droppedParts = true;
+        ({ agent: saved } = await apiSend<{ agent: AgentSummary }>(url, method, {
+          ...body,
+          avatar: { style: form.avatar.style, seed: form.avatar.seed },
+        }));
+      }
+      if (droppedParts) {
+        toast.error('Saved, but this brain is too old to keep pinned avatar parts.');
+      } else {
+        toast.success(editing.mode === 'create' ? 'Agent created' : 'Agent saved');
+      }
       // Keep focus on the just-saved row instead of dropping back to the
       // empty-detail state. Promote the saved record into `editing` (turning a
       // create into an edit naturally — slug/id are now known) and resync the
@@ -1053,7 +1075,11 @@ export function AgentsClient() {
                               means a fresh brain looks right immediately, rather
                               than showing initials until each agent is opened and
                               saved one by one. */}
-                            <GeneratedAvatar seed={a.avatar?.seed || a.slug} size={32} />
+                            <GeneratedAvatar
+                              seed={a.avatar?.seed || a.slug}
+                              parts={avatarPartsOf(a.avatar)}
+                              size={32}
+                            />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <ListCardTitle>{a.name}</ListCardTitle>
@@ -1240,7 +1266,13 @@ export function AgentsClient() {
                                 // stays coherent rather than storing a stale id.
                                 setForm((f) => ({
                                   ...f,
-                                  avatar: v ? { style: avatarStyle, seed: v.seed } : null,
+                                  avatar: v
+                                    ? {
+                                        style: avatarStyle,
+                                        seed: v.seed,
+                                        ...(v.parts ? { parts: v.parts } : {}),
+                                      }
+                                    : null,
                                 }))
                               }
                               fallbackSeed={form.slug || form.name || 'agent'}
@@ -1249,8 +1281,8 @@ export function AgentsClient() {
                             <FieldHint>
                               Shown beside this agent&apos;s replies and in the list, drawn in the
                               brain&apos;s avatar style (change that in Appearance). Every agent has
-                              one already, seeded from its slug — Randomize just picks a different
-                              one.
+                              one already, seeded from its slug — Randomize picks a different one,
+                              Customize pins individual parts.
                             </FieldHint>
                           </Field>
 

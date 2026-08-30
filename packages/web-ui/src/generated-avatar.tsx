@@ -10,6 +10,7 @@ import {
   renderAvatarSvgSync,
   type AvatarTint,
 } from './avatar';
+import { renderAvatarPartsSvgSync, type AvatarParts } from './avatar-parts';
 
 /**
  * The generated avatar, themed to the live palette.
@@ -34,6 +35,7 @@ export function GeneratedAvatar({
   style,
   tint: tintOverride,
   seed,
+  parts,
   size = 40,
   className,
   containerStyle,
@@ -48,6 +50,9 @@ export function GeneratedAvatar({
   /** Stable per-entity value — agent slug, user id, or a stored random seed.
    *  This is what makes one avatar differ from the next. */
   seed: string;
+  /** Avatar-builder choices layered over the seed (component → variant | null).
+   *  Stale entries from another style are dropped at render, never an error. */
+  parts?: AvatarParts | null;
   /** Pixel size — the single source of truth for the avatar's box. */
   size?: number;
   /** Decoration only (ring, border, margin). Don't size with this. */
@@ -84,9 +89,17 @@ export function GeneratedAvatar({
   // EVERY input the render reads must be in here. Miss one and the avatar keeps
   // handing back the previously-drawn SVG while the rest of the app has already
   // moved on — the picker looks dead because the memo, not the state, is stale.
+  // `parts` is keyed by VALUE (hosts rebuild the object every render).
+  const partsKey = parts && Object.keys(parts).length ? JSON.stringify(parts) : '';
   const svg = React.useMemo(
-    () => (ready ? renderAvatarSvgSync({ style: effectiveStyle, seed, size, ramp, tint }) : null),
-    [ready, effectiveStyle, tint, seed, size, ramp],
+    () =>
+      ready
+        ? partsKey
+          ? renderAvatarPartsSvgSync({ style: effectiveStyle, seed, parts, size, ramp, tint })
+          : renderAvatarSvgSync({ style: effectiveStyle, seed, size, ramp, tint })
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parts is represented by partsKey
+    [ready, effectiveStyle, tint, seed, size, ramp, partsKey],
   );
 
   return (

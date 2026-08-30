@@ -86,7 +86,7 @@ function writeCookieValue(name: string, value: string | number) {
 
 type ShellData = {
   onboarded: boolean;
-  avatar: { style: string; seed: string } | null;
+  avatar: { style: string; seed: string; parts?: Record<string, string | null> | null } | null;
   pendingApprovals: number;
   /** Who this browser is signed in AS (the actor, not the anchor account) —
    *  the rail's profile row. Both null on a brain that stores neither. */

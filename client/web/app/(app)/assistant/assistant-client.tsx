@@ -31,6 +31,7 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { agentAccent } from '@/lib/agent-color';
 import { composerKeyAction } from '@/lib/composer-keys';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { RichText } from '@/components/assistant/rich-text';
 import { ASSISTANT_TURN_MAX_CHARS, longMessageNoteTitle } from '@mantle/web-ui/assistant-limits';
 import { CopyButton } from '@mantle/web-ui/copy-button';
@@ -1367,6 +1368,7 @@ export function AssistantClient({
               <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center">
                 <GeneratedAvatar
                   seed={agentAvatar?.seed || agentSlug || 'assistant'}
+                  parts={avatarPartsOf(agentAvatar)}
                   size={48}
                   className="ring-2"
                   containerStyle={{ '--tw-ring-color': accent.border } as React.CSSProperties}
