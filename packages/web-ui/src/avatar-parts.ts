@@ -29,17 +29,30 @@ export type AvatarPartInfo = {
   optional: boolean;
 };
 
-/** The buildable components of a loaded style, aliases collapsed (an alias
- *  shares its source's option key, so listing it would duplicate the row). */
-export function listAvatarParts(loaded: Loaded): AvatarPartInfo[] {
-  const out: AvatarPartInfo[] = [];
+// One component walk per Loaded style, ever: Loaded instances are long-lived
+// module singletons (share-ui's STYLES cache), and the builder preview renders
+// on every arrow click — without this cache each render walked the declaration
+// twice (sanitize + optional set).
+const PART_INFO = new WeakMap<Loaded, Map<string, AvatarPartInfo>>();
+
+function partInfo(loaded: Loaded): Map<string, AvatarPartInfo> {
+  const hit = PART_INFO.get(loaded);
+  if (hit) return hit;
+  const map = new Map<string, AvatarPartInfo>();
   for (const [name, component] of loaded.style.components()) {
+    // Aliases share their source's option key; listing them would duplicate rows.
     if (component.extendsName()) continue;
     const variants = [...component.variants().keys()];
     if (!variants.length) continue;
-    out.push({ name, variants, optional: component.probability() < 100 });
+    map.set(name, { name, variants, optional: component.probability() < 100 });
   }
-  return out;
+  PART_INFO.set(loaded, map);
+  return map;
+}
+
+/** The buildable components of a loaded style, aliases collapsed. */
+export function listAvatarParts(loaded: Loaded): AvatarPartInfo[] {
+  return [...partInfo(loaded).values()];
 }
 
 /** Read builder parts off a wire avatar record. Exists because the pinned
@@ -54,14 +67,15 @@ export function avatarPartsOf(
 }
 
 /** Drop entries the loaded style doesn't recognise; returns undefined when
- *  nothing survives (= seed only). Used before render AND before save, so what
- *  is stored is what the preview showed. */
+ *  nothing survives (= seed only). A RENDER-time concern only — stored parts
+ *  are never stripped on save, so pins made under one brain style survive a
+ *  style switch (and a switch back revives them). */
 export function sanitizeAvatarParts(
   loaded: Loaded,
   parts: AvatarParts | null | undefined,
 ): AvatarParts | undefined {
   if (!parts) return undefined;
-  const info = new Map(listAvatarParts(loaded).map((p) => [p.name, p]));
+  const info = partInfo(loaded);
   const out: AvatarParts = {};
   for (const [component, variant] of Object.entries(parts)) {
     const known = info.get(component);
@@ -100,7 +114,7 @@ export function renderAvatarPartsSvgSync(opts: {
   }
   const parts = sanitizeAvatarParts(loaded, opts.parts);
   if (parts) {
-    const optional = new Set(listAvatarParts(loaded).flatMap((p) => (p.optional ? [p.name] : [])));
+    const info = partInfo(loaded);
     for (const [component, variant] of Object.entries(parts)) {
       if (variant === null) {
         o[`${component}Probability`] = 0;
@@ -108,7 +122,7 @@ export function renderAvatarPartsSvgSync(opts: {
       }
       o[`${component}Variant`] = variant;
       // A pin must actually show: probability rolls independently of variant.
-      if (optional.has(component)) o[`${component}Probability`] = 100;
+      if (info.get(component)?.optional) o[`${component}Probability`] = 100;
     }
   }
   return new Avatar(loaded.style, o).toString();

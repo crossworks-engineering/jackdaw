@@ -920,7 +920,11 @@ export function AgentsClient() {
         // A brain that predates the avatar builder rejects the whole save over
         // the one unknown `parts` key (its Avatar schema is strict). Retry once
         // without the pins so the rest of the form still lands, and say so.
-        const strict = err instanceof Error && /unrecognized key/i.test(err.message);
+        // The message must name `parts` specifically — zod's strict error lists
+        // the offending keys — so a rejection of some OTHER unknown key never
+        // strips a user's pins on a brain that actually supports them.
+        const strict =
+          err instanceof Error && /unrecognized key[^:]*:.*\bparts\b/i.test(err.message);
         if (!strict || !form.avatar?.parts) throw err;
         droppedParts = true;
         ({ agent: saved } = await apiSend<{ agent: AgentSummary }>(url, method, {
@@ -1266,11 +1270,21 @@ export function AgentsClient() {
                                 // stays coherent rather than storing a stale id.
                                 setForm((f) => ({
                                   ...f,
+                                  // parts: send the pins; when the form HAD pins
+                                  // and the builder cleared them, send {} — the
+                                  // server treats an ABSENT parts key as "keep
+                                  // what's stored" (so parts-unaware clients
+                                  // can't wipe pins), so a clear must be said
+                                  // out loud.
                                   avatar: v
                                     ? {
                                         style: avatarStyle,
                                         seed: v.seed,
-                                        ...(v.parts ? { parts: v.parts } : {}),
+                                        ...(v.parts
+                                          ? { parts: v.parts }
+                                          : f.avatar?.parts
+                                            ? { parts: {} }
+                                            : {}),
                                       }
                                     : null,
                                 }))

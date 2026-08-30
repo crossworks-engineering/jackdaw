@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RotateCcw, Shuffle } from 'lucide-react';
+import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   Dialog,
@@ -14,7 +15,6 @@ import { useAvatarStyle } from '@mantle/web-ui/avatar-style-provider';
 import { loadAvatarStyle, loadedAvatarStyle, randomAvatarSeed } from '@mantle/web-ui/avatar';
 import {
   listAvatarParts,
-  sanitizeAvatarParts,
   type AvatarPartInfo,
   type AvatarParts,
 } from '@mantle/web-ui/avatar-parts';
@@ -91,13 +91,31 @@ export function AvatarBuilderDialog({
 
   const loaded = styleReady ? loadedAvatarStyle(avatarStyle) : null;
   const rows: AvatarPartInfo[] = useMemo(() => (loaded ? listAvatarParts(loaded) : []), [loaded]);
-  const pinned = Object.keys(parts).length;
+
+  // A row's EFFECTIVE choice. Stored entries the current style can't act on
+  // (a variant from another style, null on a non-optional part) read as Auto:
+  // the renderer ignores them, so showing them as pinned would lie. The raw
+  // entry itself is kept — see save().
+  const rowValue = (row: AvatarPartInfo): string | null | undefined => {
+    const v = parts[row.name];
+    if (v === null) return row.optional ? null : undefined;
+    return v !== undefined && row.variants.includes(v) ? v : undefined;
+  };
+
+  // Only choices a visible row actually owns count as pinned; Reset clears
+  // exactly those, leaving entries carried from another style untouched.
+  const rowNames = useMemo(() => new Set(rows.map((r) => r.name)), [rows]);
+  const pinned = rows.filter((r) => rowValue(r) !== undefined).length;
+  const resetPinned = () =>
+    setParts((p) => Object.fromEntries(Object.entries(p).filter(([k]) => !rowNames.has(k))));
 
   // One row's choice walks Auto → each variant → (None when optional) → Auto.
+  // rowValue is always one of the stops, so a stale entry steps from Auto
+  // instead of from indexOf's -1.
   const step = (row: AvatarPartInfo, dir: 1 | -1) => {
     const stops: (string | null | undefined)[] = [undefined, ...row.variants];
     if (row.optional) stops.push(null);
-    const current = stops.indexOf(parts[row.name]);
+    const current = stops.indexOf(rowValue(row));
     const next = stops[(current + dir + stops.length) % stops.length];
     setParts((p) => {
       const out = { ...p };
@@ -108,15 +126,20 @@ export function AvatarBuilderDialog({
   };
 
   const choiceLabel = (row: AvatarPartInfo) => {
-    const v = parts[row.name];
+    const v = rowValue(row);
     if (v === undefined) return 'Auto';
     if (v === null) return 'None';
     return variantLabel(v);
   };
 
+  // Store the working map VERBATIM — no sanitize. Validation is a RENDER-time
+  // concern (the renderer and the server both drop what a style can't act on),
+  // and stripping here has two failure modes this dialog must not have: pins
+  // saved under another brain style would be deleted by an unrelated re-roll,
+  // and a save before the style chunk loads (rows empty, parts untouched)
+  // would wipe everything. Passing the map through makes both a no-op.
   const save = () => {
-    const clean = loaded ? sanitizeAvatarParts(loaded, parts) : undefined;
-    onSave({ seed, ...(clean ? { parts: clean } : {}) });
+    onSave({ seed, ...(Object.keys(parts).length ? { parts } : {}) });
     onOpenChange(false);
   };
 
@@ -143,7 +166,7 @@ export function AvatarBuilderDialog({
               <Shuffle aria-hidden /> Randomize
             </Button>
             {pinned > 0 && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setParts({})}>
+              <Button type="button" variant="ghost" size="sm" onClick={resetPinned}>
                 <RotateCcw aria-hidden /> Reset {pinned} pinned part{pinned === 1 ? '' : 's'}
               </Button>
             )}
@@ -175,8 +198,10 @@ export function AvatarBuilderDialog({
                   >
                     <ChevronLeft aria-hidden />
                   </Button>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() =>
                       setParts((p) => {
                         const out = { ...p };
@@ -185,14 +210,14 @@ export function AvatarBuilderDialog({
                       })
                     }
                     title="Back to Auto"
-                    className={`w-24 truncate rounded-md px-1.5 py-1 text-center text-xs transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                      parts[row.name] === undefined
-                        ? 'text-muted-foreground'
-                        : 'bg-accent font-medium text-accent-foreground'
-                    }`}
+                    className={cn(
+                      'h-7 w-24 px-1.5 text-xs font-normal text-muted-foreground',
+                      rowValue(row) !== undefined &&
+                        'bg-accent font-medium text-accent-foreground hover:bg-accent hover:text-accent-foreground',
+                    )}
                   >
-                    {choiceLabel(row)}
-                  </button>
+                    <span className="truncate">{choiceLabel(row)}</span>
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"

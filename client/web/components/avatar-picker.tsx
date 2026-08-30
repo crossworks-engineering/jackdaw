@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SlidersHorizontal, Shuffle, X } from 'lucide-react';
+import { Button } from '@mantle/web-ui/ui/button';
 import { randomAvatarSeed } from '@mantle/web-ui/avatar';
 import type { AvatarParts } from '@mantle/web-ui/avatar-parts';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
@@ -69,20 +70,16 @@ export function AvatarPicker({
       )}
       <div className="flex flex-col items-start gap-2">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => onChange({ ...(value ?? {}), seed: randomAvatarSeed() })}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-transparent px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Shuffle className="size-3.5" aria-hidden /> Randomize
-          </button>
-          <button
-            type="button"
-            onClick={() => setBuilding(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-transparent px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <SlidersHorizontal className="size-3.5" aria-hidden /> Customize…
-          </button>
+            <Shuffle aria-hidden /> Randomize
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setBuilding(true)}>
+            <SlidersHorizontal aria-hidden /> Customize…
+          </Button>
         </div>
         {allowClear && value && (
           <button

@@ -15,7 +15,7 @@
  * action returns a useful error string the user sees in the form.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Compass } from 'lucide-react';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -136,6 +136,13 @@ function ProfileForm({ data }: { data: ProfileData }) {
     const parts = (defaults as { avatarParts?: Record<string, string | null> }).avatarParts;
     return { seed: defaults.avatarSeed, ...(parts ? { parts } : {}) };
   });
+  // What the server currently holds, so the save can send avatarParts ONLY
+  // when this session actually changed the pins. Always sending would make
+  // every unrelated save an explicit clear ({} is the clear sentinel), which
+  // let a stale second tab wipe pins saved elsewhere.
+  const savedAvatarParts = useRef(
+    JSON.stringify((defaults as { avatarParts?: Record<string, string | null> }).avatarParts ?? {}),
+  );
   const [purpose, setPurpose] = useState(defaults.purpose ?? '');
   const [houseStyle, setHouseStyle] = useState(defaults.houseStyle ?? '');
   const [siteName, setSiteName] = useState(defaults.siteName ?? '');
@@ -204,25 +211,36 @@ function ProfileForm({ data }: { data: ProfileData }) {
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    save.mutate({
-      timezone: tz,
-      locale: loc,
-      avatarSeed: avatar?.seed ?? '',
-      // Builder pins. {} clears on an updated brain; an old brain's schema
-      // isn't strict here, so it simply ignores the key — nothing breaks.
-      avatarParts: avatar?.parts ?? {},
-      reminderAgentSlug: reminderAgent === REMINDER_AUTO ? '' : reminderAgent,
-      reminderChannel,
-      purpose,
-      houseStyle,
-      purposeArchetype: archetype,
-      siteName,
-      peerName,
-      streamThoughts,
-      thoughtTrailMode: replaceTrail ? 'replace' : 'list',
-      persistThoughts,
-      thinkingBudget,
-    });
+    // Builder pins ride along ONLY when this session changed them ({} = clear;
+    // an omitted key leaves the server's copy alone). An old brain's schema
+    // isn't strict here, so when it strips the key the pins are lost — but
+    // only a save that deliberately edited them can lose them now.
+    const partsNow = JSON.stringify(avatar?.parts ?? {});
+    const partsChanged = partsNow !== savedAvatarParts.current;
+    save.mutate(
+      {
+        timezone: tz,
+        locale: loc,
+        avatarSeed: avatar?.seed ?? '',
+        ...(partsChanged ? { avatarParts: avatar?.parts ?? {} } : {}),
+        reminderAgentSlug: reminderAgent === REMINDER_AUTO ? '' : reminderAgent,
+        reminderChannel,
+        purpose,
+        houseStyle,
+        purposeArchetype: archetype,
+        siteName,
+        peerName,
+        streamThoughts,
+        thoughtTrailMode: replaceTrail ? 'replace' : 'list',
+        persistThoughts,
+        thinkingBudget,
+      },
+      {
+        onSuccess: () => {
+          if (partsChanged) savedAvatarParts.current = partsNow;
+        },
+      },
+    );
   };
 
   return (
