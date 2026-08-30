@@ -221,7 +221,7 @@ export function SidebarNav({
           // the rail; the blur keeps rows scrolling under it from fighting
           // the filter text.
           <div className="sticky top-0 z-10 -mt-3 -mx-3 bg-sidebar/60 px-3 pb-2 pt-3 backdrop-blur group-data-[nav-collapsed=true]/shell:hidden">
-            <div className="relative">
+            <div className="group/filter relative">
               <Search
                 className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden
@@ -233,14 +233,16 @@ export function SidebarNav({
                 onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
                 placeholder="Filter menu…"
                 aria-label="Filter navigation"
-                className="h-9 pl-8 pr-8"
+                // The webkit reset kills the input's NATIVE clear x — the custom
+                // button below is the only clear control, revealed on hover/focus.
+                className="h-9 pl-8 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
               />
               {query && (
                 <button
                   type="button"
                   onClick={() => setQuery('')}
                   aria-label="Clear filter"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition group-hover/filter:opacity-100 group-focus-within/filter:opacity-100 hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="size-3.5" />
                 </button>

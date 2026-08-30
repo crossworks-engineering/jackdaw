@@ -1,6 +1,6 @@
 'use client';
 
-import { ThinkingOrb, type OrbState } from 'thinking-orbs';
+import { ThinkingOrb, type OrbSize, type OrbState } from 'thinking-orbs';
 
 /** Map a live stage label ("Searching the web…", "Writing the reply…") to the
  *  orb animation that best matches the activity. Unrecognised or absent labels
@@ -22,17 +22,20 @@ export function orbStateForLabel(label?: string | null): OrbState {
  */
 export function AiThinkingOrb({
   label,
+  size = 20,
   className,
   style,
 }: {
   label?: string | null;
+  /** The package ships two tuned presets: 20 (inline) and 64 (chat avatar). */
+  size?: OrbSize;
   className?: string;
   style?: React.CSSProperties;
 }) {
   return (
     <ThinkingOrb
       state={orbStateForLabel(label)}
-      size={20}
+      size={size}
       className={className}
       style={style}
       aria-hidden

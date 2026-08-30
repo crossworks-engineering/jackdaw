@@ -2,14 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import {
-  Activity,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  PanelRight,
-  PanelRightClose,
-} from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, PanelRight, PanelRightClose } from 'lucide-react';
+import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatMicroUsd } from '@mantle/web-ui/traces-format';
 import { ActionIcon } from '@/components/journey/action-icon';
@@ -148,7 +142,7 @@ export function LiveColumn({
           <div className="flex-1 overflow-y-auto scrollbar-thin">
             {!loaded ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <Loader2 className="size-5 animate-spin" aria-hidden />
+                <AiThinkingOrb size={20} />
               </div>
             ) : !hasAny ? (
               <div className="flex flex-col items-center justify-center px-4 py-12 text-center text-sm text-muted-foreground">
@@ -167,12 +161,10 @@ export function LiveColumn({
                       return (
                         <Row key={it.traceId} it={it}>
                           <div className="flex items-center gap-2">
-                            {/* Always spinning — a long-running process is busy,
-                                not broken; the elapsed timer shows progress. */}
-                            <Loader2
-                              className="size-3.5 shrink-0 animate-spin text-success-ink"
-                              aria-hidden
-                            />
+                            {/* Always animating — a long-running process is busy,
+                                not broken; the elapsed timer shows progress. The
+                                orb's animation follows the item's label. */}
+                            <AiThinkingOrb label={it.label} className="shrink-0" />
                             <ActionIcon
                               iconKey={it.iconKey}
                               className="size-3.5 shrink-0 text-muted-foreground"
@@ -286,14 +278,14 @@ function CollapsedRail({
       </button>
       <div className="my-1 h-px w-6 bg-border" />
 
-      {!loaded && <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />}
+      {!loaded && <AiThinkingOrb />}
 
       <StatusPip
         show={active > 0}
         count={active}
         title={`${active} running`}
         onClick={onToggle}
-        icon={<Loader2 className="size-4 animate-spin text-success-ink" aria-hidden />}
+        icon={<AiThinkingOrb />}
       />
       <StatusPip
         show={failures > 0}

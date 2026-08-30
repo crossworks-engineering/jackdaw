@@ -86,11 +86,11 @@ function formatTime(iso: string): string {
 
 function ThinkingBubble({ label }: { label: string | null }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-2xl bg-primary/10 px-3.5 py-3 text-foreground">
+    <div className="inline-flex items-center gap-2 py-2">
       <span className="sr-only">The assistant is working</span>
       <AiThinkingOrb label={label} className="shrink-0" />
       {label && (
-        <span className="text-xs text-current opacity-70" aria-hidden>
+        <span className="text-xs text-muted-foreground" aria-hidden>
           {label}
         </span>
       )}

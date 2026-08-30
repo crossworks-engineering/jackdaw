@@ -1434,13 +1434,11 @@ export function AssistantClient({
                               </div>
                             ) : turn.response.status === 'pending' ? (
                               // Durable pending turn (reloaded mid-flight) — the runner
-                              // is still working; show a thinking bubble.
-                              <div
-                                className="inline-flex items-center gap-2 rounded-2xl px-3.5 py-3"
-                                style={{ backgroundColor: accent.soft }}
-                              >
+                              // is still working; show the bare thinking orb (no bubble:
+                              // a tinted background behind the orb reads as a stray card).
+                              <div className="inline-flex items-center gap-2 py-2">
                                 <AiThinkingOrb className="shrink-0" />
-                                <span className="text-xs text-current opacity-70">
+                                <span className="text-xs text-muted-foreground">
                                   {agentName ?? 'Assistant'} is working…
                                 </span>
                               </div>
@@ -1575,16 +1573,13 @@ export function AssistantClient({
                                 )}
                               </div>
                             ) : (
-                              <div
-                                className="inline-flex items-center gap-2 rounded-2xl px-3.5 py-3"
-                                style={{ backgroundColor: accent.soft }}
-                              >
+                              <div className="inline-flex items-center gap-2 py-2">
                                 <span className="sr-only">
                                   {agentName ?? 'Assistant'} is {stageLabel ?? 'typing'}
                                 </span>
                                 <AiThinkingOrb label={stageLabel} className="shrink-0" />
                                 {stageLabel && (
-                                  <span className="text-xs text-current opacity-70" aria-hidden>
+                                  <span className="text-xs text-muted-foreground" aria-hidden>
                                     {stageLabel}
                                   </span>
                                 )}

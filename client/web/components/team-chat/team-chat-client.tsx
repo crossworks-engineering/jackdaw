@@ -142,19 +142,15 @@ function PromptCard({ message }: { message: TeamMessage }) {
   );
 }
 
-/** Thought-orb thinking bubble with the live status label — the same
- *  treatment as the assistant chat, on the theme's primary soft tint. */
+/** Thought-orb thinking indicator with the live status label — the same
+ *  treatment as the assistant chat: the bare orb, no bubble background. */
 function ThinkingBubble({ label }: { label: string | null }) {
   return (
-    // Soft primary tint with INHERITED foreground for the label — never
-    // text-primary-ink over a primary tint (unpaired fill: light-primary themes
-    // would wash the label out; see apps/web/CLAUDE.md §2 and the assistant's
-    // accent-soft bubble, which also renders content in currentColor).
-    <div className="inline-flex items-center gap-2 rounded-2xl bg-primary/10 px-3.5 py-3 text-foreground">
+    <div className="inline-flex items-center gap-2 py-2">
       <span className="sr-only">The assistant is working</span>
       <AiThinkingOrb label={label} className="shrink-0" />
       {label && (
-        <span className="text-xs text-current opacity-70" aria-hidden>
+        <span className="text-xs text-muted-foreground" aria-hidden>
           {label}
         </span>
       )}
