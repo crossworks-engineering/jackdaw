@@ -24,6 +24,7 @@ import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/compose
 import { KindBadge, TopicFlags, type ForumKind, type ForumStatus } from '@mantle/web-ui/forum-meta';
 import { teamFetch, teamEventStream } from '@mantle/web-ui/team-fetch';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
+import { LightboxImages } from '@/components/image-lightbox';
 import {
   applyLiveTurnEvent,
   emptyLiveTurn,
@@ -796,8 +797,10 @@ export function TopicViewClient({
         <div
           ref={threadRef}
           onScroll={onScroll}
-          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6"
+          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6 [&_img]:cursor-zoom-in"
         >
+          {/* Click any inline image → fullscreen zoomable viewer. */}
+          <LightboxImages containerRef={threadRef} />
           <div ref={contentRef} className="flex w-full flex-col gap-6">
             {hasEarlier && (
               <div className="flex justify-center">

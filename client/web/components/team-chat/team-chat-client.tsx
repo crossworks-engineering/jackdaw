@@ -30,6 +30,7 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { CopyButton } from '@mantle/web-ui/copy-button';
 import { TokenGate } from '@/components/team-chat/token-gate';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
+import { LightboxImages } from '@/components/image-lightbox';
 import { teamFetch, teamEventStream } from '@mantle/web-ui/team-fetch';
 import { ASSISTANT_TURN_MAX_CHARS } from '@mantle/web-ui/assistant-limits';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
@@ -486,8 +487,10 @@ export function TeamChatClient({ archive = false }: { archive?: boolean } = {}) 
         <div
           ref={threadRef}
           onScroll={onScroll}
-          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6"
+          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6 [&_img]:cursor-zoom-in"
         >
+          {/* Click any inline image → fullscreen zoomable viewer. */}
+          <LightboxImages containerRef={threadRef} />
           {/* Height-tracking wrapper for the ResizeObserver re-pin above. */}
           <div ref={contentRef}>
             {turns.length === 0 && !live ? (

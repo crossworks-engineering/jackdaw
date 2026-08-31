@@ -10,6 +10,7 @@ import { useTurnStage } from '@/components/assistant/use-turn-stage';
 import { useTurnStream, type ThoughtEvent } from '@/components/assistant/use-turn-stream';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
+import { LightboxImages } from '@/components/image-lightbox';
 import {
   ArrowDown,
   CornerDownLeft,
@@ -1358,8 +1359,10 @@ export function AssistantClient({
         <div
           ref={scrollerRef}
           onScroll={onScroll}
-          className="@container/thread min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6"
+          className="@container/thread min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6 [&_img]:cursor-zoom-in"
         >
+          {/* Click any inline image → fullscreen zoomable viewer. */}
+          <LightboxImages containerRef={scrollerRef} />
           {/* Height-tracking wrapper: the ResizeObserver above watches this node so
             late content growth (TipTap reply bodies, images loading in) re-pins
             the scroll to the bottom instead of stranding it mid-thread. */}

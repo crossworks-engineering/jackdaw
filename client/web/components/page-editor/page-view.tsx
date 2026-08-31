@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { EditorContent, useEditor, type JSONContent } from '@tiptap/react';
+import { ZoomableImages } from '@/components/image-lightbox';
 import { pageExtensions } from './extensions';
 import { useDrawEmbedTheme } from './draw-embed-theme';
 
@@ -34,5 +35,12 @@ export function PageView({ content }: { content: JSONContent }) {
   }, [editor, content]);
 
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  // READ surface only: clicking an inline image opens the fullscreen zoom
+  // viewer. The EDITOR keeps native clicks (select/drag the node) — zooming
+  // while editing would fight the selection.
+  return (
+    <ZoomableImages className="contents">
+      <EditorContent editor={editor} />
+    </ZoomableImages>
+  );
 }
