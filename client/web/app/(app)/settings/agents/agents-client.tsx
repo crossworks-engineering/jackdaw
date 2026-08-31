@@ -50,7 +50,6 @@ import { AvatarPicker } from '@/components/avatar-picker';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { ToggleList, type ToggleListItem } from '@/components/toggle-list';
 import { TelegramBotSection } from '@/components/telegram/telegram-bot-section';
-import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/contract-next';

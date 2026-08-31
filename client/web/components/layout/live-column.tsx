@@ -60,21 +60,40 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
 }
 
 /** Order the active list for display: delegated child runs (parent_trace_id
- *  pointing at another ACTIVE item) nest under their delegating parent, so a
- *  fan-out reads as one block. A child whose parent already finished renders
- *  as a plain root row — better shown flat than hidden. */
+ *  pointing at another ACTIVE item) nest under their ROOT ancestor, so a
+ *  fan-out reads as one block. Grouping by root — not direct parent — matters
+ *  because delegation chains go 3 deep (responder → specialist → specialist);
+ *  grouping by parent would silently drop the grandchild, whose parent is not
+ *  a root row. A child whose ancestors already finished (or, defensively, a
+ *  cyclic chain) renders as a plain root row — better shown flat than hidden. */
 function groupActive(active: ActivityItem[]): { item: ActivityItem; children: ActivityItem[] }[] {
   const ids = new Set(active.map((i) => i.traceId));
+  const parentOf = new Map<string, string>();
+  for (const it of active) {
+    const parent = activityAgent(it).parentTraceId;
+    if (parent && parent !== it.traceId && ids.has(parent)) parentOf.set(it.traceId, parent);
+  }
+  const rootOf = (id: string): string => {
+    let cur = id;
+    const seen = new Set([cur]);
+    while (parentOf.has(cur)) {
+      const next = parentOf.get(cur)!;
+      if (seen.has(next)) return id; // cycle — degrade to flat, never vanish
+      seen.add(next);
+      cur = next;
+    }
+    return cur;
+  };
   const childrenOf = new Map<string, ActivityItem[]>();
   const roots: ActivityItem[] = [];
   for (const it of active) {
-    const parent = activityAgent(it).parentTraceId;
-    if (parent && ids.has(parent)) {
-      const list = childrenOf.get(parent) ?? [];
-      list.push(it);
-      childrenOf.set(parent, list);
-    } else {
+    const root = rootOf(it.traceId);
+    if (root === it.traceId) {
       roots.push(it);
+    } else {
+      const list = childrenOf.get(root) ?? [];
+      list.push(it);
+      childrenOf.set(root, list);
     }
   }
   return roots.map((item) => ({ item, children: childrenOf.get(item.traceId) ?? [] }));

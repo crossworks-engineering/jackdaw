@@ -64,9 +64,15 @@ export function AvatarWithLevel({
           height: badgeH,
           minWidth: badgeH,
           padding: '0 3px',
-          fontSize: Math.max(8, Math.round(badgeH * 0.6)),
+          // 9px floor — the codebase's smallest badge text is text-[9px];
+          // 8px is illegible on the 28px table avatars.
+          fontSize: Math.max(9, Math.round(badgeH * 0.6)),
         }}
         title={title}
+        // role="img" makes the aria-label valid (a bare span is role
+        // generic, where aria-label is prohibited and AT-ignored) so screen
+        // readers hear "Level N", not a naked number.
+        role="img"
         aria-label={title ?? `Level ${level}`}
       >
         {level}

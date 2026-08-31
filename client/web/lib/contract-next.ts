@@ -55,6 +55,10 @@ export function experienceOf(agent: unknown): AgentExperience | null {
   if (!e || typeof e !== 'object') return null;
   const x = e as Record<string, unknown>;
   if (typeof x.level !== 'number' || typeof x.xp !== 'number') return null;
+  // experienceTitle dereferences components — a payload without it (some
+  // intermediate server build) must fail closed here, not throw in render.
+  const c = x.components as Record<string, unknown> | null | undefined;
+  if (!c || typeof c !== 'object' || typeof c.turns !== 'number') return null;
   return e as AgentExperience;
 }
 
