@@ -27,8 +27,8 @@ import {
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@mantle/web-ui/ui/avatar';
-import { assetUrl } from '@mantle/web-ui/asset-url';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { ProfilePhoto } from '@/components/profile-photo';
 import { ThemeModeItems } from '@mantle/web-ui/theme-toggle';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { themeLabel } from '@mantle/web-ui/lib/themes';
@@ -124,21 +124,21 @@ export function ProfileMenu({
     router.refresh();
   }
 
-  // photo → generated seed → initials. The photo src rides assetUrl so a
-  // detached client's <img> can carry the shell's asset token.
-  const face = photoVersion ? (
-    // eslint-disable-next-line @next/next/no-img-element -- private, token-authed bytes
-    <img
-      src={assetUrl(`/api/profile/photo?v=${photoVersion}`)}
-      alt=""
-      className="size-7 shrink-0 rounded-full border object-cover"
-    />
-  ) : avatar ? (
+  // photo → generated seed → initials, with each rung falling to the next:
+  // ProfilePhoto steps down to `generated` itself when the bytes won't load
+  // (storage down, token race on a detached first paint) — never a broken
+  // image glyph in the rail.
+  const generated = avatar ? (
     <GeneratedAvatar seed={avatar.seed} parts={avatar.parts} size={28} />
   ) : (
     <Avatar className="size-7">
       <AvatarFallback className="text-[10px] font-semibold">{initials}</AvatarFallback>
     </Avatar>
+  );
+  const face = photoVersion ? (
+    <ProfilePhoto version={photoVersion} size={28} fallback={generated} />
+  ) : (
+    generated
   );
 
   return (

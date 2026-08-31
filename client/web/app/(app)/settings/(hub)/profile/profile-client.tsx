@@ -130,20 +130,19 @@ function ProfileForm({ data }: { data: ProfileData }) {
   );
   // Seed + builder pins — the STYLE is the brain's, set in Settings →
   // Appearance. A stored seed is what makes this avatar this person's.
-  // `avatarParts` is read through a cast until the @mantle/client-types pin
-  // learns the field (the wire already carries it on updated brains).
   const [avatar, setAvatar] = useState<AvatarValue | null>(() => {
     if (!defaults.avatarSeed) return null;
-    const parts = (defaults as { avatarParts?: Record<string, string | null> }).avatarParts;
-    return { seed: defaults.avatarSeed, ...(parts ? { parts } : {}) };
+    return {
+      seed: defaults.avatarSeed,
+      ...(defaults.avatarParts ? { parts: defaults.avatarParts } : {}),
+    };
   });
-  // What the server currently holds, so the save can send avatarParts ONLY
-  // when this session actually changed the pins. Always sending would make
-  // every unrelated save an explicit clear ({} is the clear sentinel), which
-  // let a stale second tab wipe pins saved elsewhere.
-  const savedAvatarParts = useRef(
-    JSON.stringify((defaults as { avatarParts?: Record<string, string | null> }).avatarParts ?? {}),
-  );
+  // What the server currently holds, so the save sends the avatar fields ONLY
+  // when this session actually changed them. Always sending made every
+  // unrelated save an explicit write ('' / {} are the clear sentinels), which
+  // let a stale second tab wipe the seed or pins another tab had just saved.
+  const savedAvatarSeed = useRef(defaults.avatarSeed ?? '');
+  const savedAvatarParts = useRef(JSON.stringify(defaults.avatarParts ?? {}));
   const [purpose, setPurpose] = useState(defaults.purpose ?? '');
   const [houseStyle, setHouseStyle] = useState(defaults.houseStyle ?? '');
   const [siteName, setSiteName] = useState(defaults.siteName ?? '');
@@ -216,13 +215,15 @@ function ProfileForm({ data }: { data: ProfileData }) {
     // an omitted key leaves the server's copy alone). An old brain's schema
     // isn't strict here, so when it strips the key the pins are lost — but
     // only a save that deliberately edited them can lose them now.
+    const seedNow = avatar?.seed ?? '';
+    const seedChanged = seedNow !== savedAvatarSeed.current;
     const partsNow = JSON.stringify(avatar?.parts ?? {});
     const partsChanged = partsNow !== savedAvatarParts.current;
     save.mutate(
       {
         timezone: tz,
         locale: loc,
-        avatarSeed: avatar?.seed ?? '',
+        ...(seedChanged ? { avatarSeed: seedNow } : {}),
         ...(partsChanged ? { avatarParts: avatar?.parts ?? {} } : {}),
         reminderAgentSlug: reminderAgent === REMINDER_AUTO ? '' : reminderAgent,
         reminderChannel,
@@ -238,6 +239,7 @@ function ProfileForm({ data }: { data: ProfileData }) {
       },
       {
         onSuccess: () => {
+          if (seedChanged) savedAvatarSeed.current = seedNow;
           if (partsChanged) savedAvatarParts.current = partsNow;
         },
       },

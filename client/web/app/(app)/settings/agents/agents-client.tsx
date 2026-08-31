@@ -141,9 +141,7 @@ const AGENT_ERROR_ORDER: { field: keyof AgentErrors; section: AgentSection }[] =
 // names below keep the rest of this file unchanged. `AgentSummary` is the agent
 // DTO; the others are aliases for the jsonb sub-shapes the form reads/writes.
 type MemoryConfig = AgentMemoryConfigDTO;
-// `parts` (avatar-builder pins) is local until the @mantle/client-types pin
-// catches up with the server's AgentAvatarDTO — same wire shape.
-type AgentAvatar = AgentAvatarDTO & { parts?: Record<string, string | null> };
+type AgentAvatar = AgentAvatarDTO;
 
 type AgentSummary = AgentDTO;
 

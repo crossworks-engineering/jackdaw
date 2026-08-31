@@ -138,8 +138,20 @@ export function AvatarBuilderDialog({
   // saved under another brain style would be deleted by an unrelated re-roll,
   // and a save before the style chunk loads (rows empty, parts untouched)
   // would wipe everything. Passing the map through makes both a no-op.
+  //
+  // One bound only: the server rejects >64 entries OUTRIGHT (the whole form
+  // save fails, opaquely), so if carried foreign-style entries ever push the
+  // map past the cap, the current style's choices win and the oldest foreign
+  // entries are shed. Takes ~12 fully-pinned styles to ever matter.
+  const SERVER_PARTS_CAP = 64;
   const save = () => {
-    onSave({ seed, ...(Object.keys(parts).length ? { parts } : {}) });
+    let out = parts;
+    if (Object.keys(out).length > SERVER_PARTS_CAP) {
+      const current = Object.entries(out).filter(([k]) => rowNames.has(k));
+      const foreign = Object.entries(out).filter(([k]) => !rowNames.has(k));
+      out = Object.fromEntries([...current, ...foreign].slice(0, SERVER_PARTS_CAP));
+    }
+    onSave({ seed, ...(Object.keys(out).length ? { parts: out } : {}) });
     onOpenChange(false);
   };
 

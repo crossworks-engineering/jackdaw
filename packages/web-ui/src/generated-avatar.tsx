@@ -8,9 +8,9 @@ import {
   isAvatarStyleReady,
   loadAvatarStyle,
   renderAvatarSvgSync,
+  type AvatarParts,
   type AvatarTint,
 } from './avatar';
-import { renderAvatarPartsSvgSync, type AvatarParts } from './avatar-parts';
 
 /**
  * The generated avatar, themed to the live palette.
@@ -94,9 +94,14 @@ export function GeneratedAvatar({
   const svg = React.useMemo(
     () =>
       ready
-        ? partsKey
-          ? renderAvatarPartsSvgSync({ style: effectiveStyle, seed, parts, size, ramp, tint })
-          : renderAvatarSvgSync({ style: effectiveStyle, seed, size, ramp, tint })
+        ? renderAvatarSvgSync({
+            style: effectiveStyle,
+            seed,
+            ...(partsKey ? { parts } : {}),
+            size,
+            ramp,
+            tint,
+          })
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- parts is represented by partsKey
     [ready, effectiveStyle, tint, seed, size, ramp, partsKey],
