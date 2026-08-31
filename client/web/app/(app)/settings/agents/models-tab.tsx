@@ -36,8 +36,9 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { CuratedPoolSelect } from '@/components/curated-pool-select';
 import { ModelSelect } from '@/components/ui/model-select';
-import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
+import { experienceOf, experienceTitle } from '@/lib/contract-next';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
 import type { ExplorerModel } from '@mantle/client-types';
 import type { AgentDTO } from '@mantle/client-types';
@@ -222,6 +223,7 @@ export function ModelsTab({
               const change = staged.get(agent.id) ?? null;
               const current = tripleOf(agent);
               const error = errors.get(agent.id);
+              const xp = experienceOf(agent);
               const showQuickApply =
                 lastSelected !== null &&
                 !applying &&
@@ -231,10 +233,12 @@ export function ModelsTab({
                 <TableRow key={agent.id} className={cn(!agent.enabled && 'opacity-60')}>
                   <TableCell>
                     <div className="flex items-center gap-2.5">
-                      <GeneratedAvatar
+                      <AvatarWithLevel
                         seed={agent.avatar?.seed || agent.slug}
                         parts={avatarPartsOf(agent.avatar)}
                         size={28}
+                        level={xp?.level}
+                        title={xp ? experienceTitle(xp) : undefined}
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">

@@ -20,6 +20,7 @@
     "./asset-url": "./src/asset-url.ts",
     "./avatar": "./src/avatar.ts",
     "./avatar-parts": "./src/avatar-parts.ts",
+    "./avatar-with-level": "./src/avatar-with-level.tsx",
     "./avatar-style-provider": "./src/avatar-style-provider.tsx",
     "./backdrop": "./src/backdrop.ts",
     "./background-provider": "./src/background-provider.tsx",

@@ -51,7 +51,9 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { ToggleList, type ToggleListItem } from '@/components/toggle-list';
 import { TelegramBotSection } from '@/components/telegram/telegram-bot-section';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
+import { experienceOf, experienceTitle } from '@/lib/contract-next';
 import { useAvatarStyle } from '@mantle/web-ui/avatar-style-provider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { PersonaNotesEditor } from './persona-notes-editor';
@@ -1063,6 +1065,7 @@ export function AgentsClient() {
                   ) : (
                     agents.map((a) => {
                       const selected = selectedId === a.id;
+                      const xp = experienceOf(a);
                       return (
                         <ListCard
                           key={a.id}
@@ -1076,11 +1079,15 @@ export function AgentsClient() {
                               adds is a rerolled seed. Falling back to the slug
                               means a fresh brain looks right immediately, rather
                               than showing initials until each agent is opened and
-                              saved one by one. */}
-                            <GeneratedAvatar
+                              saved one by one. The corner badge is the agent's
+                              experience level — earned from real recorded work,
+                              display only (hover shows the counts behind it). */}
+                            <AvatarWithLevel
                               seed={a.avatar?.seed || a.slug}
                               parts={avatarPartsOf(a.avatar)}
                               size={32}
+                              level={xp?.level}
+                              title={xp ? experienceTitle(xp) : undefined}
                             />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">

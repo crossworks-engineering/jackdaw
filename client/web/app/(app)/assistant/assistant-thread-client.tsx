@@ -7,8 +7,9 @@ import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { agentAccent } from '@/lib/agent-color';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
-import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
+import { experienceOf, experienceTitle } from '@/lib/contract-next';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { AssistantDockToggle, useAssistantDock } from '@/components/assistant/assistant-dock';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
@@ -89,6 +90,7 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
 
   const { agents: agentList, agent, messages } = threadQuery.data;
   const accent = agent ? agentAccent(agent.slug) : null;
+  const agentXp = experienceOf(agent);
 
   return (
     // `relative isolate` is what makes the backdrop below safe: unlike the
@@ -101,12 +103,15 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-3">
         <div className="flex items-center gap-3">
           {/* No initials branch: the agent always has an avatar now — the seed
-              falls back to its slug when no record is stored. */}
+              falls back to its slug when no record is stored. The corner badge
+              is the agent's experience level (display only; hover explains). */}
           {agent && (
-            <GeneratedAvatar
+            <AvatarWithLevel
               seed={agent.avatar?.seed || agent.slug}
               parts={avatarPartsOf(agent.avatar)}
               size={40}
+              level={agentXp?.level}
+              title={agentXp ? experienceTitle(agentXp) : undefined}
               className="ring-2"
               containerStyle={{ '--tw-ring-color': accent?.border } as React.CSSProperties}
             />

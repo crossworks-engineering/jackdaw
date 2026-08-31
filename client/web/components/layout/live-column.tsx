@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Activity, AlertCircle, CheckCircle2, PanelRight, PanelRightClose } from 'lucide-react';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
+import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { activityAgent } from '@/lib/contract-next';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatMicroUsd } from '@mantle/web-ui/traces-format';
 import { ActionIcon } from '@/components/journey/action-icon';
@@ -55,6 +57,65 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
     return () => clearInterval(id);
   }, []);
   return <>{formatElapsed(ageSeconds(startedAt))}</>;
+}
+
+/** Order the active list for display: delegated child runs (parent_trace_id
+ *  pointing at another ACTIVE item) nest under their delegating parent, so a
+ *  fan-out reads as one block. A child whose parent already finished renders
+ *  as a plain root row — better shown flat than hidden. */
+function groupActive(active: ActivityItem[]): { item: ActivityItem; children: ActivityItem[] }[] {
+  const ids = new Set(active.map((i) => i.traceId));
+  const childrenOf = new Map<string, ActivityItem[]>();
+  const roots: ActivityItem[] = [];
+  for (const it of active) {
+    const parent = activityAgent(it).parentTraceId;
+    if (parent && ids.has(parent)) {
+      const list = childrenOf.get(parent) ?? [];
+      list.push(it);
+      childrenOf.set(parent, list);
+    } else {
+      roots.push(it);
+    }
+  }
+  return roots.map((item) => ({ item, children: childrenOf.get(item.traceId) ?? [] }));
+}
+
+/** One in-flight row: what is running, WHO is running it (agent avatar + name,
+ *  worker slug for pipeline runs), and for how long. `nested` = a delegated
+ *  child run, indented under its parent. */
+function ActiveRow({ it, nested }: { it: ActivityItem; nested?: boolean }) {
+  const longRunning = ageSeconds(it.startedAt) > STALL_THRESHOLD_S;
+  const who = activityAgent(it);
+  const whoName = who.agentName ?? who.workerSlug;
+  const whoSeed = who.avatarSeed ?? who.workerSlug;
+  return (
+    <Row it={it} indent={nested}>
+      <div className="flex items-center gap-2">
+        {/* Always animating — a long-running process is busy,
+            not broken; the elapsed timer shows progress. The
+            orb's animation follows the item's label. */}
+        <AiThinkingOrb label={it.label} className="shrink-0" />
+        <ActionIcon iconKey={it.iconKey} className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate text-sm font-medium">{it.label}</span>
+        <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+          <ElapsedTimer startedAt={it.startedAt} />
+        </span>
+      </div>
+      {whoName && whoSeed && (
+        <div className="flex items-center gap-1.5 pl-5 text-xs text-muted-foreground">
+          <GeneratedAvatar seed={whoSeed} size={14} />
+          <span className="truncate">{whoName}</span>
+          {nested && (
+            <span className="shrink-0 text-[10px] uppercase tracking-wider opacity-70">
+              delegated
+            </span>
+          )}
+          {longRunning && <span className="ml-auto shrink-0">busy</span>}
+        </div>
+      )}
+      {!whoName && longRunning && <div className="pl-5 text-xs text-muted-foreground">busy</div>}
+    </Row>
+  );
 }
 
 export function LiveColumn({
@@ -156,30 +217,14 @@ export function LiveColumn({
               <>
                 {active.length > 0 && (
                   <Section label="Active now">
-                    {active.map((it) => {
-                      const longRunning = ageSeconds(it.startedAt) > STALL_THRESHOLD_S;
-                      return (
-                        <Row key={it.traceId} it={it}>
-                          <div className="flex items-center gap-2">
-                            {/* Always animating — a long-running process is busy,
-                                not broken; the elapsed timer shows progress. The
-                                orb's animation follows the item's label. */}
-                            <AiThinkingOrb label={it.label} className="shrink-0" />
-                            <ActionIcon
-                              iconKey={it.iconKey}
-                              className="size-3.5 shrink-0 text-muted-foreground"
-                            />
-                            <span className="truncate text-sm font-medium">{it.label}</span>
-                            <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-                              <ElapsedTimer startedAt={it.startedAt} />
-                            </span>
-                          </div>
-                          {longRunning && (
-                            <div className="pl-5 text-xs text-muted-foreground">busy</div>
-                          )}
-                        </Row>
-                      );
-                    })}
+                    {groupActive(active).map(({ item, children }) => (
+                      <Fragment key={item.traceId}>
+                        <ActiveRow it={item} />
+                        {children.map((child) => (
+                          <ActiveRow key={child.traceId} it={child} nested />
+                        ))}
+                      </Fragment>
+                    ))}
                   </Section>
                 )}
 
@@ -350,7 +395,16 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-function Row({ it, children }: { it: ActivityItem; children: React.ReactNode }) {
+function Row({
+  it,
+  indent,
+  children,
+}: {
+  it: ActivityItem;
+  /** Delegated child run — indent under the parent row above it. */
+  indent?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <li>
       <Link
@@ -360,7 +414,10 @@ function Row({ it, children }: { it: ActivityItem; children: React.ReactNode }) 
         // and a coloured accent tint blends with the grey muted-foreground meta
         // text. A faint neutral overlay stays visible over any sidebar value in
         // light + dark while keeping the grey text legible.
-        className="flex flex-col gap-0.5 px-4 py-2.5 transition-colors hover:bg-foreground/[0.06]"
+        className={cn(
+          'flex flex-col gap-0.5 px-4 py-2.5 transition-colors hover:bg-foreground/[0.06]',
+          indent && 'pl-8',
+        )}
       >
         {children}
       </Link>
