@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatContext, formatPriceCompact, sortModels } from './model-select-utils';
+import {
+  formatContext,
+  formatPriceCompact,
+  isAliasModel,
+  pinnedFirst,
+  sortModels,
+} from './model-select-utils';
 import type { ExplorerModel } from '@mantle/client-types';
 
 /** Pure-helper coverage for the ModelSelect combobox — the JSX is exercised
@@ -111,5 +117,28 @@ describe('formatPriceCompact', () => {
   it('marks missing sides with ? rather than dropping the row', () => {
     expect(formatPriceCompact(m({ inputPricePerM: 3 }))).toBe('$3 / ?');
     expect(formatPriceCompact(m({ outputPricePerM: 15 }))).toBe('? / $15');
+  });
+});
+
+describe('alias models', () => {
+  it('recognises exactly the ~ prefix', () => {
+    expect(isAliasModel('~google/gemini-pro-latest')).toBe(true);
+    expect(isAliasModel('google/gemini-3.1-pro')).toBe(false);
+    expect(isAliasModel('gpt-4o')).toBe(false);
+  });
+
+  it('pinnedFirst puts exact ids above aliases, keeping each group’s order', () => {
+    const rows: ExplorerModel[] = [
+      { id: '~a/latest', raw: null },
+      { id: 'b/exact-1', raw: null },
+      { id: '~c/latest', raw: null },
+      { id: 'd/exact-2', raw: null },
+    ];
+    expect(pinnedFirst(rows).map((m) => m.id)).toEqual([
+      'b/exact-1',
+      'd/exact-2',
+      '~a/latest',
+      '~c/latest',
+    ]);
   });
 });

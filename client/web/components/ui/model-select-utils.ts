@@ -11,6 +11,27 @@ import type { ExplorerModel } from '@mantle/client-types';
 
 export type ModelSelectSortKey = 'newest' | 'name' | 'cheapest' | 'context';
 
+/** OpenRouter marks auto-updating ALIAS models with a leading `~`
+ *  (`~google/gemini-pro-latest` = "newest Gemini Pro today"): the id is a
+ *  moving target that re-points as the family updates. The server's
+ *  pinned-model-drift maintenance treats `~` pins as tracks-on-purpose; the
+ *  picker's job is to make sure choosing one is never an accident — a NATREF
+ *  vision worker once sat on an alias and indexed 9 drawing sheets with junk
+ *  before anyone realised which model was actually answering. */
+export function isAliasModel(id: string): boolean {
+  return id.startsWith('~');
+}
+
+/** Exact pinned ids before `~` aliases, each group keeping `sorted`'s order —
+ *  an operator reaching for a specific model should meet the stable ids
+ *  first, whatever sort key is active. */
+export function pinnedFirst(sorted: ExplorerModel[]): ExplorerModel[] {
+  return [
+    ...sorted.filter((m) => !isAliasModel(m.id)),
+    ...sorted.filter((m) => isAliasModel(m.id)),
+  ];
+}
+
 /** Sort the model list by the requested key. Stable: rows missing the sort
  *  field fall to the bottom of their group rather than jumbling. */
 export function sortModels(models: ExplorerModel[], key: ModelSelectSortKey): ExplorerModel[] {

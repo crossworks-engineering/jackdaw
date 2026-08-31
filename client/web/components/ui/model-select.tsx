@@ -18,7 +18,9 @@ import {
   formatContext,
   formatPriceCompact,
   hasPrice,
+  isAliasModel,
   isFree,
+  pinnedFirst,
   sortModels,
   type ModelSelectSortKey,
 } from './model-select-utils';
@@ -116,7 +118,10 @@ export function ModelSelect({
     if (listRef.current) listRef.current.scrollTop = 0;
   }, [search, sort]);
 
-  const sorted = useMemo(() => sortModels(models, sort), [models, sort]);
+  // Exact pinned ids above `~` auto-updating aliases within every sort key:
+  // reaching for a specific model must not land on a moving target by
+  // accident (see isAliasModel).
+  const sorted = useMemo(() => pinnedFirst(sortModels(models, sort)), [models, sort]);
   const selected = models.find((m) => m.id === value);
   // Fallback summary when the current value isn't in `models` — e.g. edit
   // mode opening on a model the catalog has since dropped, or a custom
@@ -161,7 +166,10 @@ export function ModelSelect({
               {selected ? (
                 <SelectedSummary model={selected} />
               ) : phantom ? (
-                <span className="font-medium">{phantom.id}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium">{phantom.id}</span>
+                  {isAliasModel(phantom.id) && <AliasBadge />}
+                </span>
               ) : (
                 placeholder
               )}
@@ -241,11 +249,26 @@ export function ModelSelect({
 
 // ── internals ───────────────────────────────────────────────────────────────
 
+/** The `~` auto-updating alias marker. Warning-toned on purpose: picking one
+ *  is legitimate (deliberate auto-upgrade) but must never be an accident —
+ *  workers where output quality matters should pin exact ids. */
+function AliasBadge() {
+  return (
+    <span
+      className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning-ink"
+      title="Auto-updating alias: this id re-points to the newest model in its family, so what answers can change without notice. Pin an exact model id when output quality matters."
+    >
+      auto-updating
+    </span>
+  );
+}
+
 /** One-line summary shown inside the trigger Button when a model is chosen. */
 function SelectedSummary({ model }: { model: ExplorerModel }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       <span className="truncate font-medium">{model.name ?? model.id}</span>
+      {isAliasModel(model.id) && <AliasBadge />}
       {model.contextTokens != null && (
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {formatContext(model.contextTokens)}
@@ -269,6 +292,7 @@ function ModelRow({ model, selected }: { model: ExplorerModel; selected: boolean
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="truncate text-sm font-medium">{model.name ?? model.id}</span>
+          {isAliasModel(model.id) && <AliasBadge />}
           {model.contextTokens != null && (
             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
               {formatContext(model.contextTokens)}
