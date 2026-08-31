@@ -37,6 +37,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import Link from 'next/link';
 import { AvatarPicker, type AvatarValue } from '@/components/avatar-picker';
+import { ProfilePhotoControl } from '@/components/profile-photo-control';
 import { Avatar, AvatarFallback } from '@mantle/web-ui/ui/avatar';
 import { agentInitials } from '@/lib/agent-color';
 // Import the value from the browser-safe LEAF, not the @mantle/content barrel —
@@ -249,6 +250,16 @@ function ProfileForm({ data }: { data: ProfileData }) {
         <span className="text-muted-foreground">Now in your settings:</span>{' '}
         <span className="font-medium">{samplePreview}</span>
       </div>
+
+      <section className="space-y-2">
+        <Label>Photo</Label>
+        <ProfilePhotoControl />
+        <p className="text-xs text-muted-foreground">
+          Optional real photo, cropped in the browser — only the framed square is uploaded. When
+          set, it stands in for the generated avatar below (photo → generated → initials). Yours
+          only; agents keep their generated faces.
+        </p>
+      </section>
 
       <section className="space-y-2">
         <Label>Avatar</Label>

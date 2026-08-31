@@ -87,6 +87,9 @@ function writeCookieValue(name: string, value: string | number) {
 type ShellData = {
   onboarded: boolean;
   avatar: { style: string; seed: string; parts?: Record<string, string | null> | null } | null;
+  /** Uploaded profile photo's sha8 cache-buster; null = no photo. Outranks
+   *  the generated avatar (photo → generated seed → initials). */
+  avatarPhotoVersion?: string | null;
   pendingApprovals: number;
   /** Who this browser is signed in AS (the actor, not the anchor account) —
    *  the rail's profile row. Both null on a brain that stores neither. */
@@ -363,6 +366,7 @@ function ShellFrame({
     displayName: shellQuery.data?.displayName ?? null,
     email: shellQuery.data?.email ?? null,
     avatar: userAvatar,
+    photoVersion: shellQuery.data?.avatarPhotoVersion ?? null,
   };
 
   /**

@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@mantle/web-ui/ui/avatar';
+import { assetUrl } from '@mantle/web-ui/asset-url';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
 import { ThemeModeItems } from '@mantle/web-ui/theme-toggle';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
@@ -40,6 +41,9 @@ export type ProfileIdentity = {
   /** The actor's email — the fallback label, and the menu's secondary line. */
   email?: string | null;
   avatar?: { style: string; seed: string; parts?: Record<string, string | null> | null } | null;
+  /** Uploaded profile photo's cache-buster — when set, the photo IS the face
+   *  (photo → generated seed → initials). */
+  photoVersion?: string | null;
 };
 
 /** Whichever of name/email is the better thing to call this person, plus the
@@ -109,7 +113,7 @@ export function ProfileMenu({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const { primary, initials } = identityOf(identity);
-  const { avatar, email } = identity;
+  const { avatar, email, photoVersion } = identity;
   const { colorTheme } = useColorTheme();
   const chord = useSearchChord();
 
@@ -120,7 +124,16 @@ export function ProfileMenu({
     router.refresh();
   }
 
-  const face = avatar ? (
+  // photo → generated seed → initials. The photo src rides assetUrl so a
+  // detached client's <img> can carry the shell's asset token.
+  const face = photoVersion ? (
+    // eslint-disable-next-line @next/next/no-img-element -- private, token-authed bytes
+    <img
+      src={assetUrl(`/api/profile/photo?v=${photoVersion}`)}
+      alt=""
+      className="size-7 shrink-0 rounded-full border object-cover"
+    />
+  ) : avatar ? (
     <GeneratedAvatar seed={avatar.seed} parts={avatar.parts} size={28} />
   ) : (
     <Avatar className="size-7">
