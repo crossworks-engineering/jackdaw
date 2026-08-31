@@ -487,7 +487,7 @@ export function TeamChatClient({ archive = false }: { archive?: boolean } = {}) 
         <div
           ref={threadRef}
           onScroll={onScroll}
-          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6 [&_img]:cursor-zoom-in"
+          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6"
         >
           {/* Click any inline image → fullscreen zoomable viewer. */}
           <LightboxImages containerRef={threadRef} />

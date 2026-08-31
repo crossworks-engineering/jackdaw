@@ -122,7 +122,10 @@ export function AgentImage({
       src={src}
       alt={alt || kind}
       className={cn(
-        'max-h-96 w-full cursor-zoom-in rounded-lg border border-border object-contain',
+        // Click behavior belongs to the surface's image lightbox now (both
+        // team surfaces mount one) — a local window.open here would be a
+        // second, competing viewer on the same click.
+        'max-h-96 w-full rounded-lg border border-border object-contain',
         // A snapshot is exported light-mode WITH its own background, so it
         // reads as a framed drawing on either page theme rather than adapting
         // — and mangling — its own colours. The share DrawPresenter mats it the
@@ -130,7 +133,6 @@ export function AgentImage({
         kind === 'drawing' && 'bg-white',
         className,
       )}
-      onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
     />
   );
 }

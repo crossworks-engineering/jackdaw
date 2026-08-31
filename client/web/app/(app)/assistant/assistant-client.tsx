@@ -1359,7 +1359,7 @@ export function AssistantClient({
         <div
           ref={scrollerRef}
           onScroll={onScroll}
-          className="@container/thread min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6 [&_img]:cursor-zoom-in"
+          className="@container/thread min-h-0 flex-1 overflow-y-auto scrollbar-thin px-6 py-6"
         >
           {/* Click any inline image → fullscreen zoomable viewer. */}
           <LightboxImages containerRef={scrollerRef} />
@@ -2098,22 +2098,13 @@ function ArtifactView({ artifact }: { artifact: Artifact }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/60">
       {/* eslint-disable-next-line @next/next/no-img-element */}
+      {/* Click behavior belongs to the thread's image lightbox (zoom + open
+          original, data:-URL safe) — the old window.open+document.write
+          fallback would be a second, competing viewer on the same click. */}
       <img
         src={dataUrl}
         alt={artifact.caption ?? 'Generated image'}
-        className="max-h-96 w-full cursor-zoom-in object-contain"
-        onClick={() => {
-          // Open full-size in a new tab so the user can zoom + save.
-          // window.open is cheap; a modal lightbox would be nicer
-          // but doesn't justify the dep right now.
-          const w = window.open();
-          if (w) {
-            w.document.write(
-              `<title>${(artifact.caption ?? 'image').replace(/[<>]/g, '')}</title>` +
-                `<img src="${dataUrl}" style="max-width:100%;display:block;margin:0 auto;" />`,
-            );
-          }
-        }}
+        className="max-h-96 w-full object-contain"
       />
       {artifact.caption && (
         <p className="px-2 py-1 text-[11px] italic text-muted-foreground">🎨 {artifact.caption}</p>
@@ -2146,11 +2137,11 @@ function StoredAttachmentView({ attachment }: { attachment: StoredAttachment }) 
     return (
       <div className="overflow-hidden rounded-lg border border-border bg-background/60">
         {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* Click behavior belongs to the thread's image lightbox now. */}
         <img
           src={src}
           alt={attachment.caption ?? 'image'}
-          className="max-h-96 w-full cursor-zoom-in object-contain"
-          onClick={() => window.open(src, '_blank')}
+          className="max-h-96 w-full object-contain"
         />
         {attachment.caption && (
           <p className="px-2 py-1 text-[11px] italic text-muted-foreground">{attachment.caption}</p>
