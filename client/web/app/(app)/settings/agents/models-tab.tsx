@@ -38,7 +38,7 @@ import { CuratedPoolSelect } from '@/components/curated-pool-select';
 import { ModelSelect } from '@/components/ui/model-select';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
-import { experienceOf, experienceTitle } from '@/lib/contract-next';
+import { experienceOf, experienceTitle } from '@/lib/experience';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
 import type { ExplorerModel } from '@mantle/client-types';
 import type { AgentDTO } from '@mantle/client-types';

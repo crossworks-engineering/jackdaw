@@ -63,15 +63,11 @@ export function SystemVitals() {
   if (!data) return <SystemVitalsSkeleton />;
 
   const { host, postgres, storage, tika, browser, embedder, network, sandboxes } = data;
-  // Media sidecar (yt-dlp + ffmpeg behind video_ingest) — servers ship it from
-  // v0.232.32. Read defensively off the payload rather than the pinned
-  // contract type so this renders against a new brain and simply hides on an
-  // older one that doesn't send the field yet.
-  const media = (
-    data as SystemHealth & {
-      media?: { up: boolean | null; ytDlpVersion: string | null; ffmpegVersion: string | null };
-    }
-  ).media;
+  // Media sidecar (yt-dlp + ffmpeg + the CAD render tiers) — servers ship it
+  // from v0.232.32; the DWF/DWG version fields from v0.232.101. The pin knows
+  // the full shape, but an older BRAIN omits the field entirely on the wire —
+  // keep the undefined guard so the pill simply hides there.
+  const media = (data as SystemHealth & { media?: SystemHealth['media'] }).media;
   const memValue = host.mem
     ? `${formatBytes(host.mem.usedBytes)} / ${formatBytes(host.mem.totalBytes)}`
     : '—';
@@ -113,7 +109,14 @@ export function SystemVitals() {
               label="Media"
               title={
                 media.up
-                  ? `yt-dlp ${media.ytDlpVersion ?? '?'} · ffmpeg ${media.ffmpegVersion ?? '?'}`
+                  ? `yt-dlp ${media.ytDlpVersion ?? '?'} · ffmpeg ${media.ffmpegVersion ?? '?'} · ` +
+                    (media.ezdwfVersion
+                      ? `dwf ${media.ezdwfVersion}`
+                      : 'DWF tier missing (renders fall back to thumbnails)') +
+                    ' · ' +
+                    (media.dwg2dxfVersion && media.ezdxfVersion
+                      ? `dwg ${media.dwg2dxfVersion}/ezdxf ${media.ezdxfVersion}`
+                      : 'DWG tier missing (update the media image to v0.232.99+)')
                   : media.up === false
                     ? 'media sidecar unreachable'
                     : 'not enabled on this box (compose profile `media`)'

@@ -52,7 +52,7 @@ import { ToggleList, type ToggleListItem } from '@/components/toggle-list';
 import { TelegramBotSection } from '@/components/telegram/telegram-bot-section';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
-import { experienceOf, experienceTitle } from '@/lib/contract-next';
+import { experienceOf, experienceTitle } from '@/lib/experience';
 import { useAvatarStyle } from '@mantle/web-ui/avatar-style-provider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { PersonaNotesEditor } from './persona-notes-editor';

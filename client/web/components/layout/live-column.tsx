@@ -5,7 +5,6 @@ import { Fragment, useEffect, useState } from 'react';
 import { Activity, AlertCircle, CheckCircle2, PanelRight, PanelRightClose } from 'lucide-react';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
-import { activityAgent } from '@/lib/contract-next';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatMicroUsd } from '@mantle/web-ui/traces-format';
 import { ActionIcon } from '@/components/journey/action-icon';
@@ -70,7 +69,7 @@ function groupActive(active: ActivityItem[]): { item: ActivityItem; children: Ac
   const ids = new Set(active.map((i) => i.traceId));
   const parentOf = new Map<string, string>();
   for (const it of active) {
-    const parent = activityAgent(it).parentTraceId;
+    const parent = it.parentTraceId;
     if (parent && parent !== it.traceId && ids.has(parent)) parentOf.set(it.traceId, parent);
   }
   const rootOf = (id: string): string => {
@@ -104,9 +103,8 @@ function groupActive(active: ActivityItem[]): { item: ActivityItem; children: Ac
  *  child run, indented under its parent. */
 function ActiveRow({ it, nested }: { it: ActivityItem; nested?: boolean }) {
   const longRunning = ageSeconds(it.startedAt) > STALL_THRESHOLD_S;
-  const who = activityAgent(it);
-  const whoName = who.agentName ?? who.workerSlug;
-  const whoSeed = who.avatarSeed ?? who.workerSlug;
+  const whoName = it.agentName ?? it.workerSlug;
+  const whoSeed = it.avatarSeed ?? it.workerSlug;
   return (
     <Row it={it} indent={nested}>
       <div className="flex items-center gap-2">

@@ -85,8 +85,8 @@ importers:
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(immer@11.1.16)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@mantle/client-types':
-        specifier: npm:@crossworks/client-types@0.232.85
-        version: '@crossworks/client-types@0.232.85'
+        specifier: npm:@crossworks/client-types@0.232.105
+        version: '@crossworks/client-types@0.232.105'
       '@mantle/content-core':
         specifier: npm:@crossworks/content-core@0.232.85
         version: '@crossworks/content-core@0.232.85'
@@ -527,6 +527,9 @@ packages:
 
   '@crossworks/app-build@0.232.85':
     resolution: {integrity: sha512-GOdDAF4KpR5/3oIenYI+v4A6RfIP+rx14CkHhkxoqoXW4caGjhAGSnhZ9hV4j/mv9gFGzbA4WUoFoiHiddfEtA==}
+
+  '@crossworks/client-types@0.232.105':
+    resolution: {integrity: sha512-bOlZcBnazFYnuxBDJWOpxR8gV0AJVSAlxC/nn3kPZmok9PLRX7GrunpPAB8XcgnRidBn9Aq08+bETV/hE+4P/Q==}
 
   '@crossworks/client-types@0.232.85':
     resolution: {integrity: sha512-tgnobCo5N4gJQXAYbAjHpXLh1ff2jwaVMuJHMQs60ot5xaI6fi51hDRImSU0pfwE152pKXOrNBXUSNxLEgkSYQ==}
@@ -6005,6 +6008,8 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
       - supports-color
+
+  '@crossworks/client-types@0.232.105': {}
 
   '@crossworks/client-types@0.232.85': {}
 

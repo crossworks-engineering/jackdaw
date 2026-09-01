@@ -9,7 +9,7 @@ import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
-import { experienceOf, experienceTitle } from '@/lib/contract-next';
+import { experienceOf, experienceTitle } from '@/lib/experience';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { AssistantDockToggle, useAssistantDock } from '@/components/assistant/assistant-dock';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';

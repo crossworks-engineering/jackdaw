@@ -19,7 +19,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@excalidraw/excalidraw": "0.18.1",
-    "@mantle/client-types": "npm:@crossworks/client-types@0.232.85",
+    "@mantle/client-types": "npm:@crossworks/client-types@0.232.105",
     "@mantle/content-core": "npm:@crossworks/content-core@0.232.85",
     "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.85",
     "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.85",
