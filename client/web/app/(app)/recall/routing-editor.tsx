@@ -4,8 +4,6 @@ import { useMemo, useState, useTransition } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
-import { recallOptionsMarkdown } from '@mantle/content-core/recall-compile';
-import { markdownToDoc } from '@mantle/content-core/markdown';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -26,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
+import { withOptionsSection, type PageDoc } from './recall-doc';
 
 /**
  * The routing editor — the "make routing easy" half of the map workshop.
@@ -41,7 +40,6 @@ import {
 
 type OptionDraft = { label: string; useWhen: string; targetId: string };
 
-type PageDoc = { type?: string; content?: unknown[] };
 type PageForCommit = {
   id: string;
   doc: PageDoc;
@@ -253,43 +251,4 @@ export function RoutingEditor({
       </DialogContent>
     </Dialog>
   );
-}
-
-/** Heading test mirrored from recall-compile's parser: any level, text "options". */
-function isOptionsHeading(node: unknown): boolean {
-  const n = node as { type?: string; content?: unknown[] };
-  return n?.type === 'heading' && inlineText(n).trim().toLowerCase() === 'options';
-}
-
-function inlineText(node: {
-  type?: string;
-  text?: string;
-  attrs?: { label?: unknown };
-  content?: unknown[];
-}): string {
-  if (node.type === 'text') return typeof node.text === 'string' ? node.text : '';
-  if (node.type === 'mention') return typeof node.attrs?.label === 'string' ? node.attrs.label : '';
-  if (node.type === 'hardBreak') return ' ';
-  return ((node.content ?? []) as Parameters<typeof inlineText>[0][]).map(inlineText).join('');
-}
-
-/**
- * Replace the trailing Options section: keep every body node BEFORE the LAST
- * "Options" heading exactly as committed (no markdown round-trip of the body —
- * rich content stays untouched), then append the canonical section emitted by
- * `recallOptionsMarkdown`. An empty options list removes the section.
- */
-function withOptionsSection(
-  doc: PageDoc,
-  options: { label: string; useWhen: string; targetPageId: string }[],
-): PageDoc {
-  const content = Array.isArray(doc.content) ? doc.content : [];
-  let headingAt = -1;
-  for (let i = 0; i < content.length; i++) {
-    if (isOptionsHeading(content[i])) headingAt = i;
-  }
-  const body = headingAt === -1 ? content : content.slice(0, headingAt);
-  const md = recallOptionsMarkdown(options);
-  const section = md ? ((markdownToDoc(md) as PageDoc).content ?? []) : [];
-  return { type: 'doc', content: [...body, ...section] };
 }

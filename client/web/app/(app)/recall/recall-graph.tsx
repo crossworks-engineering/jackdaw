@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
+  Panel,
   Position,
   type Edge,
   type Node,
@@ -14,7 +15,17 @@ import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import { useFlowColorMode } from '@mantle/web-ui/hooks/use-flow-color-mode';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
+import { TooltipProvider } from '@mantle/web-ui/ui/tooltip';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
+import {
+  LABEL_H,
+  LABEL_W,
+  RECALL_EDGE_TYPE,
+  recallEdgeTypes,
+  type LabelMode,
+  type OptionEdgeData,
+} from './recall-edge';
 
 /**
  * The routing overview: nodes + option edges, laid out with dagre like the
@@ -22,6 +33,13 @@ import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
  * distinguished (info border), and orphans — the lint's warning made spatial —
  * get a dashed warning border. Built once, used twice: S5's walk replay will
  * light paths up over this same component.
+ *
+ * Edge labels are a custom edge (recall-edge.tsx) rather than React Flow's
+ * built-in SVG `label`, which could not truncate or lift above a neighbour and
+ * so piled up unreadably on any branching map. Two halves make that work: the
+ * chip truncates and tooltips on hover, and the layout below RESERVES
+ * LABEL_W×LABEL_H per edge so dagre routes around the label instead of
+ * pretending it has no size.
  */
 
 const NODE_W = 220;
@@ -37,54 +55,102 @@ export function RecallGraph({
   className?: string;
 }) {
   const colorMode = useFlowColorMode();
-  const { nodes, edges } = useMemo(() => buildGraph(map), [map]);
+  // Local, not URL state: how you like to read the graph is not worth a
+  // navigation, and it must not survive into a shared deep link.
+  const [labelMode, setLabelMode] = useState<LabelMode>('labels');
+  const { nodes, edges } = useMemo(() => buildGraph(map, labelMode), [map, labelMode]);
 
   return (
     <div className={cn('h-[420px] rounded-md border border-border bg-muted/20', className)}>
       <ReactFlowProvider>
-        <ReactFlow
-          colorMode={colorMode}
-          nodes={nodes}
-          edges={edges}
-          onNodeClick={(_e, n) => {
-            const row = map.nodes.find((r) => r.slug === n.id);
-            if (row) onEditNode(row);
-          }}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable
-        >
-          <Background gap={16} size={1} />
-          <Controls />
-        </ReactFlow>
+        {/* The chips live in the edge-label layer, so the provider has to wrap
+            the flow itself, because this app mounts them per feature. */}
+        <TooltipProvider delayDuration={150}>
+          <ReactFlow
+            colorMode={colorMode}
+            nodes={nodes}
+            edges={edges}
+            edgeTypes={recallEdgeTypes}
+            onNodeClick={(_e, n) => {
+              const row = map.nodes.find((r) => r.slug === n.id);
+              if (row) onEditNode(row);
+            }}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            proOptions={{ hideAttribution: true }}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+          >
+            <Background gap={16} size={1} />
+            <Controls />
+            <Panel position="top-right">
+              <ToggleGroup
+                type="single"
+                value={labelMode}
+                // A ToggleGroup can deselect to ''; keep the last mode rather
+                // than falling into an unlabelled graph by accident.
+                onValueChange={(v) => v && setLabelMode(v as LabelMode)}
+                variant="outline"
+                aria-label="Edge label detail"
+                className="bg-card"
+              >
+                <ToggleGroupItem value="labels" aria-label="Show option labels">
+                  Labels
+                </ToggleGroupItem>
+                <ToggleGroupItem value="dots" aria-label="Show option markers only">
+                  Dots
+                </ToggleGroupItem>
+                <ToggleGroupItem value="off" aria-label="Hide option labels">
+                  Off
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </Panel>
+          </ReactFlow>
+        </TooltipProvider>
       </ReactFlowProvider>
     </div>
   );
 }
 
-function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edges: Edge[] } {
+function buildGraph(
+  map: RecallMapDetailDTO,
+  labelMode: LabelMode,
+): { nodes: Node[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
   // LR, not TB: ranks run left→right, so SIBLINGS stack vertically and a map
   // grows DOWN as options multiply — breadth scrolls, depth stays on screen.
-  g.setGraph({ rankdir: 'LR', nodesep: 24, ranksep: 80 });
+  // `ranksep` has to clear a label chip plus air on both sides, and `edgesep`
+  // keeps two labels between the same pair of ranks off each other. These are
+  // the numbers that stop the overlap; the chip's truncation is the backstop.
+  g.setGraph({ rankdir: 'LR', nodesep: 28, ranksep: LABEL_W + 60, edgesep: LABEL_H + 12 });
   g.setDefaultEdgeLabel(() => ({}));
 
   const bySlug = new Set(map.nodes.map((n) => n.slug));
   for (const n of map.nodes) g.setNode(n.slug, { width: NODE_W, height: NODE_H });
 
   const targeted = new Set<string>();
-  const edgeDefs: { source: string; target: string; label: string }[] = [];
+  const edgeDefs: { source: string; target: string; label: string; useWhen: string }[] = [];
   for (const n of map.nodes) {
     for (const o of n.options) {
       // Compiled options always resolve in-map; guard anyway so a half-broken
       // payload can never crash the layout.
       if (!bySlug.has(o.targetSlug)) continue;
       targeted.add(o.targetSlug);
-      edgeDefs.push({ source: n.slug, target: o.targetSlug, label: o.label });
-      g.setEdge(n.slug, o.targetSlug);
+      edgeDefs.push({
+        source: n.slug,
+        target: o.targetSlug,
+        label: o.label,
+        useWhen: o.useWhen,
+      });
+      // Tell dagre the edge CARRIES something. Without a width/height here the
+      // layout treats every edge as a bare line and packs ranks tight enough
+      // that the labels have nowhere to go but on top of each other.
+      g.setEdge(n.slug, o.targetSlug, {
+        width: labelMode === 'labels' ? LABEL_W : LABEL_H,
+        height: LABEL_H,
+        labelpos: 'c',
+      });
     }
   }
 
@@ -125,10 +191,12 @@ function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edges: Edge[] } {
     id: `${e.source}__${e.target}__${i}`,
     source: e.source,
     target: e.target,
-    label: e.label,
-    labelStyle: { fontSize: 10, fill: 'var(--muted-foreground)' },
-    labelBgStyle: { fill: 'var(--background)', fillOpacity: 0.85 },
-    style: { stroke: 'rgb(148 163 184)', strokeWidth: 1.5 },
+    type: RECALL_EDGE_TYPE,
+    data: { label: e.label, useWhen: e.useWhen, mode: labelMode } satisfies OptionEdgeData,
+    // Token, not the old hardcoded slate. `--border` alone is too faint to
+    // trace across a big map, so this is the muted ink held back to roughly
+    // border weight: legible in every theme, light and dark.
+    style: { stroke: 'var(--muted-foreground)', strokeOpacity: 0.45, strokeWidth: 1.5 },
   }));
 
   return { nodes, edges };

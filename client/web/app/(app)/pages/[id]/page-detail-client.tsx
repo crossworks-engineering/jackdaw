@@ -25,6 +25,17 @@ import { EmojiPicker } from '@/components/emoji-picker';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { ShareControl } from '@/components/share-control';
 import { RecallBadge } from './recall-badge';
+
+/** The two tags that DO something. Everything else on a page is a label; these
+ *  turn the page into memory a brain serves to agents, and they are owner-only
+ *  precisely because of that. Explaining them on the pill is the cheapest
+ *  possible fix for "how was I supposed to know?". */
+const RECALL_TAG_HINTS: Record<string, string> = {
+  recall:
+    'Recall: this page is the root of a memory map agents walk. Compiled and served on every commit.',
+  prompt:
+    'Recall: agents find this page by MEANING via recall_match. It must open with a “Use when: …” line.',
+};
 import { ExportMenu } from '@/components/export/export-menu';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
@@ -856,6 +867,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
         value={tags}
         onChange={setTags}
         placeholder="Add tags…"
+        hints={RECALL_TAG_HINTS}
         className="ml-auto min-h-8 w-auto max-w-full basis-auto justify-end border-transparent bg-transparent px-0 py-0 sm:max-w-[45%]"
       />
     </header>

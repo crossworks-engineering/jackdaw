@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, Route } from 'lucide-react';
+import { ExternalLink, Plus, Route } from 'lucide-react';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { CompileBadge } from './compile-badge';
 import { RoutingEditor } from './routing-editor';
+import { CreateRecallDialog } from './create-recall-dialog';
 
 /** Right pane of the Nodes tab: one compiled map — compile state, the lint
  *  report, and the node list with the routing editor. The routing graph lives
@@ -21,6 +22,7 @@ export function MapDetail({ mapId }: { mapId: string }) {
       apiFetch<{ map: RecallMapDetailDTO }>(`/api/recall/maps/${mapId}`).then((r) => r.map),
   });
   const [editNode, setEditNode] = useState<RecallNodeDTO | null>(null);
+  const [adding, setAdding] = useState(false);
 
   if (mapQuery.isPending) {
     return (
@@ -52,6 +54,9 @@ export function MapDetail({ mapId }: { mapId: string }) {
           <CompileBadge ok={map.lastCompileOk} compiled={map.nodeCount > 0} />
         </h2>
         <div className="flex shrink-0 gap-2">
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus /> Add node
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href={`/pages/${map.id}`}>
               <ExternalLink /> Open index page
@@ -134,6 +139,7 @@ export function MapDetail({ mapId }: { mapId: string }) {
           }}
         />
       )}
+      {adding && <CreateRecallDialog mode="node" map={map} open onOpenChange={setAdding} />}
     </div>
   );
 }

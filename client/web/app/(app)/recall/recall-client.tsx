@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, Map as MapIcon, Search } from 'lucide-react';
+import { ExternalLink, Map as MapIcon, Plus, Search, Sparkles } from 'lucide-react';
 import type { RecallMapSummaryDTO } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -13,7 +13,14 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@mantle/web-ui/ui/dropdown-menu';
 import { useListNav } from '@/lib/use-list-nav';
+import { CreateRecallDialog, type CreateMode } from './create-recall-dialog';
 import { CompileBadge } from './compile-badge';
 import { MapDetail } from './map-detail';
 import { MapCanvas } from './map-canvas';
@@ -88,6 +95,9 @@ function RecallView({
   page: number;
 }) {
   const { pending: navPending, go } = useListNav();
+  // `null` = closed. A map and a standalone prompt both start from here; a
+  // node needs a map to live in, so it is offered inside the map instead.
+  const [creating, setCreating] = useState<CreateMode | null>(null);
   const maps = data.maps;
   const total = data.total ?? maps.length;
   const pageSize = data.pageSize ?? Math.max(1, maps.length);
@@ -117,21 +127,61 @@ function RecallView({
 
   if (total === 0 && !q) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
-        <MapIcon className="size-8 opacity-50" aria-hidden />
-        <p className="font-medium text-foreground">No Recall maps yet</p>
-        <p className="max-w-md">
-          A map is a page tree whose root carries the <code>recall</code> tag. Author the pages in
-          Pages, tag the root, and the compiled map appears here.
-        </p>
-      </div>
+      <>
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
+          <MapIcon className="size-8 opacity-50" aria-hidden />
+          <p className="font-medium text-foreground">No Recall maps yet</p>
+          <p className="max-w-md">
+            A map is a page tree agents walk node by node. A prompt is a single page they find by
+            meaning. Start either one here and the tagging, the “Use when” line and the routing are
+            written for you.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" onClick={() => setCreating('map')}>
+              <Plus /> New map
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setCreating('prompt')}>
+              <Sparkles /> New prompt
+            </Button>
+          </div>
+        </div>
+        {creating && (
+          <CreateRecallDialog
+            mode={creating}
+            open
+            onOpenChange={(o) => {
+              if (!o) setCreating(null);
+            }}
+          />
+        )}
+      </>
     );
   }
 
   // ONE list pane, shared by both tabs — search on top, cards, pager.
   const list = (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border p-3">
+      <div className="space-y-3 border-b border-border p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+            Maps
+          </h2>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm">
+                <Plus /> New
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setCreating('map')}>
+                <MapIcon /> Map: a tree agents walk
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setCreating('prompt')}>
+                <Sparkles /> Prompt: found by meaning
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -181,54 +231,65 @@ function RecallView({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <Tabs value={view} onValueChange={(v) => go({ view: v === 'nodes' ? 'nodes' : null })}>
-          <TabsList>
-            <TabsTrigger value="map">Map</TabsTrigger>
-            <TabsTrigger value="nodes">Nodes</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {view === 'map' && selectedMap && (
-          <>
-            <span className="min-w-0 truncate text-sm font-medium">{selectedMap.title}</span>
-            <CompileBadge ok={selectedMap.lastCompileOk} compiled={selectedMap.nodeCount > 0} />
-            <div className="ml-auto">
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/pages/${selectedMap.id}`}>
-                  <ExternalLink /> Open index page
-                </Link>
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-      <div className="relative min-h-0 flex-1">
-        {view === 'map' ? (
-          /* The graph is a viewport, not reading text — it absorbs the slack
+    <>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <Tabs value={view} onValueChange={(v) => go({ view: v === 'nodes' ? 'nodes' : null })}>
+            <TabsList>
+              <TabsTrigger value="map">Map</TabsTrigger>
+              <TabsTrigger value="nodes">Nodes</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {view === 'map' && selectedMap && (
+            <>
+              <span className="min-w-0 truncate text-sm font-medium">{selectedMap.title}</span>
+              <CompileBadge ok={selectedMap.lastCompileOk} compiled={selectedMap.nodeCount > 0} />
+              <div className="ml-auto">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/pages/${selectedMap.id}`}>
+                    <ExternalLink /> Open index page
+                  </Link>
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="relative min-h-0 flex-1">
+          {view === 'map' ? (
+            /* The graph is a viewport, not reading text — it absorbs the slack
              (detailFills), and the shared list keeps its draggable width. */
-          <MasterDetail
-            id="recall-map"
-            list={list}
-            detail={selectedId ? <MapCanvas mapId={selectedId} /> : null}
-            detailFills
-          />
-        ) : (
-          <MasterDetail
-            id="recall"
-            list={list}
-            detail={
-              selectedId ? (
-                <div className="h-full">
-                  <MapDetail mapId={selectedId} />
-                </div>
-              ) : null
-            }
-            defaultDetailSize="880px"
-            maxDetailSize="1200px"
-          />
-        )}
+            <MasterDetail
+              id="recall-map"
+              list={list}
+              detail={selectedId ? <MapCanvas mapId={selectedId} /> : null}
+              detailFills
+            />
+          ) : (
+            <MasterDetail
+              id="recall"
+              list={list}
+              detail={
+                selectedId ? (
+                  <div className="h-full">
+                    <MapDetail mapId={selectedId} />
+                  </div>
+                ) : null
+              }
+              defaultDetailSize="880px"
+              maxDetailSize="1200px"
+            />
+          )}
+        </div>
       </div>
-    </div>
+      {creating && (
+        <CreateRecallDialog
+          mode={creating}
+          open
+          onOpenChange={(o) => {
+            if (!o) setCreating(null);
+          }}
+        />
+      )}
+    </>
   );
 }

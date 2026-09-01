@@ -18,6 +18,7 @@ export function TagInput({
   id,
   max = 20,
   maxLength = 40,
+  hints,
   className,
 }: {
   value: string[];
@@ -26,6 +27,11 @@ export function TagInput({
   id?: string;
   max?: number;
   maxLength?: number;
+  /** tag → one-line explanation, shown on hover/focus of that pill. For tags
+   *  that DO something rather than just label (Recall's `recall` / `prompt`
+   *  turn a page into served agent memory), a pill that cannot say so is the
+   *  whole reason those tags read as undocumented magic. */
+  hints?: Record<string, string>;
   /** Merged onto the root — page/draw headers use it for a borderless,
    *  right-aligned inline variant. */
   className?: string;
@@ -69,9 +75,11 @@ export function TagInput({
       {value.map((t) => (
         <span
           key={t}
+          title={hints?.[t]}
           className={cn(
             'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium',
             tagColorClass(t),
+            hints?.[t] && 'cursor-help',
           )}
         >
           {t}
