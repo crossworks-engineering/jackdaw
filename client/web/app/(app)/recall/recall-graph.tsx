@@ -58,7 +58,36 @@ export function RecallGraph({
   // Local, not URL state: how you like to read the graph is not worth a
   // navigation, and it must not survive into a shared deep link.
   const [labelMode, setLabelMode] = useState<LabelMode>('labels');
-  const { nodes, edges } = useMemo(() => buildGraph(map, labelMode), [map, labelMode]);
+
+  // The layout is memoised on the MAP ALONE, deliberately, and the toggle only
+  // re-decorates the edges.
+  //
+  // This flow is uncontrolled (no `onNodesChange`), so React Flow owns node
+  // measurements internally and cannot write them back to us. Hand it a fresh
+  // `nodes` array and it drops those measurements, and edges — which need both
+  // endpoints measured to route — never render again. Toggling the labels used
+  // to blank every edge on the map, permanently, for exactly that reason.
+  //
+  // Keeping the array identity stable also means node positions never jump when
+  // you change how much label detail you want, which is the better behaviour
+  // anyway. The cost is that `dots` and `off` keep the roomier spacing a full
+  // label needs.
+  const { nodes, edgeDefs } = useMemo(() => buildGraph(map), [map]);
+  const edges = useMemo<Edge[]>(
+    () =>
+      edgeDefs.map((e, i) => ({
+        id: `${e.source}__${e.target}__${i}`,
+        source: e.source,
+        target: e.target,
+        type: RECALL_EDGE_TYPE,
+        data: { label: e.label, useWhen: e.useWhen, mode: labelMode } satisfies OptionEdgeData,
+        // Token, not the old hardcoded slate. `--border` alone is too faint to
+        // trace across a big map, so this is the muted ink held back to roughly
+        // border weight: legible in every theme, light and dark.
+        style: { stroke: 'var(--muted-foreground)', strokeOpacity: 0.45, strokeWidth: 1.5 },
+      })),
+    [edgeDefs, labelMode],
+  );
 
   return (
     <div className={cn('h-[420px] rounded-md border border-border bg-muted/20', className)}>
@@ -113,10 +142,9 @@ export function RecallGraph({
   );
 }
 
-function buildGraph(
-  map: RecallMapDetailDTO,
-  labelMode: LabelMode,
-): { nodes: Node[]; edges: Edge[] } {
+type EdgeDef = { source: string; target: string; label: string; useWhen: string };
+
+function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edgeDefs: EdgeDef[] } {
   const g = new dagre.graphlib.Graph();
   // LR, not TB: ranks run left→right, so SIBLINGS stack vertically and a map
   // grows DOWN as options multiply — breadth scrolls, depth stays on screen.
@@ -130,7 +158,7 @@ function buildGraph(
   for (const n of map.nodes) g.setNode(n.slug, { width: NODE_W, height: NODE_H });
 
   const targeted = new Set<string>();
-  const edgeDefs: { source: string; target: string; label: string; useWhen: string }[] = [];
+  const edgeDefs: EdgeDef[] = [];
   for (const n of map.nodes) {
     for (const o of n.options) {
       // Compiled options always resolve in-map; guard anyway so a half-broken
@@ -146,11 +174,9 @@ function buildGraph(
       // Tell dagre the edge CARRIES something. Without a width/height here the
       // layout treats every edge as a bare line and packs ranks tight enough
       // that the labels have nowhere to go but on top of each other.
-      g.setEdge(n.slug, o.targetSlug, {
-        width: labelMode === 'labels' ? LABEL_W : LABEL_H,
-        height: LABEL_H,
-        labelpos: 'c',
-      });
+      // Always the FULL label box, whatever the toggle currently shows: the
+      // layout must not depend on it (see the memo note above).
+      g.setEdge(n.slug, o.targetSlug, { width: LABEL_W, height: LABEL_H, labelpos: 'c' });
     }
   }
 
@@ -187,19 +213,7 @@ function buildGraph(
     };
   });
 
-  const edges: Edge[] = edgeDefs.map((e, i) => ({
-    id: `${e.source}__${e.target}__${i}`,
-    source: e.source,
-    target: e.target,
-    type: RECALL_EDGE_TYPE,
-    data: { label: e.label, useWhen: e.useWhen, mode: labelMode } satisfies OptionEdgeData,
-    // Token, not the old hardcoded slate. `--border` alone is too faint to
-    // trace across a big map, so this is the muted ink held back to roughly
-    // border weight: legible in every theme, light and dark.
-    style: { stroke: 'var(--muted-foreground)', strokeOpacity: 0.45, strokeWidth: 1.5 },
-  }));
-
-  return { nodes, edges };
+  return { nodes, edgeDefs };
 }
 
 function NodeLabel({
