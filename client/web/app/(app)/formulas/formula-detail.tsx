@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import katex from 'katex';
 import { AlertTriangle, Pencil, Sigma, Trash2 } from 'lucide-react';
 import type { CoverageGap, FormulaSpec, FormulaValue } from '@mantle/content-core/formula-spec';
@@ -561,12 +561,18 @@ export function FormulaDetail({
 
         {spec.classifications.map((c) => (
           <Section key={c.id} title={c.id}>
-            <dl className="space-y-2 text-xs">
+            {/* A two-column grid, not a row of flex pairs with a fixed `w-6`
+                label: the domain of a classification is words as often as it is
+                letters ("laminar", "transitional"), and a 1.5rem box does not
+                clip — the label simply overran the criteria text beside it.
+                `auto` sizes the column to the widest label in THIS list, so the
+                criteria still line up without a hard-coded width. */}
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">
               {c.domain.map((value) => (
-                <div key={value} className="flex gap-3">
-                  <dt className="w-6 shrink-0 font-mono font-medium text-foreground">{value}</dt>
-                  <dd className="text-muted-foreground">{c.criteria[value]}</dd>
-                </div>
+                <Fragment key={value}>
+                  <dt className="font-mono font-medium text-foreground">{value}</dt>
+                  <dd className="min-w-0 text-muted-foreground">{c.criteria[value]}</dd>
+                </Fragment>
               ))}
             </dl>
           </Section>
