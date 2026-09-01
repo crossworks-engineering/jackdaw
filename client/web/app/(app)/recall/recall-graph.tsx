@@ -18,6 +18,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { TooltipProvider } from '@mantle/web-ui/ui/tooltip';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
+import { stripUseWhenPrefix } from './recall-doc';
 import {
   LABEL_H,
   LABEL_W,
@@ -169,7 +170,12 @@ function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edgeDefs: EdgeDef
         source: n.slug,
         target: o.targetSlug,
         label: o.label,
-        useWhen: o.useWhen,
+        // An option's compiled use-when is the raw text after the dash, and
+        // the routing editor seeds every new row with the literal words "use
+        // when", so most real options carry the prefix already. The tooltip
+        // supplies its own, so strip it here or every existing map reads
+        // "Use when use when logging into a box".
+        useWhen: stripUseWhenPrefix(o.useWhen),
       });
       // Tell dagre the edge CARRIES something. Without a width/height here the
       // layout treats every edge as a bare line and packs ranks tight enough

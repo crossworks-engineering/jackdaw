@@ -130,6 +130,32 @@ export function withUseWhenParagraph(doc: PageDoc, useWhen: string): PageDoc {
   return { type: 'doc', content: [...para, ...content] };
 }
 
+/**
+ * Why appending an option to a page you never opened needs a guard.
+ *
+ * `withAppendedOption` reads the current options back through
+ * `parseRecallDoc`, and that parser returns ZERO options for a section whose
+ * shape it cannot read (`options-shape`) and silently skips any single item it
+ * cannot resolve. Appending onto that result would write those options out of
+ * existence, on a page the author is not looking at. So the caller asks first,
+ * and refuses rather than destroying work it cannot see.
+ *
+ * Returns the offending issue, or null when the options round-trip cleanly.
+ * A page with NO Options section at all is clean: there is nothing to lose.
+ */
+export function optionsAtRisk(doc: PageDoc): RecallLintIssue | null {
+  const parsed = parseRecallDoc(doc);
+  return (
+    parsed.issues.find(
+      (i) =>
+        i.severity === 'error' &&
+        (i.code === 'options-shape' ||
+          i.code === 'option-no-target' ||
+          i.code === 'option-no-use-when'),
+    ) ?? null
+  );
+}
+
 /** The declared "Use when: …" line, or null when the page has none. Read
  *  through the compiler's own parser, so "has one" here means exactly what it
  *  means at compile time, including the three-block window it must sit in. */

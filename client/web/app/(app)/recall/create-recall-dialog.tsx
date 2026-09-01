@@ -29,6 +29,7 @@ import {
 } from '@mantle/web-ui/ui/select';
 import {
   buildRecallDoc,
+  optionsAtRisk,
   preflight,
   slugPreview,
   withAppendedOption,
@@ -112,10 +113,23 @@ export function CreateRecallDialog({
   // the author sees the same issues the server would raise, before saving.
   const pf = useMemo(() => preflight(doc, { isPrompt: declaresUseWhen }), [doc, declaresUseWhen]);
 
+  // Every compiled node in the map is a candidate; unlike the routing editor
+  // there is no self to exclude, because this node does not exist yet.
+  const targets = map?.nodes ?? [];
+
   const problems: string[] = [];
   if (!title.trim()) problems.push('A title is required.');
   if (declaresUseWhen && !useWhen.trim()) problems.push(`The “${label.useWhen}” line is required.`);
-  if (inMap && !linkFrom) problems.push('Pick the node this one is reached from.');
+  if (inMap && targets.length === 0) {
+    // Belt and braces: the map views now steer an uncompiled map to its lint
+    // report rather than here, but a dialog that silently offered an empty
+    // picker and then wrote anyway is not a state worth leaving reachable.
+    problems.push(
+      'This map has no compiled nodes yet, so there is nothing to link the new one from.',
+    );
+  } else if (inMap && !linkFrom) {
+    problems.push('Pick the node this one is reached from.');
+  }
   if (inMap && !linkUseWhen.trim()) problems.push('The link needs a “use when …” line.');
   for (const issue of pf.errors) problems.push(issue.message);
   const valid = problems.length === 0;
@@ -131,25 +145,72 @@ export function CreateRecallDialog({
     setLinkFrom(defaultLinkFrom ?? indexId);
   }
 
-  /** Read a page, refuse if it has uncommitted draft edits, append the option,
-   *  commit. Same guard and same commit path as the routing editor: a draft
-   *  we overwrote would silently discard the author's own work. */
-  async function linkFromParent(
-    parentId: string,
-    option: { label: string; useWhen: string; targetPageId: string },
-  ) {
+  /**
+   * Read the parent and prove we may write to it, BEFORE anything is created.
+   *
+   * Creating the page and linking it are two requests, and the failure that
+   * matters lands between them: the parent has uncommitted draft edits (which
+   * this refuses, exactly as the routing editor does), so the child exists and
+   * nothing points at it. On a map's second page that is `index-no-options`,
+   * which turns the whole map red while the toast says the create failed. So
+   * the check runs first and the common failure creates nothing at all.
+   */
+  async function readParentForLink(parentId: string): Promise<PageForCommit> {
     const { page } = await apiFetch<{ page: PageForCommit }>(`/api/pages/${parentId}`, {
       cache: 'no-store',
     });
     if (page.draft) {
       throw new Error(
-        'The parent page has uncommitted draft edits. Commit or discard them in the editor, then add the link from its Routing button.',
+        'The page this would be reached from has uncommitted draft edits. Commit or discard them in the editor first.',
       );
     }
-    await apiSend(`/api/pages/${parentId}/commit`, 'POST', {
+    const risk = optionsAtRisk(page.doc);
+    if (risk) {
+      throw new Error(
+        `The page this would be reached from has an Options block that cannot be read (${risk.message}) Adding a link would overwrite it, so fix it with that page's Routing button first.`,
+      );
+    }
+    return page;
+  }
+
+  /** Append the option and commit, through the one shared options writer. */
+  async function commitOption(
+    page: PageForCommit,
+    option: { label: string; useWhen: string; targetPageId: string },
+  ) {
+    await apiSend(`/api/pages/${page.id}/commit`, 'POST', {
       doc: withAppendedOption(page.doc, option),
       ...(page.draftRev !== undefined ? { if_rev: page.draftRev } : {}),
     });
+  }
+
+  /**
+   * Run the linking step, and undo the create if it fails.
+   *
+   * Deleting a page we made seconds ago is safe: it has only the content still
+   * sitting in this dialog, which stays open on failure. Leaving it is not
+   * safe, because an unreferenced member is what turns a map red.
+   *
+   * If the rollback ALSO fails there is nothing left to do but say so
+   * precisely. A half-linked node the author has to discover for themselves is
+   * the single worst outcome here, so it never goes unreported.
+   */
+  async function withRollback(pageId: string, step: () => Promise<void>): Promise<void> {
+    try {
+      await step();
+    } catch (err) {
+      const undone = await apiSend(`/api/pages/${pageId}`, 'DELETE').then(
+        () => true,
+        () => false,
+      );
+      const why = err instanceof Error ? err.message : 'the link could not be saved';
+      throw new Error(
+        undone
+          ? `${why} Nothing was created.`
+          : `${why} The page was created but nothing links to it, and it could not be removed automatically. Open the map and either delete it or add the link with the Routing button.`,
+        { cause: err },
+      );
+    }
   }
 
   function onSave() {
@@ -173,6 +234,9 @@ export function CreateRecallDialog({
         // parent_id subtree of the root, so any depth is in the map.
         const parentId = inMap ? linkFrom : undefined;
 
+        // Everything that can be checked without writing is checked first.
+        const parent = inMap ? await readParentForLink(linkFrom) : null;
+
         const { page: created } = await apiSend<{ page: { id: string } }>('/api/pages', 'POST', {
           title: title.trim(),
           doc,
@@ -180,27 +244,37 @@ export function CreateRecallDialog({
           ...(parentId ? { parentId } : {}),
         });
 
-        if (inMap) {
-          await linkFromParent(linkFrom, {
-            label: linkLabel.trim() || title.trim(),
-            useWhen: linkUseWhen,
-            targetPageId: created.id,
-          });
+        if (parent) {
+          await withRollback(created.id, () =>
+            commitOption(parent, {
+              label: linkLabel.trim() || title.trim(),
+              useWhen: linkUseWhen,
+              targetPageId: created.id,
+            }),
+          );
         }
 
         // A brand-new map with a first node: create the child and wire the
         // index to it in one go. A root with children and no options is
-        // exactly the `index-no-options` failure, so we never leave one.
+        // exactly the `index-no-options` failure, so we never leave one. The
+        // root is seconds old and cannot carry a draft, so the only failure
+        // here is a transport one, and it rolls the CHILD back rather than the
+        // map the author just made.
         if (mode === 'map' && firstNode.trim()) {
           const { page: child } = await apiSend<{ page: { id: string } }>('/api/pages', 'POST', {
             title: firstNode.trim(),
             parentId: created.id,
           });
-          await linkFromParent(created.id, {
-            label: firstNode.trim(),
-            useWhen: `you need ${firstNode.trim().toLowerCase()}`,
-            targetPageId: child.id,
-          });
+          const root = await apiFetch<{ page: PageForCommit }>(`/api/pages/${created.id}`, {
+            cache: 'no-store',
+          }).then((r) => r.page);
+          await withRollback(child.id, () =>
+            commitOption(root, {
+              label: firstNode.trim(),
+              useWhen: `you need ${firstNode.trim().toLowerCase()}`,
+              targetPageId: child.id,
+            }),
+          );
         }
 
         await queryClient.invalidateQueries({ queryKey: ['recall'] });
@@ -214,8 +288,6 @@ export function CreateRecallDialog({
       }
     });
   }
-
-  const targets = map?.nodes ?? [];
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!pending ? onOpenChange(o) : undefined)}>

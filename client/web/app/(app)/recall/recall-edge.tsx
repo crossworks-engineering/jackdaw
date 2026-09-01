@@ -81,18 +81,37 @@ export function RecallOptionEdge({
                   type="button"
                   // A button, not a div: hover AND keyboard focus both open
                   // the tooltip, so the full text is reachable without a mouse.
+                  //
+                  // In `dots` mode the BUTTON stays a normal-sized target and
+                  // only the painted dot inside it is small. A 10px control is
+                  // fiddly with a mouse and unusable with a finger, and the dot
+                  // is the only way to read a label in that mode.
                   className={cn(
-                    'block cursor-default rounded-full border border-border bg-card text-card-foreground',
-                    'text-[10px] leading-none shadow-xs transition-colors',
-                    'hover:border-primary/60 focus-visible:border-primary/60 focus-visible:outline-none',
+                    'group/chip flex cursor-default items-center justify-center transition-colors',
+                    'focus-visible:outline-none',
                     mode === 'dots'
-                      ? 'size-2.5 p-0'
-                      : 'max-w-[148px] truncate px-2 py-1 text-muted-foreground hover:text-foreground',
+                      ? 'size-6 rounded-full'
+                      : [
+                          'truncate rounded-full border border-border bg-card px-2 py-1',
+                          'text-[10px] leading-none text-muted-foreground shadow-xs',
+                          'hover:border-primary/60 hover:text-foreground',
+                          'focus-visible:border-primary/60',
+                        ],
                   )}
+                  // The one source of truth for the chip's width: the same
+                  // constant the dagre layout reserves space with. Tailwind v4
+                  // forbids a computed class, so it rides the style attribute
+                  // rather than drifting as a second hardcoded number.
                   style={mode === 'dots' ? undefined : { maxWidth: LABEL_W }}
                 >
                   {mode === 'dots' ? (
-                    <span className="sr-only">{d.label}</span>
+                    <>
+                      <span
+                        aria-hidden
+                        className="size-2.5 rounded-full border border-border bg-card shadow-xs transition-colors group-hover/chip:border-primary/60 group-focus-visible/chip:border-primary/60"
+                      />
+                      <span className="sr-only">{d.label}</span>
+                    </>
                   ) : (
                     <span className="block truncate">{d.label}</span>
                   )}
@@ -103,6 +122,8 @@ export function RecallOptionEdge({
                   which is paired with `background` and would drop out here. */}
               <TooltipContent side="top" className="max-w-xs">
                 <p className="font-medium">{d.label}</p>
+                {/* The graph strips any "use when" the author already wrote,
+                    so this prefix is added exactly once. */}
                 {d.useWhen && (
                   <p className="mt-0.5 text-primary-foreground/80">Use when {d.useWhen}</p>
                 )}

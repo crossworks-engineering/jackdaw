@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { ExternalLink, Plus } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RecallGraph } from './recall-graph';
 import { RoutingEditor } from './routing-editor';
@@ -44,13 +45,25 @@ export function MapCanvas({ mapId }: { mapId: string }) {
 
   const map = mapQuery.data;
   if (map.nodes.length === 0) {
+    // No COMPILED nodes means the map has never compiled clean, so adding
+    // another page is the wrong advice: it cannot fix the lint and there is no
+    // node to route the new one from. Send the author to the report instead.
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
-        <p>This map has no compiled nodes yet.</p>
-        <Button size="sm" onClick={() => setAdding(true)}>
-          <Plus /> Add node
-        </Button>
-        {adding && <CreateRecallDialog mode="node" map={map} open onOpenChange={setAdding} />}
+        <p className="max-w-sm">
+          This map has no compiled nodes yet, so there is nothing to draw. Its index page needs to
+          compile once before nodes can be added to it.
+        </p>
+        <div className="flex gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/recall?selected=${map.id}&view=nodes`}>See the lint report</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/pages/${map.id}`}>
+              <ExternalLink /> Open index page
+            </Link>
+          </Button>
+        </div>
       </div>
     );
   }
