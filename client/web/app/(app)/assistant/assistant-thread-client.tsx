@@ -134,8 +134,21 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
               containerStyle={{ '--tw-ring-color': accent?.border } as React.CSSProperties}
             />
           )}
-          <div>
-            <p className="text-xs text-muted-foreground">
+          {/* The responder's NAME leads, and everything else is a footnote
+              under it. The header used to open straight onto `slug · model`,
+              which names the responder the way the machine does — you are
+              talking to someone here, and their name is what tells you who
+              picked up. `min-w-0` + truncate so a long one shortens rather
+              than shoving the controls off the end of a narrow column. */}
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold leading-tight text-foreground">
+              {agent ? agent.name : 'No responder'}
+            </p>
+            {/* The small print: which agent and model answered, or — when there
+                is none — what to do about it. Same slot either way, so the
+                notice reads as this responder's status line rather than as a
+                banner that appears from nowhere and moves the name. */}
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {agent ? (
                 <>
                   <code className="font-mono">{agent.slug}</code> ·{' '}
@@ -154,13 +167,16 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        {/* `ml-auto` rather than relying on `justify-between`: the header wraps,
+            and once it does a `justify-between` right group drops to the LEFT of
+            the next line. Floated, the controls stay on the right edge whatever
+            the width. */}
+        <div className="ml-auto flex items-center gap-1.5">
           {agentList.length > 0 && <AgentSelect agents={agentList} selected={agent?.slug ?? ''} />}
-          {/* Full-display ⇄ side-column, beside minimise. It sat in the shell's
-              footer toolbar while there was one; with the controls moved into
-              the left rail it belongs here instead — a rail on the far left is
-              the wrong place to resize a panel on the right, and the rail's
-              4-control strip has no room to grow a fifth only sometimes. */}
+          {/* The three display shapes, immediately right of the responder
+              picker: pick who answers, then pick where they answer. Both sit in
+              this header rather than the left rail — a rail on the far side of
+              the screen is the wrong place to reshape a panel on this one. */}
           <AssistantDockToggle />
           <Button
             variant="ghost"
