@@ -17,6 +17,7 @@ import {
   RotateCcw,
   UploadCloud,
   X,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { isCrossOrigin, runtimeApiBase } from '@mantle/web-ui/runtime-env';
@@ -24,7 +25,6 @@ import { tokenStore } from '@mantle/web-ui/token-store';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   aggregateProgress,
-  etaSeconds,
   formatBytes,
   formatEta,
   formatRate,
@@ -300,9 +300,15 @@ export function useUploads(): UploadApi {
 }
 
 /**
- * Floating progress dock — rendered inside the shell so it inherits the
+ * Floating progress dock. Rendered inside the shell so it inherits the
  * `--activity-w` rail var (sits just left of the live-activity column on lg).
  * Hidden when there's nothing to show.
+ *
+ * ONE spinner (the title) and ONE progress bar with its numbers (the bottom
+ * line). Rows carry a static icon, the name, and a short detail: bytes so far
+ * for the file in flight, the size when done, the reason when not. The first
+ * cut had a spinner, a bar and a percentage per row on top of the header's,
+ * which read as three uploads for one file.
  */
 export function UploadDock() {
   const { tasks, active, cancel, retry, clearFinished } = useUploads();
@@ -318,19 +324,15 @@ export function UploadDock() {
   const agg = aggregateProgress(tasks);
 
   const heading = active
-    ? [
-        `Uploading ${Math.min(finished + 1, total)}/${total}`,
-        `${agg.pct}%`,
-        formatRate(agg.rate),
-        formatEta(agg.etaSec),
-      ]
-        .filter(Boolean)
-        .join(' · ')
+    ? `Uploading ${Math.min(finished + 1, total)} of ${total}`
     : failed > 0
       ? `Uploaded ${done} · ${failed} failed${cancelled ? ` · ${cancelled} cancelled` : ''}`
       : cancelled > 0
         ? `Uploaded ${done} · ${cancelled} cancelled`
         : `Uploaded ${done} file${done === 1 ? '' : 's'}`;
+  const progressLine = [`${agg.pct}%`, formatRate(agg.rate), formatEta(agg.etaSec)]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="pointer-events-auto w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg">
@@ -357,19 +359,6 @@ export function UploadDock() {
         />
       </button>
 
-      <div
-        className="h-0.5 w-full bg-muted"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={agg.pct}
-      >
-        <div
-          className={cn('h-full transition-all', failed > 0 ? 'bg-destructive' : 'bg-primary')}
-          style={{ width: `${agg.pct}%` }}
-        />
-      </div>
-
       {!collapsed && (
         <ul className="max-h-56 divide-y divide-border overflow-y-auto scrollbar-thin border-t border-border">
           {tasks.map((t) => (
@@ -378,7 +367,26 @@ export function UploadDock() {
         </ul>
       )}
 
-      {!active && (
+      {active ? (
+        <div className="border-t border-border">
+          <div
+            className="h-1 w-full bg-muted"
+            role="progressbar"
+            aria-label="Upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={agg.pct}
+          >
+            <div className="h-full bg-primary transition-all" style={{ width: `${agg.pct}%` }} />
+          </div>
+          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground">
+            <span>{progressLine}</span>
+            <span>
+              {formatBytes(agg.loaded)} of {formatBytes(agg.total)}
+            </span>
+          </div>
+        </div>
+      ) : (
         <div className="flex justify-end border-t border-border px-2 py-1.5">
           <button
             type="button"
@@ -402,16 +410,9 @@ function UploadRow({
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
-  const pct = t.size > 0 ? Math.min(100, Math.round((t.loaded / t.size) * 100)) : 0;
   const detail =
     t.status === 'uploading'
-      ? [
-          `${pct}%`,
-          `${formatBytes(t.loaded)} of ${formatBytes(t.size)}`,
-          formatEta(etaSeconds(t.loaded, t.size, t.rate)),
-        ]
-          .filter(Boolean)
-          .join(' · ')
+      ? `${formatBytes(t.loaded)} of ${formatBytes(t.size)}`
       : t.status === 'pending'
         ? `Waiting · ${formatBytes(t.size)}`
         : t.status === 'done'
@@ -423,34 +424,33 @@ function UploadRow({
   const canRetry = t.status === 'error' && t.retryable !== false;
 
   return (
-    <li className="flex items-start gap-2 px-3 py-1.5 text-xs">
-      {t.status === 'uploading' ? (
-        <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-primary-ink" aria-hidden />
-      ) : t.status === 'done' ? (
-        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary-ink" aria-hidden />
+    <li className="flex items-center gap-2 px-3 py-1.5 text-xs">
+      {t.status === 'done' ? (
+        <CheckCircle2 className="size-3.5 shrink-0 text-primary-ink" aria-hidden />
       ) : t.status === 'error' ? (
-        <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-destructive-ink" aria-hidden />
+        <AlertCircle className="size-3.5 shrink-0 text-destructive-ink" aria-hidden />
+      ) : t.status === 'cancelled' ? (
+        <XCircle className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
       ) : (
-        <UploadCloud className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-      )}
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate" title={t.name}>
-          {t.name}
-        </span>
-        <span
+        <UploadCloud
           className={cn(
-            'truncate',
-            t.status === 'error' ? 'text-destructive-ink' : 'text-muted-foreground',
+            'size-3.5 shrink-0',
+            t.status === 'uploading' ? 'text-primary-ink' : 'text-muted-foreground',
           )}
-          title={detail}
-        >
-          {detail}
-        </span>
-        {t.status === 'uploading' && (
-          <span className="mt-1 h-0.5 w-full overflow-hidden rounded bg-muted">
-            <span className="block h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-          </span>
+          aria-hidden
+        />
+      )}
+      <span className="min-w-0 flex-1 truncate" title={t.name}>
+        {t.name}
+      </span>
+      <span
+        className={cn(
+          'max-w-[45%] shrink-0 truncate',
+          t.status === 'error' ? 'text-destructive-ink' : 'text-muted-foreground',
         )}
+        title={detail}
+      >
+        {detail}
       </span>
       {canCancel && (
         <button
