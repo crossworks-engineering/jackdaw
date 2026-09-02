@@ -140,6 +140,16 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 /**
+ * Sections whose cards do NOT repeat their tags as pills. Apps and pages are
+ * read by their DESCRIPTION — what the app does, what the page is about — and
+ * a second row of pills under that line pushed the description up against the
+ * date and made a column of cards harder to scan than plain prose. The tags
+ * are still live: the header's tag filter is built from the same set, so the
+ * narrowing is one click away in the one place that acts on it.
+ */
+const CARDS_WITHOUT_TAG_PILLS = new Set<string>(['app', 'page']);
+
+/**
  * How the detail pane is shaped, per section type — style guide §8's table,
  * applied to the eight `/team` sections.
  *
@@ -419,8 +429,10 @@ export function TeamSection({
               {item.summary && <ListCardSnippet>{item.summary}</ListCardSnippet>}
               {/* The tags were in the payload all along and never rendered, while
                 the header above offers a tag FILTER built from them — so a
-                member could filter by a tag no card ever showed. */}
-              {item.tags.length > 0 && (
+                member could filter by a tag no card ever showed. Apps and pages
+                are the exception (see CARDS_WITHOUT_TAG_PILLS): those cards
+                carry a description, and it reads better without the pills. */}
+              {!CARDS_WITHOUT_TAG_PILLS.has(type) && item.tags.length > 0 && (
                 <ListCardTags>
                   {item.tags.map((t) => (
                     <TagPill key={t} tag={t} />
