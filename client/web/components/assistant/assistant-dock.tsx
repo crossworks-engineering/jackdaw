@@ -15,10 +15,12 @@ import {
   Loader2,
   Maximize2,
   PanelRight,
+  PictureInPicture2,
   Sparkles,
   SquareDashedMousePointer,
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { apiEventStream, apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 import { usePendingQuestions } from '@/components/pending/use-pending-questions';
@@ -204,8 +206,25 @@ type AssistantDockApi = {
    *  highlights visible beside the chat. The panel's third state — minimised
    *  to the bubble — lives on `panel`. */
   docked: boolean;
-  /** column ⇄ full display; persisted, applies everywhere. */
+  /** column ⇄ full display; persisted, applies everywhere. From the popout it
+   *  returns to the column, which is the mode it was popped out of. */
   toggleDocked: () => void;
+  /** Which of the three open shapes the panel wears. `docked` above is simply
+   *  `display === 'docked'`, kept so no existing reader had to change. */
+  display: AssistantDisplay;
+  setDisplay: (d: AssistantDisplay) => void;
+  /** The popout window's box in viewport px, or null before it has ever been
+   *  placed (the panel resolves a first position on the first pop-out, which
+   *  needs a window and so cannot be done while rendering on the server). */
+  popout: PopoutRect | null;
+  /** Place the popout, clamped so it can never be dragged out of reach. */
+  setPopout: (r: PopoutRect) => void;
+  /** Pointer-down on the panel's own header: starts a move. A no-op unless the
+   *  popout is showing, and it stands aside for any control inside the header,
+   *  so the buttons up there still work. */
+  startPopoutMove: (e: React.PointerEvent) => void;
+  /** Pointer-down on the corner grip: starts a resize. */
+  startPopoutResize: (e: React.PointerEvent) => void;
   /** The docked column's width in px. Dragged by the handle on its inner edge
    *  and kept in localStorage; the shell reads it to publish `--assistant-w`,
    *  so `<main>` and the toast dock shrink beside it exactly as before — only
@@ -244,6 +263,50 @@ const MAX_DOCK_MSGS = 12;
 const AGENT_COOKIE = 'mantle_assistant_agent';
 const DOCK_PREF_KEY = 'mantle_assistant_dock';
 const DOCK_W_KEY = 'mantle_assistant_w';
+const DISPLAY_KEY = 'mantle_assistant_display';
+const POPOUT_KEY = 'mantle_assistant_popout';
+
+/** The three shapes an OPEN panel can wear. Minimised is not one of them: that
+ *  is `panel === 'min'`, and it deliberately leaves the display pick alone so
+ *  recalling the assistant brings back the shape you left it in. */
+export type AssistantDisplay = 'full' | 'docked' | 'popout';
+
+/** The popout window's box, in viewport px. */
+export type PopoutRect = { x: number; y: number; w: number; h: number };
+
+const POPOUT_MIN_W = 360;
+const POPOUT_MIN_H = 320;
+/** How much of the window must stay on screen. A window dragged fully past an
+ *  edge is unreachable — there is no taskbar here to get it back from. */
+const POPOUT_KEEP = 80;
+
+function clampPopout(r: PopoutRect): PopoutRect {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const w = Math.max(POPOUT_MIN_W, Math.min(r.w, vw));
+  const h = Math.max(POPOUT_MIN_H, Math.min(r.h, vh));
+  return {
+    w,
+    h,
+    x: Math.max(POPOUT_KEEP - w, Math.min(r.x, vw - POPOUT_KEEP)),
+    // Never above the top of the viewport: the header IS the drag grip, and a
+    // window whose header is off-screen can no longer be moved.
+    y: Math.max(0, Math.min(r.y, vh - POPOUT_KEEP)),
+  };
+}
+
+function readPopout(): PopoutRect | null {
+  try {
+    const raw = localStorage.getItem(POPOUT_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<PopoutRect>;
+    if (![p.x, p.y, p.w, p.h].every((n) => typeof n === 'number' && Number.isFinite(n)))
+      return null;
+    return clampPopout(p as PopoutRect);
+  } catch {
+    return null;
+  }
+}
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export function AssistantDockProvider({ children }: { children: React.ReactNode }) {
@@ -282,25 +345,114 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
   // (full display ⇄ docked column ⇄ minimised bubble). Default ON (the column
   // keeps the screen you're working on visible); the panel header flips it,
   // persisted, and the pick sticks across screens and sessions.
-  const [dockPref, setDockPref] = useState(true);
+  const [display, setDisplayState] = useState<AssistantDisplay>('docked');
   useEffect(() => {
     try {
-      if (localStorage.getItem(DOCK_PREF_KEY) === '0') setDockPref(false);
+      const saved = localStorage.getItem(DISPLAY_KEY);
+      if (saved === 'full' || saved === 'docked' || saved === 'popout') setDisplayState(saved);
+      // Migration: readers who picked full display before there were three
+      // modes stored a boolean. Honour it once; the new key wins from then on.
+      else if (localStorage.getItem(DOCK_PREF_KEY) === '0') setDisplayState('full');
     } catch {
       /* no storage — keep the default */
     }
   }, []);
-  const docked = dockPref;
-  const toggleDocked = useCallback(() => {
-    setDockPref((v) => {
-      try {
-        localStorage.setItem(DOCK_PREF_KEY, v ? '0' : '1');
-      } catch {
-        /* no storage — session-only */
-      }
-      return !v;
-    });
+  const setDisplay = useCallback((d: AssistantDisplay) => {
+    setDisplayState(d);
+    try {
+      localStorage.setItem(DISPLAY_KEY, d);
+    } catch {
+      /* no storage — session-only */
+    }
   }, []);
+  const docked = display === 'docked';
+  const toggleDocked = useCallback(
+    () => setDisplay(docked ? 'full' : 'docked'),
+    [docked, setDisplay],
+  );
+
+  // ── the popout window's box ──────────────────────────────────────────────
+  // Held here rather than in the panel so it survives every unmount the panel
+  // could ever have, and so the drag handlers can be handed to the panel's own
+  // header (which lives in another component) without threading state through.
+  const [popout, setPopoutState] = useState<PopoutRect | null>(null);
+  // The pointer handlers read the CURRENT box on every frame; state would be a
+  // stale closure for the whole length of a drag.
+  const popoutRef = useRef<PopoutRect | null>(null);
+  const setPopout = useCallback((r: PopoutRect) => {
+    const next = clampPopout(r);
+    popoutRef.current = next;
+    setPopoutState(next);
+  }, []);
+  const savePopout = useCallback(() => {
+    try {
+      if (popoutRef.current) localStorage.setItem(POPOUT_KEY, JSON.stringify(popoutRef.current));
+    } catch {
+      /* no storage — session-only */
+    }
+  }, []);
+  useEffect(() => {
+    const saved = readPopout();
+    if (saved) {
+      popoutRef.current = saved;
+      setPopoutState(saved);
+    }
+  }, []);
+  // A window sized to yesterday's monitor must not sit off the edge of today's.
+  useEffect(() => {
+    const onResize = () => {
+      if (popoutRef.current) setPopout(popoutRef.current);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [setPopout]);
+
+  // One gesture, two jobs: from the header it moves the window, from the corner
+  // grip it resizes. Listeners go on the WINDOW, not the element, so a fast
+  // drag that outruns the pointer keeps tracking instead of dropping the window
+  // wherever the cursor happened to leave it. The box is written to storage on
+  // release rather than per frame — a drag is ~60 writes a second otherwise.
+  const dragPopout = useCallback(
+    (e: React.PointerEvent, mode: 'move' | 'resize') => {
+      const base = popoutRef.current;
+      if (!base) return;
+      // The header carries the agent picker, the mode tabs and minimise. A
+      // pointer-down on any of them is a click, not the start of a drag.
+      if (
+        mode === 'move' &&
+        (e.target as HTMLElement).closest(
+          'button, a, input, textarea, select, [role="combobox"], [role="separator"]',
+        )
+      ) {
+        return;
+      }
+      e.preventDefault();
+      const ox = e.clientX;
+      const oy = e.clientY;
+      const onMove = (ev: PointerEvent) =>
+        setPopout(
+          mode === 'move'
+            ? { ...base, x: base.x + (ev.clientX - ox), y: base.y + (ev.clientY - oy) }
+            : { ...base, w: base.w + (ev.clientX - ox), h: base.h + (ev.clientY - oy) },
+        );
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        savePopout();
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [setPopout, savePopout],
+  );
+  const startPopoutMove = useCallback(
+    (e: React.PointerEvent) => dragPopout(e, 'move'),
+    [dragPopout],
+  );
+  const startPopoutResize = useCallback(
+    (e: React.PointerEvent) => dragPopout(e, 'resize'),
+    [dragPopout],
+  );
   // The docked column's width. localStorage rather than a cookie (the pattern
   // the shell rails use): the panel starts closed, so there is no first-paint
   // width to server-render and nothing to jump.
@@ -671,6 +823,12 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       setSurfaceChanges,
       docked,
       toggleDocked,
+      display,
+      setDisplay,
+      popout,
+      setPopout,
+      startPopoutMove,
+      startPopoutResize,
       dockWidth,
       setDockWidth,
       activeContextNodeId,
@@ -709,6 +867,12 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       setSurfaceChanges,
       docked,
       toggleDocked,
+      display,
+      setDisplay,
+      popout,
+      setPopout,
+      startPopoutMove,
+      startPopoutResize,
       dockWidth,
       setDockWidth,
       activeContextNodeId,
@@ -884,26 +1048,45 @@ export function HighlightButton() {
 }
 
 /**
- * Full-display ⇄ side-column toggle, rendered in the assistant's own header
- * (assistant-thread-client) beside minimise. Only meaningful while
- * the assistant panel is open, and only on lg+ (below lg the panel is always the
- * full overlay), so it renders nothing otherwise — keeping that header clean when
- * the assistant is closed.
+ * The display switcher, rendered in the assistant's own header
+ * (assistant-thread-client) beside minimise: three shapes, all three visible,
+ * the current one lit.
+ *
+ * It replaced a single icon button that flipped between two of them. With a
+ * third shape that trick stops working — a lone button can only ever offer
+ * "the other one", and with three there is no such thing. Laid out as a group
+ * the modes are also self-describing: a reader can see that a popout exists
+ * without having to click something to find out what it turns into.
+ *
+ * Only meaningful while the panel is open, and only on lg+ (below lg the panel
+ * is always the full overlay), so it renders nothing otherwise — keeping that
+ * header clean when the assistant is closed.
  */
 export function AssistantDockToggle() {
-  const { panel, docked, toggleDocked } = useAssistantDock();
+  const { panel, display, setDisplay } = useAssistantDock();
   if (panel !== 'open') return null;
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="hidden size-8 lg:inline-flex"
-      onClick={toggleDocked}
-      title={docked ? 'Expand to full display' : 'Shrink to a side column'}
-      aria-label={docked ? 'Expand assistant to full display' : 'Shrink assistant to a side column'}
+    <ToggleGroup
+      type="single"
+      value={display}
+      // Radix clears the value when the pressed item is pressed again; the
+      // panel always HAS a shape, so an empty value is a no-op, not "none".
+      onValueChange={(v) => {
+        if (v === 'full' || v === 'docked' || v === 'popout') setDisplay(v);
+      }}
+      aria-label="Assistant display"
+      className="hidden lg:inline-flex"
     >
-      {docked ? <Maximize2 aria-hidden /> : <PanelRight aria-hidden />}
-    </Button>
+      <ToggleGroupItem value="docked" aria-label="Show as a side column" title="Side column">
+        <PanelRight />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="popout" aria-label="Show as a movable window" title="Window">
+        <PictureInPicture2 />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="full" aria-label="Show as full display" title="Full display">
+        <Maximize2 />
+      </ToggleGroupItem>
+    </ToggleGroup>
   );
 }

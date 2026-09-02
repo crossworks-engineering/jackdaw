@@ -12,6 +12,7 @@ import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/experience';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { AssistantDockToggle, useAssistantDock } from '@/components/assistant/assistant-dock';
+import { cn } from '@mantle/web-ui/lib/utils';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
 import { PendingQuestionsStrip } from '@/components/pending/pending-questions-strip';
 import { AssistantClient } from './assistant-client';
@@ -46,8 +47,15 @@ const ASSIGNED_SEEN_KEY = 'mantle_assistant_assigned_seen';
  * writes the cookie + navigates to ?agent=<slug>, which re-keys this query.
  */
 export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
-  const { minimize, pinnedContext, surfaceSelection, surfaceChanges, setActiveAgentSlug } =
-    useAssistantDock();
+  const {
+    minimize,
+    pinnedContext,
+    surfaceSelection,
+    surfaceChanges,
+    setActiveAgentSlug,
+    display,
+    startPopoutMove,
+  } = useAssistantDock();
   const threadQuery = useQuery({
     queryKey: ['assistant', 'thread', slugHint ?? ''],
     queryFn: () =>
@@ -100,7 +108,17 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
     <div className="relative isolate flex h-full flex-col">
       {/* Renders nothing when the chat area is switched off. */}
       <AreaBackdrop area="chat" className="-z-10" />
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-3">
+      {/* In window mode this header IS the title bar: pointer-down anywhere on
+          it that is not one of its own controls starts the move. It is a no-op
+          in the other two shapes, which have nothing to move. `select-none`
+          only while it can be dragged, so text stays selectable otherwise. */}
+      <header
+        onPointerDown={startPopoutMove}
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-3',
+          display === 'popout' && 'cursor-grab select-none active:cursor-grabbing',
+        )}
+      >
         <div className="flex items-center gap-3">
           {/* No initials branch: the agent always has an avatar now — the seed
               falls back to its slug when no record is stored. The corner badge
