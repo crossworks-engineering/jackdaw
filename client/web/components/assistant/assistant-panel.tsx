@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
 import { AssistantThreadClient } from '@/app/(app)/assistant/assistant-thread-client';
@@ -55,11 +55,15 @@ export function AssistantPanel() {
     popout,
     setPopout,
     startPopoutResize,
+    setDockResizing,
+    popoutElRef,
   } = useAssistantDock();
-  // The column handle measures the new width from THIS element's right edge.
-  // The column is inset by the activity rail, so the viewport-edge maths every
-  // shell rail uses would hand it a width one whole rail too big.
-  const panelRef = useRef<HTMLDivElement>(null);
+  // One ref, two jobs, both needing this exact node: the column handle measures
+  // the new width from its right edge (the column is inset by the activity
+  // rail, so the viewport-edge maths every shell rail uses would hand it a
+  // width one whole rail too big), and a window drag writes its CSS variables
+  // straight to it. It lives in the context because the drag handlers do.
+  const panelRef = popoutElRef;
 
   // Esc minimises while open.
   useEffect(() => {
@@ -124,6 +128,9 @@ export function AssistantPanel() {
           min={ASSISTANT_W_MIN}
           max={ASSISTANT_W_MAX}
           onChange={setDockWidth}
+          // Suspends the frame's 200ms width ease for the length of the drag,
+          // exactly as the nav and activity rails do.
+          onDraggingChange={setDockResizing}
           boundsRef={panelRef}
           className="hidden lg:block"
         />

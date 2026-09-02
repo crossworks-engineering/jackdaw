@@ -225,6 +225,9 @@ type AssistantDockApi = {
   startPopoutMove: (e: React.PointerEvent) => void;
   /** Pointer-down on the corner grip: starts a resize. */
   startPopoutResize: (e: React.PointerEvent) => void;
+  /** Attached by the panel to its own root. The drag writes this node's CSS
+   *  variables directly, so a move does not re-render the chat every frame. */
+  popoutElRef: React.RefObject<HTMLDivElement | null>;
   /** The docked column's width in px. Dragged by the handle on its inner edge
    *  and kept in localStorage; the shell reads it to publish `--assistant-w`,
    *  so `<main>` and the toast dock shrink beside it exactly as before — only
@@ -232,6 +235,11 @@ type AssistantDockApi = {
   dockWidth: number;
   /** Called by the drag handle with an already-clamped px width. */
   setDockWidth: (px: number) => void;
+  /** True while the column is being dragged. The shell publishes it as
+   *  `data-resizing`, which suspends the frame's width transitions. */
+  dockResizing: boolean;
+  /** Fired by the handle on grab and release. */
+  setDockResizing: (on: boolean) => void;
   /** The on-screen node id the in-flight turn is editing (null when idle or when
    *  no surface node is pinned) — lets a screen lock its editor only while ITS
    *  node is being worked on. */
@@ -379,6 +387,9 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
   // The pointer handlers read the CURRENT box on every frame; state would be a
   // stale closure for the whole length of a drag.
   const popoutRef = useRef<PopoutRect | null>(null);
+  // The window element itself. A drag writes its CSS variables straight to the
+  // node and commits to React ONCE, on release — see dragPopout.
+  const popoutElRef = useRef<HTMLDivElement | null>(null);
   const setPopout = useCallback((r: PopoutRect) => {
     const next = clampPopout(r);
     popoutRef.current = next;
@@ -429,15 +440,35 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       e.preventDefault();
       const ox = e.clientX;
       const oy = e.clientY;
-      const onMove = (ev: PointerEvent) =>
-        setPopout(
+      // Every consumer of this context re-renders when the box goes into React
+      // state — and one of them is the whole chat: transcript, composer, the
+      // lot. Doing that per pointermove is a full redraw of the thread a
+      // hundred times a second, which is exactly what a laggy drag is. So the
+      // drag writes the four CSS variables straight to the node (the same ones
+      // the className reads) and React hears about it once, on release.
+      const onMove = (ev: PointerEvent) => {
+        const next = clampPopout(
           mode === 'move'
             ? { ...base, x: base.x + (ev.clientX - ox), y: base.y + (ev.clientY - oy) }
             : { ...base, w: base.w + (ev.clientX - ox), h: base.h + (ev.clientY - oy) },
         );
+        popoutRef.current = next;
+        const el = popoutElRef.current;
+        if (!el) {
+          setPopout(next);
+          return;
+        }
+        el.style.setProperty('--popout-x', `${next.x}px`);
+        el.style.setProperty('--popout-y', `${next.y}px`);
+        el.style.setProperty('--popout-w', `${next.w}px`);
+        el.style.setProperty('--popout-h', `${next.h}px`);
+      };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
+        // Now React catches up with where the window actually is: one render,
+        // one storage write.
+        if (popoutRef.current) setPopoutState(popoutRef.current);
         savePopout();
       };
       window.addEventListener('pointermove', onMove);
@@ -457,23 +488,52 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
   // the shell rails use): the panel starts closed, so there is no first-paint
   // width to server-render and nothing to jump.
   const [dockWidth, setDockWidthState] = useState(ASSISTANT_W_DEFAULT);
+  const dockWidthRef = useRef(ASSISTANT_W_DEFAULT);
+  // True for the length of a pointer drag. The shell mirrors it into
+  // `data-resizing`, where one CSS rule suspends the 200ms ease on
+  // `--assistant-w` — without it the column follows the pointer a fifth of a
+  // second late, which reads as lag rather than as a transition.
+  const [dockResizing, setDockResizingState] = useState(false);
+  const dockDragging = useRef(false);
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DOCK_W_KEY);
-      if (raw !== null) setDockWidthState(clampAssistantWidth(raw));
+      if (raw !== null) {
+        const w = clampAssistantWidth(raw);
+        dockWidthRef.current = w;
+        setDockWidthState(w);
+      }
     } catch {
       /* no storage — keep the default */
     }
   }, []);
-  const setDockWidth = useCallback((px: number) => {
-    const w = clampAssistantWidth(String(Math.round(px)));
-    setDockWidthState(w);
+  const persistDockWidth = useCallback((w: number) => {
     try {
       localStorage.setItem(DOCK_W_KEY, String(w));
     } catch {
       /* no storage — session-only */
     }
   }, []);
+  const setDockWidth = useCallback(
+    (px: number) => {
+      const w = clampAssistantWidth(String(Math.round(px)));
+      dockWidthRef.current = w;
+      setDockWidthState(w);
+      // A pointer drag persists ONCE, on release. localStorage is synchronous,
+      // and a write per pointermove is a hundred of them a second on the same
+      // thread that has to paint the frame.
+      if (!dockDragging.current) persistDockWidth(w);
+    },
+    [persistDockWidth],
+  );
+  const setDockResizing = useCallback(
+    (on: boolean) => {
+      dockDragging.current = on;
+      setDockResizingState(on);
+      if (!on) persistDockWidth(dockWidthRef.current);
+    },
+    [persistDockWidth],
+  );
 
   // The node the in-flight turn rode with as pinned context — set when a turn
   // starts, cleared when it settles. Drives a screen's editor lock.
@@ -829,8 +889,11 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       setPopout,
       startPopoutMove,
       startPopoutResize,
+      popoutElRef,
       dockWidth,
       setDockWidth,
+      dockResizing,
+      setDockResizing,
       activeContextNodeId,
       registerTurnListener,
       picking,
@@ -873,8 +936,11 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       setPopout,
       startPopoutMove,
       startPopoutResize,
+      popoutElRef,
       dockWidth,
       setDockWidth,
+      dockResizing,
+      setDockResizing,
       activeContextNodeId,
       registerTurnListener,
       picking,

@@ -201,7 +201,12 @@ function ShellFrame({
   // the panel is minimised/closed or rendering as a full overlay.
   // The width is the reader's now (dragged by the handle on the column's inner
   // edge, kept in localStorage by the dock) rather than a hard-coded 30rem.
-  const { panel: assistantPanel, docked: assistantDocked, dockWidth } = useAssistantDock();
+  const {
+    panel: assistantPanel,
+    docked: assistantDocked,
+    dockWidth,
+    dockResizing,
+  } = useAssistantDock();
   const assistantW = assistantPanel === 'open' && assistantDocked ? `${dockWidth}px` : '0rem';
   // The help column's width, published as `--help-w` so <main> shrinks beside it
   // exactly as it does for the assistant. 0 whenever the rail is closed.
@@ -448,7 +453,10 @@ function ShellFrame({
         // be an inline style.
         className="mantle-shell group/shell h-screen bg-background"
         data-nav-collapsed={navCollapsed ? 'true' : 'false'}
-        data-resizing={resizing ? 'true' : 'false'}
+        // The assistant column drags too, and `--assistant-w` is on the same
+        // transition list as the rails — so its drag has to suspend the ease
+        // for the whole frame just as theirs does.
+        data-resizing={resizing || dockResizing ? 'true' : 'false'}
         data-activity-collapsed={activityCollapsed ? 'true' : 'false'}
         data-zen={zen ? 'true' : 'false'}
         style={
