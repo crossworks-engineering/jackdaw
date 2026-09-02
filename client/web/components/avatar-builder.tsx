@@ -192,7 +192,11 @@ export function AvatarBuilderDialog({
               : 'Loading the avatar style…'}
           </p>
         ) : (
-          <ul className="max-h-72 divide-y divide-border overflow-y-auto pr-1 scrollbar-thin">
+          // Gutter on BOTH sides (§7a) — `overflow-y-auto` clips horizontally
+          // too, and a focus ring sits 4px outside its control. `-mx-1` returns
+          // the space to the dialog's padding, so the rows and their dividers
+          // stay exactly where they were.
+          <ul className="-mx-1 max-h-72 divide-y divide-border overflow-y-auto px-1 scrollbar-thin">
             {rows.map((row) => (
               <li key={row.name} className="flex items-center gap-2 py-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm">{partLabel(row.name)}</span>

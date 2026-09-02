@@ -145,7 +145,10 @@ export function RoutingEditor({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1 scrollbar-thin">
+        {/* Gutter on BOTH sides — see create-recall-dialog: `overflow-y-auto`
+            clips horizontally too, and a focus ring sits 4px outside its
+            control. `-mx-1` returns the space to the dialog's padding. */}
+        <div className="-mx-1 max-h-[50vh] space-y-3 overflow-y-auto px-1 scrollbar-thin">
           {options.length === 0 && (
             <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
               No options — agents stop here.

@@ -526,6 +526,33 @@ whenever a form is involved; don't lay the form bare on the page surface.
   separate state-controlled component (not nested in the menu) to avoid Radix
   focus/pointer-events lockups.
 
+### 7a. A scrolling body needs a gutter on BOTH sides
+
+A long dialog gets a scrolling body: `max-h-[55vh] overflow-y-auto`. There is
+no such thing as vertical-only overflow — CSS resolves the other axis to `auto`
+as well, so **the box also clips its own children horizontally**, hard against
+the edge.
+
+That matters because a focus ring is painted OUTSIDE the control it belongs to:
+our inputs and buttons carry `focus-visible:ring-2` on `ring-offset-2`, which
+is 4px of ring beyond the border on every side. Give the scroller padding on
+one side only (the reflex is `pr-1`, to keep the scrollbar off the text) and
+the ring is sliced off flat on the other — the control reads as a pair of stray
+horizontal lines running into the edge rather than as a highlighted box.
+
+Pad both sides, then take the space back out of the parent's own padding so
+nothing moves:
+
+```tsx
+<div className="-mx-1 max-h-[55vh] space-y-4 overflow-y-auto px-1 scrollbar-thin">
+```
+
+`px-1` is 4px, exactly the ring's reach. `-mx-1` widens the scroller into the
+dialog's `px-5`, so children, dividers and text sit where they always did; only
+the clipping stops. The same recipe applies to any scroller holding focusable
+children — a `<ul>` of rows, a settings pane, a picker list — not just dialogs.
+See `recall/create-recall-dialog.tsx` and `avatar-builder.tsx`.
+
 ---
 
 ## 8. Page layout & the master-detail pattern
@@ -1050,7 +1077,8 @@ as deep links** even after a master-detail supersedes the in-app navigation
 - Confirm destructive actions (AlertDialog), don't rely on hover-only controls
   as the sole affordance.
 - Respect focus rings (`focus-visible:ring-*` is built into the primitives,
-  don't strip it).
+  don't strip it). Clipping one counts as stripping it: a scroll container with
+  padding on a single side cuts the ring off at the bare edge (§7a).
 
 ---
 
@@ -1091,6 +1119,9 @@ as deep links** even after a master-detail supersedes the in-app navigation
 - ❌ Dynamically built Tailwind class names.
 - ❌ A flex/grid scroll pane without `min-h-0`, or a master-detail detail pane
   without `relative` (either causes a second, outer scrollbar, see §8).
+- ❌ `overflow-y-auto pr-1` on a box holding focusable children: the scroller
+  clips sideways too and shears the focus ring off the open edge, use
+  `-mx-1 px-1` (§7a).
 - ❌ `text-[10px]`/`text-[11px]` for normal list/table text (use `text-xs`+).
 - ❌ The Enabled toggle buried in the form body on a master-detail editor; it
   goes top-right in the header as a `Switch`.

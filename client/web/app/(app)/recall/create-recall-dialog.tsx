@@ -297,7 +297,13 @@ export function CreateRecallDialog({
           <DialogDescription>{label.description}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1 scrollbar-thin">
+        {/* `-mx-1 px-1`, not `pr-1`: `overflow-y-auto` forces `overflow-x` to
+            `auto` as well, so this box clips its own children horizontally. An
+            Input's focus ring is drawn 4px OUTSIDE its border (`ring-2` on
+            `ring-offset-2`), and with no left padding the left half of the ring
+            was sliced off flat against the edge. The negative margin puts the
+            gutter back into the dialog's own padding, so nothing moves. */}
+        <div className="-mx-1 max-h-[55vh] space-y-4 overflow-y-auto px-1 scrollbar-thin">
           <div className="space-y-1">
             <Label htmlFor="recall-title">Title</Label>
             <Input
