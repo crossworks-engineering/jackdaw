@@ -199,8 +199,10 @@ function ShellFrame({
   // The docked assistant column's width, published as `--assistant-w` so <main>
   // (and the bottom-right dock stack) shrink beside the open column. 0 whenever
   // the panel is minimised/closed or rendering as a full overlay.
-  const { panel: assistantPanel, docked: assistantDocked } = useAssistantDock();
-  const assistantW = assistantPanel === 'open' && assistantDocked ? '30rem' : '0rem';
+  // The width is the reader's now (dragged by the handle on the column's inner
+  // edge, kept in localStorage by the dock) rather than a hard-coded 30rem.
+  const { panel: assistantPanel, docked: assistantDocked, dockWidth } = useAssistantDock();
+  const assistantW = assistantPanel === 'open' && assistantDocked ? `${dockWidth}px` : '0rem';
   // The help column's width, published as `--help-w` so <main> shrinks beside it
   // exactly as it does for the assistant. 0 whenever the rail is closed.
   const { open: helpOpen } = useHelpRail();

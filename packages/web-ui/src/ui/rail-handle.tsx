@@ -37,6 +37,7 @@ export function RailHandle({
   label,
   className,
   onDraggingChange,
+  boundsRef,
 }: {
   /** Current rail width in px. */
   value: number;
@@ -51,9 +52,28 @@ export function RailHandle({
   /** Fires on grab and release, so the rail can drop its width transition
    *  while dragging (with it on, the rail trails the pointer by a frame). */
   onDraggingChange?: (dragging: boolean) => void;
+  /**
+   * The element being resized, when its far edge is NOT the viewport edge.
+   *
+   * A shell rail is flush against the window, so the pointer's distance from
+   * the viewport edge IS the new width. The assistant column is not: it is
+   * inset by the activity rail, and measuring from the window would hand it a
+   * width one whole rail too big. Given this, the width is measured from the
+   * element's own rect instead, which needs no knowledge of what is outboard
+   * of it. Omit it and the viewport-edge maths is used, unchanged.
+   */
+  boundsRef?: React.RefObject<HTMLElement | null>;
 }) {
   const dragging = useRef(false);
   const clamp = useCallback((px: number) => Math.min(max, Math.max(min, px)), [min, max]);
+  const widthAt = useCallback(
+    (clientX: number) => {
+      const rect = boundsRef?.current?.getBoundingClientRect();
+      if (rect) return side === 'right' ? clientX - rect.left : rect.right - clientX;
+      return side === 'right' ? clientX : window.innerWidth - clientX;
+    },
+    [boundsRef, side],
+  );
 
   return (
     <div
@@ -81,7 +101,7 @@ export function RailHandle({
       }}
       onPointerMove={(e) => {
         if (!dragging.current) return;
-        onChange(clamp(side === 'right' ? e.clientX : window.innerWidth - e.clientX));
+        onChange(clamp(widthAt(e.clientX)));
       }}
       onPointerUp={(e) => {
         dragging.current = false;

@@ -22,6 +22,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { apiEventStream, apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 import { usePendingQuestions } from '@/components/pending/use-pending-questions';
+import { ASSISTANT_W_DEFAULT, clampAssistantWidth } from '@/lib/nav-width';
 import type { TurnEvent } from '@mantle/client-types';
 
 /**
@@ -205,6 +206,13 @@ type AssistantDockApi = {
   docked: boolean;
   /** column ⇄ full display; persisted, applies everywhere. */
   toggleDocked: () => void;
+  /** The docked column's width in px. Dragged by the handle on its inner edge
+   *  and kept in localStorage; the shell reads it to publish `--assistant-w`,
+   *  so `<main>` and the toast dock shrink beside it exactly as before — only
+   *  the number is now the reader's rather than a hard-coded 30rem. */
+  dockWidth: number;
+  /** Called by the drag handle with an already-clamped px width. */
+  setDockWidth: (px: number) => void;
   /** The on-screen node id the in-flight turn is editing (null when idle or when
    *  no surface node is pinned) — lets a screen lock its editor only while ITS
    *  node is being worked on. */
@@ -235,6 +243,7 @@ const Ctx = createContext<AssistantDockApi | null>(null);
 const MAX_DOCK_MSGS = 12;
 const AGENT_COOKIE = 'mantle_assistant_agent';
 const DOCK_PREF_KEY = 'mantle_assistant_dock';
+const DOCK_W_KEY = 'mantle_assistant_w';
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export function AssistantDockProvider({ children }: { children: React.ReactNode }) {
@@ -292,6 +301,28 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       return !v;
     });
   }, []);
+  // The docked column's width. localStorage rather than a cookie (the pattern
+  // the shell rails use): the panel starts closed, so there is no first-paint
+  // width to server-render and nothing to jump.
+  const [dockWidth, setDockWidthState] = useState(ASSISTANT_W_DEFAULT);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DOCK_W_KEY);
+      if (raw !== null) setDockWidthState(clampAssistantWidth(raw));
+    } catch {
+      /* no storage — keep the default */
+    }
+  }, []);
+  const setDockWidth = useCallback((px: number) => {
+    const w = clampAssistantWidth(String(Math.round(px)));
+    setDockWidthState(w);
+    try {
+      localStorage.setItem(DOCK_W_KEY, String(w));
+    } catch {
+      /* no storage — session-only */
+    }
+  }, []);
+
   // The node the in-flight turn rode with as pinned context — set when a turn
   // starts, cleared when it settles. Drives a screen's editor lock.
   const [activeContextNodeId, setActiveContextNodeId] = useState<string | null>(null);
@@ -640,6 +671,8 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       setSurfaceChanges,
       docked,
       toggleDocked,
+      dockWidth,
+      setDockWidth,
       activeContextNodeId,
       registerTurnListener,
       picking,
@@ -676,6 +709,8 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       setSurfaceChanges,
       docked,
       toggleDocked,
+      dockWidth,
+      setDockWidth,
       activeContextNodeId,
       registerTurnListener,
       picking,
