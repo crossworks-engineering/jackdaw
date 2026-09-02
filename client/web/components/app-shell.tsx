@@ -32,7 +32,7 @@ import { LiveColumn } from '@/components/layout/live-column';
 import { Sheet, SheetContent, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { ToastProvider } from '@mantle/web-ui/ui/toast';
 import { PageTitleProvider } from '@/components/layout/page-title';
-import { UploadProvider, UploadDock } from '@/components/uploads/upload-provider';
+import { UploadProvider, UploadDock, useUploads } from '@/components/uploads/upload-provider';
 import { AssistantDockProvider, useAssistantDock } from '@/components/assistant/assistant-dock';
 import { AssistantPanel } from '@/components/assistant/assistant-panel';
 import { HelpRailProvider, useHelpRail } from '@/components/help/help-rail-context';
@@ -91,6 +91,9 @@ type ShellData = {
    *  the generated avatar (photo → generated seed → initials). */
   avatarPhotoVersion?: string | null;
   pendingApprovals: number;
+  /** The server's per-file upload cap in bytes (streamed /files uploader).
+   *  Absent on servers older than v0.232.122; the uploader assumes 64 MB then. */
+  maxUploadBytes?: number | null;
   /** Who this browser is signed in AS (the actor, not the anchor account) —
    *  the rail's profile row. Both null on a brain that stores neither. */
   displayName?: string | null;
@@ -211,6 +214,13 @@ function ShellFrame({
     queryFn: () => apiFetch<ShellData>('/api/shell'),
   });
   const userAvatar = shellQuery.data?.avatar ?? null;
+  // Hand the uploader the server's cap as soon as it is known, so an oversized
+  // file is refused before a byte is sent, with the real number in the message.
+  const { setMaxUploadBytes } = useUploads();
+  const maxUploadBytes = shellQuery.data?.maxUploadBytes ?? null;
+  useEffect(() => {
+    setMaxUploadBytes(maxUploadBytes);
+  }, [maxUploadBytes, setMaxUploadBytes]);
   const pendingApprovals = shellQuery.data?.pendingApprovals ?? 0;
 
   // First-run gate: a logged-in but not-yet-onboarded user goes to the wizard
