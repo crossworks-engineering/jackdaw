@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { CSP_ENFORCED_STATIC } from './lib/csp';
 
 /**
  * The ZERO-SECRET owner-UI app. No DB, no server packages, no SESSION_SECRET —
@@ -62,6 +63,16 @@ const nextConfig: NextConfig = {
   // server/web (which serves it for the team/share surfaces).
   async headers() {
     return [
+      // The origin-independent half of the CSP, on every response. Resolved at
+      // build time, which is exactly why only the origin-independent half is
+      // here — see lib/csp.ts for the measurements behind that split, and for
+      // the runtime half that is written, tested and waiting on one signed-in
+      // pass. Harmless on the asset routes below (CSP governs documents), and
+      // this way no route can be added that quietly ships without one.
+      {
+        source: '/:path*',
+        headers: [{ key: 'Content-Security-Policy', value: CSP_ENFORCED_STATIC }],
+      },
       {
         source: '/app-runtime/:file(.+\\.js)',
         headers: [
