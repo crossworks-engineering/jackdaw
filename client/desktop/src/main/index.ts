@@ -82,7 +82,22 @@ const saveConfig = (config: ShellConfig) => writeJson(configPath(), config);
 // each mapped to its own profile.
 
 const vaultFile = (profileId: string) => join(app.getPath('userData'), 'vault', `${profileId}.tok`);
-const windowProfiles = new Map<number, string>();
+// webContents id → the profile the window was opened for, and the renderer
+// origin it is allowed to be showing. Both are checked before the vault
+// answers: the sender id says WHICH window asked, the frame origin says the
+// window is still showing OUR UI and not something a navigation swapped in.
+const windowProfiles = new Map<number, { profileId: string; origin: string }>();
+
+function vaultProfileFor(event: Electron.IpcMainEvent): string | null {
+  const entry = windowProfiles.get(event.sender.id);
+  const frame = event.senderFrame;
+  if (!entry || !frame) return null;
+  try {
+    return new URL(frame.url).origin === entry.origin ? entry.profileId : null;
+  } catch {
+    return null;
+  }
+}
 
 function vaultRead(profileId: string): string | null {
   try {
@@ -305,7 +320,26 @@ function deepLinkToPath(link: string): string | null {
   try {
     const url = new URL(link);
     if (url.protocol !== 'mantle:') return null;
-    return `/${url.host}${url.pathname}${url.search}`.replace(/\/+$/, '') || '/';
+    const path = `/${url.host}${url.pathname}${url.search}`.replace(/\/+$/, '') || '/';
+    // A PATH, and only a path. `mantle:///evil.example` parses with an EMPTY
+    // host, which made this `//evil.example` — a scheme-relative URL that
+    // `new URL(path, rendererUrl)` resolves to another origin, and loadURL
+    // would then put that origin in the window whose preload exposes the
+    // token vault (will-navigate does not fire for programmatic loads).
+    // Chromium reads `/\` the same way as `//`, so both are rejected.
+    return /^\/(?![/\\])/.test(path) ? path : null;
+  } catch {
+    return null;
+  }
+}
+
+// The one place an in-app path becomes a URL for loadURL: whatever the path
+// looked like, the result must sit on the renderer's own origin, or it is not
+// loaded at all. Belt to deepLinkToPath's braces.
+function inAppUrl(path: string, rendererUrl: string): string | null {
+  try {
+    const target = new URL(path, rendererUrl);
+    return target.origin === new URL(rendererUrl).origin ? target.toString() : null;
   } catch {
     return null;
   }
@@ -317,7 +351,8 @@ function handleDeepLink(link: string): void {
   if (appWindow && !appWindow.isDestroyed() && appRendererUrl) {
     appWindow.show();
     appWindow.focus();
-    void appWindow.loadURL(new URL(path, appRendererUrl).toString());
+    const target = inAppUrl(path, appRendererUrl);
+    if (target) void appWindow.loadURL(target);
   } else {
     pendingDeepLinkPath = path;
     focusOrOpen();
@@ -411,7 +446,7 @@ async function openAppWindow(profile: Profile): Promise<void> {
   appWindow = win;
   appRendererUrl = rendererUrl;
   const webContentsId = win.webContents.id;
-  windowProfiles.set(webContentsId, profile.id);
+  windowProfiles.set(webContentsId, { profileId: profile.id, origin: rendererOrigin });
   win.on('closed', () => {
     windowProfiles.delete(webContentsId);
     if (appWindow === win) {
@@ -422,7 +457,7 @@ async function openAppWindow(profile: Profile): Promise<void> {
 
   const initialPath = pendingDeepLinkPath ?? '/';
   pendingDeepLinkPath = null;
-  void win.loadURL(new URL(initialPath, rendererUrl).toString());
+  void win.loadURL(inAppUrl(initialPath, rendererUrl) ?? new URL('/', rendererUrl).toString());
 }
 
 function reportWindowError(error: unknown): void {
@@ -454,17 +489,17 @@ function registerIpc(): void {
   });
 
   ipcMain.on('vault:get', (event) => {
-    const profileId = windowProfiles.get(event.sender.id);
+    const profileId = vaultProfileFor(event);
     event.returnValue = profileId ? vaultRead(profileId) : null;
   });
   ipcMain.on('vault:set', (event, token: unknown) => {
-    const profileId = windowProfiles.get(event.sender.id);
+    const profileId = vaultProfileFor(event);
     if (profileId && typeof token === 'string' && token.length > 0 && token.length < 8192) {
       vaultWrite(profileId, token);
     }
   });
   ipcMain.on('vault:clear', (event) => {
-    const profileId = windowProfiles.get(event.sender.id);
+    const profileId = vaultProfileFor(event);
     if (profileId) rmSync(vaultFile(profileId), { force: true });
   });
 

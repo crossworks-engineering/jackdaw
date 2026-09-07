@@ -253,6 +253,26 @@ export function TableDetailClient({
     return () => clearTimeout(h);
   }, [clipped, doc, saveDraft]);
 
+  // Leaving the table flushes whatever the debounce above still holds — the
+  // effect's cleanup only CANCELS the pending tick, so without this an edit
+  // followed by a click on another table (or any nav link) inside
+  // DRAFT_DEBOUNCE_MS was silently gone. Same shape as the Pages and Draw
+  // editors; the visibilitychange half covers hard reloads and tab closes.
+  // saveDraft already no-ops when nothing changed or the view is clipped.
+  const saveDraftRef = useRef(saveDraft);
+  saveDraftRef.current = saveDraft;
+  useEffect(() => {
+    const flush = () => void saveDraftRef.current();
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, []);
+
   // Title saves live (cheap metadata; never indexes).
   useEffect(() => {
     if (title === metaSavedRef.current) return;

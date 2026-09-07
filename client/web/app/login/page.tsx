@@ -2,6 +2,7 @@ import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
 import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
+import { safeNext } from '@/lib/safe-next';
 import { LoginClient } from './login-client';
 import { LoginMark } from './login-mark';
 import { LoginCredit } from './login-credit';
@@ -54,7 +55,9 @@ export default async function LoginPage({
             // different origins — see `components/layout/rail/brand-logo.tsx`,
             // which also normalises the trailing slash for every caller.
             mark={<LoginMark brand={brand} srcBase={process.env.MANTLE_SERVER_ORIGIN} />}
-            next={params.next}
+            // Reduced to an in-app path before either client half sees it —
+            // the raw parameter was an open redirect (lib/safe-next.ts).
+            next={safeNext(params.next)}
             error={params.error}
           />
         </div>
