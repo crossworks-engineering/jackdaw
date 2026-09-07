@@ -1,0 +1,9 @@
+{
+  "name": "@excalidraw/mermaid-to-excalidraw",
+  "version": "2.2.2",
+  "private": true,
+  "description": "Local stub. Jackdaw does not support Mermaid; this replaces the real package so mermaid, lodash-es and nanoid@4 never enter the tree. See README.md.",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts"
+}

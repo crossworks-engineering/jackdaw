@@ -28,12 +28,15 @@ overrides:
   "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.85"
   "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.85"
   "@mantle/app-build": "npm:@crossworks/app-build@0.232.85"
-  "lodash-es": "4.18.1"
-  "mermaid": "11.16.1"
+  # Mermaid is not supported (stubs/mermaid-to-excalidraw/README.md). Excalidraw
+  # reaches its Mermaid feature through a dynamic import(), so the UI prop alone
+  # would leave the real package installed and its ~640 KB chunk emitted; this
+  # points it at a local stub instead. That subtree was also the only source of
+  # mermaid, lodash-es and nanoid@4, so those three overrides came out with it.
+  "@excalidraw/mermaid-to-excalidraw": "link:./stubs/mermaid-to-excalidraw"
   "fast-uri": "3.1.6"
   "@xmldom/xmldom": "0.8.15"
   "nanoid@3": "3.3.18"
-  "nanoid@4": "5.1.16"
 
 patchedDependencies:
   katex@0.18.6: patches/katex@0.18.6.patch

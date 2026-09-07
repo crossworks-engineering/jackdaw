@@ -88,6 +88,14 @@ export function ExcalidrawCanvas({
             ? (elements, appState, files) => onChange({ elements, appState, files })
             : undefined
         }
+        // Mermaid is not supported. This is Excalidraw's own switch for the
+        // feature and it closes every door at once: the "Text to diagram" menu
+        // item, both command-palette commands (including "Mermaid to
+        // Excalidraw"), and the diagram-to-code plugin. The package itself is
+        // replaced by a stub in pnpm-workspace.yaml, because Excalidraw loads
+        // it through a dynamic import that a hidden button would not remove.
+        // See stubs/mermaid-to-excalidraw/README.md.
+        aiEnabled={false}
         UIOptions={{
           canvasActions: {
             // The app's theme is the theme; no per-canvas toggle.
