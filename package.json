@@ -1,8 +1,8 @@
 {
   "name": "jackdaw",
-  "version": "0.6.50",
+  "version": "0.6.51",
   "private": true,
-  "description": "Jackdaw \u2014 the data-aware workspace. The web + desktop interface for Mantle brains.",
+  "description": "Jackdaw — the data-aware workspace. The web + desktop interface for Mantle brains.",
   "license": "SEE LICENSE IN LICENSE.md",
   "packageManager": "pnpm@11.1.2",
   "engines": {
