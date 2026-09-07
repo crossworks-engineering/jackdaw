@@ -2,7 +2,7 @@
   "name": "jackdaw",
   "version": "0.6.50",
   "private": true,
-  "description": "Jackdaw — the data-aware workspace. The web + desktop interface for Mantle brains.",
+  "description": "Jackdaw \u2014 the data-aware workspace. The web + desktop interface for Mantle brains.",
   "license": "SEE LICENSE IN LICENSE.md",
   "packageManager": "pnpm@11.1.2",
   "engines": {
@@ -12,7 +12,7 @@
     "dev": "pnpm -C client/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 465",
     "format": "prettier --write \"{client,packages,e2e,scripts}/**/*.{ts,tsx,mjs,cjs}\" \"*.{ts,tsx,mjs,cjs}\"",
     "format:check": "prettier --check \"{client,packages,e2e,scripts}/**/*.{ts,tsx,mjs,cjs}\" \"*.{ts,tsx,mjs,cjs}\"",
     "test": "vitest run",

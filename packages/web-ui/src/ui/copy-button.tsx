@@ -45,7 +45,7 @@ export function CopyButton({
 export function CopyBlock({ code }: { code: string }) {
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 pr-20 text-xs leading-relaxed">
+      <pre className="overflow-x-auto scrollbar-thin rounded-md border border-border bg-muted/40 p-3 pr-20 text-xs leading-relaxed">
         <code>{code}</code>
       </pre>
       <div className="absolute right-2 top-2">

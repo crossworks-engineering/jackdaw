@@ -122,7 +122,7 @@ export function FileTree({
 }) {
   const tree = buildTree(paths);
   return (
-    <div className={cn('min-h-0 overflow-y-auto bg-sidebar py-2', className)}>
+    <div className={cn('min-h-0 overflow-y-auto scrollbar-thin bg-sidebar py-2', className)}>
       {tree.map((node) => (
         <Row
           key={node.path}

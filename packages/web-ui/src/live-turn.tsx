@@ -106,7 +106,7 @@ export function ReasoningTrace({
         />
       </button>
       {open && (
-        <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pl-5 text-xs leading-relaxed text-muted-foreground/75">
+        <p className="mt-1.5 max-h-56 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words pl-5 text-xs leading-relaxed text-muted-foreground/75">
           {text}
         </p>
       )}

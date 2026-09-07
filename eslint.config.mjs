@@ -13,6 +13,7 @@ import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import nextPlugin from '@next/eslint-plugin-next';
 import mantlePlugin from './eslint-rules/pair-fill-foreground.mjs';
+import housePlugin from './eslint-rules/house-style.mjs';
 
 export default tseslint.config(
   {
@@ -136,6 +137,40 @@ export default tseslint.config(
     ],
     plugins: { mantle: mantlePlugin },
     rules: { 'mantle/pair-fill-foreground': 'error', 'mantle/use-ink-for-text': 'error' },
+  },
+  {
+    // The three house rules that decayed while they were prose. The 2026-09-07
+    // audit found the pattern exactly: every lint-backed rule was perfect,
+    // every prose-only one had rotted — 359 palette literals, 166 raw buttons
+    // (six with any focus style), 60 unthinned scrollers.
+    //
+    // They land as WARN, not error, because the backlog is real (465 warnings
+    // the day they landed) and burning it down is its own piece of work. What
+    // stops them being ignored is the ratchet: `pnpm lint` runs with
+    // `--max-warnings 465`, so the count can fall but never rise — a new
+    // palette literal or raw button fails CI today, while the existing ones
+    // wait their turn. Lower the cap as it burns down, then promote these to
+    // `error`, the same path `no-unused-vars`, `no-explicit-any` and
+    // `exhaustive-deps` each took (see above).
+    files: [
+      'client/web/**/*.{ts,tsx}',
+      'packages/web-ui/**/*.{ts,tsx}',
+      'server/web/**/*.{ts,tsx}',
+      'packages/share-ui/**/*.{ts,tsx}',
+    ],
+    plugins: { house: housePlugin },
+    rules: {
+      'house/no-palette-literal': 'warn',
+      'house/require-thin-scrollbar': 'warn',
+    },
+  },
+  {
+    // Raw controls, everywhere EXCEPT the kit's own primitives — those files
+    // are where the raw <button>/<input> is supposed to live, since wrapping
+    // them is the whole point of the kit.
+    files: ['client/web/**/*.{ts,tsx}', 'server/web/**/*.{ts,tsx}'],
+    plugins: { house: housePlugin },
+    rules: { 'house/no-raw-form-control': 'warn' },
   },
   {
     // Tests + one-shot scripts: relax rules that only make sense for shipped code.

@@ -49,7 +49,7 @@ export function CodeEditor({
   }
 
   return (
-    <div className={cn('code-view relative overflow-auto bg-card', className)}>
+    <div className={cn('code-view relative overflow-auto scrollbar-thin bg-card', className)}>
       <pre
         aria-hidden
         className={cn('hljs pointer-events-none min-h-full text-card-foreground', TEXT)}
