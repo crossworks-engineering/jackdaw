@@ -12,3 +12,28 @@ allowBuilds:
   unrs-resolver: true
   electron-winstaller: true
   '@parcel/watcher': false
+
+# Overrides and patches live HERE, not in package.json#pnpm: pnpm 11 reads its
+# settings from this file and silently ignores that field (the lockfile carried
+# no overrides at all, and the katex patch had been unapplied since katex moved
+# past 0.18.1). Found in the 2026-09-07 frontend audit.
+#
+# The @mantle/* aliases mirror what each package.json declares directly.
+# nanoid / lodash-es / mermaid ride in under @excalidraw/excalidraw 0.18.1 (the
+# latest release) with known advisories; fast-uri / @xmldom/xmldom under
+# electron-builder (build-time only).
+overrides:
+  "@mantle/client-types": "npm:@crossworks/client-types@0.232.105"
+  "@mantle/content-core": "npm:@crossworks/content-core@0.232.85"
+  "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.85"
+  "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.85"
+  "@mantle/app-build": "npm:@crossworks/app-build@0.232.85"
+  "lodash-es": "4.18.1"
+  "mermaid": "11.16.1"
+  "fast-uri": "3.1.6"
+  "@xmldom/xmldom": "0.8.15"
+  "nanoid@3": "3.3.18"
+  "nanoid@4": "5.1.16"
+
+patchedDependencies:
+  katex@0.18.6: patches/katex@0.18.6.patch
