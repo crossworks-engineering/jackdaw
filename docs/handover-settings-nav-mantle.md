@@ -1,5 +1,18 @@
 # Handover: collapse the Settings nav group (a MANTLE change)
 
+> ⚠ **WITHDRAWN (2026-08-22). Do not do this.** The hub this handover serves
+> was undone in jackdaw `c7af6a6` — the thirteen screens are flat sidebar rows
+> again, on purpose, because folding them behind one row had broken the menu
+> filter (typing "backups" found nothing). The sidebar listing all twenty-four
+> settings screens is the intended state. Nothing in `nav-items.ts` needs a
+> `hubOnly` flag, a `/settings` item, or the `defaultHead` change in §4.
+>
+> Kept because §3's findings outlive the job: 3a (`discover` is in Review) and
+> 3b (deleting items breaks ⌘K) are still true, and 3c's recommendation landed
+> anyway, on its own — most-specific-wins is `activeNavHref` in
+> `client/web/lib/nav-active.ts`, so the next nested route will not double-light.
+> What survived the revert is in [`plan-settings-hub.md`](./plan-settings-hub.md) §9.
+
 **For a mantle session.** This is step 5 of
 [`plan-settings-hub.md`](./plan-settings-hub.md) — the only part of that plan
 that cannot land in jackdaw, because the nav list lives in a package built in
@@ -14,6 +27,11 @@ the plan.
 ---
 
 ## 1. What already exists (jackdaw side, done)
+
+> ⚠ Stale as of 2026-08-22. The cards, `settings-nav.tsx`, the stat lines and
+> `settings-hub.spec.ts` are gone; `/settings` redirects to Profile. The route
+> group and the thirteen screens under it remain, wrapped in a `MeasuredPane`
+> (a draggable column, no list) — see plan §9.
 
 `/settings` is now a card-list hub: thirteen single-panel settings screens, one
 `ListCard` each, the screen itself in the detail pane.
@@ -203,6 +221,11 @@ usually bumped in step; check whether the release moves it too.
 ---
 
 ## 6. How to check it worked
+
+> ⚠ Withdrawn — none of this applies. `settings-hub.spec.ts` no longer exists;
+> the surviving pane is covered by `e2e/specs/settings-pane.spec.ts`, which
+> asserts the OPPOSITE of the first bullet below: every screen has its row, and
+> the filter finds it.
 
 The hub's own specs already pass and must keep passing
 (`e2e/specs/settings-hub.spec.ts`, 5 tests). Beyond those:

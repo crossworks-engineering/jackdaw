@@ -13,9 +13,9 @@ import { expect, test } from '../lib/fixtures';
  * `detailFills` the page sprawled the full window with NO right edge to take
  * hold of: the reader could widen the list, and nothing else. Jason's words —
  * the content "is all just full width", with "no drag handle to resize
- * content". A document the reader READS wants what the settings hub has: an
- * opening measure, tucked left against the divider, with its own handle on the
- * right and `maxDetailSize="100%"` so that handle has no ceiling.
+ * content". A document the reader READS wants what the settings screens have:
+ * an opening measure, tucked left against the divider, with its own handle on
+ * the right and `maxDetailSize="100%"` so that handle has no ceiling.
  *
  * Three assertions, because three different regressions are possible. Re-add an
  * inner `mx-auto` and (2) fails. Re-add `detailFills` — or drop the spacer any
@@ -28,7 +28,8 @@ test.describe('pages reading width', () => {
   /** The scaffold's OWN handles. `[data-slot="resizable-handle"]` alone also
    *  matches the app shell's nav rail, so scope to the group holding the list
    *  and take only its direct children — same helper as
-   *  `master-detail-screens.spec.ts` and `settings-hub.spec.ts`. */
+   *  `master-detail-screens.spec.ts`. (`settings-pane.spec.ts` has no list to
+   *  scope by and keys on the pane's own id instead.) */
   const scaffoldHandles = (page: import('@playwright/test').Page) =>
     page
       .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')

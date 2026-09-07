@@ -1,5 +1,10 @@
 # Plan: a card-list hub for the settings screens that have no list (2026-08-18)
 
+> ⚠ **Superseded (2026-08-22).** The hub this plan describes shipped (§8) and
+> was then **undone** in `c7af6a6` — see [§9](#9-undone--the-cards-go-the-pane-stays-2026-08-22).
+> What survived is the pane, not the cards. Step 5, the mantle-side nav
+> collapse, is withdrawn rather than pending.
+
 Half the settings cluster is a master-detail screen with a list of things
 (accounts, agents, API keys). The other half is a single panel with no
 collection behind it (Profile, Appearance, Microsoft, Backups…). Today both
@@ -233,6 +238,10 @@ the padding.** The divider becomes the measure.
 
 ## 8. Shipped — steps 1 to 3 (2026-08-18)
 
+> ⚠ Read with §9. Everything below was true for four days: the cards, the
+> explainer at `/settings`, the five stat lines and `settings-hub.spec.ts` are
+> all gone, and step 5 is moot. The width-cap removals and the pane survived.
+
 Two commits. **Steps 1, 2 and 3 are done; step 4 was answered by doing step 3;
 step 5 is the mantle-side nav change and is still open.**
 
@@ -283,6 +292,8 @@ them, each one's reading, and that Profile has none.
 
 ### Step 5 is NOT done, and cannot be done here
 
+> ⚠ Moot since 2026-08-22 — §9. Do not do it.
+
 **Written up for a mantle session in
 [`handover-settings-nav-mantle.md`](./handover-settings-nav-mantle.md)** —
 including two findings that contradict this plan: `discover` DOES have a nav
@@ -295,3 +306,70 @@ change to `NAV_GROUPS` in **`@crossworks/share-ui`, built in the mantle repo** �
 a package release picked up here on upgrade. §2's ordering advice held and still
 holds: the hub shipped first, the nav points at screens that all still exist,
 and nothing is broken while step 5 waits.
+
+---
+
+## 9. Undone — the cards go, the pane stays (2026-08-22)
+
+`c7af6a6` — *"the settings screens come back to the menu, and pick up
+favourites"*. Jason asked for it, and the reason was concrete: folding thirteen
+rows behind one "Settings" entry had broken the sidebar's **filter box**.
+Typing "backups" matched nothing, because the item the filter reads was no
+longer in the sidebar's copy of the list. ⌘K still found them; the menu did not.
+A hub that hides screens from the one control built to find them is the wrong
+trade, so the collapse went, and with it the reason for the hub.
+
+### What is gone
+
+- `settings/(hub)/settings-nav.tsx` — the card list — and `lib/settings-hub-nav.ts`,
+  the render-time collapse. Deleted, not disabled.
+- The five stat lines. They lived on the cards.
+- The `/settings` explainer. The URL is now a **redirect to `/settings/profile`**
+  — it has been a real linkable address, and a 404 is a worse answer than a
+  landing. §8's "explainer, not a redirect" reasoning no longer applies: there
+  is no card list for a landing state to leave unselected.
+- `e2e/specs/settings-hub.spec.ts` and the `/settings` row in
+  `master-detail-screens.spec.ts`. Both asserted markup that no longer exists.
+
+### What survived, and is the point
+
+- **The pane.** `MeasuredPane` (`packages/web-ui/src/ui/measured-pane.tsx`) is
+  `MasterDetail` minus the list: one measured column, a draggable right edge,
+  an empty spacer for it to pull against. `(hub)/layout.tsx` wraps the thirteen
+  screens in it and nothing else. The route group **must stay** for §4's
+  original reason — a `settings/layout.tsx` would wrap the twelve collection
+  screens too.
+- **Widths per screen, not per section.** The pane is keyed
+  `settings:${pathname}`. One shared key meant dragging Appearance wide silently
+  widened Profile.
+- **Appearance opens at 1344px**, double the 672px form measure — it is a
+  gallery, and at a form's width it was a cramped strip beside an empty spacer.
+  Still draggable, still remembered; only where it opens changed.
+- **The twelve inner width caps stay dropped**, and the padding fixes with them.
+- **Most-specific-wins highlighting.** `activeNavHref` moved from
+  `settings-hub-nav.ts` to `client/web/lib/nav-active.ts`. It was never really
+  about the hub, and it also settles the duplicate row a starred favourite makes.
+
+The same commit added **Favorites** — a star on every row, starred rows pinned
+in a group at the top, stored per browser. That is a sidebar feature, not part
+of this plan; it is mentioned because it is why `nav-active.ts` still earns its
+keep.
+
+### Coverage now
+
+`e2e/specs/settings-pane.spec.ts` replaces `settings-hub.spec.ts`. It holds what
+survived: a `MeasuredPane` per screen keyed on its own path with a remembered
+width and no list panel; the 672px/1344px opening widths; that a width dragged
+on one screen does not follow to another; the redirect; the no-ceiling drag,
+the fill-the-pane check and the padding check carried over from the hub spec;
+that the filter finds "backups" again; and most-specific-wins highlighting. It
+scopes by the pane's own id, because there is no `[data-testid="list"]` — and
+it asserts there is none, since a list coming back would mean the hub had.
+
+### Step 5 is withdrawn
+
+The sidebar listing every settings screen is now the **intended** state, not a
+redundancy waiting on a mantle release. `handover-settings-nav-mantle.md` is
+marked withdrawn and kept only for its §3 findings, which are still true:
+`discover` lives in Review, and deleting nav items would break ⌘K. Do not add
+`hubOnly`, a `/settings` item, or the `defaultHead` change it proposed.
