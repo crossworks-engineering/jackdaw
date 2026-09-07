@@ -187,7 +187,31 @@ export function AgentMediaStrip({
  * A src matching neither falls through to a normal image, so an ordinary link
  * to a public picture still works.
  */
+/**
+ * Cached per surface, and that matters more than it looks.
+ *
+ * This returns a components map whose `img` is a freshly DEFINED component on
+ * every call, and it was being called inside a render (team-markdown's
+ * `Segment`). React compares element types by identity, so a new function each
+ * render meant every image in every message unmounted and remounted on every
+ * render of the thread — reloading the picture, not merely re-rendering it —
+ * and react-markdown could never bail out of a message either.
+ *
+ * The returned map closes over nothing but `surface`, which is the cache key,
+ * so one instance per surface is safe to share across every message.
+ */
+const componentsBySurface = new Map<MediaSurface, ReturnType<typeof buildMarkdownComponents>>();
+
 export function mediaMarkdownComponents(surface: MediaSurface) {
+  let cached = componentsBySurface.get(surface);
+  if (!cached) {
+    cached = buildMarkdownComponents(surface);
+    componentsBySurface.set(surface, cached);
+  }
+  return cached;
+}
+
+function buildMarkdownComponents(surface: MediaSurface) {
   return {
     img({ src, alt }: { src?: string | Blob; alt?: string }) {
       const raw = typeof src === 'string' ? src : '';

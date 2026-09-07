@@ -53,6 +53,51 @@ export function applyStatusToTrail(prev: ThoughtEvent[], incoming: ThoughtEvent)
 /** Lifecycle of the subscribed turn, driven by the terminal bus events. */
 export type TurnPhase = 'idle' | 'streaming' | 'done' | 'error';
 
+/**
+ * Coalesce many buffer writes into one commit per animation frame.
+ *
+ * Every SSE frame arrives as its own task, so a `setState` per `text-delta`
+ * meant React committed per token — and each commit re-rendered the whole
+ * transcript and re-parsed the growing reply through react-markdown, which is
+ * O(n²) over a reply. The deltas already accumulate in refs; this just decides
+ * when the refs are published.
+ *
+ * `raf`/`caf` are injected so the scheduling is testable without a browser.
+ * A hidden tab pauses rAF: the refs keep accumulating and `flushNow` on the
+ * terminal event publishes them, so nothing is lost while nobody is looking.
+ */
+export function createFrameFlusher(
+  flush: () => void,
+  raf: (cb: () => void) => number = (cb) => requestAnimationFrame(cb),
+  caf: (id: number) => void = (id) => cancelAnimationFrame(id),
+) {
+  let queued: number | null = null;
+  const clear = () => {
+    if (queued !== null) {
+      caf(queued);
+      queued = null;
+    }
+  };
+  return {
+    /** Publish on the next frame; a no-op if one is already queued. */
+    schedule() {
+      if (queued !== null) return;
+      queued = raf(() => {
+        queued = null;
+        flush();
+      });
+    },
+    /** Publish immediately, dropping any queued frame. For terminal events,
+     *  where a pending flush would otherwise land after the final state. */
+    flushNow() {
+      clear();
+      flush();
+    },
+    /** Drop any queued frame without publishing. For unmount. */
+    cancel: clear,
+  };
+}
+
 export interface TurnStream {
   /** Latest status label — for the live typing line. Null before any event. */
   label: string | null;
@@ -165,6 +210,13 @@ export function useTurnStream(turnId: string | null): TurnStream {
     const startedAtMs = Date.now();
     setStartedAt(startedAtMs);
     let stopped = false;
+    // One commit per frame instead of one per token. The refs below are the
+    // truth; this decides when they reach React.
+    const flusher = createFrameFlusher(() => {
+      setReply(replyRef.current);
+      setReasoning(reasoningRef.current);
+      setTokens(estimateTokens(outCharsRef.current));
+    });
     const stop = apiEventStream(
       `/api/assistant/turn/${turnId}/stream`,
       (data) => {
@@ -181,11 +233,10 @@ export function useTurnStream(turnId: string | null): TurnStream {
             } else {
               replyRef.current += ev.data.text;
             }
-            setReply(replyRef.current);
             // Token estimate counts ALL streamed output across rounds (not just
             // the latest round's visible buffer), so it tracks total generation.
             outCharsRef.current += ev.data.text.length;
-            setTokens(estimateTokens(outCharsRef.current));
+            flusher.schedule();
             return;
           }
           if (ev && ev.type === 'reasoning-delta' && typeof ev.data?.text === 'string') {
@@ -193,9 +244,8 @@ export function useTurnStream(turnId: string | null): TurnStream {
             // its tokens toward the output estimate — it's billed output, kept
             // out of the visible reply buffer.
             reasoningRef.current += ev.data.text;
-            setReasoning(reasoningRef.current);
             outCharsRef.current += ev.data.text.length;
-            setTokens(estimateTokens(outCharsRef.current));
+            flusher.schedule();
             return;
           }
           if (ev && ev.type === 'turn-start') {
@@ -205,6 +255,10 @@ export function useTurnStream(turnId: string | null): TurnStream {
             return;
           }
           if (ev && ev.type === 'done') {
+            // Publish the last deltas BEFORE the exact token count below — a
+            // frame queued by the final delta would otherwise land after it and
+            // overwrite the real total with the estimate.
+            flusher.flushNow();
             // Swap the streamed estimate for the real output-token total when the
             // runner reports it (>0); otherwise keep the estimate.
             if (typeof ev.data?.tokensOut === 'number' && ev.data.tokensOut > 0) {
@@ -215,6 +269,8 @@ export function useTurnStream(turnId: string | null): TurnStream {
             return;
           }
           if (ev && ev.type === 'error') {
+            // Whatever streamed before the failure is part of the record.
+            flusher.flushNow();
             setError(typeof ev.data?.message === 'string' ? ev.data.message : 'The turn failed.');
             setPhase('error');
             return;
@@ -238,6 +294,8 @@ export function useTurnStream(turnId: string | null): TurnStream {
 
     return () => {
       stopped = true;
+      // Drop any queued frame: its setState would land on an unmounted hook.
+      flusher.cancel();
       stop();
       setTrail([]);
       setReply('');
