@@ -1,0 +1,67 @@
+# The gate. Runs `pnpm verify` (typecheck, lint, format, unit tests) — the same
+# command the pre-push hook runs, so CI and a local push agree by construction.
+#
+# Why it exists: until 2026-09 the only two workflows here fired on `v*` tags,
+# which meant nothing checked ordinary work. The pre-push hook
+# (scripts/git-hooks/pre-push) covers it, but only in clones that opted in with
+# `git config core.hooksPath scripts/git-hooks` — a gate you can forget to
+# install is not a gate. This one cannot be skipped by forgetting.
+#
+# Triggers follow how this repo actually lands work: branches are merged to main
+# LOCALLY (scripts/merge-branch.sh) and main is pushed, so `push: main` is the
+# check that matters. `demo` is covered because main merges into it. Pull
+# requests are covered too, for when work does arrive that way — a PR from a
+# branch in this repo runs once, not twice, because feature-branch pushes are
+# not themselves a trigger.
+#
+# NOT here: Playwright. The e2e suite drives a live brain and its local runner
+# still calls paths that left in the repo split, so it cannot run hermetically
+# yet. Fold it in once that is repaired, as its own job.
+
+name: verify
+
+on:
+  push:
+    branches: [main, demo]
+  pull_request:
+  workflow_dispatch:
+
+# One run per ref. A second push while the first is still going supersedes it
+# rather than queueing behind it; main is never cancelled, so every landed
+# commit keeps a result of its own.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    # Locally the whole gate is ~35 s. Ten minutes is loose enough for a cold
+    # store on a slow runner and tight enough that a hang is not billed as one.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      # --frozen-lockfile is half the value of this job: it fails when
+      # pnpm-lock.yaml disagrees with any package.json, which is exactly the
+      # drift a local install would paper over.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # typecheck (all four workspaces) → lint → format:check → vitest.
+      # Deliberately the script, not its four parts: whatever `pnpm verify`
+      # grows to mean stays what CI enforces.
+      - name: Verify
+        run: pnpm verify
