@@ -1,11 +1,37 @@
 'use client';
 
 import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
-import { AssistantThreadClient } from '@/app/(app)/assistant/assistant-thread-client';
+import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useAssistantDock } from './assistant-dock';
 import { ASSISTANT_W_MAX, ASSISTANT_W_MIN } from '@/lib/nav-width';
+
+/** The thread — transcript, composer, the strips — behind a dynamic import.
+ *
+ *  This one import is the app's largest single lever: the thread pulls
+ *  `assistant-client`, which pulls `rich-text`, which pulls the whole page-
+ *  editor extension set — TipTap and ProseMirror, KaTeX, lowlight's ~37
+ *  grammars — plus react-markdown and marked. Imported statically it rode the
+ *  shell onto EVERY signed-in route, about 1.3 MB of a 1.9 MB fixed cost, for a
+ *  panel most loads never open. Same shape the help rail uses, for the same
+ *  reason (`components/help/help-rail.tsx`).
+ *
+ *  `ssr: false` because it is client-only anyway and there is nothing to
+ *  pre-render behind a `hidden` panel. */
+const AssistantThreadClient = dynamic(
+  () =>
+    import('@/app/(app)/assistant/assistant-thread-client').then((m) => m.AssistantThreadClient),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center">
+        <Spinner />
+      </div>
+    ),
+  },
+);
 
 /** Where a window that has never been placed opens: inset from the bottom-right
  *  of the viewport, clear of the activity rail, at a size that fits a laptop. */
@@ -37,16 +63,31 @@ function firstPlacement() {
  *    fallback below lg, where neither a column nor a window has room: the two
  *    lg-only shapes simply do not apply and the base geometry stands.
  *
- * It mounts in the background on page load (hidden via display:none until
- * `open`), so the thread warms immediately, the composer exists from the start
- * (a marker selection always has somewhere to land), and opening is instant.
- * It then stays mounted, so the transcript, scroll position, composer draft,
- * and any live turn stream survive a minimise/restore — or a change of shape —
- * without a re-fetch. `Esc` minimises.
+ * It is NOT mounted until first opened. It used to be — hidden via display:none
+ * from page load — which bought three things, and only one of them was really
+ * paid for by the mount:
+ *
+ *  - *A marker selection always has somewhere to land.* Still true, and never
+ *    depended on this component: `useSurfaceAssist` writes pinned context,
+ *    directives and selection into `AssistantDockProvider`, which is mounted by
+ *    the shell and stays. The panel only ever read that state.
+ *  - *Opening is instant.* Preserved by prefetching the chunk at idle below,
+ *    which downloads the code without mounting a thing.
+ *  - *The thread warms immediately.* This one genuinely goes: the transcript is
+ *    now fetched when the panel first opens rather than on every page load.
+ *    That is the trade, and it is the point — on a load where nobody opens the
+ *    assistant, we were fetching a thread, a profile, polling runs every five
+ *    seconds and building one ProseMirror editor per turn, all behind
+ *    display:none.
+ *
+ * Once opened it stays mounted, so the transcript, scroll position, composer
+ * draft, and any live turn stream survive a minimise/restore — or a change of
+ * shape — without a re-fetch. `Esc` minimises.
  */
 export function AssistantPanel() {
   const {
     panel,
+    everOpened,
     activeAgentSlug,
     minimize,
     display,
@@ -84,6 +125,27 @@ export function AssistantPanel() {
   useEffect(() => {
     if (display === 'popout' && !popout) setPopout(firstPlacement());
   }, [display, popout, setPopout]);
+
+  // Warm the chunk once the browser is idle, so the first open is instant even
+  // though nothing mounted at load. This downloads and evaluates the module —
+  // it does NOT mount the thread, so no thread fetch, no profile fetch, no runs
+  // poll and no editors. requestIdleCallback is not everywhere (Safari got it
+  // in 16.4), hence the timeout fallback; both are cancelled on unmount so a
+  // fast navigation away does not leave work queued.
+  useEffect(() => {
+    if (everOpened) return;
+    const warm = () => void import('@/app/(app)/assistant/assistant-thread-client');
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(warm, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(warm, 2000);
+    return () => window.clearTimeout(id);
+  }, [everOpened]);
+
+  // Never mounted until the first open. Every hook above runs regardless, so
+  // Esc handling and window placement are wired the moment the panel exists.
+  if (!everOpened) return null;
 
   const isWindow = display === 'popout' && popout !== null;
 

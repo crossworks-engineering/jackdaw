@@ -162,6 +162,11 @@ type AssistantDockApi = {
   clear: () => void;
   // ── global panel UI state (consumed by <AssistantPanel/> + <AssistantButton/>) ──
   panel: AssistantPanelState;
+  /** True once the panel has been opened at least once this page load. The
+   *  panel's body is code-split behind it, so it is never mounted — and its
+   *  editor stack never downloaded — on a load where nobody asks for it. Only
+   *  ever goes false → true, so the transcript survives minimising. */
+  everOpened: boolean;
   /** Show the full panel. Optionally switch to a specific agent first. */
   openAssistant: (slug?: string) => void;
   /** Hide the panel to the bubble, keeping the transcript mounted. */
@@ -325,6 +330,13 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
 
   // ── Global panel UI state ──
   const [panel, setPanel] = useState<AssistantPanelState>('closed');
+  // Latches on the first open and never clears, which is what lets the panel be
+  // code-split without costing the transcript: once mounted it stays mounted
+  // through minimise/restore and every change of shape.
+  const [everOpened, setEverOpened] = useState(false);
+  useEffect(() => {
+    if (panel === 'open') setEverOpened(true);
+  }, [panel]);
   const [activeAgentSlug, setActiveAgentSlugState] = useState<string | undefined>(undefined);
 
   // ── Marker context-pick state ──
@@ -862,6 +874,7 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       agentName,
       clear,
       panel,
+      everOpened,
       openAssistant,
       minimize,
       close,
@@ -909,6 +922,7 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       agentName,
       clear,
       panel,
+      everOpened,
       openAssistant,
       minimize,
       close,
