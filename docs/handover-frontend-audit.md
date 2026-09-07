@@ -1,0 +1,184 @@
+# Handover: the frontend audit rollout (2026-09-07)
+
+A full frontend audit of `client/web`, `packages/web-ui` and `client/desktop`
+was run at v0.6.42 and rated the tree **6.5/10**. Six of its nine worklist
+items have since landed, taking it to roughly **7.4**. This file is the state
+of the world around that work: what changed, what is left, and the handful of
+things that will burn you if nobody tells you.
+
+The audit itself is the authority on the findings and carries the live
+worklist; this file does not repeat it.
+
+- **Report** (interactive, kept current): <https://claude.ai/code/artifact/216dc6be-2285-424f-bc90-72ed7410942e>
+- **Dev brain page**: `Jackdaw frontend audit 2026-09-07`, tags `audit` / `jackdaw`
+- **Roadmap task**: "Act on the jackdaw frontend audit (2026-09-07)", tag `mantle-roadmap`
+
+---
+
+## 1. Where things stand
+
+| Repo | Branch | State |
+|---|---|---|
+| **jackdaw** | `main` | Pushed, at **v0.6.51**. CI green. No release tag cut. |
+
+`pnpm verify` on main: typecheck clean across all four workspaces, 428 tests,
+prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
+build green. `pnpm audit`: no known vulnerabilities.
+
+Nine commits landed, in this order:
+
+| Version | What |
+|---|---|
+| v0.6.43 | Dependency refresh; pnpm settings moved so they actually apply; audit 22 findings → 0 |
+| v0.6.44 | The three release-blocking bugs |
+| v0.6.45 | Mermaid support dropped entirely |
+| v0.6.46 | The CI gate |
+| v0.6.47 | CI actions moved to current majors |
+| v0.6.48 | Assistant panel mounts on first open, not every page load |
+| v0.6.49 | Half the CSP enforced |
+| v0.6.50 | Streaming and typing jank |
+| v0.6.51 | The three decayed prose rules become lint rules |
+
+(`91ee13b`, the settings-hub e2e rewrite, landed alongside from a separate
+session.)
+
+---
+
+## 2. What landed, and what it bought
+
+**The three bugs (v0.6.44).** A `mantle:///host` deep link resolved to an
+external origin and was loaded into the desktop window whose preload exposes
+the token vault; `will-navigate` does not fire for programmatic loads. The
+table editor dropped the last edit if you navigated within its 1.2 s debounce,
+because the effect cleanup only cancelled the timer. Login's `?next=` went
+straight to `router.push`, and the app router hard-navigates external URLs, so
+it was an open redirect fired the moment a password was accepted.
+
+**Mermaid (v0.6.45).** Our own engine was retired in 2026-08; this removed the
+feature Excalidraw bundles. Built client JS fell 3.8 MB and 81 chunks, and
+three CVE overrides retired with it.
+
+**The CI gate (v0.6.46/47).** `pnpm verify` on every push to main and every
+PR, green in 88 s. Before this, the two workflows were tag-triggered and
+nothing checked ordinary work.
+
+**The assistant panel (v0.6.48).** It was mounted from page load and hidden
+with `display:none`, which put the whole editor stack (TipTap, ProseMirror,
+KaTeX, lowlight's ~37 grammars, react-markdown, marked) on every signed-in
+route, and did live work behind the hidden panel. Mean per-route client JS fell
+from 1,736 KB to 782 KB across all 106 routes, a 55% cut.
+
+**Streaming and typing (v0.6.50).** Stream deltas now commit once per animation
+frame instead of once per token; the transcript element is memoised so a
+keystroke no longer re-renders a list of rich-text editors; the team markdown
+components map is cached per surface, which was remounting every image on every
+render.
+
+**The lint rules (v0.6.51).** `no-palette-literal`, `no-raw-form-control` and
+`require-thin-scrollbar`, each unit-tested, behind a warning ratchet. Nine kit
+scroll containers fixed first, since they propagate to every menu and table.
+
+---
+
+## 3. Do this next
+
+The audit's worklist is the authority; this is the short version, in order.
+
+1. **The click-through debt.** Two shipped items touch the assistant and
+   neither has been exercised signed in, because the dev server reaches a real
+   brain but stops at sign-in. One session covers both: open the assistant from the
+   rail, send a turn, watch it stream, type while it streams, minimise, restore,
+   confirm the transcript survives. Do this before building anything else on
+   the assistant.
+2. **Finish the CSP.** `client/web/lib/csp.ts` already holds
+   `buildRuntimeCsp()`, written and unit-tested. It needs to be rendered as a
+   `<meta http-equiv>` from the root layout. Read §5 first, because the reason
+   it is not a header is not obvious. Then one signed-in pass with the console
+   open, exercising the four surfaces that frame, eval or load bytes from somewhere
+   unusual: the mini-app sandbox, the drawing canvas, the formula screen, the
+   email reading pane.
+3. **Tests for the auth and transport core.** `token-refresh.ts`,
+   `token-store.ts`, `eventStreamCore` and `team-fetch.ts` have none, and two
+   open bugs live inside them: `eventStreamCore` returns silently on a 404
+   without calling `onExhausted`, which strands a spinner in the dock and in
+   team chat.
+4. **Repair the e2e runner.** `e2e/scripts/run-local.sh` still calls paths that
+   left in the repo split, and the documented root `pnpm e2e` script does not
+   exist, so 157 Playwright tests cannot run hermetically. Then fold Playwright
+   into the CI gate as its own job.
+5. **The accessibility pass.** The one dimension nothing in this run improved.
+   Four fixes cover most of it: an `aria-live` region on the streaming turn, a
+   global `prefers-reduced-motion` clamp, focus rings restored on the table grid
+   and the editors, and a dialog role plus focus move on the assistant popout.
+6. **Burn the lint backlog down** and lower the cap as it falls, then promote
+   the three rules to `error`.
+
+Also open, smaller: the seven medium bugs in the audit's §1; memoising the
+individual assistant turn row and rendering settled turns as static HTML;
+`desktop.yml` and `release.yml` still pin the deprecated Node 20 action line.
+
+---
+
+## 4. The environment
+
+```sh
+pnpm install
+pnpm verify                 # typecheck + lint (capped) + format + tests
+pnpm -C client/web build    # production build
+pnpm dev:fe                 # detached frontend against MANTLE_REMOTE
+```
+
+`pnpm dev:fe` reads `client/web/.env.detached.local` and runs the owner UI
+against a remote brain with no local database. It reaches the brain fine and
+stops at its sign-in screen, which is the whole reason for the click-through
+debt in §3.
+
+To measure a bundle change, compare per-route client JS between two builds by
+summing the chunks each route's `_client-reference-manifest.js` references.
+That is how the 55% figure in §2 was arrived at, and it is more honest than
+the build's own summary.
+
+---
+
+## 5. Landmines
+
+Six things measured the hard way. Each cost real time to discover.
+
+**pnpm settings live in `pnpm-workspace.yaml`, not `package.json`.** pnpm 11
+reads `overrides` and `patchedDependencies` from the workspace file and
+silently ignores the `pnpm` field in package.json. Every override in this repo
+was inert, and the katex patch had been unapplied since katex passed 0.18.1.
+Fixed in v0.6.43. When you touch dependency pins, edit the workspace file.
+
+**`process.env` is resolved at BUILD time in `next.config.ts` and in
+middleware, both runtimes.** This matters because one prebuilt image serves
+any brain, so `MANTLE_SERVER_ORIGIN` only exists in the running box's
+environment. Measured three ways: a header declared in `headers()` came out
+empty while `/env.js` served the same variable correctly; edge middleware was
+worse, with the built `.next/server/middleware.js` containing zero references
+to the variable; and `runtime: 'nodejs'` plus a dynamic key lookup did not help
+either. Server components and route handlers DO read runtime env: their reads
+survive into `.next/server/chunks`. So anything runtime-origin-dependent has to
+come from a server component, which is why the rest of the CSP is destined for
+a meta tag.
+
+**The lint gate is a ratchet.** `pnpm lint` runs `--max-warnings 465`. Adding
+any new warning fails it. When burning the backlog down, lower the number in
+the root package.json; never raise it. Rules are in `eslint-rules/`.
+
+**Mermaid must not come back by half.** Removing it needed both doors closed:
+`aiEnabled={false}` on the Excalidraw canvas AND the stub at
+`stubs/mermaid-to-excalidraw` wired through the workspace overrides. Excalidraw
+reaches the feature through a dynamic `import()`, so hiding the UI alone leaves
+the package installed and its chunk emitted.
+
+**`react-hooks/exhaustive-deps` is an `error` here, and that is a tool.** It is
+what made moving 205 lines of JSX into a `useMemo` safe in v0.6.50: write an
+empty dependency array, let ESLint compute the real list, apply it verbatim. Use
+that when a similar move comes up rather than reasoning the list out by hand.
+
+**One more, from the assistant work.** The panel's doc comment claimed the eager
+mount bought three things. Two of them did not depend on the mount at all:
+surface selections always wrote to `AssistantDockProvider`, not the panel. Read
+what a comment claims against what the code does before treating it as a
+constraint.
