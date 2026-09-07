@@ -17,8 +17,8 @@ worklist; this file does not repeat it.
 
 ## 1. Where things stand
 
-| Repo | Branch | State |
-|---|---|---|
+| Repo        | Branch | State                                                 |
+| ----------- | ------ | ----------------------------------------------------- |
 | **jackdaw** | `main` | Pushed, at **v0.6.51**. CI green. No release tag cut. |
 
 `pnpm verify` on main: typecheck clean across all four workspaces, 428 tests,
@@ -27,17 +27,17 @@ build green. `pnpm audit`: no known vulnerabilities.
 
 Nine commits landed, in this order:
 
-| Version | What |
-|---|---|
+| Version | What                                                                                  |
+| ------- | ------------------------------------------------------------------------------------- |
 | v0.6.43 | Dependency refresh; pnpm settings moved so they actually apply; audit 22 findings → 0 |
-| v0.6.44 | The three release-blocking bugs |
-| v0.6.45 | Mermaid support dropped entirely |
-| v0.6.46 | The CI gate |
-| v0.6.47 | CI actions moved to current majors |
-| v0.6.48 | Assistant panel mounts on first open, not every page load |
-| v0.6.49 | Half the CSP enforced |
-| v0.6.50 | Streaming and typing jank |
-| v0.6.51 | The three decayed prose rules become lint rules |
+| v0.6.44 | The three release-blocking bugs                                                       |
+| v0.6.45 | Mermaid support dropped entirely                                                      |
+| v0.6.46 | The CI gate                                                                           |
+| v0.6.47 | CI actions moved to current majors                                                    |
+| v0.6.48 | Assistant panel mounts on first open, not every page load                             |
+| v0.6.49 | Half the CSP enforced                                                                 |
+| v0.6.50 | Streaming and typing jank                                                             |
+| v0.6.51 | The three decayed prose rules become lint rules                                       |
 
 (`91ee13b`, the settings-hub e2e rewrite, landed alongside from a separate
 session.)
@@ -97,11 +97,14 @@ The audit's worklist is the authority; this is the short version, in order.
    open, exercising the four surfaces that frame, eval or load bytes from somewhere
    unusual: the mini-app sandbox, the drawing canvas, the formula screen, the
    email reading pane.
-3. **Tests for the auth and transport core.** `token-refresh.ts`,
-   `token-store.ts`, `eventStreamCore` and `team-fetch.ts` have none, and two
-   open bugs live inside them: `eventStreamCore` returns silently on a 404
-   without calling `onExhausted`, which strands a spinner in the dock and in
-   team chat.
+3. ~~**Tests for the auth and transport core.**~~ **Done** on branch
+   `fix/auth-transport-core`, not yet merged. 50 tests across the four modules
+   (428 → 478), and the `onExhausted` bug is fixed: `eventStreamCore`'s 404
+   branch now ends the stream for consumers that registered one, which is what
+   left the team chat and forum spinners up forever on a server with streaming
+   off. The auth-failure branch returns early too but is _not_ the same bug —
+   both team consumers reconcile from `onUnauthorized`, which fires first.
+   The same branch carries a security fix; see §6.
 4. **Repair the e2e runner.** `e2e/scripts/run-local.sh` still calls paths that
    left in the repo split, and the documented root `pnpm e2e` script does not
    exist, so 157 Playwright tests cannot run hermetically. Then fold Playwright
@@ -182,3 +185,32 @@ mount bought three things. Two of them did not depend on the mount at all:
 surface selections always wrote to `AssistantDockProvider`, not the panel. Read
 what a comment claims against what the code does before treating it as a
 constraint.
+
+---
+
+## 6. The one thing the first pass got wrong
+
+**`safeNext()` was still an open redirect.** The v0.6.44 fix tested the first
+two characters of `?next=` — starts with `/`, but not `//` or `/\` — and that
+is not the reading the browser applies. `new URL()` strips tab, LF and CR from
+anywhere in its input _before_ parsing, so a control character between the
+slashes walks past the test:
+
+```
+"/\n//evil.example"   passes the guard   ->   https://evil.example/
+```
+
+Reachable as `/login?next=%0A%2F%2Fevil.example`, and Next completes it: the
+app router's `isExternalURL` is `url.origin !== location.origin` over
+`new URL(addBasePath(href), location.href)`. Fixed on
+`fix/auth-transport-core` by resolving against an `.invalid` base and
+comparing origins, which is what the desktop shell's `inAppUrl()` already did
+— and exactly why `deepLinkToPath`'s twin of the bug was never exploitable.
+It carries the same flawed regex; the origin re-check after resolution is what
+saves it.
+
+**The lesson, which generalises past this bug:** when a guard's whole purpose
+is to predict what a URL parser will do with a string, do not pattern-match
+the string. Hand it to the parser and check the answer. The parser normalises
+in ways no regex anticipates, and it is the parser's reading that the browser
+acts on.
