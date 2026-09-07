@@ -16,6 +16,25 @@ describe('safeNext', () => {
     expect(safeNext('javascript:alert(1)')).toBeUndefined();
   });
 
+  // The bypass the first version shipped with. `new URL()` strips tab, LF and
+  // CR from anywhere in its input BEFORE parsing, so each of these reaches the
+  // parser as `///evil.example` and resolves to https://evil.example/ — while a
+  // "second character is not a slash" test sees a perfectly ordinary path.
+  it('refuses a scheme-relative URL smuggled past the first two characters', () => {
+    for (const c of ['\n', '\r', '\t']) {
+      expect(safeNext(`/${c}//evil.example`)).toBeUndefined();
+      expect(safeNext(`/${c}/\\evil.example`)).toBeUndefined();
+      expect(safeNext(`/${c}${c}//evil.example`)).toBeUndefined();
+    }
+    // The same trick spelled with the separator inside the host.
+    expect(safeNext('//\nevil.example')).toBeUndefined();
+  });
+
+  it('normalises what it returns, so no control character survives', () => {
+    expect(safeNext('/ta\nsks')).toBe('/tasks');
+    expect(safeNext('/a/../b')).toBe('/b');
+  });
+
   it('refuses anything that is not a string or not a path', () => {
     expect(safeNext(undefined)).toBeUndefined();
     expect(safeNext(null)).toBeUndefined();
