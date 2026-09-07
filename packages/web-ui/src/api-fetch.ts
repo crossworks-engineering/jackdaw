@@ -241,6 +241,15 @@ export function eventStreamCore(
           // non-streaming flow silently instead of reconnecting forever. This is
           // what lets the server be the single source of truth even though the
           // client gate is baked at build time.
+          //
+          // "Silently" means no retry and no error, NOT no ending: a consumer
+          // that registered `onExhausted` did so to be told when the stream is
+          // over, and a 404 ends it as terminally as a run of failed reconnects.
+          // Without this the team chat and forum spinners never came down on a
+          // server with streaming off — they wait for the terminal `done` frame
+          // that a 404 guarantees will never arrive. Owner consumers pass no
+          // `onExhausted`, so the fallback stays exactly as silent for them.
+          opts?.onExhausted?.();
           return;
         }
         if (!res.ok || !res.body) throw new ApiError(`stream failed (${res.status})`, res.status);
