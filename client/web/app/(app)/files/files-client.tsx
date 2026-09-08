@@ -33,6 +33,7 @@ import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { assetUrl } from '@mantle/web-ui/asset-url';
 import { FileEditor } from './file-editor';
 import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
+import { useFileSearch } from './use-file-search';
 import { CreateFileDialog, CreateFolderDialog, RenameDialog } from './files-dialogs';
 import { ChildFolders, DualPane, FolderTreeRail } from './files-panes';
 import {
@@ -47,7 +48,6 @@ import {
 import type {
   BulkDeleteResponse,
   FileRow,
-  FileSearchHit,
   FolderRow,
   FilesDialog,
   FilesDialogKind,
@@ -175,38 +175,9 @@ function FilesView({
         : // Size and recency are usually asked as "biggest / newest first".
           { key, dir: key === 'size' || key === 'modified' ? 'desc' : 'asc' },
     );
-  // ── Left-pane search ─────────────────────────────────────────
-  // ONE input, two behaviours: the tree filters instantly on every keystroke
-  // (pure client work — the whole tree is already here), and content search
-  // fires debounced against /api/search?branch=files, which ranks by meaning,
-  // not just filename. A metadata-only file (P1) matches on its name-spine.
-  const [query, setQuery] = useState('');
-  const [hits, setHits] = useState<FileSearchHit[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setHits(null);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await apiFetch<{ results: FileSearchHit[] }>(
-          `/api/search?q=${encodeURIComponent(q)}&branch=files&limit=30`,
-        );
-        // Folders surface through the filtered tree; the results list is files.
-        setHits(res.results.filter((r) => r.type === 'file'));
-      } catch {
-        setHits([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [query]);
-  const searchActive = query.trim().length >= 2;
+  // The left pane's search — see use-file-search.ts for the two behaviours
+  // one input drives, and for the stale-response guard.
+  const { query, setQuery, hits, searching, active: searchActive } = useFileSearch();
 
   // ── Path jump — type/paste a path, Enter navigates ──────────
   const [pathJump, setPathJump] = useState<string | null>(null);
