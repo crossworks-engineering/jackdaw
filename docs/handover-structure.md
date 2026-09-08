@@ -196,6 +196,22 @@ A wart was preserved on purpose: with `enabled` false the hook leaves the
 catalog untouched rather than resetting it, which is what the old effect's early
 return did. Changing it would be a behaviour change hiding inside a refactor.
 
+**`worker-form`: 1,178 → 954 lines, and `useState` barely moved (17 → 16).**
+That is the honest outcome for this screen: its complexity was never a tangle of
+flags, it was decisions buried where nothing could reach them.
+`worker-form-state.ts` now holds `validateWorker`, the OpenRouter slug
+arithmetic and `staticCatalogFor` — a forty-line branchy dispatch that was
+declared INSIDE the component, closing over nothing, rebuilt every render, and
+deciding which models an operator is offered.
+
+**What was deliberately not done, and why it matters for the remaining
+screens.** The primary and backup routes are the same five fields twice, and
+grouping them would take 11 `useState` to 2. They stay: already flat, encoding
+no illegal state worth forbidding, and the change would touch forty-odd render
+sites to move a number. The dialog union in `files-client` was worth it because
+six booleans could spell states that must never happen; this is not that. The
+ceiling exists to stop growth, not to be optimised toward.
+
 ### Phase 3 — the remainder
 
 Whatever the big component still is after Phase 2, split by _what the user is
