@@ -277,7 +277,7 @@ export function SecretDetail({
                       aria-label="Copy"
                     >
                       {copiedIdx === i ? (
-                        <Check className="size-4 text-emerald-600" />
+                        <Check className="size-4 text-success-ink" />
                       ) : (
                         <Copy className="size-4" />
                       )}

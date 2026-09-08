@@ -198,7 +198,7 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
                   , open a model, and click <strong>Add to pool</strong> — its pricing is copied in.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto scrollbar-thin">
                   <Table>
                     <TableHeader>
                       <TableRow>

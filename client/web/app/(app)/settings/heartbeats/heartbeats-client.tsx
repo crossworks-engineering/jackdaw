@@ -177,11 +177,11 @@ function fromHeartbeat(h: HeartbeatSummary): FormState {
 function statusBadgeClass(s: HeartbeatSummary['status']): string {
   switch (s) {
     case 'active':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100';
+      return 'bg-success/15 text-success-ink';
     case 'paused':
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100';
+      return 'bg-warning/15 text-warning-ink';
     case 'completed':
-      return 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100';
+      return 'bg-info/15 text-info-ink';
     case 'cancelled':
       return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
   }
@@ -733,7 +733,7 @@ export function HeartbeatsClient() {
                 <fieldset className="space-y-3 rounded-md border p-4">
                   <legend className="px-1 text-sm font-medium">Schedule</legend>
                   {form.is_cron_locked && (
-                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">
+                    <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink">
                       <strong>This heartbeat uses a cron schedule</strong>, which isn&apos;t
                       supported in v1 of the heartbeats form. Editing the schedule here would
                       silently coerce to <code>manual</code> and lose the cron expression — so

@@ -112,7 +112,7 @@ export function McpSettingsClient() {
   const { enabled, connectorUrl, clients } = query.data;
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto">
+    <div className="h-full min-h-0 overflow-y-auto scrollbar-thin">
       <div className="w-full space-y-6 p-4 md:p-6">
         {/* Connector card */}
         <section className="rounded-xl border border-border bg-card">

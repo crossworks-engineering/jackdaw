@@ -141,7 +141,7 @@ export function MailClient({
                   <Input placeholder="Search (coming soon)" disabled className="pl-8" />
                 </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-auto">{listSlot}</div>
+              <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">{listSlot}</div>
             </div>
           </ResizablePanel>
 

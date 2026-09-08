@@ -321,7 +321,7 @@ export function DebugNav() {
                   <div
                     className={cn(
                       'mt-1 flex items-center gap-1 text-xs tabular-nums',
-                      stat.warn ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground',
+                      stat.warn ? 'text-warning-ink' : 'text-muted-foreground',
                     )}
                   >
                     {stat.warn && <TriangleAlert className="size-3 shrink-0" aria-hidden />}

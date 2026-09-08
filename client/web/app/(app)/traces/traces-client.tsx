@@ -354,17 +354,17 @@ function toggle(list: string[], value: string): string[] {
 }
 
 function statusDot(status: string): string {
-  if (status === 'success') return 'bg-emerald-500';
+  if (status === 'success') return 'bg-success';
   if (status === 'error') return 'bg-destructive';
   if (status === 'skipped') return 'bg-muted-foreground/40';
-  return 'bg-amber-500';
+  return 'bg-warning';
 }
 
 function statusTextClass(status: string): string {
-  if (status === 'success') return 'text-emerald-700 dark:text-emerald-300';
+  if (status === 'success') return 'text-success-ink';
   if (status === 'error') return 'text-destructive-ink';
   if (status === 'skipped') return 'text-muted-foreground';
-  return 'text-amber-700 dark:text-amber-300';
+  return 'text-warning-ink';
 }
 
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {

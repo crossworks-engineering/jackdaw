@@ -140,8 +140,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
             <Send className="size-3.5" aria-hidden />@{binding.botUsername}
           </span>
           {binding.enabled ? (
-            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden /> polling
+            <span className="inline-flex items-center gap-1 text-xs text-success-ink">
+              <span className="size-1.5 rounded-full bg-success" aria-hidden /> polling
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">disabled</span>
@@ -161,8 +161,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
 
       {/* Pending pairing requests — approve a DM without copying a code. */}
       {pending.length > 0 && (
-        <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+        <div className="space-y-1.5 rounded-md border border-warning/40 bg-warning/5 p-2">
+          <p className="text-xs font-medium text-warning-ink">
             Pairing request{pending.length === 1 ? '' : 's'} — someone DM&apos;d this bot
           </p>
           {pending.map((c) => (

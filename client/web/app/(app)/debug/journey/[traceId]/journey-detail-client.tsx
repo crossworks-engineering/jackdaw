@@ -19,9 +19,9 @@ function strOf(v: unknown): string | null {
 }
 
 function stepDot(status: string): string {
-  if (status === 'success') return 'bg-emerald-500';
+  if (status === 'success') return 'bg-success';
   if (status === 'error') return 'bg-destructive';
-  if (status === 'running') return 'bg-amber-500';
+  if (status === 'running') return 'bg-warning';
   if (status === 'skipped') return 'bg-muted-foreground/40';
   return 'bg-muted-foreground';
 }
@@ -109,8 +109,8 @@ export function JourneyDetailClient({ traceId }: { traceId: string }) {
                 j.status === 'error'
                   ? 'font-medium text-destructive-ink'
                   : j.status === 'running'
-                    ? 'font-medium text-amber-600 dark:text-amber-400'
-                    : 'font-medium text-emerald-600 dark:text-emerald-400'
+                    ? 'font-medium text-warning-ink'
+                    : 'font-medium text-success-ink'
               }
             >
               {j.status}
@@ -335,7 +335,7 @@ export function JourneyDetailClient({ traceId }: { traceId: string }) {
       {Object.keys(data).length > 0 && (
         <details className="rounded-lg border border-border p-3 text-xs">
           <summary className="cursor-pointer text-muted-foreground">Raw trace data</summary>
-          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all text-[11px] text-muted-foreground">
+          <pre className="mt-2 overflow-x-auto scrollbar-thin whitespace-pre-wrap break-all text-[11px] text-muted-foreground">
             {JSON.stringify(data, null, 2)}
           </pre>
         </details>

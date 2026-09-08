@@ -158,7 +158,7 @@ function StepNodeLabel({ step }: { step: TraceStepSummary }) {
                 ? 'text-destructive-ink'
                 : step.status === 'skipped'
                   ? 'text-muted-foreground/70'
-                  : 'text-amber-700 dark:text-amber-300'
+                  : 'text-warning-ink'
             }
           >
             {step.status}
@@ -253,7 +253,7 @@ function JsonBlock({ title, value }: { title: string; value: Record<string, unkn
   return (
     <div className="space-y-1">
       <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</h4>
-      <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-2 text-xs">
+      <pre className="overflow-x-auto scrollbar-thin rounded-md border border-border bg-muted/40 p-2 text-xs">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>

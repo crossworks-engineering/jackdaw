@@ -29,9 +29,9 @@ import type { ConfigDiffReport, EntityDiff, FieldDiff, DiffStatus } from '@mantl
 // carry the status colour, mirroring the sky hint precedent in tool-groups.
 const STATUS_TEXT: Record<DiffStatus, string> = {
   ok: 'text-muted-foreground',
-  modified: 'text-amber-600 dark:text-amber-400',
+  modified: 'text-warning-ink',
   missing: 'text-destructive-ink',
-  extra: 'text-sky-700 dark:text-sky-300',
+  extra: 'text-info-ink',
 };
 const STATUS_BORDER: Record<DiffStatus, string> = {
   ok: 'border-l-border',
@@ -92,7 +92,7 @@ function isBody(field: string): boolean {
 function DiffBody({ before, after }: { before: string; after: string }) {
   const parts = diffLines(before, after);
   return (
-    <pre className="mt-2 max-h-80 overflow-auto rounded-md bg-muted/40 p-2 font-mono text-[11px] leading-relaxed">
+    <pre className="mt-2 max-h-80 overflow-auto scrollbar-thin rounded-md bg-muted/40 p-2 font-mono text-[11px] leading-relaxed">
       {parts.flatMap((p, i) =>
         p.value
           .replace(/\n$/, '')
@@ -102,7 +102,7 @@ function DiffBody({ before, after }: { before: string; after: string }) {
               key={`${i}-${j}`}
               className={cn(
                 'whitespace-pre-wrap',
-                p.added && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+                p.added && 'bg-success/15 text-success-ink',
                 p.removed && 'bg-destructive/15 text-destructive-ink',
                 !p.added && !p.removed && 'text-muted-foreground',
               )}
@@ -152,7 +152,7 @@ function FieldRow({ field }: { field: FieldDiff }) {
               {field.added.map((s) => (
                 <span
                   key={s}
-                  className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px] text-sky-700 dark:text-sky-300"
+                  className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px] text-info-ink"
                 >
                   + {s}
                 </span>

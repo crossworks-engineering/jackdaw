@@ -39,7 +39,7 @@ export function ToolPicker({
           {t.slug}
         </code>
         {t.requiresConfirm && (
-          <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+          <span className="rounded bg-warning/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-warning-ink">
             confirm
           </span>
         )}

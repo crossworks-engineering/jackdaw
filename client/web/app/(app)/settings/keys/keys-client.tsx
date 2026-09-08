@@ -470,7 +470,7 @@ export function KeysClient() {
                                 </p>
                               )}
                               {unwired.length > 0 && (
-                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                <p className="text-xs text-warning-ink">
                                   <span className="font-medium">Also supports</span>{' '}
                                   {unwired.join(', ')}, but Mantle doesn&apos;t dispatch through
                                   this provider for{' '}
@@ -570,7 +570,7 @@ export function KeysClient() {
               <code>{revealed?.label}</code> again after closing this dialog.
             </DialogDescription>
           </DialogHeader>
-          <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <pre className="overflow-x-auto scrollbar-thin rounded-md border border-border bg-muted/40 p-3 text-sm">
             {revealed?.key}
           </pre>
           <div className="flex justify-end gap-2">
@@ -739,8 +739,8 @@ function KeyDetail({
           className={cn(
             'flex items-start gap-2 rounded-md px-3 py-2 text-sm',
             testResult.ok
-              ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100'
-              : 'bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-100',
+              ? 'bg-success/10 text-success-ink'
+              : 'bg-destructive/10 text-destructive-ink',
           )}
         >
           {testResult.ok ? (

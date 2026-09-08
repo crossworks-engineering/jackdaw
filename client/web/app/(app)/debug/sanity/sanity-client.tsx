@@ -75,7 +75,7 @@ function CheckRow({ check }: { check: SanityCheck }) {
           <p className="text-foreground">{check.fix.summary}</p>
           {check.fix.command && (
             <div className="flex items-start gap-2">
-              <pre className="flex-1 overflow-x-auto rounded-sm border border-border bg-background px-2 py-1.5 font-mono text-[11px] leading-relaxed text-foreground">
+              <pre className="flex-1 overflow-x-auto scrollbar-thin rounded-sm border border-border bg-background px-2 py-1.5 font-mono text-[11px] leading-relaxed text-foreground">
                 {check.fix.command}
               </pre>
               <CopyButton text={check.fix.command} />

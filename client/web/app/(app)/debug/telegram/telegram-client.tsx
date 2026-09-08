@@ -52,7 +52,7 @@ export function TelegramClient({ page, query }: { page: number; query: string })
           {query ? 'No chats match your search.' : 'No Telegram chats yet.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
+        <div className="overflow-x-auto scrollbar-thin rounded-md border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
@@ -80,10 +80,10 @@ export function TelegramClient({ page, query }: { page: number; query: string })
                     <span
                       className={
                         c.allowlistStatus === 'allowed'
-                          ? 'text-emerald-700 dark:text-emerald-300'
+                          ? 'text-success-ink'
                           : c.allowlistStatus === 'denied'
                             ? 'text-destructive-ink'
-                            : 'text-amber-700 dark:text-amber-300'
+                            : 'text-warning-ink'
                       }
                     >
                       {c.allowlistStatus}
@@ -97,11 +97,7 @@ export function TelegramClient({ page, query }: { page: number; query: string })
                     {c.digested}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    <span
-                      className={
-                        c.undigested >= 30 ? 'font-semibold text-amber-700 dark:text-amber-300' : ''
-                      }
-                    >
+                    <span className={c.undigested >= 30 ? 'font-semibold text-warning-ink' : ''}>
                       {c.undigested}
                     </span>
                   </td>

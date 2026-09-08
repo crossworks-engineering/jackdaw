@@ -350,7 +350,7 @@ export function BackupRouteSection({
                       Who answers when the primary route is down.
                     </FieldHint>
                     {!isProviderWired(form.backupProvider, 'chat') && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                      <p className="text-xs text-warning-ink">
                         No chat adapter registered for <code>{form.backupProvider}</code> — failover
                         to it will fail until one ships.
                       </p>
@@ -393,7 +393,7 @@ export function BackupRouteSection({
                     {apiKeys.length > 0 &&
                       eligibleBackupKeys.length === 0 &&
                       form.backupProvider !== 'local' && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                        <p className="text-xs text-warning-ink">
                           None of your saved keys are for <code>{form.backupProvider}</code>.
                         </p>
                       )}

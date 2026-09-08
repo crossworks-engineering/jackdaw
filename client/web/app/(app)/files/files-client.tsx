@@ -2034,7 +2034,7 @@ function FilePane({
                 className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
                 title={`${f.slug} — double-click to open`}
               >
-                <Folder className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <Folder className="size-4 shrink-0 text-warning-ink" />
                 <span className="truncate">{f.slug}</span>
                 <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                   {f.fileCount} file{f.fileCount === 1 ? '' : 's'}

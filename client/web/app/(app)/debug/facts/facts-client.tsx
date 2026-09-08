@@ -73,9 +73,7 @@ export function FactsClient({ page, query }: { page: number; query: string }) {
                   </span>
                 )}
                 {f.confidence < 1 && (
-                  <span className="text-amber-700 dark:text-amber-300">
-                    confidence {f.confidence.toFixed(2)}
-                  </span>
+                  <span className="text-warning-ink">confidence {f.confidence.toFixed(2)}</span>
                 )}
                 {f.sourceTitle && (
                   <span className="text-muted-foreground/70">← {f.sourceTitle.slice(0, 40)}</span>

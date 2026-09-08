@@ -43,7 +43,7 @@ export function SpendClient() {
             No model spend recorded in the last 7 days.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
+          <div className="overflow-x-auto scrollbar-thin rounded-md border border-border">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
@@ -89,7 +89,7 @@ export function SpendClient() {
             No agent spend recorded in the last 7 days.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
+          <div className="overflow-x-auto scrollbar-thin rounded-md border border-border">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>

@@ -317,7 +317,7 @@ export function SkillsClient() {
                       {s.description && <ListCardSnippet>{s.description}</ListCardSnippet>}
                       {refs.length > 0 && (
                         <div
-                          className="mt-1 text-xs text-sky-700 dark:text-sky-300"
+                          className="mt-1 text-xs text-info-ink"
                           title={refs.map((r) => `${r.slug} [${r.status}]`).join('\n')}
                         >
                           ↳{' '}

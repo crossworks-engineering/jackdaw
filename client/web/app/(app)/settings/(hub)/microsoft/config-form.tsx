@@ -176,7 +176,7 @@ export function MsConfigForm({
           </p>
         )}
         {saved && (
-          <p className="rounded-md border border-green-500/30 bg-green-50 px-3 py-2 text-sm text-green-900 dark:bg-green-950/40 dark:text-green-100">
+          <p className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success-ink">
             Saved.
           </p>
         )}

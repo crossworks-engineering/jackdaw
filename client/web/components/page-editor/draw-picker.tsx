@@ -197,6 +197,10 @@ export function DrawPicker({ editor }: { editor: Editor }) {
                   <img
                     src={assetUrl(`/api/draws/${encodeURIComponent(row.id)}/svg?raw=1`)}
                     alt=""
+                    // The snapshot is exported light-mode WITH its own background, so it must be
+                    // matted white on either page theme rather than adapting and mangling its own
+                    // colours — the same treatment team-media.tsx gives it.
+                    // eslint-disable-next-line house/no-palette-literal
                     className="size-full rounded-[inherit] bg-white object-contain"
                   />
                 ) : (

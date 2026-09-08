@@ -158,7 +158,7 @@ export function MarkdownEditor({
         {showPreview && (
           <article
             className={cn(
-              'prose prose-sm dark:prose-invert h-full max-w-none overflow-y-auto p-4',
+              'prose prose-sm dark:prose-invert h-full max-w-none overflow-y-auto scrollbar-thin p-4',
               mode === 'split' ? 'w-1/2' : 'flex-1',
             )}
           >

@@ -373,7 +373,7 @@ export function MaintenanceView() {
           </div>
           <pre
             ref={consoleRef}
-            className="max-h-96 overflow-y-auto rounded-md border border-border bg-card p-3 font-mono text-xs text-foreground"
+            className="max-h-96 overflow-y-auto scrollbar-thin rounded-md border border-border bg-card p-3 font-mono text-xs text-foreground"
           >
             {run.truncated ? '… (older output dropped)\n' : ''}
             {run.lines.join('\n')}
@@ -384,7 +384,7 @@ export function MaintenanceView() {
       {history.length > 0 ? (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-foreground">History</h2>
-          <div className="overflow-x-auto rounded-md border border-border bg-card">
+          <div className="overflow-x-auto scrollbar-thin rounded-md border border-border bg-card">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">

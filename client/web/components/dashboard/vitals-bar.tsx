@@ -17,7 +17,7 @@ export function vitalsLevel(pct: number | null | undefined): VitalsLevel {
 export const VITALS_FILL: Record<VitalsLevel, string> = {
   unknown: 'bg-muted-foreground/30',
   ok: 'bg-primary',
-  warn: 'bg-amber-500',
+  warn: 'bg-warning',
   crit: 'bg-destructive',
 };
 

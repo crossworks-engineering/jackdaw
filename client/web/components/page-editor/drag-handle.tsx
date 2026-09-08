@@ -243,7 +243,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
             />
             <div
               role="menu"
-              className="fixed z-50 min-w-52 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+              className="fixed z-50 min-w-52 overflow-y-auto scrollbar-thin rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
               style={{ left: menu.x, top: menu.y, maxHeight: `calc(100vh - ${menu.y + 8}px)` }}
             >
               {/* Turn into — inline-expanding section (no flyout positioning). */}

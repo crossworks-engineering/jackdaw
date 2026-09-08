@@ -18,6 +18,11 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
+      // A modal scrim, and the one place a raw black is right: it darkens whatever is
+      // BEHIND the dialog, which belongs to no surface and no theme. There is no
+      // --overlay token to reach for, and a themed fill would tint the page instead
+      // of dimming it.
+      // eslint-disable-next-line house/no-palette-literal
       'fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className,
     )}

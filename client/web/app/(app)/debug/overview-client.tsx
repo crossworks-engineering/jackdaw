@@ -153,7 +153,7 @@ export function OverviewClient() {
           <ul className="divide-y divide-border rounded-md border border-border">
             {dupes.samples.map((s, i) => (
               <li key={i} className="flex items-baseline gap-3 px-3 py-2 text-sm">
-                <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                <span className="rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-ink">
                   ×{s.count}
                 </span>
                 <span className="shrink-0 text-xs uppercase tracking-wider text-muted-foreground">
@@ -189,7 +189,7 @@ export function OverviewClient() {
           <ul className="divide-y divide-border rounded-md border border-border">
             {dupCalls7d.map((d) => (
               <li key={d.model} className="flex items-baseline gap-3 px-3 py-2 text-sm">
-                <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                <span className="rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-ink">
                   ×{d.count}
                 </span>
                 <code className="shrink-0 font-mono text-xs">{d.model}</code>
@@ -229,7 +229,7 @@ export function OverviewClient() {
           <ul className="divide-y divide-border rounded-md border border-border">
             {factCap7d.map((f) => (
               <li key={f.model} className="flex items-baseline gap-3 px-3 py-2 text-sm">
-                <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                <span className="rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-ink">
                   −{f.factsDropped}
                 </span>
                 <code className="shrink-0 font-mono text-xs">{f.model}</code>
@@ -317,7 +317,7 @@ export function OverviewClient() {
                   title={`${d.day} — ${formatMicroUsd(d.costMicroUsd)} · ${d.runs} runs · ${d.tokensIn + d.tokensOut} tok`}
                 >
                   <div
-                    className={`w-full rounded-t-sm ${today ? 'bg-emerald-500/70' : 'bg-emerald-500/30'} group-hover:bg-emerald-500/80`}
+                    className={`w-full rounded-t-sm ${today ? 'bg-success/70' : 'bg-success/30'} group-hover:bg-success/80`}
                     style={{ height: `${Math.max(heightPct, d.costMicroUsd > 0 ? 4 : 0)}%` }}
                   />
                 </div>
@@ -349,7 +349,7 @@ export function OverviewClient() {
                   </span>
                 </span>
                 {coverage.indexed < coverage.total && (
-                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                  <span className="text-xs text-warning-ink">
                     Run <code>pnpm extract:backfill</code> to catch up.
                   </span>
                 )}
@@ -363,7 +363,7 @@ export function OverviewClient() {
                         <code className="font-mono">{row.type}</code> ·{' '}
                         <strong>{row.indexed}</strong>/{row.total}
                       </span>
-                      <span className={pct === 100 ? 'text-emerald-700 dark:text-emerald-300' : ''}>
+                      <span className={pct === 100 ? 'text-success-ink' : ''}>
                         {pct.toFixed(0)}%
                       </span>
                     </li>
@@ -393,7 +393,7 @@ function StatCard({
     accent === 'red'
       ? 'border-destructive/30 bg-destructive/5'
       : accent === 'amber'
-        ? 'border-amber-400/40 bg-amber-100/30 dark:bg-amber-900/20'
+        ? 'border-warning/40 bg-warning/10'
         : 'border-border';
   return (
     <div className={`rounded-md border ${accentClass} p-3`}>

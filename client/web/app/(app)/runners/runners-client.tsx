@@ -290,9 +290,7 @@ export function RunnersClient({
                         <span>queued {formatDuration(r.queuedMs ?? null)}</span>
                         {r.queue && <span>{r.queue}</span>}
                         {(r.recoveryAttempts ?? 0) > 1 && (
-                          <span className="text-amber-700 dark:text-amber-300">
-                            ↻ {r.recoveryAttempts}
-                          </span>
+                          <span className="text-warning-ink">↻ {r.recoveryAttempts}</span>
                         )}
                       </div>
                       {r.error && (
@@ -417,7 +415,7 @@ function QueueHealth({ queue, loading }: { queue?: RunnerQueueHealth; loading: b
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
       <span className="flex items-center gap-1.5 font-medium">
         <span
-          className={cn('size-2 rounded-full', busy ? 'bg-amber-500' : 'bg-emerald-500')}
+          className={cn('size-2 rounded-full', busy ? 'bg-warning' : 'bg-success')}
           aria-hidden
         />
         Queue <span className="font-mono text-muted-foreground">{queue.name}</span>
@@ -440,12 +438,7 @@ function QueueHealth({ queue, loading }: { queue?: RunnerQueueHealth; loading: b
 function Stat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
     <span className="flex items-baseline gap-1 tabular-nums">
-      <span
-        className={cn(
-          'font-semibold',
-          highlight ? 'text-amber-700 dark:text-amber-300' : 'text-foreground',
-        )}
-      >
+      <span className={cn('font-semibold', highlight ? 'text-warning-ink' : 'text-foreground')}>
         {value}
       </span>
       <span className="text-muted-foreground">{label}</span>

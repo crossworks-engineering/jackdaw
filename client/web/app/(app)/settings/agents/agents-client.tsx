@@ -1029,7 +1029,7 @@ export function AgentsClient() {
                 {activeResponder.model}, priority {activeResponder.priority})
               </p>
             ) : (
-              <p className="text-amber-700 dark:text-amber-300">
+              <p className="text-warning-ink">
                 No enabled <code>responder</code> agent — Telegram messages go unanswered until you
                 create one.
               </p>
@@ -1430,7 +1430,7 @@ export function AgentsClient() {
                                       adapter and narrows the key and model lists below.
                                     </FieldHint>
                                     {!isProviderWired(form.provider, 'chat') && (
-                                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                                      <p className="text-xs text-warning-ink">
                                         No chat adapter registered for <code>{form.provider}</code>.
                                         Saves will succeed but the responder/assistant will fail at
                                         first turn until a chat adapter ships for this provider.
@@ -1480,7 +1480,7 @@ export function AgentsClient() {
                                       </SelectContent>
                                     </Select>
                                     {apiKeys.length > 0 && eligibleAgentKeys.length === 0 && (
-                                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                                      <p className="text-xs text-warning-ink">
                                         None of your saved keys are for <code>{form.provider}</code>
                                         . Add one at{' '}
                                         <a href="/settings/keys" className="underline">
@@ -1547,7 +1547,7 @@ export function AgentsClient() {
                               if (!form.model.trim()) return null;
                               if (catalog.some((m) => m.id === form.model)) return null;
                               return (
-                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                <p className="text-xs text-warning-ink">
                                   <code>{form.model}</code> isn&apos;t in{' '}
                                   <code>{form.provider}</code>
                                   &apos;s catalog. Save will succeed but the call will fail if the
@@ -1877,7 +1877,7 @@ export function AgentsClient() {
                               runtime fails closed).
                               {form.delegateTo.length > 0 &&
                                 !effectiveTools.includes('invoke_agent') && (
-                                  <span className="mt-1 block text-amber-600 dark:text-amber-400">
+                                  <span className="mt-1 block text-warning-ink">
                                     Grant the <code>delegation</code> group (or{' '}
                                     <code>invoke_agent</code> directly), or these delegates
                                     can&apos;t actually be reached.
@@ -2127,9 +2127,8 @@ function ContextWindowHint({ model, limits }: { model: string; limits: Record<st
   if (!limit) {
     return (
       <p className="text-xs text-muted-foreground">
-        Context window:{' '}
-        <span className="text-amber-600 dark:text-amber-400">unknown for this slug</span> — check
-        the exact id at openrouter.ai/models.
+        Context window: <span className="text-warning-ink">unknown for this slug</span> — check the
+        exact id at openrouter.ai/models.
       </p>
     );
   }

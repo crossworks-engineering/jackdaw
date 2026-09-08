@@ -953,7 +953,10 @@ function PageCard({
                   <FolderInput />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+              <DropdownMenuContent
+                align="end"
+                className="max-h-72 w-56 overflow-y-auto scrollbar-thin"
+              >
                 <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
                   <CornerLeftUp />
                   Top level

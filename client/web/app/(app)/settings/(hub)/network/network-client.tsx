@@ -129,7 +129,7 @@ function NetworkView({
                   <CircleDot
                     className={
                       p.online
-                        ? 'size-3.5 shrink-0 text-emerald-500'
+                        ? 'size-3.5 shrink-0 text-success-ink'
                         : 'size-3.5 shrink-0 text-muted-foreground/40'
                     }
                   />

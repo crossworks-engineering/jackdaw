@@ -143,9 +143,9 @@ export function PendingClient({ devMode = false }: { devMode?: boolean }) {
                   <span
                     className={
                       r.status === 'approved'
-                        ? 'rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'
+                        ? 'rounded-sm bg-success/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-success-ink'
                         : r.status === 'rejected'
-                          ? 'rounded-sm bg-rose-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'
+                          ? 'rounded-sm bg-destructive/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-destructive-ink'
                           : 'rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground'
                     }
                   >
@@ -161,7 +161,7 @@ export function PendingClient({ devMode = false }: { devMode?: boolean }) {
                   </p>
                 )}
                 {r.result && (
-                  <pre className="max-h-40 overflow-auto rounded-md bg-muted/40 px-2 py-1 text-[11px] font-mono">
+                  <pre className="max-h-40 overflow-auto scrollbar-thin rounded-md bg-muted/40 px-2 py-1 text-[11px] font-mono">
                     {JSON.stringify(r.result, null, 2)}
                   </pre>
                 )}
@@ -222,7 +222,7 @@ function PendingCard({ row, decide, busy }: { row: PendingRow; decide: Decide; b
           args ({Object.keys(row.args ?? {}).length} field
           {Object.keys(row.args ?? {}).length === 1 ? '' : 's'})
         </summary>
-        <pre className="mt-1 max-h-64 overflow-auto font-mono">
+        <pre className="mt-1 max-h-64 overflow-auto scrollbar-thin font-mono">
           {JSON.stringify(row.args, null, 2)}
         </pre>
       </details>
@@ -232,7 +232,7 @@ function PendingCard({ row, decide, busy }: { row: PendingRow; decide: Decide; b
           onClick={() => decide(row.id, 'approve')}
           disabled={busy}
           size="sm"
-          className="bg-emerald-600 text-white hover:bg-emerald-700"
+          className="bg-success text-success-foreground hover:bg-success/90"
         >
           <Check /> Approve &amp; run
         </Button>

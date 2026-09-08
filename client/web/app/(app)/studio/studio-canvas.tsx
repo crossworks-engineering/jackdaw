@@ -68,16 +68,12 @@ function NodeLabel({ node }: { node: StudioNode }) {
         <span
           className={
             'size-2 shrink-0 rounded-full ' +
-            (!node.enabled
-              ? 'bg-muted-foreground/40'
-              : unhealthy
-                ? 'bg-destructive'
-                : 'bg-emerald-500')
+            (!node.enabled ? 'bg-muted-foreground/40' : unhealthy ? 'bg-destructive' : 'bg-success')
           }
           aria-hidden
         />
         <span className="truncate text-xs font-medium">{node.label}</span>
-        {node.isPersona && <Star className="size-3 shrink-0 text-amber-500" aria-hidden />}
+        {node.isPersona && <Star className="size-3 shrink-0 text-warning-ink" aria-hidden />}
       </div>
       <div className="flex items-center gap-1.5 pl-3.5 text-[10px] text-muted-foreground">
         <span className="uppercase tracking-wider">{node.kind}</span>

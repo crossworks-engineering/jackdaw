@@ -710,7 +710,7 @@ export function WorkerForm({
               </p>
             )}
             {selectedProvider && !isProviderWired(selectedProvider.id, capability) && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-xs text-warning-ink">
                 No adapter registered for <code>{selectedProvider.id}</code> ·{' '}
                 <code>{capability}</code>. The UI saves the config, but calls will fail until we
                 ship the dispatch code for this provider.
@@ -820,7 +820,7 @@ export function WorkerForm({
                 </p>
               )}
               {!discovery.filtered && discovery.error && apiKeyId && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p className="text-xs text-warning-ink">
                   Couldn't verify which models this key can use ({discovery.error}). Showing the
                   full catalogue.
                 </p>
@@ -941,7 +941,7 @@ export function WorkerForm({
                     Who serves this worker when the primary is unreachable.
                   </FieldHint>
                   {!isProviderWired(backupProvider, capability) && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <p className="text-xs text-warning-ink">
                       No adapter registered for <code>{backupProvider}</code> — failover to it will
                       fail until one ships.
                     </p>
@@ -1330,7 +1330,7 @@ function KeyValidityHint({
 
   if (keysAvailable && !eligibleKeysAvailable) {
     return (
-      <p className="text-xs text-amber-600 dark:text-amber-400">
+      <p className="text-xs text-warning-ink">
         None of your saved keys can do <code>{capability}</code>. Add one for:{' '}
         {eligibleProviderLabels.join(' · ')} at{' '}
         <a href="/settings/keys" className="underline">
@@ -1374,7 +1374,7 @@ function KeyValidityHint({
 
   if (discovery.error) {
     return (
-      <p className="text-xs text-amber-600 dark:text-amber-400">
+      <p className="text-xs text-warning-ink">
         ⚠ Couldn't verify key with provider ({discovery.error}). Showing the provider's full static
         catalogue — model calls may still fail if the key doesn't have access.
       </p>
@@ -1382,7 +1382,7 @@ function KeyValidityHint({
   }
 
   return (
-    <p className="text-xs text-emerald-700 dark:text-emerald-400">
+    <p className="text-xs text-success-ink">
       ✓ Key valid · {discovery.available.length} model
       {discovery.available.length === 1 ? '' : 's'} discovered for <code>{capability}</code>.
     </p>
@@ -1589,7 +1589,7 @@ function TtsFields({
           </p>
         )}
         {providerWithLiveVoices && !apiKeyId && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
+          <p className="text-xs text-warning-ink">
             Pick your{' '}
             {provider === 'elevenlabs' ? 'ElevenLabs' : provider === 'xai' ? 'xAI' : 'Google'} API
             key first; the voice list loads from the adapter.
@@ -2168,7 +2168,7 @@ function EmbeddingFields({
         </dd>
       </dl>
       {testError && (
-        <p className="rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+        <p className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning-ink">
           Test failed: {testError}
           {testError.toLowerCase().includes('api key') && (
             <>
@@ -2206,7 +2206,7 @@ function EmbeddingFields({
         </p>
       )}
       {savedModel && modelDirty && !mismatched && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">
+        <p className="text-xs text-warning-ink">
           Model changed from <code className="font-mono">{savedModel}</code>. Save first, then click{' '}
           <strong>Rebuild Index</strong> below — existing vectors were embedded with the previous
           model and cosine similarity across different models is meaningless.

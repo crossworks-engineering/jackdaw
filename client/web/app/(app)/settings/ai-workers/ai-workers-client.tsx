@@ -303,7 +303,7 @@ export function AiWorkersClient() {
                               <div className="flex items-center gap-2">
                                 {w.isDefault ? (
                                   <CheckCircle2
-                                    className="size-4 shrink-0 text-emerald-600"
+                                    className="size-4 shrink-0 text-success-ink"
                                     aria-label="Default for this kind"
                                   />
                                 ) : (

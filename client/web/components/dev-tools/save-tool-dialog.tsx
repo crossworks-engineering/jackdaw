@@ -212,7 +212,7 @@ export function SaveToolDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto scrollbar-thin sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Save as agent tool</DialogTitle>
           <DialogDescription>

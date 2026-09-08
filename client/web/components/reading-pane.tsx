@@ -63,7 +63,7 @@ export function ReadingPane({
               className="inline-flex items-center rounded-md border border-input bg-transparent p-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             >
               <Star
-                className={cn('size-3.5', email.isStarred && 'fill-amber-400 text-amber-400')}
+                className={cn('size-3.5', email.isStarred && 'fill-warning text-warning-ink')}
                 aria-hidden
               />
             </button>
@@ -190,7 +190,7 @@ function Body({
 
   if (bodyText) {
     return (
-      <div className="h-full overflow-auto px-6 py-4">
+      <div className="h-full overflow-auto scrollbar-thin px-6 py-4">
         <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
           {bodyText}
         </pre>

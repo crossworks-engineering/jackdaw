@@ -98,7 +98,7 @@ function AgentInspector({
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
         <h2 className="text-base font-semibold">{agent.name}</h2>
-        {agent.isPersona && <Star className="size-3.5 text-amber-500" aria-hidden />}
+        {agent.isPersona && <Star className="size-3.5 text-warning-ink" aria-hidden />}
         {!agent.enabled && <Badge variant="secondary">disabled</Badge>}
       </div>
 
@@ -331,7 +331,7 @@ function HealthReport({ graph }: { graph: StudioGraph }) {
           className="flex items-start gap-2 rounded-md border border-border p-2.5 text-[13px]"
         >
           {c.ok ? (
-            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden />
+            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success-ink" aria-hidden />
           ) : (
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive-ink" aria-hidden />
           )}
@@ -464,7 +464,7 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
                   <SelectItem key={a.slug} value={`agent:${a.slug}`}>
                     <span className="font-medium">{a.name}</span>
                     {a.isPersona && (
-                      <span className="ml-2 text-[12px] uppercase tracking-wider text-amber-500">
+                      <span className="ml-2 text-[12px] uppercase tracking-wider text-warning-ink">
                         persona
                       </span>
                     )}
@@ -485,7 +485,7 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
           </span>
         </div>
         {graph.report.problems === 0 ? (
-          <span className="flex items-center gap-1.5 text-[13px] font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1.5 text-[13px] font-medium text-success-ink">
             <CheckCircle2 className="size-3.5" aria-hidden /> all healthy
           </span>
         ) : (
@@ -525,7 +525,7 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
                     <span
                       className={
                         'size-2 rounded-full ' +
-                        (w.enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40')
+                        (w.enabled ? 'bg-success' : 'bg-muted-foreground/40')
                       }
                       aria-hidden
                     />

@@ -697,7 +697,7 @@ function TabBar({
   };
   return (
     <div
-      className="flex items-center gap-0.5 overflow-x-auto border-b border-border bg-muted/30 px-2"
+      className="flex items-center gap-0.5 overflow-x-auto scrollbar-thin border-b border-border bg-muted/30 px-2"
       role="tablist"
       aria-label="Workbook tabs"
     >

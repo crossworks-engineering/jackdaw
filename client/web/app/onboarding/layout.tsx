@@ -6,7 +6,7 @@
  */
 export default async function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="h-dvh overflow-y-auto bg-background">
+    <main className="h-dvh overflow-y-auto scrollbar-thin bg-background">
       <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col px-4 py-8 sm:py-12">
         {children}
       </div>

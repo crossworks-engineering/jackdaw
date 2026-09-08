@@ -145,6 +145,11 @@ const ResponsiveDialogOverlay = ({
     <ResponsiveDialogOverlay
       {...props}
       className={cn(
+        // A modal scrim, and the one place a raw black is right: it darkens whatever is
+        // BEHIND the dialog, which belongs to no surface and no theme. There is no
+        // --overlay token to reach for, and a themed fill would tint the page instead
+        // of dimming it.
+        // eslint-disable-next-line house/no-palette-literal
         'sm:data-[state=open]:animate-in sm:data-[state=closed]:animate-out sm:data-[state=closed]:fade-out-0 sm:data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/70',
         className,
       )}
@@ -284,7 +289,7 @@ const ResponsiveDialogContent = React.forwardRef<
           {shouldShowCloseButton && (
             <ResponsiveDialogClose
               className={cn(
-                'ring-offset-background focus-visible:ring-ring data-[state=open]:bg-accent absolute top-4 right-4 rounded-sm opacity-70 backdrop-blur-sm transition-opacity hover:opacity-100 focus:ring-offset-2 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none data-[state=open]:text-white',
+                'ring-offset-background focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-accent-foreground absolute top-4 right-4 rounded-sm opacity-70 backdrop-blur-sm transition-opacity hover:opacity-100 focus:ring-offset-2 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none',
                 closeButtonClassName,
               )}
             >

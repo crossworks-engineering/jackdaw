@@ -25,7 +25,7 @@ export function DiagramView({ node, selected }: NodeViewProps) {
         <div className="border-b border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Diagram (legacy)
         </div>
-        <pre className="overflow-x-auto p-3 font-mono text-sm text-foreground">
+        <pre className="overflow-x-auto scrollbar-thin p-3 font-mono text-sm text-foreground">
           <code>{source || '(empty)'}</code>
         </pre>
       </div>

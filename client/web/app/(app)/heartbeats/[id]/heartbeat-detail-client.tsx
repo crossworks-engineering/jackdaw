@@ -128,7 +128,7 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Current state
         </h2>
-        <pre className="overflow-x-auto rounded-md border bg-muted/50 p-3 text-xs">
+        <pre className="overflow-x-auto scrollbar-thin rounded-md border bg-muted/50 p-3 text-xs">
           {JSON.stringify(hb.state, null, 2)}
         </pre>
       </section>
@@ -160,12 +160,12 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
                 </p>
               )}
               {f.errorMessage && (
-                <p className="mt-1 text-xs text-rose-600">Error: {f.errorMessage}</p>
+                <p className="mt-1 text-xs text-destructive-ink">Error: {f.errorMessage}</p>
               )}
               {f.stateAfter && f.stateBefore && (
                 <details className="mt-1 text-xs">
                   <summary className="cursor-pointer text-muted-foreground">state diff</summary>
-                  <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-2">
+                  <pre className="mt-1 overflow-x-auto scrollbar-thin rounded bg-muted/50 p-2">
                     {`before: ${JSON.stringify(f.stateBefore)}\nafter:  ${JSON.stringify(f.stateAfter)}`}
                   </pre>
                 </details>
@@ -199,17 +199,17 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function dispositionClass(d: string): string {
   switch (d) {
     case 'fired':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100';
+      return 'bg-success/15 text-success-ink';
     case 'completed':
-      return 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100';
+      return 'bg-info/15 text-info-ink';
     case 'fired_undelivered':
-      return 'bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100';
+      return 'bg-warning/15 text-warning-ink';
     case 'auto_paused':
-      return 'bg-rose-100 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100';
+      return 'bg-destructive/15 text-destructive-ink';
     case 'error':
       return 'bg-purple-100 text-purple-900 dark:bg-purple-900/40 dark:text-purple-100';
     default:
       // skipped_idle / skipped_quiet / skipped_cooldown / skipped_earliest
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100';
+      return 'bg-warning/15 text-warning-ink';
   }
 }

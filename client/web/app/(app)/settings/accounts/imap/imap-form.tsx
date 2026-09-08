@@ -391,11 +391,11 @@ export function ImapForm({ account }: { account?: ImapFormAccount }) {
         )}
         {/* Successful probe (saves navigate away, so only `test` lands a panel). */}
         {!pending && submit.isSuccess && lastIntent === 'test' && submit.data && (
-          <div className="flex items-start gap-2 rounded-md border border-green-500/30 bg-green-50 px-3 py-2 text-sm text-green-900 dark:bg-green-950/40 dark:text-green-100">
+          <div className="flex items-start gap-2 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success-ink">
             <Check className="mt-0.5 size-4 shrink-0" aria-hidden />
             <div className="min-w-0">
               <p className="font-medium">Connected.</p>
-              <p className="text-green-900/80 dark:text-green-100/80">
+              <p className="text-success-ink/80">
                 Authenticated and found{' '}
                 <span className="font-medium">{submit.data.foldersFound}</span> folder
                 {submit.data.foldersFound === 1 ? '' : 's'}
@@ -408,7 +408,7 @@ export function ImapForm({ account }: { account?: ImapFormAccount }) {
                 .
               </p>
               {submit.data.folderSample.length > 0 && (
-                <p className="mt-1 truncate text-xs text-green-900/70 dark:text-green-100/70">
+                <p className="mt-1 truncate text-xs text-success-ink/70">
                   e.g. {submit.data.folderSample.join(' · ')}
                   {submit.data.foldersFound > submit.data.folderSample.length ? ' …' : ''}
                 </p>

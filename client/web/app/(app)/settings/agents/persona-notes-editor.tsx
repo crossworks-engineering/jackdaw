@@ -50,9 +50,9 @@ const KIND_LABEL: Record<Kind, string> = {
 };
 
 const KIND_BADGE: Record<Kind, string> = {
-  style: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+  style: 'bg-info/15 text-info-ink',
   relationship: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-  correction: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  correction: 'bg-warning/15 text-warning-ink',
 };
 
 /** Match the server's noteRef: real id when present, else a short sha256 of

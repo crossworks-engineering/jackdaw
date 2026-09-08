@@ -74,14 +74,14 @@ function GraphIntegrityRow({ integrity }: { integrity: GraphIntegrity }) {
   if (clean) {
     return (
       <div className="flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
-        <CheckCircle2 className="size-3.5 text-emerald-500" aria-hidden />
+        <CheckCircle2 className="size-3.5 text-success-ink" aria-hidden />
         Graph integrity: no duplicate edges
       </div>
     );
   }
   return (
     <div className="space-y-1 border-t pt-3 text-xs">
-      <div className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+      <div className="flex items-center gap-1.5 font-medium text-warning-ink">
         <AlertTriangle className="size-3.5" aria-hidden />
         {formatCount(integrity.duplicateEdgeGroups)} duplicate edge group
         {integrity.duplicateEdgeGroups === 1 ? '' : 's'} ·{' '}

@@ -13,12 +13,12 @@ const ZONE_STROKE: Record<CapacityZone, string> = {
 };
 const ZONE_FILL: Record<CapacityZone, string> = {
   green: 'bg-primary',
-  watch: 'bg-amber-500',
+  watch: 'bg-warning',
   split: 'bg-destructive',
 };
 const ZONE_TEXT: Record<CapacityZone, string> = {
   green: 'text-muted-foreground',
-  watch: 'text-amber-600 dark:text-amber-400',
+  watch: 'text-warning-ink',
   split: 'text-destructive-ink',
 };
 const ZONE_LABEL: Record<CapacityZone, string> = {

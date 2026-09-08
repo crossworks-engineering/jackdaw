@@ -86,7 +86,7 @@ export function MicrosoftClient() {
       </div>
 
       {connected && (
-        <p className="flex items-center gap-2 rounded-md border border-green-500/30 bg-green-50 px-3 py-2 text-sm text-green-900 dark:bg-green-950/40 dark:text-green-100">
+        <p className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success-ink">
           <CheckCircle2 className="size-4 shrink-0" aria-hidden />
           Connected <span className="font-medium">{connected}</span>.
         </p>
@@ -126,7 +126,7 @@ export function MicrosoftClient() {
                           className={
                             needsReconnect
                               ? 'rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive-ink'
-                              : 'rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-900 dark:bg-green-950 dark:text-green-100'
+                              : 'rounded-full bg-success/15 px-2 py-0.5 text-xs text-success-ink'
                           }
                         >
                           {needsReconnect ? 'needs reconnect' : 'connected'}

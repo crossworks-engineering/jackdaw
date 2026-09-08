@@ -137,7 +137,7 @@ function EnvironmentControls() {
       </div>
 
       <Dialog open={editing} onOpenChange={(o) => !o && setEditing(false)}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[80vh] overflow-y-auto scrollbar-thin sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Environments</DialogTitle>
           </DialogHeader>

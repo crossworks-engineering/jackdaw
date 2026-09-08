@@ -337,7 +337,7 @@ function FilePreviewBody({ file }: { file: FileRow }) {
   if (isImage) {
     return (
       // Muted backdrop so transparent logos (PNG/SVG) read clearly.
-      <div className="flex flex-1 items-center justify-center overflow-auto bg-muted/20 p-6">
+      <div className="flex flex-1 items-center justify-center overflow-auto scrollbar-thin bg-muted/20 p-6">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
@@ -352,6 +352,10 @@ function FilePreviewBody({ file }: { file: FileRow }) {
   }
   if (isVideo) {
     return (
+      // A viewer backdrop, not a surface: black is what makes an image or video
+      // read as itself rather than tinted by whichever of the ~40 themes is on.
+      // Neutral on purpose, so no token applies.
+      // eslint-disable-next-line house/no-palette-literal
       <div className="flex flex-1 items-center justify-center bg-black p-6">
         <video src={src} controls className="max-h-full max-w-full" />
       </div>

@@ -259,7 +259,7 @@ function EmbeddingForm({
             </p>
           </div>
           {failoverDate && (
-            <p className="text-xs text-amber-600 dark:text-amber-500">
+            <p className="text-xs text-warning-ink">
               ⚠ Last failed over to the backup route on {failoverDate.toLocaleString()}.
             </p>
           )}
@@ -577,7 +577,7 @@ function RouteFields({
           {testing ? 'Testing…' : 'Test dimensions'}
         </Button>
         {probe && 'dim' in probe && !dimWarn && (
-          <span className="text-sm text-emerald-600 dark:text-emerald-500">
+          <span className="text-sm text-success-ink">
             ✓ {probe.dim} dims — fits vector({columnDims})
           </span>
         )}

@@ -415,7 +415,7 @@ export function ConnectorsClient() {
                         <ListCardMeta className="font-mono">{host}</ListCardMeta>
                         {c.grantedTo.length > 0 && (
                           <div
-                            className="mt-1 text-xs text-sky-700 dark:text-sky-300"
+                            className="mt-1 text-xs text-info-ink"
                             title={c.grantedTo.join('\n')}
                           >
                             ↳ granted to {c.grantedTo.length} agent

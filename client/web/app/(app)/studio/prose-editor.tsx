@@ -37,13 +37,13 @@ function Prose({ text }: { text: string }) {
 function DiffView({ from, to }: { from: string; to: string }) {
   const lines = lineDiff(from, to);
   return (
-    <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-[13px] leading-relaxed">
+    <pre className="overflow-x-auto scrollbar-thin rounded-md border border-border bg-muted/40 p-3 font-mono text-[13px] leading-relaxed">
       {lines.map((l, i) => (
         <div
           key={i}
           className={
             l.type === 'add'
-              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+              ? 'bg-success/10 text-success-ink'
               : l.type === 'del'
                 ? 'bg-destructive/10 text-destructive-ink'
                 : 'text-muted-foreground'

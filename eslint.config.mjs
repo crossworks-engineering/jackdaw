@@ -147,11 +147,13 @@ export default tseslint.config(
     // They land as WARN, not error, because the backlog is real (465 warnings
     // the day they landed) and burning it down is its own piece of work. What
     // stops them being ignored is the ratchet: `pnpm lint` runs with
-    // `--max-warnings 465`, so the count can fall but never rise — a new
-    // palette literal or raw button fails CI today, while the existing ones
-    // wait their turn. Lower the cap as it burns down, then promote these to
-    // `error`, the same path `no-unused-vars`, `no-explicit-any` and
-    // `exhaustive-deps` each took (see above).
+    // `--max-warnings 188`, so the count can fall but never rise — a new raw
+    // button fails CI today, while the existing ones wait their turn. Lower the
+    // cap as it burns down, then promote the rule to `error`, the same path
+    // `no-unused-vars`, `no-explicit-any` and `exhaustive-deps` each took (see
+    // above), and the path the two rules below have now finished walking: their
+    // backlog reached zero in the v0.6.55 pass, so a violation is an error and
+    // the ratchet no longer has to hold them.
     files: [
       'client/web/**/*.{ts,tsx}',
       'packages/web-ui/**/*.{ts,tsx}',
@@ -160,8 +162,8 @@ export default tseslint.config(
     ],
     plugins: { house: housePlugin },
     rules: {
-      'house/no-palette-literal': 'warn',
-      'house/require-thin-scrollbar': 'warn',
+      'house/no-palette-literal': 'error',
+      'house/require-thin-scrollbar': 'error',
     },
   },
   {

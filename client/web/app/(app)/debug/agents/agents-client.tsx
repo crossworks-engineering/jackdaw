@@ -50,7 +50,7 @@ export function AgentsClient() {
             .
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
+          <div className="overflow-x-auto scrollbar-thin rounded-md border border-border">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
@@ -87,7 +87,7 @@ export function AgentsClient() {
                     </td>
                     <td className="px-3 py-2 text-xs">
                       {a.enabled ? (
-                        <span className="text-emerald-700 dark:text-emerald-300">enabled</span>
+                        <span className="text-success-ink">enabled</span>
                       ) : (
                         <span className="text-muted-foreground">disabled</span>
                       )}

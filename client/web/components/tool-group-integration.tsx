@@ -443,7 +443,7 @@ function DocsDialog({
         onOpenChange(o);
       }}
     >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto scrollbar-thin sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{service || 'Integration'} documentation</DialogTitle>
           <DialogDescription>

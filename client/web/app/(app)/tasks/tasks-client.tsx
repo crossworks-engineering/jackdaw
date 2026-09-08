@@ -399,7 +399,7 @@ export function TasksClient() {
             </Button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto md:flex md:flex-col md:overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin md:flex md:flex-col md:overflow-hidden">
           <TaskBoard
             tasks={tasks}
             selectedId={sel?.mode === 'view' ? sel.id : null}

@@ -259,7 +259,7 @@ function ResponseCell({ response }: { response: string | null }) {
       {response ? (
         // Plain text on purpose — rendering markdown here would let a long
         // reply visually swamp the audit row.
-        <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
+        <pre className="max-h-64 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
           {response}
         </pre>
       ) : (

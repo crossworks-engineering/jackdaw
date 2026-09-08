@@ -19,15 +19,15 @@ const CATS: { key: ActionCategory | 'all'; label: string }[] = [
 ];
 
 const CATEGORY_DOT: Record<ActionCategory, string> = {
-  content: 'bg-emerald-500',
-  dialog: 'bg-sky-500',
+  content: 'bg-success',
+  dialog: 'bg-info',
   automation: 'bg-violet-500',
 };
 
 function statusPill(status: string): string {
-  if (status === 'success') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+  if (status === 'success') return 'bg-success/15 text-success-ink';
   if (status === 'error') return 'bg-destructive/15 text-destructive-ink';
-  if (status === 'running') return 'bg-amber-500/15 text-amber-700 dark:text-amber-300';
+  if (status === 'running') return 'bg-warning/15 text-warning-ink';
   return 'bg-muted text-muted-foreground';
 }
 

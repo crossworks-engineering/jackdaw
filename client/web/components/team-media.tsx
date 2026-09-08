@@ -130,6 +130,8 @@ export function AgentImage({
         // reads as a framed drawing on either page theme rather than adapting
         // — and mangling — its own colours. The share DrawPresenter mats it the
         // same way, deliberately.
+        // The snapshot carries its own light background and must not be themed.
+        // eslint-disable-next-line house/no-palette-literal
         kind === 'drawing' && 'bg-white',
         className,
       )}

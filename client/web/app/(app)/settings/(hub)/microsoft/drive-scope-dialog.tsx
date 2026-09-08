@@ -155,7 +155,7 @@ export function DriveScopeDialog({
         </div>
 
         {/* Children */}
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border">
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin rounded-md border border-border">
           {childrenQuery.isPending || scopes === null ? (
             <div className="flex items-center justify-center py-10">
               <Spinner />

@@ -128,7 +128,7 @@ export function SystemVitals() {
             {data.scope}
           </Badge>
           <span
-            className={cn('size-2 rounded-full', stale ? 'bg-amber-500' : 'bg-emerald-500')}
+            className={cn('size-2 rounded-full', stale ? 'bg-warning' : 'bg-success')}
             title={stale ? 'Last update failed — showing previous snapshot' : 'Live'}
             aria-hidden
           />
@@ -184,7 +184,7 @@ function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?:
     ok == null
       ? 'bg-muted text-muted-foreground'
       : ok
-        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+        ? 'bg-success/15 text-success-ink'
         : 'bg-destructive/15 text-destructive-ink';
   return (
     <span
@@ -197,7 +197,7 @@ function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?:
       <span
         className={cn(
           'size-1.5 rounded-full',
-          ok == null ? 'bg-muted-foreground' : ok ? 'bg-emerald-500' : 'bg-destructive',
+          ok == null ? 'bg-muted-foreground' : ok ? 'bg-success' : 'bg-destructive',
         )}
       />
       {label}

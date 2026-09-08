@@ -18,9 +18,9 @@ function rel(iso: string | null): string {
 }
 
 function syncTone(status: string): string {
-  if (status === 'ok') return 'text-emerald-600 dark:text-emerald-400';
+  if (status === 'ok') return 'text-success-ink';
   if (status === 'error') return 'text-destructive-ink';
-  if (status === 'running') return 'text-blue-600 dark:text-blue-400';
+  if (status === 'running') return 'text-info-ink';
   return 'text-muted-foreground';
 }
 

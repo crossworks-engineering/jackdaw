@@ -40,7 +40,7 @@ export function KpiCards({ items }: { items: Kpi[] }) {
                     variant="outline"
                     className={cn(
                       'flex gap-1 rounded-lg text-xs',
-                      k.trend.good === true && 'text-emerald-600 dark:text-emerald-400',
+                      k.trend.good === true && 'text-success-ink',
                       k.trend.good === false && 'text-destructive-ink',
                     )}
                   >

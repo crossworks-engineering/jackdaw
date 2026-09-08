@@ -113,7 +113,7 @@ function ComposeLine({ compose }: { compose: ComposeStatus | null }) {
   if (compose.state === 'in-sync') {
     return (
       <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-        <CheckCircle2 className="size-3.5 text-emerald-500" />
+        <CheckCircle2 className="size-3.5 text-success-ink" />
         Stack compose is in sync with this release.
       </p>
     );
@@ -242,7 +242,7 @@ function InterfaceSection({
           </Button>
         ) : latest ? (
           <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CheckCircle2 className="size-4 text-emerald-500" /> Up to date
+            <CheckCircle2 className="size-4 text-success-ink" /> Up to date
           </span>
         ) : null}
       </div>
@@ -512,7 +512,7 @@ function UpdatesView({
               </Button>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                <CheckCircle2 className="size-4 text-emerald-500" /> Up to date
+                <CheckCircle2 className="size-4 text-success-ink" /> Up to date
               </span>
             )}
           </div>
@@ -562,7 +562,7 @@ function UpdatesView({
               {status?.target && <span className="text-muted-foreground">→ {status.target}</span>}
             </p>
             {log && (
-              <pre className="max-h-56 overflow-y-auto rounded-md bg-muted px-3 py-2 font-mono text-[11px] leading-relaxed">
+              <pre className="max-h-56 overflow-y-auto scrollbar-thin rounded-md bg-muted px-3 py-2 font-mono text-[11px] leading-relaxed">
                 {log}
               </pre>
             )}
@@ -585,7 +585,7 @@ function UpdatesView({
             {log && (status?.phase === 'error' || status?.phase === 'done') && (
               <details>
                 <summary className="cursor-pointer text-xs">Last update log</summary>
-                <pre className="mt-2 max-h-56 overflow-y-auto rounded-md bg-muted px-3 py-2 font-mono text-[11px] leading-relaxed">
+                <pre className="mt-2 max-h-56 overflow-y-auto scrollbar-thin rounded-md bg-muted px-3 py-2 font-mono text-[11px] leading-relaxed">
                   {log}
                 </pre>
               </details>

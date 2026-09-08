@@ -43,13 +43,13 @@ const KIND_DESCRIPTIONS: Record<string, string> = {
 
 const STATUS_CHIP: Record<string, string> = {
   success:
-    'rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300',
+    'rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-ink',
   error:
     'rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive-ink',
   skipped:
-    'rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300',
+    'rounded bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning-ink',
   running:
-    'rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300',
+    'rounded bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-info-ink',
 };
 
 export function NodeBiography({ view }: { view: NodeBiographyView }) {
@@ -79,7 +79,7 @@ function NodeHeader({ view }: { view: NodeBiographyView }) {
           <span
             className={
               n.hasEmbedding
-                ? 'rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300'
+                ? 'rounded bg-success/10 px-1.5 py-0.5 text-success-ink'
                 : 'rounded bg-muted px-1.5 py-0.5 text-muted-foreground'
             }
             title={
@@ -93,7 +93,7 @@ function NodeHeader({ view }: { view: NodeBiographyView }) {
           <span
             className={
               n.summary
-                ? 'rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-300'
+                ? 'rounded bg-success/10 px-1.5 py-0.5 text-success-ink'
                 : 'rounded bg-muted px-1.5 py-0.5 text-muted-foreground'
             }
             title={
@@ -129,7 +129,7 @@ function NodeHeader({ view }: { view: NodeBiographyView }) {
           <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
             Content preview (first 4KB)
           </summary>
-          <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/40 px-3 py-2 text-[11px] font-mono">
+          <pre className="mt-2 max-h-72 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words rounded bg-muted/40 px-3 py-2 text-[11px] font-mono">
             {n.contentPreview}
           </pre>
         </details>
@@ -248,18 +248,18 @@ function TraceCard({ trace, index }: { trace: TraceDetail; index: number }) {
       {/* Skipped traces don't have steps — show the disposition prominently
           since that's the entire story. */}
       {isSkipped && disposition && (
-        <div className="border-b border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
-          <div className="font-semibold text-amber-700 dark:text-amber-300">
+        <div className="border-b border-warning/30 bg-warning/5 px-3 py-2 text-xs">
+          <div className="font-semibold text-warning-ink">
             Stopped here: <code className="font-mono">{disposition}</code>
           </div>
           {typeof trace.data?.hint === 'string' && (
-            <p className="mt-1 text-amber-800/80 dark:text-amber-200/80">{trace.data.hint}</p>
+            <p className="mt-1 text-warning-ink/80">{trace.data.hint}</p>
           )}
           <details className="mt-2">
             <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
               Full disposition payload
             </summary>
-            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-background/60 px-2 py-1 text-[10px] font-mono">
+            <pre className="mt-1 overflow-x-auto scrollbar-thin whitespace-pre-wrap break-words rounded bg-background/60 px-2 py-1 text-[10px] font-mono">
               {JSON.stringify(trace.data, null, 2)}
             </pre>
           </details>
@@ -280,7 +280,7 @@ function TraceCard({ trace, index }: { trace: TraceDetail; index: number }) {
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
             Trace data
           </summary>
-          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-[10px] font-mono">
+          <pre className="mt-2 overflow-x-auto scrollbar-thin whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-[10px] font-mono">
             {JSON.stringify(trace.data, null, 2)}
           </pre>
         </details>
@@ -357,7 +357,7 @@ function PayloadBlock({ label, payload }: { label: string; payload: Record<strin
           {Object.keys(payload).length === 1 ? '' : 's'})
         </span>
       </summary>
-      <pre className="overflow-x-auto whitespace-pre-wrap break-words border-t border-border px-2 py-1.5 text-[10px] font-mono">
+      <pre className="overflow-x-auto scrollbar-thin whitespace-pre-wrap break-words border-t border-border px-2 py-1.5 text-[10px] font-mono">
         {JSON.stringify(payload, null, 2)}
       </pre>
     </details>

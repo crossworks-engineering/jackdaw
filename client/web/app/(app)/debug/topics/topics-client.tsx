@@ -51,7 +51,7 @@ export function TopicsClient({ page, query }: { page: number; query: string }) {
             : 'No topics yet. They emerge as the summarizer rolls up undigested turns into named threads.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
+        <div className="overflow-x-auto scrollbar-thin rounded-md border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>

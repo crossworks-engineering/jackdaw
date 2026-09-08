@@ -162,7 +162,7 @@ export function CombosClient({ initialCombo }: { initialCombo: string }) {
           Everything already matches “{combo.label}” — nothing to apply.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-thin">
           <Table>
             <TableHeader>
               <TableRow>

@@ -117,7 +117,7 @@ export function DocumentTestButton({ workerId }: { workerId: string }) {
       </div>
       {result && (
         <div className="space-y-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-          <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words font-mono text-xs">
+          <pre className="max-h-96 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words font-mono text-xs">
             {result.text || '(empty result)'}
           </pre>
           <p className="text-xs text-muted-foreground">

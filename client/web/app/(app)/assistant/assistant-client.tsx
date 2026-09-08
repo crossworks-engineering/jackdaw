@@ -2120,10 +2120,10 @@ function ArtifactView({ artifact }: { artifact: Artifact }) {
   // image
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/60">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       {/* Click behavior belongs to the thread's image lightbox (zoom + open
           original, data:-URL safe) — the old window.open+document.write
           fallback would be a second, competing viewer on the same click. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={dataUrl}
         alt={artifact.caption ?? 'Generated image'}
@@ -2159,8 +2159,8 @@ function StoredAttachmentView({ attachment }: { attachment: StoredAttachment }) 
     const src = assetUrl(`/api/files/files/${attachment.nodeId}?raw=1`);
     return (
       <div className="overflow-hidden rounded-lg border border-border bg-background/60">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         {/* Click behavior belongs to the thread's image lightbox now. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={attachment.caption ?? 'image'}

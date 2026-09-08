@@ -305,10 +305,7 @@ export function ToolGroupsClient() {
                       <ListCardMeta className="font-mono">{g.slug}</ListCardMeta>
                       {g.description && <ListCardSnippet>{g.description}</ListCardSnippet>}
                       {agents.length > 0 && (
-                        <div
-                          className="mt-1 text-xs text-sky-700 dark:text-sky-300"
-                          title={agents.join('\n')}
-                        >
+                        <div className="mt-1 text-xs text-info-ink" title={agents.join('\n')}>
                           ↳ granted to {agents.length} agent{agents.length === 1 ? '' : 's'}
                         </div>
                       )}

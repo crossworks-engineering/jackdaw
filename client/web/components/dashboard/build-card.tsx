@@ -83,7 +83,7 @@ export function BuildCard() {
         </div>
         <div className="border-t pt-3 text-xs text-muted-foreground">
           {contractMismatch ? (
-            <span className="font-medium text-amber-600 dark:text-amber-400">
+            <span className="font-medium text-warning-ink">
               Wire contract mismatch: this interface speaks v{CONTRACT_VERSION}, the brain speaks v
               {server?.contractVersion}. Update whichever is older.
             </span>

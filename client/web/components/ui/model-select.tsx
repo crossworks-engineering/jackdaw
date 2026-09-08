@@ -195,7 +195,7 @@ export function ModelSelect({
                 </div>
               )}
               {error && !loading && (
-                <div className="border-b border-border bg-muted/50 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                <div className="border-b border-border bg-muted/50 px-3 py-2 text-xs text-warning-ink">
                   {error}
                 </div>
               )}
@@ -304,7 +304,7 @@ function ModelRow({ model, selected }: { model: ExplorerModel; selected: boolean
             </span>
           )}
           {isFree(model) && (
-            <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+            <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[11px] font-medium text-success-ink">
               free
             </span>
           )}

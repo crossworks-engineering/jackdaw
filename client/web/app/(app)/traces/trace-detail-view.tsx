@@ -29,10 +29,10 @@ export function TraceDetailView({ trace }: { trace: TraceDetailRow }) {
           <span
             className={
               trace.status === 'success'
-                ? 'rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'
+                ? 'rounded-md bg-success/15 px-2 py-0.5 text-xs text-success-ink'
                 : trace.status === 'error'
                   ? 'rounded-md bg-destructive/20 px-2 py-0.5 text-xs text-destructive-ink'
-                  : 'rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100'
+                  : 'rounded-md bg-warning/15 px-2 py-0.5 text-xs text-warning-ink'
             }
           >
             {trace.status}

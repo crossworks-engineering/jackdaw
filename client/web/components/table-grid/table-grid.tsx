@@ -1210,7 +1210,7 @@ function ReferenceCell({
           className="mb-1 w-full rounded-sm border border-border bg-transparent px-2 py-1 text-sm outline-none focus:ring-0"
           aria-label={`Search ${col.name} values`}
         />
-        <div className="max-h-56 overflow-y-auto">
+        <div className="max-h-56 overflow-y-auto scrollbar-thin">
           {options === null ? (
             <div className="px-2 py-1.5 text-xs text-muted-foreground">Loading…</div>
           ) : (

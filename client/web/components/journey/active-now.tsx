@@ -28,7 +28,7 @@ export function ActiveNow() {
         <div className="flex items-center gap-2">
           <Activity
             className={
-              'size-4 ' + (live ? 'animate-pulse text-emerald-500' : 'text-muted-foreground')
+              'size-4 ' + (live ? 'animate-pulse text-success-ink' : 'text-muted-foreground')
             }
             aria-hidden
           />
@@ -54,7 +54,7 @@ export function ActiveNow() {
                     <Loader2
                       className={
                         'size-3.5 shrink-0 ' +
-                        (stalled ? 'text-amber-500' : 'animate-spin text-emerald-500')
+                        (stalled ? 'text-warning-ink' : 'animate-spin text-success-ink')
                       }
                       aria-hidden
                     />
@@ -64,7 +64,7 @@ export function ActiveNow() {
                     />
                     <span className="truncate">{it.label}</span>
                     {stalled ? (
-                      <span className="ml-auto shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+                      <span className="ml-auto shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning-ink">
                         stalled · {relativeTime(it.startedAt)}
                       </span>
                     ) : (

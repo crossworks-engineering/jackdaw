@@ -118,7 +118,7 @@ export function ActiveRunsStrip() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['runs', 'active'] });
 
   return (
-    <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-border bg-muted/30 px-6 py-2">
+    <div className="flex shrink-0 gap-2 overflow-x-auto scrollbar-thin border-b border-border bg-muted/30 px-6 py-2">
       {active.map((r) => {
         const pct = r.childrenTotal > 0 ? Math.round((r.childrenDone / r.childrenTotal) * 100) : 0;
         return (

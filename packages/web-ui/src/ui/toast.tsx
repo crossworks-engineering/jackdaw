@@ -103,7 +103,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
 
   const palette =
     toast.kind === 'success'
-      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100'
+      ? 'border-success/50 bg-success/10 text-success-ink'
       : toast.kind === 'error'
         ? 'border-destructive/50 bg-destructive/10 text-destructive-ink'
         : 'border-border bg-card text-foreground';
