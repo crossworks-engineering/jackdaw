@@ -32,6 +32,7 @@ import {
 import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { assetUrl } from '@mantle/web-ui/asset-url';
 import { FileEditor } from './file-editor';
+import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
 import { CreateFileDialog, CreateFolderDialog, RenameDialog } from './files-dialogs';
 import { ChildFolders, DualPane, FolderTreeRail } from './files-panes';
 import {
@@ -41,15 +42,15 @@ import {
   fmtRelative,
   fmtSize,
   sumDerivedCounts,
+  dismissDialog,
 } from './files-shared';
 import type {
   BulkDeleteResponse,
-  DerivedCounts,
   FileRow,
   FileSearchHit,
   FolderRow,
-  RenameTarget,
-  TextExt,
+  FilesDialog,
+  FilesDialogKind,
 } from './files-shared';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
@@ -77,6 +78,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
+
+/** The three shapes the file list can take; anything else in storage is stale. */
+const VIEW_CHOICES = oneOf('list', 'grid', 'dual');
 
 export function FilesClient() {
   const searchParams = useSearchParams();
@@ -154,19 +158,11 @@ function FilesView({
   // ── View + sort ────────────────────────────────────────────────
   // 'list' is the details table; 'grid' is thumbnail tiles. The choice is a
   // lasting preference, not per-folder state, so it lives in localStorage.
-  const [view, setView] = useState<'list' | 'grid' | 'dual'>(() => {
-    if (typeof window === 'undefined') return 'list';
-    const stored = window.localStorage.getItem('files:view');
-    return stored === 'grid' ? 'grid' : stored === 'dual' ? 'dual' : 'list';
-  });
-  const switchView = (v: 'list' | 'grid' | 'dual') => {
-    setView(v);
-    try {
-      window.localStorage.setItem('files:view', v);
-    } catch {
-      /* private mode */
-    }
-  };
+  // Read AFTER hydration, not during it: the lazy `localStorage` initialiser
+  // this replaces rendered 'list' on the server and the stored value on the
+  // client, which is a hydration mismatch, and its unguarded storage access
+  // throws outright in a browser set to block site data.
+  const [view, switchView] = usePersistedState('files:view', 'list' as const, VIEW_CHOICES);
   type SortKey = 'name' | 'type' | 'size' | 'modified';
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
     key: 'name',
@@ -256,19 +252,16 @@ function FilesView({
     });
   }, [files, sort]);
 
-  // Dialog open-state.
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [createFileExt, setCreateFileExt] = useState<TextExt | null>(null);
-  const [deleteFolderOpen, setDeleteFolderOpen] = useState(false);
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  // Second-step confirm for files that ingest derived nodes from (extracted
-  // images, imported tables, pages, notes) — deleting those needs an explicit
-  // cascade opt-in; the server refuses otherwise and reports the counts here.
-  const [cascadeConfirm, setCascadeConfirm] = useState<{
-    ids: string[];
-    counts: DerivedCounts;
-  } | null>(null);
-  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  // Which dialog is open — one value, because only one ever is. The six flags
+  // this replaces could spell thirty-one states that must never happen, and
+  // only care kept them apart. `cascade` is the second-step confirm for files
+  // that ingest derived nodes (extracted images, imported tables, pages,
+  // notes): the server refuses a plain delete and reports the counts, which
+  // ride along with the kind that needs them.
+  const [dialog, setDialog] = useState<FilesDialog>(null);
+  const closeDialog = (kind: FilesDialogKind) => setDialog((d) => dismissDialog(d, kind));
+  // Narrowed once here rather than at each of its six reads below.
+  const cascade = dialog?.kind === 'cascade' ? dialog : null;
 
   // Sync local file state when server re-fetches.
   useEffect(() => {
@@ -382,7 +375,8 @@ function FilesView({
     if (needsCascade.length > 0) {
       // Some files produced derived nodes; nothing of theirs was deleted.
       // Ask before cascading.
-      setCascadeConfirm({
+      setDialog({
+        kind: 'cascade',
         ids: needsCascade.map((r) => r.fileId),
         counts: sumDerivedCounts(needsCascade.map((r) => r.derived)),
       });
@@ -405,8 +399,8 @@ function FilesView({
   };
 
   const confirmCascadeDelete = async () => {
-    if (!cascadeConfirm) return;
-    const { ids } = cascadeConfirm;
+    if (dialog?.kind !== 'cascade') return;
+    const { ids } = dialog;
     try {
       await apiSend('/api/files/files', 'DELETE', { ids, cascade: true });
     } catch (err) {
@@ -416,7 +410,7 @@ function FilesView({
     toast.success(
       `Deleted ${ids.length} file${ids.length === 1 ? '' : 's'} and everything derived from them`,
     );
-    setCascadeConfirm(null);
+    closeDialog('cascade');
     refresh();
   };
 
@@ -793,10 +787,13 @@ function FilesView({
                         size="sm"
                         className="h-7"
                         onClick={() =>
-                          setRenameTarget({
-                            kind: 'folder',
-                            id: currentFolder.id,
-                            slug: currentFolder.slug,
+                          setDialog({
+                            kind: 'rename',
+                            target: {
+                              kind: 'folder',
+                              id: currentFolder.id,
+                              slug: currentFolder.slug,
+                            },
                           })
                         }
                         disabled={busy}
@@ -807,7 +804,7 @@ function FilesView({
                         variant="ghost"
                         size="sm"
                         className="h-7 text-muted-foreground hover:text-destructive-ink"
-                        onClick={() => setDeleteFolderOpen(true)}
+                        onClick={() => setDialog({ kind: 'deleteFolder' })}
                         disabled={busy}
                       >
                         <Trash2 /> Delete folder
@@ -872,17 +869,23 @@ function FilesView({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-44">
-                      <DropdownMenuItem onSelect={() => setCreateFolderOpen(true)}>
+                      <DropdownMenuItem onSelect={() => setDialog({ kind: 'createFolder' })}>
                         <FolderPlus /> Folder
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => setCreateFileExt('md')}>
+                      <DropdownMenuItem
+                        onSelect={() => setDialog({ kind: 'createFile', ext: 'md' })}
+                      >
                         <FileText /> Markdown file
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setCreateFileExt('txt')}>
+                      <DropdownMenuItem
+                        onSelect={() => setDialog({ kind: 'createFile', ext: 'txt' })}
+                      >
                         <FileText /> Text file
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setCreateFileExt('json')}>
+                      <DropdownMenuItem
+                        onSelect={() => setDialog({ kind: 'createFile', ext: 'json' })}
+                      >
                         <FileJson /> JSON file
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -931,7 +934,7 @@ function FilesView({
                       size="sm"
                       variant="outline"
                       className="ml-auto text-muted-foreground hover:text-destructive-ink"
-                      onClick={() => setBulkDeleteOpen(true)}
+                      onClick={() => setDialog({ kind: 'bulkDelete' })}
                     >
                       <Trash2 /> Delete {selectedFileIds.size}
                     </Button>
@@ -1181,11 +1184,14 @@ function FilesView({
                                   className="h-7 w-7 p-0"
                                   aria-label={`Rename ${f.filename}`}
                                   onClick={() =>
-                                    setRenameTarget({
-                                      kind: 'file',
-                                      id: f.id,
-                                      filename: f.filename,
-                                      extension: f.extension,
+                                    setDialog({
+                                      kind: 'rename',
+                                      target: {
+                                        kind: 'file',
+                                        id: f.id,
+                                        filename: f.filename,
+                                        extension: f.extension,
+                                      },
                                     })
                                   }
                                 >
@@ -1207,16 +1213,16 @@ function FilesView({
 
       {/* ── Create folder dialog ──────────────────────────────────── */}
       <CreateFolderDialog
-        open={createFolderOpen}
-        onOpenChange={setCreateFolderOpen}
+        open={dialog?.kind === 'createFolder'}
+        onOpenChange={(open) => !open && closeDialog('createFolder')}
         parentPath={currentPath}
         onCreated={refresh}
       />
 
       {/* ── Create file dialog ────────────────────────────────────── */}
       <CreateFileDialog
-        ext={createFileExt}
-        onOpenChange={(open) => !open && setCreateFileExt(null)}
+        ext={dialog?.kind === 'createFile' ? dialog.ext : null}
+        onOpenChange={(open) => !open && closeDialog('createFile')}
         parentPath={currentPath}
         onCreated={(id) => {
           refresh();
@@ -1226,13 +1232,16 @@ function FilesView({
 
       {/* ── Rename file / folder dialog ───────────────────────────── */}
       <RenameDialog
-        target={renameTarget}
-        onOpenChange={(open) => !open && setRenameTarget(null)}
+        target={dialog?.kind === 'rename' ? dialog.target : null}
+        onOpenChange={(open) => !open && closeDialog('rename')}
         onRenamed={refresh}
       />
 
       {/* ── Delete folder confirm ─────────────────────────────────── */}
-      <AlertDialog open={deleteFolderOpen} onOpenChange={setDeleteFolderOpen}>
+      <AlertDialog
+        open={dialog?.kind === 'deleteFolder'}
+        onOpenChange={(open) => !open && closeDialog('deleteFolder')}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete folder “{currentFolder?.slug}”?</AlertDialogTitle>
@@ -1253,7 +1262,10 @@ function FilesView({
       </AlertDialog>
 
       {/* ── Bulk delete confirm ───────────────────────────────────── */}
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <AlertDialog
+        open={dialog?.kind === 'bulkDelete'}
+        onOpenChange={(open) => !open && closeDialog('bulkDelete')}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -1274,27 +1286,22 @@ function FilesView({
       </AlertDialog>
 
       {/* ── Cascade confirm: files with derived nodes ─────────────── */}
-      <AlertDialog
-        open={cascadeConfirm !== null}
-        onOpenChange={(open) => {
-          if (!open) setCascadeConfirm(null);
-        }}
-      >
+      <AlertDialog open={cascade !== null} onOpenChange={(open) => !open && closeDialog('cascade')}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
               Also delete everything derived from{' '}
-              {cascadeConfirm && cascadeConfirm.ids.length === 1
+              {cascade && cascade.ids.length === 1
                 ? 'this file'
-                : `these ${cascadeConfirm?.ids.length ?? 0} files`}
+                : `these ${cascade?.ids.length ?? 0} files`}
               ?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {cascadeConfirm
-                ? `Ingest produced ${describeDerivedCounts(cascadeConfirm.counts)} from ${
-                    cascadeConfirm.ids.length === 1 ? 'this file' : 'these files'
+              {cascade
+                ? `Ingest produced ${describeDerivedCounts(cascade.counts)} from ${
+                    cascade.ids.length === 1 ? 'this file' : 'these files'
                   }. Nothing has been deleted yet — confirming removes the file${
-                    cascadeConfirm.ids.length === 1 ? '' : 's'
+                    cascade.ids.length === 1 ? '' : 's'
                   } and all of it. This can’t be undone.`
                 : ''}
             </AlertDialogDescription>

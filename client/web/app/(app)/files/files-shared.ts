@@ -177,3 +177,41 @@ export function fmtRelative(iso: string): string {
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   return formatDate(iso);
 }
+
+/**
+ * Which dialog the Files screen has open, if any.
+ *
+ * This was six `useState` — four booleans and two nullable payloads — for a
+ * question with one answer. Six independent flags can represent thirty-one
+ * states that must never happen (two dialogs at once, a rename target with no
+ * rename dialog), and nothing in the type stopped them; keeping them apart was
+ * a matter of remembering to. One value cannot be in two states, so the
+ * illegal ones stop being unlikely and become unrepresentable.
+ *
+ * The payloads ride along with the kind that needs them, which also removes
+ * the `cascadeConfirm && …` guard every field of that dialog used to carry.
+ */
+export type FilesDialog =
+  | { kind: 'createFolder' }
+  | { kind: 'createFile'; ext: TextExt }
+  | { kind: 'deleteFolder' }
+  | { kind: 'bulkDelete' }
+  | { kind: 'cascade'; ids: string[]; counts: DerivedCounts }
+  | { kind: 'rename'; target: RenameTarget }
+  | null;
+
+export type FilesDialogKind = NonNullable<FilesDialog>['kind'];
+
+/**
+ * Close a dialog, but only if it is still the one on screen.
+ *
+ * Radix calls `onOpenChange(false)` as it closes, and the bulk-delete flow
+ * turns into the cascade confirm from an async handler — so a bare
+ * `setDialog(null)` in that callback can arrive AFTER the cascade dialog has
+ * opened and wipe it. Today the ordering happens to work (Radix closes on the
+ * click, the cascade opens a network round-trip later); this makes it not
+ * matter, which is cheaper than depending on it.
+ */
+export function dismissDialog(current: FilesDialog, kind: FilesDialogKind): FilesDialog {
+  return current?.kind === kind ? null : current;
+}
