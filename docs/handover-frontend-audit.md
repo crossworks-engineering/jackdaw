@@ -1,13 +1,20 @@
 # Handover: the frontend audit rollout (2026-09-07)
 
 A full frontend audit of `client/web`, `packages/web-ui` and `client/desktop`
-was run at v0.6.42 and rated the tree **6.5/10**. All but one of its nine
-worklist items have since landed (item 6 in part), taking it to roughly **8.2**. This file is the state
-of the world around that work: what changed, what is left, and the handful of
-things that will burn you if nobody tells you.
+was run at v0.6.42 and rated the tree **6.5/10**. It is **8.1** now: of its nine
+worklist items, **seven are done, the CSP is half done, and dependency
+decisions are untouched**. This file is the state of the world around that
+work: what changed, what is left, and the handful of things that will burn you
+if nobody tells you.
 
 The audit itself is the authority on the findings and carries the live
 worklist; this file does not repeat it.
+
+**Two numbering schemes, so say which you mean.** The audit's worklist has nine
+items and is the one the numbers above count. §3 below is this file's own
+shorter ordering of what to do next, and its numbers are unrelated — saying
+"item 6" without naming the list is how the count in this paragraph came to be
+wrong three times.
 
 - **Report** (interactive, kept current): <https://claude.ai/code/artifact/216dc6be-2285-424f-bc90-72ed7410942e>
 - **Dev brain page**: `Jackdaw frontend audit 2026-09-07`, tags `audit` / `jackdaw`
@@ -91,7 +98,10 @@ scroll containers fixed first, since they propagate to every menu and table.
 
 ## 3. Do this next
 
-The audit's worklist is the authority; this is the short version, in order.
+The audit's worklist is the authority; this is the short version, in its own
+order — **these numbers are not the audit's**. Three of the six below are done
+and struck through; what is left is 1, 2 and 6, and none of the three can be
+finished from a headless session.
 
 1. **The click-through debt.** Two shipped items touch the assistant and
    neither has been exercised signed in, because the dev server reaches a real
