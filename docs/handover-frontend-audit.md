@@ -101,16 +101,40 @@ scroll containers fixed first, since they propagate to every menu and table.
 ## 3. Do this next
 
 The audit's worklist is the authority; this is the short version, in its own
-order — **these numbers are not the audit's**. Three of the six below are done
-and struck through; what is left is 1, 2 and 6, and none of the three can be
-finished from a headless session.
+order — **these numbers are not the audit's**. Four of the six below are done
+and struck through; what is left is 2 and 6, and neither can be finished from a
+headless session.
 
-1. **The click-through debt.** Two shipped items touch the assistant and
-   neither has been exercised signed in, because the dev server reaches a real
-   brain but stops at sign-in. One session covers both: open the assistant from the
-   rail, send a turn, watch it stream, type while it streams, minimise, restore,
-   confirm the transcript survives. Do this before building anything else on
-   the assistant.
+1. ~~**The click-through debt.**~~ **Done 2026-09-08**, against v0.6.66 running
+   locally (`pnpm dev:fe`) in front of the dev brain, in a real browser. Every
+   claim held, and three were measured rather than eyeballed:
+
+   - **v0.6.48** — before opening: 0 ProseMirror nodes, 0 textareas in the DOM,
+     while the editor chunks _were_ fetched. That is the idle prefetch warming
+     the code without mounting anything, exactly as designed. On first open: 21
+     editors. Those 21 used to be built on every page load.
+   - **v0.6.50** — typing a 59-character draft through 3 s of continuous
+     streaming (801 → 1,654 chars): focus never left the composer and
+     `selectionStart` stayed at the end. A transcript re-rendering per frame
+     would have broken both.
+   - **v0.6.56** — the live region held `"Morph is Thinking…"` _unchanged_ while
+     the reply grew, which is the whole design: the step is announced, never the
+     growing reply. On settle it carried the finished reply. `aria-busy` was on
+     exactly one node while streaming. Escape returned focus to the opener with
+     `focusIsInsideHiddenPanel: false` — the stranded-focus bug, gone. In the
+     window shape: `role="dialog"`, `aria-modal="false"`,
+     `aria-label="Morph assistant"`, and the grip resized by keyboard to the
+     exact expected pixel (4 fine steps + 1 coarse = 560 → 688 px).
+
+   Minimise/restore kept transcript, scroll position and draft. Console across
+   the session: no errors, no hydration warnings, nothing but HMR noise.
+
+   **The finding that nearly invalidated the exercise:** the dev box serves
+   owner UI **v0.6.42** — the version the audit was run against. Its updater
+   tracks GitHub releases, where jackdaw's latest is v0.6.26. None of this
+   rollout has ever been deployed; it exists only in git. Testing against that
+   box would have exercised the code we spent the whole rollout fixing.
+
 2. **Finish the CSP.** `client/web/lib/csp.ts` already holds
    `buildRuntimeCsp()`, written and unit-tested. It needs to be rendered as a
    `<meta http-equiv>` from the root layout. Read §5 first, because the reason
