@@ -1,8 +1,8 @@
 # Handover: the frontend audit rollout (2026-09-07)
 
 A full frontend audit of `client/web`, `packages/web-ui` and `client/desktop`
-was run at v0.6.42 and rated the tree **6.5/10**. Six of its nine worklist
-items have since landed, taking it to roughly **7.4**. This file is the state
+was run at v0.6.42 and rated the tree **6.5/10**. Seven of its nine worklist
+items have since landed, taking it to roughly **7.6**. This file is the state
 of the world around that work: what changed, what is left, and the handful of
 things that will burn you if nobody tells you.
 
@@ -19,13 +19,13 @@ worklist; this file does not repeat it.
 
 | Repo        | Branch | State                                                 |
 | ----------- | ------ | ----------------------------------------------------- |
-| **jackdaw** | `main` | Pushed, at **v0.6.51**. CI green. No release tag cut. |
+| **jackdaw** | `main` | Pushed, at **v0.6.53**. CI green. No release tag cut. |
 
-`pnpm verify` on main: typecheck clean across all four workspaces, 428 tests,
+`pnpm verify` on main: typecheck clean across all four workspaces, 478 tests,
 prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
 build green. `pnpm audit`: no known vulnerabilities.
 
-Nine commits landed, in this order:
+Eleven commits landed, in this order:
 
 | Version | What                                                                                  |
 | ------- | ------------------------------------------------------------------------------------- |
@@ -38,6 +38,7 @@ Nine commits landed, in this order:
 | v0.6.49 | Half the CSP enforced                                                                 |
 | v0.6.50 | Streaming and typing jank                                                             |
 | v0.6.51 | The three decayed prose rules become lint rules                                       |
+| v0.6.53 | `?next=` hardened; the auth/transport core gets tests; a 404 ends the stream          |
 
 (`91ee13b`, the settings-hub e2e rewrite, landed alongside from a separate
 session.)
@@ -97,14 +98,14 @@ The audit's worklist is the authority; this is the short version, in order.
    open, exercising the four surfaces that frame, eval or load bytes from somewhere
    unusual: the mini-app sandbox, the drawing canvas, the formula screen, the
    email reading pane.
-3. ~~**Tests for the auth and transport core.**~~ **Done** on branch
-   `fix/auth-transport-core`, not yet merged. 50 tests across the four modules
+3. ~~**Tests for the auth and transport core.**~~ **Done**, landed in v0.6.53.
+   50 tests across the four modules
    (428 → 478), and the `onExhausted` bug is fixed: `eventStreamCore`'s 404
    branch now ends the stream for consumers that registered one, which is what
    left the team chat and forum spinners up forever on a server with streaming
    off. The auth-failure branch returns early too but is _not_ the same bug —
    both team consumers reconcile from `onUnauthorized`, which fires first.
-   The same branch carries a security fix; see §6.
+   The same version carries a security fix; see §6.
 4. **Repair the e2e runner.** `e2e/scripts/run-local.sh` still calls paths that
    left in the repo split, and the documented root `pnpm e2e` script does not
    exist, so 157 Playwright tests cannot run hermetically. Then fold Playwright
@@ -202,9 +203,8 @@ slashes walks past the test:
 
 Reachable as `/login?next=%0A%2F%2Fevil.example`, and Next completes it: the
 app router's `isExternalURL` is `url.origin !== location.origin` over
-`new URL(addBasePath(href), location.href)`. Fixed on
-`fix/auth-transport-core` by resolving against an `.invalid` base and
-comparing origins, which is what the desktop shell's `inAppUrl()` already did
+`new URL(addBasePath(href), location.href)`. Fixed in v0.6.53 by resolving
+against an `.invalid` base and comparing origins, which is what the desktop shell's `inAppUrl()` already did
 — and exactly why `deepLinkToPath`'s twin of the bug was never exploitable.
 It carries the same flawed regex; the origin re-check after resolution is what
 saves it.
