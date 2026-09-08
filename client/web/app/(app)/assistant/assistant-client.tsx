@@ -1,14 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  useAssistantDock,
-  type ContextRef,
-  type ContextKind,
-} from '@/components/assistant/assistant-dock';
+import { type ContextRef, useAssistantDock } from '@/components/assistant/assistant-dock';
 import { useTurnStage } from '@/components/assistant/use-turn-stage';
-import { useTurnStream, type ThoughtEvent } from '@/components/assistant/use-turn-stream';
+import { type ThoughtEvent, useTurnStream } from '@/components/assistant/use-turn-stream';
 import { TurnAnnouncer } from '@mantle/web-ui/live-turn';
+import {
+  ArtifactView,
+  ChannelBadge,
+  PromptCard,
+  StoredAttachmentView,
+} from './assistant-turn-parts';
+import { buildContextPreamble, groupTurns } from './assistant-turns';
+import type { Artifact, Message } from './assistant-turns';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
@@ -17,14 +21,12 @@ import {
   CornerDownLeft,
   FileText,
   Highlighter,
-  Image as ImageIcon,
   ListRestart,
   Loader2,
   MapPin,
   Mic,
   MicOff,
   Paperclip,
-  Send,
   Square,
   SquareDashedMousePointer,
   X,
@@ -49,39 +51,6 @@ import {
   canReplaceInFlightTurn,
   combineCorrectedPrompt,
 } from '@/components/assistant/replace-turn';
-
-/** A sidecar artifact attached to a message. Mirrors @mantle/tools
- *  ToolArtifact, with the discriminated `kind` driving the rendering
- *  (audio = play button, image = inline preview). Outbound artifacts
- *  come from tool calls; inbound artifacts come from user uploads.
- *
- *  `localPreviewUrl` is purely client-side: when the user picks an
- *  image we render the local file URL immediately for instant
- *  feedback. Once the server round-trips we replace it with the
- *  base64 payload the API returned. */
-type Artifact = {
-  kind: 'audio' | 'image';
-  mimeType: string;
-  base64: string;
-  caption?: string;
-  nodeId?: string;
-  producedBy: string;
-  localPreviewUrl?: string;
-};
-
-/** A persisted media reference on a turn (DB-backed, no bytes), mirroring
- *  @mantle/db ConversationAttachment. Defined locally so this client component
- *  doesn't import @mantle/db (keeps postgres out of the browser bundle). Images
- *  with a nodeId render via the file-bytes route; everything else is a labeled
- *  chip (its content — e.g. a voice transcript — already lives in the text). */
-type StoredAttachment = {
-  kind: 'image' | 'audio' | 'voice' | 'document' | 'video';
-  mime?: string;
-  caption?: string;
-  nodeId?: string;
-  fileId?: string;
-  url?: string;
-};
 
 /**
  * Image handling for the LIVE STREAM buffer (the lightweight ReactMarkdown
@@ -118,142 +87,6 @@ const NEAR_BOTTOM_PX = 24;
 
 /** Marked-block pills shown before the rest collapse behind a "+N more" expander. */
 const MARK_PILL_LIMIT = 4;
-
-type Message = {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  text: string;
-  model?: string | null;
-  createdAt: string;
-  /** Transport this turn came in on. 'web' (or undefined) renders no badge;
-   *  'telegram' etc. show a small channel chip so the unified stream makes its
-   *  cross-channel origin obvious. */
-  channel?: string;
-  /** Persisted media on the turn (rendered on load). Distinct from `artifacts`,
-   *  which carries live bytes from the just-completed turn (tool output / the
-   *  image the user just uploaded). */
-  attachments?: StoredAttachment[];
-  /** Sidecar artifacts produced by worker tools during this turn.
-   *  Only ever populated on outbound messages. */
-  artifacts?: Artifact[];
-  /** Optimistic flag while we wait for the server reply. */
-  pending?: boolean;
-  /** Durable execution state (migration 0105). Outbound rows are 'pending' while
-   *  the runner works, 'complete' when the reply lands, 'failed' on error — so a
-   *  reload mid-turn renders the right state. Undefined on optimistic rows. */
-  status?: 'pending' | 'complete' | 'failed';
-  /** Failure reason for a 'failed' turn; null/undefined otherwise. */
-  error?: string | null;
-  /** The grounded status steps streamed during this turn, frozen onto the reply
-   *  as a persistent "thought" record. Outbound only; session-scoped (the
-   *  durable record is the trace). */
-  thoughts?: ThoughtEvent[];
-  /** Real output-token total for the turn, from the `done` event — shown on the
-   *  frozen thought-trail summary. Session-scoped (not persisted). */
-  tokens?: number;
-  /** Wall-clock duration of the turn (ms), measured client-side from the live
-   *  stream — shown on the frozen thought-trail summary. Session-scoped. */
-  durationMs?: number;
-  /** Deterministic tool-outcome tally persisted at finalize — the runtime's
-   *  own ledger of what ran vs failed this turn, independent of what the
-   *  reply claims. Drives the footer count + the failed-calls notice. */
-  toolStats?: ToolStats;
-  /** This row belongs to a replaced (superseded) turn pair — the user stopped
-   *  the turn mid-stream and re-sent original + correction as one combined
-   *  turn. Rendered dimmed with a "replaced" tag; never hidden. */
-  superseded?: boolean;
-};
-
-type ToolStats = {
-  calls: number;
-  succeeded: number;
-  failed: number;
-  skipped: number;
-  /** Confirm-gated calls parked behind operator approval — not yet run. */
-  queued: number;
-  failures: Array<{ slug: string; error: string }>;
-};
-
-/** A conversational turn: the user's prompt and Saskia's response. The
- *  document layout pairs them — the response is the reading canvas, the
- *  prompt floats in the right margin, anchored to the response it produced. */
-type Turn = { id: string; prompt?: Message; response?: Message };
-
-/** Fold the flat message stream into prompt→response turns. A new turn
- *  starts on each inbound; the next outbound attaches to it. Leading or
- *  orphan outbounds get their own promptless turn (rare). */
-function groupTurns(messages: Message[]): Turn[] {
-  const turns: Turn[] = [];
-  for (const m of messages) {
-    if (m.direction === 'inbound') {
-      turns.push({ id: m.id, prompt: m });
-    } else {
-      const last = turns[turns.length - 1];
-      if (last && last.prompt && !last.response) last.response = m;
-      else turns.push({ id: m.id, response: m });
-    }
-  }
-  return turns;
-}
-
-/** Human-readable noun per context kind — used in chips and the preamble. */
-const CONTEXT_KIND_LABEL: Record<ContextKind, string> = {
-  file: 'file',
-  folder: 'folder',
-  page: 'page',
-  note: 'note',
-  table: 'table',
-  journal: 'journal entry',
-  task: 'task',
-  event: 'event',
-  app: 'app',
-  draw: 'drawing',
-  formula: 'formula',
-  email: 'email',
-  contact: 'contact',
-};
-
-/** Kinds whose surface `id` is NOT a node id, so the preamble must not call it
- *  one — the brain resolves these (see `ContextRef`). Today only `email`, whose
- *  id is the `emails` row id. Naming it "node <id>" would send the agent's node
- *  tools after an id that cannot resolve. */
-const NON_NODE_KINDS: ReadonlySet<ContextKind> = new Set<ContextKind>(['email']);
-
-/** Render context nodes as a reference block appended to the sent message. The
- *  agent reads them via its tools (file_read / note_get / page_get / …) — node
- *  ids are enough; we never inline content here. Pinned nodes (the open
- *  page/table/app) are phrased as the live on-screen subject — and since the
- *  responder may delegate the actual editing to a specialist, the preamble
- *  tells her to pass the node id (and any FOCUS SET) along verbatim. */
-function buildContextPreamble(pinned: ContextRef[], picked: ContextRef[]): string {
-  const line = (r: ContextRef) => {
-    // `id` is kind-relative. Only claim "node" when it actually is one.
-    const ref = NON_NODE_KINDS.has(r.kind) ? `${r.kind} id ${r.id}` : `node ${r.id}`;
-    // Cheap identifying data rides along — a folder path, an active tab, a mail
-    // thread key. Sorted so the same ref always renders identically.
-    const meta = Object.entries(r.meta ?? {})
-      .filter(([, v]) => v !== '')
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(', ');
-    return `- ${CONTEXT_KIND_LABEL[r.kind]} "${r.label}" (${ref})${meta ? ` [${meta}]` : ''}`;
-  };
-  const parts: string[] = [];
-  if (pinned.length > 0) {
-    parts.push(
-      `On screen right now — the user has this open in the editor and means it by "this ${CONTEXT_KIND_LABEL[pinned[0]!.kind]}" (if a specialist does the work, hand it the node id and any focus directive verbatim):\n${pinned
-        .map(line)
-        .join('\n')}`,
-    );
-  }
-  if (picked.length > 0) {
-    parts.push(
-      `Attached context (read these with your tools as needed):\n${picked.map(line).join('\n')}`,
-    );
-  }
-  if (parts.length === 0) return '';
-  return `\n\n---\n${parts.join('\n')}`;
-}
 
 export function AssistantClient({
   initialMessages,
@@ -2029,183 +1862,5 @@ export function AssistantClient({
         </div>
       </form>
     </>
-  );
-}
-
-/** The machine-appended tail of a sent message — the on-screen context
- *  preamble and/or the FOCUS SET directive. The durable inbound row stores the
- *  FULL sent text (that's what the agent read), but the transcript shows just
- *  what the user typed, with a quiet "context attached" footer whose tooltip
- *  reveals the appended block. Markers match buildContextPreamble /
- *  buildFocusDirective exactly. */
-function splitSentContext(text: string): { typed: string; appended: string | null } {
-  const positions = [
-    text.indexOf('\n\n---\nOn screen right now'),
-    text.indexOf('\n\n---\nAttached context'),
-    text.indexOf('\nFOCUS SET —'),
-  ].filter((i) => i >= 0);
-  if (positions.length === 0) return { typed: text, appended: null };
-  const cut = Math.min(...positions);
-  return { typed: text.slice(0, cut).trimEnd(), appended: text.slice(cut).trim() };
-}
-
-/**
- * The user's prompt, rendered as a margin note beside the response it
- * produced. Quiet by design — muted card, small type — so Saskia's
- * document is the visual centre of gravity.
- */
-function PromptCard({ message }: { message: Message }) {
-  const { typed, appended } = splitSentContext(message.text);
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm @3xl/thread:sticky @3xl/thread:top-2">
-      <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="flex items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            You
-          </span>
-          <ChannelBadge channel={message.channel} />
-          {message.superseded && (
-            <span
-              className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-              title="You stopped this turn and re-sent it with a correction — the combined message below replaced it."
-            >
-              replaced
-            </span>
-          )}
-        </span>
-        <span
-          className="text-[10px] text-muted-foreground"
-          title={formatDateTime(message.createdAt)}
-        >
-          {new Date(message.createdAt).toLocaleTimeString()}
-        </span>
-      </div>
-      {typed && <p className="whitespace-pre-wrap break-words text-foreground">{typed}</p>}
-      {appended && (
-        <p
-          className="mt-1.5 inline-flex cursor-help items-center gap-1 text-[10px] text-muted-foreground"
-          title={appended}
-        >
-          <MapPin className="size-3" aria-hidden />
-          Sent with on-screen context
-        </p>
-      )}
-      {message.attachments && message.attachments.length > 0 && (
-        <div className="mt-2 flex flex-col gap-2">
-          {message.attachments.map((a, i) => (
-            <StoredAttachmentView key={`${message.id}-att-${i}`} attachment={a} />
-          ))}
-        </div>
-      )}
-      {message.artifacts && message.artifacts.length > 0 && (
-        <div className="mt-2 flex flex-col gap-2">
-          {message.artifacts.map((a, i) => (
-            <ArtifactView key={`${message.id}-art-${i}`} artifact={a} />
-          ))}
-        </div>
-      )}
-      {message.pending && (
-        <div className="mt-1 text-[10px] italic text-muted-foreground">sending…</div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Render one tool-emitted artifact inline. Audio gets an <audio
- * controls> element; images get a bounded preview with a click-to-
- * enlarge affordance. Both use a `data:` URL — no separate fetch.
- */
-function ArtifactView({ artifact }: { artifact: Artifact }) {
-  // localPreviewUrl wins when set — it's an object URL pointing at
-  // the in-memory blob and renders instantly. Falls through to the
-  // base64 data URL once the server returns the real bytes.
-  const dataUrl = artifact.localPreviewUrl ?? `data:${artifact.mimeType};base64,${artifact.base64}`;
-  if (artifact.kind === 'audio') {
-    return (
-      <div className="rounded-lg border border-border bg-background/60 p-2">
-        {/* controls renders the play button + scrubber + duration in
-            the browser's native styling. Sufficient for our use case;
-            a custom waveform UI would be nice-to-have but adds weight. */}
-        <audio controls src={dataUrl} className="w-full" preload="metadata">
-          Your browser doesn&apos;t support the audio element.
-        </audio>
-        {artifact.caption && (
-          <p className="mt-1 text-[11px] italic text-muted-foreground">🔊 {artifact.caption}</p>
-        )}
-      </div>
-    );
-  }
-  // image
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background/60">
-      {/* Click behavior belongs to the thread's image lightbox (zoom + open
-          original, data:-URL safe) — the old window.open+document.write
-          fallback would be a second, competing viewer on the same click. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={dataUrl}
-        alt={artifact.caption ?? 'Generated image'}
-        className="max-h-96 w-full object-contain"
-      />
-      {artifact.caption && (
-        <p className="px-2 py-1 text-[11px] italic text-muted-foreground">🎨 {artifact.caption}</p>
-      )}
-    </div>
-  );
-}
-
-/** Small chip marking which channel a turn came in on. Nothing for native web
- *  turns; a labeled glyph for Telegram / WhatsApp / future surfaces, so the
- *  unified stream makes its cross-channel origin obvious at a glance. */
-function ChannelBadge({ channel }: { channel?: string }) {
-  if (!channel || channel === 'web') return null;
-  const label = channel === 'telegram' ? 'Telegram' : channel === 'whatsapp' ? 'WhatsApp' : channel;
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-      <Send className="size-2.5" aria-hidden />
-      {label}
-    </span>
-  );
-}
-
-/** Render a persisted attachment (DB-backed, no inline bytes). Images with a
- *  file nodeId render inline via the file-bytes route; everything else (voice
- *  notes, docs, backfilled images without a node, video) is a labeled chip —
- *  its actual content (e.g. a voice transcript) already lives in the turn text. */
-function StoredAttachmentView({ attachment }: { attachment: StoredAttachment }) {
-  if (attachment.kind === 'image' && attachment.nodeId) {
-    const src = assetUrl(`/api/files/files/${attachment.nodeId}?raw=1`);
-    return (
-      <div className="overflow-hidden rounded-lg border border-border bg-background/60">
-        {/* Click behavior belongs to the thread's image lightbox now. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={attachment.caption ?? 'image'}
-          className="max-h-96 w-full object-contain"
-        />
-        {attachment.caption && (
-          <p className="px-2 py-1 text-[11px] italic text-muted-foreground">{attachment.caption}</p>
-        )}
-      </div>
-    );
-  }
-  const Icon =
-    attachment.kind === 'voice' || attachment.kind === 'audio'
-      ? Mic
-      : attachment.kind === 'image'
-        ? ImageIcon
-        : FileText;
-  const label =
-    attachment.caption ??
-    (attachment.kind === 'voice'
-      ? 'Voice note'
-      : attachment.kind.charAt(0).toUpperCase() + attachment.kind.slice(1));
-  return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-      <Icon className="size-3.5" aria-hidden />
-      {label}
-    </span>
   );
 }
