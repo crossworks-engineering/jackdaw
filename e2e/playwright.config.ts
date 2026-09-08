@@ -10,8 +10,10 @@ import { CLIENT_URL, SERVER_URL } from './lib/env';
  *                 project is the gate for the Phase 4+ topology and is skipped
  *                 automatically while the two URLs are identical.
  *
- * The suite drives an EXTERNAL stack (no webServer here) — boot one with
- * e2e/scripts/run-local.sh or point E2E_SERVER_URL/E2E_CLIENT_URL at a box.
+ * The suite drives an EXTERNAL stack (no webServer here). `pnpm e2e` puts this
+ * checkout's owner UI on :3901 in front of a brain you name in E2E_SERVER_URL —
+ * which is the split topology, so that is the project it runs. Point
+ * E2E_SERVER_URL/E2E_CLIENT_URL at a deployed box for anything else.
  */
 const isSplitConfigured = CLIENT_URL !== SERVER_URL;
 

@@ -5,8 +5,11 @@
  * CLIENT = the owner-UI origin. Same value ⇒ same-origin topology (today's
  * monolith); different values ⇒ the split topology (client at app.<domain>).
  *
- * Defaults target the hermetic local stack from `e2e/scripts/run-local.sh`
- * (web on :3900 against throwaway pg/minio/browser containers).
+ * There is no useful default for SERVER any more: the hermetic stack this used
+ * to assume left with the server workspace, so a brain is something the caller
+ * names. `run-local.sh` refuses to start without one and sets both variables
+ * itself; the :3900 fallback below is only for driving a local monolith by
+ * hand.
  */
 export const SERVER_URL = (process.env.E2E_SERVER_URL ?? 'http://localhost:3900').replace(
   /\/+$/,

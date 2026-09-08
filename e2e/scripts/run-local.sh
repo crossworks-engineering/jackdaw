@@ -1,85 +1,74 @@
 #!/usr/bin/env bash
 set -euo pipefail
 #
-# run-local.sh — boot the hermetic e2e stack, run the Playwright suite, tear
-# down. The whole cycle is self-contained: throwaway pg/minio/browser on
-# non-default ports, the web app on :3900, a FRESH owner created through real
-# signup + onboarding by the suite's global-setup.
+# run-local.sh — run the Playwright suite against a brain, with the owner UI
+# from THIS checkout in front of it.
+#
+# WHAT CHANGED, AND WHY IT HAD TO. This script used to boot a whole hermetic
+# stack: throwaway Postgres and MinIO in Docker, `@mantle/db` migrations,
+# pg-boss, and the server app on :3900. None of that lives here any more. The
+# repo split moved the server, the database package and infra/ to the mantle
+# repo, so the old script referenced four paths that do not exist and could not
+# run at all — which is why 117 tests sat unrunnable rather than merely
+# failing.
+#
+# jackdaw is the CLIENT. It cannot boot a brain, so it POINTS AT one: you bring
+# the brain, this brings the owner UI and the browser.
 #
 # Usage:
-#   e2e/scripts/run-local.sh            # full cycle: up → migrate → web → test → down
-#   e2e/scripts/run-local.sh up         # just infra + migrations + web (for iterating)
-#   e2e/scripts/run-local.sh test       # run the suite against an `up`'d stack
-#   e2e/scripts/run-local.sh down       # stop web + wipe the stack (down -v)
+#   E2E_SERVER_URL=https://brain.example e2e/scripts/run-local.sh
+#   E2E_SERVER_URL=… e2e/scripts/run-local.sh up     # client only, for iterating
+#   E2E_SERVER_URL=… e2e/scripts/run-local.sh test   # suite against an `up`'d client
+#                    e2e/scripts/run-local.sh down   # stop the client
 #
-# Env overrides pass through (E2E_SERVER_URL etc. — see e2e/lib/env.ts).
+# Credentials default to the e2e owner (see e2e/lib/env.ts); override with
+# E2E_EMAIL / E2E_PASSWORD. On a brain with no owner yet, the suite's
+# global-setup creates one through the real signup + onboarding path.
+#
+# ⚠ The suite CREATES AND DELETES CONTENT on whatever brain you point it at.
+# Point it at a throwaway one, never at a brain anyone relies on.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
-compose=(docker compose -f e2e/stack/docker-compose.yml)
 artifacts="$root/e2e/.artifacts"
-web_pid_file="$artifacts/web.pid"
-web_log="$artifacts/web.log"
-port=3900
-client_port=3901
+client_port="${E2E_CLIENT_PORT:-3901}"
 client_pid_file="$artifacts/client.pid"
 client_log="$artifacts/client.log"
+client_url="http://localhost:$client_port"
 
-# The web app's env for THIS stack. Set explicitly so server/web/.env.local (which
-# next dev always loads, and which may point at a REAL local brain) cannot leak
-# in — explicit process env beats .env.local in Next.
-export DATABASE_URL="postgres://postgres:postgres@127.0.0.1:55432/postgres"
-export S3_ENDPOINT="http://127.0.0.1:59000"
-export S3_REGION="us-east-1"
-export S3_ACCESS_KEY="minio"
-export S3_SECRET_KEY="minio12345"
-export S3_BUCKET="mantle"
-export SESSION_SECRET="e2e-session-secret-0123456789abcdef0123456789abcdef"
-# Vault key for the throwaway stack (onboarding saveKey seals with it). Fixed
-# dummy — set explicitly so the run doesn't depend on a server/web/.env.local
-# existing (a fresh worktree/box has none and global-setup 500s without it).
-export MANTLE_MASTER_KEY="${MANTLE_MASTER_KEY:-ZTJlLW1hc3Rlci1rZXktMDEyMzQ1Njc4OWFiY2RlZjA=}"
-# Both topology projects hammer the same endpoints from one IP back-to-back;
-# human-sized auth caps (8 team-auth/min) 429 the later project. Scale, don't
-# disable — a runaway loop in a spec should still trip the limiter.
-export MANTLE_RATE_LIMIT_SCALE="${MANTLE_RATE_LIMIT_SCALE:-10}"
-export BROWSER_WS_ENDPOINT="ws://127.0.0.1:59222?token=mantle"
-export MANTLE_PRINT_ORIGIN="http://host.docker.internal:${port}"
-export PORT="$port"
-# Split topology: the client app runs cross-origin on :3901 — the server must
-# allow its origin (bearer-only CORS; middleware refuses wildcard on /api/auth).
-export MANTLE_API_CORS_ORIGINS="http://localhost:3901"
-export MANTLE_CLIENT_ORIGIN="http://localhost:3901"
-unset MANTLE_DETACHED_DEV NEXT_PUBLIC_MANTLE_API_BASE NEXT_PUBLIC_MANTLE_API_TOKEN TIKA_URL || true
+require_brain() {
+  if [ -z "${E2E_SERVER_URL:-}" ]; then
+    cat >&2 <<'EOF'
+✗ E2E_SERVER_URL is not set.
+
+  This repo is the client: it has no server workspace and no database, so it
+  cannot start a brain for you. Point it at one that is already running:
+
+      E2E_SERVER_URL=https://brain.example e2e/scripts/run-local.sh
+
+  The suite creates and deletes content, so use a throwaway brain.
+EOF
+    return 1
+  fi
+  # Strip any trailing slash so the URL matches what lib/env.ts normalises to.
+  E2E_SERVER_URL="${E2E_SERVER_URL%/}"
+}
 
 up() {
+  require_brain
   mkdir -p "$artifacts"
-  echo "→ infra up (mantle-e2e: pg :55432, minio :59000, browser :59222)"
-  "${compose[@]}" up -d --wait postgres minio browser
-  "${compose[@]}" run --rm createbucket
-  echo "→ migrations + pg-boss schema"
-  pnpm --filter @mantle/db migrate
-  pnpm -C server/web pgboss:init
-  echo "→ web app on :$port (log: $web_log)"
-  # A stale server from an interrupted run holds the port and answers with the
-  # WRONG code/DB — sweep it before starting.
-  fuser -k "$port/tcp" 2>/dev/null && sleep 1 || true
-  # `pnpm -C server/web dev` (not `exec next dev`) so the package's predev hook
-  # generates public/app-runtime/ — the mini-app runtime the CORS spec checks.
-  # PORT is exported above; next dev honours it. setsid gives the pnpm→next
-  # chain its own process GROUP so teardown can kill the whole tree (killing
-  # just the pnpm wrapper leaves next alive — the stale-port failure mode).
-  ( setsid pnpm -C server/web dev >"$web_log" 2>&1 & echo $! >"$web_pid_file" )
-  for i in $(seq 1 120); do
-    if curl -sf "http://localhost:$port/api/version" >/dev/null 2>&1; then
-      echo "→ server web ready"
-      break
-    fi
-    sleep 1
-    [ "$i" = 120 ] && { echo "✗ server web not ready — tail:"; tail -30 "$web_log"; return 1; }
-  done
-  echo "→ client app on :$client_port (log: $client_log)"
+
+  # Reach the brain BEFORE starting anything. Without this the only symptom of
+  # a wrong or unreachable URL is global-setup failing several minutes later,
+  # with the client already up and its log to wade through.
+  echo "→ checking the brain at $E2E_SERVER_URL"
+  if ! curl -sf --max-time 15 "$E2E_SERVER_URL/api/version" >/dev/null; then
+    echo "✗ no answer from $E2E_SERVER_URL/api/version — is the brain up, and the URL right?" >&2
+    return 1
+  fi
+
+  echo "→ owner UI on :$client_port against that brain (log: $client_log)"
   # Next 16 permits only ONE dev server per project DIRECTORY — not per port.
   # A `pnpm dev` stack holding client/web therefore makes this one exit at once,
   # and the only symptom is the useless 120s "did not become ready" below, with
@@ -100,38 +89,57 @@ up() {
       fi
     done
   fi
+
+  # A stale client from an interrupted run holds the port and answers with the
+  # WRONG brain — sweep it before starting.
   fuser -k "$client_port/tcp" 2>/dev/null && sleep 1 || true
-  ( setsid env PORT="$client_port" MANTLE_SERVER_ORIGIN="http://localhost:$port" \
+
+  # Explicit env so a stray client/web/.env.local (which `next dev` always
+  # loads, and which may point at a different brain) cannot decide which brain
+  # the run tests. Explicit process env beats .env.local in Next.
+  #
+  # setsid gives the pnpm→next chain its own process GROUP so teardown can kill
+  # the whole tree; killing just the pnpm wrapper leaves next alive, which is
+  # the stale-port failure mode above.
+  ( setsid env \
+      PORT="$client_port" \
+      MANTLE_SERVER_ORIGIN="$E2E_SERVER_URL" \
+      NODE_ENV=development \
       pnpm -C client/web dev >"$client_log" 2>&1 & echo $! >"$client_pid_file" )
+
   for i in $(seq 1 120); do
-    if curl -sf "http://localhost:$client_port/env.js" >/dev/null 2>&1; then
-      echo "→ client ready"
+    # /env.js, not /: it is the route that proves the runtime config the split
+    # topology depends on is actually being served, and it needs no session.
+    if curl -sf "$client_url/env.js" >/dev/null 2>&1; then
+      echo "→ owner UI ready at $client_url"
       return 0
     fi
     sleep 1
   done
-  echo "✗ client did not become ready in 120s — tail of $client_log:" >&2
+  echo "✗ the owner UI did not become ready in 120s — tail of $client_log:" >&2
   tail -30 "$client_log" >&2
   return 1
 }
 
 run_tests() {
-  E2E_SERVER_URL="${E2E_SERVER_URL:-http://localhost:$port}" \
-  E2E_CLIENT_URL="${E2E_CLIENT_URL:-http://localhost:$client_port}" \
-    pnpm -C e2e e2e
+  require_brain
+  # SPLIT ONLY, and that is not a limitation being papered over: the owner UI
+  # here runs on its own origin in front of a brain on another, which IS the
+  # split topology. The `same-origin` project means one origin serving both,
+  # which this repo cannot produce locally — run `pnpm -C e2e e2e:same`
+  # against a box deployed that way if you need it.
+  E2E_SERVER_URL="$E2E_SERVER_URL" \
+  E2E_CLIENT_URL="${E2E_CLIENT_URL:-$client_url}" \
+    pnpm -C e2e e2e:split
 }
 
 down() {
-  for pf in "$web_pid_file" "$client_pid_file"; do
-    if [ -f "$pf" ]; then
-      # Negative pid = the whole process group (see setsid in up()).
-      kill -- "-$(cat "$pf")" 2>/dev/null || kill "$(cat "$pf")" 2>/dev/null || true
-      rm -f "$pf"
-    fi
-  done
-  fuser -k "$port/tcp" 2>/dev/null || true
-  fuser -k "3901/tcp" 2>/dev/null || true
-  "${compose[@]}" down -v --remove-orphans
+  if [ -f "$client_pid_file" ]; then
+    # Negative pid = the whole process group (see setsid in up()).
+    kill -- "-$(cat "$client_pid_file")" 2>/dev/null || kill "$(cat "$client_pid_file")" 2>/dev/null || true
+    rm -f "$client_pid_file"
+  fi
+  fuser -k "$client_port/tcp" 2>/dev/null || true
 }
 
 case "${1:-run}" in

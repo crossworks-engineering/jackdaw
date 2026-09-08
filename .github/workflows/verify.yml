@@ -14,9 +14,11 @@
 # branch in this repo runs once, not twice, because feature-branch pushes are
 # not themselves a trigger.
 #
-# NOT here: Playwright. The e2e suite drives a live brain and its local runner
-# still calls paths that left in the repo split, so it cannot run hermetically
-# yet. Fold it in once that is repaired, as its own job.
+# Playwright is a SECOND job below, deliberately conditional. The suite needs a
+# live brain, and this repo cannot start one — the server workspace left in the
+# split. So the job runs only where a brain has been configured, and is inert
+# everywhere else rather than failing red on every push and teaching people to
+# ignore it.
 
 name: verify
 
@@ -73,3 +75,59 @@ jobs:
       # grows to mean stays what CI enforces.
       - name: Verify
         run: pnpm verify
+
+  # Runs ONLY when the repository (or environment) sets an E2E_SERVER_URL
+  # variable — a throwaway brain the suite may create and delete content on.
+  # Unset, this job is skipped and the gate above is the whole gate.
+  #
+  # To turn it on: add repository variable E2E_SERVER_URL and, if that brain
+  # already has an owner, secrets E2E_EMAIL and E2E_PASSWORD. A brain with no
+  # owner bootstraps itself through the real signup + onboarding path.
+  #
+  # Deliberately not `needs: verify`: a red lint and a red e2e are independent
+  # facts, and serialising them only makes the second one arrive later.
+  e2e:
+    if: vars.E2E_SERVER_URL != ''
+    runs-on: ubuntu-24.04
+    # The suite is 117 tests against a remote brain, one worker, no parallelism
+    # (specs share one brain and would race each other's fixtures).
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Chromium only: every spec here drives the owner UI, and the two engines
+      # we do not assert on would double the install for nothing.
+      - name: Install Playwright Chromium
+        run: pnpm -C e2e exec playwright install --with-deps chromium
+
+      # run-local.sh puts this checkout's owner UI on :3901 in front of the
+      # brain and runs the split project — the same command a developer runs,
+      # so CI and a local run cannot drift.
+      - name: e2e
+        env:
+          E2E_SERVER_URL: ${{ vars.E2E_SERVER_URL }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_SKIP_PDF: ${{ vars.E2E_SKIP_PDF }}
+        run: pnpm e2e
+
+      # Traces are retained on failure (playwright.config), and they are the
+      # only way to see what a headless run actually did.
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: |
+            e2e/test-results/
+            e2e/.artifacts/client.log
+          retention-days: 7
+          if-no-files-found: ignore

@@ -19,7 +19,11 @@
     "verify": "pnpm -r typecheck && pnpm lint && pnpm format:check && vitest run",
     "themes:pull": "echo 'themes are generated in the mantle repo (packages/share-ui) and consumed from @crossworks/share-ui'",
     "dev:fe": "scripts/dev-frontend.sh",
-    "version:bump": "node scripts/bump-version.mjs"
+    "version:bump": "node scripts/bump-version.mjs",
+    "e2e": "e2e/scripts/run-local.sh",
+    "e2e:up": "e2e/scripts/run-local.sh up",
+    "e2e:test": "e2e/scripts/run-local.sh test",
+    "e2e:down": "e2e/scripts/run-local.sh down"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
