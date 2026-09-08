@@ -124,6 +124,37 @@ export default tseslint.config(
     },
   },
   {
+    // FILE SIZE, as a descending ceiling.
+    //
+    // Four screens sit between 2,100 and 2,500 lines with 14 to 30 `useState`
+    // each and no tests, which is the audit's structure finding: a component
+    // that long has no seam to assert against, so every change to it is
+    // verified by clicking. The pass that fixes it is planned in
+    // docs/handover-structure.md, and this is its phase zero — because the same
+    // audit's central observation was that every lint-backed rule held and
+    // every prose-only rule decayed. A structure pass with no gate behind it is
+    // a prose rule.
+    //
+    // A CEILING, NOT A WARNING COUNT. `pnpm lint` runs `--max-warnings 188`,
+    // and that budget is spoken for by no-raw-form-control; adding size
+    // warnings would mean raising the cap, which the house rule forbids for
+    // good reason. A threshold ratchets the same way without the collision:
+    // set to the worst file that exists, so nothing fails today and nothing may
+    // grow past it, then lowered with each landing. It only ever goes down.
+    //
+    // Comments and blank lines COUNT. This repo comments heavily and on
+    // purpose, and that is weight a reader carries too — so the number means
+    // what `wc -l` says, and cannot be gamed by moving prose around.
+    files: [
+      'client/web/**/*.{ts,tsx}',
+      'packages/web-ui/**/*.{ts,tsx}',
+      'packages/share-ui/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'max-lines': ['error', { max: 2507, skipBlankLines: false, skipComments: false }],
+    },
+  },
+  {
     // A themed fill must carry an ink that is legible on it. The style guide has
     // said so for months and it still shipped invisible text twice (v0.205.7,
     // v0.206.1) — found by a user, not CI. See eslint-rules/ for why the rule is
