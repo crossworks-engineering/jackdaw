@@ -27,7 +27,7 @@ it, so a number here is stale the moment it is correct — it was wrong three
 times before this note replaced it.)
 
 `pnpm verify` on main: typecheck clean across all four workspaces, 484 tests,
-prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
+prettier clean, **188 lint warnings against a cap of 188** (see §5). Production
 build green. `pnpm audit`: no known vulnerabilities.
 
 Eleven commits landed, in this order:
