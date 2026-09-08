@@ -17,9 +17,14 @@ worklist; this file does not repeat it.
 
 ## 1. Where things stand
 
-| Repo        | Branch | State                                                 |
-| ----------- | ------ | ----------------------------------------------------- |
-| **jackdaw** | `main` | Pushed, at **v0.6.56**. CI green. No release tag cut. |
+| Repo        | Branch | State                                                              |
+| ----------- | ------ | ------------------------------------------------------------------ |
+| **jackdaw** | `main` | Pushed, CI green, no release tag cut. Version: see `package.json`. |
+
+(The version is deliberately not written into that cell. It moves with every
+landing, and the release commit lands AFTER the doc commit that would record
+it, so a number here is stale the moment it is correct — it was wrong three
+times before this note replaced it.)
 
 `pnpm verify` on main: typecheck clean across all four workspaces, 484 tests,
 prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
