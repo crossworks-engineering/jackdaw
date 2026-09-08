@@ -49,6 +49,7 @@
     "./lib/format-bytes": "./src/lib/format-bytes.ts",
     "./lib/format-datetime": "./src/lib/format-datetime.ts",
     "./lib/mime-label": "./src/lib/mime-label.ts",
+    "./lib/motion": "./src/lib/motion.ts",
     "./lib/safe-download": "./src/lib/safe-download.ts",
     "./lib/secure-context-fallbacks": "./src/lib/secure-context-fallbacks.ts",
     "./lib/themes": "./src/lib/themes.ts",

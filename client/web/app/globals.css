@@ -164,3 +164,50 @@
   font-family: var(--font-page-title);
   font-size: calc(1.25rem * var(--peer-name-scale, 1));
 }
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion.
+ *
+ * share-ui honours `prefers-reduced-motion` for the three keyframes it owns
+ * (`.mantle-spinner`, `.mantle-shimmer-text`, `.mantle-attention-pulse`) and
+ * for nothing Tailwind generates — which is 110 `animate-*` in this app, 78 of
+ * them `animate-spin`, plus 148 `transition-*` and everything
+ * `tailwindcss-animate` emits for Radix enter/exit. There was not one
+ * `motion-reduce:` variant in the source to cover them, and there is no
+ * realistic prospect of adding 258 of them by hand and keeping them.
+ *
+ * So this is a blanket clamp rather than a per-utility one. Durations go to
+ * near-zero rather than `animation: none`, because a `none` cancels an
+ * animation mid-flight and can leave an element parked at a keyframe's start
+ * state — a Radix popover that animates in from `opacity: 0` would simply never
+ * appear. A 0.01ms animation still runs and still fires `animationend`, so
+ * anything waiting on that event (Radix unmounts on it) keeps working.
+ *
+ * The one exception is deliberate and belongs to share-ui: the spinner is
+ * SLOWED to 2.4s under reduced motion, not stopped. A frozen spinner does not
+ * read as "reduced motion", it reads as "hung", which is worse than the motion
+ * it saves. The blanket rule above would flatten it to a still frame, so the
+ * upstream intent is restored here — by specificity, not by order.
+ *
+ * Motion that JavaScript asks for by name is NOT reachable from here: the
+ * `behavior` option of `scrollIntoView`/`scrollTo` overrides the CSS property,
+ * so the seven smooth-scroll call sites read the same media query themselves
+ * through `scrollBehavior()` in @mantle/web-ui/lib/motion.
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .mantle-spinner {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

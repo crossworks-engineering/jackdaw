@@ -34,10 +34,12 @@ import { LightboxImages } from '@/components/image-lightbox';
 import { teamFetch, teamEventStream } from '@mantle/web-ui/team-fetch';
 import { ASSISTANT_TURN_MAX_CHARS } from '@mantle/web-ui/assistant-limits';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
+import { scrollBehavior } from '@mantle/web-ui/lib/motion';
 import {
   applyLiveTurnEvent,
   emptyLiveTurn,
   NarrationLine,
+  TurnAnnouncer,
   ReasoningTrace,
   type LiveTurn,
   type LiveTurnEvent,
@@ -236,7 +238,7 @@ export function TeamChatClient({ archive = false }: { archive?: boolean } = {}) 
   const jumpToBottom = useCallback(() => {
     const el = threadRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() });
     pinnedRef.current = true;
     setShowJump(false);
   }, []);
@@ -458,6 +460,14 @@ export function TeamChatClient({ archive = false }: { archive?: boolean } = {}) 
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
+      {/* Announces the responder's progress and its finished reply. Always
+          mounted, outside anything conditional — see TurnAnnouncer. */}
+      <TurnAnnouncer
+        name="Assistant"
+        status={live?.status ?? live?.narration ?? null}
+        reply={live?.text ?? ''}
+        streaming={sending || live !== null}
+      />
       <header className="border-b border-border/60 px-6 py-3">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
           <h1 className="text-sm font-semibold">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
@@ -32,6 +32,14 @@ const AssistantThreadClient = dynamic(
     ),
   },
 );
+
+/** Keyboard resize steps for the window's corner grip. There is deliberately no
+ *  minimum here: `setPopout` runs every value through the dock's `clampPopout`,
+ *  which owns the floor and the viewport cap for the pointer drag too — so the
+ *  two ways of sizing the window cannot reach different places, and a second
+ *  copy of those numbers cannot drift from the first. */
+const POPOUT_KEY_STEP = 16;
+const POPOUT_KEY_STEP_COARSE = 64;
 
 /** Where a window that has never been placed opens: inset from the bottom-right
  *  of the viewport, clear of the activity rail, at a size that fits a laptop. */
@@ -89,6 +97,7 @@ export function AssistantPanel() {
     panel,
     everOpened,
     activeAgentSlug,
+    agentName,
     minimize,
     display,
     dockWidth,
@@ -105,6 +114,31 @@ export function AssistantPanel() {
   // width one whole rail too big), and a window drag writes its CSS variables
   // straight to it. It lives in the context because the drag handlers do.
   const panelRef = popoutElRef;
+
+  // Focus follows the panel: in when it opens, back to whatever opened it when
+  // it closes. The second half is not a nicety — the container carries
+  // `aria-hidden` while minimised, and leaving the user's focus inside an
+  // aria-hidden subtree is the one state a screen reader cannot describe: the
+  // focused thing officially is not there.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (panel === 'open') {
+      // Once per opening. `??=` matters because this re-runs the moment
+      // `everOpened` latches, and without it the second pass would record the
+      // panel itself as the place to return to.
+      returnFocusRef.current ??= document.activeElement as HTMLElement | null;
+      // The node does not exist until `everOpened` has flipped and the early
+      // return below has stopped firing, which is a render later than this
+      // effect's first run.
+      if (everOpened) panelRef.current?.focus();
+      return;
+    }
+    const back = returnFocusRef.current;
+    returnFocusRef.current = null;
+    // Only if it is still on the page — a turn can navigate away from the
+    // screen that owned the opener.
+    if (back && document.contains(back)) back.focus();
+  }, [panel, everOpened, panelRef]);
 
   // Esc minimises while open.
   useEffect(() => {
@@ -177,6 +211,16 @@ export function AssistantPanel() {
           : undefined
       }
       aria-hidden={panel !== 'open'}
+      // A floating window IS a dialog, and a non-modal one: the rest of the app
+      // stays reachable behind it, which is the whole point of a popout. The
+      // docked column is not a dialog and gets no role — it is a panel beside
+      // the content, not something layered over it.
+      role={isWindow ? 'dialog' : undefined}
+      aria-modal={isWindow ? false : undefined}
+      aria-label={isWindow ? `${agentName} assistant` : undefined}
+      // The landing spot for the focus move above. -1 so it takes focus
+      // programmatically without joining the tab order.
+      tabIndex={-1}
     >
       {/* Only the column has a width to drag: the overlay is sized by the
           shell's own offsets, and below lg the column geometry does not apply,
@@ -208,8 +252,22 @@ export function AssistantPanel() {
           role="separator"
           aria-label="Resize assistant window"
           aria-orientation="horizontal"
+          tabIndex={0}
           onPointerDown={startPopoutResize}
-          className="absolute bottom-0 right-0 hidden size-4 cursor-nwse-resize touch-none items-end justify-end p-0.5 lg:flex"
+          // A `separator` a keyboard cannot operate is a role that lies. The
+          // arrows size the window from the same corner the pointer drags,
+          // which is why both axes move together; Shift is the coarse step, the
+          // way the shell's rail handles already behave.
+          onKeyDown={(e) => {
+            if (!popout) return;
+            const step = e.shiftKey ? POPOUT_KEY_STEP_COARSE : POPOUT_KEY_STEP;
+            const dw = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+            const dh = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+            if (!dw && !dh) return;
+            e.preventDefault();
+            setPopout({ ...popout, w: popout.w + dw, h: popout.h + dh });
+          }}
+          className="absolute bottom-0 right-0 hidden size-4 cursor-nwse-resize touch-none items-end justify-end p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:flex"
         >
           <span aria-hidden className="size-2.5 rounded-xs border-b-2 border-r-2 border-border" />
         </div>

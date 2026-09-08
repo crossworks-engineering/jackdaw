@@ -8,6 +8,7 @@ import {
 } from '@/components/assistant/assistant-dock';
 import { useTurnStage } from '@/components/assistant/use-turn-stage';
 import { useTurnStream, type ThoughtEvent } from '@/components/assistant/use-turn-stream';
+import { TurnAnnouncer } from '@mantle/web-ui/live-turn';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
@@ -1499,7 +1500,12 @@ export function AssistantClient({
                   // when the durable turn.response lands above, this whole
                   // branch is replaced by the authoritative <article>.
                   streamTrail.length > 0 || streamReply ? (
-                    <div className="max-w-xl">
+                    // aria-busy marks the subtree as still arriving, so a
+                    // screen reader treats a half-written reply as in flux
+                    // rather than as the finished answer. The sr-only line
+                    // stays for anyone who navigates INTO the turn; what gets
+                    // announced without navigating is TurnAnnouncer's job.
+                    <div className="max-w-xl" aria-busy={streamPhase === 'streaming'}>
                       <span className="sr-only">
                         {agentName ?? 'Assistant'} is {stageLabel ?? 'typing'}
                       </span>
@@ -1568,6 +1574,10 @@ export function AssistantClient({
       stageLabel,
       streamReasoning,
       streamReply,
+      // Phase changes a handful of times a turn (idle → streaming → done), not
+      // per frame, so keeping the transcript honest about aria-busy does not
+      // undo v0.6.50's memoisation.
+      streamPhase,
       streamStartedAt,
       streamTokens,
       streamTokensApprox,
@@ -1579,6 +1589,15 @@ export function AssistantClient({
 
   return (
     <>
+      {/* Always mounted, outside the memoised transcript: a live region that
+          appears with its first message is one several screen readers never
+          register. See TurnAnnouncer for what it does and does not announce. */}
+      <TurnAnnouncer
+        name={agentName ?? 'Assistant'}
+        status={stageLabel}
+        reply={streamReply}
+        streaming={sending || streamPhase === 'streaming'}
+      />
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* @container/thread: the turn layout (prompt-in-the-margin two-column
           grid) keys off THIS pane's width, not the viewport — so the docked

@@ -172,10 +172,12 @@ export function MeasurePane({
             className={cn(
               'absolute inset-y-0 left-1 w-px bg-border',
               dragging && 'bg-ring',
-              'group-hover:bg-ring/50 group-focus-visible:bg-ring',
+              // A 1px line changing colour is not a focus indicator anyone can
+              // find. Focused, it also thickens — the grip below rings too.
+              'group-hover:bg-ring/50 group-focus-visible:w-0.5 group-focus-visible:bg-ring',
             )}
           />
-          <div className="absolute left-1 top-1/2 z-10 flex h-4 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xs border bg-border">
+          <div className="absolute left-1 top-1/2 z-10 flex h-4 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xs border bg-border group-focus-visible:ring-2 group-focus-visible:ring-ring">
             <GripVerticalIcon className="size-2.5" />
           </div>
         </div>

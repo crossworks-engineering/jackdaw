@@ -921,7 +921,7 @@ function DateCell({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm outline-none hover:bg-muted/40"
+          className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           aria-label={col.name}
         >
           <Calendar className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -1057,7 +1057,7 @@ function OptionCell({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-left text-sm outline-none hover:bg-muted/40"
+          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-left text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           aria-label={col.name}
         >
           {selected.length === 0 ? (
@@ -1188,7 +1188,7 @@ function ReferenceCell({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-left text-sm outline-none hover:bg-muted/40"
+          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-left text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           aria-label={col.name}
         >
           {current ? (

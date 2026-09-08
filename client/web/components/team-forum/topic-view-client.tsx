@@ -23,12 +23,14 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { KindBadge, TopicFlags, type ForumKind, type ForumStatus } from '@mantle/web-ui/forum-meta';
 import { teamFetch, teamEventStream } from '@mantle/web-ui/team-fetch';
+import { scrollBehavior } from '@mantle/web-ui/lib/motion';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
 import {
   applyLiveTurnEvent,
   emptyLiveTurn,
   NarrationLine,
+  TurnAnnouncer,
   ReasoningTrace,
   type LiveTurn,
   type LiveTurnEvent,
@@ -384,7 +386,7 @@ export function TopicViewClient({
   const jumpToBottom = useCallback(() => {
     const el = threadRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() });
     pinnedRef.current = true;
     setShowJump(false);
   }, []);
@@ -497,7 +499,7 @@ export function TopicViewClient({
         requestAnimationFrame(() => {
           const el = document.getElementById(`fpost-${m.id}`);
           if (el) {
-            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
             setActiveMatchId(m.id);
           }
         });
@@ -556,7 +558,7 @@ export function TopicViewClient({
     if (!id) return;
     const el = document.getElementById(`fpost-${id}`);
     if (el) {
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
       setActiveMatchId(id);
       jumpTargetRef.current = null;
     }
@@ -709,6 +711,14 @@ export function TopicViewClient({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
+      {/* Announces the responder's progress and its finished reply. Always
+          mounted, outside anything conditional — see TurnAnnouncer. */}
+      <TurnAnnouncer
+        name="Assistant"
+        status={live?.status ?? live?.narration ?? null}
+        reply={live?.text ?? ''}
+        streaming={sending || live !== null}
+      />
       <header className="border-b border-border/60 px-6 py-3">
         <div className="w-full">
           {!embedded && <BackLink href="/team/forum">Forum</BackLink>}

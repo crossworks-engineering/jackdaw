@@ -296,7 +296,7 @@ export function FileEditor({
                 }
               }}
               className={
-                'h-full resize-none border-0 bg-background p-4 font-mono text-sm focus:outline-none ' +
+                'h-full resize-none border-0 bg-background p-4 font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ' +
                 (mode === 'split' && isMarkdown ? 'w-1/2 border-r border-border' : 'flex-1')
               }
               spellCheck={file.extension !== 'json'}

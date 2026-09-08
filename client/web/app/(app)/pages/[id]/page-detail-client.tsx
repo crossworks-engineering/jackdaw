@@ -62,6 +62,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { scrollBehavior } from '@mantle/web-ui/lib/motion';
 
 /** Still on the wire and still stored, but this route no longer reads it: the
  *  narrow/wide toggle was replaced by the draggable measure (`MeasurePane`).
@@ -443,7 +444,8 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
     });
     if (pos == null) return;
     const dom = ed.view.nodeDOM(pos);
-    if (dom instanceof HTMLElement) dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (dom instanceof HTMLElement)
+      dom.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   }, []);
 
   const onTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -577,7 +579,8 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
         dir === 1 ? (cur < 0 ? 0 : (cur + 1) % hits.length) : cur <= 0 ? hits.length - 1 : cur - 1;
       highlightCursor.current = next;
       const dom = editor.view.nodeDOM(hits[next]!.pos);
-      if (dom instanceof HTMLElement) dom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (dom instanceof HTMLElement)
+        dom.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
     },
     [marks, editedIds],
   );
@@ -1020,7 +1023,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
               aria-label="Page markdown source"
               onChange={(e) => onMdChange(e.target.value)}
               onBlur={() => applyMd(mdText)}
-              className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-5 font-mono text-sm leading-relaxed text-foreground outline-none"
+              className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-5 font-mono text-sm leading-relaxed text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             />
           </>
         ) : (

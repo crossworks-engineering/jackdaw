@@ -99,6 +99,7 @@ import { ExportMenu } from '@/components/export/export-menu';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime, updatedAgo } from '@mantle/web-ui/lib/format-datetime';
 import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
+import { scrollBehavior } from '@mantle/web-ui/lib/motion';
 import type { PageRow } from '@mantle/client-types';
 
 // Wire shape is the GET /api/pages mapper's output — single source of truth
@@ -1200,7 +1201,7 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
   const jumpToBlock = useCallback((id: string) => {
     bodyRef.current
       ?.querySelector(`[data-block-id="${CSS.escape(id)}"]`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      ?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   }, []);
 
   useEffect(() => {

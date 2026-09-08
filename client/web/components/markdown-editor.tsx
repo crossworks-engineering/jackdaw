@@ -150,7 +150,7 @@ export function MarkdownEditor({
             placeholder={placeholder}
             spellCheck
             className={cn(
-              'h-full resize-none bg-transparent p-3 font-mono text-sm focus:outline-none',
+              'h-full resize-none bg-transparent p-3 font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
               mode === 'split' ? 'w-1/2 border-r border-border' : 'flex-1',
             )}
           />
