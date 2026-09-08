@@ -180,6 +180,22 @@ cancellation.
 
 19 tests, all against pure cores, none rendering a component.
 
+**`agents-client`: 14 `useState` → 10.** The find here was duplication rather
+than a tangle: the model catalog was written out twice, thirty lines each, the
+second carrying the comment "same shape as the primary above". One
+`useModelCatalog(provider, enabled)` is both, and `BackupRouteSection` now takes
+one `ModelCatalog` instead of a list plus a loading/error object it had to keep
+in step with.
+
+20 more tests, the valuable half against `validateAgent` — the rule an operator
+meets most often and the one that had no test. Note it checks the slug on create
+but not on edit, because the slug is immutable once saved and an edit must not
+be blocked by a rule it cannot satisfy.
+
+A wart was preserved on purpose: with `enabled` false the hook leaves the
+catalog untouched rather than resetting it, which is what the old effect's early
+return did. Changing it would be a behaviour change hiding inside a refactor.
+
 ### Phase 3 — the remainder
 
 Whatever the big component still is after Phase 2, split by _what the user is
