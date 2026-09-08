@@ -1,8 +1,8 @@
 # Handover: the frontend audit rollout (2026-09-07)
 
 A full frontend audit of `client/web`, `packages/web-ui` and `client/desktop`
-was run at v0.6.42 and rated the tree **6.5/10**. Eight of its nine worklist
-items have since landed (item 6 in part), taking it to roughly **7.8**. This file is the state
+was run at v0.6.42 and rated the tree **6.5/10**. All but one of its nine
+worklist items have since landed (item 6 in part), taking it to roughly **8.2**. This file is the state
 of the world around that work: what changed, what is left, and the handful of
 things that will burn you if nobody tells you.
 
@@ -19,9 +19,9 @@ worklist; this file does not repeat it.
 
 | Repo        | Branch | State                                                 |
 | ----------- | ------ | ----------------------------------------------------- |
-| **jackdaw** | `main` | Pushed, at **v0.6.55**. CI green. No release tag cut. |
+| **jackdaw** | `main` | Pushed, at **v0.6.57**. CI green. No release tag cut. |
 
-`pnpm verify` on main: typecheck clean across all four workspaces, 478 tests,
+`pnpm verify` on main: typecheck clean across all four workspaces, 484 tests,
 prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
 build green. `pnpm audit`: no known vulnerabilities.
 
@@ -111,10 +111,14 @@ The audit's worklist is the authority; this is the short version, in order.
    left in the repo split, and the documented root `pnpm e2e` script does not
    exist, so 157 Playwright tests cannot run hermetically. Then fold Playwright
    into the CI gate as its own job.
-5. **The accessibility pass.** The one dimension nothing in this run improved.
-   Four fixes cover most of it: an `aria-live` region on the streaming turn, a
-   global `prefers-reduced-motion` clamp, focus rings restored on the table grid
-   and the editors, and a dialog role plus focus move on the assistant popout.
+5. ~~**The accessibility pass.**~~ **Done** in v0.6.57: the `TurnAnnouncer` live
+   region (owner assistant, team chat and the forum), a global
+   `prefers-reduced-motion` clamp plus `scrollBehavior()` for the seven JS
+   smooth-scrolls a stylesheet cannot reach, focus rings on the seven controls
+   that stripped them, and a dialog role, accessible name, focus move and
+   keyboard resize on the popout. Still open in this dimension: hover-only
+   affordances with no keyboard reveal, native controls where kit ones exist,
+   and the mobile-broken screens.
 6. **Burn the lint backlog down.** Two thirds done in v0.6.55: 465 → 188, cap
    lowered to match, and `no-palette-literal` (225 → 0) and
    `require-thin-scrollbar` (48 → 0) are now `error`. What is left is
@@ -170,6 +174,16 @@ either. Server components and route handlers DO read runtime env: their reads
 survive into `.next/server/chunks`. So anything runtime-origin-dependent has to
 come from a server component, which is why the rest of the CSP is destined for
 a meta tag.
+
+**A CSS reduced-motion clamp does not cover JavaScript scrolling.** The
+`behavior` option of `scrollIntoView`/`scrollTo` overrides the CSS
+`scroll-behavior` property rather than deferring to it, so seven call sites
+kept animating under an otherwise-global clamp. They go through
+`scrollBehavior()` in `@mantle/web-ui/lib/motion`; any new smooth scroll should
+too. Related: clamp animation DURATION, never `animation: none` — `none`
+cancels an animation mid-flight and can park an element at a keyframe's start
+state, so a Radix popover that animates in from `opacity: 0` simply never
+appears.
 
 **The lint gate is a ratchet.** `pnpm lint` runs `--max-warnings 188`. Adding
 any new warning fails it. When burning the backlog down, lower the number in
