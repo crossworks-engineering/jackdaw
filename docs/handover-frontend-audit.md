@@ -17,6 +17,8 @@ shorter ordering of what to do next, and its numbers are unrelated — saying
 wrong three times.
 
 - **Report** (interactive, kept current): <https://claude.ai/code/artifact/216dc6be-2285-424f-bc90-72ed7410942e>
+- **The structure pass**: `docs/handover-structure.md` — the plan for the one
+  dimension still at 6.5, written to be picked up cold in a fresh session.
 - **Dev brain page**: `Jackdaw frontend audit 2026-09-07`, tags `audit` / `jackdaw`
 - **Roadmap task**: "Act on the jackdaw frontend audit (2026-09-07)", tag `mantle-roadmap`
 
