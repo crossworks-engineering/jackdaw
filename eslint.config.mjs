@@ -141,6 +141,8 @@ export default tseslint.config(
     // good reason. A threshold ratchets the same way without the collision:
     // set to the worst file that exists, so nothing fails today and nothing may
     // grow past it, then lowered with each landing. It only ever goes down.
+    // 2507 when it landed; 1866 after phase 1 moved the already-standalone
+    // components out of the four oversized screens.
     //
     // Comments and blank lines COUNT. This repo comments heavily and on
     // purpose, and that is weight a reader carries too — so the number means
@@ -151,7 +153,7 @@ export default tseslint.config(
       'packages/share-ui/**/*.{ts,tsx}',
     ],
     rules: {
-      'max-lines': ['error', { max: 2507, skipBlankLines: false, skipComments: false }],
+      'max-lines': ['error', { max: 1866, skipBlankLines: false, skipComments: false }],
     },
   },
   {
