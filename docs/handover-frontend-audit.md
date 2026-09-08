@@ -41,6 +41,7 @@ Eleven commits landed, in this order:
 | v0.6.53 | `?next=` hardened; the auth/transport core gets tests; a 404 ends the stream          |
 | v0.6.55 | Palette literals and scrollbars cleared; both rules promoted to `error`               |
 | v0.6.56 | The accessibility pass: live region, reduced motion, focus rings, dialog popout       |
+| v0.6.58 | The e2e runner points at a brain; Playwright gated into CI                            |
 
 (`91ee13b`, the settings-hub e2e rewrite, landed alongside from a separate
 session.)
@@ -108,10 +109,15 @@ The audit's worklist is the authority; this is the short version, in order.
    off. The auth-failure branch returns early too but is _not_ the same bug —
    both team consumers reconcile from `onUnauthorized`, which fires first.
    The same version carries a security fix; see §6.
-4. **Repair the e2e runner.** `e2e/scripts/run-local.sh` still calls paths that
-   left in the repo split, and the documented root `pnpm e2e` script does not
-   exist, so 157 Playwright tests cannot run hermetically. Then fold Playwright
-   into the CI gate as its own job.
+4. ~~**Repair the e2e runner.**~~ **Done** in v0.6.58. The runner no longer
+   tries to boot a stack that left in the split; it points at a brain
+   (`E2E_SERVER_URL=… pnpm e2e`), puts this checkout's owner UI on `:3901` in
+   front of it and runs the `split` project. `e2e/stack/docker-compose.yml` is
+   gone with the rest. Playwright is a second CI job, conditional on a
+   repository variable naming a brain, so it is inert rather than red where
+   there is nowhere to point. **What still needs you:** one green run against a
+   real brain — the audit's own "done when", and the one thing that cannot be
+   checked from here.
 5. ~~**The accessibility pass.**~~ **Done** in v0.6.56: the `TurnAnnouncer` live
    region (owner assistant, team chat and the forum), a global
    `prefers-reduced-motion` clamp plus `scrollBehavior()` for the seven JS
@@ -140,7 +146,11 @@ pnpm install
 pnpm verify                 # typecheck + lint (capped) + format + tests
 pnpm -C client/web build    # production build
 pnpm dev:fe                 # detached frontend against MANTLE_REMOTE
+E2E_SERVER_URL=… pnpm e2e   # owner UI on :3901 in front of that brain, then Playwright
 ```
+
+`pnpm e2e` creates and deletes content on the brain you name, so name a
+throwaway one.
 
 `pnpm dev:fe` reads `client/web/.env.detached.local` and runs the owner UI
 against a remote brain with no local database. It reaches the brain fine and
