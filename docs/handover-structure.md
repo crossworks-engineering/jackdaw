@@ -1,4 +1,4 @@
-# Handover: the structure pass (planned 2026-09-08)
+# Handover: the structure pass (planned 2026-09-08; phases 0 and 1 done)
 
 Structure is the last dimension of the 2026-09-07 frontend audit nobody has
 touched. It scored **6.5** at v0.6.42 and scores 6.5 now, while every other
@@ -70,7 +70,7 @@ its 30 `useState` fall into obvious clusters:
 Four phases, ordered so the risky work happens last and against a tree that has
 already been made reviewable.
 
-### Phase 0 — the ratchet, first
+### Phase 0 — the ratchet, first · **DONE**
 
 The audit's own central finding was that _every rule backed by a lint gate is
 essentially perfect, and every prose-only rule has decayed._ A structure pass
@@ -82,7 +82,12 @@ threshold set to today's worst file:
 ```
 
 Nothing fails on day one, and no file may ever grow past the worst one that
-exists. Lower the number with each landing; it can only go down.
+exists. Lower the number with each landing; it can only go down. It landed at
+2507 and stands at **1866** after phase 1.
+
+It has already earned itself: the number was first set to 1858, measured before
+the final prettier pass grew a file by eight lines, and the rule caught that on
+its own commit.
 
 **Why a threshold and not the warning ratchet.** `pnpm lint` runs
 `--max-warnings 188`, and that cap is spoken for by `no-raw-form-control`.
@@ -92,7 +97,7 @@ good reason. A descending threshold is the same ratchet without the collision.
 Count comments and blank lines, so the number means what `wc -l` says. This repo
 comments heavily and deliberately, and that is a cost a reader pays too.
 
-### Phase 1 — pure code motion
+### Phase 1 — pure code motion · **DONE**
 
 Move each already-standalone tail component into a sibling file. No signature
 changes, no hook changes, no reordering. One commit per screen, four commits.
@@ -105,6 +110,28 @@ references). A large move is a mistake, not a win.
 
 Do all four screens in this phase before starting Phase 2. It is mechanical,
 it is safe, and finishing it means every subsequent diff is legible.
+
+**Outcome.** Four commits, one per screen:
+
+| Screen                 | Before | After | Moved to                                               |
+| ---------------------- | ------ | ----- | ------------------------------------------------------ |
+| `worker-form.tsx`      | 2,507  | 1,178 | five `worker-fields-*` files plus `worker-form-select` |
+| `files-client.tsx`     | 2,158  | 1,315 | `files-shared.ts`, `files-dialogs`, `files-panes`      |
+| `agents-client.tsx`    | 2,147  | 1,646 | `agent-form-state.ts`, `agent-pickers`                 |
+| `assistant-client.tsx` | 2,211  | 1,866 | `assistant-turns.ts`, `assistant-turn-parts`           |
+
+**Per-route client JS: zero delta on all 105 routes**, checked after every
+screen. Three of the four now have a `.ts` module with no JSX in it — the pure
+layer Phase 2 writes tests against.
+
+**Three traps, if you script the motion.** Inline type specifiers
+(`import { X, type Y }`) put the modifier inside the specifier, so a textual
+usage check on "type Y" matches nothing and silently drops a live import. A
+textual check also counts comments, so it over-keeps — that direction is safe,
+because the linter then reports it. And a moved function's dependencies are not
+only imports: module-level constants (`COLUMN_DIMS`, the `DEFAULT_*_PROMPT`
+bodies, the context-kind tables) had to travel with the code that read them,
+and only the compiler found that.
 
 ### Phase 2 — the state clusters, one screen at a time
 
