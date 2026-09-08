@@ -1,8 +1,8 @@
 # Handover: the frontend audit rollout (2026-09-07)
 
 A full frontend audit of `client/web`, `packages/web-ui` and `client/desktop`
-was run at v0.6.42 and rated the tree **6.5/10**. Seven of its nine worklist
-items have since landed, taking it to roughly **7.6**. This file is the state
+was run at v0.6.42 and rated the tree **6.5/10**. Eight of its nine worklist
+items have since landed (item 6 in part), taking it to roughly **7.8**. This file is the state
 of the world around that work: what changed, what is left, and the handful of
 things that will burn you if nobody tells you.
 
@@ -19,7 +19,7 @@ worklist; this file does not repeat it.
 
 | Repo        | Branch | State                                                 |
 | ----------- | ------ | ----------------------------------------------------- |
-| **jackdaw** | `main` | Pushed, at **v0.6.53**. CI green. No release tag cut. |
+| **jackdaw** | `main` | Pushed, at **v0.6.55**. CI green. No release tag cut. |
 
 `pnpm verify` on main: typecheck clean across all four workspaces, 478 tests,
 prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
@@ -39,6 +39,7 @@ Eleven commits landed, in this order:
 | v0.6.50 | Streaming and typing jank                                                             |
 | v0.6.51 | The three decayed prose rules become lint rules                                       |
 | v0.6.53 | `?next=` hardened; the auth/transport core gets tests; a 404 ends the stream          |
+| v0.6.55 | Palette literals and scrollbars cleared; both rules promoted to `error`               |
 
 (`91ee13b`, the settings-hub e2e rewrite, landed alongside from a separate
 session.)
@@ -114,8 +115,12 @@ The audit's worklist is the authority; this is the short version, in order.
    Four fixes cover most of it: an `aria-live` region on the streaming turn, a
    global `prefers-reduced-motion` clamp, focus rings restored on the table grid
    and the editors, and a dialog role plus focus move on the assistant popout.
-6. **Burn the lint backlog down** and lower the cap as it falls, then promote
-   the three rules to `error`.
+6. **Burn the lint backlog down.** Two thirds done in v0.6.55: 465 → 188, cap
+   lowered to match, and `no-palette-literal` (225 → 0) and
+   `require-thin-scrollbar` (48 → 0) are now `error`. What is left is
+   `no-raw-form-control`, 188 raw `<button>`/`<input>`/`<textarea>` — the one
+   of the three that rewrites rendered markup rather than swapping a class, so
+   it wants eyes on a running app rather than a scripted pass.
 
 Also open, smaller: the seven medium bugs in the audit's §1; memoising the
 individual assistant turn row and rendering settled turns as static HTML;
@@ -166,9 +171,18 @@ survive into `.next/server/chunks`. So anything runtime-origin-dependent has to
 come from a server component, which is why the rest of the CSP is destined for
 a meta tag.
 
-**The lint gate is a ratchet.** `pnpm lint` runs `--max-warnings 465`. Adding
+**The lint gate is a ratchet.** `pnpm lint` runs `--max-warnings 188`. Adding
 any new warning fails it. When burning the backlog down, lower the number in
 the root package.json; never raise it. Rules are in `eslint-rules/`.
+
+**`no-palette-literal` has a blind spot, and it is deliberate.** The rule only
+visits `className` attributes and `cn()`/`clsx()` arguments, so a palette
+literal in a lookup map, in a helper that returns a class string, or in a
+`'size-4 ' + (...)` concatenation is invisible to it — there were 35 of those
+still in the tree when the rule first read zero. They were converted by hand in
+v0.6.55, but the blind spot remains: `grep -rE '\b(text|bg|border|fill)-(amber|emerald|rose|sky|green)-[0-9]'`
+is the check the linter cannot do for you. Widening the visitor changes what
+fails CI, and the rule's own header says it accepts false negatives on purpose.
 
 **Mermaid must not come back by half.** Removing it needed both doors closed:
 `aiEnabled={false}` on the Excalidraw canvas AND the stub at
