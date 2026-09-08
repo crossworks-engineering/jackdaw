@@ -18,8 +18,8 @@ import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { ModelSelect } from '@/components/ui/model-select';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { isProviderWired, providersForCapability } from '@mantle/voice-client';
-import type { ExplorerModel } from '@mantle/client-types';
 import type { FormState } from './agent-form-state';
+import type { ModelCatalog } from './use-model-catalog';
 
 /** Built-in node types the extractor can be allow-listed against. Matches
  *  the `node_type` enum in packages/db/src/schema/nodes.ts minus `branch`
@@ -252,16 +252,16 @@ export function BackupRouteSection({
   apiKeys,
   tailnetPeers,
   catalog,
-  catalogState,
 }: {
   form: FormState;
   setForm: SetFormState;
   apiKeys: ApiKeyOption[];
   /** Online tailnet peer MagicDNS names — passed through to RouteHostFields. */
   tailnetPeers: string[];
-  /** Backup-route model catalog (keyed on form.backupProvider; fetched by the parent). */
-  catalog: ExplorerModel[];
-  catalogState: { loading: boolean; error: string | null };
+  /** Backup-route model catalog (keyed on form.backupProvider; fetched by the
+   *  parent). One value, not a list plus a separate state object that has to be
+   *  kept in step with it. */
+  catalog: ModelCatalog;
 }) {
   // "Make backup primary" — exchange the primary↔backup form values. The
   // runtime always treats the primary columns as the active route, so this
@@ -408,9 +408,9 @@ export function BackupRouteSection({
               id="backupModel"
               value={form.backupModel}
               onValueChange={(next) => setForm((f) => ({ ...f, backupModel: next }))}
-              models={catalog}
-              loading={catalogState.loading}
-              error={catalogState.error}
+              models={catalog.models}
+              loading={catalog.loading}
+              error={catalog.error}
               placeholder="— pick a model —"
               emptyMessage="No matching models in the catalog."
             />

@@ -33,7 +33,6 @@ import { Slider } from '@mantle/web-ui/ui/slider';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
-import type { ExplorerModel } from '@mantle/client-types';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
 import type { AiWorkerDTO, SkillDTO, ToolGroupWithRefs } from '@mantle/client-types';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
@@ -52,6 +51,7 @@ import { ChatTestButton } from '@/components/settings/chat-test-button';
 import { ModelsTab } from './models-tab';
 import { BackupRouteSection, MemorySection, NONE, RouteHostFields } from './agent-form-sections';
 import { ContextWindowHint, DelegatePicker, SkillPicker, ToolGroupPicker } from './agent-pickers';
+import { useModelCatalog } from './use-model-catalog';
 import {
   ROLES,
   defaultsForRole,
@@ -237,81 +237,10 @@ export function AgentsClient() {
   // operators ended up with cross-provider slugs that 404'd at first
   // turn (anthropic/claude-haiku-4.5 vs the direct-Anthropic
   // claude-haiku-4-5).
-  const [catalog, setCatalog] = useState<ExplorerModel[]>([]);
-  const [catalogState, setCatalogState] = useState<{ loading: boolean; error: string | null }>({
-    loading: true,
-    error: null,
-  });
-  useEffect(() => {
-    const provider = form.provider || 'openrouter';
-    let cancelled = false;
-    // Surface the loading state immediately so the dropdown shows a
-    // spinner during the swap instead of a stale catalog from the
-    // previous provider.
-    setCatalogState({ loading: true, error: null });
-    setCatalog([]);
-    apiFetch<{ models?: ExplorerModel[]; error?: string }>(
-      `/api/models?provider=${encodeURIComponent(provider)}`,
-    )
-      .then((d) => {
-        if (cancelled) return;
-        if (d?.models && Array.isArray(d.models)) {
-          setCatalog(d.models as ExplorerModel[]);
-          setCatalogState({ loading: false, error: d.error ?? null });
-        } else {
-          setCatalogState({ loading: false, error: d?.error ?? 'No catalog returned' });
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setCatalogState({
-          loading: false,
-          error: err instanceof Error ? err.message : 'Catalog fetch failed',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [form.provider]);
-
-  // Backup-route model catalog — same shape as the primary above, keyed on
-  // form.backupProvider so the backup's ModelSelect lists the right slugs.
-  // Only fetched while the backup section is open (backupEnabled) to avoid a
-  // wasted /api/models call on every agent that has no backup.
-  const [backupCatalog, setBackupCatalog] = useState<ExplorerModel[]>([]);
-  const [backupCatalogState, setBackupCatalogState] = useState<{
-    loading: boolean;
-    error: string | null;
-  }>({ loading: true, error: null });
-  useEffect(() => {
-    if (!form.backupEnabled) return;
-    const provider = form.backupProvider || 'openrouter';
-    let cancelled = false;
-    setBackupCatalogState({ loading: true, error: null });
-    setBackupCatalog([]);
-    apiFetch<{ models?: ExplorerModel[]; error?: string }>(
-      `/api/models?provider=${encodeURIComponent(provider)}`,
-    )
-      .then((d) => {
-        if (cancelled) return;
-        if (d?.models && Array.isArray(d.models)) {
-          setBackupCatalog(d.models as ExplorerModel[]);
-          setBackupCatalogState({ loading: false, error: d.error ?? null });
-        } else {
-          setBackupCatalogState({ loading: false, error: d?.error ?? 'No catalog returned' });
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setBackupCatalogState({
-          loading: false,
-          error: err instanceof Error ? err.message : 'Catalog fetch failed',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [form.backupProvider, form.backupEnabled]);
+  const catalog = useModelCatalog(form.provider);
+  // Only while the backup section is open: an agent with no backup should not
+  // cost an /api/models call.
+  const backupCatalog = useModelCatalog(form.backupProvider, form.backupEnabled);
 
   const openCreate = () => {
     setForm(emptyForm());
@@ -1143,9 +1072,9 @@ export function AgentsClient() {
                               id="model"
                               value={form.model}
                               onValueChange={(next) => setForm((f) => ({ ...f, model: next }))}
-                              models={catalog}
-                              loading={catalogState.loading}
-                              error={catalogState.error}
+                              models={catalog.models}
+                              loading={catalog.loading}
+                              error={catalog.error}
                               placeholder="— pick a model —"
                               emptyMessage="No matching models in the catalog."
                               required
@@ -1170,9 +1099,9 @@ export function AgentsClient() {
                               // 4.5` vs direct Anthropic's `claude-haiku-4-5`). Custom
                               // slugs are still allowed — the save commits whatever's
                               // typed — so this is informational, not blocking.
-                              if (catalogState.loading) return null;
+                              if (catalog.loading) return null;
                               if (!form.model.trim()) return null;
-                              if (catalog.some((m) => m.id === form.model)) return null;
+                              if (catalog.models.some((m) => m.id === form.model)) return null;
                               return (
                                 <p className="text-xs text-warning-ink">
                                   <code>{form.model}</code> isn&apos;t in{' '}
@@ -1266,7 +1195,6 @@ export function AgentsClient() {
                             apiKeys={apiKeys}
                             tailnetPeers={tailnetPeers}
                             catalog={backupCatalog}
-                            catalogState={backupCatalogState}
                           />
 
                           <fieldset className="space-y-3 rounded-md border border-border p-3">
