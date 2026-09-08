@@ -19,7 +19,7 @@ worklist; this file does not repeat it.
 
 | Repo        | Branch | State                                                 |
 | ----------- | ------ | ----------------------------------------------------- |
-| **jackdaw** | `main` | Pushed, at **v0.6.57**. CI green. No release tag cut. |
+| **jackdaw** | `main` | Pushed, at **v0.6.56**. CI green. No release tag cut. |
 
 `pnpm verify` on main: typecheck clean across all four workspaces, 484 tests,
 prettier clean, **465 lint warnings against a cap of 465** (see §5). Production
@@ -111,7 +111,7 @@ The audit's worklist is the authority; this is the short version, in order.
    left in the repo split, and the documented root `pnpm e2e` script does not
    exist, so 157 Playwright tests cannot run hermetically. Then fold Playwright
    into the CI gate as its own job.
-5. ~~**The accessibility pass.**~~ **Done** in v0.6.57: the `TurnAnnouncer` live
+5. ~~**The accessibility pass.**~~ **Done** in v0.6.56: the `TurnAnnouncer` live
    region (owner assistant, team chat and the forum), a global
    `prefers-reduced-motion` clamp plus `scrollBehavior()` for the seven JS
    smooth-scrolls a stylesheet cannot reach, focus rings on the seven controls
