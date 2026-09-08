@@ -60,8 +60,9 @@ its 30 `useState` fall into obvious clusters:
 - **six** that are really one question, "which dialog is open"
   (`createFolderOpen`, `createFileExt`, `deleteFolderOpen`, `bulkDeleteOpen`,
   `cascadeConfirm`, `renameTarget`)
-- **three** persisted view preferences that each read `localStorage` in a lazy
-  initialiser (`view`, `sort`, `recentView`)
+- **one** persisted view preference read from `localStorage` in a lazy
+  initialiser (`view`) — this plan first said three, counting `sort` and
+  `recentView`, which are plain state and persist nothing
 - **three** search (`query`, `hits`, `searching`)
 - two inline-edit, one drag, and the actual data
 
@@ -133,7 +134,7 @@ only imports: module-level constants (`COLUMN_DIMS`, the `DEFAULT_*_PROMPT`
 bodies, the context-kind tables) had to travel with the code that read them,
 and only the compiler found that.
 
-### Phase 2 — the state clusters, one screen at a time
+### Phase 2 — the state clusters, one screen at a time · **files-client done**
 
 Order: **`files-client` → `agents-client` → `worker-form` → `assistant-client`.**
 
@@ -156,6 +157,28 @@ For each screen, in this order:
 3. **Extract each remaining cluster** to a `use-*.ts` beside the screen, pure
    core exported and tested.
 4. Only then look at what is left of the component.
+
+**`files-client`: 30 `useState` → 9**, in two commits.
+
+The dialog union went in as planned. `dismissDialog(current, kind)` closes only
+if that dialog is still the one on screen, which matters because Radix fires
+`onOpenChange(false)` as it closes while the bulk-delete flow opens the cascade
+confirm from an async handler — the ordering works today, and this makes it not
+have to.
+
+The persisted view became `lib/use-persisted-state.ts`, which renders the
+fallback on both sides and adopts storage in an effect. It is in `lib/` because
+the audit lists the same lazy-initialiser pattern in `team-workspace-shell` and
+`tables-shell`; **those are not converted yet** and are the obvious next users.
+
+Search came out as `use-file-search.ts`, and carried a race with it: the
+effect's cleanup clears the debounce timer, which cancels a request that has
+not started but not one already in flight, so a slow answer for `"abc"` could
+land after a fast one for `"abcd"`. A generation counter fixes it. The audit's
+still-open ShareReader finding is the same shape — a debounce is not a
+cancellation.
+
+19 tests, all against pure cores, none rendering a component.
 
 ### Phase 3 — the remainder
 
