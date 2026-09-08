@@ -40,6 +40,7 @@ Eleven commits landed, in this order:
 | v0.6.51 | The three decayed prose rules become lint rules                                       |
 | v0.6.53 | `?next=` hardened; the auth/transport core gets tests; a 404 ends the stream          |
 | v0.6.55 | Palette literals and scrollbars cleared; both rules promoted to `error`               |
+| v0.6.56 | The accessibility pass: live region, reduced motion, focus rings, dialog popout       |
 
 (`91ee13b`, the settings-hub e2e rewrite, landed alongside from a separate
 session.)
