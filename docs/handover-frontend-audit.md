@@ -20,8 +20,10 @@ wrong three times.
 - **The structure pass**: `docs/handover-structure.md` — phases 0-2 done; the
   last screen and the remaining phases are written up there.
 - **Verifying, and the deployment gap**: `docs/handover-verification.md` — how
-  to put current code in front of a real signed-in session, what has been
-  verified that way, and the fact that **none of this rollout is deployed**.
+  to put current code in front of a real signed-in session, and why the rollout
+  sat unreleased for 21 drafts (now closed).
+- **What is left**: `docs/handover-audit-remainder.md` — the remaining items in
+  the order worth doing them, each with what is already known about it.
 - **Dev brain page**: `Jackdaw frontend audit 2026-09-07`, tags `audit` / `jackdaw`
 - **Roadmap task**: "Act on the jackdaw frontend audit (2026-09-07)", tag `mantle-roadmap`
 

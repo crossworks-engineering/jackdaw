@@ -12,25 +12,34 @@ Companions, both still current:
 
 ---
 
-## 1. The finding that reframes everything else
+## 1. The deployment gap — found, and closed
 
-**The dev box serves owner UI v0.6.42.** That is the version the audit was run
-_against_. Its Settings → Updates screen tracks the GitHub releases of
-`crossworks-engineering/jackdaw`, where the latest is **v0.6.26**. Main is at
-**v0.6.66**.
+**It is closed.** Read this anyway, because the shape of it will recur.
 
-So twenty-four versions of work exist only in git: the three release-blocking
-bugs, half the CSP, the 55% bundle cut, the streaming fix, the house lint
-rules, the accessibility pass, the auth and transport tests, the e2e repair,
-and the structure pass. Nobody is running any of it.
+When this session started, the dev box served owner UI **v0.6.42** — the version
+the audit was run _against_ — while main was at v0.6.66. The natural reading was
+"nobody cut the tags". That was wrong, and the real cause is worth knowing:
 
-This matters beyond bookkeeping. It nearly invalidated the click-through: the
-plan was to exercise the deployed box, which would have tested precisely the
-code the rollout spent itself fixing, and reported a green that meant nothing.
-**Check the interface version before trusting any signed-in test.**
+- Tags **were** cut, all the way to v0.6.42, and pushed.
+- The release workflow **succeeded every time**.
+- It creates a **draft** release, and publishing a draft is a separate manual
+  step. That step had not happened **21 times**.
+- The box's updater reads _published_ releases, so it saw v0.6.26 — the last one
+  anybody had published, in August.
 
-Deciding whether to ship is a separate call from doing the work, and it has not
-been made. It is now the largest open question in this project.
+So the work was built, tagged and sitting in drafts nobody could install.
+
+Closed on 2026-09-09: **v0.6.67 tagged, built, published as Latest**, carrying
+twenty-five versions in one step. The 21 stale drafts were deleted (releases
+only — all 49 tags survive as history).
+
+**What to check next time, in order:** the interface version on the box
+(`/settings/updates`), then `gh release list` for drafts, then `gh run list`.
+A green pipeline and a stale box are not a contradiction.
+
+This nearly invalidated the click-through: it was about to be run against that
+box, and would have exercised precisely the code the rollout spent itself
+fixing. **Check the interface version before trusting any signed-in test.**
 
 ## 2. The test rig
 
@@ -98,7 +107,7 @@ whole session: no errors, no warnings, no hydration complaints.
 
 ## 5. Where to pick up
 
-1. **Decide about deploying.** §1. Everything else is smaller than this.
+1. ~~Decide about deploying.~~ **Done** — v0.6.67 is published. See §1.
 2. **Finish the CSP** — the code half can land now; the click-through needs the
    rig in §2.
 3. **`assistant-client` phase 2** — now unblocked. `docs/handover-structure.md`
