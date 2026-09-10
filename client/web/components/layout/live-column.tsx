@@ -12,6 +12,7 @@ import {
   ageSeconds,
   relativeTime,
   STALL_THRESHOLD_S,
+  LIVE_ACTIVITY_POLL_MS,
   useLiveActivity,
 } from '@/components/journey/use-live-activity';
 import type { ActivityItem } from '@mantle/client-types/journey-format';
@@ -24,7 +25,8 @@ import { formatElapsed } from './elapsed';
  * Always-on Activity column in the app shell. Shows what's processing right now
  * (active-first, with stall detection), anything that recently failed, and the
  * stream of what entered the brain — human-labelled with outcome counts, not
- * raw trace kinds. Links into the Journey story. Polls /api/activity every 5s.
+ * raw trace kinds. Links into the Journey story. Polls /api/activity — every 5s
+ * while expanded, far slower while collapsed (see COLLAPSED_POLL_MS).
  *
  * Collapses to a narrow icon rail (`collapsed`): just status pips — running /
  * failed / recent counts — that expand the panel on click. Width tracks the
@@ -135,6 +137,16 @@ function ActiveRow({ it, nested }: { it: ActivityItem; nested?: boolean }) {
   );
 }
 
+/**
+ * The collapsed rail's poll. It shows three counts, so it is refreshed for the
+ * sake of a badge rather than a feed — and it is the state the column is in on
+ * every route by default. Slow enough to stop being a cost, quick enough that a
+ * run started elsewhere shows up while you are still looking at the screen.
+ * Expanding drops straight back to `LIVE_ACTIVITY_POLL_MS` and refetches at
+ * once, so opening the column is never a wait.
+ */
+const COLLAPSED_POLL_MS = 60_000;
+
 export function LiveColumn({
   collapsed,
   onToggle,
@@ -150,7 +162,14 @@ export function LiveColumn({
    *  transitions — the width itself now only arrives on release. */
   onWidthDraggingChange?: (dragging: boolean) => void;
 }) {
-  const { data, loaded, tick } = useLiveActivity();
+  // Collapsed is the DEFAULT, and the collapsed rail shows three counts and no
+  // timestamps — so it needs neither the 5s poll nor the 5s re-render. This
+  // component is mounted by the shell on every signed-in route, which is what
+  // made a hidden 5s cadence expensive out of all proportion to what it showed.
+  const { data, loaded, tick } = useLiveActivity(
+    collapsed ? COLLAPSED_POLL_MS : LIVE_ACTIVITY_POLL_MS,
+    collapsed ? null : LIVE_ACTIVITY_POLL_MS,
+  );
   void tick; // re-render cue for relative timestamps
   const active = data?.active ?? [];
   const failures = data?.failures ?? [];

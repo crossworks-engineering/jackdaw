@@ -4,14 +4,28 @@ import { useEffect, useState } from 'react';
 import type { LiveActivity } from '@mantle/client-types/journey-format';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 
+/** How often the snapshot is refetched when the caller says nothing else. */
+export const LIVE_ACTIVITY_POLL_MS = 5000;
+
 /**
  * Polls /api/activity for the always-on live snapshot (active / recent /
  * failures). Pauses while the tab is hidden, refetches on focus, aborts the
  * in-flight request on each tick + unmount, and keeps the last-good snapshot
- * across network blips. `tick` increments every 5s so callers can refresh
+ * across network blips. `tick` increments every `tickMs` so callers can refresh
  * relative timestamps without a network round-trip.
+ *
+ * **Both cadences are the caller's to set, and both cost.** This hook is
+ * mounted by the shell's live column, which means every signed-in route in the
+ * app, and the column is COLLAPSED by default — where it shows three counts and
+ * no timestamps at all. At the old fixed 5s that was a request every five
+ * seconds on every route for a number that changes rarely, plus a re-render of
+ * the column every five seconds to restate timestamps nobody could see. Pass
+ * `tickMs: null` when no relative time is on screen.
  */
-export function useLiveActivity(pollMs = 5000): {
+export function useLiveActivity(
+  pollMs = LIVE_ACTIVITY_POLL_MS,
+  tickMs: number | null = LIVE_ACTIVITY_POLL_MS,
+): {
   data: LiveActivity | null;
   loaded: boolean;
   tick: number;
@@ -43,7 +57,8 @@ export function useLiveActivity(pollMs = 5000): {
 
     void fetchOnce();
     const poll = setInterval(fetchOnce, pollMs);
-    const ticker = setInterval(() => alive && setTick((n) => n + 1), 5000);
+    const ticker =
+      tickMs === null ? null : setInterval(() => alive && setTick((n) => n + 1), tickMs);
     const onVis = () => {
       if (document.visibilityState === 'visible') void fetchOnce();
     };
@@ -52,11 +67,11 @@ export function useLiveActivity(pollMs = 5000): {
     return () => {
       alive = false;
       clearInterval(poll);
-      clearInterval(ticker);
+      if (ticker !== null) clearInterval(ticker);
       controller?.abort();
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [pollMs]);
+  }, [pollMs, tickMs]);
 
   return { data, loaded, tick };
 }
