@@ -45,10 +45,9 @@ jobs:
     # store on a slow runner and tight enough that a hang is not billed as one.
     timeout-minutes: 10
     steps:
-      # Current majors. The v4 line desktop.yml and release.yml still pin runs
-      # on Node 20, which GitHub now force-runs on 24 and annotates about; those
-      # two are the release pipeline and are worth bumping deliberately, not as
-      # a side effect of this file.
+      # Current majors. All three workflows are on this line now — the other
+      # two caught up in their own commit; see the note there about what is and
+      # is not testable without cutting a tag.
       - uses: actions/checkout@v7
 
       # No `version:` here on purpose — the action reads packageManager from

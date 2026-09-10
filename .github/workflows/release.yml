@@ -51,7 +51,9 @@ jobs:
     env:
       IMAGE: ${{ vars.MANTLE_IMAGE_NAMESPACE || 'titanwest' }}/mantle-client
     steps:
-      - uses: actions/checkout@v4
+      # Current majors, matching verify.yml — see the note in desktop.yml for
+      # why the docker/* pins below are deliberately not part of this.
+      - uses: actions/checkout@v7
 
       - name: Platform label
         run: echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
@@ -89,7 +91,7 @@ jobs:
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
@@ -103,7 +105,7 @@ jobs:
     env:
       IMAGE: ${{ vars.MANTLE_IMAGE_NAMESPACE || 'titanwest' }}/mantle-client
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: ${{ runner.temp }}/digests
           pattern: digests-*
