@@ -1,22 +1,9 @@
 import { apiUrl, withAuth } from './api-fetch';
+import { tokenExpEpoch } from './token-claims';
 import { tokenStore } from './token-store';
 
 /** Days-left threshold under which the shell rotates the bearer. */
 const REFRESH_UNDER_SECONDS = 7 * 24 * 60 * 60;
-
-/** Decode the bearer's payload exp (no verification — the SERVER verifies;
- *  this only decides when to ask for a rotation). */
-function tokenExpEpoch(token: string): number | null {
-  const dot = token.lastIndexOf('.');
-  if (dot < 0) return null;
-  try {
-    const payload = token.slice(0, dot).replace(/-/g, '+').replace(/_/g, '/');
-    const data = JSON.parse(atob(payload)) as { exp?: number };
-    return typeof data.exp === 'number' ? data.exp : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Opportunistic bearer rotation — called from the app shell's boot path (it

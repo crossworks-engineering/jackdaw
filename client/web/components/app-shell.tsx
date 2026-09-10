@@ -8,6 +8,7 @@ import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
 import { setAssetToken } from '@mantle/web-ui/asset-url';
+import { assetTokenRefreshDelayMs } from '@mantle/web-ui/token-claims';
 import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
 import {
   ACTIVITY_W_COOKIE,
@@ -219,6 +220,24 @@ function ShellFrame({
   const shellQuery = useQuery({
     queryKey: ['shell'],
     queryFn: () => apiFetch<ShellData>('/api/shell'),
+    // This payload carries the asset token, and that token EXPIRES — it rides
+    // in the URL, so the brain keeps its life short (two hours, "one working
+    // session"). Nothing refreshed it: this query ran once per mount, so a tab
+    // left open past lunch got a 401 on every image, iframe and download until
+    // someone reloaded.
+    //
+    // The delay is read from the token's own `exp` rather than copied from the
+    // brain's constant, so the two cannot drift; `false` when there is no token
+    // (the ordinary same-origin box, where the session cookie does this job and
+    // there is nothing to poll for).
+    refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
+    // Deliberately overriding the global `refetchOnWindowFocus: false`, for this
+    // query only. An interval is not enough on its own: TanStack pauses it
+    // while the tab is in the background, which is precisely the tab this bug
+    // is about. Focus covers the one you came back to; the interval covers the
+    // one that has been open in front of you for hours. It is one small
+    // request, and it is the one carrying a credential with a hard expiry.
+    refetchOnWindowFocus: true,
   });
   const userAvatar = shellQuery.data?.avatar ?? null;
   // Hand the uploader the server's cap as soon as it is known, so an oversized
