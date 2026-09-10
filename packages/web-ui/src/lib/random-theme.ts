@@ -56,3 +56,20 @@ export function resolveInitialColorTheme(opts: {
   // provider uses this flag to skip it.
   return { theme: pick, repaint: pick !== opts.stored };
 }
+
+/**
+ * Should a theme arriving from the SERVER be painted?
+ *
+ * No, while the screensaver is on and has a pick of its own. The shell adopts
+ * the server's colour theme once `/api/shell` lands, which is a moment after
+ * the provider's first shuffle tick — so without this the brain's own theme
+ * lands on top of every shuffle and the screensaver appears not to work.
+ *
+ * It only looked fine before because the shuffle used to PUT its pick, so the
+ * value coming back WAS the shuffled one. That write is the bug this whole
+ * module exists to remove, and this is the half of it that a unit test cannot
+ * see: it took a signed-in browser to catch.
+ */
+export function serverThemeWins(opts: { randomTheme: boolean; pick: string | null }): boolean {
+  return !(opts.randomTheme && !!opts.pick);
+}

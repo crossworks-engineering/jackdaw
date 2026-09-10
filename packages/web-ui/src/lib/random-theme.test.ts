@@ -3,6 +3,7 @@ import {
   RANDOM_THEME_PICK_STORAGE_KEY,
   readRandomPick,
   resolveInitialColorTheme,
+  serverThemeWins,
   writeRandomPick,
 } from './random-theme';
 
@@ -85,5 +86,26 @@ describe('the pick store', () => {
     });
     expect(() => writeRandomPick('amber')).not.toThrow();
     expect(readRandomPick()).toBeNull();
+  });
+});
+
+describe('serverThemeWins', () => {
+  // Regression guard for the one thing `pnpm verify` could not see. Removing
+  // the shuffle's PUT left the shell's own adopt repainting the brain's theme
+  // over every tick — the screensaver picked a theme, stored it, and appeared
+  // to do nothing.
+  it('lets the screensaver keep its own pick', () => {
+    expect(serverThemeWins({ randomTheme: true, pick: 'amber' })).toBe(false);
+  });
+
+  it('takes the server value when the screensaver is off', () => {
+    expect(serverThemeWins({ randomTheme: false, pick: 'amber' })).toBe(true);
+  });
+
+  it('takes the server value when the screensaver has not picked yet', () => {
+    // The window between enabling the feature and the first tick — there is
+    // nothing local to defend, so another browser's change should still land.
+    expect(serverThemeWins({ randomTheme: true, pick: null })).toBe(true);
+    expect(serverThemeWins({ randomTheme: true, pick: '' })).toBe(true);
   });
 });

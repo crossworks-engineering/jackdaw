@@ -14,6 +14,7 @@ import {
 import {
   readRandomPick,
   resolveInitialColorTheme,
+  serverThemeWins,
   writeRandomPick,
 } from '@mantle/web-ui/lib/random-theme';
 
@@ -111,23 +112,48 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
     setIntervalMsState(interval);
   }, []);
 
-  const adoptServerTheme = React.useCallback((id: string) => {
+  /** Paint a theme. The one place `colorTheme` state and the DOM move together;
+   *  every path below is this plus a decision about persistence. */
+
+  const paint = React.useCallback((id: string) => {
     setColorThemeState(id);
     apply(id);
   }, []);
 
+  // Live, because `adoptServerTheme` is called from an effect with no deps and
+  // must see whether the screensaver is on RIGHT NOW, not at mount.
+  const randomThemeRef = React.useRef(randomTheme);
+  randomThemeRef.current = randomTheme;
+
+  const adoptServerTheme = React.useCallback(
+    (id: string) => {
+      // A visitor running the screensaver has a theme of their own, and the
+      // brain's copy must not paint over it. This matters because the shell
+      // adopts the server value once `/api/shell` lands — a moment AFTER the
+      // provider's first shuffle tick. It used to be harmless only because the
+      // shuffle wrote its pick to the server first, so the value coming back
+      // was the shuffled one; now that a shuffle is properly local, the server
+      // value is the brain's own theme and would undo every tick.
+      if (!serverThemeWins({ randomTheme: randomThemeRef.current, pick: readRandomPick() })) return;
+      paint(id);
+    },
+    [paint],
+  );
+
   /** Paint a shuffled theme: visitor-local, never written to the brain. */
   const applyRandomTheme = React.useCallback(
     (id: string) => {
-      adoptServerTheme(id);
+      // `paint`, not `adoptServerTheme` — the guard above would block the very
+      // thing it exists to protect.
+      paint(id);
       writeRandomPick(id);
     },
-    [adoptServerTheme],
+    [paint],
   );
 
   const setColorTheme = React.useCallback(
     (id: string) => {
-      adoptServerTheme(id);
+      paint(id);
       // A deliberate choice ends any local override — otherwise the next load
       // would find a stale shuffle pick and paint over what was just chosen.
       writeRandomPick(null);
@@ -136,7 +162,7 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
       // but the sync.
       void apiSend('/api/profile/color-theme', 'PUT', { colorTheme: id }).catch(() => {});
     },
-    [adoptServerTheme],
+    [paint],
   );
 
   const setRandomTheme = React.useCallback(
