@@ -3,8 +3,8 @@
 Written 2026-09-09, at v0.6.67 — **released and published**, so the box can
 reach it for the first time since August. Updated 2026-09-10: item 1 is done.
 
-Of the audit's nine worklist items, eight are done (the CSP is closed on
-`fix/csp-meta`, not yet merged) and dependency decisions are untouched. The structure work, which was never a
+Of the audit's nine worklist items, eight are done (the CSP closed at v0.6.69)
+and dependency decisions are untouched. The structure work, which was never a
 worklist item, is three quarters done. This file is what remains, in the order
 worth doing it, with what is already known about each so nobody re-derives it.
 
@@ -18,7 +18,7 @@ The companions, all current:
 
 ---
 
-## 1. ~~Finish the CSP~~ · done, on `fix/csp-meta`
+## 1. ~~Finish the CSP~~ · done, at v0.6.69
 
 `buildRuntimeCsp()` is emitted as a `<meta http-equiv>` from the root layout,
 which reads `MANTLE_SERVER_ORIGIN` per request. Verified signed in against the

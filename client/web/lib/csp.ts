@@ -3,8 +3,8 @@
  *
  * The client keeps a 30-day bearer in localStorage, and `token-store.ts` rested
  * its threat model on "the client app's CSP" for months before one existed.
- * This is the first half of that CSP, and an honest account of why it is a
- * half.
+ * This is that CSP, in two halves that are set in two different ways, and an
+ * account of why it has to be split at all.
  *
  * ── Where a CSP can actually be set in this app ──────────────────────────────
  * The policy wants to name the brain origin (connect-src is what stops an
@@ -51,11 +51,17 @@
  * preloads and framework scripts above it — but those are all 'self', and every
  * byte of app code runs after it, so the policy governs everything that matters.
  *
- * Still worth a signed-in pass with the console open, on the surfaces that
- * frame, eval or load bytes from somewhere unusual: the mini-app sandbox, the
- * drawing canvas, the formula screen, the email reading pane. Watch
- * `securitypolicyviolation`, not the rendering — a blocked iframe still fires
- * its load event, so the violation record is the only honest signal.
+ * The signed-in pass is done: twelve routes clicked through in-app with a
+ * `securitypolicyviolation` listener held across client-side navigation (a full
+ * page load resets it), plus the Files cross-origin image preview, and direct
+ * probes of the two shapes the dev brain could not mount — the sandbox's
+ * `${apiBase}/frame` and the email body's srcdoc iframe. Zero violations.
+ *
+ * Two traps if you verify this again. A blocked iframe STILL FIRES its load
+ * event, so rendering proves nothing — the violation record is the only honest
+ * signal. And prove your listener is alive with a deliberate control violation
+ * before you trust a quiet result; a sweep through a deaf instrument reads
+ * exactly like a clean one.
  */
 
 /**
@@ -90,8 +96,8 @@ const clean = (origin: string) => origin.trim().replace(/\/+$/, '');
 const list = (...sources: string[]) => sources.filter(Boolean).join(' ');
 
 /**
- * The origin-dependent half, ready to emit once it has been exercised signed
- * in. Pure and tested, so the only thing left to verify is the browser.
+ * The origin-dependent half — emitted as `<meta http-equiv>` by the root
+ * layout. Pure, unit-tested, and exercised signed in against a real brain.
  */
 export function buildRuntimeCsp({ brainOrigin, dev = false }: RuntimeCspOptions): string {
   const brain = clean(brainOrigin);
