@@ -13,7 +13,7 @@
  */
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { onSignOut } from './sign-out';
+import { onSignOut } from './session-reset';
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState(

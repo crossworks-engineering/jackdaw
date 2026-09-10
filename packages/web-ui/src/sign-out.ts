@@ -1,6 +1,9 @@
 import { apiUrl, resetCookieUpgrade, withAuth } from './api-fetch';
 import { setAssetToken } from './asset-url';
+import { runSignOutResets } from './session-reset';
 import { tokenStore } from './token-store';
+
+export { onSignOut } from './session-reset';
 
 /**
  * Signing out has to forget the session, and "the session" is more than the
@@ -22,27 +25,10 @@ import { tokenStore } from './token-store';
  *
  *   • Module state this file can reach, reset directly below.
  *   • State owned by React — the query client lives in a provider — which
- *     registers a callback through {@link onSignOut}. A registry rather than a
- *     parameter because there are two sign-out buttons today and nothing stops
- *     a third: "applied to one screen and not its sibling" is the exact shape
- *     of half the bugs in this audit. Anything session-scoped added later
- *     registers here and is covered.
+ *     registers a callback through `onSignOut`. That registry is its own leaf
+ *     module (`session-reset.ts`) so the provider does not have to import this
+ *     one; see the note there.
  */
-
-type Reset = () => void;
-const resets = new Set<Reset>();
-
-/**
- * Register per-session state to drop when the owner signs out. Returns an
- * unregister function — call it from the effect's cleanup, or a remounted
- * provider leaves a callback closing over a dead client behind.
- */
-export function onSignOut(reset: Reset): () => void {
-  resets.add(reset);
-  return () => {
-    resets.delete(reset);
-  };
-}
 
 /**
  * Sign out across BOTH transports. Same-origin: POST /api/auth/logout clears
@@ -67,11 +53,5 @@ export async function performSignOut(): Promise<void> {
   tokenStore.clear();
   setAssetToken(null);
   resetCookieUpgrade();
-  for (const reset of resets) {
-    try {
-      reset();
-    } catch {
-      /* one listener failing must not leave the rest of the session behind */
-    }
-  }
+  runSignOutResets();
 }
