@@ -21,6 +21,7 @@ import {
   restoredScrollTop,
   wantsPreviewUrl,
 } from './assistant-thread-state';
+import { useVoiceInput } from './use-voice-input';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
@@ -262,11 +263,6 @@ export function AssistantClient({
   // a retry after a failed send (the catch restores the draft) reuses it
   // instead of minting a duplicate note per attempt.
   const parkedNoteRef = useRef<{ source: string; id: string; title: string } | null>(null);
-  // ── Voice-in state ──
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordChunksRef = useRef<Blob[]>([]);
   // ── Attachment state ──
   // The user picks one file at a time (image or document). Images get an
   // object-URL preview (revoked on clear/send so we don't leak); documents
@@ -1091,79 +1087,17 @@ export function AssistantClient({
   };
 
   // ── Mic recording ──
-  const startRecording = async () => {
-    setError(undefined);
-    // Browsers hard-block the mic on insecure (plain-HTTP) origins — there is
-    // no fallback, so fail with a message instead of a TypeError.
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Voice input needs a secure (HTTPS) connection.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Browsers vary in what they accept. webm/opus is the most
-      // portable target; Safari may fall back to mp4/aac which the
-      // STT adapters also accept.
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : '';
-      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      recordChunksRef.current = [];
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) recordChunksRef.current.push(e.data);
-      };
-      mr.onstop = () => {
-        // Close the mic immediately so the browser tab indicator
-        // clears the moment recording stops.
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(recordChunksRef.current, { type: mr.mimeType });
-        void transcribeBlob(blob);
-      };
-      mediaRecorderRef.current = mr;
-      mr.start();
-      setRecording(true);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? `Couldn't access microphone: ${err.message}`
-          : 'Microphone access denied',
-      );
-    }
-  };
-
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  };
-
-  const transcribeBlob = async (blob: Blob) => {
-    setTranscribing(true);
-    try {
-      const formData = new FormData();
-      // The filename hint is consumed by some STT adapters
-      // (Whisper sniffs the extension); .webm matches what
-      // MediaRecorder emits in most browsers.
-      formData.set('audio', blob, 'recording.webm');
-      // FormData body: apiFetch (NOT apiSend) so the multipart boundary survives;
-      // it still carries the base-URL + bearer and bounces on an auth failure.
-      const data = await apiFetch<{ text: string }>('/api/assistant/transcribe', {
-        method: 'POST',
-        body: formData,
-      });
-      // Drop the transcript into the input. The user reviews +
-      // sends — auto-sending would punish mishearings (and
-      // MediaRecorder webm is finicky enough that we want a
-      // human-in-the-loop verification step before paying for an
-      // LLM round-trip).
-      setDraft((prev) => (prev ? `${prev} ${data.text}` : data.text));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTranscribing(false);
-    }
-  };
+  // The whole capture→transcript cluster lives in use-voice-input.ts; this
+  // screen only says where the words land and where an error shows.
+  const appendTranscript = useCallback((text: string) => {
+    setDraft((prev) => (prev ? `${prev} ${text}` : text));
+  }, []);
+  const {
+    recording,
+    transcribing,
+    start: startRecording,
+    stop: stopRecording,
+  } = useVoiceInput({ onTranscript: appendTranscript, onError: setError });
 
   const lastTurnId = turns[turns.length - 1]?.id;
 

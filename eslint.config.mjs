@@ -153,7 +153,7 @@ export default tseslint.config(
       'packages/share-ui/**/*.{ts,tsx}',
     ],
     rules: {
-      'max-lines': ['error', { max: 1866, skipBlankLines: false, skipComments: false }],
+      'max-lines': ['error', { max: 1799, skipBlankLines: false, skipComments: false }],
     },
   },
   {
