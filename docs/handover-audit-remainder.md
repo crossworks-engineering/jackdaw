@@ -144,6 +144,33 @@ this repo was inert until that was found.
 
 ## 6. The bugs still open
 
+**Asset token never refreshes — FIXED (the refresh half).** The TTL is **two
+hours** — `ASSET_TOKEN_TTL_SECONDS` in the mantle repo's
+`server/web/lib/auth/tokens.ts`, commented "one working session". It is not
+documented in this repo or on the brain; that is where to look. The refresh
+delay is read from the token's own `exp` rather than copied, so the two cannot
+drift, and is half the remaining life so a failed refresh has the other half to
+retry in. `false` when there is no token — the ordinary same-origin box, where
+polling would buy nothing.
+
+**An interval alone would not have fixed it:** TanStack pauses
+`refetchInterval` in a background tab, which is exactly the tab this bug is
+about, so the shell query also overrides the global
+`refetchOnWindowFocus: false`. Measured before and after — main does not
+refetch on returning to a stale tab, this does. (Testing it needs a BUBBLING
+`visibilitychange`: v5's focus manager listens on `window`, and a plain
+`document.dispatchEvent` does not reach it. That cost a false negative.)
+
+⚠ **The second half of this finding is NOT fixed:** `assetUrl()` is still not
+reactive, so anything rendered before the shell lands emits a URL with no `at=`
+and never re-renders when the token arrives. **A hook cannot be the answer** —
+three call sites (`page-editor/image.ts`, `draw/scene-files.ts`,
+`draw-embed-theme.ts`) are plain modules feeding TipTap node views and
+Excalidraw, outside React entirely. It needs either a subscribable store those
+modules can read, or the shell withholding asset-bearing children until the
+token resolves — and only in split deployments, since same-origin never needs
+a token at all.
+
 **Query cache survives sign-out — FIXED.** It survives because signing out is
 a CLIENT navigation: a 401 bounce is a full page load and takes the heap with
 it, which is why this was never seen there. Three things outlived the session,
@@ -237,9 +264,6 @@ reproduction.
 
 From the audit's §1, none of them fixed:
 
-- **Asset token never refreshes.** The `['shell']` query runs once per mount; a
-  tab open past the token TTL 401s on every image, iframe and download until
-  reload.
 - **Session expiry mid-edit** loses up to 8 s of typing: `bounceToLogin` is a
   full navigation, so React unmount flushes never run. Only Draw has a
   `pagehide` flush.
