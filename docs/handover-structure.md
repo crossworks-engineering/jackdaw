@@ -134,7 +134,7 @@ only imports: module-level constants (`COLUMN_DIMS`, the `DEFAULT_*_PROMPT`
 bodies, the context-kind tables) had to travel with the code that read them,
 and only the compiler found that.
 
-### Phase 2 — the state clusters, one screen at a time · **files-client done**
+### Phase 2 — the state clusters, one screen at a time · **DONE**
 
 Order: **`files-client` → `agents-client` → `worker-form` → `assistant-client`.**
 
@@ -211,6 +211,47 @@ no illegal state worth forbidding, and the change would touch forty-odd render
 sites to move a number. The dialog union in `files-client` was worth it because
 six booleans could spell states that must never happen; this is not that. The
 ceiling exists to stop growth, not to be optimised toward.
+
+**`assistant-client`: 1,866 → 1,799 lines, 18 `useState` → 16, and 57 tests.**
+The screen the plan deliberately kept for last, done after the signed-in
+click-through it was gated on.
+
+The prize came first and is the larger half: `groupTurns`,
+`buildContextPreamble` and `splitSentContext` had no tests, and they decide
+what the model actually receives and what the reader actually sees. 27 tests.
+The pair worth naming is the marker contract — `buildContextPreamble` writes the
+prefix `splitSentContext` cuts on, so editing either alone starts showing
+readers the machine-written tail. Both ends are asserted now.
+
+Then the pure decisions that were inline in effects and callbacks, into
+`assistant-thread-state.ts` with 23 tests. Two had a wrong version that does not
+throw: `restoredScrollTop` is the prepend restore, where transposing the
+operands teleports the reader to the top instead of holding them still; and
+`mergeOlder` must decide "is there more history" on the PAGE length, not on how
+many rows survived deduping — a full page of duplicates means the window
+overlapped, not that history ran out, and reading it the other way strands the
+reader with older turns unreachable. `SHARE_LOCATION_KEY` was declared in the
+render body and rebuilt every render; it is a module constant now.
+
+Then `use-voice-input.ts`, the one cluster with a clean seam: it touches nothing
+else on the screen. Its two booleans became one `VoiceStatus`, because
+recording and transcribing are mutually exclusive and as separate flags could
+spell a state the composer has no rendering for — the `files-client` test, not
+the `worker-form` one.
+
+**What was deliberately not done here.** The turn lifecycle — `sending`,
+`stopping`, `activeTurnId`, `trailMode` — was left exactly as it is. It is the
+live turn stream and the reconciliation this file is dangerous for, it still
+carries the audit's open double-reconciliation bug, and regrouping it inside a
+refactor would give any later bug two candidate causes with no way to separate
+them. Fix the bug first, on its own, then look at the shape. The
+`attachedFile`/`attachedPreviewUrl` pair was also left: it has exactly two
+mutators that always set both, so the coupling is already enforced, and
+collapsing it would touch eighteen sites — including the send path — to move a
+number.
+
+**Per-route client JS: zero delta on all 106 routes**, measured across both
+refactor commits.
 
 ### Phase 3 — the remainder
 

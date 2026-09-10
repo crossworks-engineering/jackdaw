@@ -64,32 +64,29 @@ all: a deliberate control violation produced no console output, so a "clean
 console" sweep through it is worthless. Use the `securitypolicyviolation`
 listener, and prove it is alive with a control before trusting a quiet result.
 
-## 2. `assistant-client` phase 2 · unblocked now
+## 2. ~~`assistant-client` phase 2~~ · done
 
-The last of the four oversized screens, and the one the structure plan says to
-do last. It was gated on the signed-in click-through, which is now done — so it
-is unblocked.
+1,866 → 1,799 lines, 18 `useState` → 16, 57 new tests, `max-lines` ratcheted to 1799. `docs/handover-structure.md` §3 has the full account; the short version:
 
-1,866 lines, 18 `useState`. Phase 1 already lifted its pure layer into
-`assistant-turns.ts` (the message and turn shapes, `groupTurns`,
-`buildContextPreamble`, `splitSentContext`) and its small parts into
-`assistant-turn-parts.tsx`. `groupTurns` and `buildContextPreamble` decide what
-the model actually receives and still have no tests; that is the prize.
+- **The prize is taken.** `groupTurns`, `buildContextPreamble` and
+  `splitSentContext` now have 27 tests. The marker contract between the last
+  two is asserted from both ends — one writes the prefix the other cuts on, and
+  editing either alone starts showing readers the machine-written tail.
+- **`assistant-thread-state.ts`**, 23 tests, for the scroll and paging
+  arithmetic that was inline in effects. Two of those had a silent wrong
+  version: the prepend restore (transposed, it teleports the reader to the top)
+  and the "is there more history" decision (read off the deduped rows instead of
+  the page length, it strands the reader with older turns unreachable).
+- **`use-voice-input.ts`**, 7 tests, the one cluster with a clean seam.
 
-**Why it is last, and still the riskiest:** it carries the live turn stream, the
-reconciliation of a streamed reply against the durable row, and an open
-double-reconciliation bug (audit §1, `assistant-client.tsx:786-838`).
+**The double-reconciliation bug is still open** (`assistant-client.tsx`, audit
+§1) and the turn-lifecycle state was deliberately left untouched around it —
+see the structure handover for why. Fix the bug on its own before reshaping
+that state, or a later bug has two candidate causes and no way to separate them.
 
-`docs/handover-structure.md` has the phase order, the shapes to copy
-(`tasks/task-meta.ts` and `use-turn-stream.ts`), and three traps that cost a
-redo each when scripting code motion.
-
-**One judgement to carry over:** do not group state for the sake of the count.
-`worker-form`'s two route objects were deliberately left as eleven `useState`
-because they encode no illegal state and grouping them would touch forty render
-sites to move a number. `files-client`'s six dialog booleans _were_ worth
-collapsing, because they could spell thirty-one states that must never happen.
-The difference is whether the type is lying.
+Phase 3 (split what remains by what the user is looking at) has not been
+started, and the plan is explicit that it is optional: stop when each file is
+one screen region a reviewer can hold in their head, not at a number.
 
 ## 3. The 188 raw form controls · the last lint backlog
 
