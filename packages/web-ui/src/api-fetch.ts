@@ -116,6 +116,19 @@ export function upgradeOwnerCookie(): Promise<void> {
 }
 
 /**
+ * Forget that the upgrade was attempted, so the NEXT session tries again.
+ *
+ * The memo is deliberately per page load — but a sign-out is a client
+ * navigation, not a page load, so without this it outlives the session that
+ * created it. The next owner to sign in on the same tab would find the upgrade
+ * already "done", hold no session cookie, and 401 on every image, iframe and
+ * download until they reloaded.
+ */
+export function resetCookieUpgrade(): void {
+  cookieUpgrade = null;
+}
+
+/**
  * Auth failure as seen by a *client* fetch. Two shapes, because routes gate two
  * ways: `getOwnerOr401` → JSON 401, and `requireOwner` → 307 to /login that
  * `fetch` silently follows (landing on the login HTML, 200). Without this, an

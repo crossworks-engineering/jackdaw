@@ -1,5 +1,48 @@
-import { apiUrl, withAuth } from './api-fetch';
+import { apiUrl, resetCookieUpgrade, withAuth } from './api-fetch';
+import { setAssetToken } from './asset-url';
 import { tokenStore } from './token-store';
+
+/**
+ * Signing out has to forget the session, and "the session" is more than the
+ * credential.
+ *
+ * The credential was always cleared. What was not is everything else this tab
+ * accumulated about the person who just left: the TanStack Query cache (their
+ * profile, messages, settings), the short-lived asset token, and the memo
+ * saying the cookie upgrade had already run. None of that is reachable from a
+ * `tokenStore.clear()`.
+ *
+ * It survives because SIGNING OUT IS A CLIENT NAVIGATION. A 401 bounce is a
+ * full page load and takes the whole heap with it, which is why this was never
+ * seen there — but `router.push('/login')` keeps the JS context alive, so the
+ * next person to sign in on the same tab was first shown the last one's data,
+ * painted straight from cache before any request came back.
+ *
+ * Two ways to forget, and the difference matters:
+ *
+ *   • Module state this file can reach, reset directly below.
+ *   • State owned by React — the query client lives in a provider — which
+ *     registers a callback through {@link onSignOut}. A registry rather than a
+ *     parameter because there are two sign-out buttons today and nothing stops
+ *     a third: "applied to one screen and not its sibling" is the exact shape
+ *     of half the bugs in this audit. Anything session-scoped added later
+ *     registers here and is covered.
+ */
+
+type Reset = () => void;
+const resets = new Set<Reset>();
+
+/**
+ * Register per-session state to drop when the owner signs out. Returns an
+ * unregister function — call it from the effect's cleanup, or a remounted
+ * provider leaves a callback closing over a dead client behind.
+ */
+export function onSignOut(reset: Reset): () => void {
+  resets.add(reset);
+  return () => {
+    resets.delete(reset);
+  };
+}
 
 /**
  * Sign out across BOTH transports. Same-origin: POST /api/auth/logout clears
@@ -7,6 +50,9 @@ import { tokenStore } from './token-store';
  * client), also revoke its device row (mobile-logout self-authenticates from
  * the bearer, idempotent) and clear the local store + presence cookie.
  * Callers navigate to /login themselves afterwards.
+ *
+ * The local clear happens whatever the network did: a sign-out that failed to
+ * reach the brain must still leave nothing of this session on the machine.
  */
 export async function performSignOut(): Promise<void> {
   const hadToken = tokenStore.get() !== null;
@@ -19,4 +65,13 @@ export async function performSignOut(): Promise<void> {
     /* network failure — still clear local state so the UI signs out */
   }
   tokenStore.clear();
+  setAssetToken(null);
+  resetCookieUpgrade();
+  for (const reset of resets) {
+    try {
+      reset();
+    } catch {
+      /* one listener failing must not leave the rest of the session behind */
+    }
+  }
 }
