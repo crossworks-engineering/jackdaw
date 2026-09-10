@@ -234,6 +234,11 @@ export function AssistantPanel() {
           min={ASSISTANT_W_MIN}
           max={ASSISTANT_W_MAX}
           onChange={setDockWidth}
+          // Same as the two shell rails: the drag writes `--assistant-w` on the
+          // shell root and commits once, on release. Without it every move went
+          // through the dock context, which fans out to fourteen consumers —
+          // the shell frame among them.
+          liveVar="--assistant-w"
           // Suspends the frame's 200ms width ease for the length of the drag,
           // exactly as the nav and activity rails do.
           onDraggingChange={setDockResizing}

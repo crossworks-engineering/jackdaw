@@ -140,11 +140,15 @@ export function LiveColumn({
   onToggle,
   width,
   onWidthChange,
+  onWidthDraggingChange,
 }: {
   collapsed: boolean;
   onToggle: () => void;
   width: number;
   onWidthChange: (px: number) => void;
+  /** Fires on grab and release of the width drag, so the shell can suspend its
+   *  transitions — the width itself now only arrives on release. */
+  onWidthDraggingChange?: (dragging: boolean) => void;
 }) {
   const { data, loaded, tick } = useLiveActivity();
   void tick; // re-render cue for relative timestamps
@@ -170,6 +174,11 @@ export function LiveColumn({
           min={ACTIVITY_W_MIN}
           max={ACTIVITY_W_MAX}
           onChange={onWidthChange}
+          // This column IS `--activity-w`; the drag writes it on the shell root
+          // and reports once, on release, rather than re-rendering the frame on
+          // every pointermove.
+          liveVar="--activity-w"
+          onDraggingChange={onWidthDraggingChange}
         />
       )}
       {collapsed ? (

@@ -184,6 +184,16 @@ function ShellFrame({
 
   const [activityWidth, setActivityWidth] = useState(initialActivityWidth);
 
+  // Suspend the frame's width transitions for the length of a POINTER drag.
+  // `applyRailWidth` below covers the keyboard, where every press commits — but
+  // a pointer drag now commits only on release, so without this the ease would
+  // be live for the whole drag and the rail would trail the pointer by 200ms.
+  // Only the grab edge is wired: the release is left to the idle timer, which
+  // has to outlast the commit anyway.
+  const startRailDrag = (on: boolean) => {
+    if (on) setResizing(true);
+  };
+
   // Shared by both rails. Restores the transition once the user stops, so a
   // later collapse still glides.
   const applyRailWidth = (px: number, set: (px: number) => void, cookie: string) => {
@@ -527,6 +537,12 @@ function ShellFrame({
                 min={NAV_W_MIN}
                 max={NAV_W_MAX}
                 onChange={(px) => applyRailWidth(px, setNavWidth, NAV_W_COOKIE)}
+                // The drag writes `--nav-w` on this shell root directly and
+                // reports once, on release. `onChange` used to fire per
+                // pointermove, and it lands in state here — a re-render of the
+                // whole frame per move.
+                liveVar="--nav-w"
+                onDraggingChange={startRailDrag}
               />
             )}
           </aside>
@@ -555,6 +571,7 @@ function ShellFrame({
             onToggle={toggleActivity}
             width={activityWidth}
             onWidthChange={(px) => applyRailWidth(px, setActivityWidth, ACTIVITY_W_COOKIE)}
+            onWidthDraggingChange={startRailDrag}
           />
         )}
 
