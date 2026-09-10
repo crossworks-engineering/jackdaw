@@ -144,6 +144,28 @@ this repo was inert until that was found.
 
 ## 6. The bugs still open
 
+**Lazy `localStorage` initialisers — FIXED.** Both remaining sites use
+`lib/use-persisted-state` now. Worth separating what each actually had:
+`team-workspace-shell` had both halves — lazy initialisers (the hydration
+mismatch) AND an unguarded read during render (the throw that takes the member
+surface to the error page). Its `typeof window === 'undefined'` guard made that
+look safe and answers the wrong question: `window` exists in a browser blocking
+site data, where touching `window.localStorage` throws. `tables-shell` already
+restored in an effect, so it never had the mismatch — only four unguarded
+accesses. The `'1'`/`'0'` codec is `parseFlag`/`serialiseFlag` on the hook now
+rather than a fourth hand-rolled copy.
+
+⚠ **Found while measuring, NOT fixed and NOT caused by this change:** on
+`/tables`, restoring a collapsed list on load leaves a half-state — the
+collapsed rail renders but the list panel stays at its full ~296px, so both are
+on screen. Reproduces identically on main (checked by measuring main's own
+`tables-shell.tsx`). The live collapse/expand round trip is fine; only
+restore-on-load is wrong. `MasterDetail` appears to latch its panel-group size
+at mount and ignore a `listCollapsed` that arrives after it — which is every
+restore, since the hook deliberately adopts stored values in an effect. Likely
+affects any MasterDetail screen that persists a collapse. The fix belongs in
+`MasterDetail`, not in the hook.
+
 **Login submit has no catch — FIXED.** The handler was try/finally with no
 catch, so a rejected fetch escaped as an unhandled rejection while `finally`
 re-enabled the form and showed nothing. Reproduced in a browser (stub fetch to
@@ -177,12 +199,6 @@ reproduction.
 
 From the audit's §1, none of them fixed:
 
-- **Lazy `localStorage` initialisers**, in `team-workspace-shell` and
-  `tables-shell`. `files-client` was fixed in v0.6.64 —
-  `client/web/lib/use-persisted-state.ts` is the hook to reuse, and the fix is
-  two lines per site. The team shell reads storage unguarded _during render_,
-  which throws outright in a browser blocking site data and takes the whole
-  member surface to the error page.
 - **Asset token never refreshes.** The `['shell']` query runs once per mount; a
   tab open past the token TTL 401s on every image, iframe and download until
   reload.
