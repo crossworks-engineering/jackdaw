@@ -179,9 +179,10 @@ headless session.
    of the three that rewrites rendered markup rather than swapping a class, so
    it wants eyes on a running app rather than a scripted pass.
 
-Also open, smaller: the seven medium bugs in the audit's §1; memoising the
-individual assistant turn row and rendering settled turns as static HTML;
-`desktop.yml` and `release.yml` still pin the deprecated Node 20 action line.
+Also open, smaller: memoising the individual assistant turn row and rendering
+settled turns as static HTML. (The seven medium bugs are closed, and both
+release workflows are on the current action majors — see
+`docs/handover-audit-remainder.md`, which is the live list now.)
 
 ---
 

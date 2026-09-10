@@ -1,8 +1,8 @@
 # Handover: what is left of the frontend audit
 
-Rewritten 2026-09-10 at **v0.6.78**, tagged and green. This replaces the
-patchwork the previous version had become — everything below is open unless it
-says otherwise, and what is closed lives in the audit rather than here.
+Rewritten 2026-09-10 at **v0.6.78**, and updated the same day after the
+`fix/audit-remainder` branch. Everything below is open unless it says
+otherwise, and what is closed lives in the audit rather than here.
 
 - **The audit** is the authority and is current:
   <https://claude.ai/code/artifact/216dc6be-2285-424f-bc90-72ed7410942e>
@@ -12,9 +12,22 @@ says otherwise, and what is closed lives in the audit rather than here.
 
 **Where it stands.** Every medium and med-low bug in the audit's §1 is closed,
 each with tests; the CSP is fully emitted; `assistant-client` phase 2 is done.
-536 → 659 unit tests. What is left is one blocking pipeline defect, three items
-that need a person, five low bugs nobody has touched, and a performance
-dimension that has not moved since the audit.
+The release pipeline defect is fixed and shipped. The five low bugs are closed,
+so are both remaining High items — the three per-pointermove drags and the
+missing error boundaries — and the live column no longer polls on every route.
+536 → 668 unit tests.
+
+**What is left needs either a person or a browser.** Three items want a running
+app (the lint backlog, one green e2e, and the `/tables` half-collapse); one
+wants judgement (the dependency majors); the rest of §4 and §7 is ordinary work
+nobody has started.
+
+⚠ **`fix/audit-remainder` is not browser-verified.** Six commits, `pnpm verify`
+green and the production build green, but the rig was left on its sign-in
+screen. Four of them change what the screen does — the drags, the live column's
+cadence, the error boundaries, the theme shuffle — and the ground rules say
+browser-check those against a deployed brain. Do that before it lands. §9 says
+what to check and how.
 
 ---
 
@@ -108,21 +121,31 @@ is imported; make the six web-ui self-imports relative.
 11 silently ignores the `pnpm` field in package.json here, and every override in
 this repo was inert until that was found.
 
-## 4. Performance · untouched since the audit, and now the weakest dimension
+## 4. Performance · the two biggest are done, the rest is untouched
 
-Nothing in the audit's §2 has been done. It scores 8.0 on the strength of the
-v0.6.48/50 work and has not moved since. In rough order of value:
+The audit's §2 scored 8.0 on the strength of the v0.6.48/50 work. Two of its
+items are now closed:
 
-- **The three drags set shell state per pointermove** (the audit's only
-  remaining High): rail, activity and dock-width. Each move re-renders
-  `ShellFrame` and reflows main, aside and the live column. **The popout drag
-  already does it right** — CSS vars via ref during the drag, one commit on
-  release — so this is a pattern to copy, not to invent.
-  `packages/web-ui/src/ui/rail-handle.tsx:104`, `app-shell.tsx`, and
-  `assistant-dock.tsx:441-470` (the good one).
-- **The live column polls `/api/activity` every 5 s on every route**, even
-  collapsed, which is the default. A multiplexed realtime SSE already exists.
-  Confirmed still live in a browser this session.
+- ~~**The three drags set shell state per pointermove**~~ **Done.** The audit's
+  only remaining High. `RailHandle` takes a `liveVar` naming the CSS variable
+  the rail publishes; with it, a POINTER drag writes that variable straight onto
+  the shell root and commits to React once, on release. The keyboard path is
+  deliberately unchanged — one event per press, and a render each is right.
+  Three details in the commit worth reading before touching it again: why the
+  variable is left in place on release, why `aria-valuenow` is written by hand
+  during a drag, and why `data-resizing` had to move to the grab edge.
+- ~~**The live column polls `/api/activity` every 5 s on every route**~~
+  **Done**, but NOT the way the audit suggested. Both cadences are the caller's
+  now: collapsed (the default, on every route) the poll drops to a minute and
+  the relative-time ticker is switched off entirely; expanded, both are 5 s and
+  expanding refetches at once. It is not moved onto `/api/realtime` — that
+  stream carries node changes and activity is traces, so wiring it is a server
+  change, and the stream's own header calls it best-effort ("a ping to refetch,
+  not a data channel"), so a feed on it alone would drop events across a
+  reconnect.
+
+Still open, in rough order of value:
+
 - **Task board fetches 500 tasks unvirtualised**, each a dnd-kit sortable.
   `@tanstack/react-virtual` is already a dependency, used in exactly one place.
 - **The page editor serialises the whole document on every keystroke, twice.**
@@ -136,27 +159,32 @@ route across the seven bug fixes, all of it landing in the app shell. That is
 ~0.06% of a 2 MB route and every increment was measured and reported, but the
 direction is worth knowing before the next person reads the number.
 
-## 5. The five low bugs nobody has touched
+## 5. The five low bugs · all closed
 
-All confirmed still open by reading the tree on 2026-09-10.
+All five fixed in one commit on `fix/audit-remainder`. Recorded here rather than
+dropped, because three of them were not quite what the one-liners said:
 
-- **"Random theme" screensaver rewrites the brain-wide theme.** Every shuffle
-  tick PUTs `/api/profile/color-theme`, which every other browser adopts. The
-  comment says visitor-local. `color-theme-provider.tsx:111`.
-- **ShareReader folder navigation has no sequence guard** — a slow response for
-  one folder can land after a fast one for another. Same shape as the
-  `use-file-search` race fixed in phase 2; a generation counter is the fix.
-  `share-reader.tsx:82-116`.
-- **Concurrent `ensureRendererUrl` can fork two UI servers** in the desktop
-  shell. `uiServer` is a plain module `let` with no in-flight promise memo —
-  `upgradeOwnerCookie` in `api-fetch.ts` is the shape to copy.
-  `client/desktop/src/main/index.ts:195`.
-- **Connectors leak a blank tab**: `window.open('', '_blank')` with no
-  `noopener` at `connectors-client.tsx:137`. The two `authorizeUrl` opens beside
-  it already pass it, so this one is the odd one out.
-- **The dock's `runTurn` uses raw `fetch`** and has **no auth-failure handling
-  at all** — so a 401 there never bounces to login, and therefore never reaches
-  the v0.6.78 session flush either. `assistant-dock.tsx:798`.
+- **"Random theme" screensaver rewrote the brain-wide theme.** Every tick PUT
+  `/api/profile/color-theme`, which every other browser adopts. Shuffles now
+  paint locally and keep their pick in localStorage — which is what preserves
+  the documented "a reload before the next tick keeps the last theme" without
+  the write. Choosing a theme deliberately, or turning the screensaver off,
+  drops the override. The decision is pure and tested (`lib/random-theme.ts`).
+- **ShareReader folder navigation had no sequence guard.** Generation counter,
+  same as `use-file-search`.
+- **Concurrent `ensureRendererUrl` could fork two UI servers.** The in-flight
+  promise is memoised the way `upgradeOwnerCookie` does it. A FAILED boot is
+  deliberately not remembered, so the next window can still try.
+- **Connectors leaked a blank tab — and handed it its opener.** Two bugs. The
+  tab cannot take `noopener` (that returns `null`, and the popup-blocker-safe
+  pattern needs the handle), so it severs `opener` by hand while the tab is
+  still `about:blank`. It was also left open and blank whenever the create came
+  back with no `authorizeUrl`.
+- **The dock's `runTurn` had no auth handling at all.** It now does `apiFetch`'s
+  own check, before the ok-check and before the retry loop — re-POSTing a dead
+  credential only 401s again until the deadline. `bounceToLogin` is exported
+  from `api-fetch` for this; pair it with `isAuthFailure` in any other raw
+  `fetch`.
 
 ## 6. Two findings that are explicitly half-done
 
@@ -174,27 +202,62 @@ the list collapsed, the collapsed rail renders but the list panel stays at its
 full ~296px, so both are on screen at once. Pre-existing, not from the phase 2
 work — verified by measuring main's own `tables-shell.tsx` and getting the
 identical result. The live collapse/expand round trip is fine; only
-restore-on-load is wrong. `MasterDetail` appears to latch its panel-group size
-at mount and ignore a `listCollapsed` arriving after it, which is every restore.
-Likely affects any MasterDetail screen that persists a collapse. **The fix
-belongs in `MasterDetail`, not in `use-persisted-state`** — that hook's
-render-fallback-then-adopt behaviour is deliberate and fixes a hydration
-mismatch documented in its own header.
+restore-on-load is wrong. Likely affects any MasterDetail screen that persists
+a collapse. **The fix belongs in `MasterDetail`, not in `use-persisted-state`**
+— that hook's render-fallback-then-adopt behaviour is deliberate and fixes a
+hydration mismatch documented in its own header.
+
+**One hypothesis was ruled out by reading, and one is left to test.** The
+obvious explanation is that the collapse effect
+(`master-detail.tsx`, `[collapsible, listCollapsed]`) misses the commit where
+the panels mount: on the first render `isDesktop` is null, so the CSS-grid
+branch renders and `listHandle.current` is null, and the effect returns having
+done nothing. But both `useMediaQuery` and `usePersistedState` adopt in
+post-mount effects that flush together, so `isDesktop` and `listCollapsed` flip
+in the SAME commit — the effect re-runs with the ref populated, and
+`panel.collapse()` is called. So that is probably not it.
+
+What is left, and what to check first in a browser: whether `collapse()` is
+called and then OVERWRITTEN by the panel group applying its saved
+`defaultLayout`, which holds the width the user last dragged
+(`master-detail:tables` in localStorage, and `onlySaveAfterUserInteractions`
+keeps a 0 out of it). Put a breakpoint or a log in that effect; if it fires and
+the panel is still 296px a frame later, the restore is the thing to fix, not the
+effect. Reproduce with the list collapsed and a width previously dragged.
 
 ## 7. Smaller, still carried
 
-- **No React error boundaries** around Excalidraw, TipTap, the table grid or the
-  app sandbox, and no `global-error.tsx` / `not-found.tsx` / `loading.tsx`. A
-  throw in any editor unmounts the whole route. (The audit calls this High.)
+- ~~**No React error boundaries**~~ **Done.** `SurfaceErrorBoundary` wraps the
+  four surfaces that parse documents written elsewhere — Excalidraw, TipTap, the
+  table grid, the app sandbox (five mounts of it). It resets two ways: "Try
+  again" remounts the subtree, and `resetKeys` clears the error when the thing
+  being viewed changes, without which one drawing that will not open makes the
+  NEXT drawing unopenable. `global-error.tsx` and `not-found.tsx` land with it.
+  **`loading.tsx` is deliberately not added** — it is not a bug, and adding one
+  changes how every navigation in the app feels, which wants someone looking at
+  it rather than a sweep.
 - **No consistent offline, 5xx or 403 experience.** Only 401 is handled
   centrally.
 - **Mobile-broken screens**: inbox three-pane, studio, team-chat access split,
   table grid. `useIsMobile` is used by no app screen.
-- **`rel="noopener"`** missing at ~22 `target="_blank"` sites.
-- **`desktop.yml` and `release.yml` pin the deprecated action line**
-  (`checkout@v4`, `pnpm/action-setup@v4`, `setup-node@v4`) while `verify.yml` is
-  current. They ran green cutting v0.6.78 — but see §0; that file needs opening
-  anyway, so do both at once.
+- ~~**`rel="noopener"` missing at ~22 `target="_blank"` sites**~~ **It was
+  two, not twenty-two.** `rel="noreferrer"` IMPLIES `noopener` per the HTML
+  spec, and twenty-one of the sites already carried it — sweeping them would
+  have changed nothing. The one genuinely open link (the share panel's "Open
+  link") is fixed, and `house/require-noopener` now holds the line, straight to
+  `error`. The remaining one cannot be fixed here: `<base target="_blank">` in
+  the email reading pane takes no `rel`, and the anchors belong to the email,
+  whose sanitiser runs on the brain. What it actually costs is written beside
+  it in `reading-pane.tsx`, and it is small.
+- ~~**`desktop.yml` and `release.yml` pin the deprecated action line**~~
+  **Done.** Both are on verify.yml's majors now. `download-artifact` went to
+  **v7, not the current v8**, deliberately: v8 turns a hash mismatch into a hard
+  failure and stops unzipping by content type, and neither belongs in a workflow
+  whose first test run is a release. The docker/* pins in release.yml are
+  untouched on purpose — a different vendor, not what was flagged, and bundling
+  them would give a broken next release two candidate causes. **Neither file is
+  testable from a pull request**; the evidence for the pins is verify.yml
+  running them green since v0.6.46.
 - **Hover-only affordances with no keyboard reveal**, native controls where kit
   ones exist — the per-screen tail of the accessibility work.
 - **`assistant-client` phase 3** (split by what the user is looking at) is not
@@ -234,3 +297,39 @@ end.
 result looked like a regression and was not — the `/tables` half-collapse and
 the dock's "isn't available" — and checking main's version rather than assuming
 is what separated them. It takes two commands.
+
+## 9. What `fix/audit-remainder` still owes a browser
+
+The branch is `pnpm verify` green (typecheck clean, 668 tests, 188 warnings
+against the cap, prettier clean) and `pnpm -C client/web build` green. None of
+it has been in front of a signed-in session — the rig in
+`docs/handover-verification.md` §2 was brought up on `:3000` against the dev
+brain and left on its login screen, which nobody but a person can get past.
+
+Check these, from the console rather than by eye (§8):
+
+1. **The three drags.** Grab each rail and watch the frame: it should track the
+   pointer without the 200ms ease, and React should commit once. The proof that
+   the live path is the one running is that `--nav-w` on `.mantle-shell`
+   changes during the drag while the React tree does not re-render. Also
+   confirm `aria-valuenow` on the handle follows the drag, and that the
+   keyboard path (arrows, shift-arrows, Home/End) still moves in 8/32px steps
+   and lands on the same arithmetic §3 of the verification handover recorded.
+2. **The error boundaries.** Throw on purpose — the boundaries are the one
+   thing here with no unit test, because there is no jsdom in this suite. On
+   `/draw/[id]`, `/pages/[id]`, `/tables/[id]` and `/apps/[id]`, make the child
+   throw and confirm the surrounding screen SURVIVES: header, toolbar, list
+   panel all still there and still working. Then check both resets — "Try
+   again" remounts, and navigating to a different id clears a stuck error.
+3. **The live column's cadence.** Network panel, collapsed: `/api/activity`
+   should be a minute apart, and the column should not re-render between polls.
+   Expand it: the request should fire immediately and then every 5 s.
+4. **The theme shuffle.** With the screensaver on, a tick must NOT produce a
+   `PUT /api/profile/color-theme` — that is the whole bug. Then reload before
+   the next tick is due and confirm the shuffled theme comes back, and that
+   choosing a theme in Settings → Appearance drops the override.
+5. **`/tables` half-collapse**, per §6 — the one item on this list that is
+   diagnosis rather than verification.
+
+While signed in, the two other browser-gated items are worth the same trip: the
+CSP click-through if it has not been done, and a start on §1's raw controls.

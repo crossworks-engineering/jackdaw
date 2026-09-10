@@ -58,10 +58,15 @@ by bearer rather than cookie — the split topology, not the same-origin one the
 default deployment uses. That is extra coverage, but it means a same-origin-only
 bug will not show here.
 
-**As of this handover the rig is left running** on `:3000`, pointed at the dev
-brain. `.env.detached.local` previously named a workstation on `:3999` that was
-not answering; a copy of the original line is in the session scratchpad, and it
-is one line to put back.
+**Bringing it up is one command; getting past the login screen is not.** A
+session with no credentials can start `pnpm dev:fe`, reach the sign-in form and
+go no further — which is where `fix/audit-remainder` stopped. Plan for that: do
+the headless work first and batch every browser check into one signed-in pass.
+`docs/handover-audit-remainder.md` §9 is the current batch.
+
+Check nothing is already serving before starting anything —
+`ss -ltnp | grep -E ':(3000|3100|3901)'`, and the safe-start prompt in the dev
+brain's registry map is the full procedure.
 
 **Verifying from the console beats verifying by eye.** Everything in §3 was
 measured with `javascript_tool` against the live DOM rather than read off a
