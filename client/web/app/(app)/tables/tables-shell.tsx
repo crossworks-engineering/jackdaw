@@ -23,6 +23,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { TagPill } from '@mantle/web-ui/tag-pill';
+import { parseFlag, serialiseFlag, usePersistedState } from '@/lib/use-persisted-state';
 import { ListCard, ListCardMeta, ListCardTags, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
@@ -124,7 +125,17 @@ export function TablesShell() {
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TableRow | null>(null);
 
-  const [collapsed, setCollapsed] = useState(false);
+  // The list's collapse, restored after hydration. The effect below already
+  // kept this out of the first render; what it did NOT do is guard the access —
+  // reading or writing localStorage THROWS in a browser set to block site data,
+  // and neither call site was in a try. Same hook as every other persisted
+  // preference now, which owns both halves.
+  const [collapsed, setCollapse] = usePersistedState(
+    'tables.listCollapsed',
+    false,
+    parseFlag,
+    serialiseFlag,
+  );
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -141,11 +152,7 @@ export function TablesShell() {
     go({ selected: id });
   };
 
-  // Restore the persisted collapse after mount (avoids SSR hydration drift).
   // The WIDTH is `MasterDetail`'s now, under `master-detail:tables`.
-  useEffect(() => {
-    setCollapsed(localStorage.getItem('tables.listCollapsed') === '1');
-  }, []);
 
   useRealtime(['table'], () => {
     void queryClient.invalidateQueries({ queryKey: ['tables'] });
@@ -159,11 +166,6 @@ export function TablesShell() {
     }, 350);
     return () => clearTimeout(h);
   }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const setCollapse = (v: boolean) => {
-    setCollapsed(v);
-    localStorage.setItem('tables.listCollapsed', v ? '1' : '0');
-  };
 
   const openCreate = () => {
     setNewTitle('');

@@ -45,6 +45,38 @@ export function oneOf<T extends string>(...allowed: readonly T[]) {
   return (s: string): T | null => (allowed.includes(s as T) ? (s as T) : null);
 }
 
+/**
+ * A flag stored as `'1'`/`'0'` — what every shell in this app already writes.
+ * Anything else is not a choice anyone made, so the fallback stands.
+ *
+ * Here rather than beside each caller because there are four of them, and four
+ * hand-rolled copies of a two-value codec is how they drift.
+ */
+export function parseFlag(raw: string): boolean | null {
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  return null;
+}
+
+export function serialiseFlag(on: boolean): string {
+  return on ? '1' : '0';
+}
+
+/**
+ * An integer pinned inside bounds. Storage is hand-editable and survives a
+ * build that changed the bounds, so an out-of-range number is CLAMPED rather
+ * than rejected — a rail saved at 900px should come back at the maximum, not
+ * at the default, which is a different width from the one the user chose.
+ * Junk that is not a number at all falls back.
+ */
+export function clampedInt(min: number, max: number) {
+  return (raw: string): number | null => {
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.min(max, Math.max(min, parsed));
+  };
+}
+
 export function usePersistedState<T>(
   key: string,
   fallback: T,

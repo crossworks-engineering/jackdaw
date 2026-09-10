@@ -34,18 +34,6 @@ export function draftStorageKey(agentSlug?: string | null): string {
  *  that can vary per render is a bug waiting for someone to make it vary. */
 export const SHARE_LOCATION_KEY = 'mantle_assistant_share_location';
 
-/** Stored as '1'/'0'. Anything else — an older build, a hand-edited value,
- *  or the `null` of an absent key — is not a choice, so the fallback stands. */
-export function parseShareLocation(raw: string): boolean | null {
-  if (raw === '1') return true;
-  if (raw === '0') return false;
-  return null;
-}
-
-export function serialiseShareLocation(on: boolean): string {
-  return on ? '1' : '0';
-}
-
 /** The scroller geometry these functions need — the three numbers every
  *  scrollable element reports, named so a test needs no DOM. */
 export type ScrollMetrics = {

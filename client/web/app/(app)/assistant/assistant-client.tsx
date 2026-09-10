@@ -16,8 +16,6 @@ import type { Artifact, Message } from './assistant-turns';
 import {
   SHARE_LOCATION_KEY,
   createTurnSettleGuard,
-  parseShareLocation,
-  serialiseShareLocation,
   draftStorageKey,
   isNearBottom,
   mergeOlder,
@@ -25,7 +23,7 @@ import {
   wantsPreviewUrl,
 } from './assistant-thread-state';
 import { useVoiceInput } from './use-voice-input';
-import { usePersistedState } from '@/lib/use-persisted-state';
+import { parseFlag, serialiseFlag, usePersistedState } from '@/lib/use-persisted-state';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
@@ -340,8 +338,8 @@ export function AssistantClient({
   const [shareLocation, setShareLocation] = usePersistedState(
     SHARE_LOCATION_KEY,
     false,
-    parseShareLocation,
-    serialiseShareLocation,
+    parseFlag,
+    serialiseFlag,
   );
 
   const scrollerRef = useRef<HTMLDivElement>(null);

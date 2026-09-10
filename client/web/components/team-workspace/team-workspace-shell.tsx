@@ -53,6 +53,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Badge } from '@mantle/web-ui/ui/badge';
+import { clampedInt, parseFlag, serialiseFlag, usePersistedState } from '@/lib/use-persisted-state';
 import { Button } from '@mantle/web-ui/ui/button';
 import { navItemMatches } from '@mantle/web-ui/layout/nav-items';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@mantle/web-ui/ui/sheet';
@@ -138,18 +139,9 @@ const NAV_W_MAX = 400;
 const NAV_W_KEY = 'mantle_team_nav_w';
 const NAV_COLLAPSED_KEY = 'mantle_team_nav_collapsed';
 
-/** Read a stored width. Hand-editable storage, so junk has to survive. */
-function readStoredWidth(): number {
-  if (typeof window === 'undefined') return NAV_W_DEFAULT;
-  const parsed = Number.parseInt(window.localStorage.getItem(NAV_W_KEY) ?? '', 10);
-  if (!Number.isFinite(parsed)) return NAV_W_DEFAULT;
-  return Math.min(NAV_W_MAX, Math.max(NAV_W_MIN, parsed));
-}
-
-function readStoredCollapsed(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(NAV_COLLAPSED_KEY) === '1';
-}
+/** Hand-editable storage, so junk has to survive; module-level so the hook's
+ *  setter keeps a stable identity. */
+const parseNavWidth = clampedInt(NAV_W_MIN, NAV_W_MAX);
 
 const WorkspaceContext = createContext<WorkspaceData | null>(null);
 
@@ -362,32 +354,50 @@ export function TeamWorkspaceShell({ children }: { children: ReactNode }) {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null); // null = resolving
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  // Seeded from localStorage in a lazy initializer. The `typeof window` guard
-  // inside the reader is load-bearing: this component DOES render on the
-  // server (it returns the loading branch), and an unguarded read throws there.
-  const [navWidth, setNavWidth] = useState(readStoredWidth);
-  const [navCollapsed, setNavCollapsed] = useState(readStoredCollapsed);
+  // Both come back from localStorage AFTER hydration, never during render.
+  //
+  // They were lazy initializers reading storage directly, and the `typeof
+  // window` guard in the reader made that look safe. It was not, in two ways.
+  // It renders the default on the server and the stored value on the client's
+  // first render, which is what a hydration mismatch IS — React keeps the
+  // server's markup and the client's state, so the rail could sit at a width
+  // nobody chose until something else re-rendered it. And the guard answers
+  // the wrong question: `window` exists in a browser set to block site data,
+  // where touching `window.localStorage` THROWS — during render, in a
+  // component with no error boundary above it, which is what put the whole
+  // member surface on the error page.
+  const [navWidth, setNavWidth] = usePersistedState(
+    NAV_W_KEY,
+    NAV_W_DEFAULT,
+    parseNavWidth,
+    String,
+  );
+  const [navCollapsed, setNavCollapsed] = usePersistedState(
+    NAV_COLLAPSED_KEY,
+    false,
+    parseFlag,
+    serialiseFlag,
+  );
   // True for the duration of a resize, by pointer OR keyboard. Published as
   // `data-resizing` on the shell root, where one rule suspends the width
   // transition — without it the rail eases 200ms behind the pointer.
   const [resizing, setResizing] = useState(false);
   const resizeIdle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const applyNavWidth = useCallback((px: number) => {
-    setResizing(true);
-    setNavWidth(px);
-    window.localStorage.setItem(NAV_W_KEY, String(px));
-    if (resizeIdle.current) clearTimeout(resizeIdle.current);
-    // Restore the transition once the user stops, so a later collapse glides.
-    resizeIdle.current = setTimeout(() => setResizing(false), 250);
-  }, []);
+  const applyNavWidth = useCallback(
+    (px: number) => {
+      setResizing(true);
+      setNavWidth(px); // persists, guarded
+      if (resizeIdle.current) clearTimeout(resizeIdle.current);
+      // Restore the transition once the user stops, so a later collapse glides.
+      resizeIdle.current = setTimeout(() => setResizing(false), 250);
+    },
+    [setNavWidth],
+  );
 
   const toggleCollapsed = useCallback(() => {
-    setNavCollapsed((v) => {
-      window.localStorage.setItem(NAV_COLLAPSED_KEY, v ? '0' : '1');
-      return !v;
-    });
-  }, []);
+    setNavCollapsed(!navCollapsed);
+  }, [navCollapsed, setNavCollapsed]);
 
   const refetch = useCallback(async () => {
     try {
