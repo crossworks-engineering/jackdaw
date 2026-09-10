@@ -166,6 +166,21 @@ function Body({
   if (bodyHtmlSafe) {
     const srcDoc =
       '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">' +
+      // `<base>` cannot carry `rel`, so links out of an email keep a
+      // `window.opener` handle on this iframe. What that buys an attacker is
+      // bounded and worth stating: the popup escapes the sandbox, but its
+      // opener is THIS iframe, which has an opaque origin — so the only
+      // cross-origin move available is writing `opener.location`, which
+      // re-navigates the email body. The replacement still loads under the
+      // same `sandbox` attribute (no scripts, no forms, opaque origin), so it
+      // is static markup in the reading pane, not a credential prompt, and it
+      // cannot reach the page around it: navigating `opener.parent` needs
+      // `allow-top-navigation`, which is not granted.
+      //
+      // The real fix is `rel="noopener"` on each anchor, which belongs in the
+      // sanitiser that produces `bodyHtmlSafe` — that runs on the brain, not in
+      // this repo. Rewriting the HTML here instead would mean pattern-matching
+      // markup, which is the trap the `safeNext()` bug was.
       '<base target="_blank">' +
       `<style>
         html,body{margin:0;padding:16px;background:white;color:#111;font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;word-wrap:break-word;}

@@ -201,7 +201,7 @@ export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
                       asChild
                       aria-label="Open link"
                     >
-                      <Link href={selected.path} target="_blank">
+                      <Link href={selected.path} target="_blank" rel="noopener">
                         <ExternalLink />
                       </Link>
                     </Button>

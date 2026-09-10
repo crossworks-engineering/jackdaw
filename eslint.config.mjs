@@ -197,6 +197,9 @@ export default tseslint.config(
     rules: {
       'house/no-palette-literal': 'error',
       'house/require-thin-scrollbar': 'error',
+      // Straight to `error`, no ratchet: the backlog was two sites, not a
+      // hundred, and both are fixed in the commit that adds this.
+      'house/require-noopener': 'error',
     },
   },
   {

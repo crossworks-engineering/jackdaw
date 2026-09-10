@@ -294,10 +294,60 @@ export const requireThinScrollbar = {
   },
 };
 
+// ── 4. A new tab never gets a handle on this one ─────────────────────────────
+
+/**
+ * `rel` values that sever `window.opener`. `noreferrer` is on the list because
+ * the HTML spec makes it imply `noopener` — which is why the audit's "~22 sites
+ * missing noopener" was, on inspection, two: the other twenty-one already
+ * carried `noreferrer` and were never open. A rule that did not know this would
+ * demand twenty-one edits that change nothing.
+ */
+const OPENER_SAFE = ['noopener', 'noreferrer'];
+
+/**
+ * `target="_blank"` without one of those hands the opened page a live reference
+ * to this one through `window.opener`. It is cross-origin, so it can only write
+ * `opener.location` — which is enough: the page the user came from silently
+ * becomes whatever the page they went to says it should be.
+ *
+ * Only literal `target="_blank"` is checked. A computed target
+ * (`target={x ? '_blank' : undefined}`) is not something a linter can decide,
+ * and guessing would either miss it or cry wolf; there are none in the tree.
+ */
+export const requireNoopener = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'target="_blank" must sever window.opener' },
+    schema: [],
+    messages: {
+      missing:
+        'target="_blank" with no rel="noopener" (or "noreferrer", which implies it) — the opened page can navigate this one through window.opener.',
+    },
+  },
+  create(context) {
+    return {
+      JSXOpeningElement(node) {
+        const target = node.attributes.find(
+          (a) => a.type === 'JSXAttribute' && a.name?.name === 'target',
+        );
+        if (target?.value?.type !== 'Literal' || target.value.value !== '_blank') return;
+        const rel = node.attributes.find(
+          (a) => a.type === 'JSXAttribute' && a.name?.name === 'rel',
+        );
+        const value = rel?.value?.type === 'Literal' ? String(rel.value.value) : '';
+        if (value.split(/\s+/).some((t) => OPENER_SAFE.includes(t))) return;
+        context.report({ node: rel ?? node, messageId: 'missing' });
+      },
+    };
+  },
+};
+
 export default {
   rules: {
     'no-palette-literal': noPaletteLiteral,
     'no-raw-form-control': noRawFormControl,
     'require-thin-scrollbar': requireThinScrollbar,
+    'require-noopener': requireNoopener,
   },
 };

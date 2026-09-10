@@ -4,6 +4,7 @@ import {
   findPaletteLiterals,
   noPaletteLiteral,
   noRawFormControl,
+  requireNoopener,
   requireThinScrollbar,
   scrollsWithoutThinBar,
   // @ts-expect-error — plain-JS rule module, no types shipped.
@@ -151,5 +152,45 @@ describe('require-thin-scrollbar precision', () => {
       ],
     });
     expect(true).toBe(true);
+  });
+});
+
+describe('require-noopener', () => {
+  it('accepts every shape that severs the opener, and flags the one that does not', () => {
+    tester.run('require-noopener', requireNoopener, {
+      valid: [
+        { code: 'const a = <a href="/x" target="_blank" rel="noopener">x</a>;' },
+        // `noreferrer` IMPLIES `noopener` per the HTML spec. This case is why
+        // the audit's "~22 sites missing noopener" was really two — a rule that
+        // did not know it would demand twenty-one edits that change nothing.
+        { code: 'const a = <a href="/x" target="_blank" rel="noreferrer">x</a>;' },
+        { code: 'const a = <a href="/x" target="_blank" rel="noopener noreferrer">x</a>;' },
+        { code: 'const a = <a href="/x" target="_blank" rel="noreferrer noopener">x</a>;' },
+        // Same-tab links are not this rule's business.
+        { code: 'const a = <a href="/x">x</a>;' },
+        { code: 'const a = <a href="/x" target="_self">x</a>;' },
+        // Next's <Link> is an anchor by the time it renders, so it is held to
+        // the same standard — this is the real fix from shared-links-panel.
+        { code: 'const a = <Link href={p} target="_blank" rel="noopener" />;' },
+        // A computed target is not something a linter can decide; guessing
+        // would either miss it or cry wolf, so it is deliberately ignored.
+        { code: "const a = <a href='/x' target={wide ? '_blank' : undefined} />;" },
+      ],
+      invalid: [
+        {
+          code: 'const a = <a href="/x" target="_blank">x</a>;',
+          errors: [{ messageId: 'missing' }],
+        },
+        {
+          code: 'const a = <Link href={p} target="_blank" />;',
+          errors: [{ messageId: 'missing' }],
+        },
+        // A rel that carries something else entirely does not count.
+        {
+          code: 'const a = <a href="/x" target="_blank" rel="nofollow">x</a>;',
+          errors: [{ messageId: 'missing' }],
+        },
+      ],
+    });
   });
 });
