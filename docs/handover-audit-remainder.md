@@ -144,6 +144,27 @@ this repo was inert until that was found.
 
 ## 6. The bugs still open
 
+**Dock turn subscription — FIXED.** Three defects, one shape. No disposer was
+kept (`stop()` lived only inside the done/error handlers, so nothing could end
+the stream — not a superseding turn, not unmount — and with reconnect-forever a
+dead turn's stream could retry for the life of the tab). No ending was reported
+(a 404 returns silently, an outage retries forever, so the terminal `done` the
+bubble waits for never arrives). And the bubble now settles exactly once across
+all three announcers.
+
+**The root cause of the audit's own note** that "owner consumers pass no
+`onExhausted`": `apiEventStream` did not FORWARD `maxAttempts`/`onExhausted` —
+only `teamEventStream` did. Owner consumers had no way to ask. The owner
+wrapper carries both now; omitting them is still reconnect-forever, which owner
+realtime relies on. 5 tests on the contract.
+
+⚠ **Not observed end-to-end in a browser.** Each link is verified separately —
+the dock passes the options, and a test pins that a 404 fires `onExhausted` —
+but the composition was not seen settling a real bubble. Reproducing the
+stranding needs a turn whose stream fails, and stubbing a fake turn id also
+strands `assistant-client`'s own (separate) reconcile path, which is what ends
+up on screen. Worth a look if a real stream failure is ever reproducible.
+
 **Lazy `localStorage` initialisers — FIXED.** Both remaining sites use
 `lib/use-persisted-state` now. Worth separating what each actually had:
 `team-workspace-shell` had both halves — lazy initialisers (the hydration
@@ -202,10 +223,6 @@ From the audit's §1, none of them fixed:
 - **Asset token never refreshes.** The `['shell']` query runs once per mount; a
   tab open past the token TTL 401s on every image, iframe and download until
   reload.
-- **Dock turn subscription can never be torn down.** No disposer is stored, so a
-  silent 404 exit leaves the bubble pending and `busy` true app-wide until
-  reload. Same family as the team-stream 404 fixed in v0.6.53, but a different
-  site.
 - **Query cache survives sign-out.** A second user signing in on the same tab
   first paints the previous user's profile and messages from cache.
 - **Session expiry mid-edit** loses up to 8 s of typing: `bounceToLogin` is a
