@@ -1,10 +1,10 @@
 # Handover: what is left of the frontend audit
 
 Written 2026-09-09, at v0.6.67 — **released and published**, so the box can
-reach it for the first time since August.
+reach it for the first time since August. Updated 2026-09-10: item 1 is done.
 
-Of the audit's nine worklist items, seven are done, the CSP is half done and
-dependency decisions are untouched. The structure work, which was never a
+Of the audit's nine worklist items, eight are done (the CSP is closed on
+`fix/csp-meta`, not yet merged) and dependency decisions are untouched. The structure work, which was never a
 worklist item, is three quarters done. This file is what remains, in the order
 worth doing it, with what is already known about each so nobody re-derives it.
 
@@ -18,37 +18,51 @@ The companions, all current:
 
 ---
 
-## 1. Finish the CSP · the last security item
+## 1. ~~Finish the CSP~~ · done, on `fix/csp-meta`
 
-**Half of it ships already.** `base-uri`, `object-src` and `frame-ancestors`
-are enforced as a header on every response. The half that names the brain —
-`connect-src` above all, which is what actually stops an injected script
-posting the 30-day bearer to an attacker — is written, unit-tested, and **not
-emitted**.
+`buildRuntimeCsp()` is emitted as a `<meta http-equiv>` from the root layout,
+which reads `MANTLE_SERVER_ORIGIN` per request. Verified signed in against the
+dev brain: `connect-src` names the brain, so the claim in `token-store.ts` is
+now true.
 
-`buildRuntimeCsp()` in `client/web/lib/csp.ts` is the function waiting. Render
-it as a `<meta http-equiv>` from the root layout.
+**Running it found two directives wrong**, neither of which throws — which is
+the whole reason this one waited for a session:
 
-**Read `docs/handover-frontend-audit.md` §5 before you start.** The reason it
-cannot be a header is measured, not assumed: `process.env` resolves at BUILD
-time in `next.config.ts`'s `headers()` and in middleware on both runtimes — the
-built middleware bundle contains zero references to the variable. Only server
-components and route handlers see runtime env, which is why `/env.js` works and
-why meta is the path. Meta supports every directive except `frame-ancestors`,
-which is header-only and needs no origin, so the split falls out cleanly.
+- **`frame-src 'self' blob:` blocked three surfaces.** All three resolve to the
+  brain, and all three are cross-origin _only in a split deployment_, so they
+  are invisible on the monolith: the mini-app sandbox, which navigates its
+  opaque-origin iframe to `${apiBase}/frame`; the Files PDF preview; and the
+  share preview panel. The brain was already trusted by every other directive.
+- **`img-src` without `https:` blocked every remote image in an email body**,
+  because the reading pane is a `srcdoc` iframe and `srcdoc` inherits the page
+  policy. Blocking them buys no security — `img-src` carries no response back —
+  while breaking every newsletter with no "show images" control to opt in. The
+  end state is the brain's sanitizer proxying those images; then it drops back
+  to the tight list. That is a mantle-repo item, not this one.
 
-Then one signed-in pass with the console open, over the four surfaces that
-frame, eval or load bytes from somewhere unusual: **the mini-app sandbox, the
-drawing canvas, the formula screen, the email reading pane**. Use the rig in
-`docs/handover-verification.md` §2.
+**What was actually exercised**, signed in, with a `securitypolicyviolation`
+listener held across client-side navigation (a full page load resets it):
 
-**A CSP fails closed and silently.** A wrong directive does not throw; it stops
-a feature working and nobody finds out until a user does. The console is the
-only test, which is why this one has waited for a session rather than being
-shipped on reasoning.
+- twelve routes clicked through in-app — zero violations;
+- the Files cross-origin image preview, loading from the brain via the `?at=`
+  asset token — no violation;
+- the mini-app sandbox's exact shape, `${apiBase}/frame` framed with
+  `sandbox="allow-scripts"` — permitted;
+- the email body's exact shape, a `srcdoc` iframe with a remote image — loads,
+  where it measured zero before the fix.
 
-**Done when** a signed-in pass produces no violations and `connect-src` names
-the brain, making the claim in `token-store.ts` true.
+**Three things could not be exercised on the dev brain** and are still worth a
+look wherever they exist: a real mini-app (the only app there has no published
+build), a real email (no account connected), and a PDF preview (no PDF in
+files). The first two had their mechanism tested directly, as above; the PDF is
+the same `frame-src` + `assetUrl` shape as the sandbox probe.
+
+**Two traps for whoever verifies a CSP next.** A blocked iframe still fires its
+`load` event, so rendering proves nothing — the violation record is the only
+honest signal. And the Chrome console tool does not capture CSP violations at
+all: a deliberate control violation produced no console output, so a "clean
+console" sweep through it is worthless. Use the `securitypolicyviolation`
+listener, and prove it is alive with a control before trusting a quiet result.
 
 ## 2. `assistant-client` phase 2 · unblocked now
 
