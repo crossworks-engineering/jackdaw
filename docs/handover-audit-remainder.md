@@ -144,6 +144,23 @@ this repo was inert until that was found.
 
 ## 6. The bugs still open
 
+**Query cache survives sign-out — FIXED.** It survives because signing out is
+a CLIENT navigation: a 401 bounce is a full page load and takes the heap with
+it, which is why this was never seen there. Three things outlived the session,
+not one — the query cache, the short-lived asset token (which in a split
+deployment signs every `<img>`/`<iframe>`/download src, so the previous owner's
+token rode in the next session's URLs), and the cookie-upgrade memo (left set,
+the next session finds the upgrade already "done", holds no cookie, and 401s on
+every asset). `performSignOut` resets the two module singletons directly; the
+query client is React-owned so it registers through a new `onSignOut` registry
+— a registry rather than a parameter because there are two sign-out buttons and
+nothing stops a third. The team surface has no sign-out control, so no sibling.
+6 tests.
+
+⚠ **Not browser-verified**, and deliberately: confirming it end to end means
+signing out and back in, which needs a password. The mechanism is under test
+instead.
+
 **Dock turn subscription — FIXED.** Three defects, one shape. No disposer was
 kept (`stop()` lived only inside the done/error handlers, so nothing could end
 the stream — not a superseding turn, not unmount — and with reconnect-forever a
@@ -223,8 +240,6 @@ From the audit's §1, none of them fixed:
 - **Asset token never refreshes.** The `['shell']` query runs once per mount; a
   tab open past the token TTL 401s on every image, iframe and download until
   reload.
-- **Query cache survives sign-out.** A second user signing in on the same tab
-  first paints the previous user's profile and messages from cache.
 - **Session expiry mid-edit** loses up to 8 s of typing: `bounceToLogin` is a
   full navigation, so React unmount flushes never run. Only Draw has a
   `pagehide` flush.
