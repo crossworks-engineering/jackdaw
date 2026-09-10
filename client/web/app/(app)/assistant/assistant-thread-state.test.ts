@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   NEAR_BOTTOM_PX,
+  createTurnSettleGuard,
   draftStorageKey,
   isNearBottom,
   mergeOlder,
@@ -160,5 +161,64 @@ describe('wantsPreviewUrl', () => {
     // `startsWith` on the full type, so nothing that only mentions "image"
     // downstream of the slash slips through.
     expect(wantsPreviewUrl(file('application/image-manifest'))).toBe(false);
+  });
+});
+
+describe('createTurnSettleGuard', () => {
+  it('lets the first announcer settle the turn', () => {
+    expect(createTurnSettleGuard().claim('turn-1')).toBe(true);
+  });
+
+  it('refuses the second announcer for the same turn', () => {
+    // The real case: the stream's terminal `done` and the 3s safety poll both
+    // fire on a healthy turn, and settling awaits a round-trip between them.
+    const guard = createTurnSettleGuard();
+    expect(guard.claim('turn-1')).toBe(true);
+    expect(guard.claim('turn-1')).toBe(false);
+  });
+
+  it('refuses a re-entrant claim however many times it comes', () => {
+    // The stream-phase effect can also re-run on its own, whenever one of its
+    // callback identities changes while the phase is still 'done'.
+    const guard = createTurnSettleGuard();
+    guard.claim('turn-1');
+    expect([guard.claim('turn-1'), guard.claim('turn-1'), guard.claim('turn-1')]).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('refuses the OTHER verdict too, so one turn cannot both succeed and fail', () => {
+    // done and failed are claimed through the same guard: a poll reading a
+    // stale row must not put an error banner over a reply that arrived.
+    const guard = createTurnSettleGuard();
+    expect(guard.claim('turn-1')).toBe(true); // reconcileDone
+    expect(guard.claim('turn-1')).toBe(false); // failActiveTurn
+  });
+
+  it('still lets the NEXT turn settle', () => {
+    // Keyed by turn, not a flag, so nothing has to remember to reset it.
+    const guard = createTurnSettleGuard();
+    guard.claim('turn-1');
+    expect(guard.claim('turn-2')).toBe(true);
+  });
+
+  it('does not strand the next turn when a settle throws mid-flight', () => {
+    // A claimed turn that never finishes settling must not lock the guard: the
+    // key moves on with the next turn regardless.
+    const guard = createTurnSettleGuard();
+    guard.claim('turn-1');
+    expect(guard.claim('turn-2')).toBe(true);
+    expect(guard.settledTurn()).toBe('turn-2');
+  });
+
+  it('claims synchronously, which is the entire point', () => {
+    // Both callers claim before their first await. If the claim were deferred
+    // by even a microtask, both would pass it — so assert it takes effect
+    // within the same synchronous block.
+    const guard = createTurnSettleGuard();
+    const results = [guard.claim('t'), guard.claim('t')];
+    expect(results).toEqual([true, false]);
   });
 });

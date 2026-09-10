@@ -15,6 +15,9 @@ import { buildContextPreamble, groupTurns } from './assistant-turns';
 import type { Artifact, Message } from './assistant-turns';
 import {
   SHARE_LOCATION_KEY,
+  createTurnSettleGuard,
+  parseShareLocation,
+  serialiseShareLocation,
   draftStorageKey,
   isNearBottom,
   mergeOlder,
@@ -22,6 +25,7 @@ import {
   wantsPreviewUrl,
 } from './assistant-thread-state';
 import { useVoiceInput } from './use-voice-input';
+import { usePersistedState } from '@/lib/use-persisted-state';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
@@ -329,19 +333,16 @@ export function AssistantClient({
   }, []);
 
   // ── Share-location toggle ──
-  // Sticky opt-in (persisted): when on, each send attaches a fresh browser
-  // geolocation fix to the turn — the same `location` wire contract the companion
-  // uses, so the agent gets an origin for "where am I" / routing. Off by default;
-  // the browser owns the actual permission prompt. Geolocation needs a secure
-  // context (HTTPS/localhost), which prod + dev both satisfy.
-  const [shareLocation, setShareLocation] = useState(false);
-  useEffect(() => {
-    try {
-      setShareLocation(localStorage.getItem(SHARE_LOCATION_KEY) === '1');
-    } catch {
-      /* private mode / no storage — default off */
-    }
-  }, []);
+  // Sticky opt-in: when on, each send attaches a fresh browser geolocation fix
+  // to the turn — the same `location` wire contract the companion uses, so the
+  // agent gets an origin for "where am I" / routing. Off by default; the browser
+  // owns the permission prompt, and needs a secure context (HTTPS/localhost).
+  const [shareLocation, setShareLocation] = usePersistedState(
+    SHARE_LOCATION_KEY,
+    false,
+    parseShareLocation,
+    serialiseShareLocation,
+  );
 
   const scrollerRef = useRef<HTMLDivElement>(null);
   // Wraps the scroller's content; watched by a ResizeObserver so we can re-pin to
@@ -531,6 +532,10 @@ export function AssistantClient({
   // and freeze the thought trail onto the reply; `error` → surface it. A short
   // safety poll backs them up in case the terminal event is missed (NOTIFY has
   // no backlog, so a reconnect mid-turn could drop it).
+  // A turn settles exactly once — createTurnSettleGuard carries why that needs
+  // a synchronous claim rather than `pendingTurnRef`.
+  const settleGuard = useRef(createTurnSettleGuard());
+
   const endActiveTurn = useCallback(() => {
     setSending(false);
     setStopping(false);
@@ -574,6 +579,8 @@ export function AssistantClient({
 
   const reconcileDone = useCallback(
     async (optimisticId: string) => {
+      // Claimed before the await below, which is where the other announcer lands.
+      if (!settleGuard.current.claim(optimisticId)) return;
       const trail = trailRef.current;
       const outboundId = outboundIdRef.current;
       if (outboundId) fetchSuggestion(outboundId);
@@ -607,6 +614,9 @@ export function AssistantClient({
 
   const failActiveTurn = useCallback(
     (optimisticId: string, message: string) => {
+      // Same claim: one turn, one verdict — a stale poll must not fail a turn
+      // the stream already reconciled as done.
+      if (!settleGuard.current.claim(optimisticId)) return;
       setError(message);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       endActiveTurn();
@@ -745,11 +755,6 @@ export function AssistantClient({
   const toggleShareLocation = useCallback(async () => {
     if (shareLocation) {
       setShareLocation(false);
-      try {
-        localStorage.setItem(SHARE_LOCATION_KEY, '0');
-      } catch {
-        /* no storage */
-      }
       return;
     }
     const fix = await getBrowserLocation();
@@ -760,12 +765,7 @@ export function AssistantClient({
       return;
     }
     setShareLocation(true);
-    try {
-      localStorage.setItem(SHARE_LOCATION_KEY, '1');
-    } catch {
-      /* no storage */
-    }
-  }, [shareLocation, getBrowserLocation]);
+  }, [shareLocation, setShareLocation, getBrowserLocation]);
 
   // `textOverride` is the suggestion-chip path: Enter on an EMPTY composer
   // sends the proposed follow-up verbatim (setDraft-then-submit would read the

@@ -34,6 +34,18 @@ export function draftStorageKey(agentSlug?: string | null): string {
  *  that can vary per render is a bug waiting for someone to make it vary. */
 export const SHARE_LOCATION_KEY = 'mantle_assistant_share_location';
 
+/** Stored as '1'/'0'. Anything else — an older build, a hand-edited value,
+ *  or the `null` of an absent key — is not a choice, so the fallback stands. */
+export function parseShareLocation(raw: string): boolean | null {
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  return null;
+}
+
+export function serialiseShareLocation(on: boolean): string {
+  return on ? '1' : '0';
+}
+
 /** The scroller geometry these functions need — the three numbers every
  *  scrollable element reports, named so a test needs no DOM. */
 export type ScrollMetrics = {
@@ -99,4 +111,41 @@ export function mergeOlder(
  */
 export function wantsPreviewUrl(file: File | null): file is File {
   return file !== null && file.type.startsWith('image/');
+}
+
+/**
+ * "A turn settles exactly once."
+ *
+ * A finished turn has TWO independent announcers: the live stream's terminal
+ * `done`/`error` phase, and the 3-second safety poll that exists precisely
+ * because that phase can be missed (NOTIFY has no backlog, so a reconnect
+ * mid-turn drops it). Either may legitimately arrive first, and on a healthy
+ * turn both arrive — the poll is a backup, not an alternative.
+ *
+ * That was fine while the guard was `pendingTurnRef`, right up until settling
+ * became asynchronous. `reconcileDone` awaits a full `/messages` round-trip
+ * before it clears that ref, so for the length of one network call both
+ * announcers still see a live pending turn and both reconcile it. The effect
+ * that watches the stream phase can also re-enter on its own, since any change
+ * in its callback identities re-runs its body while the phase is still 'done'.
+ *
+ * The guard has to be claimed SYNCHRONOUSLY, before the first await — which is
+ * the whole reason this is a closure and not a boolean somewhere. Keyed by the
+ * turn rather than a flag, so it needs no resetting between turns and cannot
+ * strand the next one if a settle throws.
+ */
+export function createTurnSettleGuard() {
+  let settled: string | null = null;
+  return {
+    /** True for the first caller to claim this turn; false for every other. */
+    claim(turnId: string): boolean {
+      if (settled === turnId) return false;
+      settled = turnId;
+      return true;
+    },
+    /** Which turn this guard has settled, if any. For assertions. */
+    settledTurn(): string | null {
+      return settled;
+    },
+  };
 }
