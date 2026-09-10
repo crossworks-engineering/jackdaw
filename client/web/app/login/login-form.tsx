@@ -8,6 +8,7 @@ import { Label } from '@mantle/web-ui/ui/label';
 import { apiUrl } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
+import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
 
 /**
  * Owner sign-in, both topologies:
@@ -79,7 +80,11 @@ export function LoginForm({
           setError(data.error ?? 'Sign-in failed.');
           return;
         }
-        const { token } = (await res.json()) as { token: string };
+        const token = await readBearer(res);
+        if (!token) {
+          setError(UNEXPECTED_RESPONSE);
+          return;
+        }
         tokenStore.set(token);
       } else if (!isSignup) {
         const res = await fetch(apiUrl('/api/auth/login'), {
@@ -103,6 +108,8 @@ export function LoginForm({
       // they were headed (AppShell redirects to /onboarding if not yet done).
       router.push(isSignup ? '/onboarding' : (next ?? '/'));
       router.refresh();
+    } catch (err) {
+      setError(signInErrorMessage(err));
     } finally {
       setBusy(false);
     }
