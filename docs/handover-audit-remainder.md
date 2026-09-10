@@ -144,6 +144,27 @@ this repo was inert until that was found.
 
 ## 6. The bugs still open
 
+**Session expiry mid-edit — FIXED.** `bounceToLogin` runs registered flushes
+before navigating, through a leaf registry the transport can use without
+importing React. Bounded and non-rejecting: the session is already dead and
+nothing may strand the user. The token is cleared BEFORE the flush on purpose —
+a draft PUT on a dead credential 401s too and must not recurse into the bounce.
+
+**The bigger find was next door.** The three draft editors had grown three
+versions of the same effect and did not agree: Tables and Draw listened for
+`visibilitychange`; **Pages listened for nothing at all** and relied on unmount,
+so a plain reload or tab close inside its debounce window lost typing — no
+expired session needed. None of the three heard `pagehide`, though Draw's
+comment claimed it did. One `useFlushOnLeave` covers all four exits for all
+three now. One deliberate behaviour change: the debounce-timer clear moved into
+the flush, since it used to run only on unmount and left the timer armed to fire
+a redundant save after a hide. 9 tests.
+
+⚠ **Not verified end to end.** Proving the save lands needs an expired session,
+and triggering one signs the user out (`bounceToLogin` clears the token store);
+proving the editor half means writing a draft to real content. Smoke-tested
+instead: all three editors mount and a hide/pagehide cycle throws nothing.
+
 **Asset token never refreshes — FIXED (the refresh half).** The TTL is **two
 hours** — `ASSET_TOKEN_TTL_SECONDS` in the mantle repo's
 `server/web/lib/auth/tokens.ts`, commented "one working session". It is not
@@ -263,10 +284,6 @@ fixed build and settled exactly once, which is a no-regression check, not a
 reproduction.
 
 From the audit's §1, none of them fixed:
-
-- **Session expiry mid-edit** loses up to 8 s of typing: `bounceToLogin` is a
-  full navigation, so React unmount flushes never run. Only Draw has a
-  `pagehide` flush.
 
 ## 7. Smaller, still carried
 
