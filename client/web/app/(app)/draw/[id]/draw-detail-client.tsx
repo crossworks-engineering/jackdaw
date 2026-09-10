@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { useFlushOnLeave } from '@mantle/web-ui/use-flush-on-leave';
 
 type DrawDetail = {
   id: string;
@@ -441,25 +442,16 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
     scheduleMeta();
   }, [title, tags, icon, description, scheduleMeta]);
 
-  // Leaving the editor flushes the draft + metadata — never commits. The
-  // pagehide flush covers hard reloads/closes (best-effort; the debounce
-  // window is the only exposure and the draft PUT is cheap).
-  useEffect(() => {
-    const flush = () => {
-      void saveDraftRef.current();
-      void saveMetaRef.current();
-    };
-    const onHide = () => {
-      if (document.visibilityState === 'hidden') flush();
-    };
-    document.addEventListener('visibilitychange', onHide);
-    return () => {
-      document.removeEventListener('visibilitychange', onHide);
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      if (metaTimer.current) clearTimeout(metaTimer.current);
-      flush();
-    };
-  }, []);
+  // Leaving the editor flushes the draft + metadata — never commits.
+  // Best-effort: the debounce window is the only exposure and the draft PUT is
+  // cheap. The hook adds the two exits this had no listener for — `pagehide`
+  // and an expired session.
+  useFlushOnLeave(() => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    if (metaTimer.current) clearTimeout(metaTimer.current);
+    void saveDraftRef.current();
+    void saveMetaRef.current();
+  });
 
   // ⌘/Ctrl+S commits.
   useEffect(() => {

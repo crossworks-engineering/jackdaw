@@ -43,6 +43,7 @@ import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { diffTableDocs, ensureTableDoc, type TableDoc } from '@mantle/content-core/table-model';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
+import { useFlushOnLeave } from '@mantle/web-ui/use-flush-on-leave';
 import type { TableDetail } from '@mantle/content-core/table-model';
 
 const DRAFT_DEBOUNCE_MS = 1200;
@@ -256,22 +257,13 @@ export function TableDetailClient({
   // Leaving the table flushes whatever the debounce above still holds — the
   // effect's cleanup only CANCELS the pending tick, so without this an edit
   // followed by a click on another table (or any nav link) inside
-  // DRAFT_DEBOUNCE_MS was silently gone. Same shape as the Pages and Draw
-  // editors; the visibilitychange half covers hard reloads and tab closes.
+  // DRAFT_DEBOUNCE_MS was silently gone. Shared with the Pages and Draw
+  // editors now — useFlushOnLeave covers unmount, hide, pagehide and an
+  // expired session, which the three of them each covered differently.
   // saveDraft already no-ops when nothing changed or the view is clipped.
   const saveDraftRef = useRef(saveDraft);
   saveDraftRef.current = saveDraft;
-  useEffect(() => {
-    const flush = () => void saveDraftRef.current();
-    const onHide = () => {
-      if (document.visibilityState === 'hidden') flush();
-    };
-    document.addEventListener('visibilitychange', onHide);
-    return () => {
-      document.removeEventListener('visibilitychange', onHide);
-      flush();
-    };
-  }, []);
+  useFlushOnLeave(() => void saveDraftRef.current());
 
   // Title saves live (cheap metadata; never indexes).
   useEffect(() => {

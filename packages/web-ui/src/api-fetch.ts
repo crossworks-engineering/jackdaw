@@ -14,6 +14,7 @@
  */
 
 import { isCrossOrigin, runtimeApiBase } from './runtime-env';
+import { runSessionFlushes } from './session-flush';
 import { tokenStore } from './token-store';
 
 /** API base + bearer are GETTERS, not module constants: the split client
@@ -149,16 +150,37 @@ export function isAuthFailure(res: Response): boolean {
   return false;
 }
 
-/** Send the browser to login, preserving where we were. No-op on the server or
- *  if we're already on the login screen (avoids a redirect loop). */
+/** Guards the one navigation: several requests can 401 together, and each used
+ *  to assign `location.href` again. Harmless when it was synchronous; with a
+ *  flush in front of it, it would be several rounds of saves. */
+let bouncing = false;
+
+/**
+ * Send the browser to login, preserving where we were. No-op on the server or
+ * if we're already on the login screen (avoids a redirect loop).
+ *
+ * Gives every open editor a moment to save first. This is a FULL navigation,
+ * so React never unmounts and the cleanup flush every draft editor relies on
+ * does not run — which is how an expired session took up to a whole debounce
+ * window of typing with it, showing a login screen as the only explanation.
+ * The wait is bounded and never rejects (see runSessionFlushes): the session is
+ * already gone, and nothing here may leave the user stuck on a dead screen.
+ */
 function bounceToLogin(): void {
   if (typeof window === 'undefined') return;
   if (window.location.pathname.startsWith('/login')) return;
+  if (bouncing) return;
+  bouncing = true;
   // A dead/revoked bearer won't heal — clear it (and the presence cookie) so
-  // the client middleware can't redirect-loop a logged-out page load.
+  // the client middleware can't redirect-loop a logged-out page load. Before
+  // the flush, deliberately: a draft PUT with a dead credential will 401 too,
+  // and must not recurse back into here.
   tokenStore.clear();
   const next = window.location.pathname + window.location.search;
-  window.location.href = `/login?next=${encodeURIComponent(next)}`;
+  const go = () => {
+    window.location.href = `/login?next=${encodeURIComponent(next)}`;
+  };
+  void runSessionFlushes().then(go, go);
 }
 
 /** Fetch a JSON resource, returning the parsed body or throwing `ApiError`. */

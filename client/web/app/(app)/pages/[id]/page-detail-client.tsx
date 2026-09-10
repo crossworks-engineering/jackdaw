@@ -63,6 +63,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { scrollBehavior } from '@mantle/web-ui/lib/motion';
+import { useFlushOnLeave } from '@mantle/web-ui/use-flush-on-leave';
 
 /** Still on the wire and still stored, but this route no longer reads it: the
  *  narrow/wide toggle was replaced by the draggable measure (`MeasurePane`).
@@ -381,15 +382,17 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
     scheduleMeta();
   }, [title, tags, icon, scheduleMeta]);
 
-  // Leaving the editor flushes the draft + metadata — never commits.
-  useEffect(() => {
-    return () => {
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      if (metaTimer.current) clearTimeout(metaTimer.current);
-      void saveDraftRef.current();
-      void saveMetaRef.current();
-    };
-  }, []);
+  // Leaving the editor flushes the draft + metadata — never commits. This
+  // screen used to cover ONLY unmount, so a reload, a tab close or an expired
+  // session inside the debounce window lost the typing; the shared hook covers
+  // all four exits. Timers are cleared inside the flush because it now runs on
+  // paths that are not unmount, where an armed timer fires a redundant save.
+  useFlushOnLeave(() => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    if (metaTimer.current) clearTimeout(metaTimer.current);
+    void saveDraftRef.current();
+    void saveMetaRef.current();
+  });
 
   // ⌘/Ctrl+S commits.
   useEffect(() => {
