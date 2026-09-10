@@ -3,6 +3,21 @@
 # a DRAFT GitHub release (electron-builder's default on tag builds) —
 # publishing the release stays a human act, exactly like deploys.
 #
+# ⚠ THE DRAFT IS CREATED ONCE, BY ITS OWN JOB, BEFORE ANY BUILDER RUNS.
+# `electron-builder --publish always` creates a release when it cannot find one
+# for the tag, and creating a draft is NOT idempotent by tag: GitHub will
+# happily hold several drafts pointing at the same one. Three matrix jobs
+# starting together therefore raced, and v0.6.78 came out as TWO drafts with the
+# artifacts split across them — `latest-linux.yml` in one, `latest.yml` and
+# `latest-mac.yml` in the other, and one mac blockmap in a different release
+# from its own .zip. Publishing either would have shipped half the platforms
+# with an updater manifest pointing at assets that are not there.
+#
+# This is also the likeliest explanation for the pile of 21 unpublished drafts
+# found in September: a matrix that mints a fresh draft per run turns one
+# forgotten publish into a growing heap. When checking a release, ask HOW MANY
+# drafts carry the tag, not just whether one is published.
+#
 # macOS artifacts are UNSIGNED until Apple credentials land as secrets;
 # electron-updater won't self-update an unsigned mac build (fresh installs
 # still work). Linux and Windows auto-update from the published release.
@@ -15,7 +30,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Serialises the one non-idempotent step. Everything after this finds the
+  # release already there and only uploads to it.
+  draft:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Ensure exactly one draft release for this tag
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # `gh release view` finds drafts too, so a re-run of this workflow
+          # reuses the existing one rather than adding another.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists — reusing it"
+          else
+            gh release create "$TAG" --draft --title "$TAG" \
+              --notes "Desktop builds for $TAG. Publish deliberately once every platform's assets are attached."
+            echo "created draft $TAG"
+          fi
+
   build:
+    # Not for the artifacts — for the ordering. The builders must not be the
+    # thing that creates the release.
+    needs: [draft]
     strategy:
       fail-fast: false
       matrix:
