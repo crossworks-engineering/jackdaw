@@ -18,36 +18,42 @@ dimension that has not moved since the audit.
 
 ---
 
-## 0. BLOCKING · v0.6.78 must not be published as it stands
+## 0. The release pipeline · fixed and shipped, v0.6.79
 
-`gh release list` shows **two drafts for the same tag**, with the desktop
-artifacts split across them:
+**Resolved.** `v0.6.79` is published and is Latest, carrying all eleven desktop
+artifacts in one release; the two broken `v0.6.78` drafts are deleted. The
+`v0.6.78` tag survives as history, which is the norm here — 50 tags, 5 published
+releases.
 
-| draft `386214935`                             | draft `386214937`                                                      |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| linux `.deb`, `.AppImage`, `latest-linux.yml` | mac `.zip`/`.dmg`, Windows `Setup.exe`, `latest-mac.yml`, `latest.yml` |
+**What was wrong.** `desktop.yml` ran a three-OS matrix and each job let
+`electron-builder --publish always` create the draft. Creating a draft is not
+idempotent by tag, so the jobs raced and `v0.6.78` came out as two drafts with
+the artifacts split across them.
 
-`Jackdaw-0.6.78-arm64-mac.zip.blockmap` is in the first release and its own
-`.zip` is in the second. Publishing either one ships half the platforms and an
-updater manifest pointing at assets that are not there.
+**The harm, stated precisely** — an earlier draft of this file said "an updater
+manifest pointing at assets that are not there", which was wrong. Each manifest
+did sit with its own artifacts. The real damage was that publishing either draft
+ships **only a subset of platforms**: draft B had no `latest-linux.yml` at all,
+so Linux clients would simply never see the update. Plus one orphaned mac
+`zip.blockmap`, separated from its `.zip`, which degrades a delta update to a
+full download.
 
-**Cause.** `desktop.yml` runs
-`strategy.matrix.os: [ubuntu-24.04, macos-latest, windows-latest]` and each job
-lets electron-builder create the draft. Creating a draft release is not
-idempotent by tag, so the jobs raced.
+**The fix**, in `desktop.yml`: a `draft` job creates the release once and the
+matrix `needs` it — not for artifacts, for the ordering. It reuses an existing
+release, so re-running the workflow cannot add another. **Verified in the
+pipeline, not just in review:** on the `v0.6.79` run the `draft` job completed
+before any builder started, and exactly one release carried the tag where
+`v0.6.78` had two.
 
-**This is probably what actually built the pile of 21.** The audit read that gap
-as "publishing is a separate manual step nobody performed" — true, and still the
-standing habit — but a matrix that mints a fresh draft per run turns one
-forgotten publish into a growing heap, and makes "is it published?" the wrong
-first question. Ask _how many drafts carry the tag_ too.
+**Still open on the same file:** `desktop.yml` and `release.yml` pin the
+deprecated action line (§7). Deliberately NOT bundled with the race fix —
+neither is testable without cutting a tag, and landing both together would give
+a broken next release two candidate causes.
 
-**Do this before the next tag:** one job creates the release (or a step creates
-it up front) and the other two upload to it. Then consolidate v0.6.78's assets
-into a single draft, publish that, and delete the empty one. The same file still
-pins the deprecated action line (§7), so both changes belong together.
-
----
+**A check worth adding to the release habit:** after publishing, confirm the
+release actually became _Latest_. `PATCH draft=false` with `make_latest` in the
+same call did not take on `v0.6.79`, and `v0.6.67` kept the flag — which is what
+`electron-updater` reads. It needed a second explicit PATCH. See §8.
 
 ## 1. The 188 raw form controls · the last lint backlog
 
@@ -198,8 +204,11 @@ mismatch documented in its own header.
 
 ## 8. Habits worth keeping
 
-**Publishing is a separate step from tagging — and now, so is counting the
-drafts.** See §0.
+**Tagging, publishing, and becoming _Latest_ are three separate steps.** The tag
+fires the workflows. Publishing the draft is a human act. And `Latest` is a
+third thing again — `v0.6.79` published without taking the flag, leaving
+`v0.6.67` as what `electron-updater` would still offer. Check all three, and
+count how many drafts carry the tag while you are there. See §0.
 
 **Verify from the console, not from a screenshot.** An accessibility tree cannot
 tell "not mounted" from `display:none`, and **a blocked iframe still fires its
