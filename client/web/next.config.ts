@@ -65,10 +65,11 @@ const nextConfig: NextConfig = {
     return [
       // The origin-independent half of the CSP, on every response. Resolved at
       // build time, which is exactly why only the origin-independent half is
-      // here — see lib/csp.ts for the measurements behind that split, and for
-      // the runtime half that is written, tested and waiting on one signed-in
-      // pass. Harmless on the asset routes below (CSP governs documents), and
-      // this way no route can be added that quietly ships without one.
+      // here — see lib/csp.ts for the measurements behind that split. The
+      // runtime half (which names the brain) cannot live here at all; it is a
+      // <meta> rendered by the root layout. Harmless on the asset routes below
+      // (CSP governs documents), and this way no route can be added that
+      // quietly ships without one.
       {
         source: '/:path*',
         headers: [{ key: 'Content-Security-Policy', value: CSP_ENFORCED_STATIC }],

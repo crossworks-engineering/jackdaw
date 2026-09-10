@@ -29,19 +29,33 @@
  * supports every directive below EXCEPT `frame-ancestors`, which is header-only
  * and happily needs no origin.
  *
- * ── What ships now, and what waits ──────────────────────────────────────────
- * A CSP fails closed and silently: a wrong directive does not throw, it stops a
- * feature working and nobody finds out until a user does. So what ships is what
- * can be verified without a signed-in session:
+ * ── What ships, and what it cost to get right ───────────────────────────────
+ * Both halves are enforced now:
  *
- *   • {@link CSP_ENFORCED_STATIC} — needs no origin, cannot plausibly break us,
- *     set as a real header from next.config.ts. Enforced today.
- *   • {@link buildRuntimeCsp} — the origin-dependent remainder, written and
- *     unit-tested here, NOT yet emitted. Enabling it is a meta tag in the root
- *     layout plus one signed-in pass with the console open. The four surfaces
- *     worth exercising are the ones that frame, eval, or load bytes from
- *     somewhere unusual: the mini-app sandbox, the drawing canvas, the formula
- *     screen, and the email reading pane.
+ *   • {@link CSP_ENFORCED_STATIC} — origin-independent, a real header from
+ *     next.config.ts.
+ *   • {@link buildRuntimeCsp} — rendered as `<meta http-equiv>` by the root
+ *     layout, which reads MANTLE_SERVER_ORIGIN per request.
+ *
+ * A CSP fails closed and SILENTLY: a wrong directive does not throw, it stops a
+ * feature working and nobody finds out until a user does. Two directives were
+ * wrong when this function was written-but-never-run, and both were found by
+ * exercising them in a browser rather than by re-reading them:
+ *
+ *   • `frame-src 'self' blob:` blocked THREE surfaces, all cross-origin only in
+ *     a split deployment and so invisible on the monolith — see the note there.
+ *   • `img-src` without `https:` blocked every remote image in an email body,
+ *     because a srcdoc iframe inherits this policy — see the note there.
+ *
+ * The meta is not literally the first node in <head> — Next hoists its own
+ * preloads and framework scripts above it — but those are all 'self', and every
+ * byte of app code runs after it, so the policy governs everything that matters.
+ *
+ * Still worth a signed-in pass with the console open, on the surfaces that
+ * frame, eval or load bytes from somewhere unusual: the mini-app sandbox, the
+ * drawing canvas, the formula screen, the email reading pane. Watch
+ * `securitypolicyviolation`, not the rendering — a blocked iframe still fires
+ * its load event, so the violation record is the only honest signal.
  */
 
 /**
@@ -90,8 +104,22 @@ export function buildRuntimeCsp({ brainOrigin, dev = false }: RuntimeCspOptions)
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     // blob: for owner-generated previews — drawing exports, image attachments,
-    // team media. Every real asset comes from the brain via assetUrl().
-    `img-src ${list("'self'", 'data:', 'blob:', brain)}`,
+    // team media. Every real asset of ours comes from the brain via assetUrl().
+    //
+    // `https:` is here for ONE surface: the email reading pane. Its body is a
+    // srcdoc iframe, and a srcdoc iframe INHERITS this policy — measured, with
+    // same-origin and data: controls loading while an arbitrary remote origin
+    // did not. Email bodies routinely carry remote images, so the tight list
+    // renders newsletters broken with no "show images" control to opt back in:
+    // a silent product regression in exchange for no security. img-src is a
+    // poor exfiltration channel (a URL path, no response read), the brain's
+    // sanitizer is the real control over what that iframe may reference, and
+    // connect-src below is what actually keeps the bearer on the box.
+    //
+    // The end state is the brain's sanitizer proxying remote images through the
+    // brain; then this drops back to the tight list. media-src stays tight —
+    // the email iframe has no allow-scripts and nothing else loads remote media.
+    `img-src ${list("'self'", 'data:', 'blob:', 'https:', brain)}`,
     "font-src 'self' data:",
     // THE control: the directive that makes the bearer-in-localStorage posture
     // defensible.
@@ -99,7 +127,17 @@ export function buildRuntimeCsp({ brainOrigin, dev = false }: RuntimeCspOptions)
     // `'self'` ALONE WOULD BREAK SSO: components/team-workspace/open-on-server.tsx
     // POSTs a real cross-origin form to <brain>/api/team/sso.
     `form-action ${list("'self'", brain)}`,
-    "frame-src 'self' blob:",
+    // The brain is NOT optional here, and 'self' alone breaks three surfaces in
+    // a split deployment — measured, not reasoned: the mini-app sandbox
+    // NAVIGATES its opaque-origin iframe to `${apiBase}/frame`
+    // (@crossworks/share-ui app-sandbox.tsx), the Files PDF preview frames
+    // `assetUrl('/api/files/files/<id>?raw=1')`, and the share panel frames
+    // `serverUrl(path)`. All three resolve to the brain cross-origin; all three
+    // are same-origin paths — and so invisible to this directive — only on the
+    // monolith. That framed frame document carries its OWN policy as a response
+    // header (a real `src` navigation does not inherit ours), so this line
+    // decides whether it may be framed at all, nothing more.
+    `frame-src ${list("'self'", 'blob:', brain)}`,
     "worker-src 'self' blob:",
     `media-src ${list("'self'", 'blob:', 'data:', brain)}`,
     "manifest-src 'self'",

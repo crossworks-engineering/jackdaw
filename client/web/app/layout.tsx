@@ -20,6 +20,7 @@ import {
 } from '@mantle/web-ui/appearance';
 import { loadBrainAppearance } from '@/lib/appearance';
 import { brandTitle, readBrandFields } from '@/lib/brand';
+import { buildRuntimeCsp } from '@/lib/csp';
 import { MEMBER_SURFACE_HEADER } from '@/lib/member-surface';
 
 /**
@@ -82,6 +83,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // brand. The attributes themselves are the same for every surface — the
   // brain has ONE appearance.
   const memberSurface = hdrs.get(MEMBER_SURFACE_HEADER) === '1';
+  // The origin-dependent half of the CSP (lib/csp.ts). It has to be rendered
+  // here, as meta, because a header cannot carry it: `process.env` resolves at
+  // BUILD time in next.config.ts's headers() and in middleware on both
+  // runtimes, and one prebuilt image serves any brain. Server components read
+  // runtime env — the same reason /env.js works. The static, origin-free half
+  // is still a real header (CSP_ENFORCED_STATIC); the two compose, and
+  // frame-ancestors stays in the header because meta ignores it.
+  const csp = buildRuntimeCsp({
+    brainOrigin: process.env.MANTLE_SERVER_ORIGIN ?? '',
+    dev: process.env.NODE_ENV !== 'production',
+  });
   // Font attributes + vars come from the shared projections in appearance.ts —
   // the same tables the server htmlPage renders, so the two documents cannot
   // drift (the drift is exactly how /s and /print lost the interface font for
@@ -111,7 +123,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       style={fontStyle as React.CSSProperties}
     >
       <head>
-        {/* Runtime config FIRST and BLOCKING — window.__MANTLE_ENV__ (api base,
+        {/* FIRST in the head, before any script or style: a meta CSP governs
+            only the content that FOLLOWS it in document order. */}
+        <meta httpEquiv="Content-Security-Policy" content={csp} />
+        {/* Runtime config, BLOCKING — window.__MANTLE_ENV__ (api base,
             flags) must exist before any bundle code runs. Served per-request by
             app/env.js/route.ts from process.env: one image, any server origin. */}
         <Script src="/env.js" strategy="beforeInteractive" />

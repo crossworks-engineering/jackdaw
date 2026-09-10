@@ -33,18 +33,34 @@ describe('buildRuntimeCsp', () => {
     expect(directive(policy, 'form-action')).toBe(`form-action 'self' ${brainOrigin}`);
     expect(directive(policy, 'img-src')).toContain(brainOrigin);
     expect(directive(policy, 'media-src')).toContain(brainOrigin);
+    // Three surfaces frame the brain cross-origin: the mini-app sandbox
+    // (`${apiBase}/frame`), the Files PDF preview, and the share preview panel.
+    // 'self' alone blocks all three, and only in a split deployment.
+    expect(directive(policy, 'frame-src')).toContain(brainOrigin);
   });
 
   it('leaves no gap when the deployment is same-origin', () => {
     const policy = buildRuntimeCsp({ brainOrigin: '' });
     expect(directive(policy, 'connect-src')).toBe("connect-src 'self'");
     expect(directive(policy, 'form-action')).toBe("form-action 'self'");
+    expect(directive(policy, 'frame-src')).toBe("frame-src 'self' blob:");
     expect(policy).not.toMatch(/\s{2,}|;\s*;/);
   });
 
   it('tolerates a trailing slash on the origin', () => {
     const policy = buildRuntimeCsp({ brainOrigin: 'https://brain.example/' });
     expect(directive(policy, 'connect-src')).toBe("connect-src 'self' https://brain.example");
+  });
+
+  it('lets the email pane load remote images, which a srcdoc iframe inherits', () => {
+    // The email body is a srcdoc iframe and so runs under THIS policy. Without
+    // `https:` every remote image in a newsletter is blocked, with no way for a
+    // reader to opt back in. Deliberate: see the note in csp.ts.
+    const sources = (policy: string, name: string) =>
+      (directive(policy, name) ?? '').split(/\s+/).slice(1);
+    expect(sources(buildRuntimeCsp({ brainOrigin }), 'img-src')).toContain('https:');
+    // media-src is NOT widened with it — nothing loads remote media.
+    expect(sources(buildRuntimeCsp({ brainOrigin }), 'media-src')).not.toContain('https:');
   });
 
   it('allows the dev server its HMR socket, and only in dev', () => {
