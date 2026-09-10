@@ -13,6 +13,14 @@ import {
 } from './assistant-turn-parts';
 import { buildContextPreamble, groupTurns } from './assistant-turns';
 import type { Artifact, Message } from './assistant-turns';
+import {
+  SHARE_LOCATION_KEY,
+  draftStorageKey,
+  isNearBottom,
+  mergeOlder,
+  restoredScrollTop,
+  wantsPreviewUrl,
+} from './assistant-thread-state';
 import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
@@ -82,9 +90,6 @@ const STREAM_MARKDOWN_COMPONENTS = {
 /** Page size for the initial load and each scroll-up fetch. */
 const PAGE_SIZE = 100;
 
-/** Within this many px of the bottom counts as "stuck" for autoscroll-follow. */
-const NEAR_BOTTOM_PX = 24;
-
 /** Marked-block pills shown before the rest collapse behind a "+N more" expander. */
 const MARK_PILL_LIMIT = 4;
 
@@ -140,7 +145,7 @@ export function AssistantClient({
   // sessionStorage per agent, so an agent switch (which remounts this component
   // by design) or a reload brings your half-typed message back. Hydrated in an
   // effect (not the initializer) so SSR/hydration stay byte-identical.
-  const draftKey = `mantle_assistant_draft:${agentSlug ?? 'default'}`;
+  const draftKey = draftStorageKey(agentSlug);
   const [draft, setDraft] = useState('');
   useEffect(() => {
     try {
@@ -333,7 +338,6 @@ export function AssistantClient({
   // uses, so the agent gets an origin for "where am I" / routing. Off by default;
   // the browser owns the actual permission prompt. Geolocation needs a secure
   // context (HTTPS/localhost), which prod + dev both satisfy.
-  const SHARE_LOCATION_KEY = 'mantle_assistant_share_location';
   const [shareLocation, setShareLocation] = useState(false);
   useEffect(() => {
     try {
@@ -385,8 +389,7 @@ export function AssistantClient({
     const el = scrollerRef.current;
     if (!el) return;
     if (pendingPrepend.current) {
-      el.scrollTop =
-        el.scrollHeight - pendingPrepend.current.prevHeight + pendingPrepend.current.prevTop;
+      el.scrollTop = restoredScrollTop(pendingPrepend.current, el.scrollHeight);
       pendingPrepend.current = null;
     } else if (atBottomRef.current) {
       el.scrollTop = el.scrollHeight;
@@ -455,10 +458,8 @@ export function AssistantClient({
         `/api/assistant/messages?${qs.toString()}`,
         { cache: 'no-store' },
       );
-      const older = data.messages ?? [];
-      if (older.length < PAGE_SIZE) setHasMore(false);
-      const have = new Set(messages.map((m) => m.id));
-      const fresh = older.filter((m) => !have.has(m.id));
+      const { fresh, hasMore: more } = mergeOlder(messages, data.messages ?? [], PAGE_SIZE);
+      if (!more) setHasMore(false);
       if (fresh.length > 0) {
         pendingPrepend.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop };
         setMessages((prev) => [...fresh, ...prev]);
@@ -694,7 +695,7 @@ export function AssistantClient({
   const onScroll = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+    const nearBottom = isNearBottom(el);
     atBottomRef.current = nearBottom;
     setShowJump(!nearBottom);
     if (el.scrollTop < 120) void loadOlder();
@@ -711,9 +712,7 @@ export function AssistantClient({
     if (attachedPreviewUrl) URL.revokeObjectURL(attachedPreviewUrl);
     setAttachedFile(file);
     // Only images get an inline object-URL preview; documents show a chip.
-    setAttachedPreviewUrl(
-      file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-    );
+    setAttachedPreviewUrl(wantsPreviewUrl(file) ? URL.createObjectURL(file) : null);
   };
 
   // Read one browser geolocation fix and map it onto the `location` wire shape
