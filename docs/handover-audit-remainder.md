@@ -79,10 +79,10 @@ listener, and prove it is alive with a control before trusting a quiet result.
   the page length, it strands the reader with older turns unreachable).
 - **`use-voice-input.ts`**, 7 tests, the one cluster with a clean seam.
 
-**The double-reconciliation bug is still open** (`assistant-client.tsx`, audit
-§1) and the turn-lifecycle state was deliberately left untouched around it —
-see the structure handover for why. Fix the bug on its own before reshaping
-that state, or a later bug has two candidate causes and no way to separate them.
+**The double-reconciliation bug is fixed** (`createTurnSettleGuard`, 7 tests) —
+see §6 below. The turn-lifecycle state around it is still untouched and is now
+the natural next move, since the reason for leaving it alone was that the bug
+sat inside it.
 
 Phase 3 (split what remains by what the user is looking at) has not been
 started, and the plan is explicit that it is optional: stop when each file is
@@ -143,6 +143,26 @@ is imported; make the six web-ui self-imports relative.
 this repo was inert until that was found.
 
 ## 6. The bugs still open
+
+**Fixed since this list was written:** the assistant's double reconciliation of
+a finished turn. A turn has two independent announcers — the stream's terminal
+phase and the 3s safety poll that exists because that phase can be missed — and
+on a healthy turn both arrive. That was safe while the guard was
+`pendingTurnRef`, and stopped being safe when settling became async:
+`reconcileDone` awaits a `/messages` round-trip before that ref is cleared, so
+both announcers see a live pending turn inside the window and both reconcile.
+The cost was a duplicate round-trip and a duplicate `fetchSuggestion` per turn
+(the second bumps the epoch, killing the first retry ladder). `reconcileDone`'s
+`setMessages` happens to be idempotent, which is why this stayed a curiosity
+rather than a visible break — it was one non-idempotent line from not being.
+`createTurnSettleGuard` claims the turn synchronously, before the first await.
+
+⚠ **The race window is a few hundred milliseconds wide and cannot be
+reproduced on demand in a browser** — the poll has to tick inside one await.
+The argument for it is the code and the guard's tests, the same standard the
+audit used ("confirmed by reading the source"). A signed-in turn was run on the
+fixed build and settled exactly once, which is a no-regression check, not a
+reproduction.
 
 From the audit's §1, none of them fixed:
 

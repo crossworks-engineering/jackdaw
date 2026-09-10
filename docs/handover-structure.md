@@ -240,11 +240,12 @@ spell a state the composer has no rendering for — the `files-client` test, not
 the `worker-form` one.
 
 **What was deliberately not done here.** The turn lifecycle — `sending`,
-`stopping`, `activeTurnId`, `trailMode` — was left exactly as it is. It is the
-live turn stream and the reconciliation this file is dangerous for, it still
-carries the audit's open double-reconciliation bug, and regrouping it inside a
-refactor would give any later bug two candidate causes with no way to separate
-them. Fix the bug first, on its own, then look at the shape. The
+`stopping`, `activeTurnId`, `trailMode` — was left exactly as it is, because at
+the time it still carried the audit's open double-reconciliation bug and
+regrouping it inside a refactor would have given any later bug two candidate
+causes with no way to separate them. **That bug is fixed now**
+(`createTurnSettleGuard`), on its own, so this state is the natural next move
+for whoever picks the screen up again. The
 `attachedFile`/`attachedPreviewUrl` pair was also left: it has exactly two
 mutators that always set both, so the coupling is already enforced, and
 collapsing it would touch eighteen sites — including the send path — to move a
