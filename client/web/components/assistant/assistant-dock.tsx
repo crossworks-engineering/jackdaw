@@ -273,6 +273,11 @@ type AssistantDockApi = {
 
 const Ctx = createContext<AssistantDockApi | null>(null);
 const MAX_DOCK_MSGS = 12;
+
+/** Consecutive failed reconnects before the dock stream gives up. A successful
+ *  connect resets the count, so this is an outage, not a slow turn. Same 5 the
+ *  team chat and forum settled on. */
+const DOCK_STREAM_MAX_ATTEMPTS = 5;
 const AGENT_COOKIE = 'mantle_assistant_agent';
 const DOCK_PREF_KEY = 'mantle_assistant_dock';
 const DOCK_W_KEY = 'mantle_assistant_w';
@@ -690,11 +695,43 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
   // route). Types the reply out as text-deltas arrive, then settles on
   // done/error. Fire-and-forget — the provider is mounted app-wide, so the
   // subscription survives navigation and self-terminates when the turn ends.
+  // The live dock stream, so it can be torn down. There was no disposer at all:
+  // `stop()` existed only inside the done/error handlers, so nothing outside
+  // them could end the stream — not a new turn superseding this one, not
+  // unmount. Combined with the reconnect-forever default that meant a stream
+  // whose turn had gone could keep retrying for the life of the tab.
+  const dockStreamRef = useRef<(() => void) | null>(null);
+  const stopDockStream = useCallback(() => {
+    dockStreamRef.current?.();
+    dockStreamRef.current = null;
+  }, []);
+  useEffect(() => stopDockStream, [stopDockStream]);
+
   const subscribeDockTurn = useCallback(
     (turnId: string, botId: string, target: { agentSlug?: string; nodeId: string | null }) => {
+      // A new turn supersedes whatever was still streaming.
+      stopDockStream();
       let replyBuf = '';
       let round = -1;
       let settled = false;
+
+      /**
+       * The bubble comes out of `pending` exactly once, whichever announcer gets
+       * there. THREE can now: `done`, `error`, and a stream that simply ends.
+       *
+       * That third one is the bug. `busy` is derived from any assistant message
+       * still pending, so a stream that stopped without saying so left the
+       * bubble spinning and `busy` true APP-WIDE until reload — and `busy`
+       * gates the composer everywhere, not just in the dock.
+       */
+      const settle = (patch: Partial<DockMsg>, status: 'done' | 'error') => {
+        if (settled) return;
+        settled = true;
+        stopDockStream();
+        setMessages((prev) => prev.map((m) => (m.id === botId ? { ...m, ...patch } : m)));
+        fireTurnSettled({ agentSlug: target.agentSlug, nodeId: target.nodeId, status });
+      };
+
       const stop = apiEventStream(
         `/api/assistant/turn/${turnId}/stream`,
         (raw) => {
@@ -717,34 +754,42 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
             return;
           }
           if (ev.type === 'done') {
-            settled = true;
-            stop();
-            setMessages((prev) => prev.map((m) => (m.id === botId ? { ...m, pending: false } : m)));
-            fireTurnSettled({ agentSlug: target.agentSlug, nodeId: target.nodeId, status: 'done' });
+            settle({ pending: false }, 'done');
             return;
           }
           if (ev.type === 'error') {
-            settled = true;
-            stop();
             const message =
               ev.data && typeof ev.data.message === 'string' ? ev.data.message : 'The turn failed.';
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === botId ? { ...m, text: message, pending: false, error: true } : m,
-              ),
-            );
-            fireTurnSettled({
-              agentSlug: target.agentSlug,
-              nodeId: target.nodeId,
-              status: 'error',
-            });
+            settle({ text: message, pending: false, error: true }, 'error');
             return;
           }
         },
-        { onError: () => {} },
+        {
+          onError: () => {},
+          // Without these the stream can end with nothing said: a 404 (streaming
+          // switched off server-side) returns silently, and a real outage
+          // reconnects forever. Either way the terminal `done` this bubble waits
+          // for never arrives. The turn itself is durable and usually still
+          // finishes — hence the wording, which sends the reader to the place
+          // that reconciles against the row rather than claiming a failure.
+          maxAttempts: DOCK_STREAM_MAX_ATTEMPTS,
+          onExhausted: () => {
+            settle(
+              {
+                text:
+                  replyBuf ||
+                  'Lost the live connection to this turn. It may still be running — open the assistant to see the reply.',
+                pending: false,
+                error: true,
+              },
+              'error',
+            );
+          },
+        },
       );
+      dockStreamRef.current = stop;
     },
-    [fireTurnSettled],
+    [fireTurnSettled, stopDockStream],
   );
 
   const runTurn = useCallback(

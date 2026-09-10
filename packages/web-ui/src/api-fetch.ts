@@ -186,7 +186,18 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 export function apiEventStream(
   path: string,
   onMessage: (data: string) => void,
-  opts?: { onError?: (err: unknown) => void },
+  opts?: {
+    onError?: (err: unknown) => void;
+    /** Bound CONSECUTIVE failed reconnects — after this many, `onExhausted`
+     *  fires instead of retrying forever. The member wrapper has carried these
+     *  since v0.6.53; the owner one did NOT, which is the whole reason the
+     *  owner surfaces' "silent fallback" was silent: a consumer that wanted to
+     *  hear the ending had no way to ask. Omit both for the original
+     *  reconnect-forever behavior (owner realtime, which has no spinner to
+     *  strand). */
+    maxAttempts?: number;
+    onExhausted?: () => void;
+  },
 ): () => void {
   return eventStreamCore(
     (headers, signal) => fetch(`${apiBaseValue()}${path}`, withAuth({ signal, headers })),
