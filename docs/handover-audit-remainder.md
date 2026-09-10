@@ -22,12 +22,9 @@ app (the lint backlog, one green e2e, and the `/tables` half-collapse); one
 wants judgement (the dependency majors); the rest of §4 and §7 is ordinary work
 nobody has started.
 
-⚠ **`fix/audit-remainder` is not browser-verified.** Six commits, `pnpm verify`
-green and the production build green, but the rig was left on its sign-in
-screen. Four of them change what the screen does — the drags, the live column's
-cadence, the error boundaries, the theme shuffle — and the ground rules say
-browser-check those against a deployed brain. Do that before it lands. §9 says
-what to check and how.
+**`fix/audit-remainder` is browser-verified**, signed in against the dev brain.
+§9 records what was measured. It caught one regression the branch had
+introduced — see §10, which is the more useful reading.
 
 ---
 
@@ -298,38 +295,71 @@ result looked like a regression and was not — the `/tables` half-collapse and
 the dock's "isn't available" — and checking main's version rather than assuming
 is what separated them. It takes two commands.
 
-## 9. What `fix/audit-remainder` still owes a browser
+## 9. What the signed-in pass measured
 
-The branch is `pnpm verify` green (typecheck clean, 668 tests, 188 warnings
-against the cap, prettier clean) and `pnpm -C client/web build` green. None of
-it has been in front of a signed-in session — the rig in
-`docs/handover-verification.md` §2 was brought up on `:3000` against the dev
-brain and left on its login screen, which nobody but a person can get past.
+All against the branch running locally (`pnpm dev:fe`) in front of the dev
+brain, from the console rather than by eye.
 
-Check these, from the console rather than by eye (§8):
+**The three drags — the audit's last High.** The discriminator: delete the
+React-controlled `aria-valuenow` after each pointermove and see whether React
+puts it back, which it only does on a commit.
 
-1. **The three drags.** Grab each rail and watch the frame: it should track the
-   pointer without the 200ms ease, and React should commit once. The proof that
-   the live path is the one running is that `--nav-w` on `.mantle-shell`
-   changes during the drag while the React tree does not re-render. Also
-   confirm `aria-valuenow` on the handle follows the drag, and that the
-   keyboard path (arrows, shift-arrows, Home/End) still moves in 8/32px steps
-   and lands on the same arithmetic §3 of the verification handover recorded.
-2. **The error boundaries.** Throw on purpose — the boundaries are the one
-   thing here with no unit test, because there is no jsdom in this suite. On
-   `/draw/[id]`, `/pages/[id]`, `/tables/[id]` and `/apps/[id]`, make the child
-   throw and confirm the surrounding screen SURVIVES: header, toolbar, list
-   panel all still there and still working. Then check both resets — "Try
-   again" remounts, and navigating to a different id clears a stuck error.
-3. **The live column's cadence.** Network panel, collapsed: `/api/activity`
-   should be a minute apart, and the column should not re-render between polls.
-   Expand it: the request should fire immediately and then every 5 s.
-4. **The theme shuffle.** With the screensaver on, a tick must NOT produce a
-   `PUT /api/profile/color-theme` — that is the whole bug. Then reload before
-   the next tick is due and confirm the shuffled theme comes back, and that
-   choosing a theme in Settings → Appearance drops the override.
-5. **`/tables` half-collapse**, per §6 — the one item on this list that is
-   diagnosis rather than verification.
+|                                           | moves | `aria-valuenow` restored | width tracked the pointer |
+| ----------------------------------------- | ----- | ------------------------ | ------------------------- |
+| nav (`--nav-w`)                           | 5     | **0 times**              | exact, clamped at 420 max |
+| assistant (`--assistant-w`, `boundsRef`)  | 4     | **0 times**              | 379/439/499/559, exact    |
+| activity (`--activity-w`, viewport maths) | 3     | **0 times**              | 279/319/359, exact        |
 
-While signed in, the two other browser-gated items are worth the same trip: the
-CSP click-through if it has not been done, and a start on §1's raw controls.
+Each committed exactly once, on release. The instrument was proved against the
+KEYBOARD path, which is meant to commit per press: same probe, `aria-valuenow`
+restored on all five presses, and the arithmetic exact (420 → 412 → 380 → 388,
+Home 200, End 420). `data-resizing` flips on grab, and during the drag the
+rail's ANIMATED width equals the declared variable — the ease really is
+suspended, so the rail is at the pointer rather than 200ms behind it. The
+assistant's `mantle_assistant_w` was written once, with the FINAL width, which
+is the `onChange`-before-`onDraggingChange` ordering doing its job.
+
+**The live column.** Instrumented `setInterval` rather than waiting out a
+minute. Expanded: two intervals at 5000ms (poll + relative-time ticker).
+Collapsed: **one** at 60000ms, and the 5000ms ticker is gone entirely.
+Expanding fired exactly one `/api/activity` 59ms later.
+
+**The error boundaries.** A real render throw, from a real child, via a
+temporary probe added to the dev checkout and removed afterwards. React's own
+log confirms it: "handled by the `<SurfaceErrorBoundary>` error boundary". The
+editor went from 1 ProseMirror node to 0 while the nav and all six header
+controls stayed; `componentDidCatch` logged `[this page]` with the component
+stack; "Try again" remounted it (back to 1 node, fallback gone).
+**`resetKeys` was NOT exercised** — it needs one boundary outliving a change of
+id, and this brain has one page, one app and no tables. Verified by reading
+only.
+
+**The theme shuffle.** See §10.
+
+**`/tables` half-collapse: could not reproduce.** This brain has no tables at
+all. The hypothesis in §6 is still the thing to test.
+
+## 10. The regression the browser caught
+
+Worth reading even if the rest of this file is skimmed, because it is a whole
+class of bug.
+
+Removing the shuffle's PUT **broke the shuffle**, and every headless signal said
+otherwise: typecheck clean, 668 tests green, production build green, and the
+network log confirming the write was gone — which was the thing being fixed.
+
+`app-shell.tsx` adopts the server's colour theme once `/api/shell` lands, a
+moment after the provider's first shuffle tick. That was harmless only because
+the shuffle wrote its pick to the server first, so the value coming back WAS the
+shuffled one. Take the write away and the value coming back is the brain's own
+theme, which painted over every tick. The pick was chosen, stored, and invisible.
+
+**The generalisation:** removing a write can break a reader that was quietly
+depending on it. Nothing in the type system, the tests or the diff connects
+`color-theme-provider.tsx` to `app-shell.tsx:283` — the coupling is a round trip
+through the server. When a change removes a write, ask what reads that value
+back, and look for the answer in a browser rather than in the file you are
+editing.
+
+Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
+`serverThemeWins` carries the rule as a pure function with tests.
