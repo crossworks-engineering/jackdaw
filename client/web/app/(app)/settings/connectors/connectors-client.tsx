@@ -132,9 +132,21 @@ function OAuthStatusPill({ oauth }: { oauth: McpOAuthInfo }) {
 
 /** Popup-blocker-safe external open: the tab is created synchronously in the
  *  click handler, the URL set once the API answers (see team-forum's
- *  attachment-ui for the precedent). */
+ *  attachment-ui for the precedent).
+ *
+ *  It cannot pass `noopener` like the two direct opens beside it do — that
+ *  makes `window.open` return `null`, and the whole point here is to keep the
+ *  handle so the URL can be set later. Severing `opener` by hand is the
+ *  equivalent: it is done while the tab is still `about:blank`, and it stays
+ *  null across the navigation, so the authorize page never gets a reference
+ *  back into this window.
+ *
+ *  Every caller must close the tab on any path that does NOT navigate it —
+ *  otherwise a blank tab is left behind. */
 function openTab(): Window | null {
-  return window.open('', '_blank');
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+  return tab;
 }
 
 export function ConnectorsClient() {
@@ -215,10 +227,15 @@ export function ConnectorsClient() {
         else window.open(res.authorizeUrl, '_blank', 'noopener');
         startOAuthWatch(res.groupSlug);
         toast.success('Approve the connection in the tab that just opened.');
-      } else if (res.syncError) {
-        toast.error(`Connector created, but the first sync failed: ${res.syncError}`);
-      } else if (res.sync) {
-        toast.success(`Connected — ${res.sync.toolSlugs.length} tools synced.`);
+      } else {
+        // No authorization needed after all — nothing will navigate the tab we
+        // opened ahead of the answer, so it would sit there blank.
+        vars.tab?.close();
+        if (res.syncError) {
+          toast.error(`Connector created, but the first sync failed: ${res.syncError}`);
+        } else if (res.sync) {
+          toast.success(`Connected — ${res.sync.toolSlugs.length} tools synced.`);
+        }
       }
     },
     onError: (e, vars) => {

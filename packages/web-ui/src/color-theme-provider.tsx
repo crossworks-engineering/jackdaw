@@ -11,6 +11,11 @@ import {
   coerceRandomInterval,
   pickRandomColorTheme,
 } from '@mantle/web-ui/lib/themes';
+import {
+  readRandomPick,
+  resolveInitialColorTheme,
+  writeRandomPick,
+} from '@mantle/web-ui/lib/random-theme';
 
 type Ctx = {
   colorTheme: string;
@@ -92,7 +97,16 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
     } catch {
       // storage blocked — fall back to defaults
     }
-    setColorThemeState(stored);
+    // While the screensaver is on, the visitor's own last pick wins over the
+    // brain's stored theme — that pick is local, so unlike the server-rendered
+    // attribute it has to be painted here rather than read back.
+    const initial = resolveInitialColorTheme({
+      stored,
+      randomTheme: random,
+      pick: readRandomPick(),
+    });
+    setColorThemeState(initial.theme);
+    if (initial.repaint) apply(initial.theme);
     setRandomThemeState(random);
     setIntervalMsState(interval);
   }, []);
@@ -102,9 +116,21 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
     apply(id);
   }, []);
 
+  /** Paint a shuffled theme: visitor-local, never written to the brain. */
+  const applyRandomTheme = React.useCallback(
+    (id: string) => {
+      adoptServerTheme(id);
+      writeRandomPick(id);
+    },
+    [adoptServerTheme],
+  );
+
   const setColorTheme = React.useCallback(
     (id: string) => {
       adoptServerTheme(id);
+      // A deliberate choice ends any local override — otherwise the next load
+      // would find a stale shuffle pick and paint over what was just chosen.
+      writeRandomPick(null);
       // The DB copy is the source of truth; the next full page load renders it
       // straight into the HTML. Fire-and-forget — a failed write costs nothing
       // but the sync.
@@ -122,14 +148,18 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
         // storage blocked — preference won't persist, no-op
       }
       // Enabling jumps to a fresh theme right away (immediate feedback) and
-      // starts the clock; disabling does nothing, so it sticks to the last
-      // theme.
+      // starts the clock. Disabling leaves the screen alone — it sticks to the
+      // last theme — and only drops the local override behind it.
       if (on) {
-        setColorTheme(pickRandomColorTheme(colorThemeRef.current));
+        applyRandomTheme(pickRandomColorTheme(colorThemeRef.current));
         writeShuffledAt(Date.now());
+      } else {
+        // The screen keeps whatever it is showing, but the local override goes
+        // with the feature: the next load renders the brain's theme again.
+        writeRandomPick(null);
       }
     },
-    [setColorTheme],
+    [applyRandomTheme],
   );
 
   const setIntervalMs = React.useCallback((ms: number) => {
@@ -142,10 +172,10 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const shuffleNow = React.useCallback(() => {
-    setColorTheme(pickRandomColorTheme(colorThemeRef.current));
+    applyRandomTheme(pickRandomColorTheme(colorThemeRef.current));
     writeShuffledAt(Date.now());
     setRescheduleNonce((n) => n + 1);
-  }, [setColorTheme]);
+  }, [applyRandomTheme]);
 
   // While enabled, reshuffle every `intervalMs`. The timestamp is persisted, so
   // the schedule survives reloads and closed periods: on load we catch up if
@@ -155,7 +185,7 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
     if (!randomTheme) return;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
-      setColorTheme(pickRandomColorTheme(colorThemeRef.current));
+      applyRandomTheme(pickRandomColorTheme(colorThemeRef.current));
       writeShuffledAt(Date.now());
       timer = setTimeout(tick, intervalMs);
     };
@@ -164,7 +194,7 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
     if (remaining <= 0) tick();
     else timer = setTimeout(tick, remaining);
     return () => clearTimeout(timer);
-  }, [randomTheme, intervalMs, rescheduleNonce, setColorTheme]);
+  }, [randomTheme, intervalMs, rescheduleNonce, applyRandomTheme]);
 
   return (
     <ColorThemeContext.Provider

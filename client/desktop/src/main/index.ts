@@ -186,17 +186,34 @@ function getFreePort(): Promise<number> {
 
 let uiServer: { port: number; proc: Electron.UtilityProcess } | null = null;
 
+/** The spawn in flight, if any. `uiServer` is only assigned after the fork, and
+ *  the work before it awaits — so two windows opening together (a second brain,
+ *  a deep link while the first window is still booting) both read `uiServer` as
+ *  null, both fork, and the second overwrites the first's record. The first
+ *  process is then orphaned: nothing holds it, nothing kills it, and it keeps a
+ *  port. Memoising the promise is the same shape `upgradeOwnerCookie` uses. */
+let uiServerBoot: Promise<string> | null = null;
+
 /** Resolve the URL the app windows load: the dev override, or the embedded
  *  standalone server (spawned on first use). `brainOrigin` becomes the server
  *  process's MANTLE_SERVER_ORIGIN so the root layout's SSR appearance fetch
  *  brands the first paint — spawn-time only, so with several brains open at
  *  once, later windows SSR the first brain's branding (cosmetic; the window's
  *  own data all comes from its preload-injected env). */
-async function ensureRendererUrl(brainOrigin: string): Promise<string> {
+function ensureRendererUrl(brainOrigin: string): Promise<string> {
   const override = process.env.MANTLE_DESKTOP_RENDERER_URL;
-  if (override) return override;
-  if (uiServer) return `http://127.0.0.1:${uiServer.port}`;
+  if (override) return Promise.resolve(override);
+  if (uiServer) return Promise.resolve(`http://127.0.0.1:${uiServer.port}`);
+  // A failed boot must not be remembered — the next window has to be able to
+  // try again (a busy port, a UI build that arrived late).
+  uiServerBoot ??= startUiServer(brainOrigin).catch((err) => {
+    uiServerBoot = null;
+    throw err;
+  });
+  return uiServerBoot;
+}
 
+async function startUiServer(brainOrigin: string): Promise<string> {
   const entry = readJson<{ server?: string }>(join(UI_DIR, 'entry.json'), {});
   if (!entry.server) {
     throw new Error(
@@ -224,7 +241,10 @@ async function ensureRendererUrl(brainOrigin: string): Promise<string> {
   });
   uiServer = { port, proc };
   proc.on('exit', () => {
-    if (uiServer?.proc === proc) uiServer = null;
+    if (uiServer?.proc === proc) {
+      uiServer = null;
+      uiServerBoot = null; // next caller spawns a fresh one
+    }
   });
 
   const url = `http://127.0.0.1:${port}`;

@@ -159,6 +159,13 @@ let bouncing = false;
  * Send the browser to login, preserving where we were. No-op on the server or
  * if we're already on the login screen (avoids a redirect loop).
  *
+ * Exported for the handful of callers that cannot go through `apiFetch` — the
+ * dock's turn POST reads the raw `Response` because it re-attaches to an
+ * in-flight turn by idempotency key. Pair it with `isAuthFailure`; those two
+ * together are what `apiFetch` does, and a raw `fetch` that skips them is a
+ * screen that answers an expired session with an error bubble instead of a
+ * login screen.
+ *
  * Gives every open editor a moment to save first. This is a FULL navigation,
  * so React never unmounts and the cleanup flush every draft editor relies on
  * does not run — which is how an expired session took up to a whole debounce
@@ -166,7 +173,7 @@ let bouncing = false;
  * The wait is bounded and never rejects (see runSessionFlushes): the session is
  * already gone, and nothing here may leave the user stuck on a dead screen.
  */
-function bounceToLogin(): void {
+export function bounceToLogin(): void {
   if (typeof window === 'undefined') return;
   if (window.location.pathname.startsWith('/login')) return;
   if (bouncing) return;

@@ -22,7 +22,13 @@ import {
 import { Button } from '@mantle/web-ui/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { apiEventStream, apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
+import {
+  apiEventStream,
+  apiUrl,
+  bounceToLogin,
+  isAuthFailure,
+  withAuth,
+} from '@mantle/web-ui/api-fetch';
 import { usePendingQuestions } from '@/components/pending/use-pending-questions';
 import { ASSISTANT_W_DEFAULT, clampAssistantWidth } from '@/lib/nav-width';
 import type { TurnEvent } from '@mantle/client-types';
@@ -849,6 +855,18 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
           }
 
           if (res) {
+            // An expired session must bounce, not become an error bubble. This
+            // POST is the one place the dock reads a raw Response — it
+            // re-attaches to an in-flight turn by idempotency key, which
+            // `apiFetch` cannot express — so it has to do `apiFetch`'s auth
+            // check itself. Before the ok-check, because a 401 is not ok and
+            // would otherwise fall through to "request failed (401)"; and
+            // before the retry loop, because re-POSTing a dead credential just
+            // 401s again until the deadline.
+            if (isAuthFailure(res)) {
+              bounceToLogin();
+              throw new Error('Your session expired. Sign in again to continue.');
+            }
             if (res.ok) {
               const data = (await res.json()) as TurnPostResult;
               if ('outbound' in data) {

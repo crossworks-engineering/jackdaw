@@ -79,10 +79,20 @@ export function ShareReader({
   nodeId?: string;
 }) {
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
+  // Which navigation is current. Folder links fire `load(sub)` with nothing
+  // cancelling the request already in flight, so a slow answer for one folder
+  // could land after a fast one for another and present the wrong folder under
+  // the right breadcrumb. Same shape as the race `use-file-search` guards, and
+  // the same fix: nothing is published unless it is still the current one.
+  const generation = useRef(0);
 
   const load = useCallback(
     async (p?: string) => {
-      setState({ phase: 'loading' });
+      const mine = ++generation.current;
+      const publish = (next: LoadState) => {
+        if (generation.current === mine) setState(next);
+      };
+      publish({ phase: 'loading' });
       try {
         // Sessions minted in bearer mode hold no cookie yet — the view fetch
         // itself rides the bearer, but the content it renders loads
@@ -93,19 +103,19 @@ export function ShareReader({
         const qs = p ? `?p=${encodeURIComponent(p)}` : '';
         const r = await teamFetch(`/s/${token}/view${qs}`, { cache: 'no-store' });
         if (r.status === 401) {
-          setState({ phase: 'unauthorized' });
+          publish({ phase: 'unauthorized' });
           return;
         }
         if (r.status === 404) {
           // Revoked / deleted since the list loaded — retry can't help.
-          setState({ phase: 'gone' });
+          publish({ phase: 'gone' });
           return;
         }
         if (!r.ok) throw new Error(String(r.status));
         const d = (await r.json()) as { view: ShareViewPayload };
-        setState({ phase: 'ready', view: d.view });
+        publish({ phase: 'ready', view: d.view });
       } catch {
-        setState({ phase: 'failed' });
+        publish({ phase: 'failed' });
       }
     },
     [token],
