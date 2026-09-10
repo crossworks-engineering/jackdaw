@@ -144,6 +144,17 @@ this repo was inert until that was found.
 
 ## 6. The bugs still open
 
+**Login submit has no catch — FIXED.** The handler was try/finally with no
+catch, so a rejected fetch escaped as an unhandled rejection while `finally`
+re-enabled the form and showed nothing. Reproduced in a browser (stub fetch to
+reject) and confirmed fixed the same way. `client/web/lib/sign-in-error.ts`, 15
+tests. Two notes worth keeping: `fetch` rejects with one opaque TypeError for
+offline, DNS, refused connections and CORS alike, so the message must not guess
+which — a missing origin in the brain's `MANTLE_API_CORS_ORIGINS` is
+indistinguishable from being offline; and the token branch's
+`as { token: string }` was a lie that put `undefined` in the token store on a
+200 with no token, landing the user in a shell where everything 401s.
+
 **Fixed since this list was written:** the assistant's double reconciliation of
 a finished turn. A turn has two independent announcers — the stream's terminal
 phase and the 3s safety poll that exists because that phase can be missed — and
@@ -166,9 +177,6 @@ reproduction.
 
 From the audit's §1, none of them fixed:
 
-- **Login submit has no catch.** A rejected fetch is an unhandled rejection; the
-  form re-enables with no error, and `res.json()` runs on a 200 that may be HTML.
-  `login-form.tsx:50-108`.
 - **Lazy `localStorage` initialisers**, in `team-workspace-shell` and
   `tables-shell`. `files-client` was fixed in v0.6.64 —
   `client/web/lib/use-persisted-state.ts` is the hook to reuse, and the fix is
