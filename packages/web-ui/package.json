@@ -106,6 +106,7 @@
     "./ui/date-time-picker": "./src/ui/date-time-picker.tsx",
     "./ui/dialog": "./src/ui/dialog.tsx",
     "./ui/dropdown-menu": "./src/ui/dropdown-menu.tsx",
+    "./ui/error-boundary": "./src/ui/error-boundary.tsx",
     "./ui/field": "./src/ui/field.tsx",
     "./ui/form-shell": "./src/ui/form-shell.tsx",
     "./ui/field-hint": "./src/ui/field-hint.tsx",

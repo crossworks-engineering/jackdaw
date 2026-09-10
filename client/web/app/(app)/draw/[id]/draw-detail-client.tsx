@@ -25,6 +25,7 @@ import { ExcalidrawCanvas, type SceneChange } from '@/components/draw/excalidraw
 import { loadSceneFiles, uploadNewSceneFiles } from '@/components/draw/scene-files';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -603,14 +604,20 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
 
       <div className="min-h-0 flex-1">
         {initialData ? (
-          <ExcalidrawCanvas
-            key={canvasKey}
-            initialData={initialData}
-            onChange={onSceneChange}
-            onApiReady={(api) => {
-              apiRef.current = api;
-            }}
-          />
+          // The canvas parses a scene written by another client, and a scene it
+          // cannot read used to take the whole screen — header, tags, the lot —
+          // with no way back but a reload. `resetKeys` on the drawing id so a
+          // drawing that will not open never blocks the next one.
+          <SurfaceErrorBoundary label="this drawing" resetKeys={[initial.id]}>
+            <ExcalidrawCanvas
+              key={canvasKey}
+              initialData={initialData}
+              onChange={onSceneChange}
+              onApiReady={(api) => {
+                apiRef.current = api;
+              }}
+            />
+          </SurfaceErrorBoundary>
         ) : (
           <div className="flex h-full items-center justify-center">
             <Spinner />

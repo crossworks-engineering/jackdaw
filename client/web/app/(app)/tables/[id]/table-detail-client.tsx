@@ -39,6 +39,7 @@ import { ExportMenu } from '@/components/export/export-menu';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { ShareControl } from '@/components/share-control';
 import { TableGrid } from '@/components/table-grid/table-grid';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { diffTableDocs, ensureTableDoc, type TableDoc } from '@mantle/content-core/table-model';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -619,13 +620,19 @@ export function TableDetailClient({
             </div>
           )}
           <div className="min-h-0 flex-1 overflow-hidden">
-            <TableGrid
-              doc={doc}
-              onChange={clipped ? () => {} : setDoc}
-              tableId={initial.id}
-              tabs={tabs}
-              activeTabId={activeTab}
-            />
+            {/* The grid builds its columns from a schema the table carries, so
+                a column type it cannot render is data, not a bug in the screen
+                — and taking the toolbar and the tab strip down with it left no
+                way to fix the table that caused it. */}
+            <SurfaceErrorBoundary label="this table" resetKeys={[initial.id, activeTab]}>
+              <TableGrid
+                doc={doc}
+                onChange={clipped ? () => {} : setDoc}
+                tableId={initial.id}
+                tabs={tabs}
+                activeTabId={activeTab}
+              />
+            </SurfaceErrorBoundary>
           </div>
         </div>
         {assistBusy && (

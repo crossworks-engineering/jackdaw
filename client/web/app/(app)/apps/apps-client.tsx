@@ -34,6 +34,7 @@ import { useListNav } from '@/lib/use-list-nav';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
@@ -288,7 +289,12 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                 </Button>
               </div>
               <div className="min-h-0 flex-1">
-                <AppSandbox appId={selected.id} frame="viewport" />
+                {/* The sandbox host runs the broker, the file tree and the
+                    access log beside the iframe; a throw in any of them used
+                    to take the app list with it. */}
+                <SurfaceErrorBoundary label="this app" resetKeys={[selected.id]}>
+                  <AppSandbox appId={selected.id} frame="viewport" />
+                </SurfaceErrorBoundary>
               </div>
             </div>
           )

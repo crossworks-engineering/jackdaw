@@ -22,6 +22,7 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { ShareControl } from '@/components/share-control';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { AppAccessLog } from '@mantle/web-ui/app-sandbox/access-log';
 import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
 import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
@@ -373,16 +374,22 @@ function AppDetailView({ app }: { app: AppDetail }) {
               )}
             </div>
             <div className="min-h-0 flex-1">
-              <AppSandbox
-                appId={app.id}
-                frame="viewport"
-                reloadKey={reloadKey}
-                onError={(m) => toast.error(m)}
-                inspect={inspect}
-                selectedRegionId={focusRegion}
-                onSelect={setFocusRegion}
-                onInspectChange={setInspect}
-              />
+              {/* `onError` above is the app's own build failing, which the
+                  sandbox reports and handles. This is the other kind: the
+                  sandbox host itself throwing, which took the toolbar, the
+                  build errors pane and the inspector down with it. */}
+              <SurfaceErrorBoundary label="this app" resetKeys={[app.id, reloadKey]}>
+                <AppSandbox
+                  appId={app.id}
+                  frame="viewport"
+                  reloadKey={reloadKey}
+                  onError={(m) => toast.error(m)}
+                  inspect={inspect}
+                  selectedRegionId={focusRegion}
+                  onSelect={setFocusRegion}
+                  onInspectChange={setInspect}
+                />
+              </SurfaceErrorBoundary>
             </div>
             {buildErrors.length > 0 && (
               // shrink-0 + its own scroll so the flex-1 sandbox above can't

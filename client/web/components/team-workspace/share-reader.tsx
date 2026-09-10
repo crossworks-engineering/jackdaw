@@ -48,6 +48,7 @@ import { TablePresenter } from '@mantle/share-ui/table-presenter';
 import { FormulaPresenter } from '@mantle/share-ui/formula-presenter';
 import { FormulaCalculator } from '@mantle/share-ui/formula-calculator';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import {
   ChevronsUpDown,
   Download,
@@ -174,7 +175,9 @@ export function ShareReader({
   if (view.kind === 'app') {
     return (
       <div className="min-h-0 flex-1">
-        <AppSandbox appId={view.appId} shareToken={token} frame="viewport" />
+        <SurfaceErrorBoundary label="this app" resetKeys={[view.appId]}>
+          <AppSandbox appId={view.appId} shareToken={token} frame="viewport" />
+        </SurfaceErrorBoundary>
       </div>
     );
   }

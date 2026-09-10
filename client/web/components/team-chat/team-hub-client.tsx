@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { TeamChatClient } from '@/components/team-chat/team-chat-client';
 import { TokenGate } from '@/components/team-chat/token-gate';
 import { OpenShare, openShareOnServer } from '@/components/team-workspace/open-on-server';
@@ -285,27 +286,32 @@ export function TeamHubShell() {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className={view === 'hub' ? 'min-h-0 flex-1' : 'hidden'}>
-          <AppSandbox
-            appId={appId}
-            shareToken={shareToken}
-            frame="viewport"
-            // Split: the brokers live on the server origin and the parent-page
-            // fetches carry the member bearer (the /s app brokers accept it).
-            apiBase={split ? `${runtimeApiBase()}/s/${shareToken}` : undefined}
-            fetcher={split ? (input, init) => fetch(input, withTeamAuth(init)) : undefined}
-            hub={{
-              getData: () => ({
-                siteName: data.siteName,
-                memberName: data.memberName,
-                version: data.version,
-                sections: data.sections,
-                counts: data.counts,
-                apps: data.apps ?? [],
-              }),
-              onNav,
-            }}
-            onLoadFailure={() => setFailedAppId(appId)}
-          />
+          {/* A custom hub app that throws must not take the chat and reader
+              views beside it — `onLoadFailure` below only covers the app
+              failing to LOAD, not the host throwing while rendering it. */}
+          <SurfaceErrorBoundary label="this hub" resetKeys={[appId]}>
+            <AppSandbox
+              appId={appId}
+              shareToken={shareToken}
+              frame="viewport"
+              // Split: the brokers live on the server origin and the parent-page
+              // fetches carry the member bearer (the /s app brokers accept it).
+              apiBase={split ? `${runtimeApiBase()}/s/${shareToken}` : undefined}
+              fetcher={split ? (input, init) => fetch(input, withTeamAuth(init)) : undefined}
+              hub={{
+                getData: () => ({
+                  siteName: data.siteName,
+                  memberName: data.memberName,
+                  version: data.version,
+                  sections: data.sections,
+                  counts: data.counts,
+                  apps: data.apps ?? [],
+                }),
+                onNav,
+              }}
+              onLoadFailure={() => setFailedAppId(appId)}
+            />
+          </SurfaceErrorBoundary>
         </div>
         {view === 'chat' ? <ChatView onBack={() => setView('hub')} /> : null}
         {typeof view === 'object' ? (

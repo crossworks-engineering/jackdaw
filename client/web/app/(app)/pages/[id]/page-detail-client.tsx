@@ -39,6 +39,7 @@ const RECALL_TAG_HINTS: Record<string, string> = {
 import { ExportMenu } from '@/components/export/export-menu';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { docToMarkdown } from '@mantle/content-core/doc-to-markdown';
 import { markdownToDoc } from '@mantle/content-core/markdown';
 import { PageOutline } from '@mantle/web-ui/page-outline';
@@ -1055,20 +1056,30 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
                   </aside>
                 )}
                 <div className="min-w-0 flex-1">
-                  <PageEditor
-                    key={editorKey}
-                    content={seedDoc ?? initialDoc}
-                    pageId={initial.id}
-                    markerMode={markerMode}
-                    marks={marks}
-                    diff={reviewMode ? diffOverlay : null}
-                    onDiffAction={onDiffAction}
-                    onMarksChange={setMarks}
-                    onChange={onDocChange}
-                    onBlur={onEditorBlur}
-                    onEditorReady={onEditorReady}
-                    editable={!aiPending}
-                  />
+                  {/* A page's doc JSON is written by the editor, by the
+                      assistant, and by ingestion — three producers, so a node
+                      shape TipTap cannot render is a real possibility, and it
+                      used to take the header, the outline and the review
+                      controls down with it. `editorKey` is deliberately the
+                      reset key as well as the mount key: everything that
+                      remounts the editor (a version restore, a mode switch)
+                      is also a fresh chance for it to work. */}
+                  <SurfaceErrorBoundary label="this page" resetKeys={[editorKey]}>
+                    <PageEditor
+                      key={editorKey}
+                      content={seedDoc ?? initialDoc}
+                      pageId={initial.id}
+                      markerMode={markerMode}
+                      marks={marks}
+                      diff={reviewMode ? diffOverlay : null}
+                      onDiffAction={onDiffAction}
+                      onMarksChange={setMarks}
+                      onChange={onDocChange}
+                      onBlur={onEditorBlur}
+                      onEditorReady={onEditorReady}
+                      editable={!aiPending}
+                    />
+                  </SurfaceErrorBoundary>
                   {aiPending && (
                     <div className="mt-3 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm shadow-sm">
                       <Loader2

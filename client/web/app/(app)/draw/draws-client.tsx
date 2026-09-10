@@ -9,6 +9,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import {
   AlertDialog,
@@ -501,7 +502,11 @@ function DrawPreview({
             zen ? 'h-[calc(100vh-13rem)]' : 'h-[70vh]',
           )}
         >
-          <DrawViewer drawId={draw.id} />
+          {/* Same reasoning as the detail screen: a scene this viewer cannot
+              read is one row of a list, not the list. */}
+          <SurfaceErrorBoundary label="this drawing" resetKeys={[draw.id]}>
+            <DrawViewer drawId={draw.id} />
+          </SurfaceErrorBoundary>
         </div>
       ) : svgQuery.isPending ? (
         <div className="flex h-64 items-center justify-center">
