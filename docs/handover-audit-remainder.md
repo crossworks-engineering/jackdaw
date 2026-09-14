@@ -1,8 +1,8 @@
 # Handover: what is left of the frontend audit
 
-Current at **v0.6.81**, on main, pushed and green. Everything below is open
-unless it says otherwise, and what is closed lives in the audit rather than
-here.
+Current at **v0.6.82**, on main, pushed, green and released. Everything below
+is open unless it says otherwise, and what is closed lives in the audit
+rather than here.
 
 > **Start here in a fresh session.** Read §11 first — it is the shortest path
 > back in, and it says what each remaining item needs before it can move.
@@ -20,9 +20,11 @@ live column no longer polls on every route, and raw form controls went 188 → 2
 536 → 671 unit tests. Everything landed in this round was verified in a
 signed-in browser; §9 records what was measured and how.
 
-⚠ **v0.6.80 and v0.6.81 are on main and in NO release.** The last cut release
-is v0.6.79, so none of this round is on a box. Cutting one is three separate
-steps — see §8.
+**Released.** `v0.6.82` was cut on 2026-09-14 and carries v0.6.80 + v0.6.81 —
+the first release of this round. All three steps done and checked from the box,
+not from `gh`: tagged, draft published, `Latest` set, after which
+`/settings/updates` read *"v0.6.82 installed · latest v0.6.82 · Up to date"*.
+The dev box now runs client **v0.6.82** against server **v0.232.183**.
 
 **What is left needs something a session cannot bring**: a throwaway brain, a
 brain with tables on it, or a decision. §11 is the map.
@@ -55,6 +57,10 @@ release, so re-running the workflow cannot add another. **Verified in the
 pipeline, not just in review:** on the `v0.6.79` run the `draft` job completed
 before any builder started, and exactly one release carried the tag where
 `v0.6.78` had two.
+
+**Confirmed again on v0.6.82** (2026-09-14): exactly one draft carried the tag,
+with all eleven artifacts, all three updater manifests and every blockmap beside
+its own file. The `draft` job is holding.
 
 **Still open on the same file:** `desktop.yml` and `release.yml` pin the
 deprecated action line (§7). Deliberately NOT bundled with the race fix —
@@ -420,17 +426,17 @@ Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
 
 Read this section, then §1 and §9. In rough order of what unblocks most:
 
-**1 · Cut a release.** v0.6.80 and v0.6.81 are on main and on no box. `scripts/tag-release.sh`, then §8 — tag, publish, and _Latest_ are three separate steps and the third has been missed before. This round changes visible UI on nearly every screen, so it is worth someone using the box afterwards.
+**Done · cut a release.** `v0.6.82` is cut, published and _Latest_, and the dev box runs it against mantle `v0.232.183` (that release recorded the pair in mantle's `client-pair.tag`, which had been stale at v0.6.42). Dashboard, `/tables`, `/tasks` and the assistant panel were checked signed-in on that pair; all render with real data and a clean console. This round changes visible UI on nearly every screen, so it is still worth using the box in anger rather than treating those four screens as coverage.
 
-**2 · One green `pnpm e2e`** (§2). Needs a throwaway brain; the suite creates and deletes content. CI picks it up on its own once the repository variable is set.
+**1 · One green `pnpm e2e`** (§2). Needs a throwaway brain; the suite creates and deletes content. CI picks it up on its own once the repository variable is set.
 
-**3 · The last 25 raw controls** (§1). Twelve need a brain with tables. The other thirteen are per-form behavioural decisions, not a sweep — do them when the form in question is being touched anyway rather than as a batch.
+**2 · The last 25 raw controls** (§1). Twelve need a brain with tables. The other thirteen are per-form behavioural decisions, not a sweep — do them when the form in question is being touched anyway rather than as a batch.
 
-**4 · Dependency decisions** (§3). Five majors, one at a time. TypeScript 7 is the native-compiler rewrite; check the eslint parser and the Next TS plugin first.
+**3 · Dependency decisions** (§3). Five majors, one at a time. TypeScript 7 is the native-compiler rewrite; check the eslint parser and the Next TS plugin first.
 
-**5 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
+**4 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
 
-**6 · `assetUrl` reactivity and the `/tables` half-collapse** (§6). Both have a written diagnosis and neither has a fix. The `/tables` one has a ruled-out hypothesis and a specific next test, which is worth more than the original note was.
+**5 · `assetUrl` reactivity and the `/tables` half-collapse** (§6). Both have a written diagnosis and neither has a fix. The `/tables` one has a ruled-out hypothesis and a specific next test, which is worth more than the original note was.
 
 ### What this repo expects of you
 
