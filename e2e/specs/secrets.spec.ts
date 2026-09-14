@@ -31,7 +31,7 @@ test.describe('secrets', () => {
     // The composer: boxed card hugging the pane's leading edge (§6c).
     await list.getByRole('button', { name: 'New' }).click();
     await expect(detail.getByRole('heading', { name: 'New secret' })).toBeVisible();
-    const card = detail.locator('div.rounded-lg.border.bg-card').first();
+    const card = detail.locator('[data-slot="form-shell"]').first();
     const paneBox = (await detail.boundingBox())!;
     const cardBox = (await card.boundingBox())!;
     const leftGap = cardBox.x - paneBox.x;
@@ -85,7 +85,7 @@ test.describe('secrets', () => {
       // Edit is the same boxed composer as create, not a bare form.
       await edit.click();
       await expect(detail.getByRole('heading', { name: 'Edit secret' })).toBeVisible();
-      await expect(detail.locator('div.rounded-lg.border.bg-card').first()).toBeVisible();
+      await expect(detail.locator('[data-slot="form-shell"]').first()).toBeVisible();
       await expect(detail.getByRole('combobox', { name: 'Kind' })).toHaveText('token');
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}secrets-edit.png` });
     } finally {

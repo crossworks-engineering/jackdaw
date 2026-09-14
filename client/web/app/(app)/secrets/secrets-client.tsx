@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Plus, Search } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
-import { formShellClass } from '@mantle/web-ui/ui/form-shell';
+import { FormShell } from '@mantle/web-ui/ui/form-shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -135,7 +135,7 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
     sel?.mode === 'create' ? (
       <div className="p-6">
         {/* §6c: boxed, left-aligned card, width from the divider. */}
-        <div className={formShellClass}>
+        <FormShell>
           <div className="flex items-center gap-2">
             <KeyRound className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">New secret</h2>
@@ -152,7 +152,7 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
               setSel(secrets[0] ? { mode: 'view', id: secrets[0].id } : { mode: 'create' })
             }
           />
-        </div>
+        </FormShell>
       </div>
     ) : selected ? (
       <SecretDetail

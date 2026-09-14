@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ListTodo, MessageSquare, Plus, Search, SquareKanban, List } from 'lucide-react';
-import { formShellClass } from '@mantle/web-ui/ui/form-shell';
+import { FormShell } from '@mantle/web-ui/ui/form-shell';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -337,7 +337,7 @@ export function TasksClient() {
   const detailPane =
     sel?.mode === 'create' ? (
       <div className="p-6">
-        <div className={formShellClass}>
+        <FormShell>
           <div className="flex items-center gap-2">
             <ListTodo className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">New task</h2>
@@ -349,7 +349,7 @@ export function TasksClient() {
             onSubmit={createTask}
             onCancel={() => setSel(tasks[0] ? { mode: 'view', id: tasks[0].id } : null)}
           />
-        </div>
+        </FormShell>
       </div>
     ) : selected ? (
       <TaskDetail

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Archive, ArchiveRestore, Check, Flag, Pencil, Trash2 } from 'lucide-react';
-import { formShellClass } from '@mantle/web-ui/ui/form-shell';
+import { FormShell } from '@mantle/web-ui/ui/form-shell';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
@@ -77,7 +77,7 @@ export function TaskDetail({
       // same form, so they get the same surface. Width comes from the panel
       // divider, not a `max-w-*` here.
       <div className="p-6">
-        <div className={formShellClass}>
+        <FormShell>
           <div className="flex items-center gap-2">
             <Pencil className="size-5 text-primary-ink" aria-hidden />
             <h2 className="text-lg font-semibold">Edit task</h2>
@@ -90,7 +90,7 @@ export function TaskDetail({
             }}
             onCancel={() => setEditing(false)}
           />
-        </div>
+        </FormShell>
       </div>
     );
   }

@@ -15,6 +15,19 @@ import { cn } from '../lib/utils';
  */
 export const formShellClass = 'space-y-4 rounded-lg border border-border bg-card/70 p-5 shadow-sm';
 
+/**
+ * Prefer this over spreading {@link formShellClass} onto a bare `div`: it
+ * carries `data-slot="form-shell"`, and that attribute is the only stable way
+ * to point at a composer from the outside.
+ *
+ * Two e2e specs used to find the shell by its utility classes
+ * (`div.rounded-lg.border.bg-card`), which stopped matching the day the shell
+ * went translucent — `bg-card/70` is a different class token from `bg-card`,
+ * so the selector silently matched nothing while the screens were fine. The
+ * suite could not run at the time, so nobody heard about it. A visual choice
+ * should never be able to break a test that is not about the visuals, and a
+ * `data-slot` cannot drift the way a class list does.
+ */
 export function FormShell({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn(formShellClass, className)} {...props} />;
+  return <div data-slot="form-shell" className={cn(formShellClass, className)} {...props} />;
 }

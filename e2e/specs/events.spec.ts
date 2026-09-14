@@ -47,7 +47,7 @@ test.describe('events', () => {
     // boxed card pinned to the pane's leading edge. The old layout centred it,
     // which on a draggable pane meant the form drifted away from the list the
     // wider you pulled it.
-    const card = detail.locator('div.rounded-lg.border.bg-card').first();
+    const card = detail.locator('[data-slot="form-shell"]').first();
     await expect(detail.getByRole('heading', { name: 'New event' })).toBeVisible();
     const paneBox = (await detail.boundingBox())!;
     const cardBox = (await card.boundingBox())!;
@@ -142,7 +142,7 @@ test.describe('events', () => {
       // Editing opens the same boxed composer as create, not a bare form.
       await edit.click();
       await expect(detail.getByRole('heading', { name: 'Edit event' })).toBeVisible();
-      await expect(detail.locator('div.rounded-lg.border.bg-card').first()).toBeVisible();
+      await expect(detail.locator('[data-slot="form-shell"]').first()).toBeVisible();
       await detail.getByRole('button', { name: 'Cancel' }).click();
       await expect(heading).toBeVisible();
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}events-detail-header.png` });
