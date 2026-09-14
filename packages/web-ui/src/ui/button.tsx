@@ -31,13 +31,14 @@ const buttonVariants = cva(
       // `size-7`/`size-9` on the Button. One screen rendered buttons at four
       // different heights. Reach for the twin instead of a `size-*` override.
       size: {
-        // 24px. Below the labelled ladder on purpose — there is no 24px text
-        // button, because a word does not fit in one. It exists for the dismiss
-        // affordance inside a chip (a context pill, a tag, an attachment), where
-        // `icon-xs` at 32px is taller than the chip that contains it and
-        // reflows the row. Fifteen call sites had hand-rolled `p-1`/`p-0.5`
-        // before this rung existed; the two sizes they improvised were 20px and
-        // 24px, and 24 is both the larger and the smallest comfortable target.
+        // 24px, the CHIP rung, in both forms because both were improvised: 15
+        // call sites hand-rolled `p-1`/`p-0.5` for the dismiss inside a chip,
+        // and 31 hand-rolled `px-2 py-1` for a text pill in the same rows. `xs`
+        // at 32px is taller than the chips around them and reflows the row,
+        // which is why none of the 46 reached for it. 24 is the larger of the
+        // two sizes they invented (the other was 20) and the smallest
+        // comfortable target.
+        '2xs': 'h-6 px-2 text-xs',
         'icon-2xs': "size-6 [&_svg:not([class*='size-'])]:size-3.5",
         xs: 'h-8 px-2 text-xs',
         sm: 'h-9 px-3',

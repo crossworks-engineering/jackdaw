@@ -35,11 +35,7 @@ import {
   ListRestart,
   Loader2,
   MapPin,
-  Mic,
-  MicOff,
-  Paperclip,
   Square,
-  SquareDashedMousePointer,
   X,
 } from 'lucide-react';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
@@ -49,6 +45,9 @@ import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { RichText } from '@/components/assistant/rich-text';
 import { ASSISTANT_TURN_MAX_CHARS, longMessageNoteTitle } from '@mantle/web-ui/assistant-limits';
+import { Button } from '@mantle/web-ui/ui/button';
+import { ComposerToolbar } from '@/components/assistant/composer-toolbar';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { CopyButton } from '@mantle/web-ui/copy-button';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1413,14 +1412,15 @@ export function AssistantClient({
           </div>
         </div>
         {showJump && (
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="icon-sm"
             onClick={jumpToBottom}
             aria-label="Jump to latest"
-            className="absolute bottom-4 left-1/2 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-md transition hover:bg-accent hover:text-accent-foreground"
+            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full text-muted-foreground shadow-md"
           >
-            <ArrowDown className="size-4" aria-hidden />
-          </button>
+            <ArrowDown aria-hidden />
+          </Button>
         )}
       </div>
 
@@ -1458,14 +1458,16 @@ export function AssistantClient({
                     {attachedFile.type || 'file'} · {(attachedFile.size / 1024).toFixed(0)} KB
                   </div>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon-2xs"
                   onClick={clearAttachment}
-                  className="rounded p-1 text-muted-foreground hover:bg-background/60"
+                  className="text-muted-foreground"
                   title="Remove attachment"
+                  aria-label="Remove attachment"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                  <X aria-hidden />
+                </Button>
               </div>
             )}
             {/* Context chips. The screen-pinned node (the open page/table/app)
@@ -1501,15 +1503,16 @@ export function AssistantClient({
                         <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                       )}
                       <span className="truncate font-medium">{c.label}</span>
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="icon-2xs"
                         onClick={() => (pinned ? dismissPinnedContext(c.id) : removeContext(c.id))}
-                        className="rounded p-0.5 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                        className="text-muted-foreground"
                         title={pinned ? 'Remove from this chat' : 'Remove'}
                         aria-label={`Remove ${c.label}`}
                       >
-                        <X className="size-3" aria-hidden />
-                      </button>
+                        <X aria-hidden />
+                      </Button>
                     </span>
                   );
                 })}
@@ -1525,46 +1528,50 @@ export function AssistantClient({
                     <Highlighter className="size-3.5 shrink-0 text-primary-ink" aria-hidden />
                     <span className="truncate font-medium">{s.label}</span>
                     {surfaceSelection?.onRemove && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="icon-2xs"
                         onClick={() => surfaceSelection?.onRemove?.(s.id)}
-                        className="rounded p-0.5 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                        className="text-muted-foreground"
                         title="Unmark"
                         aria-label={`Unmark ${s.label}`}
                       >
-                        <X className="size-3" aria-hidden />
-                      </button>
+                        <X aria-hidden />
+                      </Button>
                     )}
                   </span>
                 ))}
                 {hiddenMarkCount > 0 && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="2xs"
                     onClick={() => setShowAllMarks(true)}
-                    className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                    className="text-muted-foreground hover:bg-foreground/[0.06]"
                     aria-label={`Show all ${markItems.length} marked sections`}
                   >
                     +{hiddenMarkCount} more
-                  </button>
+                  </Button>
                 )}
                 {showAllMarks && markItems.length > MARK_PILL_LIMIT && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="2xs"
                     onClick={() => setShowAllMarks(false)}
-                    className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                    className="text-muted-foreground hover:bg-foreground/[0.06]"
                     aria-label="Show fewer marked sections"
                   >
                     Show fewer
-                  </button>
+                  </Button>
                 )}
                 {(surfaceSelection?.items.length ?? 0) > 1 && surfaceSelection?.onClear && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="2xs"
                     onClick={() => surfaceSelection.onClear?.()}
-                    className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                    className="text-muted-foreground hover:bg-foreground/[0.06]"
                   >
                     Clear {surfaceSelection.items.length} marked
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -1574,25 +1581,27 @@ export function AssistantClient({
                 it verbatim; ArrowRight loads it for editing; X dismisses. */}
             {suggestion && !sending && (
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="2xs"
                   onClick={(e) => void submit(e, suggestion)}
                   disabled={!agentReady}
-                  className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 py-1 pl-2 pr-2.5 text-xs text-foreground transition-colors hover:bg-primary/20 disabled:opacity-40"
+                  className="min-w-0 gap-1.5 border border-primary/40 bg-primary/10 pl-2 pr-2.5 font-normal text-foreground hover:bg-primary/20"
                   title="Send this follow-up (Enter while the composer is empty); press → to edit it first"
                 >
                   <CornerDownLeft className="size-3.5 shrink-0 text-primary-ink" aria-hidden />
                   <span className="truncate font-medium">{suggestion}</span>
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-2xs"
                   onClick={dismissSuggestion}
-                  className="rounded p-1 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                  className="text-muted-foreground"
                   title="Dismiss suggestion"
                   aria-label="Dismiss suggested follow-up"
                 >
-                  <X className="size-3" aria-hidden />
-                </button>
+                  <X aria-hidden />
+                </Button>
               </div>
             )}
             <div className="flex gap-2">
@@ -1603,80 +1612,20 @@ export function AssistantClient({
                 className="hidden"
                 onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
               />
-              <div className="flex flex-col gap-1">
-                {/* Attach picker — images + documents. Triggers the hidden
-                    file input. Disabled when something's already attached
-                    (clear it first via the preview's X). */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={!agentReady || sending || !!attachedFile}
-                  className="rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
-                  title="Attach image or document"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </button>
-                {/* Marker — enter pick mode (minimises the chat) to attach
-                    files, pages, notes… as context for the next turn. */}
-                <button
-                  type="button"
-                  onClick={startPicking}
-                  disabled={!agentReady || sending}
-                  className="rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
-                  title="Pick content to attach (files, pages, notes…)"
-                >
-                  <SquareDashedMousePointer className="h-4 w-4" />
-                </button>
-                {/* Share-location toggle — sticky opt-in. When on, each send
-                    attaches a fresh browser geolocation fix so the assistant
-                    knows where you are (directions, "what's nearby"). */}
-                <button
-                  type="button"
-                  onClick={() => void toggleShareLocation()}
-                  disabled={!agentReady || sending}
-                  aria-pressed={shareLocation}
-                  className={
-                    shareLocation
-                      ? 'rounded-md bg-primary p-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-40'
-                      : 'rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40'
-                  }
-                  title={
-                    shareLocation
-                      ? 'Sharing your location with the assistant — click to stop'
-                      : 'Share your location with the assistant'
-                  }
-                >
-                  <MapPin className="h-4 w-4" />
-                </button>
-                {/* Mic toggle — push-to-talk style. Recording state
-                    shows a red destructive button; transcribing shows
-                    a spinner. */}
-                {recording ? (
-                  <button
-                    type="button"
-                    onClick={stopRecording}
-                    className="rounded-md bg-destructive p-2 text-destructive-foreground hover:opacity-90"
-                    title="Stop recording"
-                  >
-                    <MicOff className="h-4 w-4" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={startRecording}
-                    disabled={!agentReady || sending || transcribing}
-                    className="rounded-md border border-input bg-transparent p-2 text-muted-foreground hover:bg-muted disabled:opacity-40"
-                    title={transcribing ? 'Transcribing…' : 'Record voice note'}
-                  >
-                    {transcribing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
-                    )}
-                  </button>
-                )}
-              </div>
-              <textarea
+              <ComposerToolbar
+                agentReady={agentReady}
+                sending={sending}
+                attachedFile={attachedFile}
+                onAttachClick={() => fileInputRef.current?.click()}
+                onPick={startPicking}
+                shareLocation={shareLocation}
+                onToggleShareLocation={() => void toggleShareLocation()}
+                recording={recording}
+                transcribing={transcribing}
+                onStartRecording={startRecording}
+                onStopRecording={stopRecording}
+              />
+              <Textarea
                 ref={textareaRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -1698,7 +1647,8 @@ export function AssistantClient({
                 // the old lock — it has no cancel primitive.
                 disabled={!agentReady || (sending && !streamingOn)}
                 rows={2}
-                className={`${COMPOSER_BOX} flex-1 resize-none rounded-md border-input px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                // Only what is this composer's own; the rest is the kit's.
+                className={`${COMPOSER_BOX} flex-1 resize-none`}
                 onKeyDown={(e) => {
                   // Decision table lives in lib/composer-keys (pure + tested):
                   // the chip claims Enter/ArrowRight STRICTLY when the draft is
@@ -1743,40 +1693,40 @@ export function AssistantClient({
                 // turn and sends original + correction as one combined turn.
                 <div className="flex shrink-0 gap-2 self-stretch">
                   {showReplace && (
-                    <button
+                    <Button
                       type="submit"
                       aria-label="Stop and resend with this correction"
                       title="Stop and resend with this correction (Enter) — Esc to discard it"
-                      className="flex w-12 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="h-auto w-12 px-0"
                     >
-                      <ListRestart className="size-4" aria-hidden />
-                    </button>
+                      <ListRestart aria-hidden />
+                    </Button>
                   )}
-                  <button
-                    type="button"
+                  <Button
+                    variant="destructive"
                     onClick={stopTurn}
                     aria-label="Stop"
                     title="Stop generating"
                     disabled={!activeTurnId || stopping}
-                    className="flex w-12 items-center justify-center rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40"
+                    className="h-auto w-12 px-0"
                   >
                     {stopping ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      <Loader2 className="animate-spin" aria-hidden />
                     ) : (
                       <Square className="size-3.5 fill-current" aria-hidden />
                     )}
-                  </button>
+                  </Button>
                 </div>
               ) : (
-                <button
+                <Button
                   type="submit"
                   aria-label="Send"
                   title="Send (Enter)"
                   disabled={!agentReady || (!draft.trim() && !attachedFile)}
-                  className="flex w-12 shrink-0 items-center justify-center self-stretch rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+                  className="h-auto w-12 self-stretch px-0"
                 >
-                  <CornerDownLeft className="size-4" aria-hidden />
-                </button>
+                  <CornerDownLeft aria-hidden />
+                </Button>
               )}
             </div>
             {error && <p className="text-xs text-destructive-ink">{error}</p>}

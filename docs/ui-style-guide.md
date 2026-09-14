@@ -299,16 +299,17 @@ link`) and `size` (`default|sm|lg|icon`). For links styled as buttons:
 
   | Labelled  | Height | Icon-only twin |
   | --------- | ------ | -------------- |
-  | —         | 24px   | `icon-2xs`     |
+  | `2xs`     | 24px   | `icon-2xs`     |
   | `xs`      | 32px   | `icon-xs`      |
   | `sm`      | 36px   | `icon-sm`      |
   | `default` | 40px   | `icon`         |
   | `lg`      | 44px   | `icon-lg`      |
 
-  `icon-2xs` has no labelled partner on purpose: no word fits in 24px. It is
-  for the dismiss affordance INSIDE a chip — a context pill, a tag, an
-  attachment — where `icon-xs` is taller than the chip holding it and reflows
-  the row. Its icon defaults to `size-3.5`, not `size-4`.
+  The 24px rung is the CHIP rung — a context pill, a tag, an attachment, and
+  the dismiss inside one. `xs` at 32px is taller than the chips around them and
+  reflows the row, which is why 46 call sites hand-rolled `px-2 py-1` and
+  `p-1`/`p-0.5` rather than reach for it. `icon-2xs` sets its icon to
+  `size-3.5` rather than `size-4`.
 
   So a ghost delete beside a `size="sm"` Edit is `size="icon-sm"`, not
   `size="icon"` (40px, 4px taller) and not `size="sm"` (a 40x36 rectangle).
