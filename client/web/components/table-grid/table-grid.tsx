@@ -9,14 +9,19 @@
  * neutral hover, theme tokens, no hardcoded colours.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { flexRender, type SortingState } from '@tanstack/react-table';
 import {
-  getCoreRowModel,
-  getSortedRowModel,
-  useLegacyTable,
-  type LegacyColumnDef,
-} from '@tanstack/react-table/legacy';
+  columnVisibilityFeature,
+  createCoreRowModel,
+  createSortedRowModel,
+  flexRender,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
+
 import {
   ArrowDown,
   ArrowDownToLine,
@@ -111,6 +116,26 @@ import {
   type Row,
   type TableDoc,
 } from '@mantle/content-core/table-model';
+
+/**
+ * v9 registers features explicitly rather than shipping them all, so anything
+ * this grid does not use tree-shakes out. It sorts and nothing else — no
+ * filtering, grouping, pagination or selection — and the row models belong in
+ * the same object (they are slots on it, not siblings of it).
+ *
+ * Declared at module scope on purpose: the table reads `features` as a stable
+ * registry, so rebuilding it per render would hand the table a new registry on
+ * every pass.
+ */
+const GRID_FEATURES = tableFeatures({
+  rowSortingFeature,
+  // row.getVisibleCells() lives on this one, so the grid needs it even though
+  // nothing here ever hides a column.
+  columnVisibilityFeature,
+  coreRowModel: createCoreRowModel(),
+  sortedRowModel: createSortedRowModel(),
+});
+type GridFeatures = typeof GRID_FEATURES;
 
 const TYPE_LABEL: Record<ColumnType, string> = {
   text: 'Text',
@@ -219,7 +244,7 @@ export function TableGrid({
       )
       .join('|') + `#${JSON.stringify(doc.aggregates ?? {})}`;
 
-  const columns = useMemo<LegacyColumnDef<Row>[]>(() => {
+  const columns = useMemo<ColumnDef<GridFeatures, Row>[]>(() => {
     return docRef.current.columns.map((col) => ({
       id: col.id,
       accessorFn: (row) => resolveCell(docRef.current, row, col),
@@ -288,13 +313,12 @@ export function TableGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [structureKey, tableId]);
 
-  const table = useLegacyTable({
+  const table = useTable<GridFeatures, Row>({
+    features: GRID_FEATURES,
     data: doc.rows,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getRowId: (row) => row.id,
   });
 
