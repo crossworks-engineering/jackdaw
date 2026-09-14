@@ -288,7 +288,7 @@ Still open, in rough order of value:
 
 - ~~**Task board fetches 500 tasks unvirtualised**~~ **Addressed 2026-09-14, but
   NOT by virtualising** — see §13.
-- **The page editor serialises the whole document on every keystroke, twice.**
+- ~~**The page editor serialises the whole document on every keystroke, twice.**~~ **Measured and closed 2026-09-14 — the serialisation is not the cost. See §14.**
 - **The dock context value** changes on almost any dock state and fans out to 14
   consumers, including the shell frame.
 - From the structure work: memoise the individual assistant turn row, and render
@@ -652,3 +652,48 @@ reads exactly like "the placeholder is stuck and tall cards will overlap".
 Measured one card at a time, a frame apart, on-screen cards report their true
 height. Measure the EFFECT (layout time with the class on versus off), not the
 browser's opinion of its own state.
+
+## 14. The page editor · the serialisation was not the problem
+
+**Measured first, on the largest page in the system** — 123 KB of ProseMirror
+JSON, ~33k nodes:
+
+| | |
+| --- | --- |
+| `editor.getJSON()` | **0.1 ms** (median of 12) |
+| `JSON.stringify` of that result | **0.5 ms** |
+| total per keystroke | **~0.7 ms**, about 4% of a 16.7 ms frame |
+
+So the audit's "serialises the whole document on every keystroke, twice" is
+literally true and costs almost nothing. Engineering it away would have been
+effort spent on 4% of a frame, in the most delicate file in the app — autosave,
+optimistic concurrency, 409 handling, an unmount flush.
+
+**What did cost, sitting right beside it.** `buildPageToc` returns a FRESH array
+every call, and the outline is rebuilt on an animation frame for as long as
+someone types. So `setToc` handed React a new reference ~60 times a second and
+re-rendered the whole ~1,100-line page client each time — while the outline only
+changes when a heading or a sub-page card does, which is almost never
+mid-sentence.
+
+**The fix keeps the rebuild and drops the state update.** `setToc` now takes a
+functional updater that returns the PREVIOUS array when the outline is
+unchanged, which bails React out of the render entirely. Comparing the built
+result, rather than guarding earlier on a heading walk, is deliberate: the build
+is not what costs, and the comparison is a pure function over `TocEntry[]` that
+unit-tests without standing up an editor. Seven tests cover it — including a
+sub-page that keeps its id while its indentation moves under a new heading,
+which an id-only comparison would miss.
+
+⚠ **Two probes lied here and the second one nearly got written up as a
+regression.** Benchmarking `doc.toJSON()` while discarding the result lets V8
+eliminate the call — it read 0.1 ms because nothing ran; the number above is from
+a version that consumes the output. Worse: **the outline never rebuilt at all in
+the first browser run**, because the automated tab runs HIDDEN and
+`requestAnimationFrame` does not fire in a hidden tab. That made "typing a
+paragraph leaves the outline alone" look like a pass and "editing a heading
+updates the outline" look like a failure — the optimisation appearing to work and
+the feature appearing broken, from the same dead probe. Route the app's rAF
+through `setTimeout` before trusting anything on an rAF path here; it is the same
+trap §9 already records for probes, and it applies to APPLICATION code just as
+much.
