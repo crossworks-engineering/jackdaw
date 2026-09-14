@@ -160,7 +160,16 @@ export function MasterDetail({
     if (!panel || !collapsible) return;
     if (listCollapsed) panel.collapse();
     else panel.expand();
-  }, [collapsible, listCollapsed]);
+    // `isDesktop` is a dependency because the PANEL is what this effect drives,
+    // and below `isDesktop` there is no panel to drive — the narrow branch is a
+    // CSS grid and `listHandle.current` is null. A screen that persists its
+    // collapse restores `listCollapsed: true` before the media query resolves,
+    // so on that path the state never changes again: the effect ran once
+    // against the grid, returned at the null ref, and without `isDesktop` here
+    // nothing re-ran it when the panels mounted a commit later. The list came
+    // back at its saved width with the collapsed rail beside it — both on
+    // screen, the rail offering to show a list that was never hidden.
+  }, [collapsible, listCollapsed, isDesktop]);
 
   // `isDesktop` is null until the first effect runs. Falling back to the CSS
   // grid rather than to the stacked layout matters: the grid is responsive on
