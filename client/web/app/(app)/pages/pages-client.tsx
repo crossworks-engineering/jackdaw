@@ -40,6 +40,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -870,13 +871,12 @@ function PageCard({
       >
         {/* The page itself. Keeps the marking attributes the marking system
             reads — moving them off this element silently breaks it. */}
-        <button
-          type="button"
+        <RowButton
           onClick={onSelect}
           data-mark-id={row.id}
           data-mark-kind="page"
           data-mark-label={row.title}
-          className="flex w-full items-start gap-2 text-left"
+          className="flex w-full items-start gap-2"
         >
           <span className="mt-px size-4 shrink-0 text-center text-sm leading-5" aria-hidden>
             {row.icon ?? '📄'}
@@ -884,7 +884,7 @@ function PageCard({
           <ListCardTitle wrap className="min-w-0 flex-1">
             {row.title}
           </ListCardTitle>
-        </button>
+        </RowButton>
 
         {details && row.summary && (
           <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>
@@ -901,21 +901,22 @@ function PageCard({
         <div className="flex items-center justify-between gap-1">
           <div className="flex min-w-0 items-center gap-1">
             {draggable && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-2xs"
                 ref={setDragRef}
                 {...listeners}
                 {...attributes}
                 aria-label={`Drag to move “${row.title}”`}
                 title="Drag onto another page to nest it there"
-                className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground active:cursor-grabbing"
+                className="shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
               >
                 <GripVertical className="size-3.5" />
-              </button>
+              </Button>
             )}
             {drills ? (
-              <button
-                type="button"
+              <RowButton
                 onClick={onSelect}
                 className="flex min-w-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 title={`Open the ${childCount} sub-page${childCount === 1 ? '' : 's'}`}
@@ -924,7 +925,7 @@ function PageCard({
                   {childCount} sub-page{childCount === 1 ? '' : 's'}
                 </span>
                 <ChevronRight className="size-3.5 shrink-0 opacity-70" />
-              </button>
+              </RowButton>
             ) : (
               /* A leaf page leaves this slot empty, so it carries the updated
                  stamp instead — relative while fresh, the date once it's 5+
@@ -1031,14 +1032,13 @@ function Breadcrumb({
         isOver && dropActive && 'border-primary bg-primary/10',
       )}
     >
-      <button
-        type="button"
+      <RowButton
         onClick={onBack}
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ChevronLeft className="size-3.5" />
         <span className="truncate">Back to {backLabel}</span>
-      </button>
+      </RowButton>
       <div className="mt-0.5 flex items-center gap-1.5 pl-0.5">
         <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
           {parent.icon ?? '📄'}

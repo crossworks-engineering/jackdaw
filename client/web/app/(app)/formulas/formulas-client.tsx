@@ -15,6 +15,7 @@ import {
 import { FormulaEditor, type Draft } from './formula-editor';
 import { FORMULA_TEMPLATES } from './formula-templates';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import {
   Select,
@@ -244,14 +245,14 @@ export function FormulasClient() {
           </DialogHeader>
           <div className="space-y-2">
             {FORMULA_TEMPLATES.map((t) => (
-              <button
+              <RowButton
                 key={t.key}
                 onClick={() => openTemplate(t.yaml)}
                 className="block w-full rounded-md border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
               >
                 <div className="text-sm font-medium text-foreground">{t.name}</div>
                 <p className="mt-0.5 text-xs text-muted-foreground">{t.blurb}</p>
-              </button>
+              </RowButton>
             ))}
           </div>
           {/* Also reachable here, not only in the empty state — a brain with
@@ -380,7 +381,7 @@ export function FormulasClient() {
                   // and swallows the inner click in some browsers.
                   <ListCard key={f.id} asChild selected={activeId === f.id} className="p-0">
                     <div>
-                      <button
+                      <RowButton
                         onClick={() => select(f.id)}
                         data-mark-id={f.id}
                         data-mark-kind="formula"
@@ -396,11 +397,11 @@ export function FormulasClient() {
                             ) : null}
                           </div>
                         </div>
-                      </button>
+                      </RowButton>
                       {f.tags.length > 0 ? (
                         <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
                           {f.tags.map((t) => (
-                            <button
+                            <RowButton
                               key={t}
                               onClick={() => go({ tag: t === tag ? null : t, page: null })}
                               title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
@@ -412,7 +413,7 @@ export function FormulasClient() {
                                   t === tag && 'ring-1 ring-primary',
                                 )}
                               />
-                            </button>
+                            </RowButton>
                           ))}
                         </div>
                       ) : null}

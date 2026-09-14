@@ -15,6 +15,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { invalidateAgentQueries } from '@mantle/web-ui/agent-invalidation';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -143,13 +144,12 @@ function AgentInspector({
           A per-turn time / locale line is prepended at runtime (not shown). Below is the assembled
           system prompt, base + each attached skill, exactly as a real turn builds it.
         </p>
-        <button
-          type="button"
+        <RowButton
           onClick={() => setRaw((v) => !v)}
           className="self-start text-[13px] font-medium text-primary-ink hover:underline"
         >
           {raw ? '← labeled view' : 'view raw assembled →'}
-        </button>
+        </RowButton>
         {raw ? (
           <Prose text={agent.composedPrompt} />
         ) : (
@@ -369,13 +369,12 @@ export function StudioClient() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-[13px] text-muted-foreground">
         <p>Couldn&apos;t load the studio graph.</p>
-        <button
-          type="button"
+        <RowButton
           onClick={() => studioQuery.refetch()}
           className="font-medium text-primary-ink hover:underline"
         >
           Retry
-        </button>
+        </RowButton>
       </div>
     );
   }
@@ -489,14 +488,13 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
             <CheckCircle2 className="size-3.5" aria-hidden /> all healthy
           </span>
         ) : (
-          <button
-            type="button"
+          <RowButton
             onClick={() => changeSelection('view:health')}
             className="flex items-center gap-1.5 text-[13px] font-medium text-destructive-ink hover:underline"
           >
             <AlertTriangle className="size-3.5" aria-hidden /> {graph.report.problems} issue
             {graph.report.problems === 1 ? '' : 's'}
-          </button>
+          </RowButton>
         )}
       </header>
 
@@ -509,9 +507,8 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
           <div className="min-h-0 overflow-y-auto scrollbar-thin border-r border-border p-4">
             <div className="mx-auto flex max-w-md flex-col gap-1">
               {graph.workers.map((w, i) => (
-                <button
+                <RowButton
                   key={`${w.kind}:${w.name}:${i}`}
-                  type="button"
                   onClick={() => setWorkerIndex(i)}
                   aria-current={workerIndex === i ? 'true' : undefined}
                   className={
@@ -537,7 +534,7 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
                       default
                     </Badge>
                   )}
-                </button>
+                </RowButton>
               ))}
             </div>
           </div>
@@ -572,13 +569,12 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
           <aside className="min-h-0 overflow-y-auto scrollbar-thin p-4">
             {inspectedSkillDetail ? (
               <>
-                <button
-                  type="button"
+                <RowButton
                   onClick={() => setInspectedSkill(null)}
                   className="mb-3 flex items-center gap-1 text-[13px] font-medium text-muted-foreground hover:text-foreground"
                 >
                   <ChevronLeft className="size-3.5" aria-hidden /> {focusedAgent?.name ?? 'agent'}
-                </button>
+                </RowButton>
                 <SkillInspector
                   key={inspectedSkillDetail.slug}
                   skill={inspectedSkillDetail}
@@ -587,13 +583,12 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
               </>
             ) : inspectedGroupDetail ? (
               <>
-                <button
-                  type="button"
+                <RowButton
                   onClick={() => setInspectedGroup(null)}
                   className="mb-3 flex items-center gap-1 text-[13px] font-medium text-muted-foreground hover:text-foreground"
                 >
                   <ChevronLeft className="size-3.5" aria-hidden /> {focusedAgent?.name ?? 'agent'}
-                </button>
+                </RowButton>
                 <GroupInspector key={inspectedGroupDetail.slug} group={inspectedGroupDetail} />
               </>
             ) : focusedAgent ? (

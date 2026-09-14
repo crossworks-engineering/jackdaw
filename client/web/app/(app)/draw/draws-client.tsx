@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, PenTool, Plus, Search, Trash2, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -245,7 +246,7 @@ export function DrawsClient() {
                 draws.map((d) => (
                   <ListCard key={d.id} asChild selected={activeId === d.id} className="p-0">
                     <div>
-                      <button
+                      <RowButton
                         onClick={() => select(d.id)}
                         data-mark-id={d.id}
                         data-mark-kind="draw"
@@ -276,11 +277,11 @@ export function DrawsClient() {
                             {d.summary ? <ListCardSnippet>{d.summary}</ListCardSnippet> : null}
                           </div>
                         </div>
-                      </button>
+                      </RowButton>
                       {d.tags.length > 0 ? (
                         <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
                           {d.tags.map((t) => (
-                            <button
+                            <RowButton
                               key={t}
                               onClick={() => go({ tag: t === tag ? null : t, page: null })}
                               title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
@@ -292,7 +293,7 @@ export function DrawsClient() {
                                   t === tag && 'ring-1 ring-primary',
                                 )}
                               />
-                            </button>
+                            </RowButton>
                           ))}
                         </div>
                       ) : null}
@@ -538,12 +539,12 @@ function DrawPreview({
 
 function PreviewEmpty({ label, onOpen }: { label: string; onOpen: () => void }) {
   return (
-    <button
+    <RowButton
       onClick={onOpen}
       className="flex h-64 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-muted-foreground transition-colors hover:bg-muted/40"
     >
       <PenTool className="size-6" />
       {label}
-    </button>
+    </RowButton>
   );
 }

@@ -5,6 +5,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { Activity, AlertCircle, CheckCircle2, PanelRight, PanelRightClose } from 'lucide-react';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
+import { Button } from '@mantle/web-ui/ui/button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatMicroUsd } from '@mantle/web-ui/traces-format';
 import { ActionIcon } from '@/components/journey/action-icon';
@@ -234,7 +235,7 @@ export function LiveColumn({
                 only other home would be the left rail, which is the wrong end
                 of the screen to reach for when shrinking this one. The
                 collapsed rail's own expand button is the mirror of this. */}
-            <button
+            <Button
               type="button"
               onClick={onToggle}
               aria-label="Collapse activity"
@@ -242,7 +243,7 @@ export function LiveColumn({
               className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               <PanelRightClose className="size-4" aria-hidden />
-            </button>
+            </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -357,15 +358,16 @@ function CollapsedRail({
   const idle = loaded && active + failures + recent === 0;
   return (
     <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2 scrollbar-none">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={onToggle}
         aria-label="Expand activity"
         title="Expand activity (⌘J)"
         className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <PanelRight className="size-4" aria-hidden />
-      </button>
+      </Button>
       <div className="my-1 h-px w-6 bg-border" />
 
       {!loaded && <AiThinkingOrb />}
@@ -412,8 +414,9 @@ function StatusPip({
 }) {
   if (!show) return null;
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-sm"
       onClick={onClick}
       title={title}
       aria-label={title}
@@ -425,7 +428,7 @@ function StatusPip({
           {count > 9 ? '9+' : count}
         </span>
       )}
-    </button>
+    </Button>
   );
 }
 

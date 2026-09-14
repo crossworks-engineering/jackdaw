@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { localDay } from '@mantle/web-ui/lib/format-datetime';
 import {
@@ -176,8 +177,7 @@ function LandedRow({
   return (
     <li className="px-3 py-2.5">
       <div className="flex items-start gap-2">
-        <button
-          type="button"
+        <RowButton
           onClick={() => setOpen((v) => !v)}
           className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 text-left"
         >
@@ -206,7 +206,7 @@ function LandedRow({
               <CheckPill key={i} check={c} />
             ))}
           </span>
-        </button>
+        </RowButton>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
@@ -479,8 +479,7 @@ function AuditRow({ check }: { check: AuditCheck }) {
       : 'bg-muted text-foreground border-border';
   return (
     <li className="px-3 py-2.5">
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen((v) => !v)}
         className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 text-left"
       >
@@ -508,7 +507,7 @@ function AuditRow({ check }: { check: AuditCheck }) {
             {span.text}
           </span>
         )}
-      </button>
+      </RowButton>
       {open && (
         <div className="mt-2 space-y-1.5 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
           <p className="text-muted-foreground">{check.note}</p>
@@ -621,8 +620,7 @@ function SystemRow({ check }: { check: SystemCheck }) {
   const hasDetail = Boolean(check.detail) || (check.samples?.length ?? 0) > 0;
   return (
     <li className="px-3 py-2.5">
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen((v) => !v)}
         className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 text-left"
         disabled={!hasDetail}
@@ -639,7 +637,7 @@ function SystemRow({ check }: { check: SystemCheck }) {
           {check.severity}
         </span>
         <span className="text-xs text-muted-foreground">— {check.detail}</span>
-      </button>
+      </RowButton>
       {open && (check.samples?.length ?? 0) > 0 && (
         <div className="mt-2 space-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
           {check.samples!.map((sm) => (
@@ -746,9 +744,8 @@ export function IntegrityClient() {
     <div className="space-y-4">
       <div className="flex gap-1 border-b border-border">
         {(['live', 'audit', 'system', 'maintenance'] as const).map((m) => (
-          <button
+          <RowButton
             key={m}
-            type="button"
             onClick={() => setMode(m)}
             className={
               'rounded-t-md px-3 py-1.5 text-sm font-medium transition-colors ' +
@@ -758,7 +755,7 @@ export function IntegrityClient() {
             }
           >
             {LABELS[m]}
-          </button>
+          </RowButton>
         ))}
       </div>
 

@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -51,8 +52,7 @@ function Row({
   title?: string;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       onClick={onClick}
       title={title}
       className={cn(
@@ -61,7 +61,7 @@ function Row({
       )}
     >
       {children}
-    </button>
+    </RowButton>
   );
 }
 
@@ -77,8 +77,7 @@ function GroupHeader({
   count: number;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       onClick={onToggle}
       className="flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left text-xs font-semibold hover:bg-muted/50"
     >
@@ -89,7 +88,7 @@ function GroupHeader({
       )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <span className="shrink-0 text-[10px] font-normal text-muted-foreground">{count}</span>
-    </button>
+    </RowButton>
   );
 }
 

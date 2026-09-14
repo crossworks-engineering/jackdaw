@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { prettifyDocLabel } from '@mantle/web-ui/docs-labels';
@@ -83,8 +84,7 @@ function TreeItems({
           const open = isOpen(id);
           return (
             <li key={`d:${node.name}`}>
-              <button
-                type="button"
+              <RowButton
                 onClick={() => toggle(id)}
                 aria-expanded={open}
                 style={{ paddingLeft: padLeft }}
@@ -92,7 +92,7 @@ function TreeItems({
               >
                 <Chevron open={open} />
                 {prettifyDocLabel(node.name)}
-              </button>
+              </RowButton>
               {open && (
                 <TreeItems
                   nodes={node.children}
@@ -192,8 +192,7 @@ export function DocsNav({ nav }: { nav: ReaderNav }) {
           return (
             <div key={col.key} className="space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
+                <RowButton
                   onClick={() => toggle(col.key)}
                   aria-expanded={open}
                   className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
@@ -202,7 +201,7 @@ export function DocsNav({ nav }: { nav: ReaderNav }) {
                   <span className="truncate text-xs font-semibold text-foreground">
                     {col.label}
                   </span>
-                </button>
+                </RowButton>
                 <Badge
                   variant={col.enabled ? 'default' : 'outline'}
                   className="shrink-0 text-[10px]"

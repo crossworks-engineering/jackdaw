@@ -14,6 +14,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import type { ThoughtEvent } from './use-turn-stream';
 import { liveTrailView } from './thought-trail-view';
@@ -165,8 +166,7 @@ function ThinkingTrace({ reasoning, bordered }: { reasoning: string; bordered: b
   if (!text) return null;
   return (
     <div className={cn(bordered && 'mt-2.5 border-t border-border/40 pt-2.5')}>
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         className="flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground/70 transition-colors hover:text-muted-foreground"
@@ -177,7 +177,7 @@ function ThinkingTrace({ reasoning, bordered }: { reasoning: string; bordered: b
           className={cn('size-3.5 shrink-0 transition-transform', open && 'rotate-90')}
           aria-hidden
         />
-      </button>
+      </RowButton>
       {open && (
         <p className="mt-1.5 max-h-56 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words pl-5 text-xs leading-relaxed text-muted-foreground/75">
           {text}
@@ -328,8 +328,7 @@ export function ThoughtTrail({
         className,
       )}
     >
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-foreground/[0.04]"
@@ -341,7 +340,7 @@ export function ThoughtTrail({
           className={cn('ml-auto size-3.5 shrink-0 transition-transform', open && 'rotate-90')}
           aria-hidden
         />
-      </button>
+      </RowButton>
 
       {open && (
         <ol className="flex flex-col px-3 pb-2.5 pt-0.5">
