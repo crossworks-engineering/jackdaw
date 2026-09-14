@@ -15,6 +15,7 @@ import {
   createSortedRowModel,
   flexRender,
   rowSortingFeature,
+  sortFns,
   tableFeatures,
   useTable,
   type ColumnDef,
@@ -134,6 +135,14 @@ const GRID_FEATURES = tableFeatures({
   columnVisibilityFeature,
   coreRowModel: createCoreRowModel(),
   sortedRowModel: createSortedRowModel(),
+  // v9 resolves a sortFn NAME only against functions registered here, and the
+  // columns use `auto`, which is a name. Leave this out and every column
+  // silently falls back to `basic` — the whole grid sorts case-sensitively, so
+  // "API" lands before "Agent". It warns once per column and sorts anyway,
+  // which is why a build, the tests and a glance at the screen all missed it.
+  // The registry is six small comparators; registering them individually would
+  // mean predicting what `auto` picks per column type.
+  sortFns,
 });
 type GridFeatures = typeof GRID_FEATURES;
 
