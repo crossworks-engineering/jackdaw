@@ -286,8 +286,8 @@ items are now closed:
 
 Still open, in rough order of value:
 
-- **Task board fetches 500 tasks unvirtualised**, each a dnd-kit sortable.
-  `@tanstack/react-virtual` is already a dependency, used in exactly one place.
+- ~~**Task board fetches 500 tasks unvirtualised**~~ **Addressed 2026-09-14, but
+  NOT by virtualising** — see §13.
 - **The page editor serialises the whole document on every keystroke, twice.**
 - **The dock context value** changes on almost any dock state and fans out to 14
   consumers, including the shell frame.
@@ -599,3 +599,56 @@ type `reference` with a `ref` target, and no table on the dev brain has one.
 They are the same `RowButton` pattern as the verified six and they keep their
 full className box, so the risk is low — but it is not zero and it is not
 measured. Exercising them needs a scratch table with a reference column.
+
+## 13. The task board · why it is not virtualised
+
+**Measured first, on a real board of 217 tasks** (103 / 16 / 98 across To do,
+In progress, Done — the fetch caps at 500):
+
+- 2,754 DOM elements, against 1,395 for the same screen in list view.
+- The two big columns are **~12x taller than their viewport** (10,396px and
+  11,002px of content in a 901px scrollport), so roughly 92% of their cards are
+  off-screen at any moment.
+- **No long tasks. None.** Not on mount, not on selecting a card. On a fast
+  workstation at this size there is no jank to feel. The case here is structural
+  and about headroom, not a stopwatch — say so rather than claiming a fix for
+  something nobody reported.
+
+**Virtualising was the wrong tool, and the reason is dnd-kit.** It measures real
+nodes to decide where a drop lands. Unmount the off-screen ones and drops near
+the edges go to the wrong index — a failure that is silent, corrupts ordering,
+and would not show up in any check this repo runs. `@tanstack/react-virtual`
+being already in the tree is not a reason to reach for it on a drag surface.
+
+**What was done instead**, both keeping every node mounted:
+
+1. **The card is memoised**, taking `onSelect(id)` instead of a pre-bound thunk,
+   with the parent's callback stabilised by `useCallback`. Selecting a card used
+   to re-render all 103 cards in a column, because each one was handed a fresh
+   `() => onSelect(t.id)` on every render. Now only the two cards whose
+   `selected` actually flipped re-render. `useSortable` keeps its own
+   subscription, so drag still re-renders what it needs to.
+2. **`content-visibility: auto` with `contain-intrinsic-size`**, the same pattern
+   as the font dialog's preview list. The browser skips layout and paint for
+   off-screen cards while the node stays in the DOM for dnd-kit to measure.
+
+**Result, forced layout across the three columns:** 12.9ms → 5.5ms, and
+14.5ms → 2.0ms when the measurement order was reversed to rule out ordering bias.
+
+⚠ **A live drag was NOT exercised** — a real drop reorders real tasks. What was
+checked instead: all 217 nodes stay mounted and dnd-wired, none zero-sized, and
+an off-screen card keeps a real 96px box from `contain-intrinsic-size` while an
+on-screen one reports its true 116px. That box is the thing dnd-kit measures, so
+the risk is low — but it is unexercised, and dragging between columns is the
+first thing to try on the box.
+
+**Two dead probes here, both of which would have sent you the wrong way.**
+`checkVisibility({ contentVisibilityAuto: true })` reported **zero** cards
+skipped — and reported zero on a purpose-built control too, so the instrument is
+simply not answering in this browser; it says nothing about whether
+content-visibility works. And calling `getBoundingClientRect()` on all 103 cards
+in one synchronous loop makes every one report the 96px intrinsic size, which
+reads exactly like "the placeholder is stuck and tall cards will overlap".
+Measured one card at a time, a frame apart, on-screen cards report their true
+height. Measure the EFFECT (layout time with the class on versus off), not the
+browser's opinion of its own state.
