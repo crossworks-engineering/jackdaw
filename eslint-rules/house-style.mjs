@@ -172,7 +172,7 @@ export const noRawFormControl = {
     docs: { description: 'compose form controls from the kit, not raw elements' },
     schema: [],
     messages: {
-      raw: 'Raw <{{tag}}> — use <{{kit}}> from @mantle/web-ui/ui/{{tag}}. The kit carries the focus ring, sizing and theming; a raw element carries none of them. If no primitive fits, add an eslint-disable with the reason.',
+      raw: 'Raw <{{tag}}> — use <{{kit}}> from @mantle/web-ui/ui/{{tag}}. The kit carries the focus ring, sizing and theming; a raw element carries none of them. For a clickable ROW (full-width, left-aligned, sized by its layout) reach for <RowButton> instead, and for a dismiss inside a chip use Button size="icon-2xs". If none of those fit, add an eslint-disable with the reason.',
     },
   },
   create(context) {

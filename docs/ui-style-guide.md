@@ -45,24 +45,25 @@ hex/oklch literal in a component. The theme CSS itself is **generated**,
 seeds in `packages/web-ui/themes/`, every text token solved to AA at build
 time; see [themes.md](themes.md) before touching any theme colour.
 
-| Purpose | Tokens (`bg-`/`text-`/`border-`) |
-|---|---|
-| Page surface | `background`, `foreground` |
-| Raised surface | `card`, `card-foreground`, `popover` |
-| Brand / primary action | `primary`, `primary-foreground` |
-| Secondary | `secondary`, `secondary-foreground` |
-| Subtle / muted | `muted`, `muted-foreground` |
-| Hover / highlight | `accent`, `accent-foreground` |
-| Danger | `destructive`, `destructive-foreground` |
-| Positive / confirm | `success`, `success-foreground` |
-| Caution / attention | `warning`, `warning-foreground` |
-| Neutral notice | `info`, `info-foreground` |
-| Any of those AS TEXT | `primary-ink`, `destructive-ink`, `success-ink`, `warning-ink`, `info-ink` |
-| Syntax highlighting | `code-keyword`, `code-string`, `code-number`, `code-title`, `code-variable` |
-| Lines / fields | `border`, `input`, `ring` |
-| Categorical data (charts ONLY) | `chart-1` … `chart-5` |
+| Purpose                        | Tokens (`bg-`/`text-`/`border-`)                                            |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| Page surface                   | `background`, `foreground`                                                  |
+| Raised surface                 | `card`, `card-foreground`, `popover`                                        |
+| Brand / primary action         | `primary`, `primary-foreground`                                             |
+| Secondary                      | `secondary`, `secondary-foreground`                                         |
+| Subtle / muted                 | `muted`, `muted-foreground`                                                 |
+| Hover / highlight              | `accent`, `accent-foreground`                                               |
+| Danger                         | `destructive`, `destructive-foreground`                                     |
+| Positive / confirm             | `success`, `success-foreground`                                             |
+| Caution / attention            | `warning`, `warning-foreground`                                             |
+| Neutral notice                 | `info`, `info-foreground`                                                   |
+| Any of those AS TEXT           | `primary-ink`, `destructive-ink`, `success-ink`, `warning-ink`, `info-ink`  |
+| Syntax highlighting            | `code-keyword`, `code-string`, `code-number`, `code-title`, `code-variable` |
+| Lines / fields                 | `border`, `input`, `ring`                                                   |
+| Categorical data (charts ONLY) | `chart-1` … `chart-5`                                                       |
 
 Rules:
+
 - **A fill is not an ink. Use `text-primary-ink` / `text-destructive-ink` for
   text.** `--primary` and `--destructive` are tuned to sit BEHIND their own
   `-foreground`, which makes them dark/saturated, and frequently illegible when
@@ -90,23 +91,24 @@ Rules:
   a fill on a row whose meta text is `text-muted-foreground`, flip it with
   `group-hover:text-accent-foreground`). Swept app-wide 2026-06-03.
 
-  **Which fill where**: what each surface pair is *for* (reach for the right one,
+  **Which fill where**: what each surface pair is _for_ (reach for the right one,
   then text it with its own foreground):
 
-  | Fill | Use it for |
-  |---|---|
-  | `bg-background` / `text-foreground` | the page itself |
-  | `bg-card` / `text-card-foreground` | neutral raised panels, cards |
-  | `bg-accent` / `text-accent-foreground` | a **soft highlighted surface**: accent cards, hover/active rows, chips that set BOTH tokens |
-  | `bg-secondary` / `text-secondary-foreground` | a quieter filled chip / segmented control |
-  | `bg-muted` / `text-muted-foreground` | the most subdued surface + secondary text on `background` |
-  | `bg-primary` / `text-primary-foreground` | the single brand/action accent, primary buttons, the one thing that should pop. Don't tile large areas with it (it's saturated). |
-  | `bg-destructive` / `text-destructive-foreground` | errors / destructive actions only |
+  | Fill                                             | Use it for                                                                                                                       |
+  | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+  | `bg-background` / `text-foreground`              | the page itself                                                                                                                  |
+  | `bg-card` / `text-card-foreground`               | neutral raised panels, cards                                                                                                     |
+  | `bg-accent` / `text-accent-foreground`           | a **soft highlighted surface**: accent cards, hover/active rows, chips that set BOTH tokens                                      |
+  | `bg-secondary` / `text-secondary-foreground`     | a quieter filled chip / segmented control                                                                                        |
+  | `bg-muted` / `text-muted-foreground`             | the most subdued surface + secondary text on `background`                                                                        |
+  | `bg-primary` / `text-primary-foreground`         | the single brand/action accent, primary buttons, the one thing that should pop. Don't tile large areas with it (it's saturated). |
+  | `bg-destructive` / `text-destructive-foreground` | errors / destructive actions only                                                                                                |
 
   Rule of thumb: **`accent` is the "card accent"; `primary` is the single pop on
   top; `muted`/`secondary` are the quiet fills.** For a tinted-but-not-filled
-  emphasis, a faint `bg-primary/10` (contrast-checked) is fine, but a *filled*
+  emphasis, a faint `bg-primary/10` (contrast-checked) is fine, but a _filled_
   coloured surface must bring its matching `-foreground`.
+
 - **Semantic action colours come from tokens, not literal green/red.** Affirmative
   = `primary`, dangerous/removing = `destructive`; status = `success` /
   `warning` / `info` (first-class roles beside `destructive`, each with a
@@ -124,7 +126,7 @@ Rules:
   fill.** For list/card selection use `<ListCard>`'s selected state (shared with
   `RadioGroupCard`'s checked state in the Appearance galleries):
   `border-primary ring-1 ring-primary` (reads as one thick brand border) over a
-  soft `bg-accent/50` tint. The *tint* is safe where a full fill is not: it sits
+  soft `bg-accent/50` tint. The _tint_ is safe where a full fill is not: it sits
   on `bg-card` under normal `foreground` text, while **an opaque `bg-accent`
   fill under text that isn't `accent-foreground` is unreadable on
   saturated-accent themes** — that ban stands. For hover use a neutral
@@ -141,7 +143,7 @@ Rules:
   `packages/web-ui/styles/themes.css`, registry in
   `packages/web-ui/src/lib/themes.ts`). Don't fork theme logic.
 - **Adding a hand-authored theme** (as opposed to the imported tweakcn presets):
-  a token has to clear contrast in *both* the roles the app uses it in, `--primary`
+  a token has to clear contrast in _both_ the roles the app uses it in, `--primary`
   is a fill under `--primary-foreground` **and** ink as `text-primary` on
   `--background`/`--card`/`--sidebar`, same for `--destructive`. A mid-tone brand
   colour usually satisfies neither; shade it for light mode and let the brand hex
@@ -156,13 +158,13 @@ Surfaces between the reader and that backdrop are translucent by rule, so the
 background reads through the whole screen instead of dying at the first
 rectangle. One alpha per role; do not invent new numbers per screen:
 
-| Surface | Treatment | Where it is encoded |
-|---|---|---|
-| Idle list card | `bg-card/70` | `listCardClass` (`ui/list-card`) |
-| Composer / form shell (§6c) | `bg-card/70` | `formShellClass` (`ui/form-shell`) |
-| Sticky chrome bar (pane headers, the rail's filter block) | surface token at `/60` + `backdrop-blur` | per screen, e.g. the notes/journal/pages/draw/tables headers |
+| Surface                                                                                                             | Treatment                                                       | Where it is encoded                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Idle list card                                                                                                      | `bg-card/70`                                                    | `listCardClass` (`ui/list-card`)                                                                               |
+| Composer / form shell (§6c)                                                                                         | `bg-card/70`                                                    | `formShellClass` (`ui/form-shell`)                                                                             |
+| Sticky chrome bar (pane headers, the rail's filter block)                                                           | surface token at `/60` + `backdrop-blur`                        | per screen, e.g. the notes/journal/pages/draw/tables headers                                                   |
 | Field-look controls (`Input`, `Textarea`, `SelectTrigger`, `TagInput`, the outline `Button`, bordered filter chips) | `bg-transparent` — the `border-input` outline IS the affordance | the kit components; never re-add a fill at a call site (`border-input bg-background` is the smell to grep for) |
-| Reader / detail panes | no fill at all | the pane inherits the shell's ground |
+| Reader / detail panes                                                                                               | no fill at all                                                  | the pane inherits the shell's ground                                                                           |
 
 - **Floating layers stay opaque**: `popover`, dialogs, dropdown/select menus,
   toasts, tooltips. A menu floating over arbitrary content needs a solid
@@ -247,13 +249,14 @@ overwrite rather than merge. They were vendored around the 2024 generation and
 have been edited in place since. Concretely, ours differ from upstream in ways
 you must preserve when porting:
 
-| | upstream today | ours |
-|---|---|---|
-| component | plain function (React 19 ref-as-prop) | `React.forwardRef` |
-| styling | CSS layer classes (`cn-input`, `cn-field`) | inline utility strings |
-| `data-slot` | everywhere | only on `field.tsx` |
+|             | upstream today                             | ours                   |
+| ----------- | ------------------------------------------ | ---------------------- |
+| component   | plain function (React 19 ref-as-prop)      | `React.forwardRef`     |
+| styling     | CSS layer classes (`cn-input`, `cn-field`) | inline utility strings |
+| `data-slot` | everywhere                                 | only on `field.tsx`    |
 
 Two more traps when copying upstream source verbatim:
+
 - **`text-primary` is banned as ink.** The `mantle/use-ink-for-text` lint rule
   rejects it; use `text-primary-ink`. Upstream uses the fill colour freely.
 - **Radix imports are mid-migration.** 5 components import from the unified
@@ -280,7 +283,7 @@ Shared app-level patterns (`components/`):
 ## 5. Buttons & icons
 
 - Use `<Button>` with `variant` (`default|secondary|outline|ghost|destructive|
-  link`) and `size` (`default|sm|lg|icon`). For links styled as buttons:
+link`) and `size` (`default|sm|lg|icon`). For links styled as buttons:
   `<Button asChild><Link …/></Button>`.
 - **Icons inside buttons are bare:** `<Button><Plus /> New</Button>`. The
   Button base already supplies `gap-2` spacing and auto-sizes SVGs to `size-4`.
@@ -294,18 +297,35 @@ Shared app-level patterns (`components/`):
   **never hand-size a Button with `className="size-7"`** and never use a
   labelled size to hold a lone icon (that gives a rectangle, not a square).
 
-  | Labelled | Height | Icon-only twin |
-  |---|---|---|
-  | `xs` | 32px | `icon-xs` |
-  | `sm` | 36px | `icon-sm` |
-  | `default` | 40px | `icon` |
-  | `lg` | 44px | `icon-lg` |
+  | Labelled  | Height | Icon-only twin |
+  | --------- | ------ | -------------- |
+  | —         | 24px   | `icon-2xs`     |
+  | `xs`      | 32px   | `icon-xs`      |
+  | `sm`      | 36px   | `icon-sm`      |
+  | `default` | 40px   | `icon`         |
+  | `lg`      | 44px   | `icon-lg`      |
+
+  `icon-2xs` has no labelled partner on purpose: no word fits in 24px. It is
+  for the dismiss affordance INSIDE a chip — a context pill, a tag, an
+  attachment — where `icon-xs` is taller than the chip holding it and reflows
+  the row. Its icon defaults to `size-3.5`, not `size-4`.
 
   So a ghost delete beside a `size="sm"` Edit is `size="icon-sm"`, not
   `size="icon"` (40px, 4px taller) and not `size="sm"` (a 40x36 rectangle).
   Before the twins existed both workarounds were widespread, and one screen
   rendered buttons at four different heights.
+
 - Icon-only buttons: an `icon*` size + an `aria-label`.
+- **A clickable ROW is `RowButton`, not `Button`.** A list item, a table cell, a
+  disclosure header — anything whose whole strip is the target and whose
+  geometry comes from the layout around it. `Button` brings a height, padding
+  and centred content, and hand-sizing those away is forbidden above, so a row
+  built from one is the wrong control. `RowButton` carries only the interaction
+  contract: the same focus ring, the same disabled behaviour, `text-left`, and
+  `type="button"` by default (a raw `<button>` in a `<form>` defaults to
+  `submit`, which is how a disclosure row came to submit a form). Width,
+  padding and background stay with the caller, because they belong to the
+  layout.
 - Icons come from `lucide-react`. Decorative icons get `aria-hidden`.
 
 ---
@@ -327,8 +347,11 @@ drift into a slightly different one.
   <FieldGroup>
     <Field data-invalid={!!error || undefined}>
       <FieldLabel htmlFor="task-title">Title</FieldLabel>
-      <Input id="task-title" aria-invalid={!!error || undefined}
-             aria-describedby={error ? 'task-form-error' : undefined} />
+      <Input
+        id="task-title"
+        aria-invalid={!!error || undefined}
+        aria-describedby={error ? 'task-form-error' : undefined}
+      />
       <FieldError id="task-form-error">{error}</FieldError>
     </Field>
 
@@ -339,7 +362,9 @@ drift into a slightly different one.
     </Field>
 
     <div className="flex justify-end gap-2 border-t border-border pt-4">
-      <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      <Button type="button" variant="outline" onClick={onCancel}>
+        Cancel
+      </Button>
       <SubmitButton pending={submitting}>Save task</SubmitButton>
     </div>
   </FieldGroup>
@@ -370,10 +395,10 @@ drift into a slightly different one.
 A failed field carries all three, and `FieldError` renders nothing when there
 is no message, so it can be mounted unconditionally:
 
-| Where | What |
-|---|---|
-| `Field` | `data-invalid` → turns the label `destructive-ink` |
-| the control | `aria-invalid` → turns its border `destructive` |
+| Where        | What                                                                          |
+| ------------ | ----------------------------------------------------------------------------- |
+| `Field`      | `data-invalid` → turns the label `destructive-ink`                            |
+| the control  | `aria-invalid` → turns its border `destructive`                               |
 | `FieldError` | `role="alert"` → announces, and `id` matches the control's `aria-describedby` |
 
 **Put the error inside the `Field` it belongs to**, not at the foot of the
@@ -418,7 +443,7 @@ arrangement) — do not hand-roll the string.
   is also what exposes any field that does not match its siblings, which is a
   feature. The fill is translucent (70, the idle `ListCard` alpha) so the
   workspace's Neat backdrop reads through the shell like every other surface.
-- The read view takes the card treatment only if its content is *not* already
+- The read view takes the card treatment only if its content is _not_ already
   cards. Tasks does not box it, because the body, checklist and comments are
   cards already and a wrapper would nest borders three deep.
 
@@ -435,7 +460,7 @@ arrangement) — do not hand-roll the string.
   dimmed one-liner under the control. Not decoration: a number with no stated
   effect is a number nobody dares change.
   - **Say the effect, not the value.** "Default 3" tells the operator nothing.
-    Lead with what moving the field *does*, and fold the default into that
+    Lead with what moving the field _does_, and fold the default into that
     sentence ("…; 20 is plenty"). Read defaults from source, never guess them.
   - **Two sentences, ~120 chars, no jargon that isn't already on screen.**
   - **`warn` is for fields where excess bites**: money, box load, or answer
@@ -456,17 +481,18 @@ arrangement) — do not hand-roll the string.
     How much of the recent conversation is re-sent with every message.
   </FieldHint>
   ```
+
 - **Date / time entry uses `<DateTimePicker value onChange clearable?>`**
   (`components/ui/date-time-picker.tsx`), the shadcn Calendar in a popover +
   a time field. Don't use the native `datetime-local` input (used by events +
   heartbeats; value is a `Date | null`).
 - **Every form submit uses `<SubmitButton>`** (`components/ui/submit-button.tsx`)
-, never a bare `<Button type="submit">`. It standardises the two things a
+  , never a bare `<Button type="submit">`. It standardises the two things a
   save button must do:
   - **Descriptive label, verb + noun.** "Save agent", "Save profile",
     "Create event", "Save key", never a bare "Save"/"Create", and the label
     does **not** change while saving (no "Saving…" text-swap). The user should
-    always read *what* the button persists.
+    always read _what_ the button persists.
   - **In-flight feedback.** While the submit runs the button disables itself
     and shows a leading spinner; the label stays put (no layout reflow).
   - **Driving the busy state:** client forms (the common case, `fetch` +
@@ -518,7 +544,7 @@ whenever a form is involved; don't lay the form bare on the page surface.
   is wide): `className="sm:max-w-md"` / `sm:max-w-2xl`.
 - **Destructive confirmation** → `AlertDialog`. Style the action red:
   `<AlertDialogAction className="bg-destructive text-destructive-foreground
-  hover:bg-destructive/90">`.
+hover:bg-destructive/90">`.
 - **Feedback** → `useToast()`: `toast.success('Saved')`, `toast.error(msg)`.
   Prefer toasts over inline error banners for transient outcomes. Don't blow
   away a loaded view to show an error.
@@ -558,9 +584,11 @@ See `recall/create-recall-dialog.tsx` and `avatar-builder.tsx`.
 ## 8. Page layout & the master-detail pattern
 
 ### Centered content pages
+
 Simple/standalone pages: `mx-auto max-w-{2xl..6xl} space-y-6 px-6 py-8`.
 
 ### Collapsible shell rails (`--nav-w` / `--activity-w`)
+
 The left nav and right Activity column collapse to a 3.5rem icon rail. Their
 live widths are published by `AppShell` as the `--nav-w` / `--activity-w` CSS
 variables on the shell root (with matching `data-{nav,activity}-collapsed`).
@@ -575,6 +603,7 @@ root, so it always renders expanded). Shortcuts: **⌘/Ctrl+B** toggles the nav,
 in the page editor).
 
 ### No header, no footer — the rail owns the chrome (`--top-bar-h`)
+
 The shell has NO fixed header and NO footer bar; every control they held lives
 in the left rail (`components/layout/rail/`): the brand block (wordmark + peer
 name), the account/theme/search rows, the nav, and a bottom toolbar holding the
@@ -595,12 +624,13 @@ that default isn't 16px). `--footer-h`/`--header-h` no longer exist; a region
 written against them gets an invalid `var()` and loses its anchor silently.
 
 ### Full-height pages
+
 The app `<main>` is a fixed, full-height `overflow-y-auto scrollbar-thin`
 region. For full-height screens the **page wrapper returns the client directly**
 (no `max-w` box; just `<><SetPageTitle/><Client/></>`) and the root takes the
 height. **Every flex/grid scroll pane must carry `min-h-0`**: grid items and
 flex children default to `min-height:auto`, so without it the pane grows to its
-content and `<main>` scrolls *behind* it (the dreaded double scrollbar / bottom
+content and `<main>` scrolls _behind_ it (the dreaded double scrollbar / bottom
 gap / cut-off). `min-h-0` is necessary but **not sufficient**: a correctly-sized
 but `position:static` `overflow-y-auto` pane still leaks its scrollable overflow
 into `<main>` when its content is far taller than the viewport, so the actual
@@ -614,6 +644,7 @@ are utilities in `globals.css`). There is **no global default** — `html` and
 the class gets a fat bar, and nothing warns you.
 
 Two consequences worth knowing:
+
 - **Put it on the primitive, not the caller.** `Textarea` carries it, so its
   ~20 consumers cannot forget. Any new scrolling primitive should do the same.
 - **A raw `<textarea>` gets a fat bar**, which is one more reason §6d bans
@@ -693,7 +724,7 @@ intrinsic height) in a pane that was 400px tall.
   component — a left-pinned panel-plus-spacer that could never reach the
   middle of the window.
 - **`id` is the persistence key**, saved to `localStorage`. Unique per screen,
-  and per *view* where a screen has more than one: `tasks` and `tasks-board`
+  and per _view_ where a screen has more than one: `tasks` and `tasks-board`
   are separate, because a board wants far more room than a 340px list.
 - Below `md` it falls back to the CSS grid and nothing resizes.
 
@@ -755,12 +786,12 @@ subtle — it shows up as dead space or as a divider that does nothing.
 
 **1. Who absorbs the slack?** Pick by asking what the DETAIL holds:
 
-| the detail is | prop | why |
-|---|---|---|
-| a form | *(default)* | the 672px measure is what stops fields running to 1200px line lengths |
-| prose the reader READS | *(default)*, wider opening + `maxDetailSize="100%"` | it wants a measure AND a right edge; `/pages` opens at 900px because its `xl:` outline rail eats 224px of whatever it gets |
-| a table, diff, transcript, app viewport | `detailFills` | not reading text; the cap would shrink the thing the screen exists for |
-| columns read left-to-right | `listFills` | the board wants every pixel |
+| the detail is                           | prop                                                | why                                                                                                                        |
+| --------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| a form                                  | _(default)_                                         | the 672px measure is what stops fields running to 1200px line lengths                                                      |
+| prose the reader READS                  | _(default)_, wider opening + `maxDetailSize="100%"` | it wants a measure AND a right edge; `/pages` opens at 900px because its `xl:` outline rail eats 224px of whatever it gets |
+| a table, diff, transcript, app viewport | `detailFills`                                       | not reading text; the cap would shrink the thing the screen exists for                                                     |
+| columns read left-to-right              | `listFills`                                         | the board wants every pixel                                                                                                |
 
 **2. Can it reach the window edge?** The default ceiling is `maxDetailSize`
 (1100px), with the leftover parked in the empty spacer. That is right for a
@@ -808,9 +839,10 @@ so: the shell rails have handles, and a detail pane may bring its own group
 innermost panel group that holds the list, then take only its direct children:
 
 ```ts
-page.locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
-    .last()
-    .locator(':scope > [data-slot="resizable-handle"]')
+page
+  .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
+  .last()
+  .locator(':scope > [data-slot="resizable-handle"]');
 ```
 
 A test that grabs `.last()` unscoped drags the wrong divider sideways and then
@@ -888,7 +920,7 @@ scaffold renders it:
 - **The detail opens with the §8 header row** — icon inside the `h2`, title
   truncating, actions `shrink-0`, delete last. See "Detail header anatomy".
 
-Everything below applies to BOTH scaffolds. The rules about *behaviour* —
+Everything below applies to BOTH scaffolds. The rules about _behaviour_ —
 selection, the card, pagination — are the durable part; the grid vs
 `<MasterDetail>` question is only about who owns the boxes.
 
@@ -923,11 +955,12 @@ protecting you from.
 
 Rules — the first two are the legacy grid's; the rest are the pattern's and
 hold either way:
+
 - **Both panes need `md:min-h-0`** (see double-scrollbar note above). Left is a
   flex column; only its list div scrolls (`md:flex-1 md:overflow-y-auto`).
 - **The scrolling detail pane needs `relative`** (`position` only, no other
   effect). `min-h-0` correctly sizes the pane to the grid track, but a
-  `position:static` `overflow-y-auto` pane still lets its *scrollable overflow*
+  `position:static` `overflow-y-auto` pane still lets its _scrollable overflow_
   propagate up to `<main>` when its content is much taller than the viewport,
   producing a **second, outer scrollbar** that overlaps and clips the editor.
   Making the pane a positioned element (`relative`) closes that boundary so only
@@ -955,11 +988,11 @@ hold either way:
   the form body has the rest, and there is a Save/Cancel footer. Don't put the
   Enabled toggle in the form body; it lives in the header.
 - **Selection model, pick one:**
-  - *Client state* when the list rows already hold everything the detail needs
+  - _Client state_ when the list rows already hold everything the detail needs
     (e.g. Notes rows include content) → instant, no fetch. `useState` for
     selection; re-derive the selected object from fresh props each render so
     saves reflect immediately.
-  - *URL-driven* (`?selected=id`, `?mode=add|edit|…`) when the detail needs a
+  - _URL-driven_ (`?selected=id`, `?mode=add|edit|…`) when the detail needs a
     server fetch or reuses server-action forms (Traces, AI workers, Accounts) →
     cards are `<Link>`s, the server page renders the right pane. Make a create
     action redirect back to `?selected=<newId>` so it lands on the same screen.
@@ -980,6 +1013,7 @@ hold either way:
   paginating a client-filtered slice is wrong.
 
 ### Detail header anatomy (right pane)
+
 **The reference is `/pages`** (`pages-client.tsx`, the `PagePreview` header).
 Every detail pane opens with the same four-part row:
 
@@ -1005,10 +1039,10 @@ Every detail pane opens with the same four-part row:
 - **Action order is least destructive to most, delete last.**
 - **Delete is a ghost icon button that is grey until hover:**
   `variant="ghost" size="sm" className="text-muted-foreground
-  hover:text-destructive-ink"` plus an `aria-label`. It carries **no text
+hover:text-destructive-ink"` plus an `aria-label`. It carries **no text
   label**. Delete always confirms through an `AlertDialog`.
   - The always-red variant (`text-destructive-ink
-    hover:text-destructive-ink`) **has been retired** — every delete
+hover:text-destructive-ink`) **has been retired** — every delete
     affordance in the app now uses grey-until-hover. Several still carry a
     `Trash2 + "Delete"` text label; dropping the label is per-screen work
     (phase 2), the colour is not.
@@ -1020,11 +1054,13 @@ Every detail pane opens with the same four-part row:
     Don't "finish the sweep" by changing them.
 
 ### Detail (deep-link) pages
+
 Start with `<BackLink href>`; title via `<SetPageTitle>`. **Keep these working
 as deep links** even after a master-detail supersedes the in-app navigation
 (e.g. `/traces/[id]`, `/settings/accounts/[id]/*`), other screens link to them.
 
 ### Radius / spacing
+
 `rounded-md` (controls), `rounded-lg` (cards); gaps in multiples of `0.25rem`
 (`gap-1.5`, `gap-2`, `space-y-4`).
 
@@ -1054,7 +1090,7 @@ as deep links** even after a master-detail supersedes the in-app navigation
   share), and Pages (editor + read + public) add it; the Pages editor surface is
   `prose` **and** `ProseMirror`, so it also picks up Pages-only `.ProseMirror`
   polish, code-block cards (`--muted` panel + 3px `primary` spine), a `primary`
-  caret (which keeps the *transparent* gradient h1 editable), and a themed text
+  caret (which keeps the _transparent_ gradient h1 editable), and a themed text
   selection. Selectors are class+element so they outrank Typography's `:where()`
   rules without `!important`. Don't hand-style headings per-surface, add the class.
 

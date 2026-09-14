@@ -118,6 +118,7 @@
     "./ui/label": "./src/ui/label.tsx",
     "./ui/list-card": "./src/ui/list-card.tsx",
     "./ui/popover": "./src/ui/popover.tsx",
+    "./ui/row-button": "./src/ui/row-button.tsx",
     "./ui/radio-group": "./src/ui/radio-group.tsx",
     "./ui/resizable": "./src/ui/resizable.tsx",
     "./ui/revola": "./src/ui/revola.tsx",
