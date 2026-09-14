@@ -72,11 +72,12 @@ release actually became _Latest_. `PATCH draft=false` with `make_latest` in the
 same call did not take on `v0.6.79`, and `v0.6.67` kept the flag — which is what
 `electron-updater` reads. It needed a second explicit PATCH. See §8.
 
-## 1. Raw form controls · 188 → 25 · the last 25 are four problems
+## 1. Raw form controls · 188 → 13 · the last 13 are three problems
 
-**Every raw `<button>` outside `table-grid` is gone** — 163 of them, across 65
-files, 48 of which held exactly one. Plus five field elements. The cap is at
-**25** and the rule is still `warn`; promoting it to `error` is the last step.
+**Every raw `<button>` is gone**, `table-grid` included — 171 across 66 files.
+The cap is at **13** and the rule is still `warn`; promoting it to `error` is
+the last step. What is left is thirteen FIELD elements: selects, radios,
+checkboxes and inline inputs. No buttons remain anywhere.
 
 **The kit was the blocker, not the call sites.** Measuring the 188 before
 converting any showed 57 with nowhere to go, so two things were added first and
@@ -97,7 +98,7 @@ giving a 16px padding-less icon a 24px twin moves everything around it.
 
 |                   | n   | needs                                                                                                                                                                                                                                   |
 | ----------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `table-grid`      | 12  | **A brain with tables on it.** Its cell editors are chrome-less on purpose and its popover triggers use `ring-inset`, because an offset ring inside a table cell overflows it. The dev brain has none, so this would be a blind change. |
+| ~~`table-grid`~~  | ~~12~~ | **Done 2026-09-14** — the dev brain has tables now (7 workbooks), which is what unblocked it. Eight buttons took `RowButton`/`Button`, the expanded-cell editor took `Textarea`, and three chrome-less fields kept a raw element behind a sanctioned disable. See below. |
 | native `<select>` | 6   | A decision per form. The kit's `Select` is a Radix listbox: different keyboard model, no native picker on mobile, and **three of the six carry `name=` for a native form POST** that Radix does not forward.                            |
 | radio / checkbox  | 4   | `RadioGroup` needs the group restructured around the inputs. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                                          |
 | inline fields     | 3   | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. The rule's sanctioned `eslint-disable`.                                                      |
@@ -430,7 +431,7 @@ Read this section, then §1 and §9. In rough order of what unblocks most:
 
 **1 · One green `pnpm e2e`** (§2). Needs a throwaway brain; the suite creates and deletes content. CI picks it up on its own once the repository variable is set.
 
-**2 · The last 25 raw controls** (§1). Twelve need a brain with tables. The other thirteen are per-form behavioural decisions, not a sweep — do them when the form in question is being touched anyway rather than as a batch.
+**2 · The last 13 raw controls** (§1). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
 
 **3 · Dependency decisions** (§3). Five majors, one at a time. TypeScript 7 is the native-compiler rewrite; check the eslint parser and the Next TS plugin first.
 
@@ -444,3 +445,44 @@ Read this section, then §1 and §9. In rough order of what unblocks most:
 - **`pnpm verify` before handing anything over**, and the lint cap only ever falls.
 - **Browser-check UI changes against a deployed brain** — and read `docs/handover-verification.md` §2 first, because getting a signed-in session needs a person and is worth batching.
 - Both repos are public: no client names, hostnames or IPs in commits, code or docs.
+
+## 12. The table-grid twelve · done 2026-09-14
+
+**What unblocked it:** the dev brain has tables now — 7 workbooks — where §1's
+table said it had none. That was the only thing holding this group.
+
+**Eight buttons.** The delete-row icon, three cell popover triggers and three
+popover menu items took `RowButton`; the expand-cell icon took
+`Button size="icon-2xs"`, its improvised `p-1` being exactly the 22px the 24px
+rung was added for. The expanded-cell editor took `Textarea` — it carries a real
+box, so it has a twin.
+
+**The inset ring.** `RowButton` ships the kit's OFFSET ring, which is the thing
+an offset ring inside a table cell overflows. The three triggers pass
+`focus-visible:ring-inset focus-visible:ring-offset-0`. Verified through
+`tailwind-merge` that the caller wins: `ring-offset-2` is dropped, `ring-inset`
+and `ring-2` survive, and so does the caller's box.
+
+**Three fields keep a raw element** behind the rule's sanctioned disable, each
+with its reason in place: the column name and the cell editor are chrome-less by
+design (a border, a height or a ring would draw a box around a heading, or turn
+a grid into a page of boxes), and the popover search is a ~30px field where
+`Input` is a fixed `h-10` with no smaller rung. **Give `Input` a size scale and
+that third one becomes a twin** — it is the only one of the three that wants the
+kit and cannot have it.
+
+**Measured in a signed-in browser, not looked at.** 467 buttons on a real grid,
+**zero of zero width** — that is the failure mode this pass watches for. The
+expand icon is 24×24 (was an improvised 22), delete-row is 14×14 (the icon's own
+size; `RowButton` adds no box), triggers hold 192–198 × 32–34 and do not overflow
+their cell. The focus ring was confirmed by pressing a real Tab first: a
+programmatic `.focus()` does NOT set `:focus-visible` in Chrome, so the first
+probe read `box-shadow: none` and proved nothing. With a real keypress it renders
+`0 0 0 2px inset` in the ring token.
+
+⚠ **Three of the twelve are converted but NOT browser-exercised**: the
+`ReferenceCell` menu items (Clear / value / free-text). They need a column of
+type `reference` with a `ref` target, and no table on the dev brain has one.
+They are the same `RowButton` pattern as the verified six and they keep their
+full className box, so the risk is low — but it is not zero and it is not
+measured. Exercising them needs a scratch table with a reference column.
