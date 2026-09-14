@@ -1,8 +1,11 @@
 # Handover: what is left of the frontend audit
 
-Rewritten 2026-09-10 at **v0.6.78**, and updated the same day after the
-`fix/audit-remainder` branch. Everything below is open unless it says
-otherwise, and what is closed lives in the audit rather than here.
+Current at **v0.6.81**, on main, pushed and green. Everything below is open
+unless it says otherwise, and what is closed lives in the audit rather than
+here.
+
+> **Start here in a fresh session.** Read §11 first — it is the shortest path
+> back in, and it says what each remaining item needs before it can move.
 
 - **The audit** is the authority and is current:
   <https://claude.ai/code/artifact/216dc6be-2285-424f-bc90-72ed7410942e>
@@ -10,21 +13,19 @@ otherwise, and what is closed lives in the audit rather than here.
   `docs/handover-structure.md` (the structure pass), `docs/handover-verification.md`
   (the signed-in rig).
 
-**Where it stands.** Every medium and med-low bug in the audit's §1 is closed,
-each with tests; the CSP is fully emitted; `assistant-client` phase 2 is done.
-The release pipeline defect is fixed and shipped. The five low bugs are closed,
-so are both remaining High items — the three per-pointermove drags and the
-missing error boundaries — and the live column no longer polls on every route.
-536 → 668 unit tests.
+**Where it stands.** The audit scores **9.2**, re-scored at v0.6.81. Every bug
+in its §1 is closed down to two half-findings. Both remaining High items are
+done — the three per-pointermove drags and the missing error boundaries — the
+live column no longer polls on every route, and raw form controls went 188 → 25.
+536 → 671 unit tests. Everything landed in this round was verified in a
+signed-in browser; §9 records what was measured and how.
 
-**What is left needs either a person or a browser.** Three items want a running
-app (the lint backlog, one green e2e, and the `/tables` half-collapse); one
-wants judgement (the dependency majors); the rest of §4 and §7 is ordinary work
-nobody has started.
+⚠ **v0.6.80 and v0.6.81 are on main and in NO release.** The last cut release
+is v0.6.79, so none of this round is on a box. Cutting one is three separate
+steps — see §8.
 
-**`fix/audit-remainder` is browser-verified**, signed in against the dev brain.
-§9 records what was measured. It caught one regression the branch had
-introduced — see §10, which is the more useful reading.
+**What is left needs something a session cannot bring**: a throwaway brain, a
+brain with tables on it, or a decision. §11 is the map.
 
 ---
 
@@ -65,40 +66,43 @@ release actually became _Latest_. `PATCH draft=false` with `make_latest` in the
 same call did not take on `v0.6.79`, and `v0.6.67` kept the flag — which is what
 `electron-updater` reads. It needed a second explicit PATCH. See §8.
 
-## 1. Raw form controls · 188 → 25, and the kit grew two rungs
+## 1. Raw form controls · 188 → 25 · the last 25 are four problems
 
-**Every raw `<button>` outside `table-grid` is gone** (163 of them), plus five
-field elements. The cap is at 25 and the rule is still `warn`; promoting it to
-`error` is the last step, once the 25 are resolved.
+**Every raw `<button>` outside `table-grid` is gone** — 163 of them, across 65
+files, 48 of which held exactly one. Plus five field elements. The cap is at
+**25** and the rule is still `warn`; promoting it to `error` is the last step.
 
-**The kit was the blocker, not the call sites.** Measuring the 188 first showed
-that 57 of them had nowhere to go, so two things were added before any
-conversion:
+**The kit was the blocker, not the call sites.** Measuring the 188 before
+converting any showed 57 with nowhere to go, so two things were added first and
+both are in the style guide's twins table:
 
-- **`RowButton`** — a clickable row: list item, disclosure header, menu item,
-  tag chip, card target, inline text button. The interaction contract with no
-  box. It absorbed the large majority of the backlog, because "a clickable
-  thing whose geometry belongs to its layout" is what most of this was.
+- **`RowButton`** (`@mantle/web-ui/ui/row-button`) — a clickable row: list item,
+  disclosure header, menu item, tag chip, card target, inline text button. The
+  interaction contract with no box. It absorbed the large majority.
 - **The 24px chip rung**, `2xs` and `icon-2xs`. 46 call sites had improvised
   `px-2 py-1` and `p-1`/`p-0.5` because `xs` at 32px is taller than the chips
   around them.
 
-Both are in the style guide's twins table and the rule's message now names them.
+**The rule for choosing**, which held all the way down: if the site sets a box
+that matches a twin, use the twin; if it sets no box at all, use `RowButton` —
+giving a 16px padding-less icon a 24px twin moves everything around it.
 
-**What is left, and it is a different kind of work.**
+### What is left, and why each is not a sweep
 
-|                           | n   | why it is not a sweep                                                                                                                                                                                                                 |
-| ------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `table-grid`              | 12  | Held deliberately. Its cell editors are chrome-less on purpose and its popover triggers use `ring-inset`, because an offset ring inside a table cell overflows it. **Wants a brain with tables to look at** — the dev brain has none. |
-| native `<select>`         | 6   | The kit's `Select` is a Radix listbox, not a native one: different keyboard model, no native picker on mobile, and **three of the six carry `name=` for a native form POST** that Radix does not forward. Per-form behavioural work.  |
-| radio / checkbox          | 4   | `RadioGroup` needs the group restructured around the inputs, not a tag swap. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                        |
-| chrome-less inline fields | 3   | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. Candidates for a documented `eslint-disable`, which the rule explicitly allows.            |
+|                   | n   | needs                                                                                                                                                                                                                                   |
+| ----------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table-grid`      | 12  | **A brain with tables on it.** Its cell editors are chrome-less on purpose and its popover triggers use `ring-inset`, because an offset ring inside a table cell overflows it. The dev brain has none, so this would be a blind change. |
+| native `<select>` | 6   | A decision per form. The kit's `Select` is a Radix listbox: different keyboard model, no native picker on mobile, and **three of the six carry `name=` for a native form POST** that Radix does not forward.                            |
+| radio / checkbox  | 4   | `RadioGroup` needs the group restructured around the inputs. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                                          |
+| inline fields     | 3   | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. The rule's sanctioned `eslint-disable`.                                                      |
 
-**Habit worth keeping from this pass:** convert screen by screen and measure the
-geometry, not the diff. The conversions are supposed to change nothing visible —
-the composer's toolbar was 32x32 before and after — so the thing to watch for is
-a control that collapses when a primitive stops supplying its box. None did, but
-that is the check, and it is a DOM query rather than a look.
+**Done when** the count reaches zero and the rule is promoted to `error`. Lower
+the cap in `package.json` as it falls; never raise it.
+
+**Habit from this pass:** convert screen by screen and measure the geometry, not
+the diff. Conversions are supposed to change nothing visible — the assistant's
+toolbar was 32×32 before and after — so what to watch for is a control that
+**collapses** when a primitive stops supplying its box. A DOM query, not a look.
 
 ## 2. One green `pnpm e2e` · against a throwaway brain
 
@@ -358,6 +362,33 @@ only.
 **`/tables` half-collapse: could not reproduce.** This brain has no tables at
 all. The hypothesis in §6 is still the thing to test.
 
+### The second pass, at v0.6.81 · the form-control sweep
+
+Same method, different target. The claim being checked is that **nothing
+changes** — so the measurement is geometry, not behaviour.
+
+- **The assistant composer**: toolbar controls 32×32 before and after, the 3px
+  box and 96px min-height intact, send 48×140 matching the textarea exactly.
+- **Files**: row heights stay content-driven (28px for "Recent", 59px and 77px
+  for folder rows whose descriptions wrap) and everything stays left-aligned —
+  the argument for `RowButton` in one measurement, since `Button` would have
+  forced them all to one height with centred content.
+- **The file editor**: border 0, padding 16px and JetBrains Mono preserved, and
+  `scrollbar-thin` now present where it was not. Three of the most scrollable
+  panes in the app were quietly exempt from the house rule because a raw
+  `<textarea>` carries nothing.
+- **Seven routes, signed in**: `/tasks` (106 RowButtons), `/pages`,
+  `/settings/agents`, `/inbox`, `/secrets`, `/apps`, `/files`. **No button
+  anywhere collapsed to zero width.** Console clean on a full load.
+
+⚠ **Two dead probes this pass, both of which looked like passes.** A route sweep
+driven by `history.pushState` returned identical numbers for all twelve routes —
+`pushState` does not drive the App Router, so the page never changed. And the
+first error-boundary probe reported nothing because the web-ui module had not
+rebuilt; the second because the branch had been inserted into
+`componentDidUpdate` instead of `render`. **Prove the instrument.** The console
+probe line and the keyboard-path control both exist for this reason.
+
 ## 10. The regression the browser caught
 
 Worth reading even if the rest of this file is skimmed, because it is a whole
@@ -382,3 +413,28 @@ editing.
 
 Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
 `serverThemeWins` carries the rule as a pure function with tests.
+
+---
+
+## 11. Picking up cold
+
+Read this section, then §1 and §9. In rough order of what unblocks most:
+
+**1 · Cut a release.** v0.6.80 and v0.6.81 are on main and on no box. `scripts/tag-release.sh`, then §8 — tag, publish, and _Latest_ are three separate steps and the third has been missed before. This round changes visible UI on nearly every screen, so it is worth someone using the box afterwards.
+
+**2 · One green `pnpm e2e`** (§2). Needs a throwaway brain; the suite creates and deletes content. CI picks it up on its own once the repository variable is set.
+
+**3 · The last 25 raw controls** (§1). Twelve need a brain with tables. The other thirteen are per-form behavioural decisions, not a sweep — do them when the form in question is being touched anyway rather than as a batch.
+
+**4 · Dependency decisions** (§3). Five majors, one at a time. TypeScript 7 is the native-compiler rewrite; check the eslint parser and the Next TS plugin first.
+
+**5 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
+
+**6 · `assetUrl` reactivity and the `/tables` half-collapse** (§6). Both have a written diagnosis and neither has a fix. The `/tables` one has a ruled-out hypothesis and a specific next test, which is worth more than the original note was.
+
+### What this repo expects of you
+
+- **Worktrees are the default**: `scripts/new-worktree.sh <name>`. The original clone stays on main and is only used for merges and releases. Land with `scripts/merge-branch.sh <branch>`, which bumps the version on main as part of the merge.
+- **`pnpm verify` before handing anything over**, and the lint cap only ever falls.
+- **Browser-check UI changes against a deployed brain** — and read `docs/handover-verification.md` §2 first, because getting a signed-in session needs a person and is worth batching.
+- Both repos are public: no client names, hostnames or IPs in commits, code or docs.
