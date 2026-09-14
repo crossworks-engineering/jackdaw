@@ -136,7 +136,7 @@ is nothing to decide on them yet. The other two are genuinely available.
 | `vite` (desktop) | 7.x | ⛔ **Blocked.** `electron-vite` 5.0.0, the latest, peers `vite ^5 \|\| ^6 \|\| ^7`. Vite 8 is not adoptable until electron-vite widens that. Nothing to decide. |
 | `typescript` | 5.9.3 | ⛔ **7 is blocked, but 6 is not.** `typescript-eslint` 8.70.0 peers `typescript >=4.8.4 <6.1.0`, so TS 7 would take the parser out. **TypeScript 6.0.3 exists and is inside that range** — the real next step is 6, not 7, and the old table listing only 7.x as "latest" hid that. TS 7 (one release) can wait for the parser. |
 | `vitest` | 4.1.11 | ⏸ **Wait, unchanged.** 5.0.0 is still the ONLY stable 5.x. The original advice to wait a point release has not been overtaken. |
-| `electron` | 43.6 | ✅ Available. 44.3.0. Routine, but the updater path wants testing against a published release, which means the desktop pipeline, not a local check. |
+| `electron` | **44.3.0** | ✅ **Done 2026-09-14.** Chromium 150 → 152, V8 15.0 → 15.2, Node stays on 24. Updater exercised locally as far as it goes — see below. |
 | `@tanstack/react-table` | **9.2.4** | ✅ **Done 2026-09-14**, via the legacy entrypoint — see below. |
 
 **react-table 9 · done, natively.** Landed in two steps on purpose: first the
@@ -186,6 +186,33 @@ broken virtualiser; so did reading the window before it settled, which needed a
 `API integration` before `Agent edit` as out of order when the sort is
 case-sensitive and correct — the checker was wrong, not the grid. Confirm with a
 real input event and the right comparator before believing any of them.
+
+**electron 44 · the updater path, tested as far as a local machine allows.** The
+stated risk was the updater, and most of it turns out to be checkable without
+cutting a release:
+
+1. Packaged for linux on 44 (AppImage + deb). `latest-linux.yml` comes out well
+   formed — both artifacts with sha512 and size, and a `blockMapSize` on the
+   AppImage, which is what differential updates need.
+2. Ran the **packaged** binary, not the dev shell. That is the part that matters:
+   `app.isPackaged` is what gates `setupAutoUpdate()`, so only a packaged build
+   turns the updater on at all. It reached GitHub, read the release feed, and
+   compared versions correctly:
+
+   ```
+   Checking for update
+   Update for version 0.6.86 is not available
+     (latest version: 0.6.84, downgrade is disallowed)
+   ```
+
+**The one leg still untested is download-and-install**, which needs a published
+release NEWER than an installed build — so the first box to take a release after
+this one is the real proof. Watch a linux or windows client; **mac is unsigned
+and never self-updates**, fresh installs only, per the note in `desktop.yml`.
+
+Nothing else in the repo names an electron version, and `electron-builder`
+26.15.3 / `electron-updater` 6.8.9 were already current, so no toolchain change
+rode along.
 
 ### Done 2026-09-14 · the cleanup that needed no decision
 
@@ -494,7 +521,7 @@ Read this section, then §1 and §9. In rough order of what unblocks most:
 
 **2 · The last 13 raw controls** (§1). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
 
-**3 · Dependency decisions** (§3). Three of the five are blocked upstream and are not decisions — checked 2026-09-14. `@tanstack/react-table` 9 is **done**, on the native API — the legacy entrypoint is gone. What is live: `electron` 44 (needs the updater path tested through the desktop pipeline). TypeScript's real next step is **6**, not 7 — the eslint parser caps at <6.1.0.
+**3 · Dependency decisions** (§3). Three of the five are blocked upstream and are not decisions — checked 2026-09-14. `@tanstack/react-table` 9 is **done**, on the native API — the legacy entrypoint is gone. `electron` 44 is **done** too, so **no dependency major is open**. The three that remain (`vite` 8, `typescript` 7, `vitest` 5) are all blocked upstream; TypeScript **6** is the available step when someone wants it. TypeScript's real next step is **6**, not 7 — the eslint parser caps at <6.1.0.
 
 **4 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
 
