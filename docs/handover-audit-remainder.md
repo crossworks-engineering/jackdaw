@@ -65,21 +65,40 @@ release actually became _Latest_. `PATCH draft=false` with `make_latest` in the
 same call did not take on `v0.6.79`, and `v0.6.67` kept the flag — which is what
 `electron-updater` reads. It needed a second explicit PATCH. See §8.
 
-## 1. The 188 raw form controls · the last lint backlog
+## 1. Raw form controls · 188 → 25, and the kit grew two rungs
 
-`no-raw-form-control` is the one of the three house rules still at `warn`,
-capped at 188 so nothing new joins it. The other two reached zero and are
-`error`.
+**Every raw `<button>` outside `table-grid` is gone** (163 of them), plus five
+field elements. The cap is at 25 and the rule is still `warn`; promoting it to
+`error` is the last step, once the 25 are resolved.
 
-It was not swept with them for a reason: it **rewrites rendered markup** rather
-than swapping a class. A raw `<button>` becoming `<Button>` changes layout,
-sizing and focus behaviour, so it wants eyes on a running app, screen by screen,
-not a scripted pass.
+**The kit was the blocker, not the call sites.** Measuring the 188 first showed
+that 57 of them had nowhere to go, so two things were added before any
+conversion:
 
-Hotspots: `assistant-client`, `files-client`, `table-grid`, `studio-view`.
+- **`RowButton`** — a clickable row: list item, disclosure header, menu item,
+  tag chip, card target, inline text button. The interaction contract with no
+  box. It absorbed the large majority of the backlog, because "a clickable
+  thing whose geometry belongs to its layout" is what most of this was.
+- **The 24px chip rung**, `2xs` and `icon-2xs`. 46 call sites had improvised
+  `px-2 py-1` and `p-1`/`p-0.5` because `xs` at 32px is taller than the chips
+  around them.
 
-**Done when** the count reaches zero and the rule is promoted to `error`. Lower
-the cap in `package.json` as it falls; never raise it.
+Both are in the style guide's twins table and the rule's message now names them.
+
+**What is left, and it is a different kind of work.**
+
+|                           | n   | why it is not a sweep                                                                                                                                                                                                                 |
+| ------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table-grid`              | 12  | Held deliberately. Its cell editors are chrome-less on purpose and its popover triggers use `ring-inset`, because an offset ring inside a table cell overflows it. **Wants a brain with tables to look at** — the dev brain has none. |
+| native `<select>`         | 6   | The kit's `Select` is a Radix listbox, not a native one: different keyboard model, no native picker on mobile, and **three of the six carry `name=` for a native form POST** that Radix does not forward. Per-form behavioural work.  |
+| radio / checkbox          | 4   | `RadioGroup` needs the group restructured around the inputs, not a tag swap. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                        |
+| chrome-less inline fields | 3   | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. Candidates for a documented `eslint-disable`, which the rule explicitly allows.            |
+
+**Habit worth keeping from this pass:** convert screen by screen and measure the
+geometry, not the diff. The conversions are supposed to change nothing visible —
+the composer's toolbar was 32x32 before and after — so the thing to watch for is
+a control that collapses when a primitive stops supplying its box. None did, but
+that is the check, and it is a DOM query rather than a look.
 
 ## 2. One green `pnpm e2e` · against a throwaway brain
 
