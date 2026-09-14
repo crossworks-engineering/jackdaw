@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { describeFile, fileTypeLabel, KIND_TINT } from '@mantle/web-ui/lib/mime-label';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -284,7 +285,7 @@ export function FileEditor({
       {file.isText ? (
         <div className="flex flex-1 overflow-hidden">
           {(mode === 'edit' || mode === 'split' || !isMarkdown) && (
-            <textarea
+            <Textarea
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
@@ -297,7 +298,10 @@ export function FileEditor({
                 }
               }}
               className={
-                'h-full resize-none border-0 bg-background p-4 font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ' +
+                // The kit supplies the ring, the placeholder and scrollbar-thin;
+                // the overrides are this pane's own: no border (the pane has
+                // one), full height, and an INSET ring so it cannot overflow.
+                'h-full min-h-0 resize-none rounded-none border-0 bg-background p-4 font-mono text-sm focus-visible:ring-inset focus-visible:ring-offset-0 ' +
                 (mode === 'split' && isMarkdown ? 'w-1/2 border-r border-border' : 'flex-1')
               }
               spellCheck={file.extension !== 'json'}

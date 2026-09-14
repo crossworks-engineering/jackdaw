@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Send } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Input } from '@mantle/web-ui/ui/input';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import type { AgentTelegramBinding, AgentTelegramChat } from '@mantle/client-types';
@@ -194,7 +195,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      <input
+      <Input
         type="text"
         autoComplete="off"
         value={token}
@@ -206,7 +207,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
           }
         }}
         placeholder={binding ? 'Paste a new token to rotate…' : 'Paste your bot token…'}
-        className="h-9 w-full rounded-md border border-input bg-transparent px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-9 font-mono text-sm"
       />
 
       <div className="flex gap-2">

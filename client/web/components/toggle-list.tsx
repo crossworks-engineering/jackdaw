@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { Input } from '@mantle/web-ui/ui/input';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 
@@ -98,7 +99,7 @@ export function ToggleList({
           className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
           aria-hidden
         />
-        <input
+        <Input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -108,7 +109,7 @@ export function ToggleList({
           }}
           placeholder="Search…"
           aria-label="Search"
-          className="h-8 w-full rounded-md border border-input bg-transparent pl-7 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 pl-7 pr-2 text-sm"
         />
       </div>
       <div className="flex shrink-0 items-center rounded-md border border-input p-0.5 text-xs">

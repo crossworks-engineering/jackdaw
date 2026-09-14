@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { computeDiffOverlay, type DiffOverlay } from '@mantle/content-core/page-diff';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Input } from '@mantle/web-ui/ui/input';
 import { TagInput } from '@/components/tag-input';
 import { FocusToggle } from '@/components/layout/focus-toggle';
@@ -1020,14 +1021,14 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
                 <span className="text-muted-foreground">— your changes are safe</span>
               </div>
             )}
-            <textarea
+            <Textarea
               value={mdText}
               autoFocus
               spellCheck={false}
               aria-label="Page markdown source"
               onChange={(e) => onMdChange(e.target.value)}
               onBlur={() => applyMd(mdText)}
-              className="min-h-0 w-full flex-1 resize-none bg-transparent px-6 py-5 font-mono text-sm leading-relaxed text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              className="min-h-0 w-full flex-1 resize-none rounded-none border-0 bg-transparent px-6 py-5 font-mono text-sm leading-relaxed text-foreground focus-visible:ring-inset focus-visible:ring-offset-0"
             />
           </>
         ) : (

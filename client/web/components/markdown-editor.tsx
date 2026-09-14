@@ -17,6 +17,7 @@ import {
   SplitSquareHorizontal,
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { cn } from '@mantle/web-ui/lib/utils';
 
@@ -143,14 +144,14 @@ export function MarkdownEditor({
       {/* Body */}
       <div className={cn('flex overflow-hidden rounded-md border border-input', height)}>
         {showEditor && (
-          <textarea
+          <Textarea
             ref={ref}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             spellCheck
             className={cn(
-              'h-full resize-none bg-transparent p-3 font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+              'h-full min-h-0 resize-none rounded-none border-0 bg-transparent p-3 font-mono text-sm focus-visible:ring-inset focus-visible:ring-offset-0',
               mode === 'split' ? 'w-1/2 border-r border-border' : 'flex-1',
             )}
           />
