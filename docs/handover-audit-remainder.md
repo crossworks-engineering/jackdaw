@@ -139,32 +139,53 @@ is nothing to decide on them yet. The other two are genuinely available.
 | `electron` | 43.6 | ✅ Available. 44.3.0. Routine, but the updater path wants testing against a published release, which means the desktop pipeline, not a local check. |
 | `@tanstack/react-table` | **9.2.4** | ✅ **Done 2026-09-14**, via the legacy entrypoint — see below. |
 
-**react-table 9 · done, and deliberately not finished.** The bump went in through
-`@tanstack/react-table/legacy`, which the library ships for exactly this:
-`useLegacyTable`, `getCoreRowModel`, `getSortedRowModel` and `LegacyColumnDef`
-keep v8 semantics byte for byte. `flexRender` and `SortingState` still come from
-the main entry. Six lines in one file.
+**react-table 9 · done, natively.** Landed in two steps on purpose: first the
+version bump through `@tanstack/react-table/legacy` (v8 semantics byte for byte,
+six lines), then the native API once that was proven on a box. The legacy
+entrypoint is gone.
 
-**Why not the native API.** v9 is an architecture change, not a rename: a
-`TableFeatures` generic threaded through `ColumnDef`, an atom/store model, opt-in
-features, and `Subscribe`/`useSelector` for re-render control. Adopting that in
-the same pass would have put a new re-render model under a virtualised grid with
-no way to tell a v9 bug from a migration bug. The version bump is the part with a
-deadline; the rewrite is not.
+**What v9 actually needs.** It ships no features by default, so the grid declares
+what it uses and everything else tree-shakes:
 
-**Still open — the native v9 migration.** `useTable`, `createCoreRowModel` /
-`createSortedRowModel`, and the features generic on every column def. The legacy
-entry is a compatibility shim and will not live forever. When it is done, the
-re-render behaviour is what to watch, not the types: v9 moves from
-render-on-state-change to explicit subscriptions, and this grid is virtualised.
+```
+const GRID_FEATURES = tableFeatures({
+  rowSortingFeature,
+  columnVisibilityFeature,   // row.getVisibleCells() lives here
+  coreRowModel: createCoreRowModel(),
+  sortedRowModel: createSortedRowModel(),
+});
+```
 
-**How it was verified**, since a data grid passing typecheck proves little: on a
-real brain with tables, sorting reorders the rows and the result is genuinely
-ascending; the virtual window recycles indices 0–38 → 16–67 of 78 rows under a
-real wheel scroll; console clean. Two probes lied on the way — a programmatic
-`.click()` does not open a Radix menu (it needs real pointer events), and setting
-`scrollTop` on the wrong ancestor left the virtual window frozen at 0–38, which
-reads exactly like a broken virtualiser. Both needed a real input event.
+Row models are **slots on that object**, not siblings of it. The registry sits at
+module scope deliberately — the table reads it as stable, so rebuilding it per
+render hands the table a new registry every pass.
+
+**Two things the types do not infer.** `useTable` needs explicit
+`<GridFeatures, Row>` generics or `TData` falls back to `RowData` and every
+column def stops matching. And the option is `features`; `_features` is what the
+table exposes internally, which is a genuinely confusing pair — TypeScript's
+"did you mean" is what caught it.
+
+**`columnVisibilityFeature` is the interesting one.** Nothing in this grid hides
+a column, but `row.getVisibleCells()` belongs to that feature, so v9's opt-in
+model forces you to name a dependency v8 hid. Expect one or two of those per
+table when migrating another.
+
+**How it was verified**, since v9 changes WHEN things re-render and no amount of
+typechecking sees that: sorting reorders and the order is internally consistent;
+the virtual window moves to 30–77 of 78 rows under a real wheel scroll; a cell
+edit re-renders the controlled input and Escape restores it with nothing
+committed.
+
+⚠ **Three probes lied during this work and each looked like a bug.** A
+programmatic `.click()` does not open a Radix menu — it needs real pointer
+events, and the menu silently never opens. Setting `scrollTop` on the wrong
+ancestor froze the reported virtual window at 0–38, which reads exactly like a
+broken virtualiser; so did reading the window before it settled, which needed a
+3s wait rather than 2s. And a case-INSENSITIVE ordering check flagged
+`API integration` before `Agent edit` as out of order when the sort is
+case-sensitive and correct — the checker was wrong, not the grid. Confirm with a
+real input event and the right comparator before believing any of them.
 
 ### Done 2026-09-14 · the cleanup that needed no decision
 
@@ -473,7 +494,7 @@ Read this section, then §1 and §9. In rough order of what unblocks most:
 
 **2 · The last 13 raw controls** (§1). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
 
-**3 · Dependency decisions** (§3). Three of the five are blocked upstream and are not decisions — checked 2026-09-14. `@tanstack/react-table` 9 is **done** (via the legacy entrypoint; the native-API migration is still open). What is live: `electron` 44 (needs the updater path tested through the desktop pipeline). TypeScript's real next step is **6**, not 7 — the eslint parser caps at <6.1.0.
+**3 · Dependency decisions** (§3). Three of the five are blocked upstream and are not decisions — checked 2026-09-14. `@tanstack/react-table` 9 is **done**, on the native API — the legacy entrypoint is gone. What is live: `electron` 44 (needs the updater path tested through the desktop pipeline). TypeScript's real next step is **6**, not 7 — the eslint parser caps at <6.1.0.
 
 **4 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
 
