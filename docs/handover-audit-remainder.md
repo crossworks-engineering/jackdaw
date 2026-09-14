@@ -347,33 +347,48 @@ Excalidraw, outside React entirely. It needs a subscribable store those modules
 can read, or the shell withholding asset-bearing children until the token
 resolves — and only in split deployments, since same-origin never needs a token.
 
-**`/tables` restores a collapsed list into a half-state.** After a reload with
-the list collapsed, the collapsed rail renders but the list panel stays at its
-full ~296px, so both are on screen at once. Pre-existing, not from the phase 2
-work — verified by measuring main's own `tables-shell.tsx` and getting the
-identical result. The live collapse/expand round trip is fine; only
-restore-on-load is wrong. Likely affects any MasterDetail screen that persists
-a collapse. **The fix belongs in `MasterDetail`, not in `use-persisted-state`**
-— that hook's render-fallback-then-adopt behaviour is deliberate and fixes a
-hydration mismatch documented in its own header.
+~~**`/tables` restores a collapsed list into a half-state.**~~ **Fixed.** After a
+reload with the list collapsed, the collapsed rail rendered but the list panel
+stayed at its saved width — both on screen at once, the rail offering to show a
+list that was never hidden. `/tables` is the only screen that persists its
+collapse (`tables.listCollapsed` via `usePersistedState`); `/notes`, `/pages`,
+`/draw` and `/apps` use plain `useState`, so they never reload into a collapsed
+state and never showed it.
 
-**One hypothesis was ruled out by reading, and one is left to test.** The
-obvious explanation is that the collapse effect
-(`master-detail.tsx`, `[collapsible, listCollapsed]`) misses the commit where
-the panels mount: on the first render `isDesktop` is null, so the CSS-grid
-branch renders and `listHandle.current` is null, and the effect returns having
-done nothing. But both `useMediaQuery` and `usePersistedState` adopt in
+**The diagnosis recorded here was wrong, which is the useful part.** This file
+said the next thing to check was whether `collapse()` fires and is then
+OVERWRITTEN by the panel group applying its saved `defaultLayout` — and it had
+ruled out the "effect misses the commit where the panels mount" explanation by
+reading, on the grounds that `useMediaQuery` and `usePersistedState` adopt in
 post-mount effects that flush together, so `isDesktop` and `listCollapsed` flip
-in the SAME commit — the effect re-runs with the ref populated, and
-`panel.collapse()` is called. So that is probably not it.
+in the SAME commit. **They do not.** The persisted value is already `true` on
+that path, so there is no flip to ride.
 
-What is left, and what to check first in a browser: whether `collapse()` is
-called and then OVERWRITTEN by the panel group applying its saved
-`defaultLayout`, which holds the width the user last dragged
-(`master-detail:tables` in localStorage, and `onlySaveAfterUserInteractions`
-keeps a 0 out of it). Put a breakpoint or a log in that effect; if it fires and
-the panel is still 296px a frame later, the restore is the thing to fix, not the
-effect. Reproduce with the list collapsed and a width previously dragged.
+`collapse()` was never called at all. The effect depended on `[collapsible,
+listCollapsed]` — the state, but not on whether the panel it drives exists.
+Below `isDesktop` there is no panel: the narrow branch is a CSS grid and
+`listHandle.current` is null. So the effect ran once against the grid, returned
+at the null ref, and nothing re-ran it when the panels mounted a commit later.
+Adding `isDesktop` to the dependency list is the whole fix.
+
+**Two probes settled it in minutes, after the reading had settled it wrongly.**
+Sampling the list width across the reload (with `setTimeout`, never `rAF` — see
+§9) shows it appear at its saved width and **never pass through zero**, which
+kills the overwrite hypothesis on its own. Logging inside the effect shows it
+running twice, both times with a null ref and `listCollapsed` already `true`.
+**A hypothesis ruled out by reading is not ruled out.**
+
+Worth keeping about the shape of the fix: overriding `defaultLayout` to mount
+the panel at zero would also collapse it, but the library would then hold no
+prior size, and `expand()` would give back the default instead of the width the
+user dragged — the round trip this component documents. Mounting at the saved
+width and collapsing a beat later keeps it.
+
+It now has the coverage it never had: `e2e/specs/master-detail-collapse-restore.spec.ts`,
+which fails on the old code at the saved width and passes on the new. It sets up
+both preconditions deliberately — a dragged width for `defaultLayout` to restore,
+and a reload rather than a re-render, since the group reads that layout on mount
+only.
 
 ## 7. Smaller, still carried
 
