@@ -9,14 +9,13 @@
  * neutral hover, theme tokens, no hardcoded colours.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flexRender, type SortingState } from '@tanstack/react-table';
 import {
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-} from '@tanstack/react-table';
+  useLegacyTable,
+  type LegacyColumnDef,
+} from '@tanstack/react-table/legacy';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ArrowDown,
@@ -220,7 +219,7 @@ export function TableGrid({
       )
       .join('|') + `#${JSON.stringify(doc.aggregates ?? {})}`;
 
-  const columns = useMemo<ColumnDef<Row>[]>(() => {
+  const columns = useMemo<LegacyColumnDef<Row>[]>(() => {
     return docRef.current.columns.map((col) => ({
       id: col.id,
       accessorFn: (row) => resolveCell(docRef.current, row, col),
@@ -289,7 +288,7 @@ export function TableGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [structureKey, tableId]);
 
-  const table = useReactTable({
+  const table = useLegacyTable({
     data: doc.rows,
     columns,
     state: { sorting },
