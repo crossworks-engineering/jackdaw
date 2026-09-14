@@ -1,6 +1,6 @@
 # Handover: what is left of the frontend audit
 
-Current at **v0.6.82**, on main, pushed, green and released. Everything below
+Current at **v0.6.90**, on main, pushed, green and released. Everything below
 is open unless it says otherwise, and what is closed lives in the audit
 rather than here.
 
@@ -13,21 +13,31 @@ rather than here.
   `docs/handover-structure.md` (the structure pass), `docs/handover-verification.md`
   (the signed-in rig).
 
-**Where it stands.** The audit scores **9.2**, re-scored at v0.6.81. Every bug
-in its §1 is closed down to two half-findings. Both remaining High items are
-done — the three per-pointermove drags and the missing error boundaries — the
-live column no longer polls on every route, and raw form controls went 188 → 25.
-536 → 671 unit tests. Everything landed in this round was verified in a
-signed-in browser; §9 records what was measured and how.
+**Where it stands.** Every bug in the audit's §1 is closed down to two
+half-findings, both remaining High items are done, raw form controls went
+188 → 13 (every raw `<button>` in the repo is gone), **no dependency major is
+open**, and both of §4's named performance items are closed — one of them by
+measuring it and finding there was nothing there. 536 → 678 unit tests.
+Everything landed was verified in a signed-in browser; §9 and §§12–14 record
+what was measured and how.
 
-**Released.** `v0.6.82` was cut on 2026-09-14 and carries v0.6.80 + v0.6.81 —
-the first release of this round. All three steps done and checked from the box,
-not from `gh`: tagged, draft published, `Latest` set, after which
-`/settings/updates` read *"v0.6.82 installed · latest v0.6.82 · Up to date"*.
-The dev box now runs client **v0.6.82** against server **v0.232.183**.
+**Released, six times on 2026-09-14** — v0.6.82, v0.6.84, v0.6.87, v0.6.88,
+v0.6.89, v0.6.90 — each tagged, published, set `Latest` and rolled to the dev
+box, which now runs client **v0.6.90** against server **v0.232.183**. Five went
+out clean; **v0.6.88 was a same-day fix for a regression v0.6.87 shipped**, and
+how that got through is the most useful thing in this document (§3).
 
-**What is left needs something a session cannot bring**: a throwaway brain, a
-brain with tables on it, or a decision. §11 is the map.
+**What is left needs something a session cannot bring**: a throwaway brain, or a
+per-form decision. §11 is the map.
+
+:::warning
+**The recurring lesson from this round, in one line: a green check is not a
+verified change.** Typecheck, 678 tests, a production build and a look at the
+screen all passed while the table grid sorted by the wrong comparator. Six
+separate probes returned confident, wrong answers — listed where each bit, in
+§§3, 12, 13 and 14. Prove the instrument before you believe a quiet result, and
+measure the effect rather than the system's opinion of itself.
+:::
 
 ---
 
@@ -96,12 +106,12 @@ giving a 16px padding-less icon a 24px twin moves everything around it.
 
 ### What is left, and why each is not a sweep
 
-|                   | n   | needs                                                                                                                                                                                                                                   |
-| ----------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|                   | n      | needs                                                                                                                                                                                                                                                                    |
+| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ~~`table-grid`~~  | ~~12~~ | **Done 2026-09-14** — the dev brain has tables now (7 workbooks), which is what unblocked it. Eight buttons took `RowButton`/`Button`, the expanded-cell editor took `Textarea`, and three chrome-less fields kept a raw element behind a sanctioned disable. See below. |
-| native `<select>` | 6   | A decision per form. The kit's `Select` is a Radix listbox: different keyboard model, no native picker on mobile, and **three of the six carry `name=` for a native form POST** that Radix does not forward.                            |
-| radio / checkbox  | 4   | `RadioGroup` needs the group restructured around the inputs. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                                          |
-| inline fields     | 3   | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. The rule's sanctioned `eslint-disable`.                                                      |
+| native `<select>` | 6      | A decision per form. The kit's `Select` is a Radix listbox: different keyboard model, no native picker on mobile, and **three of the six carry `name=` for a native form POST** that Radix does not forward.                                                             |
+| radio / checkbox  | 4      | `RadioGroup` needs the group restructured around the inputs. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                                                                           |
+| inline fields     | 3      | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. The rule's sanctioned `eslint-disable`.                                                                                       |
 
 **Done when** the count reaches zero and the rule is promoted to `error`. Lower
 the cap in `package.json` as it falls; never raise it.
@@ -131,13 +141,13 @@ than failing until then.
 **Checked 2026-09-14.** Three of the five majors are blocked upstream, so there
 is nothing to decide on them yet. The other two are genuinely available.
 
-| Package | At | Note |
-| --- | --- | --- |
-| `vite` (desktop) | 7.x | ⛔ **Blocked.** `electron-vite` 5.0.0, the latest, peers `vite ^5 \|\| ^6 \|\| ^7`. Vite 8 is not adoptable until electron-vite widens that. Nothing to decide. |
-| `typescript` | 5.9.3 | ⛔ **7 is blocked, but 6 is not.** `typescript-eslint` 8.70.0 peers `typescript >=4.8.4 <6.1.0`, so TS 7 would take the parser out. **TypeScript 6.0.3 exists and is inside that range** — the real next step is 6, not 7, and the old table listing only 7.x as "latest" hid that. TS 7 (one release) can wait for the parser. |
-| `vitest` | 4.1.11 | ⏸ **Wait, unchanged.** 5.0.0 is still the ONLY stable 5.x. The original advice to wait a point release has not been overtaken. |
-| `electron` | **44.3.0** | ✅ **Done 2026-09-14.** Chromium 150 → 152, V8 15.0 → 15.2, Node stays on 24. Updater exercised locally as far as it goes — see below. |
-| `@tanstack/react-table` | **9.2.4** | ✅ **Done 2026-09-14**, via the legacy entrypoint — see below. |
+| Package                 | At         | Note                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vite` (desktop)        | 7.x        | ⛔ **Blocked.** `electron-vite` 5.0.0, the latest, peers `vite ^5 \|\| ^6 \|\| ^7`. Vite 8 is not adoptable until electron-vite widens that. Nothing to decide.                                                                                                                                                                 |
+| `typescript`            | 5.9.3      | ⛔ **7 is blocked, but 6 is not.** `typescript-eslint` 8.70.0 peers `typescript >=4.8.4 <6.1.0`, so TS 7 would take the parser out. **TypeScript 6.0.3 exists and is inside that range** — the real next step is 6, not 7, and the old table listing only 7.x as "latest" hid that. TS 7 (one release) can wait for the parser. |
+| `vitest`                | 4.1.11     | ⏸ **Wait, unchanged.** 5.0.0 is still the ONLY stable 5.x. The original advice to wait a point release has not been overtaken.                                                                                                                                                                                                  |
+| `electron`              | **44.3.0** | ✅ **Done 2026-09-14.** Chromium 150 → 152, V8 15.0 → 15.2, Node stays on 24. Updater exercised locally as far as it goes — see below.                                                                                                                                                                                          |
+| `@tanstack/react-table` | **9.2.4**  | ✅ **Done 2026-09-14**, via the legacy entrypoint — see below.                                                                                                                                                                                                                                                                  |
 
 **react-table 9 · done, natively.** Landed in two steps on purpose: first the
 version bump through `@tanstack/react-table/legacy` (v8 semantics byte for byte,
@@ -540,15 +550,26 @@ Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
 
 Read this section, then §1 and §9. In rough order of what unblocks most:
 
-**Done · cut a release.** `v0.6.82` is cut, published and _Latest_, and the dev box runs it against mantle `v0.232.183` (that release recorded the pair in mantle's `client-pair.tag`, which had been stale at v0.6.42). Dashboard, `/tables`, `/tasks` and the assistant panel were checked signed-in on that pair; all render with real data and a clean console. This round changes visible UI on nearly every screen, so it is still worth using the box in anger rather than treating those four screens as coverage.
+**Done and on the box:** the release pipeline (six cuts, §0/§8), the `table-grid`
+twelve (§12), every dependency major that is not blocked upstream (§3), the task
+board (§13) and the page editor (§14). The dev box runs client `v0.6.90` against
+mantle `v0.232.183`; that mantle release also fixed `client-pair.tag`, which had
+been stale at v0.6.42.
+
+⚠ **Nobody has USED the box yet.** This round changed visible UI on nearly every
+screen and four screens is not coverage. Two things specifically want a human:
+**dragging a task card between columns** (§13 — the board change was verified
+structurally, not by a live drag) and **a page outline following a heading edit**
+(§14 — the deployed check was blocked by the automated tab). Both are seconds of
+clicking and neither can be automated from here.
 
 **1 · One green `pnpm e2e`** (§2). Needs a throwaway brain; the suite creates and deletes content. CI picks it up on its own once the repository variable is set.
 
 **2 · The last 13 raw controls** (§1). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
 
-**3 · Dependency decisions** (§3). Three of the five are blocked upstream and are not decisions — checked 2026-09-14. `@tanstack/react-table` 9 is **done**, on the native API — the legacy entrypoint is gone. `electron` 44 is **done** too, so **no dependency major is open**. The three that remain (`vite` 8, `typescript` 7, `vitest` 5) are all blocked upstream; TypeScript **6** is the available step when someone wants it. TypeScript's real next step is **6**, not 7 — the eslint parser caps at <6.1.0.
+**3 · Dependency decisions** (§3). **Nothing is open.** `@tanstack/react-table` 9 (native API) and `electron` 44 are done; `vite` 8, `typescript` 7 and `vitest` 5 are all blocked upstream, so there is no decision to take. The one thing worth knowing: TypeScript's available step is **6**, not 7 — the eslint parser caps at `<6.1.0`, and the old table hid this by listing only 7.x as "latest".
 
-**4 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
+**4 · Performance's remainder** (§4). The two named items are done — the board (§13) and the page editor (§14), the latter by measuring it and finding the stated problem was not one. What is left is smaller and of the same shape: the dock context value changing on almost any dock state and fanning out to 14 consumers, and memoising the assistant turn row. Both are unnecessary-re-render work; §§13–14 are the worked examples.
 
 **5 · `assetUrl` reactivity and the `/tables` half-collapse** (§6). Both have a written diagnosis and neither has a fix. The `/tables` one has a ruled-out hypothesis and a specific next test, which is worth more than the original note was.
 
@@ -658,11 +679,11 @@ browser's opinion of its own state.
 **Measured first, on the largest page in the system** — 123 KB of ProseMirror
 JSON, ~33k nodes:
 
-| | |
-| --- | --- |
-| `editor.getJSON()` | **0.1 ms** (median of 12) |
-| `JSON.stringify` of that result | **0.5 ms** |
-| total per keystroke | **~0.7 ms**, about 4% of a 16.7 ms frame |
+|                                 |                                          |
+| ------------------------------- | ---------------------------------------- |
+| `editor.getJSON()`              | **0.1 ms** (median of 12)                |
+| `JSON.stringify` of that result | **0.5 ms**                               |
+| total per keystroke             | **~0.7 ms**, about 4% of a 16.7 ms frame |
 
 So the audit's "serialises the whole document on every keystroke, twice" is
 literally true and costs almost nothing. Engineering it away would have been
