@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ListTodo, MessageSquare, Plus, Search, SquareKanban, List } from 'lucide-react';
@@ -180,6 +180,11 @@ export function TasksClient() {
   }, [searchInput]);
 
   const filtering = !!query || statusParam !== 'active' || priority !== 'all';
+  // Stable so the board's memoised cards actually skip: an inline arrow here
+  // is a new prop on every render of this client, which defeats the memo on
+  // all 100+ cards in a column.
+  const selectTask = useCallback((id: string) => setSel({ mode: 'view', id }), []);
+
   const selected = sel?.mode === 'view' ? (tasks.find((t) => t.id === sel.id) ?? null) : null;
 
   // Pin the open task. The list auto-selects row one like its siblings, so it
@@ -404,7 +409,7 @@ export function TasksClient() {
           <TaskBoard
             tasks={tasks}
             selectedId={sel?.mode === 'view' ? sel.id : null}
-            onSelect={(id) => setSel({ mode: 'view', id })}
+            onSelect={selectTask}
             onMove={moveTask}
           />
         </div>

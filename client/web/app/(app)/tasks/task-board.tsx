@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -131,30 +131,53 @@ function BoardCard({
   );
 }
 
-function SortableCard({
+/**
+ * One draggable card.
+ *
+ * Memoised, and it takes `onSelect(id)` rather than a pre-bound thunk so the
+ * prop is stable: a column of 103 cards used to re-render every card whenever
+ * the SELECTION changed, because each card got a fresh `() => onSelect(t.id)`.
+ * Now only the two cards whose `selected` actually flipped re-render.
+ * `useSortable` keeps its own subscription, so drag still re-renders what it
+ * must.
+ *
+ * `content-visibility` lets the browser skip layout and paint for the cards
+ * scrolled out of view — the two big columns are ~12x taller than their
+ * viewport, so most of them. The node STAYS in the DOM, which is the reason
+ * this is here instead of a virtualiser: dnd-kit measures real nodes, and
+ * unmounting the off-screen ones is what makes a drop land in the wrong place.
+ * `contain-intrinsic-size` keeps the scrollbar honest while a card is skipped;
+ * the `auto` prefix lets the browser remember each card's real height once it
+ * has been measured. Same pattern as the font dialog's preview list.
+ */
+const SortableCard = memo(function SortableCard({
   task,
   selected,
   onSelect,
 }: {
   task: TaskRow;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
+  const select = useCallback(() => onSelect(task.id), [onSelect, task.id]);
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(isDragging && 'opacity-40')}
+      className={cn(
+        '[contain-intrinsic-size:auto_6rem] [content-visibility:auto]',
+        isDragging && 'opacity-40',
+      )}
       {...attributes}
       {...listeners}
     >
-      <BoardCard task={task} selected={selected} onSelect={onSelect} />
+      <BoardCard task={task} selected={selected} onSelect={select} />
     </div>
   );
-}
+});
 
 function BoardColumn({
   status,
@@ -188,12 +211,7 @@ function BoardColumn({
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
-            <SortableCard
-              key={t.id}
-              task={t}
-              selected={selectedId === t.id}
-              onSelect={() => onSelect(t.id)}
-            />
+            <SortableCard key={t.id} task={t} selected={selectedId === t.id} onSelect={onSelect} />
           ))}
         </SortableContext>
         {tasks.length === 0 && (
