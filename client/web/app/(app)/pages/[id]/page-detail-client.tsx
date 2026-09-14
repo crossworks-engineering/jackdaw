@@ -53,6 +53,7 @@ import type { Backlink } from '@mantle/client-types';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { buildPageToc, type TocEntry } from '@mantle/content-core/page-toc';
+import { sameToc } from './toc-equal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -424,7 +425,12 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
     let raf = 0;
     const rebuild = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setToc(buildPageToc(ed.getJSON())));
+      raf = requestAnimationFrame(() => {
+        const next = buildPageToc(ed.getJSON());
+        // Returning the previous array bails React out of the update, so typing
+        // a sentence no longer re-renders this client once per frame.
+        setToc((prev) => (sameToc(prev, next) ? prev : next));
+      });
     };
     rebuild();
     ed.on('update', rebuild);
