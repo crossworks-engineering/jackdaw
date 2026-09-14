@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { apiSend } from '@mantle/web-ui/api-fetch';
+import { apiSend } from './api-fetch';
 import {
   BACKGROUND_OFF,
   DEFAULT_AREA_BACKGROUNDS,
@@ -10,7 +10,7 @@ import {
   isBackgroundChoice,
   type AreaBackgrounds,
   type BackgroundAreaId,
-} from '@mantle/web-ui/backgrounds';
+} from './backgrounds';
 
 /**
  * Which generated background each area of the shell shows.

@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { apiSend } from '@mantle/web-ui/api-fetch';
+import { apiSend } from './api-fetch';
 import {
   DEFAULT_AVATAR_STYLE,
   DEFAULT_AVATAR_TINT,
   resolveAvatarStyle,
   resolveAvatarTint,
   type AvatarTint,
-} from '@mantle/web-ui/avatar';
+} from './avatar';
 
 /**
  * The brain's avatar appearance — one style and one tint for every generated

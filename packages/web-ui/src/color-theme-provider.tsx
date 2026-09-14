@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { apiSend } from '@mantle/web-ui/api-fetch';
+import { apiSend } from './api-fetch';
 import {
   RANDOM_THEME_STORAGE_KEY,
   RANDOM_THEME_AT_STORAGE_KEY,
@@ -10,13 +10,13 @@ import {
   DEFAULT_COLOR_THEME,
   coerceRandomInterval,
   pickRandomColorTheme,
-} from '@mantle/web-ui/lib/themes';
+} from './lib/themes';
 import {
   readRandomPick,
   resolveInitialColorTheme,
   serverThemeWins,
   writeRandomPick,
-} from '@mantle/web-ui/lib/random-theme';
+} from './lib/random-theme';
 
 type Ctx = {
   colorTheme: string;

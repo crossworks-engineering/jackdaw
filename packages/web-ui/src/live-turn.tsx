@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Sparkles } from 'lucide-react';
-import { cn } from '@mantle/web-ui/lib/utils';
+import { cn } from './lib/utils';
 
 /** One in-flight team turn as the member sees it. `status` is the CURRENT
  *  grounded activity line (each replaces the last — that's correct for tool

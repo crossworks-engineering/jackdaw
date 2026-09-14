@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { apiSend } from '@mantle/web-ui/api-fetch';
+import { apiSend } from './api-fetch';
 import {
   DEFAULT_LOGO_FONT,
   DEFAULT_TITLE_FONT,
