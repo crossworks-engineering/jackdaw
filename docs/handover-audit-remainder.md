@@ -177,6 +177,31 @@ the virtual window moves to 30–77 of 78 rows under a real wheel scroll; a cell
 edit re-renders the controlled input and Escape restores it with nothing
 committed.
 
+⚠ **The migration shipped a regression in v0.6.87, fixed in v0.6.88 — read this
+before migrating another table.** v9 resolves a sortFn **name** only against
+functions registered in the features object, and columns use `auto`, which is a
+name. Register nothing and every column silently falls back to `basic`: the grid
+sorts **case-sensitively**, so `API integration` lands before `Agent edit` where
+v8's `alphanumeric` puts Agent first. The fix is one line — `sortFns` in the
+features object, the built-in registry of six comparators; registering them
+individually means predicting what `auto` resolves to per column type.
+
+**Why everything green missed it.** It warns once per column and then sorts
+anyway, so the rows ARE ordered — just by the wrong comparator. Typecheck, 671
+tests, a production build, and looking at the grid all passed. What caught it was
+a console warning on the DEPLOYED build:
+
+```
+sortFn 'alphanumeric' (auto) for column '…' is not registered
+```
+
+And it nearly got talked away: an earlier case-insensitive ordering check flagged
+the case-sensitive result as "out of order", and that was dismissed as a bad
+checker. The checker was crude, but the thing it was pointing at was real.
+**`features` is not the only registry v9 makes you fill in** — `sortFns` is
+another, and `filterFns` and `aggregationFns` will be too for a table that
+filters or aggregates.
+
 ⚠ **Three probes lied during this work and each looked like a bug.** A
 programmatic `.click()` does not open a Radix menu — it needs real pointer
 events, and the menu silently never opens. Setting `scrollTop` on the wrong
