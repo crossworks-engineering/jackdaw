@@ -57,6 +57,7 @@ import { useUploads } from '@/components/uploads/upload-provider';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { ShareControl } from '@/components/share-control';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
@@ -471,19 +472,21 @@ function FilesView({
                   className="h-8 pl-7 pr-7 text-sm"
                 />
                 {query && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-2xs"
                     aria-label="Clear search"
                     onClick={() => setQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
                   >
-                    <X className="size-3.5" />
-                  </button>
+                    <X aria-hidden />
+                  </Button>
                 )}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-thin p-2 pt-1">
               {!searchActive && (
-                <button
+                <RowButton
                   onClick={() => setRecentView(true)}
                   className={
                     'mb-1 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-sm ' +
@@ -494,7 +497,7 @@ function FilesView({
                 >
                   <Clock className="size-3.5 text-muted-foreground" />
                   Recent
-                </button>
+                </RowButton>
               )}
               <FolderTreeRail
                 tree={tree}
@@ -565,7 +568,7 @@ function FilesView({
                         const HitIcon = d.icon;
                         return (
                           <li key={h.id}>
-                            <button
+                            <RowButton
                               onClick={() => {
                                 setQuery('');
                                 const sp = new URLSearchParams();
@@ -591,7 +594,7 @@ function FilesView({
                               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                 {fmtRelative(h.updatedAt)}
                               </span>
-                            </button>
+                            </RowButton>
                           </li>
                         );
                       })}
@@ -616,7 +619,7 @@ function FilesView({
                       const RecentIcon = d.icon;
                       return (
                         <li key={f.id}>
-                          <button
+                          <RowButton
                             onClick={() => {
                               setRecentView(false);
                               const sp = new URLSearchParams();
@@ -644,7 +647,7 @@ function FilesView({
                             <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
                               {fmtRelative(f.updatedAt)}
                             </span>
-                          </button>
+                          </RowButton>
                         </li>
                       );
                     })}
@@ -680,7 +683,7 @@ function FilesView({
                         {breadcrumbs.map((c, i) => (
                           <span key={c.path} className="flex items-center gap-1">
                             {i > 0 && <ChevronRight className="size-3" aria-hidden />}
-                            <button
+                            <RowButton
                               onClick={() => navigateFolder(c.path)}
                               className={
                                 i === breadcrumbs.length - 1
@@ -689,20 +692,22 @@ function FilesView({
                               }
                             >
                               {c.label}
-                            </button>
+                            </RowButton>
                           </span>
                         ))}
                         {/* Click-to-type path entry — the file-manager address
                             bar. The breadcrumb stays the primary affordance;
                             this is for pasting a path from chat or a doc. */}
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon-2xs"
                           aria-label="Go to path"
                           title="Go to path (type or paste, Enter to jump)"
                           onClick={() => setPathJump(currentPath)}
-                          className="ml-1 rounded p-0.5 text-muted-foreground opacity-60 hover:bg-muted/40 hover:opacity-100"
+                          className="ml-1 text-muted-foreground opacity-60 hover:opacity-100"
                         >
-                          <Pencil className="size-3" />
-                        </button>
+                          <Pencil aria-hidden />
+                        </Button>
                       </>
                     )}
                   </nav>
@@ -811,7 +816,7 @@ function FilesView({
                         </div>
                       </div>
                     ) : (
-                      <button
+                      <RowButton
                         onClick={() => {
                           setDraftDesc(currentFolder?.description ?? '');
                           setEditingDesc(true);
@@ -826,7 +831,7 @@ function FilesView({
                           )}
                         </span>
                         <Pencil className="size-3 opacity-0 group-hover:opacity-100" aria-hidden />
-                      </button>
+                      </RowButton>
                     )}
                   </div>
                 </header>
@@ -961,7 +966,7 @@ function FilesView({
                         const TypeIcon = described.icon;
                         const isImage = f.mimeType.startsWith('image/');
                         return (
-                          <button
+                          <RowButton
                             key={f.id}
                             onClick={() => openFile(f.id)}
                             data-mark-id={f.id}
@@ -1012,7 +1017,7 @@ function FilesView({
                                 )}
                               </span>
                             </span>
-                          </button>
+                          </RowButton>
                         );
                       })}
                     </div>
@@ -1037,7 +1042,7 @@ function FilesView({
                             ] as const
                           ).map(([key, label, align]) => (
                             <th key={key} className={`px-3 py-2 ${align}`}>
-                              <button
+                              <RowButton
                                 onClick={() => toggleSort(key)}
                                 className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground ${align === 'text-right' ? 'flex-row-reverse' : ''}`}
                               >
@@ -1048,12 +1053,12 @@ function FilesView({
                                   ) : (
                                     <ArrowDown className="size-3" />
                                   ))}
-                              </button>
+                              </RowButton>
                             </th>
                           ))}
                           <th className="px-3 py-2 text-left">Summary</th>
                           <th className="px-3 py-2 text-left">
-                            <button
+                            <RowButton
                               onClick={() => toggleSort('modified')}
                               className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground"
                             >
@@ -1064,7 +1069,7 @@ function FilesView({
                                 ) : (
                                   <ArrowDown className="size-3" />
                                 ))}
-                            </button>
+                            </RowButton>
                           </th>
                           <th className="w-10 px-3 py-2" aria-label="Actions" />
                         </tr>
@@ -1094,7 +1099,7 @@ function FilesView({
                                 />
                               </td>
                               <td className="px-3 py-2">
-                                <button
+                                <RowButton
                                   onClick={() => openFile(f.id)}
                                   data-mark-id={f.id}
                                   data-mark-kind="file"
@@ -1134,7 +1139,7 @@ function FilesView({
                                       <ChevronsRight className="size-3.5 shrink-0" />
                                     </span>
                                   )}
-                                </button>
+                                </RowButton>
                               </td>
                               <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                                 {described.label}

@@ -13,6 +13,7 @@ import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Folder } from 'lucide-react';
 import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -279,13 +280,13 @@ export function FilePane({
         <ul className="text-sm">
           {parentPath && (
             <li>
-              <button
+              <RowButton
                 onClick={() => onNavigate(parentPath)}
                 className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted/40"
               >
                 <Folder className="size-4 text-muted-foreground" />
                 <span className="text-muted-foreground">..</span>
-              </button>
+              </RowButton>
             </li>
           )}
           {childFolders.map((f) => (
@@ -295,7 +296,7 @@ export function FilePane({
                 checked={selected.has(`folder:${f.id}`)}
                 onCheckedChange={() => onToggleSelect(`folder:${f.id}`)}
               />
-              <button
+              <RowButton
                 onDoubleClick={() => onNavigate(f.path)}
                 onClick={(e) => {
                   // Single click selects (file-manager muscle memory);
@@ -310,7 +311,7 @@ export function FilePane({
                 <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                   {f.fileCount} file{f.fileCount === 1 ? '' : 's'}
                 </span>
-              </button>
+              </RowButton>
             </li>
           ))}
           {(filesQuery.data ?? []).map((f) => {
@@ -323,7 +324,7 @@ export function FilePane({
                   checked={selected.has(`file:${f.id}`)}
                   onCheckedChange={() => onToggleSelect(`file:${f.id}`)}
                 />
-                <button
+                <RowButton
                   onDoubleClick={() => onOpenFile(f.id, path)}
                   onClick={(e) => {
                     if (e.detail === 1) onToggleSelect(`file:${f.id}`);
@@ -336,7 +337,7 @@ export function FilePane({
                   <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
                     {fmtSize(f.sizeBytes)}
                   </span>
-                </button>
+                </RowButton>
               </li>
             );
           })}
