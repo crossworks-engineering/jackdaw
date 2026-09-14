@@ -54,6 +54,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
+import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -373,14 +375,13 @@ export function TableGrid({
                 className="group border-b border-border hover:bg-muted/40"
               >
                 <td className="px-2 py-1 text-center align-middle text-xs text-muted-foreground">
-                  <button
+                  <RowButton
                     className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive-ink"
                     onClick={() => onChange(deleteRow(doc, row.id))}
                     aria-label="Delete row"
-                    type="button"
                   >
                     <Trash2 className="size-3.5" />
-                  </button>
+                  </RowButton>
                 </td>
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="border-l border-border p-0 align-middle">
@@ -498,6 +499,10 @@ function HeaderCell({
   const AggIcon = aggregate !== 'none' ? AGG_ICON[aggregate] : null;
   return (
     <span className="flex w-full items-center gap-1">
+      {/* eslint-disable-next-line house/no-raw-form-control -- the column name is
+          edited in place inside the header cell: no border, no height, no focus
+          ring, because any of the three would draw a box around a heading. The
+          kit's <Input> carries all three and cannot give them up. */}
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -919,9 +924,8 @@ function DateCell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        <RowButton
+          className="flex w-full items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted/40 focus-visible:ring-inset focus-visible:ring-offset-0"
           aria-label={col.name}
         >
           <Calendar className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -951,7 +955,7 @@ function DateCell({
               <X className="size-3.5" />
             </span>
           )}
-        </button>
+        </RowButton>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-0">
         <CalendarPicker
@@ -1055,9 +1059,8 @@ function OptionCell({
       }}
     >
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-left text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        <RowButton
+          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-sm hover:bg-muted/40 focus-visible:ring-inset focus-visible:ring-offset-0"
           aria-label={col.name}
         >
           {selected.length === 0 ? (
@@ -1073,7 +1076,7 @@ function OptionCell({
           ) : (
             <span className="truncate">{selected[0]}</span>
           )}
-        </button>
+        </RowButton>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-0">
         <Command shouldFilter={false}>
@@ -1186,9 +1189,8 @@ function ReferenceCell({
       }}
     >
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-left text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        <RowButton
+          className="flex min-h-[2.1rem] w-full items-center gap-1 px-2 py-1 text-sm hover:bg-muted/40 focus-visible:ring-inset focus-visible:ring-offset-0"
           aria-label={col.name}
         >
           {current ? (
@@ -1197,9 +1199,13 @@ function ReferenceCell({
             <span className="text-muted-foreground">—</span>
           )}
           <ChevronsUpDown className="ml-auto size-3 shrink-0 text-muted-foreground" aria-hidden />
-        </button>
+        </RowButton>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-1">
+        {/* eslint-disable-next-line house/no-raw-form-control -- a ~30px search
+            field inside a w-56 popover. The kit's <Input> is a fixed h-10 with no
+            smaller rung, which is a third taller than the list it filters. Give
+            <Input> a size scale and this becomes a twin. */}
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -1216,39 +1222,36 @@ function ReferenceCell({
           ) : (
             <>
               {current && (
-                <button
-                  type="button"
-                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-muted"
+                <RowButton
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted"
                   onClick={() => choose('')}
                 >
                   <X className="mr-2 size-3.5" aria-hidden /> Clear
-                </button>
+                </RowButton>
               )}
               {filtered.map((v) => (
-                <button
+                <RowButton
                   key={v}
-                  type="button"
-                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                   onClick={() => choose(v)}
                 >
                   <span className="truncate">{v}</span>
                   {v === current && (
                     <Check className="ml-auto size-3.5 shrink-0 text-primary-ink" aria-hidden />
                   )}
-                </button>
+                </RowButton>
               ))}
               {filtered.length === 0 && !canFreeText && (
                 <div className="px-2 py-1.5 text-xs text-muted-foreground">No values</div>
               )}
               {canFreeText && (
-                <button
-                  type="button"
-                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+                <RowButton
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
                   onClick={() => choose(q)}
                 >
                   <ListPlus className="mr-2 size-3.5 shrink-0" aria-hidden />
                   Use “{q}”
-                </button>
+                </RowButton>
               )}
             </>
           )}
@@ -1305,6 +1308,10 @@ function TextCell({
   };
 
   const input = (
+    /* eslint-disable-next-line house/no-raw-form-control -- the cell editor IS the
+       cell: chrome-less by design (see CELL_INPUT), so the grid reads as a grid
+       rather than a page of boxes. <Input> brings a border, a height and an
+       offset focus ring, and an offset ring inside a cell overflows it. */
     <input
       value={local}
       inputMode={isNumeric ? 'decimal' : undefined}
@@ -1343,8 +1350,9 @@ function TextCell({
         }}
       >
         <PopoverTrigger asChild>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-2xs"
             tabIndex={-1}
             onClick={() => {
               editing.current = true;
@@ -1352,10 +1360,10 @@ function TextCell({
             }}
             title="Expand cell"
             aria-label="Expand cell"
-            className="absolute right-1 rounded bg-background/80 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 data-[state=open]:opacity-100"
+            className="absolute right-1 bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 data-[state=open]:opacity-100"
           >
             <Maximize2 className="size-3.5" aria-hidden />
-          </button>
+          </Button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
@@ -1363,7 +1371,7 @@ function TextCell({
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="mb-1 text-xs font-medium text-muted-foreground">{col.name}</div>
-          <textarea
+          <Textarea
             autoFocus
             value={local}
             onFocus={() => {
@@ -1380,7 +1388,7 @@ function TextCell({
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) setExpanded(false);
             }}
             rows={Math.min(14, Math.max(3, local.split('\n').length + 1))}
-            className="max-h-[60vh] w-full resize-y rounded border border-border bg-background p-2 text-sm outline-none focus:ring-0"
+            className="max-h-[60vh] resize-y bg-background"
             aria-label={`${col.name} (expanded)`}
           />
           <div className="mt-1 text-right text-[11px] text-muted-foreground">
