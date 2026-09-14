@@ -126,27 +126,58 @@ Once green, CI picks it up on its own: the Playwright job in `verify.yml` runs
 whenever the repository variable `E2E_SERVER_URL` is set, and is skipped rather
 than failing until then.
 
-## 3. Dependency decisions · the untouched worklist item
+## 3. Dependency decisions · three of the five are not decisions
 
-Five majors deliberately undecided, plus eleven declared-but-unused
-dependencies. Take the majors one at a time:
+**Checked 2026-09-14.** Three of the five majors are blocked upstream, so there
+is nothing to decide on them yet. The other two are genuinely available.
 
-| Package                 | At    | Latest | Note                                                                                                  |
-| ----------------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------- |
-| `@tanstack/react-table` | 8.21  | 9.x    | Column defs and row models changed; touches only `table-grid`                                         |
-| `vitest`                | 4.1   | 5.x    | Wait a point release                                                                                  |
-| `vite` (desktop)        | 7.x   | 8.x    | Follows electron-vite, which still pins 7                                                             |
-| `electron`              | 43.2  | 44.x   | Routine, but test the updater path                                                                    |
-| `typescript`            | 5.9.3 | 7.x    | The native-compiler rewrite. Check the eslint parser and the Next TS plugin first — not a casual bump |
+| Package | At | Note |
+| --- | --- | --- |
+| `vite` (desktop) | 7.x | ⛔ **Blocked.** `electron-vite` 5.0.0, the latest, peers `vite ^5 \|\| ^6 \|\| ^7`. Vite 8 is not adoptable until electron-vite widens that. Nothing to decide. |
+| `typescript` | 5.9.3 | ⛔ **7 is blocked, but 6 is not.** `typescript-eslint` 8.70.0 peers `typescript >=4.8.4 <6.1.0`, so TS 7 would take the parser out. **TypeScript 6.0.3 exists and is inside that range** — the real next step is 6, not 7, and the old table listing only 7.x as "latest" hid that. TS 7 (one release) can wait for the parser. |
+| `vitest` | 4.1.11 | ⏸ **Wait, unchanged.** 5.0.0 is still the ONLY stable 5.x. The original advice to wait a point release has not been overtaken. |
+| `electron` | 43.6 | ✅ Available. 44.3.0. Routine, but the updater path wants testing against a published release, which means the desktop pipeline, not a local check. |
+| `@tanstack/react-table` | 8.21.3 | ✅ Available, and the best-positioned of the lot. 9.2.4 is stable (past alpha/beta), peers only `react >=18`, and the blast radius is **one file**, `table-grid.tsx`. |
 
-Also: decide whether the `@crossworks/*` contract packages move from 0.232.85 to
-current; drop `zustand`, `zod`, `sonner` and `@dnd-kit/modifiers` from
-`client/web` and three unused from `packages/web-ui`; declare `vitest` where it
-is imported; make the six web-ui self-imports relative.
+**The react-table 9 migration, already scoped.** Bumped in a worktree and
+typechecked, so the breaks are known rather than guessed:
 
-**When you touch pins, edit `pnpm-workspace.yaml`, not `package.json`** — pnpm
-11 silently ignores the `pnpm` field in package.json here, and every override in
-this repo was inert until that was found.
+- `getCoreRowModel` → `createCoreRowModel`
+- `getSortedRowModel` → `createSortedRowModel`
+- `useReactTable` → `useTable` (TS suggests `ReactTable`, which is the wrong
+  one — that is the component, not the hook)
+- `ColumnDef` now takes 2–3 type arguments, not 1–2; the implicit-`any` errors
+  that follow are all downstream of that
+
+v9 also ships **`useLegacyTable`**, which is worth looking at before doing it
+by hand. The bump was reverted; only the knowledge was kept.
+
+⚠ **Do not stack this on an unreleased `table-grid` refactor.** §12's control
+conversions landed in v0.6.83 and are not on a box yet. Get those proven in use
+first — otherwise a table-grid regression has two candidate causes and the
+counterfactual costs a release to establish.
+
+### Done 2026-09-14 · the cleanup that needed no decision
+
+Seven unused dependencies dropped: `zustand`, `zod`, `sonner` and
+`@dnd-kit/modifiers` from `client/web`; `@dicebear/styles`,
+`@mantle/content-core` and `katex` from `packages/web-ui`. `katex` and
+`content-core` are used heavily — in `client/web`, which declares both itself,
+so only the redundant web-ui declaration went. `@dicebear/core` stays; it backs
+the backdrops.
+
+`vitest` was declared only at the root while 42 files in `client/web` and 20 in
+`packages/web-ui` imported it. Declared in both. Ten web-ui self-imports that
+referenced the package by its own alias are now relative.
+
+**Verified with a production build, not just a typecheck** — an unresolved
+import from a dropped dependency surfaces at build time and nowhere earlier. The
+avatar tests also exercise the style loader `@dicebear/styles` would have backed.
+
+**Still open from this section:** whether `@crossworks/*` moves off 0.232.85 /
+0.232.105. Evidence from the v0.6.82 roll says it is not urgent — the pins run
+~90 versions behind the server, `contractVersion` is unchanged at 1, and a
+signed-in pass across four surfaces found nothing broken.
 
 ## 4. Performance · the two biggest are done, the rest is untouched
 
@@ -433,7 +464,7 @@ Read this section, then §1 and §9. In rough order of what unblocks most:
 
 **2 · The last 13 raw controls** (§1). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
 
-**3 · Dependency decisions** (§3). Five majors, one at a time. TypeScript 7 is the native-compiler rewrite; check the eslint parser and the Next TS plugin first.
+**3 · Dependency decisions** (§3). Three of the five are blocked upstream and are not decisions — checked 2026-09-14. What is live: `@tanstack/react-table` 9 (one file, already scoped, but do not stack it on an unreleased table-grid refactor) and `electron` 44 (needs the updater path tested through the desktop pipeline). TypeScript's real next step is **6**, not 7 — the eslint parser caps at <6.1.0.
 
 **4 · Performance's remainder** (§4). The unvirtualised task board is the largest and `@tanstack/react-virtual` is already a dependency. The page editor serialising twice per keystroke is the next.
 
