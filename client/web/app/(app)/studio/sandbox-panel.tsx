@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, RotateCcw, Send } from 'lucide-react';
 import { apiSend } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
@@ -66,27 +67,25 @@ export function SandboxPanel({ agentId, agentName }: { agentId: string; agentNam
 
   if (!open) {
     return (
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen(true)}
         className="flex items-center gap-1 text-[13px] font-medium text-muted-foreground hover:text-foreground"
       >
         <ChevronRight className="size-3.5" aria-hidden /> Sandbox — chat with this prompt (nothing
         saved)
-      </button>
+      </RowButton>
     );
   }
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <div className="flex items-center justify-between">
-        <button
-          type="button"
+        <RowButton
           onClick={() => setOpen(false)}
           className="flex items-center gap-1 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
         >
           <ChevronDown className="size-3.5" aria-hidden /> Sandbox
-        </button>
+        </RowButton>
         {messages.length > 0 && (
           <Button
             size="sm"

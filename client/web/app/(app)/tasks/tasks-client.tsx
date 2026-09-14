@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ListTodo, MessageSquare, Plus, Search, SquareKanban, List } from 'lucide-react';
 import { formShellClass } from '@mantle/web-ui/ui/form-shell';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -528,8 +529,7 @@ export function TasksClient() {
                     )}
                   >
                     <div>
-                      <button
-                        type="button"
+                      <RowButton
                         onClick={() => toggleStatus(t)}
                         className={cn(
                           'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
@@ -541,9 +541,8 @@ export function TasksClient() {
                         aria-pressed={done}
                       >
                         {done && <Check className="size-3" />}
-                      </button>
-                      <button
-                        type="button"
+                      </RowButton>
+                      <RowButton
                         onClick={() => setSel({ mode: 'view', id: t.id })}
                         data-mark-id={t.id}
                         data-mark-kind="task"
@@ -605,7 +604,7 @@ export function TasksClient() {
                             ))}
                           </ListCardTags>
                         )}
-                      </button>
+                      </RowButton>
                     </div>
                   </ListCard>
                 );

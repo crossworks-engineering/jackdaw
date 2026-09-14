@@ -12,6 +12,7 @@ import {
 import { AtSign, Loader2 } from 'lucide-react';
 import { nodeTypeIcon } from '@/components/search/node-type-icons';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 
 export type MentionItem = {
@@ -148,8 +149,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
                 {GROUP_LABEL[item.ref]}
               </div>
             )}
-            <button
-              type="button"
+            <RowButton
               data-index={i}
               onMouseEnter={() => setSelected(i)}
               onClick={() => choose(i)}
@@ -181,7 +181,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
                   {item.kind}
                 </span>
               </span>
-            </button>
+            </RowButton>
           </div>
         );
       })}

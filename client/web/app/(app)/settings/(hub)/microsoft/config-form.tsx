@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
@@ -125,14 +126,13 @@ export function MsConfigForm({
               }
               className="pr-10"
             />
-            <button
-              type="button"
+            <RowButton
               onClick={() => setShowSecret((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               aria-label={showSecret ? 'Hide secret' : 'Show secret'}
             >
               {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
+            </RowButton>
           </div>
           <FieldHint id="clientSecret">
             Use the secret <em>value</em> (not the secret ID). Azure only shows it once.

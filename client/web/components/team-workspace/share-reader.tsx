@@ -24,6 +24,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { PageOutline } from '@mantle/web-ui/page-outline';
+import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { teamFetch, upgradeTeamCookie } from '@mantle/web-ui/team-fetch';
 import { buttonVariants } from '@mantle/web-ui/ui/button';
 import {
@@ -151,13 +153,9 @@ export function ShareReader({
               <span className="max-w-56 truncate">Open {title}</span>
             </OpenShare>
           ) : state.phase === 'failed' ? (
-            <button
-              type="button"
-              onClick={() => void load()}
-              className={cn(buttonVariants({ variant: 'outline' }), 'mt-4')}
-            >
+            <Button variant="outline" type="button" onClick={() => void load()} className="mt-4">
               Try again
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -450,13 +448,12 @@ function FolderReader({
             {i === crumbs.length - 1 ? (
               <span className="font-medium text-foreground">{c.label}</span>
             ) : (
-              <button
-                type="button"
+              <RowButton
                 onClick={() => onNavigate(c.sub)}
                 className="rounded-sm hover:text-foreground hover:underline"
               >
                 {c.label}
-              </button>
+              </RowButton>
             )}
           </span>
         ))}
@@ -501,14 +498,13 @@ function FolderReader({
                 <TableRow key={r.id}>
                   <TableCell className="max-w-0 pl-4">
                     {r.isFolder ? (
-                      <button
-                        type="button"
+                      <RowButton
                         onClick={() => onNavigate(r.sub!)}
                         className="flex w-full min-w-0 items-center gap-2 text-left font-medium hover:underline"
                       >
                         <r.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                         <span className="truncate">{r.name}</span>
-                      </button>
+                      </RowButton>
                     ) : (
                       <span className="flex min-w-0 items-center gap-2 font-medium">
                         <r.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -571,8 +567,7 @@ function SortableHead({
 }: Omit<ComponentProps<typeof TableHead>, 'onClick'> & { active: boolean; onClick: () => void }) {
   return (
     <TableHead className={className} {...rest}>
-      <button
-        type="button"
+      <RowButton
         onClick={onClick}
         className={cn(
           'inline-flex items-center gap-1 transition-colors hover:text-foreground',
@@ -581,7 +576,7 @@ function SortableHead({
       >
         {children}
         <ChevronsUpDown className="size-3 opacity-60" aria-hidden />
-      </button>
+      </RowButton>
     </TableHead>
   );
 }

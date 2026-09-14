@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Copy, GitFork, Loader2 } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { formatDuration } from '@mantle/web-ui/traces-format';
 import {
@@ -469,15 +470,14 @@ function RunDetail({
             {runnerStatusLabel(run.status)}
           </span>
         </div>
-        <button
-          type="button"
+        <RowButton
           onClick={onCopyId}
           className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
           title="Copy workflow id"
         >
           {run.workflowID}
           <Copy className="size-3" />
-        </button>
+        </RowButton>
       </div>
 
       {/* Actions */}

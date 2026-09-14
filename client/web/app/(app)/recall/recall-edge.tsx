@@ -2,6 +2,7 @@
 
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mantle/web-ui/ui/tooltip';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { cn } from '@mantle/web-ui/lib/utils';
 
 /**
@@ -77,8 +78,7 @@ export function RecallOptionEdge({
           >
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
+                <RowButton
                   // A button, not a div: hover AND keyboard focus both open
                   // the tooltip, so the full text is reachable without a mouse.
                   //
@@ -115,7 +115,7 @@ export function RecallOptionEdge({
                   ) : (
                     <span className="block truncate">{d.label}</span>
                   )}
-                </button>
+                </RowButton>
               </TooltipTrigger>
               {/* The tooltip surface is `bg-primary`, so its second line takes
                   the matching ink at reduced opacity, never `muted-foreground`,

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search, Star, X } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { Button } from '@mantle/web-ui/ui/button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
@@ -182,7 +183,9 @@ export function SidebarNav({
       // invalid, and a star within the anchor would navigate as well as toggle.
       <div key={item.href} className="group/nav-row flex items-center gap-0.5">
         {trigger}
-        <button
+        <Button
+          variant="ghost"
+          size="icon-2xs"
           type="button"
           onClick={() => toggleFavorite(item.href)}
           aria-pressed={starred}
@@ -201,7 +204,7 @@ export function SidebarNav({
           )}
         >
           <Star className={cn('size-3.5', starred && 'fill-current')} aria-hidden />
-        </button>
+        </Button>
       </div>
     );
   };
@@ -238,14 +241,16 @@ export function SidebarNav({
                 className="h-9 pl-8 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
               />
               {query && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-2xs"
                   type="button"
                   onClick={() => setQuery('')}
                   aria-label="Clear filter"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition group-hover/filter:opacity-100 group-focus-within/filter:opacity-100 hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </div>
 

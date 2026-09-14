@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/react';
 import { useEditorState } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { HIGHLIGHT_TOKENS, highlightColor } from '@mantle/web-ui/highlight-colors';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { TEXT_COLOR_TOKENS, textColor } from '@mantle/web-ui/text-colors';
 import {
   Baseline,
@@ -87,9 +88,8 @@ function SwatchPanel({
         style={{ left: pos.x, top: pos.y }}
       >
         {swatches.map((sw) => (
-          <button
+          <RowButton
             key={sw.key}
-            type="button"
             aria-label={sw.label}
             title={sw.label}
             onMouseDown={(e) => {
@@ -104,7 +104,7 @@ function SwatchPanel({
             style={sw.color ? { backgroundColor: sw.color } : undefined}
           >
             {sw.color === null && <span className="block h-px w-3 rotate-45 bg-current" />}
-          </button>
+          </RowButton>
         ))}
       </div>
     </>,

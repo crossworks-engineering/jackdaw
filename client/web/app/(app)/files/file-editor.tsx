@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { describeFile, fileTypeLabel, KIND_TINT } from '@mantle/web-ui/lib/mime-label';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -166,7 +167,7 @@ export function FileEditor({
             </Button>
           </form>
         ) : (
-          <button
+          <RowButton
             onClick={() => {
               const stem =
                 file.filename.lastIndexOf('.') > 0
@@ -179,7 +180,7 @@ export function FileEditor({
             title="Click to rename (basename only)"
           >
             {file.filename}
-          </button>
+          </RowButton>
         )}
         <span className="hidden text-xs text-muted-foreground sm:inline">
           {file.parentPath} · {fileTypeLabel(file.mimeType, file.filename)}

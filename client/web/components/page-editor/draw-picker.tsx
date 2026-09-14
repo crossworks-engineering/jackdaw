@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import { Loader2, PenTool, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@mantle/web-ui/ui/dialog';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { assetUrl } from '@mantle/web-ui/asset-url';
@@ -241,8 +242,7 @@ function PickerRow({
   subtitle: string;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       data-index={index}
       onMouseEnter={() => onHover(index)}
       onClick={() => onChoose(index)}
@@ -274,6 +274,6 @@ function PickerRow({
           {subtitle}
         </span>
       </span>
-    </button>
+    </RowButton>
   );
 }

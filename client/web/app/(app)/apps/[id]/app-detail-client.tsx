@@ -12,6 +12,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -362,14 +363,13 @@ function AppDetailView({ app }: { app: AppDetail }) {
                   <span className="min-w-0 max-w-[16rem] truncate">
                     Focusing <span className="font-medium">{focusRegion}</span>
                   </span>
-                  <button
-                    type="button"
+                  <RowButton
                     onClick={() => setFocusRegion(null)}
                     className="shrink-0 rounded text-muted-foreground hover:text-foreground"
                     aria-label="Clear focus"
                   >
                     <X className="size-3.5" />
-                  </button>
+                  </RowButton>
                 </span>
               )}
             </div>

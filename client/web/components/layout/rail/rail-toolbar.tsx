@@ -2,6 +2,7 @@
 
 import { PanelLeft, PanelLeftClose } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { Button } from '@mantle/web-ui/ui/button';
 import { AssistantButton, HighlightButton } from '@/components/assistant/assistant-dock';
 import { HelpLauncher } from '@/components/help/help-launcher';
 
@@ -47,7 +48,9 @@ export function RailToolbar({
       onClickCapture={onLaunch}
     >
       {showCollapse && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           type="button"
           onClick={onToggleNav}
           aria-label={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -63,7 +66,7 @@ export function RailToolbar({
           ) : (
             <PanelLeftClose className="size-4" aria-hidden />
           )}
-        </button>
+        </Button>
       )}
 
       <HelpLauncher />

@@ -14,6 +14,7 @@ import {
   Search,
 } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import {
   Dialog,
@@ -468,15 +469,14 @@ function ModelDetail({ model, provider }: { model: ExplorerModel; provider?: Pro
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{model.name ?? model.id}</h2>
-          <button
-            type="button"
+          <RowButton
             onClick={() => copy(model.id, 'model id')}
             className="group mt-0.5 flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
             title="Copy model id"
           >
             <span className="truncate">{model.id}</span>
             <Copy className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
-          </button>
+          </RowButton>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {model.kind && <Badge variant="secondary">{model.kind}</Badge>}

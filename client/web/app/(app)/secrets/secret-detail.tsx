@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { formShellClass } from '@mantle/web-ui/ui/form-shell';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import {
@@ -262,16 +263,14 @@ export function SecretDetail({
                     <code className="flex-1 truncate font-mono text-sm">
                       {visible ? f.value : '•'.repeat(Math.min(f.value.length, 24))}
                     </code>
-                    <button
-                      type="button"
+                    <RowButton
                       onClick={() => toggleField(i)}
                       className="text-muted-foreground hover:text-foreground"
                       aria-label={visible ? 'Hide field' : 'Show field'}
                     >
                       {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                    <button
-                      type="button"
+                    </RowButton>
+                    <RowButton
                       onClick={() => copyField(i, f.value)}
                       className="text-muted-foreground hover:text-foreground"
                       aria-label="Copy"
@@ -281,7 +280,7 @@ export function SecretDetail({
                       ) : (
                         <Copy className="size-4" />
                       )}
-                    </button>
+                    </RowButton>
                   </div>
                 );
               })}

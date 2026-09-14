@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { CircleQuestionMark } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { Button } from '@mantle/web-ui/ui/button';
 import { helpTopicForPath } from '@mantle/web-ui/layout/help-topics';
 import { useHelpRail } from './help-rail-context';
 
@@ -24,7 +25,9 @@ export function HelpLauncher() {
   if (!topic) return null;
 
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon-xs"
       type="button"
       onClick={toggle}
       aria-pressed={open}
@@ -41,6 +44,6 @@ export function HelpLauncher() {
       )}
     >
       <CircleQuestionMark className="size-4" aria-hidden />
-    </button>
+    </Button>
   );
 }

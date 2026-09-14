@@ -13,6 +13,7 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateAgentQueries } from '@mantle/web-ui/agent-invalidation';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { sha256Hex } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import {
   Check,
@@ -286,7 +287,9 @@ export function PersonaNotesEditor({
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-1">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-2xs"
                         type="button"
                         onClick={() => startEdit(n)}
                         disabled={busy}
@@ -294,8 +297,10 @@ export function PersonaNotesEditor({
                         aria-label="Edit note"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-2xs"
                         type="button"
                         onClick={() => retire(n)}
                         disabled={busy}
@@ -303,7 +308,7 @@ export function PersonaNotesEditor({
                         aria-label="Retire note"
                       >
                         <X className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -348,8 +353,7 @@ export function PersonaNotesEditor({
 
       {retired.length > 0 && (
         <div className="pt-1">
-          <button
-            type="button"
+          <RowButton
             onClick={() => setShowRetired((v) => !v)}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
@@ -359,7 +363,7 @@ export function PersonaNotesEditor({
               <ChevronRight className="h-3.5 w-3.5" />
             )}
             Retired ({retired.length}) — audit trail
-          </button>
+          </RowButton>
           {showRetired && (
             <ul className="mt-2 space-y-1.5">
               {retired.map((n, i) => (
@@ -374,7 +378,9 @@ export function PersonaNotesEditor({
                       {n.retiredAt ? ` · ${new Date(n.retiredAt).toLocaleDateString()}` : ''}
                     </p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-2xs"
                     type="button"
                     onClick={() => restore(n)}
                     disabled={busy}
@@ -382,7 +388,7 @@ export function PersonaNotesEditor({
                     aria-label="Restore note"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>

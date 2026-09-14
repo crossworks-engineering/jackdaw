@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Check, HelpCircle, Wallet, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -226,9 +227,8 @@ export function QuestionnaireCard({
                   {q.options.map((opt) => {
                     const on = sel.includes(opt.label);
                     return (
-                      <button
+                      <RowButton
                         key={opt.label}
-                        type="button"
                         onClick={() => toggle(q, opt.label)}
                         disabled={busy}
                         role={q.multi_select ? 'checkbox' : 'radio'}
@@ -254,12 +254,11 @@ export function QuestionnaireCard({
                             {opt.description}
                           </span>
                         )}
-                      </button>
+                      </RowButton>
                     );
                   })}
                   {q.allow_other !== false && (
-                    <button
-                      type="button"
+                    <RowButton
                       onClick={() => toggleOther(q)}
                       disabled={busy}
                       role={q.multi_select ? 'checkbox' : 'radio'}
@@ -272,7 +271,7 @@ export function QuestionnaireCard({
                       )}
                     >
                       Other…
-                    </button>
+                    </RowButton>
                   )}
                 </div>
                 {otherOn && (

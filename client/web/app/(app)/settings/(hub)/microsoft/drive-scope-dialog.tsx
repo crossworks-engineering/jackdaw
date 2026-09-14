@@ -5,6 +5,7 @@ import { ChevronRight, File, Folder, FolderOpen } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MsDriveChildDTO, MsDriveDTO, MsDriveScopeDTO } from '@mantle/client-types';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import {
   Dialog,
@@ -184,15 +185,14 @@ export function DriveScopeDialog({
                     />
                     <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     {child.isFolder ? (
-                      <button
-                        type="button"
+                      <RowButton
                         className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
                         onClick={() =>
                           setCrumbs((prev) => [...prev, { itemId: child.itemId, name: child.name }])
                         }
                       >
                         {child.name}
-                      </button>
+                      </RowButton>
                     ) : (
                       <span className="min-w-0 flex-1 truncate text-sm">{child.name}</span>
                     )}

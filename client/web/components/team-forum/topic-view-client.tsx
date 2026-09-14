@@ -16,6 +16,7 @@ import { AgentMediaStrip } from '@/components/team-media';
 import { MemberProse } from '@/components/team-markdown';
 import { ArrowDown, Loader2, Search, SendHorizontal, X } from 'lucide-react';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -777,8 +778,7 @@ export function TopicViewClient({
                     <ul className="divide-y divide-border/60">
                       {matches.map((m) => (
                         <li key={m.id}>
-                          <button
-                            type="button"
+                          <RowButton
                             onClick={() => void jumpToMatch(m)}
                             className="block w-full px-3 py-2 text-left transition-colors hover:bg-muted/50"
                           >
@@ -791,7 +791,7 @@ export function TopicViewClient({
                             <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                               {m.snippet}
                             </p>
-                          </button>
+                          </RowButton>
                         </li>
                       ))}
                     </ul>
@@ -847,14 +847,16 @@ export function TopicViewClient({
           </div>
         </div>
         {showJump && (
-          <button
+          <Button
+            variant="outline"
+            size="icon-sm"
             type="button"
             onClick={jumpToBottom}
             aria-label="Jump to latest"
             className="absolute bottom-4 left-1/2 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-md transition hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowDown className="size-4" aria-hidden />
-          </button>
+          </Button>
         )}
       </div>
 

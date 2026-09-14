@@ -15,6 +15,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -718,8 +719,7 @@ function TabBar({
                 autoFocus
               />
             ) : (
-              <button
-                type="button"
+              <RowButton
                 role="tab"
                 aria-selected={active}
                 disabled={switching}
@@ -737,7 +737,7 @@ function TabBar({
                 title={`${t.name} — ${t.rows.toLocaleString()} rows (double-click to rename)`}
               >
                 {t.name}
-              </button>
+              </RowButton>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

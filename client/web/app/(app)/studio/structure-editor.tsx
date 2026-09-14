@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ModelSelect } from '@/components/ui/model-select';
@@ -56,8 +57,7 @@ function ToggleRow({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       disabled={disabled}
       onClick={onClick}
       className="flex items-center justify-between gap-2 rounded px-1.5 py-1 text-left text-[13px] hover:bg-accent/60 disabled:opacity-50"
@@ -74,7 +74,7 @@ function ToggleRow({
         {label}
       </span>
       {hint && <span className="shrink-0 text-muted-foreground/60">{hint}</span>}
-    </button>
+    </RowButton>
   );
 }
 
@@ -158,14 +158,13 @@ export function StructureEditor({
 
   if (!open) {
     return (
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen(true)}
         className="flex items-center gap-1 text-[13px] font-medium text-muted-foreground hover:text-foreground"
       >
         <ChevronRight className="size-3.5" aria-hidden /> Edit structure — model · params · skills ·
         delegates
-      </button>
+      </RowButton>
     );
   }
 
@@ -175,14 +174,13 @@ export function StructureEditor({
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border p-3">
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen(false)}
         className="flex items-center gap-1 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
       >
         <ChevronDown className="size-3.5" aria-hidden /> Structure
         {busy && <Loader2 className="size-3 animate-spin" aria-hidden />}
-      </button>
+      </RowButton>
       {error && <p className="text-[13px] text-destructive-ink">{error}</p>}
 
       <div className="flex flex-col gap-1">

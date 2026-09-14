@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { SquareDashedMousePointer } from 'lucide-react';
 import { useAssistantDock, CONTEXT_KINDS, type ContextKind } from './assistant-dock';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 
 /** Derived from the union's own source of truth rather than restated, so a new
  *  kind cannot be markable in the type but unknown here. It previously restated
@@ -83,8 +84,7 @@ export function PickMode() {
           Click items to send to {agentName}
           {count > 0 && <span className="text-muted-foreground"> · {count} selected</span>}
         </span>
-        <button
-          type="button"
+        <RowButton
           onClick={stopPicking}
           className="ml-1 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
         >
@@ -92,7 +92,7 @@ export function PickMode() {
           <kbd className="rounded border border-border bg-muted px-1 py-0.5 text-[10px] tabular-nums text-muted-foreground">
             Esc
           </kbd>
-        </button>
+        </RowButton>
       </div>
     </div>
   );

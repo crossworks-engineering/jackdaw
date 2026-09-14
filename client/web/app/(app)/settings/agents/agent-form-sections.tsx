@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Field, FieldLabel } from '@mantle/web-ui/ui/field';
@@ -597,20 +598,18 @@ function NodeTypePicker({ value, onChange }: { value: string; onChange: (next: s
         {/* Wildcard chip: matches any non-HARD_SKIP type. When on, the
             specific chips below stay clickable (additive — clicking one
             just turns off the wildcard for clarity). */}
-        <button
-          type="button"
+        <RowButton
           onClick={() => toggle('*')}
           className={cn(chipBase, 'font-medium', wildcardOn ? chipOn : chipOff)}
           title="Wildcard — match every non-secret, non-branch node type"
         >
           all types
-        </button>
+        </RowButton>
         {known.map((t) => {
           const on = selected.has(t) || wildcardOn;
           return (
-            <button
+            <RowButton
               key={t}
-              type="button"
               onClick={() => toggle(t)}
               className={cn(
                 chipBase,
@@ -620,21 +619,20 @@ function NodeTypePicker({ value, onChange }: { value: string; onChange: (next: s
               title={wildcardOn ? 'covered by "all types"' : undefined}
             >
               {t}
-            </button>
+            </RowButton>
           );
         })}
         {customs
           .filter((t) => t !== '*')
           .map((t) => (
-            <button
+            <RowButton
               key={t}
-              type="button"
               onClick={() => toggle(t)}
               className={cn(chipBase, 'font-mono', chipOn)}
               title="Custom type — click to remove"
             >
               {t} ✕
-            </button>
+            </RowButton>
           ))}
       </div>
       <div className="flex gap-1.5">

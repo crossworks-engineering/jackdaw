@@ -12,6 +12,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { performSignOut } from '@mantle/web-ui/sign-out';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
   DropdownMenu,
@@ -144,8 +145,7 @@ export function ProfileMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
+        <RowButton
           title={primary}
           aria-label={`Account — ${primary}`}
           className={cn(
@@ -168,7 +168,7 @@ export function ProfileMenu({
               />
             </>
           )}
-        </button>
+        </RowButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align={variant === 'rail' ? 'start' : 'end'}

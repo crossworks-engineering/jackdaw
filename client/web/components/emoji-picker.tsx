@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Button } from '@mantle/web-ui/ui/button';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -186,9 +187,8 @@ export function EmojiPicker({
   };
 
   const cell = (x: EmojiEntry) => (
-    <button
+    <RowButton
       key={x.e}
-      type="button"
       onClick={() => choose(x.e)}
       title={x.k.split(' ')[0]}
       className={cn(
@@ -197,7 +197,7 @@ export function EmojiPicker({
       )}
     >
       {x.e}
-    </button>
+    </RowButton>
   );
 
   return (

@@ -19,6 +19,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Compass } from 'lucide-react';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -382,14 +383,13 @@ function ProfileForm({ data }: { data: ProfileData }) {
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between">
             <Label htmlFor="timezone">Timezone (IANA)</Label>
-            <button
-              type="button"
+            <RowButton
               onClick={detectFromBrowser}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <Compass className="h-3 w-3" />
               Detect from browser
-            </button>
+            </RowButton>
           </div>
           <Input
             id="timezone"

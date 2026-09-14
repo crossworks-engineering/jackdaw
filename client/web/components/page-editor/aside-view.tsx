@@ -3,6 +3,7 @@
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { Sparkles } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import {
   asideBackground,
   asideBorderColor,
@@ -37,8 +38,7 @@ export function AsideView({ node, updateAttributes, editor }: NodeViewProps) {
       style={{ background: asideBackground(color, angle), borderColor: asideBorderColor(color) }}
     >
       {editor.isEditable && (
-        <button
-          type="button"
+        <RowButton
           contentEditable={false}
           onClick={shuffle}
           aria-label={`Aside colour: ${color} (click to shuffle the gradient)`}
@@ -50,7 +50,7 @@ export function AsideView({ node, updateAttributes, editor }: NodeViewProps) {
           )}
         >
           <Sparkles className="size-3.5" aria-hidden />
-        </button>
+        </RowButton>
       )}
       <NodeViewContent className="min-w-0 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" />
     </NodeViewWrapper>

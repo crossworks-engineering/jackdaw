@@ -43,6 +43,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import {
   DropdownMenu,
@@ -561,8 +562,7 @@ export function TeamSection({
           <div key={drillId ?? 'root'} className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
             {drillParent && (
               <div className="border-b border-border px-2 py-2">
-                <button
-                  type="button"
+                <RowButton
                   onClick={() => go({ parent: backParent?.id ?? null, page: null })}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
@@ -570,7 +570,7 @@ export function TeamSection({
                   <span className="truncate">
                     Back to {backParent ? backParent.title : 'all pages'}
                   </span>
-                </button>
+                </RowButton>
                 <div className="mt-0.5 flex items-center gap-1.5 pl-0.5">
                   <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
                     {drillParent.icon ?? TYPE_ICON[type] ?? '📄'}

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 
 export type ToggleListItem = {
@@ -112,9 +113,8 @@ export function ToggleList({
       </div>
       <div className="flex shrink-0 items-center rounded-md border border-input p-0.5 text-xs">
         {(['all', 'on', 'off'] as const).map((f) => (
-          <button
+          <RowButton
             key={f}
-            type="button"
             onClick={() => setStateFilter(f)}
             aria-pressed={stateFilter === f}
             className={cn(
@@ -125,7 +125,7 @@ export function ToggleList({
             )}
           >
             {f === 'all' ? 'All' : f === 'on' ? 'On' : 'Off'}
-          </button>
+          </RowButton>
         ))}
       </div>
     </div>
@@ -200,8 +200,7 @@ export function ToggleList({
 
   return (
     <div className="overflow-hidden rounded-md border border-border">
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -216,7 +215,7 @@ export function ToggleList({
         <span className="text-sm font-medium">
           {selected.length} of {items.length} selected
         </span>
-      </button>
+      </RowButton>
       {open && <div className="border-t border-border">{body}</div>}
     </div>
   );

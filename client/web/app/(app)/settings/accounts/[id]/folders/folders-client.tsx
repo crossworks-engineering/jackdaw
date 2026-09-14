@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { AccountFoldersResult } from '@mantle/client-types';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { FolderPicker } from './folder-picker';
 
@@ -23,13 +24,12 @@ export function AccountFoldersClient({ accountId }: { accountId: string }) {
       <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink">
         Couldn’t list folders: {message}
       </div>
-      <button
-        type="button"
+      <RowButton
         onClick={() => q.refetch()}
         className="text-sm text-primary-ink underline-offset-2 hover:underline"
       >
         Retry
-      </button>
+      </RowButton>
     </div>
   );
 

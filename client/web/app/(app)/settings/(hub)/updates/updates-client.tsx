@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,9 +87,9 @@ export function UpdatesClient() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
         <p>Couldn&apos;t load update status.</p>
-        <button type="button" onClick={() => updatesQuery.refetch()} className="underline">
+        <RowButton onClick={() => updatesQuery.refetch()} className="underline">
           Retry
-        </button>
+        </RowButton>
       </div>
     );
   }

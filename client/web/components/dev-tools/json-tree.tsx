@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 
@@ -95,9 +96,8 @@ function Node({
   return (
     <div>
       <div className="group flex items-start gap-1 rounded px-1 hover:bg-muted/50">
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-0.5 text-left"
+        <RowButton
+          className="flex min-w-0 flex-1 items-center gap-0.5"
           onClick={() => setOpen((o) => !o)}
         >
           {open ? (
@@ -114,7 +114,7 @@ function Node({
               {!open && (isArray ? ']' : '}')}
             </span>
           </span>
-        </button>
+        </RowButton>
         <span className="invisible flex shrink-0 gap-0.5 group-hover:visible">
           <Button
             type="button"
@@ -140,14 +140,13 @@ function Node({
             />
           ))}
           {entries.length > shown && (
-            <button
-              type="button"
+            <RowButton
               className="px-1 text-muted-foreground underline-offset-2 hover:underline"
               onClick={() => setShown((s) => s + CHILD_PAGE)}
             >
               Show {Math.min(CHILD_PAGE, entries.length - shown)} more — {entries.length - shown}{' '}
               hidden
-            </button>
+            </RowButton>
           )}
           <div className="px-1 text-muted-foreground">{isArray ? ']' : '}'}</div>
         </div>

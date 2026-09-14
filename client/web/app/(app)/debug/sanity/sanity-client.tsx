@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import type { SanityCheck, SanityReport, SanityStatus } from '@mantle/web-ui/types/sanity';
@@ -46,8 +47,7 @@ function CheckRow({ check }: { check: SanityCheck }) {
   const expandable = Boolean(check.fix);
   return (
     <li className="px-3 py-2.5">
-      <button
-        type="button"
+      <RowButton
         onClick={() => setOpen((v) => !v)}
         disabled={!expandable}
         className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 text-left disabled:cursor-default"
@@ -68,7 +68,7 @@ function CheckRow({ check }: { check: SanityCheck }) {
             {open ? 'Hide fix' : 'Show fix'}
           </span>
         )}
-      </button>
+      </RowButton>
 
       {open && check.fix && (
         <div className="mt-2 space-y-2 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs">

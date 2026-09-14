@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@mantle/web-ui/ui/dialog';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
@@ -78,9 +79,8 @@ function VaultRefChips() {
       {keys.map((k) => {
         const ref = `{{secret:${k.service}/${k.label}}}`;
         return (
-          <button
+          <RowButton
             key={ref}
-            type="button"
             className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             title="Copy vault reference"
             onClick={() =>
@@ -88,7 +88,7 @@ function VaultRefChips() {
             }
           >
             {ref}
-          </button>
+          </RowButton>
         );
       })}
     </div>
@@ -219,14 +219,13 @@ function SchemaPeek({ schema }: { schema: Record<string, unknown> }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-md border border-border">
-      <button
-        type="button"
+      <RowButton
         className="flex w-full items-center gap-1 px-2 py-1.5 text-xs font-medium hover:bg-muted/50"
         onClick={() => setOpen((o) => !o)}
       >
         {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         Input schema
-      </button>
+      </RowButton>
       {open && (
         <pre className="max-h-64 overflow-auto border-t border-border bg-muted/30 p-2 font-mono text-[11px] leading-4 scrollbar-thin">
           {JSON.stringify(schema, null, 2)}

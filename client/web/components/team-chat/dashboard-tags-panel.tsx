@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { X, Pin } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { tagColorClass } from '@mantle/web-ui/tag-pill';
 import { Label } from '@mantle/web-ui/ui/label';
 import {
@@ -94,15 +95,14 @@ export function DashboardTagsPanel({
                   <span className={count === 0 ? undefined : 'text-muted-foreground'}>
                     · {count}
                   </span>
-                  <button
-                    type="button"
+                  <RowButton
                     aria-label={`Remove ${t} from the Dashboard`}
                     disabled={pending}
                     onClick={() => void save(tags.filter((x) => x !== t))}
                     className="rounded-sm opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
                   >
                     <X className="size-3" aria-hidden />
-                  </button>
+                  </RowButton>
                 </span>
               </li>
             );

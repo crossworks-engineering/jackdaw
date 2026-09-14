@@ -18,6 +18,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ScrollText } from 'lucide-react';
 import { usePanelRef, type Layout } from 'react-resizable-panels';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@mantle/web-ui/ui/resizable';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { cn } from '@mantle/web-ui/lib/utils';
 
 const LS_KEY = 'team-admin.access-split';
@@ -44,8 +45,7 @@ function writeSaved(patch: Saved) {
 
 function AccessHeader({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return (
-    <button
-      type="button"
+    <RowButton
       onClick={onToggle}
       aria-expanded={!collapsed}
       className="flex h-10 w-full shrink-0 items-center gap-1.5 px-4 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
@@ -55,7 +55,7 @@ function AccessHeader({ collapsed, onToggle }: { collapsed: boolean; onToggle: (
         className={cn('ml-auto size-4 transition-transform', collapsed && 'rotate-180')}
         aria-hidden
       />
-    </button>
+    </RowButton>
   );
 }
 

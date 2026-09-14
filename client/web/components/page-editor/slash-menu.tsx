@@ -35,6 +35,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { columnsContent } from './column';
 import { randomAsideAngle, randomAsideColor } from '@mantle/web-ui/aside-style';
@@ -404,8 +405,7 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(function Sl
                 {item.group}
               </div>
             )}
-            <button
-              type="button"
+            <RowButton
               data-index={i}
               onMouseEnter={() => setSelected(i)}
               onClick={() => choose(i)}
@@ -439,7 +439,7 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(function Sl
                   {item.description}
                 </span>
               </span>
-            </button>
+            </RowButton>
           </div>
         );
       })}

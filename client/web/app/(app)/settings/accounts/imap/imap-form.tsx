@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Eye, EyeOff, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
@@ -269,14 +270,13 @@ export function ImapForm({ account }: { account?: ImapFormAccount }) {
               aria-invalid={!!errors.password || undefined}
               aria-describedby={errors.password ? 'password-error password-hint' : 'password-hint'}
             />
-            <button
-              type="button"
+            <RowButton
               onClick={() => setShowPassword((v) => !v)}
               className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
+            </RowButton>
           </div>
           <FieldDescription id="password-hint">
             {isEdit

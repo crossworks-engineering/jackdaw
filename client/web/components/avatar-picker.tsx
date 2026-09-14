@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { SlidersHorizontal, Shuffle, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { randomAvatarSeed } from '@mantle/web-ui/avatar';
 import type { AvatarParts } from '@mantle/web-ui/avatar-parts';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
@@ -82,13 +83,12 @@ export function AvatarPicker({
           </Button>
         </div>
         {allowClear && value && (
-          <button
-            type="button"
+          <RowButton
             onClick={() => onChange(null)}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="size-3" aria-hidden /> {clearLabel}
-          </button>
+          </RowButton>
         )}
       </div>
       <AvatarBuilderDialog

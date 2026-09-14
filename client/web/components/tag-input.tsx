@@ -3,6 +3,7 @@
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { tagColorClass } from '@mantle/web-ui/tag-pill';
 
 /**
@@ -83,8 +84,7 @@ export function TagInput({
           )}
         >
           {t}
-          <button
-            type="button"
+          <RowButton
             onClick={(e) => {
               e.stopPropagation();
               removeTag(t);
@@ -93,7 +93,7 @@ export function TagInput({
             aria-label={`Remove ${t}`}
           >
             <X className="size-3" />
-          </button>
+          </RowButton>
         </span>
       ))}
       <input

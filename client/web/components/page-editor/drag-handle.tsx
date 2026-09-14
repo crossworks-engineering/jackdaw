@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { extractSection } from '@mantle/content-core/page-split';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { randomAsideAngle, randomAsideColor } from '@mantle/web-ui/aside-style';
 
@@ -247,8 +248,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
               style={{ left: menu.x, top: menu.y, maxHeight: `calc(100vh - ${menu.y + 8}px)` }}
             >
               {/* Turn into — inline-expanding section (no flyout positioning). */}
-              <button
-                type="button"
+              <RowButton
                 onClick={() => setTurnOpen((v) => !v)}
                 aria-expanded={turnOpen}
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -262,7 +262,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
                     <ChevronRight className="size-4" aria-hidden />
                   )}
                 </span>
-              </button>
+              </RowButton>
               {turnOpen && (
                 <div className="mb-1 ml-3 border-l border-border pl-1">
                   {TURN_OPTIONS.map((o) => (
@@ -310,8 +310,7 @@ function MenuItem({
   destructive?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       role="menuitem"
       onClick={onClick}
       className={cn(
@@ -323,6 +322,6 @@ function MenuItem({
     >
       <Icon className="size-4" aria-hidden />
       {label}
-    </button>
+    </RowButton>
   );
 }

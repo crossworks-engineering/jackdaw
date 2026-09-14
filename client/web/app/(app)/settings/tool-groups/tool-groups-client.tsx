@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import type { ToolDTO, ToolGroupWithRefs } from '@mantle/client-types';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -450,13 +451,12 @@ export function ToolGroupsClient() {
                       <p className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
                         <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
                         Couldn’t load the tool list.
-                        <button
-                          type="button"
+                        <RowButton
                           onClick={() => toolsQuery.refetch()}
                           className="ml-auto shrink-0 underline underline-offset-2 hover:text-foreground"
                         >
                           Retry
-                        </button>
+                        </RowButton>
                       </p>
                     ) : toolsQuery.isPending ? (
                       <p className="text-xs text-muted-foreground">Loading tools…</p>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   CommandDialog,
@@ -263,8 +264,7 @@ function SupersededBadge({
   go: (path: string) => void;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       title={succ.title ? `Open newer copy: ${succ.title}` : 'Open newer copy'}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
@@ -275,6 +275,6 @@ function SupersededBadge({
       className="shrink-0 rounded border border-destructive/40 px-1.5 py-0.5 text-[10px] text-destructive-ink transition-colors hover:bg-destructive hover:text-destructive-foreground"
     >
       Superseded
-    </button>
+    </RowButton>
   );
 }

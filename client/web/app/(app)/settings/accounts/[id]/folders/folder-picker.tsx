@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 
@@ -92,20 +93,12 @@ export function FolderPicker({
           {checked.size} of {selectable.length} selected
         </p>
         <div className="flex gap-3 text-xs">
-          <button
-            type="button"
-            onClick={() => setAll(true)}
-            className="underline-offset-2 hover:underline"
-          >
+          <RowButton onClick={() => setAll(true)} className="underline-offset-2 hover:underline">
             Select all
-          </button>
-          <button
-            type="button"
-            onClick={() => setAll(false)}
-            className="underline-offset-2 hover:underline"
-          >
+          </RowButton>
+          <RowButton onClick={() => setAll(false)} className="underline-offset-2 hover:underline">
             Clear
-          </button>
+          </RowButton>
         </div>
       </div>
 

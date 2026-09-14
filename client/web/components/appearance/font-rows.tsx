@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { FontDialog } from '@mantle/web-ui/font-dialog';
 import { useFonts, type FontSlot } from '@mantle/web-ui/font-provider';
@@ -87,9 +88,8 @@ export function FontRows() {
           const face = fontByKey(fonts[row.slot]);
           const size = FONT_SIZES.find((s) => s.id === sizes[row.slot]);
           return (
-            <button
+            <RowButton
               key={row.slot}
-              type="button"
               onClick={() => setOpenSlot(row.slot)}
               className={cn(
                 'flex w-full items-center justify-between gap-4 rounded-lg border border-border p-3 text-left transition-colors',
@@ -117,7 +117,7 @@ export function FontRows() {
                 <span className="block font-medium text-foreground">{face?.label ?? '—'}</span>
                 <span className="block">{size?.label}</span>
               </span>
-            </button>
+            </RowButton>
           );
         })}
       </div>

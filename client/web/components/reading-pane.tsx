@@ -4,6 +4,7 @@ import { Inbox, Mail, MailOpen, Paperclip, Star } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { EmailDTO, EmailAttachmentDTO } from '@mantle/client-types';
 import { apiSend } from '@mantle/web-ui/api-fetch';
+import { Button } from '@mantle/web-ui/ui/button';
 import { assetUrl } from '@mantle/web-ui/asset-url';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
@@ -54,7 +55,9 @@ export function ReadingPane({
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-lg font-semibold leading-snug">{email.subject || '(no subject)'}</h1>
           <div className="flex shrink-0 items-center gap-1">
-            <button
+            <Button
+              variant="outline"
+              size="icon-2xs"
               type="button"
               onClick={() => patch.mutate({ starred: !email.isStarred })}
               disabled={patch.isPending}
@@ -66,8 +69,10 @@ export function ReadingPane({
                 className={cn('size-3.5', email.isStarred && 'fill-warning text-warning-ink')}
                 aria-hidden
               />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-2xs"
               type="button"
               onClick={() => patch.mutate({ read: !email.isRead })}
               disabled={patch.isPending}
@@ -84,7 +89,7 @@ export function ReadingPane({
                   <MailOpen className="size-3.5" aria-hidden /> Mark read
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

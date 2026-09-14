@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useListNav } from '@/lib/use-list-nav';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -311,7 +312,7 @@ export function TablesShell() {
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {tags.slice(0, 12).map((t) => (
-                    <button
+                    <RowButton
                       key={t.tag}
                       onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: 1 })}
                       className={cn(
@@ -320,7 +321,7 @@ export function TablesShell() {
                       )}
                     >
                       {t.tag} <span className="text-muted-foreground">{t.count}</span>
-                    </button>
+                    </RowButton>
                   ))}
                 </div>
               )}

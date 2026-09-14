@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { performSignOut } from '@mantle/web-ui/sign-out';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useRouter } from 'next/navigation';
 
 export function SignOutButton() {
@@ -16,13 +17,12 @@ export function SignOutButton() {
   }
 
   return (
-    <button
-      type="button"
+    <RowButton
       onClick={signOut}
       disabled={busy}
       className="text-xs text-muted-foreground hover:text-foreground"
     >
       {busy ? 'Signing out…' : 'Sign out'}
-    </button>
+    </RowButton>
   );
 }

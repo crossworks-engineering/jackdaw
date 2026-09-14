@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Archive, ArchiveRestore, Check, Flag, Pencil, Trash2 } from 'lucide-react';
 import { formShellClass } from '@mantle/web-ui/ui/form-shell';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   AlertDialog,
@@ -110,8 +111,7 @@ export function TaskDetail({
           `items-center` on the row is what keeps it on the title's line. */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <button
-              type="button"
+            <RowButton
               onClick={onToggleStatus}
               className={cn(
                 'flex size-6 shrink-0 items-center justify-center rounded-md border transition-colors',
@@ -123,7 +123,7 @@ export function TaskDetail({
               aria-pressed={done}
             >
               {done && <Check className="size-4" />}
-            </button>
+            </RowButton>
             <h2
               className={cn(
                 'min-w-0 truncate text-xl font-semibold',

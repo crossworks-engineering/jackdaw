@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   AlertDialog,
@@ -130,14 +131,13 @@ function ItemNode({ item, depth }: { item: CompiledItem; depth: number }) {
     <div className={cn(depth > 0 && 'border-l border-border pl-3')}>
       <div className="flex flex-wrap items-baseline gap-x-2 py-0.5 text-sm">
         {isGroup ? (
-          <button
-            type="button"
+          <RowButton
             onClick={() => setOpen((o) => !o)}
             className="font-mono text-xs text-muted-foreground hover:text-foreground"
             aria-label={open ? 'Collapse group' : 'Expand group'}
           >
             {open ? '▾' : '▸'}
-          </button>
+          </RowButton>
         ) : (
           <span className="font-mono text-xs text-muted-foreground">·</span>
         )}

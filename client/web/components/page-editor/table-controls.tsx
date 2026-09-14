@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import { Plus, Trash2 } from 'lucide-react';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 
 /**
  * Notion-style table affordances, shown only while the cursor is inside a table:
@@ -112,8 +113,7 @@ export function TableControls({ editor }: { editor: Editor }) {
 
   return (
     <>
-      <button
-        type="button"
+      <RowButton
         aria-label="Add column"
         title="Add column"
         className={btn}
@@ -124,9 +124,8 @@ export function TableControls({ editor }: { editor: Editor }) {
         }}
       >
         <Plus className="size-4" aria-hidden />
-      </button>
-      <button
-        type="button"
+      </RowButton>
+      <RowButton
         aria-label="Add row"
         title="Add row"
         className={btn}
@@ -137,10 +136,9 @@ export function TableControls({ editor }: { editor: Editor }) {
         }}
       >
         <Plus className="size-4" aria-hidden />
-      </button>
+      </RowButton>
       {rows > 1 && (
-        <button
-          type="button"
+        <RowButton
           aria-label="Delete row"
           title="Delete row"
           className={delBtn}
@@ -151,11 +149,10 @@ export function TableControls({ editor }: { editor: Editor }) {
           }}
         >
           <Trash2 className="size-4" aria-hidden />
-        </button>
+        </RowButton>
       )}
       {cols > 1 && (
-        <button
-          type="button"
+        <RowButton
           aria-label="Delete column"
           title="Delete column"
           className={delBtn}
@@ -166,7 +163,7 @@ export function TableControls({ editor }: { editor: Editor }) {
           }}
         >
           <Trash2 className="size-4" aria-hidden />
-        </button>
+        </RowButton>
       )}
     </>
   );

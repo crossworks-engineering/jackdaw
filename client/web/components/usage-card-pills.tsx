@@ -1,6 +1,7 @@
 'use client';
 
 import type { SpendRange } from '@mantle/client-types';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 
 const COOKIE = 'mantle_spend_range';
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
@@ -39,9 +40,8 @@ export function UsageCardPills({
       {PILLS.map((p) => {
         const active = p.value === current;
         return (
-          <button
+          <RowButton
             key={p.value}
-            type="button"
             onClick={() => pick(p.value)}
             className={
               'flex-1 rounded px-1 py-0.5 text-[10px] font-semibold tabular-nums transition-colors ' +
@@ -52,7 +52,7 @@ export function UsageCardPills({
             aria-pressed={active}
           >
             {p.label}
-          </button>
+          </RowButton>
         );
       })}
     </div>

@@ -2,6 +2,7 @@
 
 import { Ban, Check } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { BACKGROUND_STYLES, requiresAttribution } from '@mantle/web-ui/avatar';
 import {
   BACKGROUND_AREAS,
@@ -48,8 +49,7 @@ function Tile({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <RowButton
       onClick={onSelect}
       aria-pressed={selected}
       title={label}
@@ -68,7 +68,7 @@ function Tile({
         </span>
       )}
       <span className="sr-only">{label}</span>
-    </button>
+    </RowButton>
   );
 }
 

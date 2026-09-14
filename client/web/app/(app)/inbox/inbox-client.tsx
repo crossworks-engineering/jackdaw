@@ -8,6 +8,7 @@ import { Mail, Plug, UserCheck } from 'lucide-react';
 import type { MessageDetailDTO } from '@mantle/client-types';
 import type { PublicEmailAccount, FolderFacet, MessageListItem } from '@mantle/client-types';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { EmailRow } from '@/components/email-row';
@@ -219,9 +220,9 @@ export function InboxClient() {
   ) : messagesQuery.isError ? (
     <p className="px-4 py-6 text-sm text-destructive-ink">
       Couldn&apos;t load messages.{' '}
-      <button type="button" onClick={() => messagesQuery.refetch()} className="underline">
+      <RowButton onClick={() => messagesQuery.refetch()} className="underline">
         Retry
-      </button>
+      </RowButton>
     </p>
   ) : rows.length === 0 ? (
     <p className="px-4 py-6 text-sm text-muted-foreground">No messages here yet.</p>
@@ -251,9 +252,9 @@ export function InboxClient() {
   ) : messageQuery.isError || !messageQuery.data ? (
     <p className="px-6 py-6 text-sm text-destructive-ink">
       Couldn&apos;t load this message.{' '}
-      <button type="button" onClick={() => messageQuery.refetch()} className="underline">
+      <RowButton onClick={() => messageQuery.refetch()} className="underline">
         Retry
-      </button>
+      </RowButton>
     </p>
   ) : (
     <ReadingPane

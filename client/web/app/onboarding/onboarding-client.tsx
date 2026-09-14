@@ -28,6 +28,7 @@ import {
   type PersonaPresetKey,
 } from '@mantle/content-core/persona-bank';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Label } from '@mantle/web-ui/ui/label';
@@ -129,9 +130,9 @@ function OnboardingGate() {
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>Couldn&apos;t start onboarding.</p>
-        <button type="button" onClick={() => stateQuery.refetch()} className="underline">
+        <RowButton onClick={() => stateQuery.refetch()} className="underline">
           Retry
-        </button>
+        </RowButton>
       </div>
     );
   }

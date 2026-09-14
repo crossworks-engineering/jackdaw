@@ -608,14 +608,16 @@ export function TeamChatClient({ archive = false }: { archive?: boolean } = {}) 
           </div>
         </div>
         {showJump && (
-          <button
+          <Button
+            variant="outline"
+            size="icon-sm"
             type="button"
             onClick={jumpToBottom}
             aria-label="Jump to latest"
             className="absolute bottom-4 left-1/2 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-md transition hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowDown className="size-4" aria-hidden />
-          </button>
+          </Button>
         )}
       </div>
 

@@ -23,6 +23,7 @@ import {
   AlertDialogTrigger,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import type {
@@ -344,13 +345,12 @@ export function MaintenanceView() {
 
       {showRetired ? null : (
         <div>
-          <button
-            type="button"
+          <RowButton
             onClick={() => setShowRetired(true)}
             className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             Show {tasks.filter((t) => t.status === 'retired').length} retired backfills…
-          </button>
+          </RowButton>
         </div>
       )}
 

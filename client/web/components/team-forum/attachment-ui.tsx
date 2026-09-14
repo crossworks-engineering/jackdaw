@@ -17,6 +17,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { FileText, Film, Image as ImageIcon, Loader2, Music, Paperclip, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { teamFetch, teamUrl } from '@mantle/web-ui/team-fetch';
 
 export type PostAttachment = {
@@ -105,9 +106,9 @@ function AttachmentChip({ fileId, children }: { fileId: string; children: ReactN
     }
   };
   return (
-    <button type="button" onClick={() => void open()} disabled={busy} className={CHIP_CLASS}>
+    <RowButton onClick={() => void open()} disabled={busy} className={CHIP_CLASS}>
       {children}
-    </button>
+    </RowButton>
   );
 }
 
@@ -301,14 +302,13 @@ export function ComposerAttachments({
               {s.filename}
               <span className="text-muted-foreground"> ({formatSize(s.size)})</span>
             </span>
-            <button
-              type="button"
+            <RowButton
               onClick={() => remove(s.blobId)}
               className="text-muted-foreground transition-colors hover:text-foreground"
               aria-label={`Remove ${s.filename}`}
             >
               <X className="size-3" aria-hidden />
-            </button>
+            </RowButton>
           </span>
         ))}
       </div>

@@ -19,6 +19,7 @@
  */
 import { useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { isCrossOrigin, runtimeApiBase } from '@mantle/web-ui/runtime-env';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { teamTokenStore } from '@mantle/web-ui/team-fetch';
 
 /**
@@ -119,7 +120,7 @@ export function OpenShare({
           detail pane can't submit a stale target. */}
       <input ref={tbRef} type="hidden" name="tb" defaultValue="" />
       <input ref={nextRef} type="hidden" name="next" defaultValue={`/s/${token}`} />
-      <button
+      <RowButton
         type="submit"
         className={className}
         style={style}
@@ -130,7 +131,7 @@ export function OpenShare({
         }}
       >
         {children}
-      </button>
+      </RowButton>
     </form>
   );
 }

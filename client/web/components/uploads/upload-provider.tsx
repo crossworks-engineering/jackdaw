@@ -20,6 +20,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
+import { Button } from '@mantle/web-ui/ui/button';
 import { isCrossOrigin, runtimeApiBase } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -336,8 +338,7 @@ export function UploadDock() {
 
   return (
     <div className="pointer-events-auto w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-      <button
-        type="button"
+      <RowButton
         onClick={() => setCollapsed((v) => !v)}
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
         aria-label={collapsed ? 'Expand uploads' : 'Collapse uploads'}
@@ -357,7 +358,7 @@ export function UploadDock() {
           )}
           aria-hidden
         />
-      </button>
+      </RowButton>
 
       {!collapsed && (
         <ul className="max-h-56 divide-y divide-border overflow-y-auto scrollbar-thin border-t border-border">
@@ -388,13 +389,12 @@ export function UploadDock() {
         </div>
       ) : (
         <div className="flex justify-end border-t border-border px-2 py-1.5">
-          <button
-            type="button"
+          <RowButton
             onClick={clearFinished}
             className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <X className="size-3.5" aria-hidden /> Dismiss
-          </button>
+          </RowButton>
         </div>
       )}
     </div>
@@ -453,7 +453,9 @@ function UploadRow({
         {detail}
       </span>
       {canCancel && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-2xs"
           type="button"
           onClick={() => onCancel(t.id)}
           className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
@@ -461,10 +463,12 @@ function UploadRow({
           title="Cancel"
         >
           <X className="size-3.5" aria-hidden />
-        </button>
+        </Button>
       )}
       {canRetry && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-2xs"
           type="button"
           onClick={() => onRetry(t.id)}
           className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
@@ -472,7 +476,7 @@ function UploadRow({
           title="Retry"
         >
           <RotateCcw className="size-3.5" aria-hidden />
-        </button>
+        </Button>
       )}
     </li>
   );

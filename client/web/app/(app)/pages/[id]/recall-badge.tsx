@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Map as MapIcon, Sparkles } from 'lucide-react';
 import type { RecallPageStateDTO } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
 import { CompileBadge } from '../../recall/compile-badge';
@@ -68,9 +69,9 @@ export function RecallBadge({ pageId }: { pageId: string }) {
     <>
       <Popover>
         <PopoverTrigger asChild>
-          <button type="button" className="inline-flex items-center" aria-label="Recall map state">
+          <RowButton className="inline-flex items-center" aria-label="Recall map state">
             <CompileBadge ok={state.map.lastCompileOk} compiled={state.map.nodeCount > 0} />
-          </button>
+          </RowButton>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-96 text-sm">
           <p className="flex items-center gap-2 font-medium">
@@ -112,13 +113,12 @@ export function RecallBadge({ pageId }: { pageId: string }) {
           )}
           {canPromote && (
             <p className="mt-2 border-t border-border pt-2">
-              <button
-                type="button"
+              <RowButton
                 className="text-primary-ink hover:underline"
                 onClick={() => setConverting(true)}
               >
                 Make this node a prompt
-              </button>
+              </RowButton>
               <span className="ml-1 text-xs text-muted-foreground">
                 so agents also find it by meaning, not only by walking here.
               </span>

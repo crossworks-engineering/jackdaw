@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp, Copy, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -266,9 +267,8 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
                           <TableCell>
                             <div className="flex gap-0.5">
                               {[1, 2, 3, 4, 5].map((n) => (
-                                <button
+                                <RowButton
                                   key={n}
-                                  type="button"
                                   onClick={() => setRating(r.entry, n)}
                                   title={`Rate ${n}/5`}
                                 >
@@ -280,7 +280,7 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
                                         : 'text-muted-foreground/40',
                                     )}
                                   />
-                                </button>
+                                </RowButton>
                               ))}
                             </div>
                           </TableCell>
