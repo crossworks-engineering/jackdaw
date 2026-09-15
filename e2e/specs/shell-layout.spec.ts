@@ -83,6 +83,20 @@ test.describe('shell layout', () => {
       shell.evaluate((el) => getComputedStyle(el).getPropertyValue('--nav-w').trim());
     expect(await navWidth()).toBe('256px');
 
+    // Let `/tasks` finish taking focus BEFORE reaching for the handle. Its
+    // composer mounts once the list lands and carries `autoFocus`, so focus
+    // moves a beat after the screen looks ready — and it moved mid-sequence,
+    // putting arrow presses two, three and four into a text field. That is the
+    // whole of this test's flake: the rail was never at fault, and the widths
+    // it reported (280px, 272px) are three presses landing, then two.
+    //
+    // On `/models` and `/settings/profile` — no autofocusing composer — all
+    // four land every time.
+    await expect(
+      ownerPage.locator('#task-title'),
+      'the tasks composer never took focus, so it may still steal it',
+    ).toBeFocused();
+
     // Keyboard, not a drag: the handle is arrow-operable on purpose (a
     // drag-only control is unusable without a mouse), and it writes the same
     // cookie either way. Four nudges of 8px = 288px.
