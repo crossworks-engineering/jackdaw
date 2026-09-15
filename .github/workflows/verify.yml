@@ -115,14 +115,6 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 20
 
-      # Two specs make the brain spawn a browser: the PDF export and the draw
-      # snapshot re-render. Without it they fail with a 500 that says "internal
-      # error" and nothing about a missing sidecar. ghcr, so no Docker Hub pull.
-      browser:
-        image: ghcr.io/browserless/chromium:v2.55.0
-        env:
-          TOKEN: mantle
-        ports: ['3000:3000']
 
     steps:
       - uses: actions/checkout@v7
@@ -156,6 +148,25 @@ jobs:
       # quay.io, NOT Docker Hub: `docker pull minio/minio` is denied on a runner
       # ("repository does not exist or may require 'docker login'"). quay is
       # MinIO's own registry and pulls anonymously.
+      # The browser sidecar is NOT a service container either, and for a subtler
+      # reason than MinIO's. Two specs make the brain spawn a browser (the PDF
+      # export and the draw snapshot re-render), and the sidecar then fetches a
+      # URL BACK from the brain. A service container sits on the bridge network,
+      # where `localhost` is its own container — so the brain, which runs on the
+      # HOST network, is unreachable and the render dies with
+      # ERR_CONNECTION_REFUSED naming a URL that is perfectly correct from the
+      # brain's side. Everything that has to talk to the brain runs on the host
+      # network, so one `localhost` means the same thing to all of them.
+      - name: Start the browser sidecar
+        if: vars.E2E_SERVER_URL == ''
+        run: |
+          docker run -d --name e2e-browser --network host \
+            -e TOKEN=mantle ghcr.io/browserless/chromium:v2.55.0
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null "http://localhost:3000/?token=mantle" && break
+            sleep 2
+          done
+
       - name: Start the object store
         if: vars.E2E_SERVER_URL == ''
         run: |
@@ -276,7 +287,9 @@ jobs:
       # only what the browser saw.
       - name: Brain log
         if: failure() && vars.E2E_SERVER_URL == ''
-        run: docker logs e2e-brain 2>&1 | tail -200
+        run: |
+          echo '── brain ──'; docker logs e2e-brain 2>&1 | tail -200
+          echo '── browser sidecar ──'; docker logs e2e-browser 2>&1 | tail -40
 
       # Traces are retained on failure (playwright.config), and they are the
       # only way to see what a headless run actually did.
