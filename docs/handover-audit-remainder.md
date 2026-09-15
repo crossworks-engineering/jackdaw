@@ -72,10 +72,11 @@ before any builder started, and exactly one release carried the tag where
 with all eleven artifacts, all three updater manifests and every blockmap beside
 its own file. The `draft` job is holding.
 
-**Still open on the same file:** `desktop.yml` and `release.yml` pin the
-deprecated action line (§7). Deliberately NOT bundled with the race fix —
-neither is testable without cutting a tag, and landing both together would give
-a broken next release two candidate causes.
+~~**Still open on the same file:** `desktop.yml` and `release.yml` pin the
+deprecated action line (§7).~~ **Done** — see §7 for why `download-artifact`
+stopped at v7. It was deliberately NOT bundled with the race fix: neither is
+testable without cutting a tag, and landing both together would have given a
+broken next release two candidate causes.
 
 **A check worth adding to the release habit:** after publishing, confirm the
 release actually became _Latest_. `PATCH draft=false` with `make_latest` in the
@@ -334,8 +335,9 @@ Still open, in rough order of value:
   14 consumers, including the shell frame.~~ **Done 2026-09-15 — §17.** It was
   11 consumers, not 14, and the fan-out was measured before it was touched.
 - ~~**Memoise the individual assistant turn row.**~~ **Done 2026-09-15 — §17.**
-- **Render settled turns as static HTML rather than a live editor each.** STILL
-  OPEN, and bigger than the line above it implies — §17 says what blocks it.
+- ~~**Render settled turns as static HTML rather than a live editor each.**~~
+  **Done 2026-09-15 — §17.** Smaller than the line above it implied, not bigger:
+  both of the blockers §17 named turned out not to exist.
 
 ⚠ **This session added weight rather than removing it** — roughly 1.2 KB per
 route across the seven bug fixes, all of it landing in the app shell. That is
@@ -647,9 +649,9 @@ clicking and neither can be automated from here.
 
 **3 · Dependency decisions** (§3). **Nothing is open.** `@tanstack/react-table` 9 (native API) and `electron` 44 are done; `vite` 8, `typescript` 7 and `vitest` 5 are all blocked upstream, so there is no decision to take. The one thing worth knowing: TypeScript's available step is **6**, not 7 — the eslint parser caps at `<6.1.0`, and the old table hid this by listing only 7.x as "latest".
 
-**4 · ~~Performance's remainder~~ · all but one item DONE** (§4, §17). The dock context split and the turn-row memo both landed, each measured before and after. The ONE thing left is **rendering settled turns as static HTML** — and §17 explains why it is not the small tweak the original line implies: the callout/aside/embed chrome lives entirely in React NodeViews with no CSS fallback, so it wants the server-side renderer `page-view.tsx` already calls "Phase 5's".
+**4 · ~~Performance's remainder~~ · DONE** (§4, §17). The dock context split, the turn-row memo, and static rendering for settled turns all landed, each measured before and after. The last of those was supposed to be the big one; it was not, because **both blockers §17 named were false** — the CSS fallback already ships via `@mantle/share-ui`, and the server renderer it recommended emits the same bare div. What the work actually cost was a browser pass, which found the thing reading could not: syntax highlighting is a ProseMirror decoration and vanishes from a `renderHTML` pass, silently.
 
-**5 · `assetUrl` reactivity** (§6). The `/tables` half-collapse that used to sit beside it is **fixed**. `assetUrl` is the one left, and it is the most interesting thing still open: a hook cannot be the answer, because three of the call sites are plain modules feeding TipTap and Excalidraw from outside React. It needs a subscribable store, or the shell withholding asset-bearing children until the token lands — and only in split deployments.
+**5 · ~~`assetUrl` reactivity~~ · DONE** (§6). The token is a store. The written diagnosis was right that a hook alone could not cover it — but the split is not React/non-React, it is _rendering_ callers (which subscribe) versus _fetching_ callers (which await). The surprise was the download anchors, which were not on the list and are the ones most exposed, since an `href` is resolved at render and used whenever the owner clicks.
 
 ### What this repo expects of you
 
