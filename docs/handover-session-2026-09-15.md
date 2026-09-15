@@ -1,7 +1,8 @@
 # Handover: the 2026-09-15 session — form controls, a release, the CI gate, the assistant's re-renders
 
-Current at **v0.6.105**, on main, pushed. Everything below is landed unless it
-says otherwise.
+Current at **v0.6.108**, on main, **not pushed and not tagged** — the newest
+tag is still v0.6.100, so eight versions have never reached a box. Everything
+below is landed.
 
 > ### Start here
 >
@@ -54,19 +55,23 @@ both real when measured — but the counter-check matters as much: a context spl
 that simply disconnects a consumer shows the same improvement as one that works.
 `AppShell` was verified to STILL re-render on a layout change.
 
-## What is NOT landed
+## Everything is landed — but nothing is released
 
-~~**`feat/dock-context`**~~ — landed; released as v0.6.107.
+~~**`feat/dock-context`**~~ — landed, v0.6.107.
+~~**`fix/asset-url-reactivity`**~~ — landed, v0.6.108 (§6 and §17).
 
-**`fix/asset-url-reactivity`** — audit items 1 and 2 (§6 and §17), both
-committed, `pnpm verify` green, both verified in a detached browser against the
-dev brain. Land with `scripts/merge-branch.sh fix/asset-url-reactivity`.
-Two things to know before you do:
+Two things to carry forward from that last one:
 
 - The assistant transcript has **no e2e spec**, so CI will not catch a
-  regression in `RichText`. `PageView` is covered.
-- A callout in a settled reply now renders without its icon. That is the share
-  surface's look, it is deliberate, and it is the one open question — see §17.
+  regression in `RichText`. `PageView` is covered by
+  `pages-reading-width.spec.ts`, which is why `StaticDoc` keeps the
+  `ProseMirror` class.
+- A callout in a settled reply now renders without its icon — the share
+  surface's look. Deliberate, and the one open question; see §17.
+
+**The tag gap is the live risk.** `package.json` says 0.6.108, the newest tag
+says v0.6.100, and the box will say something else again. That is judgement call
+2 above, unresolved and now twice as wide as when it was written.
 
 ## What is left on the audit
 
