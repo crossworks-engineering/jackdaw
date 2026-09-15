@@ -1,6 +1,8 @@
 # Jackdaw — desktop
 
-Electron shell around the owner UI. Design + phasing: [`docs/desktop-app-plan.md` in the mantle repo](https://github.com/crossworks-engineering/mantle/blob/main/docs/desktop-app-plan.md) — it predates the 2026-08-13 split and stayed there.
+Electron shell around the owner UI. The original design and phasing plan
+predates the 2026-08-13 repo split and is no longer carried as a document;
+this README is the current reference.
 
 The shell ships the connect screen, per-brain session partitions, the
 native-parity CORS fencing, and an **embedded copy of the built owner UI** —
@@ -66,6 +68,16 @@ unsigned mac build.
   feature-detects the vault and migrates a pre-vault localStorage bearer on
   first read.
 - External links (share links, docs) open in the system browser.
+
+## Media permissions
+
+The shell registers no permission handler today (no
+`setPermissionRequestHandler` or `setPermissionCheckHandler` on the session),
+so microphone and camera prompts follow Electron's defaults: a packaged
+Electron app grants renderer permission requests unless a handler denies
+them, and the OS-level prompt (macOS microphone access, for example) is
+whatever the platform does for an unsigned app. This has not been verified
+in the packaged app; treat voice capture on desktop as untested until it is.
 
 ## The app icon
 

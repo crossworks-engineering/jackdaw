@@ -1,5 +1,9 @@
 # Mantle Licensing — Explainer & Foreword
 
+This file governs Jackdaw (this repo) under the same terms as Mantle: the
+client is licensed exactly as the engine is, and the texts below apply to it
+without change.
+
 This document is the Foreword and Explainer for the Mantle licensing model. It
 translates the legal mechanics of our dual-licensing strategy into plain business
 terms — how we protect our intellectual property while fostering an open,
@@ -11,8 +15,10 @@ The binding legal texts live alongside this file:
   (MIT Future), `FSL-1.1-MIT`.
 - **[`LICENSE-COMMERCIAL.md`](./LICENSE-COMMERCIAL.md)** — the paid Commercial
   License Agreement that overrides the FSL's restrictions.
-- **[`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md)** — attribution for the
-  open-source components Mantle is built on.
+
+Third-party attribution is carried by each dependency's own license file under
+`node_modules` after `pnpm install`; there is no separate notices file in this
+repo.
 
 > This explainer is a summary for orientation. Where it differs from `LICENSE.md`
 > or `LICENSE-COMMERCIAL.md`, **those documents control.**

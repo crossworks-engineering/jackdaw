@@ -1,7 +1,8 @@
 # Handover: the 2026-09-15 session — form controls, a release, the CI gate, the assistant's re-renders
 
-Current at **v0.6.108**, on main, **not pushed and not tagged** — the newest
-tag is still v0.6.100, so eight versions have never reached a box. Everything
+Written at v0.6.108. Since then main moved to **v0.6.110**, released on
+2026-09-15 and set as Latest on GitHub Releases (11 assets, all three updater
+manifests), and mantle's `client-pair.tag` now reads **v0.6.110**. Everything
 below is landed.
 
 > ### Start here
@@ -26,6 +27,7 @@ below is landed.
 | v0.6.99       | Arrow keys select in `RadioGroup` **and** `ToggleGroup`.                                                               |
 | **v0.6.100**  | **Released and Latest** — the first cut since v0.6.93, carrying six untagged versions. Dev box rolled onto it.         |
 | v0.6.101–.105 | The CI e2e gate: it now builds its own brain per run.                                                                  |
+| **v0.6.110**  | **Released and Latest** on 2026-09-15. mantle's `client-pair.tag` names it.                                            |
 | _(pending)_   | The dock context split + turn-row memo — see "What is NOT landed".                                                     |
 
 Two of those came from agents run in parallel, and **both did better than the
@@ -69,9 +71,10 @@ Two things to carry forward from that last one:
 - A callout in a settled reply now renders without its icon — the share
   surface's look. Deliberate, and the one open question; see §17.
 
-**The tag gap is the live risk.** `package.json` says 0.6.108, the newest tag
-says v0.6.100, and the box will say something else again. That is judgement call
-2 above, unresolved and now twice as wide as when it was written.
+**The tag gap closed on 2026-09-15.** v0.6.110 is tagged, published and
+Latest, and mantle's `client-pair.tag` names it. Judgement call 2 above still
+holds as a habit: compare `package.json`, the newest tag, and what the box
+reports at `/settings/updates`.
 
 ## What is left on the audit
 
@@ -81,8 +84,8 @@ says v0.6.100, and the box will say something else again. That is judgement call
    blockers were false: the CSS fallback already ships, and the server renderer
    emits the same bare div. Read §17 before trusting anything else in this file
    that was reasoned rather than measured.
-3. **mantle → v0.232.184**, and refresh `client-pair.tag`, which still reads
-   **v0.6.82** and says so in the product on `/settings/updates`.
+3. ~~**mantle → v0.232.184**, and refresh `client-pair.tag`~~ **done.**
+   mantle is at v0.232.188 and `client-pair.tag` reads v0.6.110.
 4. **Two things that need a human**, both cheap now the box is live on this
    code: drag a task card between columns (§13 was verified structurally, never
    by a live drag), and edit a heading and watch the page outline follow (§14).

@@ -5,8 +5,8 @@ brain's HTTP API, no local Docker, Postgres, MinIO, or workers. `client/web` is
 a zero-secret Next app: it holds no database connection and no session secret, so
 it is **natively detached**: it always talks to the server named by
 `MANTLE_SERVER_ORIGIN`. "Detached dev" is simply pointing that at a remote box.
-This is the topology delivered by the frontend/backend split
-(`docs/frontend-backend-split.md`).
+This is the topology delivered by the frontend/backend split, described in
+[`docs/frontend-backend-split.md` in the mantle repo](https://github.com/crossworks-engineering/mantle/blob/main/docs/frontend-backend-split.md).
 
 ```
 ┌─────────────── laptop ───────────────┐      ┌────────── brain (box) ──────────┐
@@ -22,8 +22,9 @@ This is the topology delivered by the frontend/backend split
 ## 1. Set up the brain (once per box)
 
 Any deployed Mantle stack works, prod-style install or dev box. For a fresh
-box, the public installer one-liner provisions everything (see
-`scripts/install.sh`; the test box is the reference install).
+box, the public installer one-liner provisions everything; the installer is
+[`scripts/install.sh` in the mantle repo](https://github.com/crossworks-engineering/mantle/blob/main/scripts/install.sh),
+and the test box is the reference install.
 
 The one addition a brain needs to serve a detached frontend:
 
@@ -79,8 +80,8 @@ pnpm dev:fe --port 3001     # extra args pass through to `next dev`
 `MANTLE_SERVER_ORIGIN`, and execs `pnpm -C client/web dev`. Open the app, **sign
 in on the login page** with the remote brain's credentials, the client mints
 and stores its own bearer (localStorage) and every data fetch goes browser →
-remote from there. There's also a `web-fe` entry in `.claude/launch.json`
-running the same script on :3001 for Claude preview sessions.
+remote from there. For a second instance beside another dev server, pass
+`--port 3001` and list that origin in `MANTLE_API_CORS_ORIGINS` too.
 
 ## Troubleshooting
 
