@@ -371,14 +371,32 @@ dropped, because three of them were not quite what the one-liners said:
 
 ## 6. Two findings that are explicitly half-done
 
-**`assetUrl()` is still not reactive.** The refresh half shipped in v0.6.77, but
-anything rendered before the shell lands still emits a URL with no `at=` and
-never re-renders when the token arrives. **A hook cannot be the answer** — three
-call sites (`page-editor/image.ts`, `draw/scene-files.ts`,
-`draw-embed-theme.ts`) are plain modules feeding TipTap node views and
-Excalidraw, outside React entirely. It needs a subscribable store those modules
-can read, or the shell withholding asset-bearing children until the token
-resolves — and only in split deployments, since same-origin never needs a token.
+~~**`assetUrl()` is still not reactive.**~~ **Fixed 2026-09-15.** The token is a
+store now, not a variable, because the two kinds of caller need different things
+from it — and the written diagnosis was right that a hook alone could not cover
+both.
+
+- `subscribeAssetToken` + `assetTokenVersion` are the `useSyncExternalStore`
+  pair behind `useAssetUrl()`, which the ten components resolving a URL while
+  rendering now use. **Anchors gained the most** and were not on the original
+  list: a download `href` is resolved at render and used whenever the owner gets
+  round to clicking, so it goes stale on rotation, not just on first paint.
+- `assetTokenReady()` is a bounded promise for the two imperative fetchers
+  (`draw/scene-files.ts`, `draw-embed-theme.ts`), which do not render anything —
+  they `fetch()` and need to WAIT, not re-render. It resolves immediately
+  same-origin; making it block there would have been a hang on every scene load,
+  for a token that is never published.
+- `page-editor/image.ts` could not re-render itself: `renderHTML` re-runs only
+  when a node's own attributes change, and the token is not one. It parks the
+  unsigned path in `data-asset-path` and a plugin re-signs the `<img>` on token
+  change — the same DOM-stamping `useDrawEmbedTheme` does, and deliberately not
+  a transaction, which would push an undo entry the owner never made.
+
+Two details that cost more than they look: a shell refetch returning the SAME
+token must notify nobody, or every asset on the page re-renders for nothing; and
+`ProfilePhoto` latches a `failed` flag on error, so it had to clear that latch on
+token change or a photo that 401'd on first paint stayed stepped down to the
+fallback for the whole session. Pinned in `asset-token-store.test.ts`.
 
 ~~**`/tables` restores a collapsed list into a half-state.**~~ **Fixed.** After a
 reload with the list collapsed, the collapsed rail rendered but the list panel
@@ -1075,31 +1093,56 @@ keep their identity across frames and `memo` bails out.
 the live-buffer markdown components went to `stream-markdown.tsx` because the
 row needs them and importing the screen from the row would be a cycle.
 
-### ⚠ Static HTML for settled turns is NOT the small follow-on it sounds like
+### ~~⚠ Static HTML for settled turns is NOT the small follow-on it sounds like~~ · done 2026-09-15
 
-The prize is real and was measured: on a 25-turn thread, **25 live TipTap
-editors holding 1,422 DOM nodes — 38% of the whole page's DOM**.
+**Both halves of the paragraph this section used to carry were wrong, and that
+is the third confident written diagnosis in this document to be disproved by
+measurement.** It is recorded in full below, because the way it was wrong is
+more useful than the fix.
 
-What blocks it is that the chrome is not in the HTML. `Callout.renderHTML` emits
-`<div data-callout data-variant=…>` and nothing else; the border, the tint and
-the icon all live in `CalloutView`, a React NodeView, with **no CSS fallback**.
-Aside, file-embed and child-page are the same shape. So a naive
-`dangerouslySetInnerHTML` pass renders a callout as an unstyled div — silently,
-and only in replies that happen to use one. (The 25-turn thread measured here
-contains ZERO callouts, asides, columns or embeds, which is exactly how this
-would ship looking fine and break later.)
+It said the blocker was that the chrome is not in the HTML — `Callout.renderHTML`
+emits `<div data-callout data-variant=…>` and nothing else, with **no CSS
+fallback** — and it recommended writing the server-side JSON→sanitised-HTML pass
+that `page-view.tsx` names as "Phase 5's public renderer".
 
-Two honest routes, both real work:
+1. **The CSS fallback already ships.** `globals.css` imports
+   `@mantle/share-ui/styles/app.css`, which styles `[data-callout]`,
+   `[data-aside]`, `.file-embed`, `[data-child-page]` and `.column-list` —
+   written for the public share surface, which renders the identical shapes.
+   The rules are scoped under `.ProseMirror`, which is why the static container
+   keeps that class; it is load-bearing, not decoration.
+2. **The server renderer would not have helped**, because `render-page-doc.ts`
+   emits the same bare `<div data-callout>`. Route 2 was never going to produce
+   different chrome from route 1 — it would have bought a second renderer to
+   keep in step, which was the stated objection to route 1.
 
-1. A CSS fallback per NodeView — then two renderers must be kept in step, which
-   is the drift the shared schema exists to prevent.
-2. The server-side JSON→sanitised-HTML pass that `page-editor/page-view.tsx`
-   already names as "Phase 5's public renderer". `PageView` is a live read-only
-   editor for the same reason and would be fixed by the same work, so this is
-   one job serving two surfaces, not an assistant detail.
+So `StaticDoc` calls the schema's own `renderHTML` via `generateHTML`. Measured
+side by side on one reply carrying every block type: **87 elements and 5
+contenteditable nodes before, 65 and 0 after**, callouts / asides / columns /
+task list / table / blockquote / code block present in both. `RichText` and
+`PageView` both use it, so the "one job serving two surfaces" claim survived
+even though the route did not.
 
-Route 2 is the one to take. It is not a performance tweak; it is the renderer
-that repo comment has been waiting for.
+**What reading would never have caught:** code blocks came out unhighlighted.
+`CodeBlockLowlight` highlights through a ProseMirror DECORATION, not through
+`renderHTML` — four `hljs` spans in the editor render, zero in the static one,
+and nothing in the markup to hint at it. The static pass now highlights with the
+editor's own `lowlight` instance (exported for the purpose) so there is one
+language registry, not two. The general rule: anything a NodeView or a plugin
+DRAWS is absent from `renderHTML`, and the absence is silent.
+
+A static container also has no plugins, so it does two things for itself — re-sign
+its images when the asset token rotates (§6), and stamp drawing embeds for dark
+mode via `stampDrawEmbeds`, split out of `useDrawEmbedTheme`.
+
+**One deliberate difference, left open on purpose:** a callout renders as the
+share surface's tinted left-bar panel, not the in-app NodeView's bordered box
+with a lucide icon. Closing it means defining callout appearance in two places.
+Route 2 would have shipped exactly the same difference without naming it.
+
+**Not covered by e2e:** there is no assistant spec at all. `PageView` is covered
+(`pages-reading-width.spec.ts` locates `.ProseMirror`), the assistant transcript
+is not.
 
 ## 18. Arming the CI e2e gate · the job builds its own brain
 

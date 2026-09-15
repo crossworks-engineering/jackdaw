@@ -56,23 +56,26 @@ that simply disconnects a consumer shows the same improvement as one that works.
 
 ## What is NOT landed
 
-**`feat/dock-context`** — the dock context split and the turn-row memo (§17),
-both committed and measured, `pnpm verify` green. Held back only until the CI
-e2e run goes green, so a red main could not confuse which change broke what.
-Land with `scripts/merge-branch.sh feat/dock-context`.
+~~**`feat/dock-context`**~~ — landed; released as v0.6.107.
+
+**`fix/asset-url-reactivity`** — audit items 1 and 2 (§6 and §17), both
+committed, `pnpm verify` green, both verified in a detached browser against the
+dev brain. Land with `scripts/merge-branch.sh fix/asset-url-reactivity`.
+Two things to know before you do:
+
+- The assistant transcript has **no e2e spec**, so CI will not catch a
+  regression in `RichText`. `PageView` is covered.
+- A callout in a settled reply now renders without its icon. That is the share
+  surface's look, it is deliberate, and it is the one open question — see §17.
 
 ## What is left on the audit
 
-1. **`assetUrl` reactivity** (§6) — the last open bug, and the only item with
-   real design content left. A hook cannot be the answer: three call sites
-   (`page-editor/image.ts`, `draw/scene-files.ts`, `draw-embed-theme.ts`) are
-   plain modules feeding TipTap and Excalidraw from outside React. It needs a
-   subscribable store, or the shell withholding asset-bearing children until the
-   token lands — and only in split deployments.
-2. **Settled turns as static HTML** (§17) — 25 editors, 38% of the page's DOM,
-   so the prize is real. Blocked on the NodeView chrome having no CSS fallback;
-   the honest route is the server-side renderer `page-view.tsx` already names as
-   Phase 5's, which fixes `PageView` too.
+1. ~~**`assetUrl` reactivity** (§6)~~ — **done.** The token is a store; the
+   imperative callers await it, the rendering ones subscribe.
+2. ~~**Settled turns as static HTML** (§17)~~ — **done**, and both stated
+   blockers were false: the CSS fallback already ships, and the server renderer
+   emits the same bare div. Read §17 before trusting anything else in this file
+   that was reasoned rather than measured.
 3. **mantle → v0.232.184**, and refresh `client-pair.tag`, which still reads
    **v0.6.82** and says so in the product on `/settings/updates`.
 4. **Two things that need a human**, both cheap now the box is live on this
