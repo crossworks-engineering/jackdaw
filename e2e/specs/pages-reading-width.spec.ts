@@ -36,7 +36,7 @@ test.describe('pages reading width', () => {
       .last()
       .locator(':scope > [data-slot="resizable-handle"]');
 
-  test('the preview opens at a measure, hugs the divider, and has its own drag bar', async ({
+  test('the preview opens at a centred measure with its own drag bar', async ({
     ownerApi,
     ownerPage,
   }) => {
@@ -93,29 +93,28 @@ test.describe('pages reading width', () => {
       const pane = (await detail.boundingBox())!;
       const body = (await prose.boundingBox())!;
 
-      // 2. Not centred. `mx-auto` would split the slack evenly and push the left
-      //    edge well clear of the divider; tucked left keeps it at the padding.
+      // 2. CENTRED within the pane, margins splitting the slack equally.
+      const left = body.x - pane.x;
+      const right = pane.x + pane.width - (body.x + body.width);
       expect(
-        body.x - pane.x,
-        'prose is not hugging the divider — `mx-auto` back on the wrapper?',
-      ).toBeLessThan(40);
+        Math.abs(left - right),
+        'the measure is not centred in the pane — the margins do not split the slack',
+      ).toBeLessThan(24);
 
-      // 3. The pane opens at a MEASURE, not at the whole window, and it has a
-      //    second handle of its own. Under `detailFills` there is exactly one
-      //    scaffold handle and the pane runs to the shell's edge.
-      const handles = scaffoldHandles(ownerPage);
+      // 3. The measure's own edge, keyed on the separator's ROLE and NAME so a
+      //    re-implementation of `MeasurePane` cannot quietly take the assertion
+      //    with it — which is what happened to the panel selector this replaced.
+      const handle = ownerPage.getByRole('separator', { name: 'Page width' });
+      await expect(handle, 'the preview has no right edge to drag').toHaveCount(1);
+
+      // The body opens at a MEASURE, not at the whole pane.
       expect(
-        await handles.count(),
-        'the preview has no right edge to drag — `detailFills` is back and the spacer is gone',
-      ).toBe(2);
-      expect(
-        pane.width,
-        `the pane opened at ${Math.round(pane.width)}px — it is filling, not opening at a measure`,
+        body.width,
+        `the body opened at ${Math.round(body.width)}px — filling, not a measure`,
       ).toBeLessThan(1200);
 
-      // 4. And the drag has NO ceiling: `maxDetailSize="100%"` lets it run the
-      //    spacer down to nothing. The 1100px default would stop it short.
-      const grip = (await handles.last().boundingBox())!;
+      // 4. And the drag has NO ceiling: it runs the margin down to nothing.
+      const grip = (await handle.boundingBox())!;
       await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
       await ownerPage.mouse.down();
       await ownerPage.mouse.move(1900, grip.y + grip.height / 2, { steps: 12 });

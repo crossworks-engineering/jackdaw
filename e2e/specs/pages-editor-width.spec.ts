@@ -6,20 +6,26 @@ import { expect, test } from '../lib/fixtures';
  * `mx-auto` and two positions standing in for a measure the reader should just
  * set. Centred prose on a wide display, and a binary escape hatch.
  *
- * `MeasurePane` gives the route the third panel from the master-detail
- * scaffold: content plus an empty spacer, with a remembered handle between
- * them. The body opens at a measure, tucks LEFT, and the drag has no ceiling
- * because the spacer runs to zero.
+ * `MeasurePane` gives the route a measure of its own: a column that opens at a
+ * width, CENTRED with the margins splitting the slack equally, carrying a
+ * handle on its right edge with nothing capping it.
+ *
+ * ⚠️ This file used to assert the body tucked LEFT, against a panel-plus-spacer
+ * cut that `MeasurePane` no longer uses — it is a centred `mx-auto` column with
+ * its own `role="separator"`, not a `ResizablePanelGroup`, so the old assertions
+ * looked for a panel group that was never going to be there and reported
+ * "MeasurePane is gone" while it sat two lines away in the source. The earlier
+ * cut pinned the page against the left edge of the WINDOW, which is why it went.
  *
  * Four assertions, four different regressions. Bring the button back and (1)
- * fails. Re-add `mx-auto` and (2) fails. Drop the spacer and (3) fails, since
- * the route loses its only handle. Put a `max-w-*` back inside the pane and (4)
- * fails — the pane widens and the prose does not follow.
+ * fails. Take the centring off and (2) fails. Lose the handle and (3) fails.
+ * Put a `max-w-*` back inside the column and (4) fails — the measure widens and
+ * the prose does not follow.
  */
 test.describe('pages editor width', () => {
   test.skip(({ topology }) => topology === 'same-origin', 'owner UI lives on the client app');
 
-  test('the editor brings its own measure — left-tucked, draggable, uncapped', async ({
+  test('the editor brings its own measure — centred, draggable, uncapped', async ({
     ownerApi,
     ownerPage,
   }) => {
@@ -63,26 +69,27 @@ test.describe('pages editor width', () => {
         'the narrow/wide toggle is back — the drag is meant to be the only measure',
       ).toHaveCount(0);
 
-      // The route's own panel group. Scope to the one holding the content
-      // panel: the app shell has a `resizable-handle` of its own for the nav
-      // rail, and an unscoped `.last()` grabs whichever painted last.
-      const group = ownerPage.locator('[data-slot="resizable-panel-group"][id*="page-editor"]');
-      await expect(group, 'the editor has no panel group — MeasurePane is gone').toHaveCount(1);
-      const handle = group.locator(':scope > [data-slot="resizable-handle"]');
+      // 3. The measure's own edge. Keyed on the separator's ROLE and NAME
+      //    rather than on `MeasurePane`'s internals, so a re-implementation of
+      //    the component cannot quietly take this assertion with it — which is
+      //    exactly what happened to the panel-group selector this replaced.
+      const handle = ownerPage.getByRole('separator', { name: 'Page width' });
+      await expect(handle, 'no edge to drag — the measure lost its handle').toHaveCount(1);
 
-      // 3. Exactly one handle: content | spacer.
-      expect(await handle.count(), 'the spacer is gone, so there is no edge to drag').toBe(1);
-
-      // 2. Tucked left, not centred. `mx-auto` would split the slack evenly.
-      const pane = (await group
-        .locator(':scope > [data-slot="resizable-panel"]')
-        .first()
-        .boundingBox())!;
+      // 2. CENTRED, with the margins splitting the slack equally. The route
+      //    fills the window, so the column's own box is what the margins are
+      //    measured against.
+      const outer = (await ownerPage.locator('main').first().boundingBox())!;
       const before = (await prose.boundingBox())!;
+      const left = before.x - outer.x;
+      const right = outer.x + outer.width - (before.x + before.width);
       expect(
-        before.x - pane.x,
-        'the prose is centred in its pane — an inner `mx-auto` survived',
-      ).toBeLessThan(60);
+        Math.abs(left - right),
+        'the measure is not centred — the margins do not split the slack',
+      ).toBeLessThan(24);
+      expect(left, 'the measure is flush against the edge — is the centring gone?').toBeGreaterThan(
+        24,
+      );
 
       // 4. Dragging the edge widens the prose, past anything a `max-w-3xl`
       //    (768px) would have allowed.
