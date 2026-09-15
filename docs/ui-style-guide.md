@@ -457,6 +457,36 @@ arrangement) — do not hand-roll the string.
   focus ring and font size, so they read as one control set on a card. If you
   change one, change the other. The only deliberate differences are
   textarea-only: `min-h` instead of a fixed height, and `scrollbar-thin`.
+- **`Input` has a size scale, on `Button`'s rungs.** A field and a button in one
+  row line up without either being hand-sized. **Never hand-size a field with
+  `className="h-7"`** — reach for the rung.
+
+  | `Input size=` | Height | Matching `Button size=` |
+  | ------------- | ------ | ----------------------- |
+  | `xs`          | 32px   | `xs`                    |
+  | `sm`          | 36px   | `sm`                    |
+  | `default`     | 40px   | `default`               |
+  | `lg`          | 44px   | `lg`                    |
+
+  Two things the scale deliberately does **not** copy from `Button`:
+  - **No `2xs` (24px) twin.** 24px cannot hold 16px text, and every rung keeps
+    `text-base` below `md` on purpose — iOS Safari zooms the page in when a
+    focused field's text is under 16px and does not zoom back out. A smaller
+    rung buys its height from padding, never from the text, because the text is
+    the user's content rather than our chrome. (`Button`'s `xs` is `text-xs`; a
+    button's label is ours to shrink.)
+  - **`size` shadows the native attribute** of that name, which is a character
+    count. It is `Omit`ted from the props, so a field that wants a character
+    width says `className="w-…"` like the rest of the layout.
+
+- **A field whose box belongs to its wrapper stays raw**, behind the rule's
+  `eslint-disable` with the reason written beside it — the field analogue of
+  reaching for `RowButton` instead of `Button`. A tag entry inside a bordered
+  chip row, a grid cell editor, a column name edited in place: the wrapper
+  already carries the border, the height and the focus-within ring, and a
+  second box inside it draws a box inside a box. `Input` cannot give those up,
+  and a smaller rung does not help — the problem is the box, not the height.
+  That is a different case from a _small boxed_ field, which takes `xs`.
 - **Every settings field carries a `<FieldHint>`** (`ui/field-hint.tsx`): the
   dimmed one-liner under the control. Not decoration: a number with no stated
   effect is a number nobody dares change.

@@ -96,6 +96,12 @@ export function TagInput({
           </RowButton>
         </span>
       ))}
+      {/* eslint-disable-next-line house/no-raw-form-control -- the draft entry
+          shares the pill row's box: the wrapper above already carries the
+          border, the min-height and the focus-within ring, so a second one here
+          would draw a box inside a box and turn the chip row into a row of
+          fields. <Input> carries all three and cannot give them up — the same
+          reason the table grid's column name and cell editor stay raw. */}
       <input
         ref={inputRef}
         id={id}

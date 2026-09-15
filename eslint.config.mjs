@@ -135,10 +135,11 @@ export default tseslint.config(
     // every prose-only rule decayed. A structure pass with no gate behind it is
     // a prose rule.
     //
-    // A CEILING, NOT A WARNING COUNT. `pnpm lint` runs `--max-warnings 188`,
-    // and that budget is spoken for by no-raw-form-control; adding size
-    // warnings would mean raising the cap, which the house rule forbids for
-    // good reason. A threshold ratchets the same way without the collision:
+    // A CEILING, NOT A WARNING COUNT. `pnpm lint` now runs `--max-warnings 0`
+    // — the no-raw-form-control budget that used to occupy it went to zero in
+    // v0.6.97 — so a size WARNING could never be emitted at all without failing
+    // the build, and raising the cap to make room is what the house rule
+    // forbids. A threshold ratchets the same way without needing a budget:
     // set to the worst file that exists, so nothing fails today and nothing may
     // grow past it, then lowered with each landing. It only ever goes down.
     // 2507 when it landed; 1866 after phase 1 moved the already-standalone
@@ -208,7 +209,11 @@ export default tseslint.config(
     // them is the whole point of the kit.
     files: ['client/web/**/*.{ts,tsx}', 'server/web/**/*.{ts,tsx}'],
     plugins: { house: housePlugin },
-    rules: { 'house/no-raw-form-control': 'warn' },
+    // `error` since v0.6.97, the landing that cleared the last of the 188.
+    // The remaining raw controls in these trees are each behind a deliberate
+    // eslint-disable naming its reason — a field whose box belongs to the
+    // wrapper around it, which the kit's boxed primitives cannot give up.
+    rules: { 'house/no-raw-form-control': 'error' },
   },
   {
     // Tests + one-shot scripts: relax rules that only make sense for shipped code.

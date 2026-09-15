@@ -8,6 +8,7 @@ import { Pause, Play, Plus, Trash2, Zap } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
+import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
@@ -743,25 +744,28 @@ export function HeartbeatsClient() {
                       SQL, or delete + recreate it with one of the v1-supported schedule kinds.
                     </div>
                   )}
-                  <div className="flex flex-wrap gap-3">
+                  {/* One RadioGroup, not three loose inputs. The raw ones carried no
+                      `name`, so the browser never treated them as a group: each was
+                      its own tab stop and the arrow keys did nothing. The group owns
+                      the roving tabindex, so the set is one stop and arrows move
+                      within it — and `disabled` on the group covers every item. */}
+                  <RadioGroup
+                    className={'flex flex-wrap gap-3' + (form.is_cron_locked ? ' opacity-50' : '')}
+                    value={form.schedule_kind}
+                    disabled={form.is_cron_locked}
+                    onValueChange={(v) =>
+                      setForm((f) => ({ ...f, schedule_kind: v as FormState['schedule_kind'] }))
+                    }
+                  >
                     {(['interval', 'once', 'manual'] as const).map((k) => (
-                      <label
-                        key={k}
-                        className={
-                          'flex items-center gap-2 text-sm' +
-                          (form.is_cron_locked ? ' opacity-50' : '')
-                        }
-                      >
-                        <input
-                          type="radio"
-                          checked={form.schedule_kind === k}
-                          disabled={form.is_cron_locked}
-                          onChange={() => setForm((f) => ({ ...f, schedule_kind: k }))}
-                        />
-                        {k}
-                      </label>
+                      <div key={k} className="flex items-center gap-2 text-sm">
+                        <RadioGroupItem id={`hb_schedule_kind_${k}`} value={k} />
+                        <Label htmlFor={`hb_schedule_kind_${k}`} className="font-normal">
+                          {k}
+                        </Label>
+                      </div>
                     ))}
-                  </div>
+                  </RadioGroup>
                   {form.schedule_kind === 'interval' && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field data-invalid={!!errors.hb_every || undefined}>
@@ -838,18 +842,22 @@ export function HeartbeatsClient() {
                   <legend className="px-1 text-sm font-medium">
                     Surface (where the reply goes)
                   </legend>
-                  <div className="flex gap-4">
+                  <RadioGroup
+                    className="flex gap-4"
+                    value={form.surface_kind}
+                    onValueChange={(v) =>
+                      setForm((f) => ({ ...f, surface_kind: v as FormState['surface_kind'] }))
+                    }
+                  >
                     {(['telegram', 'web'] as const).map((k) => (
-                      <label key={k} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          checked={form.surface_kind === k}
-                          onChange={() => setForm((f) => ({ ...f, surface_kind: k }))}
-                        />
-                        {k}
-                      </label>
+                      <div key={k} className="flex items-center gap-2 text-sm">
+                        <RadioGroupItem id={`hb_surface_kind_${k}`} value={k} />
+                        <Label htmlFor={`hb_surface_kind_${k}`} className="font-normal">
+                          {k}
+                        </Label>
+                      </div>
                     ))}
-                  </div>
+                  </RadioGroup>
                   {form.surface_kind === 'telegram' && (
                     <Field data-invalid={!!errors.hb_chat_id || undefined}>
                       <FieldLabel htmlFor="hb_chat_id">Telegram chat_id</FieldLabel>
@@ -878,18 +886,22 @@ export function HeartbeatsClient() {
                   <legend className="px-1 text-sm font-medium">
                     Gates — when is it appropriate to fire?
                   </legend>
-                  <div className="flex flex-wrap gap-3 text-sm">
+                  {/* `applyPreset` does more than set the field — it fills the gate
+                      inputs below — so the group calls it rather than setForm. */}
+                  <RadioGroup
+                    className="flex flex-wrap gap-3 text-sm"
+                    value={form.gate_preset}
+                    onValueChange={(v) => applyPreset(v as GatePreset)}
+                  >
                     {(['none', 'sensible', 'custom'] as const).map((p) => (
-                      <label key={p} className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={form.gate_preset === p}
-                          onChange={() => applyPreset(p)}
-                        />
-                        {p === 'sensible' ? 'sensible defaults' : p}
-                      </label>
+                      <div key={p} className="flex items-center gap-2">
+                        <RadioGroupItem id={`hb_gate_preset_${p}`} value={p} />
+                        <Label htmlFor={`hb_gate_preset_${p}`} className="font-normal">
+                          {p === 'sensible' ? 'sensible defaults' : p}
+                        </Label>
+                      </div>
                     ))}
-                  </div>
+                  </RadioGroup>
                   <p className="text-xs text-muted-foreground">
                     No system-wide defaults. Blank fields mean &quot;no gate of this kind&quot;.
                     &quot;Sensible defaults&quot; fills in 15min idle, 22:00–07:00 quiet hours

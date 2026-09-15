@@ -461,6 +461,12 @@ export function RequestBuilder() {
                       )}
                     >
                       <span className="font-mono text-[10px] text-muted-foreground">{`{${p}}`}</span>
+                      {/* eslint-disable-next-line house/no-raw-form-control -- the
+                          value shares the chip's box: the <label> around it carries
+                          the border and the padding, and it is that border which
+                          turns red to mark the placeholder unfilled. A boxed field
+                          here would nest a second border inside the chip and hide
+                          the state the outer one is showing. */}
                       <input
                         value={draft.pathValues[p] ?? ''}
                         onChange={(e) =>
