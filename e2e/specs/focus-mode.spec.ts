@@ -90,6 +90,13 @@ test.describe('focus mode', () => {
         const expanded = await widthOf();
         expect(expanded, 'the list should start at its own column width').toBeGreaterThan(200);
 
+        const countHandles = () =>
+          ownerPage
+            .locator('[data-slot="resizable-panel-group"] [data-slot="resizable-handle"]')
+            .count();
+        const handlesExpanded = await countHandles();
+        expect(handlesExpanded, 'no divider to lose — is this a MasterDetail?').toBeGreaterThan(0);
+
         await ownerPage.getByRole('button', { name: 'Focus mode' }).first().click();
 
         // Collapsed...
@@ -97,14 +104,21 @@ test.describe('focus mode', () => {
         // ...but STILL THERE. This is the assertion the whole file exists for:
         // `list={zen ? null : …}` takes this to 0.
         expect(await inList.count(), 'the list was UNMOUNTED, not collapsed').toBe(1);
+        const handleCount = await countHandles();
         // And no divider left hanging at the screen edge, dragging a column the
         // user has just asked to be rid of.
-        expect(
-          await ownerPage
-            .locator('[data-slot="resizable-panel-group"] [data-slot="resizable-handle"]')
-            .count(),
-          'a handle survived the collapse',
-        ).toBe(0);
+        //
+        // Asserted as a DELTA, not as zero. A screen without `listFills` or
+        // `detailFills` also carries the spacer's handle, which governs the
+        // detail's measure and has nothing to do with the list — counting every
+        // handle in the group and demanding zero quietly asserts "this screen
+        // has no spacer". That held for `/draw` and `/pages` (both `detailFills`)
+        // and broke the day `/notes` deliberately moved OFF it to keep a spacer,
+        // which is a layout choice the screen is entitled to make. One fewer
+        // handle than before the collapse is the thing actually being claimed.
+        expect(handleCount, 'the list divider should have gone with the list').toBe(
+          handlesExpanded - 1,
+        );
         await ownerPage.screenshot({
           path: `${ARTIFACTS_DIR}focus-${screen.path.slice(1)}-collapsed.png`,
         });

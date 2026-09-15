@@ -295,7 +295,7 @@ export function NotesClient() {
         // it "Focus mode". For prose the guide is explicit that focus should
         // remove the CHROME, not re-flow the paragraph the writer is in the
         // middle of, which is exactly what the spacer absorbing the freed width
-        // does. `/pages` keeps its spacer for that reason; so does this now.
+        // does. So this screen keeps its spacer.
         defaultDetailSize="900px"
         // 480, like /pages: this pane holds the editor AND the preview beside
         // it, and two columns inside the 420px default is not two columns.
