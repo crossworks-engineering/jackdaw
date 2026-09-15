@@ -325,6 +325,14 @@ test.describe('shell layout', () => {
     // ⌘B rather than the toolbar button: the button sits in the bottom-left
     // corner, which is exactly where `next dev` parks its overlay portal, and
     // that portal swallows the click in this environment only.
+    // Take focus OUT of the composer first. `/tasks` autofocuses its new-task
+    // title field, and the shortcut handler deliberately stands down while
+    // focus is in an input — so ⌘B still bolds in the page editor and the shell
+    // does not steal keystrokes from a form. That is correct behaviour, and it
+    // meant this press did nothing at all: the rail stayed expanded, its
+    // separator stayed on screen, and the assertion below read as a missing
+    // feature rather than as a test typing into a text box.
+    await ownerPage.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ownerPage.keyboard.press('ControlOrMeta+b');
     await expect(ownerPage.getByRole('separator', { name: 'Resize navigation' })).toHaveCount(0);
   });

@@ -27,7 +27,7 @@ test.describe('journal', () => {
       const detail = ownerPage.locator('[data-testid="detail"]');
       await ownerPage.locator('[data-testid="list"]').getByRole('button', { name: 'New' }).click();
 
-      const body = detail.getByPlaceholder(/A short, honest note/);
+      const body = detail.getByPlaceholder(/A short, durable note/);
       await expect(body).toBeVisible();
 
       // Empty body → §6b on the control, not a toast that scrolls away.
