@@ -46,26 +46,42 @@ function mayInvert(drawId: string): Promise<boolean> {
   return p;
 }
 
+/**
+ * Stamp every un-stamped drawing embed under `root`. Returns the cancel that
+ * stops in-flight answers from touching the DOM after the caller is gone.
+ *
+ * Split out from the hook so the STATIC renderer (`StaticDoc`) can stamp the
+ * same embeds: it holds a plain container, not an editor, and the two surfaces
+ * must invert identically or the same drawing reads differently depending on
+ * which one you opened.
+ */
+export function stampDrawEmbeds(root: ParentNode): () => void {
+  let live = true;
+  const imgs = root.querySelectorAll<HTMLImageElement>('img[data-draw-id]:not([data-draw-theme])');
+  for (const img of imgs) {
+    const id = img.getAttribute('data-draw-id');
+    if (!id) continue;
+    void mayInvert(id).then((ok) => {
+      // Re-read the element's own id: ProseMirror recycles DOM across
+      // edits, so the node under this reference may have moved on.
+      if (live && ok && img.getAttribute('data-draw-id') === id) {
+        img.setAttribute('data-draw-theme', 'invert');
+      }
+    });
+  }
+  return () => {
+    live = false;
+  };
+}
+
 export function useDrawEmbedTheme(editor: Editor | null): void {
   useEffect(() => {
     if (!editor) return;
-    let live = true;
+    let cancel = () => {};
 
     const stamp = () => {
-      const imgs = editor.view.dom.querySelectorAll<HTMLImageElement>(
-        'img[data-draw-id]:not([data-draw-theme])',
-      );
-      for (const img of imgs) {
-        const id = img.getAttribute('data-draw-id');
-        if (!id) continue;
-        void mayInvert(id).then((ok) => {
-          // Re-read the element's own id: ProseMirror recycles DOM across
-          // edits, so the node under this reference may have moved on.
-          if (live && ok && img.getAttribute('data-draw-id') === id) {
-            img.setAttribute('data-draw-theme', 'invert');
-          }
-        });
-      }
+      cancel();
+      cancel = stampDrawEmbeds(editor.view.dom);
     };
 
     stamp();
@@ -75,7 +91,7 @@ export function useDrawEmbedTheme(editor: Editor | null): void {
     // the lookups are memoised.
     editor.on('update', stamp);
     return () => {
-      live = false;
+      cancel();
       editor.off('update', stamp);
     };
   }, [editor]);

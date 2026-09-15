@@ -1,21 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { EditorContent, useEditor } from '@tiptap/react';
-import { pageExtensions } from '@/components/page-editor/extensions';
+import { StaticDoc } from '@/components/page-editor/static-doc';
 import { richMarkdownToHtml } from '@/lib/rich-markdown';
 
 /**
- * Render Saskia's reply as a rich document, through the SAME TipTap schema the
- * Pages surface uses. Her markdown dialect (callouts, columns, task lists,
- * tables, highlights — see `lib/rich-markdown.ts`) is converted to HTML and fed
- * to a read-only editor, so chat output renders identically to a page and
- * picks up the shared ProseMirror CSS in globals.css.
+ * Render Saskia's settled reply as a rich document, through the SAME TipTap
+ * schema the Pages surface uses. Her markdown dialect (callouts, columns, task
+ * lists, tables, highlights — see `lib/rich-markdown.ts`) is converted to HTML,
+ * normalised through the schema, and emitted as STATIC markup, so chat output
+ * renders identically to a page and picks up the shared ProseMirror CSS in
+ * globals.css.
  *
- * One editor instance per Saskia turn. Read-only, so there's no autosave or
- * input handling — it's purely a renderer that happens to be a TipTap editor
- * (which is what gets us the callout NodeView + column/table layout for free).
+ * It used to be one read-only TipTap EDITOR per turn — which is how a 25-turn
+ * thread came to hold 25 ProseMirror views, their plugin stacks, and a React
+ * NodeView for every callout and embed inside them, none of which anyone could
+ * type into. A settled reply never changes; the only thing the editor was
+ * buying was the schema's own rendering, and `StaticDoc` calls that directly.
+ *
+ * The live streaming buffer above a turn is a different render entirely
+ * (`STREAM_MARKDOWN_COMPONENTS`) and is untouched by this.
  */
 export function RichText({ markdown }: { markdown: string }) {
   const router = useRouter();
@@ -45,43 +50,13 @@ export function RichText({ markdown }: { markdown: string }) {
     [router],
   );
 
-  const editor = useEditor({
-    extensions: pageExtensions,
-    content: html,
-    editable: false,
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        // Base `prose` (16px reading size) — Saskia's reply is the document, so
-        // it reads at full size like a page (not the smaller prose-sm).
-        class:
-          'prose dark:prose-invert max-w-none focus:outline-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_pre]:leading-relaxed',
-      },
-    },
-  });
-
-  // Re-apply when the text changes (e.g. an optimistic row resolves to the
-  // server copy). `setContent` runs `flushSync` internally; deferring it to a
-  // microtask keeps it OUT of React's render/commit phase, so it can't re-enter
-  // while React is already rendering — the "flushSync was called from inside a
-  // lifecycle method" warning, which fired once per visible turn on load (and on
-  // every token while a reply streamed nearby). The microtask runs after the
-  // current render settles; the isDestroyed guard covers a quick unmount.
-  useEffect(() => {
-    if (!editor) return;
-    queueMicrotask(() => {
-      if (!editor.isDestroyed) editor.commands.setContent(html);
-    });
-  }, [editor, html]);
-
-  if (!editor) {
-    // SSR / first paint before the client editor mounts: render nothing
-    // (immediatelyRender:false means the editor is client-only).
-    return null;
-  }
   return (
-    <div onClick={onClick}>
-      <EditorContent editor={editor} />
-    </div>
+    <StaticDoc
+      html={html}
+      onClick={onClick}
+      // Base `prose` (16px reading size) — Saskia's reply is the document, so
+      // it reads at full size like a page (not the smaller prose-sm).
+      className="prose dark:prose-invert max-w-none focus:outline-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_pre]:leading-relaxed"
+    />
   );
 }

@@ -45,7 +45,10 @@ const PageHighlight = Highlight.extend({
 // Token spans get themed via `.ProseMirror .hljs-*` rules in globals.css, so
 // syntax highlighting tracks the active theme + light/dark instead of shipping
 // a fixed hljs colour scheme.
-const lowlight = createLowlight(common);
+/** Exported so the STATIC renderer highlights with the very same language set
+ *  as the editor — the highlighting is a ProseMirror decoration, so it is the
+ *  one piece `renderHTML` cannot carry (see static-doc.tsx). */
+export const lowlight = createLowlight(common);
 
 /**
  * Shared editor schema for the pages surface. The live editor (`PageEditor`)

@@ -3,9 +3,10 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { assetUrl, subscribeAssetToken } from '@mantle/web-ui/asset-url';
 import { DRAW_EMBED_CLASS } from '@/components/draw/snapshot-theme';
 
-/** Where `renderHTML` parks the UNSIGNED path, so the refresh plugin below can
- *  re-sign it without re-deriving which of the three shapes produced it. */
-const ASSET_PATH_ATTR = 'data-asset-path';
+/** Where `renderHTML` parks the UNSIGNED path, so the refresh plugin below —
+ *  and `StaticDoc`, which renders the same `renderHTML` output without an
+ *  editor — can re-sign it without re-deriving which shape produced it. */
+export const ASSET_PATH_ATTR = 'data-asset-path';
 
 /**
  * Re-sign the rendered `<img>` srcs when the asset token arrives or rotates.
