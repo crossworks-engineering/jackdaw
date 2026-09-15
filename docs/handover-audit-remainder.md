@@ -121,20 +121,48 @@ the diff. Conversions are supposed to change nothing visible — the assistant's
 toolbar was 32×32 before and after — so what to watch for is a control that
 **collapses** when a primitive stops supplying its box. A DOM query, not a look.
 
-## 2. One green `pnpm e2e` · against a throwaway brain
+## 2. One green `pnpm e2e` · 146 of 162, and what the other 15 are
 
-The runner works. `E2E_SERVER_URL=<brain> pnpm e2e` puts this checkout's owner
-UI on `:3901` in front of that brain and runs the `split` project. Everything
-was verified except the part needing a real brain: both refusal paths fail fast,
-and against a stub answering `/api/version` the UI boots, `/env.js` names the
-stub, and Playwright reaches global-setup and fails exactly where it should.
+**It runs.** First measured on 2026-09-15 at **135/161**; **146/162** at v0.6.93
+after ten fixes. The blocker was never this repo — see `e2e/README.md` for the
+throwaway-brain recipe, which takes minutes, and for the two environment traps
+that made this look like an app failure: the hermetic stack the old docs pointed
+at exists in NEITHER repo, and Playwright's browsers were simply not installed,
+which failed 151 tests in 2ms each and read exactly like a broken app.
 
 ⚠ **The suite creates and deletes content.** A throwaway brain, never one
 anybody relies on.
 
 Once green, CI picks it up on its own: the Playwright job in `verify.yml` runs
 whenever the repository variable `E2E_SERVER_URL` is set, and is skipped rather
-than failing until then.
+than failing until then. **Setting that variable is what makes this stick** —
+this suite rotted precisely because nothing ran it.
+
+### What the ten fixes were, because the ratio is the point
+
+ONE was a product bug (`/tables`, §6). The other nine were the net itself having
+rotted while nothing could run it: four specs found the composer by its utility
+classes and stopped matching the day the shell went translucent (`bg-card` →
+`bg-card/70` — a different class token), and six clicked "New" before React had
+hydrated, so the click was swallowed and the form never opened. **Assume a
+failure in a suite that has not run is the suite, until the code says otherwise.**
+
+### The remaining 15, triaged
+
+| n | what | read |
+| --- | --- | --- |
+| 2 | `shell-layout` — nav rail restores 280px where 288px was dragged; a separator counted when 0 expected | the width one is **FLAKY** (passed 3/3 on repeat, fails most full runs); prime suspect is v0.6.80's commit-on-release drag |
+| 4 | MasterDetail geometry — `/models` double scrollbar, `/notes` divider, `/settings/appearance` divider, `journal` detail | unknown; the divider ones may share a cause |
+| 2 | `pages-editor-width`, `pages-reading-width` — MeasurePane missing, prose not hugging | unknown |
+| 2 | `draws-crud` — shared page serves inline `<svg>` where the spec wants an image | looks real |
+| 2 | `pages-drilldown` — Details switch not visible; drag never re-parents | looks real |
+| 2 | `team`, `team-reader` — token placeholder never appears; inline reader visible when expected hidden | unknown |
+| 1 | `focus-mode` — "a handle survived the collapse" | **SPEC BUG.** It counts every `resizable-handle`, and the SPACER's always renders — which is why it passes on `/draw` and `/pages` (no spacer, they use `listFills`/`detailFills`) and fails on `/notes` |
+
+**Verify anything you fix here by repetition, not by one green run.** A race
+reads as a flake and a flake reads as noise: one skills test passed 1 of 6 runs
+and was dismissed as flaky three times before the flake turned out to BE the bug.
+`--repeat-each=3` is the cheap guard.
 
 ## 3. Dependency decisions · three of the five are not decisions
 
@@ -578,7 +606,7 @@ structurally, not by a live drag) and **a page outline following a heading edit*
 (§14 — the deployed check was blocked by the automated tab). Both are seconds of
 clicking and neither can be automated from here.
 
-**1 · One green `pnpm e2e`** (§2). Needs a throwaway brain; the suite creates and deletes content. CI picks it up on its own once the repository variable is set.
+**1 · The last 15 e2e failures** (§2). The suite RUNS — 146/162 at v0.6.93, and `e2e/README.md` has the throwaway-brain recipe. §2 triages what is left: one is a spec bug, one is a known flake, four look real, the rest are unknown. Setting the `E2E_SERVER_URL` repository variable is what stops it rotting again.
 
 **2 · The last 13 raw controls** (§1). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
 
