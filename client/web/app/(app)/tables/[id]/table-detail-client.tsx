@@ -706,7 +706,13 @@ function TabBar({
         return (
           <span key={t.id} className="group flex items-center">
             {editing === t.id ? (
-              <input
+              // The `xs` rung puts this at 32px against the 34px the tabs beside
+              // it measure (`text-sm` on `py-1.5`, plus their 2px bottom border),
+              // so the strip shifts by 2px on a rename where the old h-7 field
+              // shifted it by 6. The raw field it replaces also suppressed its own
+              // focus ring while being the only thing on screen that takes keys.
+              <Input
+                size="xs"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 onBlur={() => finishRename(t.id)}
@@ -714,7 +720,7 @@ function TabBar({
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                   if (e.key === 'Escape') setEditing(null);
                 }}
-                className="mx-1 h-7 w-28 rounded-sm border border-border bg-transparent px-2 text-sm outline-none focus:ring-0"
+                className="mx-1 w-28 focus-visible:ring-inset focus-visible:ring-offset-0"
                 aria-label={`Rename tab ${t.name}`}
                 autoFocus
               />

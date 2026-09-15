@@ -6,6 +6,13 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Badge } from '@mantle/web-ui/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import type { ToolValidationAgg, ToolValidationEvent } from '@mantle/client-types';
 
 type ToolValidationData = {
@@ -75,19 +82,25 @@ export function ToolValidationClient() {
           </div>
           <p className="max-w-2xl text-sm text-muted-foreground">{modeCopy.detail}</p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        {/* A plain <span>, not the <label> this used to be: Radix renders both a
+            trigger button and a hidden native select, so a wrapping label has two
+            labelable elements to choose between. The trigger names itself instead. */}
+        <span className="flex items-center gap-2 text-sm text-muted-foreground">
           Window
-          <select
-            className="rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground"
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-          >
-            <option value={1}>24h</option>
-            <option value={7}>7d</option>
-            <option value={30}>30d</option>
-            <option value={90}>90d</option>
-          </select>
-        </label>
+          {/* `days` is a number and Radix speaks only strings, so it is converted
+              at both ends rather than letting a "7" reach the query key. */}
+          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+            <SelectTrigger className="h-8 w-24 text-sm text-foreground" aria-label="Window">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">24h</SelectItem>
+              <SelectItem value="7">7d</SelectItem>
+              <SelectItem value="30">30d</SelectItem>
+              <SelectItem value="90">90d</SelectItem>
+            </SelectContent>
+          </Select>
+        </span>
       </section>
 
       <section className="space-y-3">

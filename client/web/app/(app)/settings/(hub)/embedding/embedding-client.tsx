@@ -9,11 +9,24 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { Switch } from '@mantle/web-ui/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
 
-const SELECT_CLASS =
-  'flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+/**
+ * "No key" as a Select item value. Radix reserves `''` for "nothing selected"
+ * and throws on an item that uses it, so the keyless choice travels under a
+ * sentinel and is mapped back to `''` by the hidden input that actually submits
+ * — see the note on `RouteFields`. Getting this wrong POSTs the sentinel
+ * itself, which no type or test would catch.
+ */
+const NO_KEY = '__none__';
 
 /** Providers that can serve an embedding model. `local` is the privacy default
  *  (Ollama / LM Studio); the rest are cloud. A backup route is typically the
@@ -325,19 +338,24 @@ function EmbeddingForm({
           </legend>
           <div className="space-y-1.5">
             <Label htmlFor="perf_preset">Hardware profile</Label>
-            <select
-              id="perf_preset"
-              value={currentPreset}
-              onChange={(e) => applyPreset(e.target.value)}
-              className={SELECT_CLASS}
-            >
-              <option value="balanced">Balanced (default)</option>
-              <option value="small-cpu">Small CPU VPS — no GPU</option>
-              <option value="gpu">GPU / fast remote</option>
-              <option value="custom" disabled={currentPreset !== 'custom'}>
-                Custom
-              </option>
-            </select>
+            {/* No `name`: this one never submits. It is a shortcut that fills the
+                perf fields below, and those carry the values. */}
+            <Select value={currentPreset} onValueChange={applyPreset}>
+              {/* h-10 on all three triggers: `SelectTrigger` defaults to h-9, and
+                  the raw <select> each replaced was h-10 — the height of every
+                  Input on this form. Measured at 36 against 40 before this. */}
+              <SelectTrigger id="perf_preset" className="h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="balanced">Balanced (default)</SelectItem>
+                <SelectItem value="small-cpu">Small CPU VPS — no GPU</SelectItem>
+                <SelectItem value="gpu">GPU / fast remote</SelectItem>
+                <SelectItem value="custom" disabled={currentPreset !== 'custom'}>
+                  Custom
+                </SelectItem>
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               A one-click starting point — it just fills the fields below; tweak any of them and
               Save. A blank field uses the built-in default. On a small CPU-only VPS, pick{' '}
@@ -477,6 +495,22 @@ function EmbeddingForm({
   );
 }
 
+/**
+ * One embedding route's fields (primary, or backup when failover is on).
+ *
+ * **Its two Selects submit through a hidden input beside them, not themselves.**
+ * `handleSave` builds its POST body from `new FormData(form)`, so a control that
+ * puts nothing in the form contributes nothing to the save — silently, with no
+ * type error and no failing test. Radix's Select would in fact forward a `name`
+ * (it renders a hidden native select when it sits inside a form), but that route
+ * is not taken here for two reasons: it would submit the `NO_KEY` sentinel
+ * verbatim for a keyless route, and a hidden input keeps the submitted value
+ * COLOCATED with the field — so the backup route, which is only rendered when
+ * failover is enabled, contributes its keys exactly when it is on screen and
+ * never needs `handleSave` to remember a condition about it.
+ *
+ * If you add another Select here, give it a hidden input too.
+ */
 function RouteFields({
   title,
   prefix,
@@ -507,20 +541,31 @@ function RouteFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${prefix}_provider`}>Provider</Label>
-          <select
-            id={`${prefix}_provider`}
-            name={`${prefix}_provider`}
+          {/* The hidden input is what submits, NOT the Select — see the note on
+              `RouteFields`. Do not also pass `name` to <Select>: Radix would
+              render its own hidden native control under the same name and
+              `Object.fromEntries` would silently keep whichever came last. */}
+          <input type="hidden" name={`${prefix}_provider`} value={state.provider} />
+          <Select
             value={state.provider}
-            onChange={(e) => setState((s) => ({ ...s, provider: e.target.value }))}
-            className={SELECT_CLASS}
+            onValueChange={(provider) => setState((s) => ({ ...s, provider }))}
           >
-            {PROVIDERS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-                {p === 'local' ? ' (self-hosted · keyless)' : ''}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              id={`${prefix}_provider`}
+              className="h-10"
+              aria-describedby={hintId(`${prefix}_provider`)}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PROVIDERS.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                  {p === 'local' ? ' (self-hosted · keyless)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <FieldHint id={`${prefix}_provider`}>Who computes the vectors for this route.</FieldHint>
         </div>
         <div className="space-y-1.5">
@@ -554,20 +599,31 @@ function RouteFields({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${prefix}_api_key_id`}>API key</Label>
-        <select
-          id={`${prefix}_api_key_id`}
-          name={`${prefix}_api_key_id`}
-          value={state.apiKeyId}
-          onChange={(e) => setState((s) => ({ ...s, apiKeyId: e.target.value }))}
-          className={SELECT_CLASS}
+        {/* The hidden input carries the REAL value — `''` for keyless — while the
+            Select displays the `NO_KEY` sentinel it is not allowed to call `''`.
+            The mapping happens here, at the boundary, so the sentinel never
+            reaches the wire. */}
+        <input type="hidden" name={`${prefix}_api_key_id`} value={state.apiKeyId} />
+        <Select
+          value={state.apiKeyId || NO_KEY}
+          onValueChange={(v) => setState((s) => ({ ...s, apiKeyId: v === NO_KEY ? '' : v }))}
         >
-          <option value="">None (keyless / local)</option>
-          {keys.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.service} · {k.label} ({k.masked})
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            id={`${prefix}_api_key_id`}
+            className="h-10"
+            aria-describedby={hintId(`${prefix}_api_key_id`)}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_KEY}>None (keyless / local)</SelectItem>
+            {keys.map((k) => (
+              <SelectItem key={k.id} value={k.id}>
+                {k.service} · {k.label} ({k.masked})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <FieldHint id={`${prefix}_api_key_id`}>
           Leave on None for a self-hosted embedder — it needs no key.
         </FieldHint>

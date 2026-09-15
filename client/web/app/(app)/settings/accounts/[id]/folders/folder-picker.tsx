@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 
@@ -107,14 +108,16 @@ export function FolderPicker({
           const isExcluded = excludedSet.has(folder);
           return (
             <li key={folder} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <input
-                type="checkbox"
-                name="folders"
-                value={folder}
+              {/* `name="folders"` / `value` went with the raw element and are not
+                  replaced: this form submits `save.mutate()`, which reads the
+                  `checked` Set — nothing ever read them off a FormData. The
+                  `aria-label` is new; the folder name beside it was never tied to
+                  the control, so the checkbox announced itself unnamed. */}
+              <Checkbox
+                aria-label={folder}
                 checked={!isExcluded && checked.has(folder)}
                 disabled={isExcluded}
-                onChange={() => toggle(folder)}
-                className="size-4 accent-primary"
+                onCheckedChange={() => toggle(folder)}
               />
               <span className={isExcluded ? 'text-muted-foreground line-through' : ''}>
                 {folder}

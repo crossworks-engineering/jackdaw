@@ -1,8 +1,23 @@
 # Handover: the last 13 raw form controls
 
-Current at **v0.6.95**, on main, green. This is **item 2** of
+> ## ✅ CLOSED — done 2026-09-15
+>
+> All thirteen landed, plus the `table-grid` popover search that was waiting on
+> the same change: **188 → 0, cap 0, rule `error`.**
+> **The outcome, the browser measurements and the two things still open are in
+> `docs/handover-audit-remainder.md` §15** — read that, not this.
+>
+> This file is kept because its _reasoning_ is what the work was steered by, and
+> because one of its corrections is a trap worth not re-learning. It was right
+> that Radix forwards a `name` — and taking that route would still have broken
+> the save, because the keyless choice must travel as a sentinel and the hidden
+> native control would have POSTed the sentinel itself. §15 has the measurement.
+> The "three of the thirteen may end as a sanctioned disable" budget was right
+> too: **two did.**
+
+Written at **v0.6.95**, on main, green. This was **item 2** of
 `docs/handover-audit-remainder.md` — read its §1 for how the other 175 were
-converted, and §11 for where this sits among everything else still open.
+converted, and §11 for where this sat among everything else still open.
 
 > ### Start here
 >
@@ -38,23 +53,23 @@ list, so re-derive it rather than trusting this table after edits.
 
 ### Six native `<select>`
 
-| file:line | what it is | the call |
-| --- | --- | --- |
-| `debug/chat-agent-override.tsx:53` | agent override picker, `h-7` chrome | debug surface — convert, nothing depends on it |
-| `debug/tool-validation/tool-validation-client.tsx:80` | a days filter | debug surface — convert |
-| `settings/(hub)/embedding/embedding-client.tsx:328` | `id="perf_preset"`, **no** `name` | convert |
-| `settings/(hub)/embedding/embedding-client.tsx:510` | `name={prefix}_provider` | see **the FormData pair** below |
-| `settings/(hub)/embedding/embedding-client.tsx:557` | `name={prefix}_api_key_id` | see **the FormData pair** below |
-| `components/ui/model-select.tsx:331` | `aria-label="Sort models"`, an 11px sort control inside the model picker | the interesting one: a Radix listbox inside a popover that is itself a listbox |
+| file:line                                             | what it is                                                               | the call                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `debug/chat-agent-override.tsx:53`                    | agent override picker, `h-7` chrome                                      | debug surface — convert, nothing depends on it                                 |
+| `debug/tool-validation/tool-validation-client.tsx:80` | a days filter                                                            | debug surface — convert                                                        |
+| `settings/(hub)/embedding/embedding-client.tsx:328`   | `id="perf_preset"`, **no** `name`                                        | convert                                                                        |
+| `settings/(hub)/embedding/embedding-client.tsx:510`   | `name={prefix}_provider`                                                 | see **the FormData pair** below                                                |
+| `settings/(hub)/embedding/embedding-client.tsx:557`   | `name={prefix}_api_key_id`                                               | see **the FormData pair** below                                                |
+| `components/ui/model-select.tsx:331`                  | `aria-label="Sort models"`, an 11px sort control inside the model picker | the interesting one: a Radix listbox inside a popover that is itself a listbox |
 
 ### Four radio / checkbox
 
-| file:line | what it is |
-| --- | --- |
+| file:line                                              | what it is                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------------- |
 | `settings/accounts/[id]/folders/folder-picker.tsx:110` | `type="checkbox" name="folders" value={folder}` — one per folder |
-| `settings/heartbeats/heartbeats-client.tsx:755` | `type="radio"`, `schedule_kind` |
-| `settings/heartbeats/heartbeats-client.tsx:844` | `type="radio"`, `surface_kind` |
-| `settings/heartbeats/heartbeats-client.tsx:884` | `type="radio"`, `gate_preset` |
+| `settings/heartbeats/heartbeats-client.tsx:755`        | `type="radio"`, `schedule_kind`                                  |
+| `settings/heartbeats/heartbeats-client.tsx:844`        | `type="radio"`, `surface_kind`                                   |
+| `settings/heartbeats/heartbeats-client.tsx:884`        | `type="radio"`, `gate_preset`                                    |
 
 The three heartbeats radios are a `RadioGroup` shaped like three separate
 inputs. `RadioGroup` owns the roving tabindex and the arrow-key model, so the
@@ -63,11 +78,11 @@ which is why they were left when the sweep was mechanical.
 
 ### Three inline text fields
 
-| file:line | what it is |
-| --- | --- |
-| `tables/[id]/table-detail-client.tsx:709` | a tab rename, chrome-less on purpose |
-| `components/dev-tools/request-builder.tsx:464` | a path-parameter value, dev tool |
-| `components/tag-input.tsx:99` | `aria-label="Tags"`, the tag entry inside a chip row |
+| file:line                                      | what it is                                           |
+| ---------------------------------------------- | ---------------------------------------------------- |
+| `tables/[id]/table-detail-client.tsx:709`      | a tab rename, chrome-less on purpose                 |
+| `components/dev-tools/request-builder.tsx:464` | a path-parameter value, dev tool                     |
+| `components/tag-input.tsx:99`                  | `aria-label="Tags"`, the tag entry inside a chip row |
 
 `Input` brings a border, a height and a ring. The rename and the tag entry can
 take none of them: a box there draws a rectangle around a heading, or turns a
@@ -80,13 +95,13 @@ exceptions.** It is the single change that moves the most of what is left.
 
 ## Two corrections to the old table
 
-`docs/handover-audit-remainder.md` §1 says *"three of the six carry `name=` for
-a native form POST **that Radix does not forward**"*. Both halves are wrong, and
+`docs/handover-audit-remainder.md` §1 says _"three of the six carry `name=` for
+a native form POST **that Radix does not forward**"_. Both halves are wrong, and
 they are why these two looked blocked:
 
 1. **It is two, not three** — `embedding-client.tsx:510` and `:557`. Checked
    line by line; no other select in the thirteen carries a `name`.
-2. **Radix does forward it.** The kit's `Select` *is* `SelectPrimitive.Root`
+2. **Radix does forward it.** The kit's `Select` _is_ `SelectPrimitive.Root`
    (`packages/web-ui/src/ui/select.tsx:8`), so every Root prop passes through,
    and `@radix-ui/react-select` takes `name?: string` and renders a hidden
    native control for form participation.

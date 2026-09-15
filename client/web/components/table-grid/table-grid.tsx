@@ -59,6 +59,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Input } from '@mantle/web-ui/ui/input';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
@@ -1234,18 +1235,19 @@ function ReferenceCell({
         </RowButton>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-1">
-        {/* eslint-disable-next-line house/no-raw-form-control -- a ~30px search
-            field inside a w-56 popover. The kit's <Input> is a fixed h-10 with no
-            smaller rung, which is a third taller than the list it filters. Give
-            <Input> a size scale and this becomes a twin. */}
-        <input
+        {/* The `xs` rung is the twin the old sanctioned disable here was waiting
+            for. The ring is pulled inside because an offset one would spill out
+            of the `p-1` popover this sits in — the same correction the row
+            triggers above make. */}
+        <Input
+          size="xs"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && q) choose(q);
           }}
           placeholder="Search values…"
-          className="mb-1 w-full rounded-sm border border-border bg-transparent px-2 py-1 text-sm outline-none focus:ring-0"
+          className="mb-1 focus-visible:ring-inset focus-visible:ring-offset-0"
           aria-label={`Search ${col.name} values`}
         />
         <div className="max-h-56 overflow-y-auto scrollbar-thin">

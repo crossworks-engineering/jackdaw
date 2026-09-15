@@ -82,12 +82,11 @@ release actually became _Latest_. `PATCH draft=false` with `make_latest` in the
 same call did not take on `v0.6.79`, and `v0.6.67` kept the flag — which is what
 `electron-updater` reads. It needed a second explicit PATCH. See §8.
 
-## 1. Raw form controls · 188 → 13 · the last 13 are three problems
+## 1. Raw form controls · 188 → 0 · done 2026-09-15
 
 **Every raw `<button>` is gone**, `table-grid` included — 171 across 66 files.
-The cap is at **13** and the rule is still `warn`; promoting it to `error` is
-the last step. What is left is thirteen FIELD elements: selects, radios,
-checkboxes and inline inputs. No buttons remain anywhere.
+**The cap is at 0 and the rule is `error`** as of v0.6.97; the last thirteen
+FIELD elements went in that landing — see §15 for what each one took.
 
 **The kit was the blocker, not the call sites.** Measuring the 188 before
 converting any showed 57 with nowhere to go, so two things were added first and
@@ -106,15 +105,15 @@ giving a 16px padding-less icon a 24px twin moves everything around it.
 
 ### What is left, and why each is not a sweep
 
-|                   | n      | needs                                                                                                                                                                                                                                                                    |
-| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ~~`table-grid`~~  | ~~12~~ | **Done 2026-09-14** — the dev brain has tables now (7 workbooks), which is what unblocked it. Eight buttons took `RowButton`/`Button`, the expanded-cell editor took `Textarea`, and three chrome-less fields kept a raw element behind a sanctioned disable. See below. |
-| native `<select>` | 6      | A decision per form. The kit's `Select` is a Radix listbox: different keyboard model, and no native picker on mobile. ⚠ This row used to say three of them carry `name=` for a form POST **that Radix does not forward** — both halves are wrong. It is TWO, and Radix does forward it. See `docs/handover-form-controls.md`.                                     |
-| radio / checkbox  | 4      | `RadioGroup` needs the group restructured around the inputs. The checkbox carries `name`/`value` for a form post, same problem as the selects.                                                                                                                           |
-| inline fields     | 3      | A tab rename and a tag entry that must be invisible inside their containers. `Input` brings a border and a height; these can take neither. The rule's sanctioned `eslint-disable`.                                                                                       |
+|                       | n      | needs                                                                                                                                                                                                                                                                    |
+| --------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ~~`table-grid`~~      | ~~12~~ | **Done 2026-09-14** — the dev brain has tables now (7 workbooks), which is what unblocked it. Eight buttons took `RowButton`/`Button`, the expanded-cell editor took `Textarea`, and three chrome-less fields kept a raw element behind a sanctioned disable. See below. |
+| ~~native `<select>`~~ | ~~6~~  | **Done 2026-09-15** — all six took `Select`. The `name=` row was wrong twice over: it is TWO, not three, and Radix _does_ forward a `name`. Both still submit through a hidden input, for a better reason — see §15.                                                     |
+| ~~radio / checkbox~~  | ~~4~~  | **Done 2026-09-15** — three heartbeats radios became one `RadioGroup` each; the folder checkbox took `Checkbox`, and its `name`/`value` turned out to be dead.                                                                                                           |
+| ~~inline fields~~     | ~~3~~  | **Done 2026-09-15** — the tab rename took the new `Input size="xs"`; the two whose box belongs to their wrapper kept a raw element behind a sanctioned disable.                                                                                                          |
 
-**Done when** the count reaches zero and the rule is promoted to `error`. Lower
-the cap in `package.json` as it falls; never raise it.
+**Done:** the count is zero, the cap is zero and the rule is `error`. The cap
+only ever falls; never raise it.
 
 **Habit from this pass:** convert screen by screen and measure the geometry, not
 the diff. Conversions are supposed to change nothing visible — the assistant's
@@ -149,15 +148,15 @@ failure in a suite that has not run is the suite, until the code says otherwise.
 
 ### The remaining 15, triaged
 
-| n | what | read |
-| --- | --- | --- |
-| 2 | `shell-layout` — nav rail restores 280px where 288px was dragged; a separator counted when 0 expected | the width one is **FLAKY** (passed 3/3 on repeat, fails most full runs); prime suspect is v0.6.80's commit-on-release drag |
-| 4 | MasterDetail geometry — `/models` double scrollbar, `/notes` divider, `/settings/appearance` divider, `journal` detail | unknown; the divider ones may share a cause |
-| 2 | `pages-editor-width`, `pages-reading-width` — MeasurePane missing, prose not hugging | unknown |
-| 2 | `draws-crud` — shared page serves inline `<svg>` where the spec wants an image | looks real |
-| 2 | `pages-drilldown` — Details switch not visible; drag never re-parents | looks real |
-| 2 | `team`, `team-reader` — token placeholder never appears; inline reader visible when expected hidden | unknown |
-| 1 | `focus-mode` — "a handle survived the collapse" | **SPEC BUG.** It counts every `resizable-handle`, and the SPACER's always renders — which is why it passes on `/draw` and `/pages` (no spacer, they use `listFills`/`detailFills`) and fails on `/notes` |
+| n   | what                                                                                                                   | read                                                                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2   | `shell-layout` — nav rail restores 280px where 288px was dragged; a separator counted when 0 expected                  | the width one is **FLAKY** (passed 3/3 on repeat, fails most full runs); prime suspect is v0.6.80's commit-on-release drag                                                                               |
+| 4   | MasterDetail geometry — `/models` double scrollbar, `/notes` divider, `/settings/appearance` divider, `journal` detail | unknown; the divider ones may share a cause                                                                                                                                                              |
+| 2   | `pages-editor-width`, `pages-reading-width` — MeasurePane missing, prose not hugging                                   | unknown                                                                                                                                                                                                  |
+| 2   | `draws-crud` — shared page serves inline `<svg>` where the spec wants an image                                         | looks real                                                                                                                                                                                               |
+| 2   | `pages-drilldown` — Details switch not visible; drag never re-parents                                                  | looks real                                                                                                                                                                                               |
+| 2   | `team`, `team-reader` — token placeholder never appears; inline reader visible when expected hidden                    | unknown                                                                                                                                                                                                  |
+| 1   | `focus-mode` — "a handle survived the collapse"                                                                        | **SPEC BUG.** It counts every `resizable-handle`, and the SPACER's always renders — which is why it passes on `/draw` and `/pages` (no spacer, they use `listFills`/`detailFills`) and fails on `/notes` |
 
 **Verify anything you fix here by repetition, not by one green run.** A race
 reads as a flake and a flake reads as noise: one skills test passed 1 of 6 runs
@@ -594,8 +593,8 @@ Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
 Read this section, then §1 and §9. In rough order of what unblocks most:
 
 **Done and on the box:** the release pipeline (six cuts, §0/§8), the `table-grid`
-twelve (§12), every dependency major that is not blocked upstream (§3), the task
-board (§13) and the page editor (§14). The dev box runs client `v0.6.90` against
+twelve (§12), the last raw form controls (§15), every dependency major that is
+not blocked upstream (§3), the task board (§13) and the page editor (§14). The dev box runs client `v0.6.90` against
 mantle `v0.232.183`; that mantle release also fixed `client-pair.tag`, which had
 been stale at v0.6.42.
 
@@ -608,7 +607,7 @@ clicking and neither can be automated from here.
 
 **1 · The last 15 e2e failures** (§2). The suite RUNS — 146/162 at v0.6.93, and `e2e/README.md` has the throwaway-brain recipe. §2 triages what is left: one is a spec bug, one is a known flake, four look real, the rest are unknown. Setting the `E2E_SERVER_URL` repository variable is what stops it rotting again.
 
-**2 · The last 13 raw controls** (§1, and `docs/handover-form-controls.md` — start there, it enumerates all thirteen with the call on each). All thirteen are per-form behavioural decisions, not a sweep — selects carrying `name=` for a native POST, radios needing the group restructured, inline fields that must stay invisible. Do them when the form in question is being touched anyway. The `table-grid` twelve are done.
+**2 · ~~The last 13 raw controls~~ · DONE 2026-09-15** (§15). 188 → 0, the cap is 0 and the rule is `error`. `Input` gained a size scale on the way, which is what unblocked them, and the browser pass caught a 4px height regression the conversion introduced. Two things came out of it and are still open: arrow keys move focus but not selection in a `RadioGroup` (unconfirmed whether kit-wide), and `SelectTrigger` wants the size scale `Input` just got — §15's last section has both.
 
 **3 · Dependency decisions** (§3). **Nothing is open.** `@tanstack/react-table` 9 (native API) and `electron` 44 are done; `vite` 8, `typescript` 7 and `vitest` 5 are all blocked upstream, so there is no decision to take. The one thing worth knowing: TypeScript's available step is **6**, not 7 — the eslint parser caps at `<6.1.0`, and the old table hid this by listing only 7.x as "latest".
 
@@ -761,3 +760,107 @@ the feature appearing broken, from the same dead probe. Route the app's rAF
 through `setTimeout` before trusting anything on an rAF path here; it is the same
 trap §9 already records for probes, and it applies to APPLICATION code just as
 much.
+
+## 15. The last 13 raw form controls · done 2026-09-15
+
+`docs/handover-form-controls.md` enumerated them; this is what each took, and
+what the browser said afterwards. **188 → 0, cap 0, rule `error`.** Fourteen raw
+controls went, not thirteen: the table-grid popover search (§12) was waiting on
+the same change.
+
+### What unblocked it: `Input` got a size scale
+
+`Button`'s rungs, at the same heights — `xs` 32 / `sm` 36 / `default` 40 / `lg`
+44 — so a field and a button in one row line up without either being hand-sized.
+Two deliberate departures from `Button`, both in the style guide (§6d):
+
+- **No `2xs`.** Every rung keeps `text-base` below `md` (iOS Safari zooms in on
+  a focused field under 16px and does not zoom back out), and 24px cannot hold
+  16px text. A smaller rung buys its height from padding, never from the text.
+- **`size` is `Omit`ted from the native props.** The HTML attribute of that name
+  is a character count; keeping both would make `size="xs"` a type error at all
+  274 call sites. Nothing used the native one.
+
+### The six selects
+
+Two debug pickers, three on `/settings/embedding`, and the sort control inside
+the model picker. **Radix forbids `''` as an item value** — it reserves it for
+"nothing selected" — so every `<option value="">` became a sentinel mapped back
+at the boundary. That trap is the whole story of the embedding pair:
+
+⚠ **§1 said Radix "does not forward" `name`, then corrected itself to say it
+does. Both are true and neither is the point.** Radix 2.3.7 does render a hidden
+native `<select name>` whenever the trigger is inside a form
+(`SelectBubbleInput`, gated on `isFormControl`). But the API-key select's
+keyless choice travels as `__none__`, and **that is the string the bubble would
+have POSTed.** Measured on the page: the bubble for that field holds `__none__`
+while the form's own hidden input holds `""`. Passing `name` to `<Select>` — the
+fix §1 pointed at — would have silently saved a nonexistent key id.
+
+So both submit through a colocated hidden input, which is also what the `Switch`
+directly above them already does. Colocation is the reason, not habit: the
+backup route only renders when failover is on, so its keys appear exactly when
+it is on screen, with no condition in `handleSave` to drift out of step.
+
+### The four radio / checkbox
+
+The folder checkbox took `Checkbox`; its `name="folders"`/`value` were **dead** —
+the form submits `save.mutate()`, which reads the `checked` Set, and nothing ever
+read a FormData. It gained an `aria-label`: the folder name beside it was never
+tied to the control, so it announced itself unnamed.
+
+The three heartbeats radios became one `RadioGroup` each. They **carried no
+`name`**, so the browser never grouped them: three tab stops, arrow keys dead.
+
+### The three inline fields
+
+The tab rename took `Input size="xs"`. The other two keep a raw element behind
+the rule's sanctioned disable, with the reason beside each — the same call the
+`table-grid` pass made for its column name and cell editor, and for the same
+reason: **the box belongs to the wrapper.** A tag entry inside a bordered chip
+row and a path-parameter inside a chip whose border turns red to mark it
+unfilled. A second box inside either draws a box inside a box, and a smaller
+rung does not help — the problem is the box, not the height.
+
+### Measured in a signed-in browser, not looked at
+
+Against a throwaway brain (`e2e/README.md` recipe; the harness's own bearer puts
+a signed-in page up with no sign-in). **Zero of zero width** across every
+converted control.
+
+| Claim                                         | Evidence                                                                                                                                                                                                                            |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The embedding POST carries both fields        | a real submit: body `primary_provider=openrouter`, `primary_api_key_id=""`; DB row `openrouter` / **NULL**, not `'__none__'`                                                                                                        |
+| …and round-trips                              | fresh load shows `openrouter` in the trigger and NULL rendering as "None (keyless / local)"                                                                                                                                         |
+| The sort menu does not fight the model picker | opened inside the popover: **both listboxes open at once**, popover survives; ArrowDown moved the sort highlight `newest`→`name` while the cmdk list held its selection AND its `scrollTop`; Enter committed and the list re-sorted |
+| The grid's popover search fits                | `h-8`, 32px unscaled, does not overflow its `w-56` popover                                                                                                                                                                          |
+| …and its ring stays inside                    | a **real Tab**: `:focus-visible` true, `0 0 0 2px inset` in the ring token — a programmatic focus proves nothing here (§12)                                                                                                         |
+| The radio groups are groups                   | one tab stop; ArrowRight moves focus and the roving tabindex follows (`once` → `tab0`, siblings `-1`)                                                                                                                               |
+
+**A geometry regression the measuring caught.** The three embedding triggers came
+out at **36px against the 40px of every `Input` beside them** — `SelectTrigger`
+defaults to `h-9` and the raw `<select>` they replaced was `h-10`. Exactly the
+"one screen rendered buttons at four different heights" failure the twins rule
+exists to stop, and invisible in a screenshot. All three now pass `h-10`; all ten
+controls on that form measure 40.
+
+`pnpm verify` green at `--max-warnings 0`; `pnpm e2e` **161 passed, 1 skipped**,
+the six heartbeats specs among them.
+
+### Two things left open
+
+1. ⚠ **Arrow keys move focus in a `RadioGroup` but do not move the selection.**
+   Measured three times on the heartbeats groups. Mouse works, and the form
+   follows. This is almost certainly kit-wide rather than something this pass
+   introduced — the usage passes only `value`/`onValueChange`/`className`, the
+   same as `appearance`, `onboarding` and `list-card` — but **a clean side-by-side
+   against an untouched group was not obtained** (the comparison clicks kept
+   missing their targets), so it is recorded as unconfirmed, not as a known
+   kit bug. Radix 1.4.7 selects on focus only when an arrow-key flag set by a
+   _document-level_ keydown listener is already true, and the roving-focus
+   handler that moves focus runs earlier in the same bubble — that ordering is
+   where to start.
+2. **`SelectTrigger` has no size scale, and its `h-9` default does not match
+   `Input`'s `h-10`.** That mismatch is what bit the embedding form above. The
+   evidence base is now countable: ~20 call sites hand-size it, 8 of them to
+   `h-8`. It is the same argument `Input` just won, and it wants the same fix.

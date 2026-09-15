@@ -11,6 +11,13 @@ import {
   CommandList,
 } from '@mantle/web-ui/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
 import { Button } from '@mantle/web-ui/ui/button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import type { ExplorerModel } from '@mantle/client-types';
@@ -328,16 +335,31 @@ function SortDropdown({
   onChange: (k: ModelSelectSortKey) => void;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as ModelSelectSortKey)}
-      className="mr-2 h-7 rounded border border-input bg-transparent px-1.5 text-[11px] text-muted-foreground focus:outline-none"
-      aria-label="Sort models"
-    >
-      <option value="newest">newest</option>
-      <option value="name">name</option>
-      <option value="cheapest">cheapest</option>
-      <option value="context">context</option>
-    </select>
+    // A listbox inside the model popover, which is itself a cmdk listbox. Two
+    // things make that safe rather than a fight over the keyboard:
+    //
+    //  - `SelectContent` portals to the body, so its arrow keys never reach the
+    //    `Command` root's keydown handler — the model list does not scroll
+    //    behind the open sort menu.
+    //  - Radix stacks dismissable layers, so the sort menu is dismissed on its
+    //    own first, and the click that closes it is not read by the popover as
+    //    an outside click.
+    //
+    // `w-auto` is load-bearing: `SelectTrigger` is `w-full`, which in this row
+    // would push the search field out of the popover.
+    <Select value={value} onValueChange={(k) => onChange(k as ModelSelectSortKey)}>
+      <SelectTrigger
+        className="mr-2 h-7 w-auto gap-1 px-1.5 text-[11px] text-muted-foreground"
+        aria-label="Sort models"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="newest">newest</SelectItem>
+        <SelectItem value="name">name</SelectItem>
+        <SelectItem value="cheapest">cheapest</SelectItem>
+        <SelectItem value="context">context</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
