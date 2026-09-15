@@ -120,10 +120,14 @@ the diff. Conversions are supposed to change nothing visible — the assistant's
 toolbar was 32×32 before and after — so what to watch for is a control that
 **collapses** when a primitive stops supplying its box. A DOM query, not a look.
 
-## 2. One green `pnpm e2e` · 146 of 162, and what the other 15 are
+## 2. One green `pnpm e2e` · GREEN
 
-**It runs.** First measured on 2026-09-15 at **135/161**; **146/162** at v0.6.93
-after ten fixes. The blocker was never this repo — see `e2e/README.md` for the
+**Done.** First measured on 2026-09-15 at **135/161**; **146/162** at v0.6.93
+after ten fixes; **161/162 at v0.6.97** (two full runs) and **163/164 at
+v0.6.99**, where §16's `radio-arrow-selection.spec.ts` added the two extra. The
+remaining 1 is a SKIP, not a failure. Read the denominator, not just the
+numerator — the suite grows, so "161 passed" stops meaning green the moment
+somebody adds a spec. The blocker was never this repo — see `e2e/README.md` for the
 throwaway-brain recipe, which takes minutes, and for the two environment traps
 that made this look like an app failure: the hermetic stack the old docs pointed
 at exists in NEITHER repo, and Playwright's browsers were simply not installed,
@@ -592,11 +596,20 @@ Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
 
 Read this section, then §1 and §9. In rough order of what unblocks most:
 
-**Done and on the box:** the release pipeline (six cuts, §0/§8), the `table-grid`
-twelve (§12), the last raw form controls (§15), every dependency major that is
-not blocked upstream (§3), the task board (§13) and the page editor (§14). The dev box runs client `v0.6.90` against
-mantle `v0.232.183`; that mantle release also fixed `client-pair.tag`, which had
-been stale at v0.6.42.
+**Done IN GIT:** the release pipeline (six cuts, §0/§8), the `table-grid` twelve
+(§12), the last raw form controls (§15), the radio-group a11y fix (§16), a green
+e2e suite (§2), every dependency major that is not blocked upstream (§3), the
+task board (§13) and the page editor (§14).
+
+⚠ **"Done in git" is NOT "on the box", and the gap is now six versions wide.**
+As of 2026-09-15, main is **v0.6.99** and pushed; the newest TAG is **v0.6.93**;
+the dev box serves **v0.6.90** against mantle `v0.232.183`. So v0.6.94–v0.6.99
+— every raw form control, both size scales, the radio fix — exist only in git.
+There are no stale drafts this time (the §0 failure mode), because **no tag was
+ever cut**: `scripts/tag-release.sh` is the missing step, and then the release
+must still be PUBLISHED and set Latest by hand. Check `/settings/updates` on the
+box for what it actually serves; a green pipeline and a stale box are not a
+contradiction.
 
 ⚠ **Nobody has USED the box yet.** This round changed visible UI on nearly every
 screen and four screens is not coverage. Two things specifically want a human:
@@ -605,7 +618,7 @@ structurally, not by a live drag) and **a page outline following a heading edit*
 (§14 — the deployed check was blocked by the automated tab). Both are seconds of
 clicking and neither can be automated from here.
 
-**1 · The last 15 e2e failures** (§2). The suite RUNS — 146/162 at v0.6.93, and `e2e/README.md` has the throwaway-brain recipe. §2 triages what is left: one is a spec bug, one is a known flake, four look real, the rest are unknown. Setting the `E2E_SERVER_URL` repository variable is what stops it rotting again.
+**1 · ~~The last 15 e2e failures~~ · DONE** (§2). **163 passed / 1 skipped** at v0.6.99, across four full runs. `e2e/README.md` has the throwaway-brain recipe (minutes, and it leaves the dev brain alone). ⚠ **Setting the `E2E_SERVER_URL` repository variable is what stops it rotting again, and that is still not done** — until it is, the Playwright job in `verify.yml` stays inert and the suite only runs when someone remembers to.
 
 **2 · ~~The last 13 raw controls~~ · DONE 2026-09-15** (§15). 188 → 0, the cap is 0 and the rule is `error`. `Input` gained a size scale on the way, which is what unblocked them, and the browser pass caught a 4px height regression the conversion introduced. The two follow-ups it raised are **also done**: `SelectTrigger` got the same rungs in v0.6.98, and the radio groups that moved focus but not the selection are fixed kit-wide in §16.
 
@@ -613,7 +626,7 @@ clicking and neither can be automated from here.
 
 **4 · Performance's remainder** (§4). The two named items are done — the board (§13) and the page editor (§14), the latter by measuring it and finding the stated problem was not one. What is left is smaller and of the same shape: the dock context value changing on almost any dock state and fanning out to 14 consumers, and memoising the assistant turn row. Both are unnecessary-re-render work; §§13–14 are the worked examples.
 
-**5 · `assetUrl` reactivity and the `/tables` half-collapse** (§6). Both have a written diagnosis and neither has a fix. The `/tables` one has a ruled-out hypothesis and a specific next test, which is worth more than the original note was.
+**5 · `assetUrl` reactivity** (§6). The `/tables` half-collapse that used to sit beside it is **fixed**. `assetUrl` is the one left, and it is the most interesting thing still open: a hook cannot be the answer, because three of the call sites are plain modules feeding TipTap and Excalidraw from outside React. It needs a subscribable store, or the shell withholding asset-bearing children until the token lands — and only in split deployments.
 
 ### What this repo expects of you
 
