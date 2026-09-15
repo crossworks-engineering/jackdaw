@@ -75,22 +75,55 @@ jobs:
       - name: Verify
         run: pnpm verify
 
-  # Runs ONLY when the repository (or environment) sets an E2E_SERVER_URL
-  # variable — a throwaway brain the suite may create and delete content on.
-  # Unset, this job is skipped and the gate above is the whole gate.
+  # The suite runs against a brain THIS JOB BUILDS, fresh, per run.
   #
-  # To turn it on: add repository variable E2E_SERVER_URL and, if that brain
-  # already has an owner, secrets E2E_EMAIL and E2E_PASSWORD. A brain with no
-  # owner bootstraps itself through the real signup + onboarding path.
+  # It used to wait on an `E2E_SERVER_URL` repository variable naming a brain
+  # somewhere. That variable was never set, so this job had never once run —
+  # and it could not safely BE set: the suite creates and deletes content, and
+  # every box in the fleet is real (the one called `mantle-test` has served
+  # Astron since 2026-07-29). A brain that is built here and dies with the
+  # runner cannot wipe anything that matters, costs nothing, and is the same
+  # shape as the hermetic stack the repo split removed.
+  #
+  # `E2E_SERVER_URL` still wins if it is set, so pointing a run at a real brain
+  # stays one variable away — but nothing has to be set for this to run.
+  #
+  # jackdaw is the CLIENT: no server workspace, no database, so it cannot boot a
+  # brain from its own source. It boots the PUBLISHED server image instead, the
+  # same one the fleet runs, which is also why this job needs no mantle checkout.
   #
   # Deliberately not `needs: verify`: a red lint and a red e2e are independent
   # facts, and serialising them only makes the second one arrive later.
   e2e:
-    if: vars.E2E_SERVER_URL != ''
     runs-on: ubuntu-24.04
-    # The suite is 117 tests against a remote brain, one worker, no parallelism
-    # (specs share one brain and would race each other's fixtures).
+    # The suite is one worker, no parallelism (specs share one brain and would
+    # race each other's fixtures), plus a few minutes to build the brain.
     timeout-minutes: 30
+
+    # Postgres must be the pgvector image: the schema has vector columns and
+    # plain postgres fails the migration with an error that does not mention
+    # extensions. Health-gated so the init step cannot run against a socket
+    # that is not listening yet.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: e2e
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      minio:
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        env:
+          MINIO_ROOT_USER: minio
+          MINIO_ROOT_PASSWORD: minio12345
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -107,16 +140,112 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm -C e2e exec playwright install --with-deps chromium
 
+      # ── Build the brain ────────────────────────────────────────────────
+      # The published server image is the same one the fleet runs, so this
+      # tests the client against a real brain without needing a mantle
+      # checkout. `latest` tracks the newest published server.
+      - name: Pull the server image
+        if: vars.E2E_SERVER_URL == ''
+        run: docker pull titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }}
+
+      # The postgres image runs /docker-entrypoint-initdb.d/*.sql once, at first
+      # cluster init, for the DEFAULT database only — and those files live in the
+      # mantle repo, not here, so a service container never applies them. Without
+      # them the migrations fail on a missing `vector` extension and a missing
+      # `auth.users`, with an error that names neither.
+      #
+      # Taken from the IMAGE rather than copied into this file: the image already
+      # carries them, so they match the server being tested and cannot drift from
+      # it. A hand-copied version of this SQL was wrong in three ways on the first
+      # attempt (invented an extension, missed `ltree`, and renamed a column),
+      # none of which this can be.
+      - name: Initialise the database (extensions + auth schema)
+        if: vars.E2E_SERVER_URL == ''
+        env:
+          PGPASSWORD: e2e
+        run: |
+          docker run --rm titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }} \
+            sh -c 'cat /app/infra/postgres/init/*.sql' \
+            | psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+
+      # Secrets the brain refuses to boot without. MANTLE_MASTER_KEY must decode
+      # to EXACTLY 32 bytes — an arbitrary string boots fine and then fails the
+      # first write with "must decode to 32 bytes", which surfaces as a 500 from
+      # /api/onboarding during e2e bootstrap and looks like a broken app.
+      # Generated per run: nothing here outlives the runner.
+      - name: Generate brain secrets
+        if: vars.E2E_SERVER_URL == ''
+        run: |
+          echo "MANTLE_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      # Migrations, the pg-boss schema and the DBOS system database — the same
+      # one-shot command mantle's own compose `migrate` service runs.
+      - name: Migrate the brain
+        if: vars.E2E_SERVER_URL == ''
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL='postgres://postgres:e2e@localhost:5432/postgres' \
+            -e SESSION_SECRET="$SESSION_SECRET" \
+            -e MANTLE_MASTER_KEY="$MANTLE_MASTER_KEY" \
+            -e S3_ENDPOINT='http://localhost:9000' -e S3_REGION=us-east-1 \
+            -e S3_BUCKET=mantle -e S3_ACCESS_KEY=minio -e S3_SECRET_KEY=minio12345 \
+            -e S3_FORCE_PATH_STYLE=true -e NODE_ENV=production \
+            titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }} \
+            sh -c "pnpm -C packages/db migrate && pnpm -C server/web pgboss:init && pnpm -C server/api provision"
+
+      # mc rejects a host whose name contains an underscore ("invalid hostname"),
+      # which is why this addresses MinIO over localhost rather than by a
+      # container name.
+      - name: Create the object-store bucket
+        if: vars.E2E_SERVER_URL == ''
+        run: |
+          docker run --rm --network host --entrypoint sh minio/mc:latest -c \
+            "mc alias set local http://localhost:9000 minio minio12345 && mc mb -p local/mantle"
+
+      # CORS is not optional: MANTLE_API_CORS_ORIGINS must name the client origin
+      # or every browser spec fails on CORS while the API-only ones pass — a
+      # split that reads like an auth bug. MANTLE_CLIENT_ORIGIN must name it too,
+      # or team.spec.ts waits 30s for a gate the server never redirects it to.
+      - name: Start the brain
+        if: vars.E2E_SERVER_URL == ''
+        run: |
+          docker run -d --name e2e-brain --network host \
+            -e DATABASE_URL='postgres://postgres:e2e@localhost:5432/postgres' \
+            -e SESSION_SECRET="$SESSION_SECRET" \
+            -e MANTLE_MASTER_KEY="$MANTLE_MASTER_KEY" \
+            -e S3_ENDPOINT='http://localhost:9000' -e S3_REGION=us-east-1 \
+            -e S3_BUCKET=mantle -e S3_ACCESS_KEY=minio -e S3_SECRET_KEY=minio12345 \
+            -e S3_FORCE_PATH_STYLE=true -e NODE_ENV=production \
+            -e PORT=3900 \
+            -e MANTLE_PUBLIC_URL='http://localhost:3900' \
+            -e MANTLE_API_CORS_ORIGINS='http://localhost:3901' \
+            -e MANTLE_CLIENT_ORIGIN='http://localhost:3901' \
+            titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }}
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3900/api/version && break
+            sleep 2
+          done
+          curl -sf http://localhost:3900/api/version || { docker logs e2e-brain; exit 1; }
+
       # run-local.sh puts this checkout's owner UI on :3901 in front of the
       # brain and runs the split project — the same command a developer runs,
-      # so CI and a local run cannot drift.
+      # so CI and a local run cannot drift. The brain has no owner, so the suite
+      # bootstraps one through the real signup + onboarding path.
       - name: e2e
         env:
-          E2E_SERVER_URL: ${{ vars.E2E_SERVER_URL }}
+          E2E_SERVER_URL: ${{ vars.E2E_SERVER_URL || 'http://localhost:3900' }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-          E2E_SKIP_PDF: ${{ vars.E2E_SKIP_PDF }}
+          # No browserless sidecar on the runner.
+          E2E_SKIP_PDF: ${{ vars.E2E_SKIP_PDF || '1' }}
         run: pnpm e2e
+
+      # The brain's own log is the other half of a failure; the traces below are
+      # only what the browser saw.
+      - name: Brain log
+        if: failure() && vars.E2E_SERVER_URL == ''
+        run: docker logs e2e-brain 2>&1 | tail -200
 
       # Traces are retained on failure (playwright.config), and they are the
       # only way to see what a headless run actually did.
