@@ -302,7 +302,7 @@ avatar tests also exercise the style loader `@dicebear/styles` would have backed
 ~90 versions behind the server, `contractVersion` is unchanged at 1, and a
 signed-in pass across four surfaces found nothing broken.
 
-## 4. Performance · the two biggest are done, the rest is untouched
+## 4. Performance · all but one item closed
 
 The audit's §2 scored 8.0 on the strength of the v0.6.48/50 work. Two of its
 items are now closed:
@@ -330,10 +330,12 @@ Still open, in rough order of value:
 - ~~**Task board fetches 500 tasks unvirtualised**~~ **Addressed 2026-09-14, but
   NOT by virtualising** — see §13.
 - ~~**The page editor serialises the whole document on every keystroke, twice.**~~ **Measured and closed 2026-09-14 — the serialisation is not the cost. See §14.**
-- **The dock context value** changes on almost any dock state and fans out to 14
-  consumers, including the shell frame.
-- From the structure work: memoise the individual assistant turn row, and render
-  settled turns as static HTML rather than a live editor each.
+- ~~**The dock context value** changes on almost any dock state and fans out to
+  14 consumers, including the shell frame.~~ **Done 2026-09-15 — §17.** It was
+  11 consumers, not 14, and the fan-out was measured before it was touched.
+- ~~**Memoise the individual assistant turn row.**~~ **Done 2026-09-15 — §17.**
+- **Render settled turns as static HTML rather than a live editor each.** STILL
+  OPEN, and bigger than the line above it implies — §17 says what blocks it.
 
 ⚠ **This session added weight rather than removing it** — roughly 1.2 KB per
 route across the seven bug fixes, all of it landing in the app shell. That is
@@ -594,7 +596,10 @@ Fixed by having `adoptServerTheme` decline while the screensaver holds a pick;
 
 ## 11. Picking up cold
 
-Read this section, then §1 and §9. In rough order of what unblocks most:
+**Newest first: `docs/handover-session-2026-09-15.md`** is the map of the
+2026-09-15 session (form controls, the v0.6.100 release, the CI gate, the
+assistant's re-renders) and says what is not landed. Then read this section,
+then §1 and §9. In rough order of what unblocks most:
 
 **Done IN GIT:** the release pipeline (six cuts, §0/§8), the `table-grid` twelve
 (§12), the last raw form controls (§15), the radio-group a11y fix (§16), a green
@@ -618,13 +623,13 @@ structurally, not by a live drag) and **a page outline following a heading edit*
 (§14 — the deployed check was blocked by the automated tab). Both are seconds of
 clicking and neither can be automated from here.
 
-**1 · ~~The last 15 e2e failures~~ · DONE** (§2). **163 passed / 1 skipped** at v0.6.99, across four full runs. `e2e/README.md` has the throwaway-brain recipe (minutes, and it leaves the dev brain alone). ⚠ **Setting the `E2E_SERVER_URL` repository variable is what stops it rotting again, and that is still not done** — until it is, the Playwright job in `verify.yml` stays inert and the suite only runs when someone remembers to.
+**1 · ~~The last 15 e2e failures~~ · DONE, and the gate is ARMED** (§2, §18). **163 passed / 1 skipped** at v0.6.99. The CI job no longer waits on an `E2E_SERVER_URL` variable — it **builds its own brain per run** from the published server image, so it cannot be left un-armed and cannot wipe anything real. §18 is what that took.
 
 **2 · ~~The last 13 raw controls~~ · DONE 2026-09-15** (§15). 188 → 0, the cap is 0 and the rule is `error`. `Input` gained a size scale on the way, which is what unblocked them, and the browser pass caught a 4px height regression the conversion introduced. The two follow-ups it raised are **also done**: `SelectTrigger` got the same rungs in v0.6.98, and the radio groups that moved focus but not the selection are fixed kit-wide in §16.
 
 **3 · Dependency decisions** (§3). **Nothing is open.** `@tanstack/react-table` 9 (native API) and `electron` 44 are done; `vite` 8, `typescript` 7 and `vitest` 5 are all blocked upstream, so there is no decision to take. The one thing worth knowing: TypeScript's available step is **6**, not 7 — the eslint parser caps at `<6.1.0`, and the old table hid this by listing only 7.x as "latest".
 
-**4 · Performance's remainder** (§4). The two named items are done — the board (§13) and the page editor (§14), the latter by measuring it and finding the stated problem was not one. What is left is smaller and of the same shape: the dock context value changing on almost any dock state and fanning out to 14 consumers, and memoising the assistant turn row. Both are unnecessary-re-render work; §§13–14 are the worked examples.
+**4 · ~~Performance's remainder~~ · all but one item DONE** (§4, §17). The dock context split and the turn-row memo both landed, each measured before and after. The ONE thing left is **rendering settled turns as static HTML** — and §17 explains why it is not the small tweak the original line implies: the callout/aside/embed chrome lives entirely in React NodeViews with no CSS fallback, so it wants the server-side renderer `page-view.tsx` already calls "Phase 5's".
 
 **5 · `assetUrl` reactivity** (§6). The `/tables` half-collapse that used to sit beside it is **fixed**. `assetUrl` is the one left, and it is the most interesting thing still open: a hook cannot be the answer, because three of the call sites are plain modules feeding TipTap and Excalidraw from outside React. It needs a subscribable store, or the shell withholding asset-bearing children until the token lands — and only in split deployments.
 
@@ -1014,3 +1019,142 @@ port (because a second worktree held `:3901`) fails this one spec and nothing
 else. The error names the server URL, not the redirect target, which is what
 makes it read as a dead brain. `curl -i $BRAIN/team | grep -i location` settles
 it in one command.
+
+## 17. The assistant's two re-render items · done 2026-09-15
+
+Both were **measured before being touched**, because §14 is this document's own
+worked example of a stated performance problem that was not one. These were.
+
+### The dock context fanned out to everyone
+
+`AssistantDockProvider` handed out ONE value of 45 fields, memoised on all 45,
+to 11 consumers (§4 said 14). `messages` is one of those fields, so the fan-out
+fired on every streamed token — and the 630-line app shell was downstream of it.
+
+Measured on `/tasks` with render counters, toggling `picking`, which
+`<PickMode/>` reads and nothing else does:
+
+|                   | before | after | reads `picking`?                 |
+| ----------------- | ------ | ----- | -------------------------------- |
+| `PickMode`        | 4      | 4     | yes                              |
+| `AppShell`        | 4      | **0** | no — it reads four LAYOUT fields |
+| `QuestionWatcher` | 4      | **0** | no — one callback, no state      |
+
+Split by WHAT CHANGES, which turned out to match what consumers ask for:
+**actions** (every callback; stable for the life of the provider — four of the
+eleven need nothing else), **layout** (panel geometry; what the shell reads),
+**session** (the conversation — the hot one). The three are `Pick`ed from
+`AssistantDockApi`, and `_DockSplitIsExhaustive` stops compiling if a field is
+added without being placed.
+
+⚠ **Counter-check anything like this**, because a split that simply disconnects
+a consumer shows the same zero. `AppShell` still re-renders on a `dockWidth`
+change — verified. And `PickMode`/`QuestionWatcher` still re-render on layout
+changes, because they are rendered INSIDE `AppShell` (`app-shell.tsx:613` and
+`:617`): ordinary parent-child re-rendering, not the context, and one per
+interaction rather than one per token.
+
+### The transcript rebuilt every row on every frame
+
+Memoised as a whole since v0.6.50 — which is why a composer keystroke does not
+walk it — but its dependency list carried `streamReply`, `streamTrail`,
+`streamTokens` and the rest, and **those change once per frame**. A 25-turn
+thread rebuilt 25 rows to show one of them growing, each carrying a TipTap
+editor.
+
+The fix works because every streaming value is read in the `showTyping` branch
+and nowhere else, and that branch requires `!turn.response` — a settled turn
+reads none of them. They travel as one `live` object, `null` for every row but
+the one in flight; `turns` is memoised on `messages`, so settled turn objects
+keep their identity across frames and `memo` bails out.
+
+    row renders caused by 5 `live` changes:   125  ->  0
+
+`TurnRow` went to `turn-row.tsx` rather than staying inline: at 1,821 lines
+`assistant-client.tsx` had gone through the max-lines ceiling (1,583 now), and
+the live-buffer markdown components went to `stream-markdown.tsx` because the
+row needs them and importing the screen from the row would be a cycle.
+
+### ⚠ Static HTML for settled turns is NOT the small follow-on it sounds like
+
+The prize is real and was measured: on a 25-turn thread, **25 live TipTap
+editors holding 1,422 DOM nodes — 38% of the whole page's DOM**.
+
+What blocks it is that the chrome is not in the HTML. `Callout.renderHTML` emits
+`<div data-callout data-variant=…>` and nothing else; the border, the tint and
+the icon all live in `CalloutView`, a React NodeView, with **no CSS fallback**.
+Aside, file-embed and child-page are the same shape. So a naive
+`dangerouslySetInnerHTML` pass renders a callout as an unstyled div — silently,
+and only in replies that happen to use one. (The 25-turn thread measured here
+contains ZERO callouts, asides, columns or embeds, which is exactly how this
+would ship looking fine and break later.)
+
+Two honest routes, both real work:
+
+1. A CSS fallback per NodeView — then two renderers must be kept in step, which
+   is the drift the shared schema exists to prevent.
+2. The server-side JSON→sanitised-HTML pass that `page-editor/page-view.tsx`
+   already names as "Phase 5's public renderer". `PageView` is a live read-only
+   editor for the same reason and would be fixed by the same work, so this is
+   one job serving two surfaces, not an assistant detail.
+
+Route 2 is the one to take. It is not a performance tweak; it is the renderer
+that repo comment has been waiting for.
+
+## 18. Arming the CI e2e gate · the job builds its own brain
+
+`verify.yml` had an `e2e` job gated `if: vars.E2E_SERVER_URL != ''`. That
+variable was never set, so **the job had never once run** — a suite that is
+green only because someone remembers to run it by hand.
+
+**It could not safely be set, either.** The suite creates and deletes content,
+and there is no throwaway brain: every box in the fleet is real, and the one
+called `mantle-test` has served Astron since 2026-07-29. jackdaw is the client —
+no server workspace, no database — so it cannot boot one from its own source.
+
+So the job **boots the published server image**, the same one the fleet runs:
+pgvector + the image's own `migrate && pgboss:init && provision`, then the
+server on `:3900`. Fresh per run, dies with the runner, costs nothing, cannot
+wipe anything that matters. `E2E_SERVER_URL` still wins when set, so aiming a
+run at a real brain stays one variable away — but nothing has to be set.
+
+### The five things it took, and what each would look like to the next person
+
+Every one was a real environment truth, and the first three were invisible to a
+local rehearsal because this workstation already had what a runner does not.
+
+1. **`docker pull minio/minio` is DENIED on a runner** ("repository does not
+   exist or may require 'docker login'"). The rehearsal missed it because the
+   image had sat in the local cache for twelve months, so `docker run` never
+   touched a registry — **a probe that lied by succeeding.** quay.io is MinIO's
+   own registry and pulls anonymously.
+2. **A `services:` entry cannot carry a command**, and the MinIO image needs
+   `server /data`. Without it the container prints its own usage text and exits,
+   and the runner reports only "Failed to initialize container" — the usage text
+   is the sole clue, and it reads like a broken image.
+3. **`MANTLE_MASTER_KEY` must decode to EXACTLY 32 bytes.** An arbitrary string
+   boots fine and fails the first WRITE, surfacing as a 500 from
+   `/api/onboarding` during bootstrap — which looks like a broken application.
+4. **An unset GitHub secret renders as the EMPTY STRING**, and `e2e/lib/env.ts`
+   used `??`, which only falls back on null/undefined. So it posted an empty
+   email and got the signup route's own message back: "Enter a valid email and a
+   password of at least 8 characters" — which reads as "the default account is
+   wrong" rather than "there is no value here". Every `E2E_*` variable now takes
+   `||`. Reproduced against a real brain: empty creds 400, real creds 200.
+5. **Service containers are a BRIDGE network; the brain runs on HOST.** Anything
+   that must reach BACK to the brain has to be on host too. The browser sidecar
+   was a service, so `MANTLE_PRINT_ORIGIN=http://localhost:3900` — correct from
+   the brain's side — was its own container from the sidecar's, and the PDF and
+   draw-snapshot specs died with ERR_CONNECTION_REFUSED naming a URL that looks
+   right. **Treat that as one rule, not two incidents** (it is also why MinIO's
+   bucket step addresses localhost rather than a container name).
+
+The init SQL is **not copied into the workflow** — the job cats it out of the
+image it is about to test, so it matches that server and cannot drift. A
+hand-copied version was wrong in three ways on the first attempt: invented an
+extension, missed `ltree`, and renamed `password_hash`.
+
+`MANTLE_MASTER_KEY` and `SESSION_SECRET` are generated per run and **masked**
+before export: anything written to `$GITHUB_ENV` is an ordinary variable and is
+echoed in every later step's env group, so without `::add-mask::` the brain's
+keys sit in the log in plain text.
