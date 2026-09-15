@@ -114,18 +114,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 20
-      # quay.io, NOT Docker Hub: `docker pull minio/minio` is denied on a
-      # runner ("repository does not exist or may require 'docker login'").
-      # quay is MinIO's own registry and pulls anonymously.
-      minio:
-        image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-        env:
-          MINIO_ROOT_USER: minio
-          MINIO_ROOT_PASSWORD: minio12345
-        ports: ['9000:9000']
-        options: >-
-          --health-cmd "mc ready local"
-          --health-interval 5s --health-timeout 5s --health-retries 20
 
       # Two specs make the brain spawn a browser: the PDF export and the draw
       # snapshot re-render. Without it they fail with a 500 that says "internal
@@ -159,6 +147,27 @@ jobs:
       - name: Pull the server image
         if: vars.E2E_SERVER_URL == ''
         run: docker pull titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }}
+
+      # MinIO is NOT a service container. A `services:` entry cannot carry a
+      # command, and this image needs `server /data` — without it the container
+      # prints its own usage text and exits, which the runner reports only as
+      # "failed to initialize container" with no mention of a missing argument.
+      #
+      # quay.io, NOT Docker Hub: `docker pull minio/minio` is denied on a runner
+      # ("repository does not exist or may require 'docker login'"). quay is
+      # MinIO's own registry and pulls anonymously.
+      - name: Start the object store
+        if: vars.E2E_SERVER_URL == ''
+        run: |
+          docker run -d --name e2e-minio --network host \
+            -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:9000/minio/health/live && break
+            sleep 2
+          done
+          curl -sf -o /dev/null http://localhost:9000/minio/health/live \
+            || { docker logs e2e-minio; exit 1; }
 
       # The postgres image runs /docker-entrypoint-initdb.d/*.sql once, at first
       # cluster init, for the DEFAULT database only — and those files live in the
