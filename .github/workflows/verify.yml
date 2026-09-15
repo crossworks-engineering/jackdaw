@@ -197,8 +197,16 @@ jobs:
       - name: Generate brain secrets
         if: vars.E2E_SERVER_URL == ''
         run: |
-          echo "MANTLE_MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
-          echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          MK="$(openssl rand -base64 32)"
+          SS="$(openssl rand -hex 32)"
+          # Mask BEFORE exporting: anything put in $GITHUB_ENV is an ordinary
+          # variable and is echoed in every later step's env group, so without
+          # this the brain's keys sit in the log in plain text. They are
+          # throwaway and per-run, but a log is a log.
+          echo "::add-mask::$MK"
+          echo "::add-mask::$SS"
+          echo "MANTLE_MASTER_KEY=$MK" >> "$GITHUB_ENV"
+          echo "SESSION_SECRET=$SS" >> "$GITHUB_ENV"
 
       # Migrations, the pg-boss schema and the DBOS system database — the same
       # one-shot command mantle's own compose `migrate` service runs.

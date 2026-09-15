@@ -11,14 +11,19 @@
  * itself; the :3900 fallback below is only for driving a local monolith by
  * hand.
  */
-export const SERVER_URL = (process.env.E2E_SERVER_URL ?? 'http://localhost:3900').replace(
+export const SERVER_URL = (process.env.E2E_SERVER_URL || 'http://localhost:3900').replace(
   /\/+$/,
   '',
 );
-export const CLIENT_URL = (process.env.E2E_CLIENT_URL ?? SERVER_URL).replace(/\/+$/, '');
+export const CLIENT_URL = (process.env.E2E_CLIENT_URL || SERVER_URL).replace(/\/+$/, '');
 
-export const OWNER_EMAIL = process.env.E2E_EMAIL ?? 'e2e-owner@example.com';
-export const OWNER_PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-owner-password-1';
+// `||`, NOT `??`. An UNSET GitHub secret renders as the EMPTY STRING, not as
+// absent, so `??` kept it: the bootstrap posted an empty email and password and
+// got a 400 whose message is about the credentials, which reads as "the default
+// account is wrong" rather than "there is no value here at all". Every one of
+// these is a "blank means unset" variable, so they all take `||`.
+export const OWNER_EMAIL = process.env.E2E_EMAIL || 'e2e-owner@example.com';
+export const OWNER_PASSWORD = process.env.E2E_PASSWORD || 'e2e-owner-password-1';
 
 /** Set E2E_SKIP_PDF=1 on stacks without the browserless sidecar. */
 export const SKIP_PDF = process.env.E2E_SKIP_PDF === '1';
