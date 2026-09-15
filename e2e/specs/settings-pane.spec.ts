@@ -87,7 +87,16 @@ test.describe('settings pane', () => {
     }) => {
       // Explicit, not `test.use`: `ownerPage` comes from a hand-built context
       // that does not read the fixture's viewport option.
-      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      //
+      // 1920, not 1600, for the reason the Appearance test below already gives:
+      // the nav rail takes 256px, and Appearance opens at DOUBLE the measure.
+      // At 1600 that leaves its spacer at zero and its 1px divider jammed under
+      // the Activity column — a `fixed right-0 z-30` aside that takes the
+      // pointerdown, so the drag below moved nothing in EITHER direction. Not a
+      // layout constraint and not hydration: `elementFromPoint` at the grip
+      // returns the aside. Every other screen passed here by luck of opening
+      // narrow enough to keep its divider clear of it.
+      await ownerPage.setViewportSize({ width: 1920, height: 900 });
 
       // The pane has to survive a SERVER render. `MeasuredPane` hands
       // `useDefaultLayout` a no-op storage on the server for the same reason

@@ -167,19 +167,27 @@ test.describe('ported master-detail screens', () => {
 
       // The layout is saved under this screen's OWN key, so two screens cannot
       // share a width. Written only after a real interaction, hence the drag.
+      // Drag the last handle, in whichever direction THIS screen has room.
+      // Neither is universally available, and assuming one is how this read as
+      // a scaffold failure twice: rightwards needs the SPACER to have width to
+      // give up, and `/notes` opens its detail at 900px and leaves it SIX
+      // pixels; leftwards needs the DETAIL to sit above its own minimum, and
+      // `/files` does not. A screen that cannot move its divider EITHER way is
+      // the real failure this line is for.
       const before = (await detail.boundingBox())!;
       const handle = scaffoldHandles(ownerPage).last();
-      const grip = (await handle.boundingBox())!;
-      await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
-      await ownerPage.mouse.down();
-      await ownerPage.mouse.move(grip.x + grip.width / 2 + 100, grip.y + grip.height / 2, {
-        steps: 8,
-      });
-      await ownerPage.mouse.up();
-      const dragged = (await detail.boundingBox())!;
-      expect(Math.abs(dragged.width - before.width), 'the divider did not move').toBeGreaterThan(
-        20,
-      );
+      const nudge = async (dx: number) => {
+        const grip = (await handle.boundingBox())!;
+        const y = grip.y + grip.height / 2;
+        await ownerPage.mouse.move(grip.x + grip.width / 2, y);
+        await ownerPage.mouse.down();
+        await ownerPage.mouse.move(grip.x + grip.width / 2 + dx, y, { steps: 8 });
+        await ownerPage.mouse.up();
+        return (await detail.boundingBox())!;
+      };
+      let moved = await nudge(-100);
+      if (Math.abs(moved.width - before.width) <= 20) moved = await nudge(100);
+      expect(Math.abs(moved.width - before.width), 'the divider did not move').toBeGreaterThan(20);
 
       const key = await ownerPage.evaluate(
         (id) =>
@@ -192,7 +200,7 @@ test.describe('ported master-detail screens', () => {
 
       await ownerPage.reload();
       await expect
-        .poll(async () => Math.abs((await detail.boundingBox())!.width - dragged.width))
+        .poll(async () => Math.abs((await detail.boundingBox())!.width - moved.width))
         .toBeLessThan(3);
     });
   }
