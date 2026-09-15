@@ -24,15 +24,21 @@ const SelectValue = SelectPrimitive.Value;
 // Reminder delivery **36**, Event reminders from **36**, Thinking effort
 // **36** — every select 4px short of every `Input` beside it. `Input` is a
 // fixed `h-10`, and 33 of the 44 files that use a trigger also render an
-// `Input`, so matching it is what the overwhelmingly common case wants.
+// `Input`, so matching it is what the overwhelmingly common case wants. The
+// three selects on `/settings/embedding` had each been pinned to `h-10` by
+// hand for exactly this reason; they are plain `<SelectTrigger>` again.
 //
 // No `2xs`: `Button` has one because chips needed a 24px rung, and a 24px
 // select trigger has no room for a value, a chevron and a focus ring.
 //
-// Each rung carries its type size the way `Button`'s do — a 32px trigger
-// holding 14px text is a rung that has been half-taken. The one deliberate
-// exception is the studio header's agent picker, which stays `text-sm` at
-// `xs`; it names the thing the whole page is about.
+// Each rung carries its type size the way `Button`'s do, NOT the way `Input`'s
+// does. `Input` holds `text-base` below `md` on every rung because iOS Safari
+// zooms in on a focused field whose text is under 16px; a trigger is a
+// `<button>` that is never a text-entry target and shows a label we wrote, so
+// it shrinks like a button's. 7 of the 8 `h-8` call sites had already paired
+// the height with `text-xs` by hand. The one deliberate exception is the
+// studio header's agent picker, which stays `text-sm` at `xs`; it names the
+// thing the whole page is about.
 //
 // Unlike `Input`, `size` needs no `Omit` here. Radix types the trigger as
 // `SelectTriggerProps extends PrimitiveButtonProps` — button attributes — and

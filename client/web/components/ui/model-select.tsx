@@ -347,6 +347,10 @@ function SortDropdown({
     //
     // `w-auto` is load-bearing: `SelectTrigger` is `w-full`, which in this row
     // would push the search field out of the popover.
+    //
+    // The height is off the size scale on purpose: 28px at 11px text is below
+    // `xs` (32px), and taking `xs` would grow this control inside a popover
+    // header sized around the search field.
     <Select value={value} onValueChange={(k) => onChange(k as ModelSelectSortKey)}>
       <SelectTrigger
         className="mr-2 h-7 w-auto gap-1 px-1.5 text-[11px] text-muted-foreground"

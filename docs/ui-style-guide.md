@@ -479,6 +479,33 @@ arrangement) — do not hand-roll the string.
     count. It is `Omit`ted from the props, so a field that wants a character
     width says `className="w-…"` like the rest of the layout.
 
+- **`SelectTrigger` has the same scale, and its `default` matches `Input`'s.**
+  A select and a field on one form must be the same height, so the rungs and
+  heights are identical to the table above:
+
+  | `SelectTrigger size=` | Height | Type      |
+  | --------------------- | ------ | --------- |
+  | `xs`                  | 32px   | `text-xs` |
+  | `sm`                  | 36px   | `text-sm` |
+  | `default`             | 40px   | `text-sm` |
+  | `lg`                  | 44px   | `text-sm` |
+  - **The default was `h-9` until the scale landed, and that 4px was a live bug
+    source.** `/settings/profile` rendered Site name 40, Peer name 40,
+    Speciality **36**, Timezone 40, Locale 40, then three more selects at
+    **36** — every select short of every field beside it, in one form stack.
+    It does not show up in a screenshot: **measure heights from the DOM.**
+  - **Unlike `Input`, the rung carries the type size**, as `Button`'s does. The
+    iOS-zoom rule above is about a focused TEXT field; a trigger is a `<button>`
+    showing a label we wrote, so it shrinks like a button's. Don't take `xs` for
+    its height and add `text-sm` back without saying why (the studio header's
+    agent picker is the one such site: it names what the page is about).
+  - **No `2xs`**, for its own reason: 24px has no room for a value, a chevron
+    and a focus ring.
+  - `w-full` is already in the trigger's base classes; adding it is noise.
+  - **Below `xs`, stay off the scale rather than rounding up.** A 28px control
+    is a pill or a dev-tool row, not a small field, and rounding it to 32 moves
+    everything around it. Say so beside it.
+
 - **A field whose box belongs to its wrapper stays raw**, behind the rule's
   `eslint-disable` with the reason written beside it — the field analogue of
   reaching for `RowButton` instead of `Button`. A tag entry inside a bordered
@@ -541,37 +568,6 @@ arrangement) — do not hand-roll the string.
   `N of M selected` count, and `searchable` for a filter bar (text search + an
   All / On / Off selection filter, shown once a list exceeds ~6 items). Used by
   the agents Tools/Skills/Delegates pickers and AI workers.
-
-#### Control heights: the size scale
-
-**`SelectTrigger` takes a `size` rung, never a hand-set `h-*`.** The rungs are
-`Button`'s, at `Button`'s heights, so a select, a text field and a button in
-one row line up without anyone measuring:
-
-| rung | height | type | use it for |
-| --- | --- | --- | --- |
-| `xs` | 32px | `text-xs` | dense dev-tool and toolbar rows |
-| `sm` | 36px | `text-sm` | filter bars above a list |
-| `default` | 40px | `text-sm` | **a labelled form field** — matches `Input` |
-| `lg` | 44px | `text-sm` | the `Button` `lg` row |
-
-- **`default` is `h-10`, matching `Input`.** It was `h-9` until the scale
-  landed, and that 4px was a live bug source: `/settings/profile` rendered Site name 40,
-  Peer name 40, Speciality **36**, Timezone 40, Locale 40, then three more
-  selects at **36** — every select short of every field beside it, in one form
-  stack. It does not show up in a screenshot; measure heights from the DOM.
-- **There is no `2xs`.** `Button` has one because chips needed a 24px rung; a
-  24px trigger has no room for a value, a chevron and a focus ring.
-- **The rung carries the type size**, as `Button`'s do. Don't take `xs` for its
-  height and then add `text-sm` back — if 14px text is genuinely wanted at
-  32px, say so explicitly and say why (the studio header's agent picker is the
-  one such site: it names the thing the whole page is about).
-- `w-full` is already in the trigger's base classes. Adding it to `className`
-  is noise.
-- **`Input` has no size scale yet** — it is a fixed `h-10`, which is why the
-  table above is the select's alone. Giving `Input` the same four rungs is the
-  open follow-up (`docs/handover-form-controls.md`), and it is what would let
-  the last chrome-less text fields stop being exceptions.
 
 ### 6e. The outer settings-card: a form in a content area wears the card
 

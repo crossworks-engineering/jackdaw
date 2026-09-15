@@ -72,7 +72,8 @@ export function ChatAgentOverride({
         disabled={pending}
       >
         <SelectTrigger
-          className="h-8 w-48 text-xs"
+          size="xs"
+          className="w-48"
           title="Pin a specific responder agent to this chat. Default = global priority."
           aria-label="Responder agent override"
         >

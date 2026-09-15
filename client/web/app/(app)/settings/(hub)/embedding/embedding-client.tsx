@@ -341,10 +341,7 @@ function EmbeddingForm({
             {/* No `name`: this one never submits. It is a shortcut that fills the
                 perf fields below, and those carry the values. */}
             <Select value={currentPreset} onValueChange={applyPreset}>
-              {/* h-10 on all three triggers: `SelectTrigger` defaults to h-9, and
-                  the raw <select> each replaced was h-10 — the height of every
-                  Input on this form. Measured at 36 against 40 before this. */}
-              <SelectTrigger id="perf_preset" className="h-10">
+              <SelectTrigger id="perf_preset">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -552,7 +549,6 @@ function RouteFields({
           >
             <SelectTrigger
               id={`${prefix}_provider`}
-              className="h-10"
               aria-describedby={hintId(`${prefix}_provider`)}
             >
               <SelectValue />
@@ -610,7 +606,6 @@ function RouteFields({
         >
           <SelectTrigger
             id={`${prefix}_api_key_id`}
-            className="h-10"
             aria-describedby={hintId(`${prefix}_api_key_id`)}
           >
             <SelectValue />

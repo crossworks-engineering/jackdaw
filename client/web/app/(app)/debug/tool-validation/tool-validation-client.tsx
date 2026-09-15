@@ -90,7 +90,7 @@ export function ToolValidationClient() {
           {/* `days` is a number and Radix speaks only strings, so it is converted
               at both ends rather than letting a "7" reach the query key. */}
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-8 w-24 text-sm text-foreground" aria-label="Window">
+            <SelectTrigger size="xs" className="w-24 text-sm text-foreground" aria-label="Window">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
