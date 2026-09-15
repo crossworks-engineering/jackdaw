@@ -130,16 +130,25 @@ test.describe('settings pane', () => {
       // Exactly one scrollbar in the content pane: the pane's own. A screen
       // that keeps its old `h-full overflow-y-auto` nests a second.
       const body = content(ownerPage);
-      const scrollers = await body.evaluate(
-        (el) =>
-          Array.from(el.querySelectorAll('*')).filter((node) => {
-            const s = getComputedStyle(node);
-            return (
-              (s.overflowY === 'auto' || s.overflowY === 'scroll') &&
-              node.scrollHeight > node.clientHeight
-            );
-          }).length,
-      );
+      // Only PANE-HEIGHT scrollers count. The failure this guards is a screen
+      // that kept its old `h-full overflow-y-auto` and nested a second full
+      // pane inside the scaffold's own — two scrollbars down the same edge. A
+      // child that deliberately CAPS itself is a bounded region the design
+      // asked for: the same check in `master-detail-screens.spec.ts` failed
+      // `/models` over a `max-h-[480px]` <pre>. No settings screen trips it
+      // today; this keeps the two copies of the assertion honest together.
+      const scrollers = await body.evaluate((el) => {
+        const full = (el as HTMLElement).clientHeight;
+        return Array.from(el.querySelectorAll('*')).filter((node) => {
+          const n = node as HTMLElement;
+          const s = getComputedStyle(n);
+          return (
+            (s.overflowY === 'auto' || s.overflowY === 'scroll') &&
+            n.scrollHeight > n.clientHeight &&
+            n.clientHeight >= full - 8
+          );
+        }).length;
+      });
       expect(scrollers, 'the content pane should have at most one scrollbar').toBeLessThanOrEqual(
         1,
       );

@@ -153,16 +153,25 @@ test.describe('ported master-detail screens', () => {
 
       // Exactly one scrollbar in the detail pane: MasterDetail's own. A pane
       // that keeps its old `h-full overflow-y-auto` nests a second.
-      const scrollers = await detail.evaluate(
-        (pane) =>
-          Array.from(pane.querySelectorAll('*')).filter((el) => {
-            const s = getComputedStyle(el);
-            return (
-              (s.overflowY === 'auto' || s.overflowY === 'scroll') &&
-              el.scrollHeight > el.clientHeight
-            );
-          }).length,
-      );
+      // Only PANE-HEIGHT scrollers count. The failure this guards is a screen
+      // that kept its old `h-full overflow-y-auto` and nested a second full
+      // pane inside the scaffold's own — two scrollbars down the same edge. A
+      // child that deliberately CAPS itself is a bounded region the design
+      // asked for: `/models` renders a raw payload in a `max-h-[480px]
+      // overflow-auto` <pre>, 478px tall inside a 900px pane, and counting it
+      // failed a screen that is doing exactly what it should.
+      const scrollers = await detail.evaluate((pane) => {
+        const full = (pane as HTMLElement).clientHeight;
+        return Array.from(pane.querySelectorAll('*')).filter((el) => {
+          const node = el as HTMLElement;
+          const s = getComputedStyle(node);
+          return (
+            (s.overflowY === 'auto' || s.overflowY === 'scroll') &&
+            node.scrollHeight > node.clientHeight &&
+            node.clientHeight >= full - 8
+          );
+        }).length;
+      });
       expect(scrollers, 'the detail pane should have at most one scrollbar').toBeLessThanOrEqual(1);
 
       // The layout is saved under this screen's OWN key, so two screens cannot
