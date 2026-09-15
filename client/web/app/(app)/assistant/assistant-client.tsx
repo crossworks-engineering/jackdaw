@@ -5,13 +5,8 @@ import { type ContextRef, useAssistantDock } from '@/components/assistant/assist
 import { useTurnStage } from '@/components/assistant/use-turn-stage';
 import { type ThoughtEvent, useTurnStream } from '@/components/assistant/use-turn-stream';
 import { TurnAnnouncer } from '@mantle/web-ui/live-turn';
-import {
-  ArtifactView,
-  ChannelBadge,
-  PromptCard,
-  StoredAttachmentView,
-} from './assistant-turn-parts';
 import { buildContextPreamble, groupTurns } from './assistant-turns';
+import { TurnRow, type LiveTurn } from './turn-row';
 import type { Artifact, Message } from './assistant-turns';
 import {
   SHARE_LOCATION_KEY,
@@ -24,7 +19,6 @@ import {
 } from './assistant-thread-state';
 import { useVoiceInput } from './use-voice-input';
 import { parseFlag, serialiseFlag, usePersistedState } from '@/lib/use-persisted-state';
-import { ThoughtTrail } from '@/components/assistant/thought-trail';
 import { AiThinkingOrb } from '@/components/ai-thinking-orb';
 import { LightboxImages } from '@/components/image-lightbox';
 import {
@@ -38,22 +32,15 @@ import {
   Square,
   X,
 } from 'lucide-react';
-import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { agentAccent } from '@/lib/agent-color';
 import { composerKeyAction } from '@/lib/composer-keys';
 import { GeneratedAvatar } from '@mantle/web-ui/generated-avatar';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
-import { RichText } from '@/components/assistant/rich-text';
 import { ASSISTANT_TURN_MAX_CHARS, longMessageNoteTitle } from '@mantle/web-ui/assistant-limits';
 import { Button } from '@mantle/web-ui/ui/button';
 import { ComposerToolbar } from '@/components/assistant/composer-toolbar';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
-import { CopyButton } from '@mantle/web-ui/copy-button';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import { assetUrl } from '@mantle/web-ui/asset-url';
-import { fileRawSrc, mediaFileId } from '@mantle/content-core/markdown-refs';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
@@ -62,39 +49,14 @@ import {
   combineCorrectedPrompt,
 } from '@/components/assistant/replace-turn';
 
-/**
- * Image handling for the LIVE STREAM buffer (the lightweight ReactMarkdown
- * render; the durable reply below it goes through RichText/TipTap instead).
- *
- * Saskia places a stored picture with `![alt](media:<file-id>)`. ReactMarkdown
- * knows nothing of that scheme, so left alone it emits `<img src="media:…">`
- * and the browser paints a broken-image icon for the rest of the turn. Resolve
- * it to the same owner-gated bytes route RichText and the gallery use.
- *
- * A HALF-TYPED marker never reaches here at all: `![alt](media:` isn't a
- * complete markdown image, so it stays literal text until the closing paren
- * arrives, which is the quiet degradation we want mid-stream.
- */
-const STREAM_MARKDOWN_COMPONENTS = {
-  img: ({ src, alt }: { src?: string | Blob; alt?: string }) => {
-    const href = typeof src === 'string' ? src : '';
-    const nodeId = mediaFileId(href);
-    // A media: id that doesn't resolve (model-invented, or another owner's)
-    // 401s at the route and shows as a broken image, never as someone else's
-    // picture. Same gate the durable render and the gallery sit behind.
-    const resolved = nodeId ? assetUrl(fileRawSrc(nodeId)) : href;
-    if (!resolved) return null;
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={resolved} alt={alt ?? ''} className="max-h-96 rounded-lg object-contain" />;
-  },
-};
-
 /** Page size for the initial load and each scroll-up fetch. */
 const PAGE_SIZE = 100;
 
 /** Marked-block pills shown before the rest collapse behind a "+N more" expander. */
 const MARK_PILL_LIMIT = 4;
 
+/** Everything the in-flight turn renders from. Bundled so a settled row can be
+ *  handed `null` and compare equal frame to frame. */
 export function AssistantClient({
   initialMessages,
   agentReady,
@@ -1121,203 +1083,50 @@ export function AssistantClient({
   // the element keeps React from walking it on a keystroke. It still rebuilds
   // when the conversation actually changes, streamReply included — that one is
   // now coalesced to one commit per frame by use-turn-stream.
+  // One object for everything the in-flight turn reads. It changes per frame —
+  // that is the point — but it reaches only the row that is streaming; every
+  // settled row is handed `null` and compares equal, so `TurnRow`'s memo holds.
+  const live = useMemo<LiveTurn>(
+    () => ({
+      streamTrail,
+      streamReply,
+      streamPhase,
+      stageLabel,
+      streamStartedAt,
+      streamTokens,
+      streamTokensApprox,
+      streamReasoning,
+      trailMode,
+    }),
+    [
+      streamTrail,
+      streamReply,
+      streamPhase,
+      stageLabel,
+      streamStartedAt,
+      streamTokens,
+      streamTokensApprox,
+      streamReasoning,
+      trailMode,
+    ],
+  );
+
   const transcript = useMemo(
     () => (
       <ul className="mx-auto flex max-w-5xl flex-col">
         {turns.map((turn, idx) => {
           const isLast = turn.id === lastTurnId;
           const showTyping = isLast && sending && !turn.response;
-          // A superseded pair (cancelled + re-sent with a correction)
-          // stays visible but dimmed, tagged "replaced" on the prompt
-          // card — a truthful record the model no longer sees.
-          const replaced = !!(turn.prompt?.superseded || turn.response?.superseded);
           return (
-            <li
+            <TurnRow
               key={turn.id}
-              className={
-                'group/turn grid gap-x-10 gap-y-3 pb-10 @3xl/thread:grid-cols-[minmax(0,1fr)_300px]' +
-                // A thin divider between turns, in the agent's accent
-                // colour (the accent moved here from the old left border).
-                (idx > 0 ? ' border-t pt-10' : '') +
-                (replaced ? ' opacity-60' : '')
-              }
-              style={
-                idx > 0
-                  ? {
-                      borderTopColor: `color-mix(in oklab, ${accent.border} 20%, transparent)`,
-                    }
-                  : undefined
-              }
-            >
-              {/* RIGHT MARGIN (DOM-first so it stacks above the
-                        response on mobile): the user's prompt, anchored
-                        beside the response it produced. */}
-              <div className="@3xl/thread:col-start-2 @3xl/thread:row-start-1">
-                {turn.prompt && <PromptCard message={turn.prompt} />}
-              </div>
-
-              {/* MAIN CANVAS: Saskia's reply as a rich document. */}
-              <div className="min-w-0 @3xl/thread:col-start-1 @3xl/thread:row-start-1">
-                {turn.response ? (
-                  turn.response.status === 'failed' ? (
-                    // Durable failed turn (reloaded after an error).
-                    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive-ink">
-                      <span>{turn.response.error || 'This turn failed.'}</span>
-                    </div>
-                  ) : turn.response.status === 'pending' ? (
-                    // Durable pending turn (reloaded mid-flight) — the runner
-                    // is still working; show the bare thinking orb (no bubble:
-                    // a tinted background behind the orb reads as a stray card).
-                    <div className="inline-flex items-center gap-2 py-2">
-                      <AiThinkingOrb className="shrink-0" />
-                      <span className="text-xs text-muted-foreground">
-                        {agentName ?? 'Assistant'} is working…
-                      </span>
-                    </div>
-                  ) : (
-                    <article>
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {agentName ?? 'Assistant'}
-                        </span>
-                        <ChannelBadge channel={turn.response.channel} />
-                      </div>
-                      {turn.response.thoughts && turn.response.thoughts.length > 0 && (
-                        <ThoughtTrail
-                          steps={turn.response.thoughts}
-                          tokens={turn.response.tokens ?? null}
-                          durationMs={turn.response.durationMs ?? null}
-                          timestamp={turn.response.createdAt}
-                          className="mb-3 max-w-xl"
-                        />
-                      )}
-                      <div>
-                        <RichText markdown={turn.response.text} />
-                        {turn.response.attachments && turn.response.attachments.length > 0 && (
-                          <div className="mt-3 flex flex-col gap-2">
-                            {turn.response.attachments.map((a, i) => (
-                              <StoredAttachmentView key={`${turn.id}-att-${i}`} attachment={a} />
-                            ))}
-                          </div>
-                        )}
-                        {turn.response.artifacts && turn.response.artifacts.length > 0 && (
-                          <div className="mt-3 flex flex-col gap-2">
-                            {turn.response.artifacts.map((a, i) => (
-                              <ArtifactView key={`${turn.id}-art-${i}`} artifact={a} />
-                            ))}
-                          </div>
-                        )}
-                        {turn.response.toolStats && turn.response.toolStats.failed > 0 && (
-                          // Always visible (not hover-gated): the runtime's own
-                          // ledger says some calls failed, and the reply may not
-                          // admit it. Tooltip lists the failed slugs + errors.
-                          <p
-                            className="mt-1.5 text-[10px] text-destructive-ink"
-                            title={turn.response.toolStats.failures
-                              .map((f) => `${f.slug}: ${f.error}`)
-                              .join('\n')}
-                          >
-                            {turn.response.toolStats.failed} of {turn.response.toolStats.calls} tool
-                            call
-                            {turn.response.toolStats.calls === 1 ? '' : 's'} failed this turn
-                          </p>
-                        )}
-                        <div className="mt-1.5 flex items-center justify-between gap-2 pointer-events-none opacity-0 transition-opacity group-hover/turn:pointer-events-auto group-hover/turn:opacity-100">
-                          <div className="flex items-baseline gap-2 text-[10px] text-muted-foreground">
-                            <span title={formatDateTime(turn.response.createdAt)}>
-                              {new Date(turn.response.createdAt).toLocaleTimeString()}
-                            </span>
-                            {turn.response.model && (
-                              <code className="font-mono">{turn.response.model}</code>
-                            )}
-                            {turn.response.toolStats && (
-                              <span
-                                title={
-                                  `${turn.response.toolStats.succeeded} succeeded` +
-                                  (turn.response.toolStats.queued > 0
-                                    ? ` · ${turn.response.toolStats.queued} awaiting approval`
-                                    : '') +
-                                  (turn.response.toolStats.skipped > 0
-                                    ? ` · ${turn.response.toolStats.skipped} not run (guards or Stop)`
-                                    : '')
-                                }
-                              >
-                                {turn.response.toolStats.calls} tool call
-                                {turn.response.toolStats.calls === 1 ? '' : 's'}
-                                {turn.response.toolStats.queued > 0 &&
-                                  ` · ${turn.response.toolStats.queued} awaiting approval`}
-                              </span>
-                            )}
-                          </div>
-                          <CopyButton text={turn.response.text} />
-                        </div>
-                      </div>
-                    </article>
-                  )
-                ) : showTyping ? (
-                  // Once status events arrive, the thinking orb gives way to
-                  // the live thought trail building in place, and — when
-                  // token streaming is on — the reply itself typing out
-                  // below it. Before any of that (or on the poll fallback)
-                  // keep the thinking orb. The streamed reply is advisory:
-                  // when the durable turn.response lands above, this whole
-                  // branch is replaced by the authoritative <article>.
-                  streamTrail.length > 0 || streamReply ? (
-                    // aria-busy marks the subtree as still arriving, so a
-                    // screen reader treats a half-written reply as in flux
-                    // rather than as the finished answer. The sr-only line
-                    // stays for anyone who navigates INTO the turn; what gets
-                    // announced without navigating is TurnAnnouncer's job.
-                    <div className="max-w-xl" aria-busy={streamPhase === 'streaming'}>
-                      <span className="sr-only">
-                        {agentName ?? 'Assistant'} is {stageLabel ?? 'typing'}
-                      </span>
-                      {streamTrail.length > 0 && (
-                        <ThoughtTrail
-                          steps={streamTrail}
-                          live
-                          mode={trailMode}
-                          startedAt={streamStartedAt}
-                          tokens={streamTokens}
-                          tokensApprox={streamTokensApprox}
-                          reasoning={streamReasoning}
-                        />
-                      )}
-                      {streamReply && (
-                        // Live buffer: a lightweight ReactMarkdown render, NOT the
-                        // TipTap RichText editor — the editor's setContent() runs
-                        // flushSync and collides with React mid-render when the buffer
-                        // changes every token. The durable reply below swaps in RichText.
-                        <div
-                          className={`prose dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 ${
-                            streamTrail.length > 0 ? 'mt-3' : ''
-                          }`}
-                        >
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={STREAM_MARKDOWN_COMPONENTS}
-                          >
-                            {streamReply}
-                          </ReactMarkdown>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="inline-flex items-center gap-2 py-2">
-                      <span className="sr-only">
-                        {agentName ?? 'Assistant'} is {stageLabel ?? 'typing'}
-                      </span>
-                      <AiThinkingOrb label={stageLabel} className="shrink-0" />
-                      {stageLabel && (
-                        <span className="text-xs text-muted-foreground" aria-hidden>
-                          {stageLabel}
-                        </span>
-                      )}
-                    </div>
-                  )
-                ) : null}
-              </div>
-            </li>
+              turn={turn}
+              idx={idx}
+              accentBorder={accent.border}
+              agentName={agentName}
+              showTyping={showTyping}
+              live={showTyping ? live : null}
+            />
           );
         })}
         {foreignBusy && (
@@ -1328,26 +1137,12 @@ export function AssistantClient({
         )}
       </ul>
     ),
-    [
-      accent.border,
-      agentName,
-      foreignBusy,
-      lastTurnId,
-      sending,
-      stageLabel,
-      streamReasoning,
-      streamReply,
-      // Phase changes a handful of times a turn (idle → streaming → done), not
-      // per frame, so keeping the transcript honest about aria-busy does not
-      // undo v0.6.50's memoisation.
-      streamPhase,
-      streamStartedAt,
-      streamTokens,
-      streamTokensApprox,
-      streamTrail,
-      trailMode,
-      turns,
-    ],
+    // The individual stream values are gone from here: they travel inside
+    // `live`, and `live` reaches only the streaming row. This list still
+    // invalidates once per frame through `live`, which recreates the row
+    // ELEMENTS — cheap — while `TurnRow`'s memo stops the settled ones from
+    // re-rendering, which is the part that cost.
+    [accent.border, agentName, foreignBusy, lastTurnId, live, sending, turns],
   );
 
   return (
