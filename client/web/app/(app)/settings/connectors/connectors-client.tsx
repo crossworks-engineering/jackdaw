@@ -44,7 +44,6 @@ import {
   ListCardTitle,
 } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
-import { mcpOAuthApp, mcpOAuthScope } from '@/lib/contract-next';
 
 /** Connector shapes come from the contract package (pins ≥ 0.232.73). */
 type McpBinding = NonNullable<ToolGroupIntegrationDTO['mcp']>;
@@ -141,7 +140,7 @@ function formFromCatalog(c: CatalogEntry): FormState {
 
 function formFromConnector(c: ConnectorRow): FormState {
   const mcp = c.integration?.mcp;
-  const app = mcpOAuthApp(mcp?.oauth);
+  const app = mcp?.oauth?.client;
   return {
     slug: c.slug,
     name: c.name,
@@ -152,7 +151,7 @@ function formFromConnector(c: ConnectorRow): FormState {
     clientId: app?.source === 'manual' ? (mcp?.oauth?.clientId ?? '') : '',
     clientSecret: '',
     authorizationServer: app?.source === 'manual' ? (app.authorizationServer ?? '') : '',
-    scope: mcpOAuthScope(mcp?.oauth) ?? '',
+    scope: mcp?.oauth?.scope ?? '',
   };
 }
 
