@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { useAssistantDock } from '@/components/assistant/assistant-dock';
+import { useDockActions } from '@/components/assistant/assistant-dock';
 import { usePendingQuestions, usePendingQuestionsSync } from './use-pending-questions';
 import { questionPreview, RUN_BUDGET_SLUG } from './types';
 
@@ -35,7 +35,7 @@ export function PendingQuestionWatcher() {
   usePendingQuestionsSync();
   const { questions, hasLoaded } = usePendingQuestions();
   const toast = useToast();
-  const { openAssistant } = useAssistantDock();
+  const { openAssistant } = useDockActions();
 
   const seen = useRef<Set<string> | null>(null);
 

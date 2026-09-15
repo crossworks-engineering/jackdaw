@@ -15,7 +15,7 @@
  */
 
 import { useEffect } from 'react';
-import { useAssistantDock } from '@/components/assistant/assistant-dock';
+import { useDockActions } from '@/components/assistant/assistant-dock';
 import { DevToolsProvider, useDevTools } from './context';
 import { DevToolsSidebar } from './sidebar';
 import { RequestBuilder } from './request-builder';
@@ -24,7 +24,7 @@ import type { AgentToolInfo } from '@/lib/dev-tools/types';
 
 function ShellInner() {
   const { refreshAgentTools } = useDevTools();
-  const { registerTurnListener } = useAssistantDock();
+  const { registerTurnListener } = useDockActions();
 
   // A delegated Toolsmith run may have created/updated/deleted tools — reflect
   // it in the console's Agent-tools list when any turn settles while this

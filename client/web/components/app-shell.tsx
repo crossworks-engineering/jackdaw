@@ -34,7 +34,7 @@ import { Sheet, SheetContent, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { ToastProvider } from '@mantle/web-ui/ui/toast';
 import { PageTitleProvider } from '@/components/layout/page-title';
 import { UploadProvider, UploadDock, useUploads } from '@/components/uploads/upload-provider';
-import { AssistantDockProvider, useAssistantDock } from '@/components/assistant/assistant-dock';
+import { AssistantDockProvider, useDockLayout } from '@/components/assistant/assistant-dock';
 import { AssistantPanel } from '@/components/assistant/assistant-panel';
 import { HelpRailProvider, useHelpRail } from '@/components/help/help-rail-context';
 import { HelpRail } from '@/components/help/help-rail';
@@ -217,7 +217,7 @@ function ShellFrame({
     docked: assistantDocked,
     dockWidth,
     dockResizing,
-  } = useAssistantDock();
+  } = useDockLayout();
   const assistantW = assistantPanel === 'open' && assistantDocked ? `${dockWidth}px` : '0rem';
   // The help column's width, published as `--help-w` so <main> shrinks beside it
   // exactly as it does for the assistant. 0 whenever the rail is closed.

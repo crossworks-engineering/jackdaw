@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAssistantDock } from '@/components/assistant/assistant-dock';
+import { useDockActions } from '@/components/assistant/assistant-dock';
 
 /**
  * The assistant is no longer a screen you go to — it's a global content-area
@@ -15,7 +15,7 @@ import { useAssistantDock } from '@/components/assistant/assistant-dock';
  */
 export default function AssistantPage() {
   const router = useRouter();
-  const { openAssistant } = useAssistantDock();
+  const { openAssistant } = useDockActions();
 
   useEffect(() => {
     const agent = new URLSearchParams(window.location.search).get('agent') ?? undefined;

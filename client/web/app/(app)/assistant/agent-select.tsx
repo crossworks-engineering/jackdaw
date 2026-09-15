@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
-import { useAssistantDock } from '@/components/assistant/assistant-dock';
+import { useDockActions } from '@/components/assistant/assistant-dock';
 import type { AssistantAgentOption } from '@mantle/client-types';
 
 /** Agent picker for the assistant panel. Switching updates the selected agent
@@ -20,7 +20,7 @@ export function AgentSelect({
   agents: AssistantAgentOption[];
   selected: string;
 }) {
-  const { setActiveAgentSlug } = useAssistantDock();
+  const { setActiveAgentSlug } = useDockActions();
   function pick(slug: string) {
     setActiveAgentSlug(slug);
   }

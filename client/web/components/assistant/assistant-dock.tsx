@@ -277,7 +277,75 @@ type AssistantDockApi = {
   togglePicking: () => void;
 };
 
-const Ctx = createContext<AssistantDockApi | null>(null);
+/**
+ * The API above, partitioned by WHAT MAKES IT CHANGE. Derived with `Pick` so
+ * the field docs stay in one place and the three cannot drift from it.
+ */
+type DockActions = Pick<
+  AssistantDockApi,
+  | 'runTurn'
+  | 'clear'
+  | 'openAssistant'
+  | 'minimize'
+  | 'close'
+  | 'toggle'
+  | 'setActiveAgentSlug'
+  | 'attachContext'
+  | 'removeContext'
+  | 'clearContext'
+  | 'setPinnedContext'
+  | 'dismissPinnedContext'
+  | 'setExtraDirective'
+  | 'setSurfaceSelection'
+  | 'setSurfaceChanges'
+  | 'toggleDocked'
+  | 'setDisplay'
+  | 'setPopout'
+  | 'startPopoutMove'
+  | 'startPopoutResize'
+  | 'popoutElRef'
+  | 'setDockWidth'
+  | 'setDockResizing'
+  | 'registerTurnListener'
+  | 'startPicking'
+  | 'stopPicking'
+  | 'togglePicking'
+>;
+type DockLayout = Pick<
+  AssistantDockApi,
+  'panel' | 'everOpened' | 'docked' | 'display' | 'popout' | 'dockWidth' | 'dockResizing'
+>;
+type DockSession = Pick<
+  AssistantDockApi,
+  | 'messages'
+  | 'busy'
+  | 'agentSlug'
+  | 'agentName'
+  | 'activeAgentSlug'
+  | 'pendingContext'
+  | 'pinnedContext'
+  | 'extraDirective'
+  | 'surfaceSelection'
+  | 'surfaceChanges'
+  | 'activeContextNodeId'
+  | 'picking'
+>;
+
+/** Compile-time proof that the three partitions cover every field. Add one to
+ *  `AssistantDockApi` without placing it, and this stops being `true`. */
+type _DockSplitIsExhaustive =
+  Exclude<
+    keyof AssistantDockApi,
+    keyof DockActions | keyof DockLayout | keyof DockSession
+  > extends never
+    ? true
+    : never;
+const _dockSplitIsExhaustive: _DockSplitIsExhaustive = true;
+void _dockSplitIsExhaustive;
+
+const ActionsCtx = createContext<DockActions | null>(null);
+const LayoutCtx = createContext<DockLayout | null>(null);
+const SessionCtx = createContext<DockSession | null>(null);
 const MAX_DOCK_MSGS = 12;
 
 /** Consecutive failed reconnects before the dock stream gives up. A successful
@@ -928,112 +996,174 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
 
   const busy = useMemo(() => messages.some((m) => m.role === 'assistant' && m.pending), [messages]);
 
-  const api = useMemo<AssistantDockApi>(
+  // ── Three contexts, not one ────────────────────────────────────────────────
+  // This was ONE value of 45 fields memoised on all 45, so a change to any of
+  // them re-rendered every consumer. Measured on /tasks: toggling `picking` —
+  // which only <PickMode/> reads — re-rendered the 630-line app shell and the
+  // question watcher just as often as PickMode itself. `messages` is in here
+  // too, so that fan-out fired on every streaming token.
+  //
+  // Split by WHAT CHANGES, which turned out to match what consumers ask for:
+  // four of the eleven want nothing but callbacks, and the app shell wants
+  // nothing but the four layout fields. Read the narrowest one that covers you.
+  // Stable for the life of the provider — every one is a useCallback with
+  // stable deps, or a ref. A consumer that only calls things never re-renders.
+  const actions = useMemo<DockActions>(
     () => ({
       runTurn,
-      messages,
-      busy,
-      agentSlug,
-      agentName,
       clear,
-      panel,
-      everOpened,
       openAssistant,
       minimize,
       close,
       toggle,
-      activeAgentSlug,
       setActiveAgentSlug,
-      pendingContext,
       attachContext,
       removeContext,
       clearContext,
-      pinnedContext,
       setPinnedContext,
       dismissPinnedContext,
-      extraDirective,
       setExtraDirective,
-      surfaceSelection,
       setSurfaceSelection,
-      surfaceChanges,
       setSurfaceChanges,
-      docked,
       toggleDocked,
-      display,
       setDisplay,
-      popout,
       setPopout,
       startPopoutMove,
       startPopoutResize,
       popoutElRef,
-      dockWidth,
       setDockWidth,
-      dockResizing,
       setDockResizing,
-      activeContextNodeId,
       registerTurnListener,
-      picking,
       startPicking,
       stopPicking,
       togglePicking,
     }),
     [
       runTurn,
-      messages,
-      busy,
-      agentSlug,
-      agentName,
       clear,
-      panel,
-      everOpened,
       openAssistant,
       minimize,
       close,
       toggle,
-      activeAgentSlug,
       setActiveAgentSlug,
-      pendingContext,
       attachContext,
       removeContext,
       clearContext,
-      pinnedContext,
       setPinnedContext,
       dismissPinnedContext,
-      extraDirective,
       setExtraDirective,
-      surfaceSelection,
       setSurfaceSelection,
-      surfaceChanges,
       setSurfaceChanges,
-      docked,
       toggleDocked,
-      display,
       setDisplay,
-      popout,
       setPopout,
       startPopoutMove,
       startPopoutResize,
       popoutElRef,
-      dockWidth,
       setDockWidth,
-      dockResizing,
       setDockResizing,
-      activeContextNodeId,
       registerTurnListener,
-      picking,
       startPicking,
       stopPicking,
       togglePicking,
     ],
   );
 
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
+  // Panel geometry. Changes when the operator moves or resizes the dock —
+  // not when a turn streams. This is what the app shell reads.
+  const layout = useMemo<DockLayout>(
+    () => ({
+      panel,
+      everOpened,
+      docked,
+      display,
+      popout,
+      dockWidth,
+      dockResizing,
+    }),
+    [panel, everOpened, docked, display, popout, dockWidth, dockResizing],
+  );
+
+  // The conversation and its context marks. The hot one: `messages` changes
+  // per streamed token, so anything reading this re-renders with the turn.
+  const session = useMemo<DockSession>(
+    () => ({
+      messages,
+      busy,
+      agentSlug,
+      agentName,
+      activeAgentSlug,
+      pendingContext,
+      pinnedContext,
+      extraDirective,
+      surfaceSelection,
+      surfaceChanges,
+      activeContextNodeId,
+      picking,
+    }),
+    [
+      messages,
+      busy,
+      agentSlug,
+      agentName,
+      activeAgentSlug,
+      pendingContext,
+      pinnedContext,
+      extraDirective,
+      surfaceSelection,
+      surfaceChanges,
+      activeContextNodeId,
+      picking,
+    ],
+  );
+
+  return (
+    <ActionsCtx.Provider value={actions}>
+      <LayoutCtx.Provider value={layout}>
+        <SessionCtx.Provider value={session}>{children}</SessionCtx.Provider>
+      </LayoutCtx.Provider>
+    </ActionsCtx.Provider>
+  );
 }
 
+function use<T>(ctx: React.Context<T | null>, what: string): T {
+  const v = useContext(ctx);
+  if (!v) throw new Error(`use${what} must be used inside <AssistantDockProvider>`);
+  return v;
+}
+
+/** The callbacks. Referentially stable for the life of the provider, so a
+ *  component that only CALLS things never re-renders because of the dock.
+ *  Reach for this one first — four of the eleven consumers need nothing else. */
+export function useDockActions(): DockActions {
+  return use(ActionsCtx, 'DockActions');
+}
+
+/** Panel geometry: open/minimised, docked, width, the popout box. Changes when
+ *  the operator moves the dock, NOT when a turn streams. The app shell reads
+ *  this and nothing else. */
+export function useDockLayout(): DockLayout {
+  return use(LayoutCtx, 'DockLayout');
+}
+
+/** The conversation and its context marks. `messages` changes per streamed
+ *  token, so anything reading this re-renders with the turn — which is correct
+ *  for the assistant's own surfaces and wrong for everyone else. */
+export function useDockSession(): DockSession {
+  return use(SessionCtx, 'DockSession');
+}
+
+/**
+ * All three at once — so a consumer of this re-renders on ANY dock change.
+ * Correct for the assistant's own surfaces, which read from all three anyway.
+ * **If you only need callbacks, or only layout, take the narrow hook instead**;
+ * this one re-subscribes you to every streamed token.
+ */
 export function useAssistantDock(): AssistantDockApi {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useAssistantDock must be used inside <AssistantDockProvider>');
-  return ctx;
+  const actions = useDockActions();
+  const layout = useDockLayout();
+  const session = useDockSession();
+  return useMemo(() => ({ ...actions, ...layout, ...session }), [actions, layout, session]);
 }
 
 /**
