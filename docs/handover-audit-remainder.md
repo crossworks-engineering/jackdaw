@@ -607,7 +607,7 @@ clicking and neither can be automated from here.
 
 **1 · The last 15 e2e failures** (§2). The suite RUNS — 146/162 at v0.6.93, and `e2e/README.md` has the throwaway-brain recipe. §2 triages what is left: one is a spec bug, one is a known flake, four look real, the rest are unknown. Setting the `E2E_SERVER_URL` repository variable is what stops it rotting again.
 
-**2 · ~~The last 13 raw controls~~ · DONE 2026-09-15** (§15). 188 → 0, the cap is 0 and the rule is `error`. `Input` gained a size scale on the way, which is what unblocked them, and the browser pass caught a 4px height regression the conversion introduced. Two things came out of it and are still open: arrow keys move focus but not selection in a `RadioGroup` (unconfirmed whether kit-wide), and `SelectTrigger` wants the size scale `Input` just got — §15's last section has both.
+**2 · ~~The last 13 raw controls~~ · DONE 2026-09-15** (§15). 188 → 0, the cap is 0 and the rule is `error`. `Input` gained a size scale on the way, which is what unblocked them, and the browser pass caught a 4px height regression the conversion introduced. The two follow-ups it raised are **also done**: `SelectTrigger` got the same rungs in v0.6.98, and the radio groups that moved focus but not the selection are fixed kit-wide in §16.
 
 **3 · Dependency decisions** (§3). **Nothing is open.** `@tanstack/react-table` 9 (native API) and `electron` 44 are done; `vite` 8, `typescript` 7 and `vitest` 5 are all blocked upstream, so there is no decision to take. The one thing worth knowing: TypeScript's available step is **6**, not 7 — the eslint parser caps at `<6.1.0`, and the old table hid this by listing only 7.x as "latest".
 
@@ -847,20 +847,157 @@ controls on that form measure 40.
 `pnpm verify` green at `--max-warnings 0`; `pnpm e2e` **161 passed, 1 skipped**,
 the six heartbeats specs among them.
 
-### Two things left open
+### Two things left open — BOTH NOW CLOSED
 
-1. ⚠ **Arrow keys move focus in a `RadioGroup` but do not move the selection.**
-   Measured three times on the heartbeats groups. Mouse works, and the form
-   follows. This is almost certainly kit-wide rather than something this pass
-   introduced — the usage passes only `value`/`onValueChange`/`className`, the
-   same as `appearance`, `onboarding` and `list-card` — but **a clean side-by-side
-   against an untouched group was not obtained** (the comparison clicks kept
-   missing their targets), so it is recorded as unconfirmed, not as a known
-   kit bug. Radix 1.4.7 selects on focus only when an arrow-key flag set by a
-   _document-level_ keydown listener is already true, and the roving-focus
-   handler that moves focus runs earlier in the same bubble — that ordering is
-   where to start.
-2. **`SelectTrigger` has no size scale, and its `h-9` default does not match
-   `Input`'s `h-10`.** That mismatch is what bit the embedding form above. The
-   evidence base is now countable: ~20 call sites hand-size it, 8 of them to
-   `h-8`. It is the same argument `Input` just won, and it wants the same fix.
+Recorded here as open on 2026-09-15; both were taken the same day. Kept because
+what each turned out to be is worth more than the fact that it is fixed.
+
+1. ⚠ **Arrow keys moved focus in a `RadioGroup` but not the selection.** → **§16.**
+   Confirmed **kit-wide** (reproduced on `/settings/appearance`, never touched by
+   this pass) and it hit `ToggleGroup type="single"` too. **The diagnosis written
+   here was wrong**, and usefully so: it blamed listener ORDER — React's
+   delegated keydown running before Radix's document listener, leaving the
+   arrow-key flag false. The flag is in fact set correctly during the keydown. It
+   is the `keyup` that clears it, before a focus that `react-roving-focus` defers
+   through a `setTimeout` has even landed. A capture-phase listener — the fix
+   this note pointed at — would have changed nothing.
+2. **`SelectTrigger` had no size scale, and its `h-9` default did not match
+   `Input`'s `h-10`.** → **fixed in v0.6.98.** It got the same rungs, and its
+   default moved to `h-10`; the three `h-10` hand-pins on `/settings/embedding`
+   above are plain `<SelectTrigger>` again. The count was worse than the ~20
+   estimated here: **28 of 76 call sites** set their own height, 15 of them
+   spelling out the `h-9` default they already had. `/settings/profile` was
+   rendering four selects at 36px against four `Input`s at 40 in one stack.
+
+## 16. The radio groups that moved focus but not the selection · fixed
+
+_Both primitives that wear `role="radio"` — `RadioGroup` and `ToggleGroup
+type="single"`. Same symptom, two different upstream causes, one shared fix._
+
+`ArrowRight` on a `RadioGroup` moved focus to the next radio and moved the
+roving `tabindex` with it — and left `aria-checked` where it was. Native radios
+and the WAI-ARIA radio pattern both select on arrow, so this was a real a11y
+bug, and it was **kit-wide**, not anything about the heartbeats screens where it
+was first seen. Measured on `/settings/appearance`, whose Mode and avatar-style
+pickers had never been touched: same failure, same build, every time.
+
+**It is a race between two upstream Radix packages.** `react-roving-focus` does
+not move focus in the keydown handler — it queues `setTimeout(() =>
+focusFirst(…))` and returns. `react-radio-group` selects the newly focused item
+from `onFocus`, but only while an "arrow key is down" flag is set, and it
+clears that flag from a **document-level `keyup`**. So the selection follows
+focus only if the key is still held when the deferred focus lands. On
+`/settings/appearance` that deferral measured **50–60 ms** after keydown, with
+the focus landing as late as 150 ms when the previous click was still
+re-rendering. A quick tap loses. Every automated press loses: Playwright and CDP
+send `keyup` 0 ms after `keydown`, so `keyup` always wins — which is exactly why
+162 green e2e tests never caught it.
+
+**The proof, before any of it was believed.** A `keyup` listener registered at
+document CAPTURE that calls `stopImmediatePropagation` — so Radix's own
+document-level `keyup` never runs, and its flag is never cleared — makes
+`ArrowRight` select correctly on the unmodified app. Nothing else changed. The
+mirror image also holds: holding the real `keyup` back by 100 ms and replaying
+it makes the unmodified app behave. Both were run signed-in against a real
+brain, with REAL key presses; a programmatic `.focus()` or a synthetic
+`KeyboardEvent` does not exercise Radix's roving focus at all.
+
+⚠ **The original hypothesis — listener ORDER — was wrong, and it is worth saying
+why.** The guess was that React's delegated `keydown` runs before Radix's
+document listener, so the flag is still `false` when `onFocus` fires. The first
+half is true (a document listener registered after hydration sees the event with
+`defaultPrevented` already set), but it does not matter: the flag IS set during
+the keydown. It is the `keyup` that undoes it, before the focus it was meant to
+gate ever happens. A capture-phase listener in the kit wrapper would have fixed
+nothing. The upstream code is unchanged in `@radix-ui/react-radio-group` 1.4.7 —
+the latest — and in the 1.4.8 release candidates, so there is no version to
+upgrade to.
+
+**The fix re-asserts the selection; it does not re-implement the navigation.**
+`packages/web-ui/src/ui/radio-group.tsx` puts an `onKeyDown` on the ROOT, which
+therefore runs after the item's own handler in the same synthetic dispatch — so
+the timer it queues is queued after the one Radix queued, and runs after it. By
+then focus has landed, and clicking whatever it landed on is the whole fix.
+Gating on `event.defaultPrevented` means roving focus has already ruled on
+orientation, direction, `loop` and disabled items, and none of that is
+duplicated. An `onClickCapture` records what Radix (or a real mouse) already
+clicked during the press, so a consumer whose `onValueChange` settles
+asynchronously never takes a second one for the same choice — capture, because
+`RadioTrigger`'s own `onClick` stops propagation to keep the hidden form input
+from double-firing.
+
+Verified signed-in with real key presses, A/B on the same build: with the
+handler disabled, `ArrowRight` leaves `light:true` while focus sits on `dark`;
+with it restored, `dark:true` with exactly one synthetic click. Horizontal and
+vertical groups, both directions, wrapping at both ends, `Tab` in and out
+selecting nothing. The Mode picker really flips the app to light — the whole UI
+follows, so this drives the form and not just the ARIA.
+
+**`ToggleGroup type="single"` had the same gap, from a different cause, and is
+fixed the same way.** Radix gives a single-select toggle group `role=
+"radiogroup"` and `role="radio"` items carrying `aria-checked` — `aria-pressed`
+is explicitly removed — so assistive technology judges it by the radio pattern.
+But `react-toggle-group` has no select-on-focus at all: not a race, simply
+absent. Arrow keys moved focus and never touched the selection, on every
+`ToggleGroup` in the app (the sidebar's Work/Settings/Admin, the backdrop tint,
+the editor and file view switchers — all thirteen are `type="single"`; there is
+no `type="multiple"` anywhere yet).
+
+Because the remedy is identical, it lives in one place:
+`packages/web-ui/src/ui/selection-follows-focus.ts`, consumed by both wrappers.
+It takes an `enabled` flag so a future `type="multiple"` group — `role=
+"toolbar"`, independent toggles, `aria-pressed` — is left alone; arrowing onto a
+toolbar button must never press it.
+
+⚠ **One guard matters more here than it does for radios.** A single-select
+toggle group treats a press on its OWN checked item as a DESELECT
+(`onItemDeactivate` sets the value to `''`). Re-asserting a selection onto an
+already-checked item would therefore EMPTY the group rather than no-op. The
+`aria-checked === 'true'` early return is what stops that, and the loop test
+below is what proves it stays a no-op.
+
+Verified signed-in with real key presses on the sidebar's Work/Settings/Admin
+toggle: `ArrowRight` moves Work → Settings → Admin, wraps to Work, `ArrowLeft`
+wraps back — exactly one item checked at every step, one synthetic click per
+press, and the sidebar menu really switches section. The deferred focus measured
+58 ms after keydown with `keyup` at 4 ms, the same shape as the radio case.
+
+**One thing this did NOT establish.**
+
+- **"Space did not select either" is a harness artifact.** This browser tool
+  sends Space as an event with `key: ""`, `code: ""` and `keyCode: 0` — a
+  malformed key the page can do nothing with — and its `type` action uses
+  `insertText`, which fires no key events at all. Space is native button
+  activation, which Radix only intercepts for `Enter`; there is no reason to
+  think it is broken, and no way to test it from here.
+
+**The e2e spec is written: `e2e/specs/radio-arrow-selection.spec.ts`.** Two
+tests, one per primitive. Each clicks an item, arrows through the group, and
+asserts the focus moved AND `aria-checked` followed, wrapping at both ends, with
+exactly one item checked at every step; each also asserts the change reached the
+APP and not just the ARIA (the Mode picker's theme, the spend chart's caption).
+
+It is a reliable ratchet rather than a flaky one for the same reason the bug was
+invisible for so long: `keyboard.press()` sends `keyup` 0 ms after `keydown`, so
+it loses the race EVERY time. ⚠ Do not "stabilise" it into a
+`keyboard.down` / `waitForTimeout` / `keyboard.up` sequence — that would hide
+precisely what it guards. Confirmed both ways: with the kit hook disabled both
+tests fail, and they fail on the `aria-checked` line with the `toBeFocused` line
+above them passing, which is the bug's exact signature.
+
+⚠ **The obvious ToggleGroup target is the wrong one.** `/tasks`'s view toggle
+REMOUNTS itself when the view changes, so focus is gone before the second arrow
+key and the spec fails for a reason unrelated to what it tests. The spec uses
+the dashboard spend chart's range picker instead: single-select, three items,
+pure component state, no remount, nothing persisted.
+
+Suite after: **163 passed, 1 skipped, 0 failed** (161 before, plus these two).
+
+⚠ **`team.spec.ts` will fail with `ERR_CONNECTION_REFUSED` if the brain's
+`MANTLE_CLIENT_ORIGIN` names a client that is not the one you are testing.** It
+is the only spec that navigates a BROWSER to the server origin, and the server's
+`/team` stub 307s to whatever that variable says — so a client moved to another
+port (because a second worktree held `:3901`) fails this one spec and nothing
+else. The error names the server URL, not the redirect target, which is what
+makes it read as a dead brain. `curl -i $BRAIN/team | grep -i location` settles
+it in one command.

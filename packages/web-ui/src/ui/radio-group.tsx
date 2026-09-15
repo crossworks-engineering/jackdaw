@@ -5,15 +5,33 @@ import { CircleIcon } from 'lucide-react';
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
 
 import { cn } from '../lib/utils';
+import { useSelectionFollowsFocus } from './selection-follows-focus';
 
+/**
+ * Arrow keys move focus but leave the selection behind — a Radix race this kit
+ * corrects for every radio group. The mechanism, the measurements and why the
+ * handlers belong on the ROOT are in `useSelectionFollowsFocus`.
+ */
 function RadioGroup({
   className,
+  onKeyDown,
+  onClickCapture,
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
+  const followsFocus = useSelectionFollowsFocus();
+
   return (
     <RadioGroupPrimitive.Root
       data-slot="radio-group"
       className={cn('grid gap-3', className)}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        followsFocus.onKeyDown(event);
+      }}
+      onClickCapture={(event) => {
+        onClickCapture?.(event);
+        followsFocus.onClickCapture(event);
+      }}
       {...props}
     />
   );

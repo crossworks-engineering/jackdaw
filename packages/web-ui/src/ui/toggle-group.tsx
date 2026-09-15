@@ -6,6 +6,7 @@ import { ToggleGroup as ToggleGroupPrimitive } from 'radix-ui';
 
 import { cn } from '../lib/utils';
 import { toggleVariants } from './toggle';
+import { useSelectionFollowsFocus } from './selection-follows-focus';
 
 const ToggleGroupContext = React.createContext<
   VariantProps<typeof toggleVariants> & {
@@ -17,17 +18,29 @@ const ToggleGroupContext = React.createContext<
   spacing: 0,
 });
 
+/**
+ * A single-select toggle group IS a radio group as far as assistive technology
+ * is concerned — Radix gives it `role="radiogroup"` and `role="radio"` items
+ * with `aria-checked` — so the arrow keys have to move the selection, not just
+ * the focus. Radix never does that here, so the kit does; see
+ * `useSelectionFollowsFocus`. A `type="multiple"` group is a toolbar of
+ * independent toggles and is deliberately left alone.
+ */
 function ToggleGroup({
   className,
   variant,
   size,
   spacing = 0,
   children,
+  onKeyDown,
+  onClickCapture,
   ...props
 }: React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
   VariantProps<typeof toggleVariants> & {
     spacing?: number;
   }) {
+  const followsFocus = useSelectionFollowsFocus(props.type === 'single');
+
   return (
     <ToggleGroupPrimitive.Root
       data-slot="toggle-group"
@@ -39,6 +52,14 @@ function ToggleGroup({
         'group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs',
         className,
       )}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        followsFocus.onKeyDown(event);
+      }}
+      onClickCapture={(event) => {
+        onClickCapture?.(event);
+        followsFocus.onClickCapture(event);
+      }}
       {...props}
     >
       <ToggleGroupContext.Provider value={{ variant, size, spacing }}>
