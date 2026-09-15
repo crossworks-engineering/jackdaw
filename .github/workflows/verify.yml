@@ -114,8 +114,11 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 20
+      # quay.io, NOT Docker Hub: `docker pull minio/minio` is denied on a
+      # runner ("repository does not exist or may require 'docker login'").
+      # quay is MinIO's own registry and pulls anonymously.
       minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
         env:
           MINIO_ROOT_USER: minio
           MINIO_ROOT_PASSWORD: minio12345
@@ -123,6 +126,15 @@ jobs:
         options: >-
           --health-cmd "mc ready local"
           --health-interval 5s --health-timeout 5s --health-retries 20
+
+      # Two specs make the brain spawn a browser: the PDF export and the draw
+      # snapshot re-render. Without it they fail with a 500 that says "internal
+      # error" and nothing about a missing sidecar. ghcr, so no Docker Hub pull.
+      browser:
+        image: ghcr.io/browserless/chromium:v2.55.0
+        env:
+          TOKEN: mantle
+        ports: ['3000:3000']
 
     steps:
       - uses: actions/checkout@v7
@@ -200,7 +212,7 @@ jobs:
       - name: Create the object-store bucket
         if: vars.E2E_SERVER_URL == ''
         run: |
-          docker run --rm --network host --entrypoint sh minio/mc:latest -c \
+          docker run --rm --network host --entrypoint sh quay.io/minio/mc:latest -c \
             "mc alias set local http://localhost:9000 minio minio12345 && mc mb -p local/mantle"
 
       # CORS is not optional: MANTLE_API_CORS_ORIGINS must name the client origin
@@ -221,6 +233,8 @@ jobs:
             -e MANTLE_PUBLIC_URL='http://localhost:3900' \
             -e MANTLE_API_CORS_ORIGINS='http://localhost:3901' \
             -e MANTLE_CLIENT_ORIGIN='http://localhost:3901' \
+            -e BROWSER_WS_ENDPOINT='ws://localhost:3000?token=mantle' \
+            -e MANTLE_PRINT_ORIGIN='http://localhost:3900' \
             titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }}
           for i in $(seq 1 60); do
             curl -sf -o /dev/null http://localhost:3900/api/version && break
@@ -237,8 +251,8 @@ jobs:
           E2E_SERVER_URL: ${{ vars.E2E_SERVER_URL || 'http://localhost:3900' }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-          # No browserless sidecar on the runner.
-          E2E_SKIP_PDF: ${{ vars.E2E_SKIP_PDF || '1' }}
+          # NOT skipped: the browser sidecar above is exactly what it needs.
+          E2E_SKIP_PDF: ${{ vars.E2E_SKIP_PDF }}
         run: pnpm e2e
 
       # The brain's own log is the other half of a failure; the traces below are
