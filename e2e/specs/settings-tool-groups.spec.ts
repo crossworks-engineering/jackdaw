@@ -1,4 +1,5 @@
 import { expect, test } from '../lib/fixtures';
+import { clickUntilOpen } from '../lib/hydration';
 
 /**
  * Tool groups, §6b. Two of the three failures this screen can produce used to
@@ -19,8 +20,7 @@ test.describe('settings → tool groups', () => {
   const openCreate = async (page: import('@playwright/test').Page) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto('/settings/tool-groups');
-    await page.getByRole('button', { name: /^New$/ }).click();
-    await expect(page.locator('#name')).toBeVisible();
+    await clickUntilOpen(page.getByRole('button', { name: /^New$/ }), page.locator('#name'));
   };
 
   test('an empty submit marks name and slug, not the foot of the form', async ({ ownerPage }) => {

@@ -1,4 +1,5 @@
 import { expect, test } from '../lib/fixtures';
+import { clickUntilOpen } from '../lib/hydration';
 
 /**
  * Worker groups is the first of the settings cluster onto the `Field` family,
@@ -63,10 +64,8 @@ test.describe('settings → worker groups', () => {
   }) => {
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
     await ownerPage.goto('/settings/worker-groups');
-    await ownerPage.getByRole('button', { name: /^New$/ }).click();
-
     const slug = ownerPage.locator('#wg-new-slug');
-    await expect(slug).toBeVisible();
+    await clickUntilOpen(ownerPage.getByRole('button', { name: /^New$/ }), slug);
 
     // `pattern="[a-z0-9_\-]+"` used to raise a browser bubble that could not say
     // WHICH rule broke. Now the message names it.
