@@ -313,7 +313,7 @@ export function JournalClient() {
             value={activeKind ?? ALL}
             onValueChange={(v) => go({ kind: v === ALL ? null : v, page: null })}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger size="sm">
               <SelectValue placeholder="Any kind" />
             </SelectTrigger>
             <SelectContent>

@@ -312,7 +312,7 @@ export function FormulasClient() {
                   value={standard || ANY}
                   onValueChange={(v) => go({ standard: v === ANY ? null : v, page: null })}
                 >
-                  <SelectTrigger className="h-9 flex-1 text-xs">
+                  <SelectTrigger size="sm" className="flex-1 text-xs">
                     <SelectValue placeholder="Any standard" />
                   </SelectTrigger>
                   <SelectContent>

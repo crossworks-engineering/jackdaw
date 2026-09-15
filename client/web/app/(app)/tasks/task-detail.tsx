@@ -168,6 +168,9 @@ export function TaskDetail({
             value={task.status}
             onValueChange={(status) => void onPatch({ status: status as Status })}
           >
+            {/* A status PILL, not a field: 28px, rounded-full, no border, and it
+                carries the badge colour. It is off the size scale on purpose —
+                the rungs are for controls that read as a box. */}
             <SelectTrigger
               aria-label="Status"
               className={cn(

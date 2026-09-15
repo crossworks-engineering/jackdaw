@@ -332,7 +332,7 @@ export function EventsClient() {
               value={window}
               onValueChange={(v) => go({ window: v === 'upcoming' ? null : v, page: null })}
             >
-              <SelectTrigger className="h-9 w-full" aria-label="Filter events">
+              <SelectTrigger size="sm" aria-label="Filter events">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

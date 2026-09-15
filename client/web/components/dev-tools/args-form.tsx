@@ -133,7 +133,7 @@ export function ArgsForm({
                   setKey(p.key, v === UNSET ? undefined : (JSON.parse(v) as unknown))
                 }
               >
-                <SelectTrigger id={`arg-${p.key}`} className="h-8 text-xs">
+                <SelectTrigger id={`arg-${p.key}`} size="xs">
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
@@ -167,7 +167,7 @@ export function ArgsForm({
                 value={asStr}
                 onValueChange={(v) => setKey(p.key, v === UNSET ? undefined : v === 'true')}
               >
-                <SelectTrigger id={`arg-${p.key}`} className="h-8 text-xs">
+                <SelectTrigger id={`arg-${p.key}`} size="xs">
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>

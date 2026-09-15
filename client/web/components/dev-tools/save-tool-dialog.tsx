@@ -358,7 +358,7 @@ export function SaveToolDialog({
                           )
                         }
                       >
-                        <SelectTrigger className="h-8 w-24 text-xs">
+                        <SelectTrigger size="xs" className="w-24">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

@@ -113,6 +113,9 @@ function EnvironmentControls() {
     <>
       <div className="flex items-center gap-1">
         <Select value={activeEnv?.id ?? ''} onValueChange={setActiveEnvId}>
+          {/* 28px: below `xs`, the scale's bottom rung. Left hand-sized rather than
+              rounded up to 32, because rounding it up would change this row's
+              geometry — the one thing the size-scale pass was not allowed to do. */}
           <SelectTrigger className="h-7 w-36 text-xs">
             <SelectValue placeholder="Environment" />
           </SelectTrigger>
@@ -421,7 +424,7 @@ export function RequestBuilder() {
                 value={draft.method}
                 onValueChange={(m) => setDraft((d) => ({ ...d, method: m as HttpMethod }))}
               >
-                <SelectTrigger className="h-9 w-24 font-mono text-xs font-semibold">
+                <SelectTrigger size="sm" className="w-24 font-mono text-xs font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -531,7 +534,7 @@ export function RequestBuilder() {
                       setDraft((d) => ({ ...d, body: { ...d.body, mode: m as BodyMode } }))
                     }
                   >
-                    <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectTrigger size="xs" className="w-28">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -582,7 +585,7 @@ export function RequestBuilder() {
                       setDraft((d) => ({ ...d, auth: { ...d.auth, mode: m as AuthMode } }))
                     }
                   >
-                    <SelectTrigger className="h-8 w-56 text-xs">
+                    <SelectTrigger size="xs" className="w-56">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -699,7 +702,7 @@ export function RequestBuilder() {
             <div className="space-y-1.5">
               <Label className="text-xs">Collection</Label>
               <Select value={saveCollectionId} onValueChange={setSaveCollectionId}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger size="sm" className="text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

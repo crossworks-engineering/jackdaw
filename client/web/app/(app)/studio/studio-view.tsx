@@ -453,7 +453,7 @@ export function StudioView({ graph }: { graph: StudioGraph }) {
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-3">
           <Select value={selection} onValueChange={changeSelection}>
-            <SelectTrigger className="h-8 w-60" aria-label="Choose agent or view">
+            <SelectTrigger size="xs" className="w-60 text-sm" aria-label="Choose agent or view">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

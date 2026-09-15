@@ -404,7 +404,7 @@ export function PersonaNotesEditor({
 function KindSelect({ value, onChange }: { value: Kind; onChange: (k: Kind) => void }) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as Kind)}>
-      <SelectTrigger className="h-8 w-auto text-xs" aria-label="Note kind">
+      <SelectTrigger size="xs" className="w-auto" aria-label="Note kind">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

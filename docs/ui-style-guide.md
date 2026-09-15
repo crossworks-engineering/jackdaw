@@ -512,6 +512,37 @@ arrangement) — do not hand-roll the string.
   All / On / Off selection filter, shown once a list exceeds ~6 items). Used by
   the agents Tools/Skills/Delegates pickers and AI workers.
 
+#### Control heights: the size scale
+
+**`SelectTrigger` takes a `size` rung, never a hand-set `h-*`.** The rungs are
+`Button`'s, at `Button`'s heights, so a select, a text field and a button in
+one row line up without anyone measuring:
+
+| rung | height | type | use it for |
+| --- | --- | --- | --- |
+| `xs` | 32px | `text-xs` | dense dev-tool and toolbar rows |
+| `sm` | 36px | `text-sm` | filter bars above a list |
+| `default` | 40px | `text-sm` | **a labelled form field** — matches `Input` |
+| `lg` | 44px | `text-sm` | the `Button` `lg` row |
+
+- **`default` is `h-10`, matching `Input`.** It was `h-9` until the scale
+  landed, and that 4px was a live bug source: `/settings/profile` rendered Site name 40,
+  Peer name 40, Speciality **36**, Timezone 40, Locale 40, then three more
+  selects at **36** — every select short of every field beside it, in one form
+  stack. It does not show up in a screenshot; measure heights from the DOM.
+- **There is no `2xs`.** `Button` has one because chips needed a 24px rung; a
+  24px trigger has no room for a value, a chevron and a focus ring.
+- **The rung carries the type size**, as `Button`'s do. Don't take `xs` for its
+  height and then add `text-sm` back — if 14px text is genuinely wanted at
+  32px, say so explicitly and say why (the studio header's agent picker is the
+  one such site: it names the thing the whole page is about).
+- `w-full` is already in the trigger's base classes. Adding it to `className`
+  is noise.
+- **`Input` has no size scale yet** — it is a fixed `h-10`, which is why the
+  table above is the select's alone. Giving `Input` the same four rungs is the
+  open follow-up (`docs/handover-form-controls.md`), and it is what would let
+  the last chrome-less text fields stop being exceptions.
+
 ### 6e. The outer settings-card: a form in a content area wears the card
 
 **A form that stands in a content area** — a settings hub screen, a standalone

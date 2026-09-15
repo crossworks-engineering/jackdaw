@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../lib/utils';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from '@radix-ui/react-icons';
 
@@ -11,16 +12,60 @@ const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
+// The trigger's size scale, on `Button`'s rungs and at its heights, so a
+// select, a text field and a button in the same row line up without anyone
+// hand-setting `h-*`. Before this, 28 of 76 call sites set a height themselves
+// — `h-7` x2, `h-8` x11, `h-9` x15 — and the `h-9` ones were spelling out the
+// default they already had, which is what a default nobody trusts looks like.
+//
+// `default` is `h-10`, NOT the `h-9` this component shipped with. That was
+// measured, not assumed: on `/settings/profile` one form stack renders
+// Site name 40, Peer name 40, Speciality **36**, Timezone 40, Locale 40,
+// Reminder delivery **36**, Event reminders from **36**, Thinking effort
+// **36** — every select 4px short of every `Input` beside it. `Input` is a
+// fixed `h-10`, and 33 of the 44 files that use a trigger also render an
+// `Input`, so matching it is what the overwhelmingly common case wants.
+//
+// No `2xs`: `Button` has one because chips needed a 24px rung, and a 24px
+// select trigger has no room for a value, a chevron and a focus ring.
+//
+// Each rung carries its type size the way `Button`'s do — a 32px trigger
+// holding 14px text is a rung that has been half-taken. The one deliberate
+// exception is the studio header's agent picker, which stays `text-sm` at
+// `xs`; it names the thing the whole page is about.
+//
+// Unlike `Input`, `size` needs no `Omit` here. Radix types the trigger as
+// `SelectTriggerProps extends PrimitiveButtonProps` — button attributes — and
+// `React.ButtonHTMLAttributes` has no `size`, so there is nothing to collide
+// with. (`InputHTMLAttributes` does carry `size?: number`, which is why the
+// text field has to strip it.)
+const selectTriggerVariants = cva(
+  'flex w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
+  {
+    variants: {
+      size: {
+        xs: 'h-8 text-xs',
+        sm: 'h-9 text-sm',
+        default: 'h-10 text-sm',
+        lg: 'h-11 text-sm',
+      },
+    },
+    defaultVariants: { size: 'default' },
+  },
+);
+
+export interface SelectTriggerProps
+  extends
+    React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
+    VariantProps<typeof selectTriggerVariants> {}
+
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
+  SelectTriggerProps
+>(({ className, children, size, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
-    className={cn(
-      'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
-      className,
-    )}
+    className={cn(selectTriggerVariants({ size }), className)}
     {...props}
   >
     {children}
@@ -140,6 +185,7 @@ const SelectSeparator = React.forwardRef<
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 
 export {
+  selectTriggerVariants,
   Select,
   SelectGroup,
   SelectValue,

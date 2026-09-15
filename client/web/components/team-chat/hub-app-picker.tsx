@@ -71,7 +71,7 @@ export function HubAppPicker({
         Hub app
       </Label>
       <Select value={value} onValueChange={(v) => void apply(v)} disabled={pending}>
-        <SelectTrigger id="hubApp" className="h-8 w-full text-xs">
+        <SelectTrigger id="hubApp" size="xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

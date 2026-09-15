@@ -222,7 +222,7 @@ function ModelsView({ data }: { data: ExploreBundle }) {
                 id !== provider && go({ provider: id, q: null, sort: null, kind: null, page: null })
               }
             >
-              <SelectTrigger className="h-9 flex-1">
+              <SelectTrigger size="sm" className="flex-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -275,7 +275,7 @@ function ModelsView({ data }: { data: ExploreBundle }) {
                 value={sort}
                 onValueChange={(v) => go({ sort: v === 'name' ? null : v, page: null })}
               >
-                <SelectTrigger className="h-8 flex-1 text-xs">
+                <SelectTrigger size="xs" className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -291,7 +291,7 @@ function ModelsView({ data }: { data: ExploreBundle }) {
                   value={kind}
                   onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
                 >
-                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                  <SelectTrigger size="xs" className="w-[120px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

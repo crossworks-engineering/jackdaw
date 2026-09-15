@@ -386,7 +386,7 @@ export function TasksClient() {
             value={priority}
             onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
           >
-            <SelectTrigger className="h-9 w-36" aria-label="Filter by priority">
+            <SelectTrigger size="sm" className="w-36" aria-label="Filter by priority">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -471,7 +471,7 @@ export function TasksClient() {
                 value={statusParam}
                 onValueChange={(v) => go({ status: v === 'active' ? null : v, page: null })}
               >
-                <SelectTrigger className="h-9 flex-1" aria-label="Filter by status">
+                <SelectTrigger size="sm" className="flex-1" aria-label="Filter by status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -492,7 +492,7 @@ export function TasksClient() {
                 value={priority}
                 onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
               >
-                <SelectTrigger className="h-9 flex-1" aria-label="Filter by priority">
+                <SelectTrigger size="sm" className="flex-1" aria-label="Filter by priority">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

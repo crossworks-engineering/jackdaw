@@ -97,7 +97,7 @@ export function GapAnswerForm({
           <span />
         ) : (
           <Select value={answerKind} onValueChange={setAnswerKind}>
-            <SelectTrigger className="h-9 w-40" aria-label="Save the answer as">
+            <SelectTrigger size="sm" className="w-40" aria-label="Save the answer as">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

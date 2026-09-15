@@ -115,7 +115,7 @@ export function DashboardTagsPanel({
         onValueChange={(v) => void save([...tags, v])}
         disabled={pending || candidates.length === 0 || tags.length >= MAX_TAGS}
       >
-        <SelectTrigger id="dashboardTagAdd" className="h-8 w-full text-xs">
+        <SelectTrigger id="dashboardTagAdd" size="xs">
           <SelectValue
             placeholder={
               tags.length >= MAX_TAGS

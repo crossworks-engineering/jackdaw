@@ -246,7 +246,7 @@ export function ToolGroupIntegrationSection({
                   value={row.kind}
                   onValueChange={(v) => setRow(row.id, { kind: v as AuthRow['kind'] })}
                 >
-                  <SelectTrigger className="h-9 w-28 shrink-0 text-xs">
+                  <SelectTrigger size="sm" className="w-28 shrink-0 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

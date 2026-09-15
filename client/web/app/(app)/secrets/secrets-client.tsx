@@ -196,7 +196,7 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
               value={kind}
               onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
             >
-              <SelectTrigger className="h-9 w-28" aria-label="Filter by kind">
+              <SelectTrigger size="sm" className="w-28" aria-label="Filter by kind">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

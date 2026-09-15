@@ -378,7 +378,7 @@ function LiveView() {
             setPage(1);
           }}
         >
-          <SelectTrigger className="h-9 w-[160px]" aria-label="Filter by type">
+          <SelectTrigger size="sm" className="w-[160px]" aria-label="Filter by type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -397,7 +397,7 @@ function LiveView() {
             setPage(1);
           }}
         >
-          <SelectTrigger className="h-9 w-[160px]" aria-label="Sort order">
+          <SelectTrigger size="sm" className="w-[160px]" aria-label="Sort order">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
