@@ -55,7 +55,7 @@ The one addition a brain needs to serve a detached frontend:
 Create `client/web/.env.detached.local` (git-ignored) with a single line:
 
 ```
-MANTLE_REMOTE=https://test.crossworks.network
+MANTLE_REMOTE=https://brain.example.com
 ```
 
 That's it, no tokens, no credentials in the file. `pnpm dev:fe` reads
