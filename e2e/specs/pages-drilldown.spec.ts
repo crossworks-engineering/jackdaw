@@ -291,7 +291,6 @@ test.describe('pages drill-down', () => {
 
       const grip = list.getByRole('button', { name: `Drag to move “${a.title}”` });
       const target = list.getByText(b.title, { exact: true });
-      const from = (await grip.boundingBox())!;
 
       // dnd-kit's PointerSensor arms at 6px and tracks pointermove, so the drag
       // has to be several real moves — a single jump never starts it.

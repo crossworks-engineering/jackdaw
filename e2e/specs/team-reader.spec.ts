@@ -79,7 +79,14 @@ test.describe('team inline share reader', () => {
         await expect(visitorPage.getByText(/opens on the brain/i)).toBeVisible({
           timeout: 30_000,
         });
-        await expect(visitorPage.getByText(body)).toBeHidden();
+        // Scoped to the PANE. Unscoped, this also matched the page's own
+        // excerpt on its card in the list — a `line-clamp-2` muted line that is
+        // a summary, not a reading surface — so a correct split render failed
+        // on the one surface that is supposed to show a preview.
+        await expect(
+          visitorPage.locator('[data-testid="detail"]').getByText(body),
+          'the shared body rendered INLINE on the client origin',
+        ).toBeHidden();
       }
     } finally {
       await ownerApi.post(`/api/contacts/${contactId}/team`, { data: { action: 'disable' } });

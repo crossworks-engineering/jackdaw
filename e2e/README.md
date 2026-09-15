@@ -62,6 +62,7 @@ pnpm -C server/web pgboss:init
 DATABASE_URL="$DATABASE_URL" S3_BUCKET=mantle-e2e PORT=3900 \
   NEXT_PUBLIC_APP_URL=http://localhost:3900 \
   MANTLE_API_CORS_ORIGINS=http://localhost:3901 \
+  MANTLE_CLIENT_ORIGIN=http://localhost:3901 \
   pnpm -C server/web dev
 ```
 
@@ -82,6 +83,12 @@ Three things that are easy to get wrong:
 - **`MANTLE_API_CORS_ORIGINS` must name the client origin** (`:3901`), or every
   browser test fails on CORS while the API-only ones pass — a confusing split
   that looks like an auth bug.
+- **`MANTLE_CLIENT_ORIGIN` must name it too**, for a different reason: the
+  server's redirect stub uses it to send a member who lands on the brain's
+  `/team` over to the client's token gate. Without it `team.spec.ts` waits
+  thirty seconds for a gate that was never going to render, and the failure
+  reads as a missing feature rather than as a brain that does not know where
+  its client lives.
 
 Tear down with `DROP DATABASE mantle_e2e` and `mc rb --force local/mantle-e2e`.
 
