@@ -266,7 +266,17 @@ test.describe('drawing embedded in a page', () => {
       await expect(
         visitorPage.locator(`img[src="/s/${link.token}/draw/${draw.id}"]`),
       ).toBeVisible();
-      expect(await visitorPage.content()).not.toContain('<svg');
+      // Counted in the DOM rather than grepped out of `content()`, and chrome
+      // icons excluded. The threat is the DRAWING becoming markup on a page an
+      // anonymous visitor is looking at — not a lucide glyph inside the share
+      // page's own button, which is what a bare `not.toContain('<svg')` began
+      // failing on the day that button arrived. An inlined scene would not be
+      // inside a <button>.
+      const inlineSvg = await visitorPage.evaluate(
+        () =>
+          Array.from(document.querySelectorAll('svg')).filter((el) => !el.closest('button')).length,
+      );
+      expect(inlineSvg, 'the scene was inlined as SVG instead of served as an image').toBe(0);
 
       const asset = await visitorPage.request.get(`${serverURL}/s/${link.token}/draw/${draw.id}`);
       expect(asset.ok()).toBeTruthy();
@@ -461,9 +471,32 @@ test.describe('shared drawing', () => {
       // validator being exhaustive.
       const img = visitorPage.locator(`img[src="/s/${link.token}/draw"]`);
       await expect(img).toBeVisible();
-      const html = await visitorPage.content();
-      expect(html).not.toContain('<svg');
-      expect(html).not.toContain('<script');
+      // Counted in the DOM rather than grepped out of `content()`, and chrome
+      // icons excluded. The threat is the DRAWING becoming markup on a page an
+      // anonymous visitor is looking at — not a lucide glyph inside the share
+      // page's own button, which is what a bare `not.toContain('<svg')` began
+      // failing on the day that button arrived. An inlined scene would not be
+      // inside a <button>.
+      const inlineSvg = await visitorPage.evaluate(
+        () =>
+          Array.from(document.querySelectorAll('svg')).filter((el) => !el.closest('button')).length,
+      );
+      expect(inlineSvg, 'the scene was inlined as SVG instead of served as an image').toBe(0);
+      // Same reasoning for script. The share page ships two of its own — a
+      // no-flash theme bootstrap inline in <head>, and `/share-runtime/*` — so
+      // "no <script> anywhere" stopped being true the day the share runtime
+      // landed, and said nothing about the threat either way. What must never
+      // happen is script arriving FROM the shared node: a cross-origin src, or
+      // anything inline in the body, where content is rendered.
+      const injectedScripts = await visitorPage.evaluate(
+        () =>
+          Array.from(document.querySelectorAll('script')).filter((el) => {
+            const src = el.getAttribute('src');
+            if (src) return new URL(src, location.href).origin !== location.origin;
+            return el.closest('body') !== null;
+          }).length,
+      );
+      expect(injectedScripts, 'script reached the page from the shared node').toBe(0);
 
       // The image route itself serves the bytes, script-disabled.
       const asset = await visitorPage.request.get(`${serverURL}/s/${link.token}/draw`);
