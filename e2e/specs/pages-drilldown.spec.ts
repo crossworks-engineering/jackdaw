@@ -234,9 +234,24 @@ test.describe('pages drill-down', () => {
         'tags are showing before the switch was touched — the default flipped back on',
       ).toHaveCount(0);
 
-      const density = list.getByRole('switch', { name: 'Show summaries and tags on cards' });
+      // Density moved INTO the tag popover — it read as a fourth filter in the
+      // toolbar row. So the switch has to be opened for, twice, and the trigger
+      // is the tag combobox rather than anything named "Details".
+      //
+      // `hover()` before `click()` is not superstition: Radix popovers here do
+      // not open for a bare programmatic click under automation, and a sibling
+      // menu opening fine is what proves that is the driver and not the app.
+      const openTagPopover = async () => {
+        const trigger = list.getByRole('combobox').first();
+        await trigger.hover();
+        await trigger.click();
+        return ownerPage.getByRole('switch', { name: 'Show summaries and tags on cards' });
+      };
+
+      const density = await openTagPopover();
       await expect(density).toBeVisible();
       await density.click();
+      await ownerPage.keyboard.press('Escape');
 
       // On: the tag appears, and the title and footer controls are still there.
       await expect(list.getByText(tag, { exact: true })).toBeVisible();
@@ -253,7 +268,8 @@ test.describe('pages drill-down', () => {
 
       // Back to the default, so a shared browser profile does not carry this
       // into the next spec that measures a card.
-      await list.getByRole('switch', { name: 'Show summaries and tags on cards' }).click();
+      await (await openTagPopover()).click();
+      await ownerPage.keyboard.press('Escape');
       await expect(list.getByText(tag, { exact: true })).toHaveCount(0);
     } finally {
       expect((await ownerApi.delete(`/api/pages/${row.id}`)).ok()).toBeTruthy();
@@ -276,15 +292,46 @@ test.describe('pages drill-down', () => {
       const grip = list.getByRole('button', { name: `Drag to move “${a.title}”` });
       const target = list.getByText(b.title, { exact: true });
       const from = (await grip.boundingBox())!;
-      const to = (await target.boundingBox())!;
 
       // dnd-kit's PointerSensor arms at 6px and tracks pointermove, so the drag
       // has to be several real moves — a single jump never starts it.
-      await ownerPage.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-      await ownerPage.mouse.down();
-      await ownerPage.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2 + 12, {
-        steps: 6,
-      });
+      //
+      // And the sensor only exists once `DndContext` has HYDRATED. Playwright
+      // presses as soon as the grip is actionable, which for a server-rendered
+      // card is a beat earlier — the same race that swallowed the "New" clicks
+      // in the settings specs. A pickup that never happened leaves no trace but
+      // a drag that does nothing, and the failure surfaces 15 seconds later as
+      // "never re-parented", blaming the drop.
+      //
+      // So confirm the pickup, and retry just that. Retrying a whole drag would
+      // not be safe — it MOVES a page — but an aborted pickup changes nothing,
+      // which is what makes this the half worth repeating.
+      const liveText = () =>
+        ownerPage.evaluate(() => document.querySelector('[aria-live]')?.textContent ?? '');
+      let armed = false;
+      for (let attempt = 0; attempt < 5 && !armed; attempt++) {
+        const grab = (await grip.boundingBox())!;
+        await ownerPage.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
+        await ownerPage.mouse.down();
+        await ownerPage.mouse.move(grab.x + grab.width / 2 + 12, grab.y + grab.height / 2 + 12, {
+          steps: 6,
+        });
+        if (/Picked up/i.test(await liveText())) {
+          armed = true;
+          break;
+        }
+        await ownerPage.keyboard.press('Escape');
+        await ownerPage.mouse.up();
+        await ownerPage.waitForTimeout(200);
+      }
+      expect(armed, 'the drag never started — dnd-kit had not hydrated').toBe(true);
+
+      // Measure the target AFTER the pickup, not before. Lifting a card changes
+      // the list it came out of, so a box read while the card was still in flow
+      // points a few rows off by the time the pointer gets there — the drop
+      // then lands on nothing and the failure reads, fifteen seconds later, as
+      // "never re-parented".
+      const to = (await target.boundingBox())!;
       await ownerPage.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
       await ownerPage.mouse.move(to.x + to.width / 2, to.y + to.height / 2 + 2, { steps: 4 });
       await ownerPage.mouse.up();
