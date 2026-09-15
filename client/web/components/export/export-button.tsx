@@ -1,7 +1,7 @@
 'use client';
 
 import { Download } from 'lucide-react';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { Button } from '@mantle/web-ui/ui/button';
 
 /**
@@ -11,9 +11,10 @@ import { Button } from '@mantle/web-ui/ui/button';
  * the icon ("Word" / "Excel").
  */
 export function ExportButton({ nodeId, label }: { nodeId: string; label: 'Word' | 'Excel' }) {
+  const toAsset = useAssetUrl();
   return (
     <Button asChild size="sm" variant="ghost" title={`Download as ${label}`}>
-      <a href={assetUrl(`/api/export/${nodeId}`)} download>
+      <a href={toAsset(`/api/export/${nodeId}`)} download>
         <Download />
         <span className="hidden sm:inline">{label}</span>
       </a>

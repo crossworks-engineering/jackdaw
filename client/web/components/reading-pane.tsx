@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { EmailDTO, EmailAttachmentDTO } from '@mantle/client-types';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 
@@ -33,6 +33,7 @@ export function ReadingPane({
   attachments: EmailAttachmentDTO[];
   bodyHtmlSafe: string | null;
 }) {
+  const toAsset = useAssetUrl();
   const queryClient = useQueryClient();
 
   const patch = useMutation({
@@ -141,7 +142,7 @@ export function ReadingPane({
             {attachments.map((a) => (
               <li key={a.id}>
                 <a
-                  href={assetUrl(`/api/attachments/${a.id}`)}
+                  href={toAsset(`/api/attachments/${a.id}`)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-primary-ink underline-offset-2 hover:underline"

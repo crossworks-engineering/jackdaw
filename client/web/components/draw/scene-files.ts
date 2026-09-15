@@ -1,5 +1,5 @@
 import type { BinaryFileData, BinaryFiles } from '@excalidraw/excalidraw/types';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { assetTokenReady, assetUrl } from '@mantle/web-ui/asset-url';
 import { uploadToFiles } from '@/components/page-editor/upload';
 
 /**
@@ -72,6 +72,12 @@ export async function uploadNewSceneFiles(
  */
 export async function loadSceneFiles(refs: Record<string, string>): Promise<BinaryFileData[]> {
   const out: BinaryFileData[] = [];
+  // Once, before any of the fetches: a scene loads as soon as the canvas
+  // mounts, which in a detached client is routinely BEFORE the shell has
+  // published the asset token. Unsigned, every one of these 401s and each
+  // image is silently replaced by the broken-image placeholder — a load the
+  // canvas never retries. Immediate same-origin, where there is no token.
+  await assetTokenReady();
   await Promise.all(
     Object.entries(refs).map(async ([fileId, nodeId]) => {
       try {

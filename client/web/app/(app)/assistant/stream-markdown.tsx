@@ -7,7 +7,7 @@
  * so the row could move to its own file without importing the screen it is
  * rendered by.
  */
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { fileRawSrc, mediaFileId } from '@mantle/content-core/markdown-refs';
 
 /**
@@ -23,16 +23,23 @@ import { fileRawSrc, mediaFileId } from '@mantle/content-core/markdown-refs';
  * complete markdown image, so it stays literal text until the closing paren
  * arrives, which is the quiet degradation we want mid-stream.
  */
+/** Named and capitalised because it IS a component, not a render helper:
+ *  ReactMarkdown mounts it, and it subscribes to the asset token so a picture
+ *  placed before a detached client's token landed repaints instead of staying
+ *  broken for the rest of the turn. */
+function StreamImage({ src, alt }: { src?: string | Blob; alt?: string }) {
+  const toAsset = useAssetUrl();
+  const href = typeof src === 'string' ? src : '';
+  const nodeId = mediaFileId(href);
+  // A media: id that doesn't resolve (model-invented, or another owner's)
+  // 401s at the route and shows as a broken image, never as someone else's
+  // picture. Same gate the durable render and the gallery sit behind.
+  const resolved = nodeId ? toAsset(fileRawSrc(nodeId)) : href;
+  if (!resolved) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={resolved} alt={alt ?? ''} className="max-h-96 rounded-lg object-contain" />;
+}
+
 export const STREAM_MARKDOWN_COMPONENTS = {
-  img: ({ src, alt }: { src?: string | Blob; alt?: string }) => {
-    const href = typeof src === 'string' ? src : '';
-    const nodeId = mediaFileId(href);
-    // A media: id that doesn't resolve (model-invented, or another owner's)
-    // 401s at the route and shows as a broken image, never as someone else's
-    // picture. Same gate the durable render and the gallery sit behind.
-    const resolved = nodeId ? assetUrl(fileRawSrc(nodeId)) : href;
-    if (!resolved) return null;
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={resolved} alt={alt ?? ''} className="max-h-96 rounded-lg object-contain" />;
-  },
+  img: StreamImage,
 };

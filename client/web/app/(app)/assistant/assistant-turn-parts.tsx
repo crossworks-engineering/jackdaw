@@ -8,7 +8,7 @@
  */
 import { FileText, Image as ImageIcon, MapPin, Mic, Send } from 'lucide-react';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import type { Artifact, Message, StoredAttachment } from './assistant-turns';
 import { splitSentContext } from './assistant-turns';
 
@@ -137,8 +137,11 @@ export function ChannelBadge({ channel }: { channel?: string }) {
  *  notes, docs, backfilled images without a node, video) is a labeled chip —
  *  its actual content (e.g. a voice transcript) already lives in the turn text. */
 export function StoredAttachmentView({ attachment }: { attachment: StoredAttachment }) {
+  // Before the branch: the hook has to run on every render, and only the image
+  // arm uses it.
+  const toAsset = useAssetUrl();
   if (attachment.kind === 'image' && attachment.nodeId) {
-    const src = assetUrl(`/api/files/files/${attachment.nodeId}?raw=1`);
+    const src = toAsset(`/api/files/files/${attachment.nodeId}?raw=1`);
     return (
       <div className="overflow-hidden rounded-lg border border-border bg-background/60">
         {/* Click behavior belongs to the thread's image lightbox now. */}

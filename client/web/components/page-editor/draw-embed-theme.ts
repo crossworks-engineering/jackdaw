@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import type { Editor } from '@tiptap/react';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { assetTokenReady, assetUrl } from '@mantle/web-ui/asset-url';
 import { snapshotPlacesImage } from '@/components/draw/snapshot-theme';
 
 /**
@@ -30,10 +30,13 @@ const cache = new Map<string, Promise<boolean>>();
 function mayInvert(drawId: string): Promise<boolean> {
   const hit = cache.get(drawId);
   if (hit) return hit;
+  // Resolved INSIDE the promise, after the token is ready: the answer is
+  // memoised for the session, so signing the url a beat too early would cache
+  // a 401 as "do not invert" for every embed of this drawing until reload.
   // The SAME url the <img> uses (assetUrl adds the `?at=` token a detached
   // client needs), so this is a cache hit rather than a second download.
-  const url = assetUrl(`/api/draws/${encodeURIComponent(drawId)}/svg?raw=1`);
-  const p = fetch(url)
+  const p = assetTokenReady()
+    .then(() => fetch(assetUrl(`/api/draws/${encodeURIComponent(drawId)}/svg?raw=1`)))
     .then((res) => (res.ok ? res.text() : null))
     .then((svg) => svg !== null && !snapshotPlacesImage(svg))
     // A drawing that can't be read stays light: the failure must not be

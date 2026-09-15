@@ -17,7 +17,7 @@ import { RowButton } from '@mantle/web-ui/ui/row-button';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -51,6 +51,7 @@ export function FileEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toAsset = useAssetUrl();
   const toast = useToast();
   const [state, setState] = useState<
     | { kind: 'loading' }
@@ -262,7 +263,7 @@ export function FileEditor({
           </Button>
           <Button asChild variant="outline" size="icon" className="size-9">
             <a
-              href={assetUrl(`/api/files/files/${file.id}?raw=1`)}
+              href={toAsset(`/api/files/files/${file.id}?raw=1`)}
               download={file.filename}
               title="Download"
             >
@@ -332,7 +333,7 @@ export function FileEditor({
  * never executes embedded scripts, so it's safe to show.
  */
 function FilePreviewBody({ file }: { file: FileRow }) {
-  const src = assetUrl(`/api/files/files/${file.id}?raw=1`);
+  const src = useAssetUrl()(`/api/files/files/${file.id}?raw=1`);
   const mime = file.mimeType || '';
   const isImage = mime.startsWith('image/');
   const isPdf = mime === 'application/pdf';

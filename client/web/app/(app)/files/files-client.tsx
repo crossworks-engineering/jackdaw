@@ -30,7 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { FileEditor } from './file-editor';
 import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
 import { useFileSearch } from './use-file-search';
@@ -144,6 +144,7 @@ function FilesView({
   currentFolder: FolderRow | null;
   files: FileRow[];
 }) {
+  const toAsset = useAssetUrl();
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -979,7 +980,7 @@ function FilesView({
                               {isImage ? (
                                 // eslint-disable-next-line @next/next/no-img-element -- authed same-origin thumbnail; next/image can't carry the asset token
                                 <img
-                                  src={assetUrl(`/api/files/files/${f.id}?thumb=1`)}
+                                  src={toAsset(`/api/files/files/${f.id}?thumb=1`)}
                                   alt=""
                                   loading="lazy"
                                   className="h-full w-full object-cover"

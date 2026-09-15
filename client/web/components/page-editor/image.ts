@@ -1,6 +1,52 @@
 import { Node, mergeAttributes } from '@tiptap/core';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { assetUrl, subscribeAssetToken } from '@mantle/web-ui/asset-url';
 import { DRAW_EMBED_CLASS } from '@/components/draw/snapshot-theme';
+
+/** Where `renderHTML` parks the UNSIGNED path, so the refresh plugin below can
+ *  re-sign it without re-deriving which of the three shapes produced it. */
+const ASSET_PATH_ATTR = 'data-asset-path';
+
+/**
+ * Re-sign the rendered `<img>` srcs when the asset token arrives or rotates.
+ *
+ * `renderHTML` is static: ProseMirror calls it once per node and only re-runs
+ * it when the node's own attributes change, which the token is not. In a
+ * detached client the first paint therefore resolves an UNSIGNED url that
+ * 401s, and nothing ever went back for it — the images on an open page stayed
+ * broken for the rest of the session.
+ *
+ * A node view would be the heavier answer, and a wrong one here: the whole
+ * point of this node is that it renders as a plain `<img>` in the editor, the
+ * read-only `PageView` and the assistant's RichText alike. So the plugin
+ * touches the DOM the same way `useDrawEmbedTheme` does — which is also why it
+ * re-stamps rather than dispatching a transaction: a transaction would push an
+ * undo entry for something the owner never did.
+ *
+ * Same-origin this subscription never fires (there is no token to publish).
+ */
+function assetTokenRefreshPlugin(): Plugin {
+  return new Plugin({
+    key: new PluginKey('imageAssetTokenRefresh'),
+    view(editorView) {
+      const resign = () => {
+        const imgs = editorView.dom.querySelectorAll<HTMLImageElement>(`img[${ASSET_PATH_ATTR}]`);
+        for (const img of imgs) {
+          const path = img.getAttribute(ASSET_PATH_ATTR);
+          if (!path) continue;
+          const next = assetUrl(path);
+          // Compare before assigning: setting `src` to its current value is a
+          // no-op in every browser that matters, but setting it to a NEW value
+          // restarts the load, and an unconditional write on a rotation would
+          // re-download every image on the page.
+          if (img.getAttribute('src') !== next) img.setAttribute('src', next);
+        }
+      };
+      const unsubscribe = subscribeAssetToken(resign);
+      return { destroy: unsubscribe };
+    },
+  });
+}
 
 /**
  * Block image node. Carries `nodeId` (the backing `file` node) alongside `src`
@@ -45,6 +91,10 @@ export const PageImage = Node.create({
     return [{ tag: 'img[src]' }];
   },
 
+  addProseMirrorPlugins() {
+    return [assetTokenRefreshPlugin()];
+  },
+
   renderHTML({ HTMLAttributes }) {
     // Route the asset src through assetUrl() so a detached/Electron client loads
     // it from the remote origin with the `?at=` token (a browser <img> can't send
@@ -58,10 +108,15 @@ export const PageImage = Node.create({
     const rawSrc = typeof HTMLAttributes.src === 'string' ? HTMLAttributes.src : null;
     let src = rawSrc;
     let extraClass: string | null = null;
+    // The unsigned path, kept so the token-refresh plugin can re-sign this
+    // image without re-running the branching below. Stays null for external
+    // (http/data) srcs, which carry no token and must not be touched.
+    let assetPath: string | null = null;
     if (typeof drawId === 'string' && drawId) {
       // Always an <img>, never inline markup: the snapshot is validated but
       // image context is what actually makes it inert.
-      src = assetUrl(`/api/draws/${encodeURIComponent(drawId)}/svg?raw=1`);
+      assetPath = `/api/draws/${encodeURIComponent(drawId)}/svg?raw=1`;
+      src = assetUrl(assetPath);
       // A snapshot is always captured light (docs/draw.md §5b), so under the
       // dark theme an embed follows the canvas the way the previews do. This
       // render is static and knows neither the theme nor the drawing, so the
@@ -69,9 +124,11 @@ export const PageImage = Node.create({
       // data attribute once it has checked the snapshot for pasted images.
       extraClass = DRAW_EMBED_CLASS;
     } else if (typeof nodeId === 'string' && nodeId) {
-      src = assetUrl(`/api/files/files/${nodeId}?raw=1`);
+      assetPath = `/api/files/files/${nodeId}?raw=1`;
+      src = assetUrl(assetPath);
     } else if (rawSrc && rawSrc.startsWith('/')) {
-      src = assetUrl(rawSrc);
+      assetPath = rawSrc;
+      src = assetUrl(assetPath);
     }
     return [
       'img',
@@ -79,6 +136,7 @@ export const PageImage = Node.create({
         HTMLAttributes,
         { src, loading: 'lazy' },
         extraClass ? { class: extraClass } : {},
+        assetPath ? { [ASSET_PATH_ATTR]: assetPath } : {},
       ),
     ];
   },

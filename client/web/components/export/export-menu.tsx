@@ -11,7 +11,7 @@ import {
   Table2,
   type LucideIcon,
 } from 'lucide-react';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   DropdownMenu,
@@ -61,6 +61,7 @@ export function ExportMenu({
   nodeId: string;
   kind?: 'page' | 'table' | 'draw';
 }) {
+  const toAsset = useAssetUrl();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -73,7 +74,7 @@ export function ExportMenu({
       <DropdownMenuContent align="end">
         {ITEMS[kind].map(({ format, label, Icon }) => (
           <DropdownMenuItem key={format} asChild>
-            <a href={assetUrl(`/api/export/${nodeId}?format=${format}`)} download>
+            <a href={toAsset(`/api/export/${nodeId}?format=${format}`)} download>
               <Icon />
               {label}
             </a>

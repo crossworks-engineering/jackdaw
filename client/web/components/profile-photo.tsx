@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { cn } from '@mantle/web-ui/lib/utils';
 
 /**
@@ -34,13 +34,18 @@ export function ProfilePhoto({
   /** What to render instead when the photo fails to load. */
   fallback?: React.ReactNode;
 }) {
+  const toAsset = useAssetUrl();
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [version]);
+  // Also on `toAsset`: the first paint of a detached client resolves an
+  // unsigned URL, which 401s and latches `failed`. Without this the photo
+  // would stay stepped down to the fallback for the rest of the session even
+  // though the token landed a moment later.
+  useEffect(() => setFailed(false), [version, toAsset]);
   if (failed) return <>{fallback}</>;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- private, token-authed bytes; next/image can't optimize them
     <img
-      src={assetUrl(`/api/profile/photo?v=${version}`)}
+      src={toAsset(`/api/profile/photo?v=${version}`)}
       alt={alt}
       className={cn('shrink-0 rounded-full border object-cover', className)}
       style={{ width: size, height: size }}

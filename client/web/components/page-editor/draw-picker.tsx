@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@mantle/web-ui
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import { assetUrl } from '@mantle/web-ui/asset-url';
+import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { cn } from '@mantle/web-ui/lib/utils';
 
 /**
@@ -36,6 +36,7 @@ type DrawRow = {
 };
 
 export function DrawPicker({ editor }: { editor: Editor }) {
+  const toAsset = useAssetUrl();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState<DrawRow[]>([]);
@@ -196,7 +197,7 @@ export function DrawPicker({ editor }: { editor: Editor }) {
                   // `?at=` token a detached client's <img> needs.
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={assetUrl(`/api/draws/${encodeURIComponent(row.id)}/svg?raw=1`)}
+                    src={toAsset(`/api/draws/${encodeURIComponent(row.id)}/svg?raw=1`)}
                     alt=""
                     // The snapshot is exported light-mode WITH its own background, so it must be
                     // matted white on either page theme rather than adapting and mangling its own
