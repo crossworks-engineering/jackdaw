@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { CopyBlock } from '@mantle/web-ui/ui/copy-button';
 import {
   Field,
   FieldDescription,
@@ -43,6 +44,7 @@ import {
   ListCardTitle,
 } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { mcpOAuthApp, mcpOAuthScope } from '@/lib/contract-next';
 
 /** Connector shapes come from the contract package (pins ≥ 0.232.73). */
 type McpBinding = NonNullable<ToolGroupIntegrationDTO['mcp']>;
@@ -66,7 +68,20 @@ type CatalogEntry = {
   secretService?: string;
   docsUrl: string;
   whenToUse: string;
+  /** Set when the server's sign-in needs a pre-registered app. */
+  oauthClient?: 'microsoft';
+  /** Steps outside Mantle the owner or their IT admin must do first. */
+  setup?: string[];
   connected: boolean;
+};
+type MicrosoftApp = { configured: false } | { configured: true; clientId: string; tenant: string };
+type ListResponse = {
+  connectors: ConnectorRow[];
+  catalog: CatalogEntry[];
+  /** The callback an OAuth app must list as a (Web) redirect URI. Absent on
+   *  brains older than the pre-registered-app release. */
+  oauthRedirectUri?: string;
+  microsoftApp?: MicrosoftApp;
 };
 type SyncResult = {
   added: number;
@@ -77,6 +92,8 @@ type SyncResult = {
 type KeyRow = { id: string; service: string; label: string; masked: string };
 
 type AuthMode = 'none' | 'key' | 'oauth';
+/** Where an OAuth connector's app comes from (mantle docs/mcp-connectors.md). */
+type OAuthApp = 'dynamic' | 'microsoft' | 'manual';
 
 type FormState = {
   slug: string;
@@ -84,9 +101,30 @@ type FormState = {
   url: string;
   auth: AuthMode;
   secretRef: string;
+  oauthApp: OAuthApp;
+  clientId: string;
+  /** Write-only: a manual app's secret is sealed server-side, never read back. */
+  clientSecret: string;
+  authorizationServer: string;
+  scope: string;
 };
 
-const emptyForm = (): FormState => ({ slug: '', name: '', url: '', auth: 'none', secretRef: '' });
+const noOAuthApp = {
+  oauthApp: 'dynamic' as OAuthApp,
+  clientId: '',
+  clientSecret: '',
+  authorizationServer: '',
+  scope: '',
+};
+
+const emptyForm = (): FormState => ({
+  slug: '',
+  name: '',
+  url: '',
+  auth: 'none',
+  secretRef: '',
+  ...noOAuthApp,
+});
 
 function formFromCatalog(c: CatalogEntry): FormState {
   const auth: AuthMode = c.secretService ? 'key' : c.oauthUrl ? 'oauth' : 'none';
@@ -96,18 +134,49 @@ function formFromCatalog(c: CatalogEntry): FormState {
     url: auth === 'oauth' && c.oauthUrl ? c.oauthUrl : c.url,
     auth,
     secretRef: '',
+    ...noOAuthApp,
+    oauthApp: c.oauthClient === 'microsoft' ? 'microsoft' : 'dynamic',
   };
 }
 
 function formFromConnector(c: ConnectorRow): FormState {
   const mcp = c.integration?.mcp;
+  const app = mcpOAuthApp(mcp?.oauth);
   return {
     slug: c.slug,
     name: c.name,
     url: mcp?.url ?? '',
     auth: mcp?.oauth ? 'oauth' : mcp?.secretRef ? 'key' : 'none',
     secretRef: mcp?.secretRef ?? '',
+    oauthApp: app?.source ?? 'dynamic',
+    clientId: app?.source === 'manual' ? (mcp?.oauth?.clientId ?? '') : '',
+    clientSecret: '',
+    authorizationServer: app?.source === 'manual' ? (app.authorizationServer ?? '') : '',
+    scope: mcpOAuthScope(mcp?.oauth) ?? '',
   };
+}
+
+/** The `oauthClient` request field for the form's app choice. */
+function oauthClientBody(f: FormState): Record<string, unknown> {
+  if (f.oauthApp !== 'manual') return { source: f.oauthApp };
+  return {
+    source: 'manual',
+    clientId: f.clientId.trim(),
+    ...(f.clientSecret ? { clientSecret: f.clientSecret } : {}),
+    ...(f.authorizationServer.trim() ? { authorizationServer: f.authorizationServer.trim() } : {}),
+  };
+}
+
+/** Did the owner change the connector's app? The server no-ops an unchanged
+ *  one, but a secret should not travel for nothing. */
+function oauthAppChanged(f: FormState, was: FormState): boolean {
+  return (
+    f.oauthApp !== was.oauthApp ||
+    (f.oauthApp === 'manual' &&
+      (f.clientId.trim() !== was.clientId ||
+        f.authorizationServer.trim() !== was.authorizationServer ||
+        f.clientSecret !== ''))
+  );
 }
 
 function OAuthStatusPill({ oauth }: { oauth: McpOAuthInfo }) {
@@ -155,8 +224,7 @@ export function ConnectorsClient() {
 
   const connectorsQuery = useQuery({
     queryKey: ['mcp-connectors'],
-    queryFn: () =>
-      apiFetch<{ connectors: ConnectorRow[]; catalog: CatalogEntry[] }>('/api/mcp-connectors'),
+    queryFn: () => apiFetch<ListResponse>('/api/mcp-connectors'),
   });
   const keysQuery = useQuery({
     queryKey: ['keys'],
@@ -164,6 +232,8 @@ export function ConnectorsClient() {
   });
   const connectors = useMemo(() => connectorsQuery.data?.connectors ?? [], [connectorsQuery.data]);
   const catalog = connectorsQuery.data?.catalog ?? [];
+  const oauthRedirectUri = connectorsQuery.data?.oauthRedirectUri;
+  const microsoftApp = connectorsQuery.data?.microsoftApp;
   // Derived from the LIVE list so create/delete flips the placeholder rows
   // immediately (same rule as /settings/keys).
   const availableCatalog = catalog.filter(
@@ -176,10 +246,25 @@ export function ConnectorsClient() {
 
   const [sel, setSel] = useState<{ mode: 'create' } | { mode: 'view'; slug: string } | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
-  const [errors, setErrors] = useState<{ slug?: string; url?: string; secretRef?: string }>({});
+  const [errors, setErrors] = useState<{
+    slug?: string;
+    url?: string;
+    secretRef?: string;
+    clientId?: string;
+  }>({});
   const [deleteTarget, setDeleteTarget] = useState<ConnectorRow | null>(null);
   const selected =
     sel?.mode === 'view' ? (connectors.find((c) => c.slug === sel.slug) ?? null) : null;
+  // The catalogue's customer-side steps (e.g. Power BI's Azure setup), shown
+  // while creating from it and until the connector first connects.
+  const setupEntry =
+    sel?.mode === 'create'
+      ? catalog.find((c) => c.slug === form.slug)
+      : sel?.mode === 'view'
+        ? catalog.find((c) => `mcp-${c.slug}` === sel.slug)
+        : undefined;
+  const showSetup =
+    !!setupEntry?.setup?.length && selected?.integration?.mcp?.oauth?.status !== 'connected';
 
   // While an authorization tab is open, poll until the connector reports
   // `connected` (the callback runs on the brain origin — this screen only
@@ -218,6 +303,8 @@ export function ConnectorsClient() {
         sync?: SyncResult;
         syncError?: string;
         authorizeUrl?: string;
+        /** The connector exists, but its authorization could not start. */
+        oauthError?: string;
       }>('/api/mcp-connectors', 'POST', vars.body),
     onSuccess: (res, vars) => {
       invalidate();
@@ -231,7 +318,9 @@ export function ConnectorsClient() {
         // No authorization needed after all — nothing will navigate the tab we
         // opened ahead of the answer, so it would sit there blank.
         vars.tab?.close();
-        if (res.syncError) {
+        if (res.oauthError) {
+          toast.error(`Connector created, but authorization could not start: ${res.oauthError}`);
+        } else if (res.syncError) {
           toast.error(`Connector created, but the first sync failed: ${res.syncError}`);
         } else if (res.sync) {
           toast.success(`Connected — ${res.sync.toolSlugs.length} tools synced.`);
@@ -247,9 +336,13 @@ export function ConnectorsClient() {
   const saveMutation = useMutation({
     mutationFn: (vars: { slug: string; body: Record<string, unknown> }) =>
       apiSend(`/api/mcp-connectors/${vars.slug}`, 'PATCH', vars.body),
-    onSuccess: () => {
+    onSuccess: (_res, vars) => {
       invalidate();
-      toast.success('Connector saved.');
+      toast.success(
+        vars.body.oauthClient
+          ? 'Connector saved. Authorize it again to sign in with the new app.'
+          : 'Connector saved.',
+      );
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Save failed.'),
   });
@@ -324,9 +417,17 @@ export function ConnectorsClient() {
       next.url = 'The server’s streamable-HTTP endpoint, starting with https://.';
     if (form.auth === 'key' && !form.secretRef)
       next.secretRef = 'Pick the vault key this server authenticates with.';
-    if (next.slug || next.url || next.secretRef) {
+    if (form.auth === 'oauth' && form.oauthApp === 'manual' && !form.clientId.trim())
+      next.clientId = 'The client id of the app you registered.';
+    if (next.slug || next.url || next.secretRef || next.clientId) {
       setErrors(next);
-      const first = next.slug ? 'connector-slug' : next.url ? 'connector-url' : 'connector-secret';
+      const first = next.slug
+        ? 'connector-slug'
+        : next.url
+          ? 'connector-url'
+          : next.secretRef
+            ? 'connector-secret'
+            : 'connector-client-id';
       document.getElementById(first)?.focus();
       return;
     }
@@ -343,6 +444,10 @@ export function ConnectorsClient() {
           url: form.url.trim(),
           ...(form.auth === 'key' ? { secretRef: form.secretRef } : {}),
           ...(form.auth === 'oauth' ? { oauth: true } : {}),
+          ...(form.auth === 'oauth' && form.oauthApp !== 'dynamic'
+            ? { oauthClient: oauthClientBody(form) }
+            : {}),
+          ...(form.auth === 'oauth' && form.scope.trim() ? { scope: form.scope.trim() } : {}),
         },
       });
     } else {
@@ -353,6 +458,16 @@ export function ConnectorsClient() {
           url: form.url.trim(),
           // '' clears the credential (switching to OAuth/none leaves tokens alone).
           secretRef: form.auth === 'key' ? form.secretRef : '',
+          ...(form.auth === 'oauth' &&
+          selected &&
+          oauthAppChanged(form, formFromConnector(selected))
+            ? { oauthClient: oauthClientBody(form) }
+            : {}),
+          ...(form.auth === 'oauth' &&
+          selected &&
+          form.scope.trim() !== formFromConnector(selected).scope
+            ? { scope: form.scope.trim() }
+            : {}),
         },
       });
     }
@@ -528,6 +643,11 @@ export function ConnectorsClient() {
                         : 'Never synced'}
                     </span>
                   </div>
+                  {selected.integration.mcp.oauth?.lastError && (
+                    <p className="text-xs text-destructive-ink">
+                      {selected.integration.mcp.oauth.lastError}
+                    </p>
+                  )}
                   {selected.toolSlugs.length > 0 && (
                     <p className="font-mono text-xs text-muted-foreground">
                       {selected.toolSlugs.join(' · ')}
@@ -572,6 +692,25 @@ export function ConnectorsClient() {
                       </Button>
                     )}
                   </div>
+                </div>
+              )}
+
+              {showSetup && setupEntry?.setup && (
+                <div className="space-y-2 rounded-lg border border-info/30 bg-info/10 p-3 text-sm">
+                  <p className="font-medium text-info-ink">Before you connect {setupEntry.label}</p>
+                  <ol className="list-decimal space-y-1 pl-5">
+                    {setupEntry.setup.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  <a
+                    href={setupEntry.docsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-info-ink underline underline-offset-2"
+                  >
+                    The provider’s setup guide
+                  </a>
                 </div>
               )}
 
@@ -702,6 +841,160 @@ export function ConnectorsClient() {
                       </Field>
                     )}
                   </div>
+
+                  {form.auth === 'oauth' && (
+                    <>
+                      <Field>
+                        <FieldLabel htmlFor="connector-oauth-app">Sign-in app</FieldLabel>
+                        <Select
+                          value={form.oauthApp}
+                          onValueChange={(v) => {
+                            setForm((f) => ({ ...f, oauthApp: v as OAuthApp }));
+                            setErrors((c) => ({ ...c, clientId: undefined }));
+                          }}
+                        >
+                          <SelectTrigger id="connector-oauth-app">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="dynamic">Registers itself (most servers)</SelectItem>
+                            <SelectItem
+                              value="microsoft"
+                              disabled={microsoftApp?.configured === false}
+                            >
+                              Microsoft app (Settings → Microsoft)
+                            </SelectItem>
+                            <SelectItem value="manual">An app I registered myself</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>
+                          {form.oauthApp === 'microsoft' ? (
+                            microsoftApp?.configured ? (
+                              <>
+                                Signs in with app{' '}
+                                <code className="font-mono">{microsoftApp.clientId}</code> in tenant{' '}
+                                <code className="font-mono">{microsoftApp.tenant}</code>, from{' '}
+                                <Link
+                                  href="/settings/microsoft"
+                                  className="underline underline-offset-2"
+                                >
+                                  Settings → Microsoft
+                                </Link>
+                                . For servers behind Microsoft sign-in, like Power BI.
+                              </>
+                            ) : (
+                              <>
+                                Set up the app under{' '}
+                                <Link
+                                  href="/settings/microsoft"
+                                  className="underline underline-offset-2"
+                                >
+                                  Settings → Microsoft
+                                </Link>{' '}
+                                first.
+                              </>
+                            )
+                          ) : form.oauthApp === 'manual' ? (
+                            'An app you registered with the server’s sign-in provider. Its secret is sealed in the vault.'
+                          ) : (
+                            'Mantle registers itself with the server’s sign-in. Microsoft servers do not allow that: pick the Microsoft app for those.'
+                          )}
+                        </FieldDescription>
+                      </Field>
+
+                      {form.oauthApp === 'manual' && (
+                        <>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field data-invalid={!!errors.clientId || undefined}>
+                              <FieldLabel htmlFor="connector-client-id">Client id</FieldLabel>
+                              <Input
+                                id="connector-client-id"
+                                value={form.clientId}
+                                onChange={(e) => {
+                                  setForm((f) => ({ ...f, clientId: e.target.value }));
+                                  setErrors((c) => ({ ...c, clientId: undefined }));
+                                }}
+                                className="font-mono"
+                                aria-invalid={!!errors.clientId || undefined}
+                                aria-describedby={errors.clientId ? 'client-id-error' : undefined}
+                              />
+                              <FieldError id="client-id-error">{errors.clientId}</FieldError>
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="connector-client-secret">
+                                Client secret
+                              </FieldLabel>
+                              <Input
+                                id="connector-client-secret"
+                                type="password"
+                                autoComplete="off"
+                                value={form.clientSecret}
+                                onChange={(e) =>
+                                  setForm((f) => ({ ...f, clientSecret: e.target.value }))
+                                }
+                                placeholder={sel.mode === 'view' ? 'Unchanged' : 'Optional'}
+                                aria-describedby="client-secret-hint"
+                              />
+                              <FieldDescription id="client-secret-hint">
+                                Sealed in the vault; never shown again.
+                              </FieldDescription>
+                            </Field>
+                          </div>
+                          <Field>
+                            <FieldLabel htmlFor="connector-auth-server">Sign-in server</FieldLabel>
+                            <Input
+                              id="connector-auth-server"
+                              value={form.authorizationServer}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, authorizationServer: e.target.value }))
+                              }
+                              placeholder="https://login.example.com/tenant/v2.0"
+                              className="font-mono"
+                              aria-describedby="auth-server-hint"
+                            />
+                            <FieldDescription id="auth-server-hint">
+                              Optional. Only when the app must sign in somewhere other than where
+                              the server points, such as a single-tenant app’s own tenant.
+                            </FieldDescription>
+                          </Field>
+                        </>
+                      )}
+
+                      {form.oauthApp !== 'dynamic' && oauthRedirectUri && (
+                        <Field>
+                          <FieldLabel asChild>
+                            <span>Callback URL</span>
+                          </FieldLabel>
+                          <CopyBlock code={oauthRedirectUri} />
+                          <FieldDescription>
+                            Register this exact URL with the app.
+                            {form.oauthApp === 'microsoft'
+                              ? ' In Azure: the app → Authentication → add it under the Web platform, not “Mobile and desktop”. Mantle sends the app’s secret, and Entra refuses a secret there.'
+                              : ''}
+                          </FieldDescription>
+                        </Field>
+                      )}
+
+                      <Field>
+                        <FieldLabel htmlFor="connector-scope">Scope</FieldLabel>
+                        <Input
+                          id="connector-scope"
+                          value={form.scope}
+                          onChange={(e) => setForm((f) => ({ ...f, scope: e.target.value }))}
+                          placeholder="Server default"
+                          className="font-mono"
+                          aria-describedby="scope-hint"
+                        />
+                        <FieldDescription id="scope-hint">
+                          Optional, space-separated. Leave empty to ask for what the server
+                          advertises.
+                          {form.oauthApp === 'microsoft'
+                            ? ' The Microsoft app always adds offline_access, so the connection can refresh.'
+                            : ''}
+                        </FieldDescription>
+                      </Field>
+                    </>
+                  )}
 
                   <div className="flex justify-end gap-2 border-t border-border pt-3">
                     <Button type="button" variant="outline" onClick={() => setSel(null)}>
