@@ -74,6 +74,24 @@ function remembered(id: string): TourMemory | null {
   }
 }
 
+/**
+ * The first VISIBLE match for a selector. The shell renders some controls
+ * twice — the account menu sits in the desktop rail and again in the mobile
+ * bar, and whichever is hidden at this width has a zero-size rect at 0,0.
+ * `querySelector` returns the first in document order, which on a desktop
+ * was the hidden one: the card pinned itself to the top-left corner over
+ * nothing. Prefer a match with a box; fall back to any match so a step whose
+ * element is present but not yet laid out still resolves.
+ */
+function findVisible(selector: string): Element | null {
+  const all = document.querySelectorAll(selector);
+  for (const el of all) {
+    const b = el.getBoundingClientRect();
+    if (b.width > 0 && b.height > 0) return el;
+  }
+  return all[0] ?? null;
+}
+
 function padded(r: DOMRect): Rect {
   return {
     top: r.top - SPOTLIGHT_PAD,
@@ -158,7 +176,7 @@ export function TourProvider({
     };
     const seek = () => {
       if (cancelled) return;
-      el = document.querySelector(selector);
+      el = findVisible(selector);
       if (el) {
         // `nearest` so a rail item already on screen does not jump the rail.
         el.scrollIntoView({ block: 'nearest', inline: 'nearest' });

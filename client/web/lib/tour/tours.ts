@@ -56,10 +56,13 @@ const demo: Tour = {
       body: 'Mail is ingested, classified and searchable beside everything else. Marketing is down-weighted so it never crowds out a real conversation.',
     },
     {
+      // Traces are reached from the operator view, not the rail, so this
+      // stop frames the screen itself rather than a menu item.
       route: '/traces',
-      target: 'nav:/traces',
+      target: 'main',
       title: 'Every assistant turn leaves a trace',
       body: 'The prompt, the passages it retrieved, every tool it called — step by step. Nothing the assistant does is a black box.',
+      side: 'left',
     },
     {
       route: '/',
