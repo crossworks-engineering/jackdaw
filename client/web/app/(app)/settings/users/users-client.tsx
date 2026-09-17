@@ -51,6 +51,7 @@ import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
+import { PairPhoneCard } from './pair-phone-card';
 
 type UserRow = {
   id: string;
@@ -348,6 +349,7 @@ function UserDetail({
       </div>
 
       <DevicesCard user={user} isSelf={isSelf} />
+      {isSelf && <PairPhoneCard userId={user.id} />}
     </div>
   );
 }
