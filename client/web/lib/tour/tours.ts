@@ -11,14 +11,24 @@ import type { Tour } from './model';
  */
 
 /**
- * The public demo. Written for a visitor who has never seen Mantle: nine
- * stops, each a sentence or two, in the order a first look actually goes —
- * what this is, where the content lives, then the three things that make it
- * a brain rather than a filing cabinet (search, the assistant, the traces).
+ * The public demo. Written for a visitor who has never seen Mantle, and it
+ * tells one story in three movements rather than naming screens:
  *
- * Every claim must be TRUE of the demo brain in particular: it is generated,
- * read-only, and the assistant's turns are refused at the edge — the tour
- * says so rather than inviting a visitor to try something that cannot work.
+ *   1. everything you add is learned, automatically, and the brain knows
+ *      itself (the dashboard, then files, mail and pages as the ways in);
+ *   2. you ask with that context behind you (search, the agent, and the
+ *      audit of a real answer with the passages it was built from);
+ *   3. you steer the intelligence toward automation (agents and their tool
+ *      groups, then MCP, where any client reaches the same brain).
+ *
+ * The demo is read-only, so no stop invites the visitor to add anything: each
+ * one SHOWS the result of that step on seeded content and says what they
+ * would do on a brain of their own. Every claim must be TRUE of the demo
+ * brain in particular — it is generated, the assistant's turns are refused
+ * at the edge, and the MCP connector is off — and the tour says so rather
+ * than inviting a visitor to try something that cannot work. The rail's
+ * default scope is Work, so stops on Settings and System screens frame the
+ * content area rather than a rail item that is not on screen.
  */
 const demo: Tour = {
   id: 'demo',
@@ -28,59 +38,73 @@ const demo: Tour = {
       route: '/',
       target: 'brand',
       title: 'Welcome to the Jackdaw demo',
-      body: 'You are looking at a real Mantle brain — the working memory of Harbour Labs, a fictional five-person engineering studio. Everything in it is generated, and the demo is read-only: look anywhere, change nothing.',
+      body: 'You are looking at a real Mantle brain: the working memory of Harbour Labs, a fictional five-person engineering studio. Everything in it is generated, and the demo is read-only, so look anywhere and change nothing.',
     },
     {
       route: '/',
       target: 'main',
-      title: 'The dashboard',
-      body: 'Brain health at a glance: what has been ingested, what the assistant has done, and what is waiting on the owner.',
+      title: 'A brain that knows itself',
+      body: 'The notes, mail, files and tables the studio added are the top line; the facts, people and connections beneath them were extracted by the brain on its own, with nothing tagged or filed by hand. On your own brain this screen starts empty and fills as you add things.',
       side: 'left',
     },
     {
-      route: '/pages',
-      target: 'nav:/pages',
-      title: 'Pages',
-      body: 'Living documents, with revision families. Open the PUMPHOUSE procedure changelog to see revision A give way to B and C — the brain knows which one is current.',
-    },
-    {
-      route: '/tables',
-      target: 'nav:/tables',
-      title: 'Tables',
-      body: 'Typed columns, formulas and aggregates. A retail fit-out pipeline and a lathe restoration budget sit in the same brain, because a whole life does.',
+      route: '/files',
+      target: 'nav:/files',
+      title: 'Start with what you already have',
+      body: 'Drop in drawings, reports, spreadsheets and photos: each one is read, summarised and indexed the moment it lands, and the people and facts inside it join the brain without any sorting on your part. Every file here went through exactly that.',
     },
     {
       route: '/inbox',
       target: 'nav:/inbox',
-      title: 'Email lands here too',
-      body: 'Mail is ingested, classified and searchable beside everything else. Marketing is down-weighted so it never crowds out a real conversation.',
+      title: 'Mail is learned the same way',
+      body: 'Connect a mailbox and every thread is ingested, classified and searchable beside everything else, with marketing down-weighted so it never crowds out a real conversation. The store 214 snag dispute, certificate withheld and all, arrived here as ordinary email.',
     },
     {
-      // Traces are reached from the operator view, not the rail, so this
-      // stop frames the screen itself rather than a menu item.
-      route: '/traces',
-      target: 'main',
-      title: 'Every assistant turn leaves a trace',
-      body: 'The prompt, the passages it retrieved, every tool it called — step by step. Nothing the assistant does is a black box.',
-      side: 'left',
+      route: '/pages',
+      target: 'nav:/pages',
+      title: 'Write, and the brain keeps up',
+      body: 'Pages are living documents with revision families: open the PS3 changeover procedure to watch revision A give way to B and C, and the brain knows which one is current when it answers. Tables sit beside them, typed columns, formulas and aggregates included.',
     },
     {
       route: '/',
       target: 'profile',
-      title: 'Search everything',
-      body: 'Account, appearance and search live under this menu. One query (⌘K) reaches notes, pages, mail, files and tables at once, ranked by meaning rather than by keyword.',
+      title: 'Ask it anything, the quick way',
+      body: 'Search everywhere (⌘K, or Ctrl+K) lives under this menu and reaches notes, pages, mail, files and tables in one query, ranked by meaning rather than by keyword. Try "loop check order" and watch an email thread, a task, a note and the procedure itself answer together.',
     },
     {
       route: '/',
       target: 'assistant',
-      title: 'The assistant',
-      body: 'Ask it to do real work: it reads the brain, runs tools, and asks before anything irreversible. This public demo refuses writes, so its turns are switched off here.',
+      title: 'Then ask the agent',
+      body: "Saskia, the studio's assistant, reads the brain before answering, runs tools to do real work, and asks before anything irreversible. This public demo refuses writes, so its turns are switched off here; the next stop shows what it answered while they were on.",
+    },
+    {
+      // The context audit lives under Debug, which the Work scope keeps off
+      // the rail, so this stop frames the screen itself.
+      route: '/debug/context',
+      target: 'main',
+      title: 'Every answer is grounded, and you can see how',
+      body: 'Each row is a real question asked of this brain, the passages retrieved to answer it, and the reply that came back. Nothing the agent says is a black box: the context it was given sits beside the answer it gave.',
+      side: 'left',
+    },
+    {
+      route: '/settings/agents',
+      target: 'main',
+      title: 'One brain, several agents',
+      body: 'Saskia is the generalist; Ledger works tables, Pages writes documents, Remy recalls, Toolsmith builds new tools, and each is a persona, a model and a set of tool groups you can change here. The memory is shared; the jobs are not.',
+      side: 'left',
+    },
+    {
+      route: '/settings/mcp',
+      target: 'main',
+      title: 'Steer it toward automation with MCP',
+      body: 'Switch the connector on and this brain becomes an MCP server: Claude, Cursor or any MCP client works with the same tools and the same memory the agents have, so the automation you build elsewhere starts from everything already learned here. It is off on the public demo; on your own brain it is one toggle.',
+      side: 'left',
     },
     {
       route: '/',
       target: 'help',
       title: 'Every screen explains itself',
-      body: 'The ? panel describes whichever screen you are on. That is the tour — explore freely; nothing you click can change this brain.',
+      body: 'The ? panel describes whichever screen you are on, and the Settings and Admin scopes above the rail show the rest of the map. That is the tour; explore freely, nothing you click can change this brain.',
     },
   ],
 };
