@@ -52,20 +52,34 @@ export function parseTourMemory(raw: string | null): TourMemory | null {
  * `?tour=<id>` in the URL always wins and always starts, even a tour this
  * browser has finished — it is how a link from a marketing page, or a person
  * who wants to see it again, asks for it. Otherwise the deployment's
- * `MANTLE_TOUR` starts ONCE: a browser that finished or dismissed it is not
- * shown it again. An id that names no known tour starts nothing, rather than
- * an empty overlay.
+ * `MANTLE_TOUR` starts ONCE, and only on the tour's own first screen: a
+ * visitor who deep-linked to some other screen is not yanked to the
+ * dashboard by a tour they did not ask for — it waits until they get there.
+ * A browser that finished or dismissed it is not shown it again. An id that
+ * names no known tour starts nothing, rather than an empty overlay.
  */
 export function decideAutoStart(input: {
   urlTour: string | null;
   envTour: string | null;
+  /** The screen the visitor is on now. */
+  pathname: string | null;
   known: (id: string) => boolean;
+  /** The route of a tour's first step, or null for an unknown id. */
+  firstRoute: (id: string) => string | null;
   remembered: (id: string) => TourMemory | null;
 }): string | null {
   const url = input.urlTour?.trim();
   if (url && input.known(url)) return url;
   const env = input.envTour?.trim();
-  if (env && input.known(env) && input.remembered(env) === null) return env;
+  if (
+    env &&
+    input.known(env) &&
+    input.remembered(env) === null &&
+    input.pathname !== null &&
+    input.firstRoute(env) === input.pathname
+  ) {
+    return env;
+  }
   return null;
 }
 

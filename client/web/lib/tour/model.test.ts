@@ -33,45 +33,55 @@ describe('parseTourMemory', () => {
 
 describe('decideAutoStart', () => {
   const known = (id: string) => id === 'demo';
+  const firstRoute = (id: string) => (id === 'demo' ? '/' : null);
   const fresh = () => null;
+  const base = { known, firstRoute, remembered: fresh, pathname: '/' };
 
-  it('starts the deployment tour once', () => {
-    expect(decideAutoStart({ urlTour: null, envTour: 'demo', known, remembered: fresh })).toBe(
-      'demo',
+  it('starts the deployment tour once, on its first screen', () => {
+    expect(decideAutoStart({ ...base, urlTour: null, envTour: 'demo' })).toBe('demo');
+  });
+
+  // A visitor who deep-linked to /pages is not pulled to the dashboard by a
+  // tour they did not ask for. Nothing is remembered, so it opens when they
+  // do reach the first screen.
+  it('waits for the first screen rather than yanking a deep link', () => {
+    expect(decideAutoStart({ ...base, urlTour: null, envTour: 'demo', pathname: '/pages' })).toBe(
+      null,
     );
+    expect(decideAutoStart({ ...base, urlTour: null, envTour: 'demo', pathname: null })).toBe(null);
   });
 
   it('does not repeat a tour this browser finished or dismissed', () => {
     for (const memory of ['done', 'dismissed'] as const) {
       expect(
-        decideAutoStart({ urlTour: null, envTour: 'demo', known, remembered: () => memory }),
+        decideAutoStart({ ...base, urlTour: null, envTour: 'demo', remembered: () => memory }),
       ).toBeNull();
     }
   });
 
-  // A link that asks for the tour is a person asking; the memory is for the
-  // unasked-for case only.
-  it('the URL always starts the tour, finished or not', () => {
+  // A link that asks for the tour is a person asking; the memory and the
+  // first-screen rule are for the unasked-for case only.
+  it('the URL always starts the tour, finished or not, from any screen', () => {
     expect(
-      decideAutoStart({ urlTour: 'demo', envTour: null, known, remembered: () => 'done' }),
+      decideAutoStart({
+        ...base,
+        urlTour: 'demo',
+        envTour: null,
+        pathname: '/traces',
+        remembered: () => 'done',
+      }),
     ).toBe('demo');
   });
 
   it('never opens an empty overlay for an id nothing knows', () => {
-    expect(
-      decideAutoStart({ urlTour: 'nope', envTour: null, known, remembered: fresh }),
-    ).toBeNull();
-    expect(
-      decideAutoStart({ urlTour: null, envTour: 'nope', known, remembered: fresh }),
-    ).toBeNull();
+    expect(decideAutoStart({ ...base, urlTour: 'nope', envTour: null })).toBeNull();
+    expect(decideAutoStart({ ...base, urlTour: null, envTour: 'nope' })).toBeNull();
     // A bad URL id does not fall through to blocking the env tour either.
-    expect(decideAutoStart({ urlTour: 'nope', envTour: 'demo', known, remembered: fresh })).toBe(
-      'demo',
-    );
+    expect(decideAutoStart({ ...base, urlTour: 'nope', envTour: 'demo' })).toBe('demo');
   });
 
   it('treats blanks as absent', () => {
-    expect(decideAutoStart({ urlTour: '  ', envTour: '', known, remembered: fresh })).toBeNull();
+    expect(decideAutoStart({ ...base, urlTour: '  ', envTour: '' })).toBeNull();
   });
 });
 

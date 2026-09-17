@@ -122,7 +122,8 @@ export function TourProvider({
   const start = React.useCallback(
     (id: string) => {
       const tour = tourById(id);
-      if (tour && tour.steps.length) setState({ tour, index: 0 });
+      if (!tour || !tour.steps.length) return;
+      setState((s) => (s && s.tour.id === tour.id ? s : { tour, index: 0 }));
     },
     [tourById],
   );
@@ -141,11 +142,16 @@ export function TourProvider({
     const id = decideAutoStart({
       urlTour,
       envTour: runtimeTour(),
+      pathname,
       known: (candidate) => tourById(candidate) !== null,
+      firstRoute: (candidate) => tourById(candidate)?.steps[0]?.route ?? null,
       remembered,
     });
     if (id) start(id);
-  }, [start, tourById]);
+    // Re-decided on every route change on purpose: the deployment tour waits
+    // for its first screen, and a visitor who deep-linked elsewhere reaches
+    // it by navigating. Once started, `start` is idempotent for that tour.
+  }, [start, tourById, pathname]);
 
   const active = React.useMemo<TourActive | null>(
     () => (state ? { ...state, step: state.tour.steps[state.index]! } : null),
