@@ -179,7 +179,10 @@ export function LiveColumn({
   const hasAny = active.length + failures.length + recent.length > 0;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-30 hidden w-[var(--activity-w)] flex-col border-l bg-sidebar lg:flex">
+    <aside
+      data-tour="activity"
+      className="fixed inset-y-0 right-0 z-30 hidden w-[var(--activity-w)] flex-col border-l bg-sidebar lg:flex"
+    >
       {/* `-z-10`: the aside is `fixed z-30` and so owns a stacking context, in
           which a negative-z child paints above its background but below the
           content. Renders nothing when the activity area is switched off. */}

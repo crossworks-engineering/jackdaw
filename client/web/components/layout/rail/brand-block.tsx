@@ -88,6 +88,7 @@ export function BrandBlock({
 
   return (
     <div
+      data-tour="brand"
       className={cn(
         // `isolate` is what makes the backdrop's `-z-10` mean what it says.
         // The old header owned a stacking context by being `fixed z-40`; this

@@ -149,6 +149,7 @@ export function SidebarNav({
     const trigger = (
       <Link
         href={item.href}
+        data-tour={`nav:${item.href}`}
         onClick={() => onNavigate?.()}
         aria-current={active ? 'page' : undefined}
         title={collapsed ? undefined : item.name}

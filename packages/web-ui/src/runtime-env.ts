@@ -17,6 +17,8 @@ export type MantleRuntimeEnv = {
   serverOrigin?: string;
   /** Live turn-streaming flag (mirrors NEXT_PUBLIC_MANTLE_TURN_STREAMING). */
   turnStreaming?: string;
+  /** The guided tour this deployment opens once per browser (MANTLE_TOUR). */
+  tour?: string;
 };
 
 declare global {
@@ -76,4 +78,14 @@ export function serverUrl(path: string): string {
   const base = (runtimeEnv().serverOrigin ?? runtimeApiBase()).replace(/\/+$/, '');
   if (base) return `${base}${path}`;
   return typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
+}
+
+/**
+ * The guided tour this deployment opens by itself, by id — empty for none.
+ * Set per box as `MANTLE_TOUR` on the client container; the public demo is
+ * the first deployment that names one. Falls back to the build-time var so a
+ * detached dev run can try a tour without a compose file.
+ */
+export function runtimeTour(): string {
+  return (runtimeEnv().tour ?? process.env.NEXT_PUBLIC_MANTLE_TOUR ?? '').trim();
 }

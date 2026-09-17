@@ -1207,6 +1207,7 @@ export function AssistantButton() {
 
   return (
     <Button
+      data-tour="assistant"
       onClick={toggle}
       size="sm"
       variant={open ? 'default' : needsYou ? 'default' : 'ghost'}

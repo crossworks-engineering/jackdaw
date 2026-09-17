@@ -38,6 +38,8 @@ import { AssistantDockProvider, useDockLayout } from '@/components/assistant/ass
 import { AssistantPanel } from '@/components/assistant/assistant-panel';
 import { HelpRailProvider, useHelpRail } from '@/components/help/help-rail-context';
 import { HelpRail } from '@/components/help/help-rail';
+import { TourProvider } from '@/components/tour/tour-provider';
+import { TourOverlay } from '@/components/tour/tour-overlay';
 import { PendingQuestionWatcher } from '@/components/pending/question-watcher';
 import { DesktopBridge } from '@/components/desktop/desktop-bridge';
 import { PickMode } from '@/components/assistant/pick-mode';
@@ -145,7 +147,9 @@ export function AppShell(props: {
         <UploadProvider>
           <AssistantDockProvider>
             <HelpRailProvider>
-              <ShellFrame {...props} />
+              <TourProvider>
+                <ShellFrame {...props} />
+              </TourProvider>
             </HelpRailProvider>
           </AssistantDockProvider>
         </UploadProvider>
@@ -598,7 +602,10 @@ function ShellFrame({
         </div>
 
         {/* No `transition-[left,right]` — see the aside above and globals.css. */}
-        <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]">
+        <main
+          data-tour="main"
+          className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]"
+        >
           <Suspense fallback={null}>{children}</Suspense>
         </main>
 
@@ -606,6 +613,11 @@ function ShellFrame({
             <main>, above every route, summoned from anywhere by the bubble/⌘I. */}
         <AssistantPanel />
         <HelpRail />
+
+        {/* The guided tour — a spotlight and a card above everything, only
+            when a tour is running (MANTLE_TOUR once per browser, or ?tour=).
+            See components/tour. */}
+        <TourOverlay />
 
         {/* Marker pick mode — highlights markable rows + intercepts their clicks
             while picking; renders nothing otherwise. */}

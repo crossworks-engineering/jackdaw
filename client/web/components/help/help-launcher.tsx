@@ -26,6 +26,7 @@ export function HelpLauncher() {
 
   return (
     <Button
+      data-tour="help"
       variant="ghost"
       size="icon-xs"
       type="button"

@@ -19,6 +19,7 @@ export async function GET() {
     apiBase: serverOrigin,
     serverOrigin,
     turnStreaming: process.env.MANTLE_TURN_STREAMING ?? '',
+    tour: process.env.MANTLE_TOUR ?? '',
   };
   return new Response(`window.__MANTLE_ENV__ = ${JSON.stringify(env)};`, {
     headers: {

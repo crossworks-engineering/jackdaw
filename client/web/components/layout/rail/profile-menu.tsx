@@ -147,6 +147,7 @@ export function ProfileMenu({
       <DropdownMenuTrigger asChild>
         <RowButton
           title={primary}
+          data-tour="profile"
           aria-label={`Account — ${primary}`}
           className={cn(
             'flex items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
