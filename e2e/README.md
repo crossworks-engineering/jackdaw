@@ -4,10 +4,10 @@ Playwright suite that drives a LIVE stack end-to-end. Written before the
 server/client split (v0.200.0) so every phase of it lands against a green net.
 One spec set, two topologies:
 
-| Project | Meaning | When it runs |
-|---|---|---|
-| `same-origin` | client and server are one origin (the monolith, or the server app's own team/share/print surfaces) | CI on every PR + locally |
-| `split` | client (owner UI) on its own origin, server on the canonical origin | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
+| Project       | Meaning                                                                                            | When it runs                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `same-origin` | client and server are one origin (the monolith, or the server app's own team/share/print surfaces) | CI on every PR + locally                                              |
+| `split`       | client (owner UI) on its own origin, server on the canonical origin                                | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
 team-token entry, PDF export, `/app-runtime` CORS, the editor header, `/tasks`
@@ -21,6 +21,29 @@ computed `transition-property` reads `none` under test and such an assertion
 passes whatever the app does. Read the authored rules out of `document
 .styleSheets` instead — `shell-layout.spec.ts` does, and the comment there
 explains why.
+
+## The route coverage gate (`pnpm e2e:routes`)
+
+A different instrument from the suite: `e2e/check-routes.mjs` derives every
+screen from `client/web/app`, opens each one in a real browser against a
+deployment you name, and fails on anything that does not actually render —
+an unresolved React placeholder, an empty `<main>`, a 5xx behind a tidy empty
+state, a bounce to `/login`. GET-only, so it is safe against a brain people
+rely on and against a read-only edge. It came from the mantle demo branch,
+where its fixture-driven predecessor had shipped 85 blank screens; it lives
+here because the route list has to be derived from the screens beside it.
+
+```sh
+pnpm e2e:routes -- https://demo.example                 # the target admits visitors (demo edge)
+ROUTES_BEARER=<owner token> pnpm e2e:routes -- https://app.example   # split topology: seeds the bearer + presence cookie
+ROUTES_ONLY=/journal,/traces pnpm e2e:routes -- …       # narrow the sweep
+```
+
+Dynamic segments are filled from read-only API fixtures (`FIXTURES` in the
+script). A screen whose fixture is absent on that brain is reported SKIPPED,
+never counted as a pass; a new dynamic screen with no fixture rule is named
+so the gap is visible. `ROUTES_API_LOG=<path>` watches a local API log for
+server-side errors the browser cannot see (the demo bench sets it).
 
 ## Run it
 
@@ -92,7 +115,7 @@ Three things that are easy to get wrong:
 
 Tear down with `DROP DATABASE mantle_e2e` and `mc rb --force local/mantle-e2e`.
 
-That combination — owner UI on its own origin, brain on another — *is* the
+That combination — owner UI on its own origin, brain on another — _is_ the
 `split` topology, so `pnpm e2e` runs the `split` project. The `same-origin`
 project means one origin serving both, which this repo cannot produce locally;
 run it directly against a box deployed that way:

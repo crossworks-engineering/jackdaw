@@ -23,7 +23,8 @@
     "e2e": "e2e/scripts/run-local.sh",
     "e2e:up": "e2e/scripts/run-local.sh up",
     "e2e:test": "e2e/scripts/run-local.sh test",
-    "e2e:down": "e2e/scripts/run-local.sh down"
+    "e2e:down": "e2e/scripts/run-local.sh down",
+    "e2e:routes": "node e2e/check-routes.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
