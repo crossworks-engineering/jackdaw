@@ -97,7 +97,7 @@ const demo: Tour = {
       route: '/settings/mcp',
       target: 'main',
       title: 'Steer it toward automation with MCP',
-      body: 'Switch the connector on and this brain becomes an MCP server: Claude, Cursor or any MCP client works with the same tools and the same memory the agents have, so the automation you build elsewhere starts from everything already learned here. It is off on the public demo; on your own brain it is one toggle.',
+      body: 'Switch the connector on and this brain becomes an MCP server: add it to Claude on the web, desktop or phone and it works with the same tools and the same memory the agents have, so the automation you build there starts from everything already learned here. It is off on the public demo; on your own brain it is one toggle.',
       side: 'left',
     },
     {

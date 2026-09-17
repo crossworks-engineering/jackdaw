@@ -59,6 +59,21 @@ export function TourOverlay() {
     return () => window.removeEventListener('resize', read);
   }, [active]);
 
+  // The card's size is read two ways, and both depend on `viewport` as well
+  // as the step: the card is not rendered until the viewport is known, so an
+  // observer attached before that finds nothing to watch and the placement
+  // would keep using DEFAULT_CARD — which on the live demo (2026-09-17) put
+  // a 293px card at the slot for a 180px one and pushed its buttons 100px
+  // below a 720px-tall window. The layout effect measures synchronously on
+  // every step, before paint; the observer then follows growth within a step
+  // (fonts arriving, text wrapping) that no re-render would otherwise notice.
+  React.useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el || !active) return;
+    const measured = { width: el.offsetWidth, height: el.offsetHeight };
+    setCard((c) => (c.width === measured.width && c.height === measured.height ? c : measured));
+  }, [active, viewport]);
+
   React.useEffect(() => {
     const el = cardRef.current;
     if (!el || !active) return;
@@ -70,7 +85,7 @@ export function TourOverlay() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [active]);
+  }, [active, viewport]);
 
   // Focus the card on every step; keyboard walks the tour.
   React.useEffect(() => {
