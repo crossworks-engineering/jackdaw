@@ -3,6 +3,7 @@ import {
   findTurnOutboundRow,
   startTurnSafetyPoll,
   turnSinceIso,
+  verdictForSettled,
   type SafetyPollRow,
 } from './turn-safety-poll';
 
@@ -289,5 +290,26 @@ describe('startTurnSafetyPoll', () => {
     await t.tick();
     expect(onGiveUp).toHaveBeenCalledTimes(1);
     expect(t.armed()).toBe(false);
+  });
+});
+
+describe('verdictForSettled', () => {
+  const pending = { turnId: 'key-1' };
+
+  it('settles the pending turn when the dock reports ITS key', () => {
+    expect(verdictForSettled(pending, { idempotencyKey: 'key-1', status: 'done' })).toBe('done');
+    expect(verdictForSettled(pending, { idempotencyKey: 'key-1', status: 'error' })).toBe('error');
+  });
+
+  it('ignores another turn settling', () => {
+    expect(verdictForSettled(pending, { idempotencyKey: 'key-2', status: 'done' })).toBeNull();
+  });
+
+  it('ignores every signal while nothing is pending (blocking turn, or already stopped)', () => {
+    expect(verdictForSettled(null, { idempotencyKey: 'key-1', status: 'done' })).toBeNull();
+  });
+
+  it('accepts a keyless signal: a transcript has at most one turn pending', () => {
+    expect(verdictForSettled(pending, { status: 'done' })).toBe('done');
   });
 });

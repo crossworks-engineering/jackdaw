@@ -167,3 +167,22 @@ export function startTurnSafetyPoll(opts: TurnSafetyPollOptions): () => void {
   handle = timers.setInterval(() => void tick(), opts.intervalMs ?? TURN_SAFETY_POLL_MS);
   return stop;
 }
+
+/**
+ * What a transcript that is waiting on a non-blocking turn should do when the
+ * dock reports a turn settled. The dock owns the only safety poll (one request
+ * stream per turn, not one per mounted transcript), so the transcript reconciles
+ * on the dock's verdict instead of polling again.
+ *
+ * Returns null when the signal is not for the turn this transcript is waiting
+ * on: nothing pending, or a different turn's key. A signal without a key (an
+ * older dock) is accepted, since a transcript only ever has one turn pending.
+ */
+export function verdictForSettled(
+  pending: { turnId: string } | null,
+  detail: { idempotencyKey?: string; status: 'done' | 'error' },
+): 'done' | 'error' | null {
+  if (!pending) return null;
+  if (detail.idempotencyKey && detail.idempotencyKey !== pending.turnId) return null;
+  return detail.status;
+}

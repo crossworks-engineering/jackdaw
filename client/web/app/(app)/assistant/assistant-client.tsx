@@ -41,6 +41,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { ComposerToolbar } from '@/components/assistant/composer-toolbar';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { verdictForSettled } from '@/components/assistant/turn-safety-poll';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
@@ -92,6 +93,7 @@ export function AssistantClient({
     dismissPinnedContext,
     clearContext,
     startPicking,
+    registerTurnListener,
   } = useAssistantDock();
   // Everything that rides this turn as context: the screen-pinned node (the open
   // page/table/app) PLUS any pick-mode chips, deduped. Pinned nodes survive a
@@ -594,49 +596,26 @@ export function AssistantClient({
     }
   }, [streamPhase, streamError, reconcileDone, failActiveTurn]);
 
-  // Safety net: if no terminal event arrives (a dropped reconnect), poll the
-  // durable rows. Once the in-flight turn's outbound row reports a terminal
-  // status, reconcile the same way the stream would have. Only runs while a
-  // non-blocking turn is in flight; stops the moment it settles.
+  // Safety net: if no terminal event reaches THIS transcript (a dropped
+  // reconnect, or a proxy holding the event stream back), settle on the dock's
+  // verdict. Every turn is sent through the dock's `runTurn`, and the dock
+  // watches the durable row alongside its own stream (turn-safety-poll.ts), so
+  // it knows the turn ended even when no stream event ever arrives here.
+  //
+  // This replaces a poll that lived here and never ran: its effect keyed on
+  // `sending`, which flips true BEFORE the POST resolves, while the pending turn
+  // is only recorded AFTER it, so the effect's one run always saw no pending
+  // turn and bailed. Reviving it would also have doubled the polling (one per
+  // mounted transcript plus the dock's); one poll, in the dock, is enough.
   useEffect(() => {
-    if (!sending || !pendingTurnRef.current) return;
-    let stopped = false;
-    const tick = async () => {
+    return registerTurnListener((detail) => {
       const pending = pendingTurnRef.current;
-      if (stopped || !pending) return;
-      try {
-        const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
-        if (agentSlug) qs.set('agent', agentSlug);
-        const data = await apiFetch<{ messages: Message[] }>(
-          `/api/assistant/messages?${qs.toString()}`,
-          { cache: 'no-store' },
-        );
-        const outboundId = outboundIdRef.current;
-        const rows = data.messages ?? [];
-        // Prefer the exact row id (from turn-start); fall back to the newest
-        // outbound row created at/after this turn started, so a missed
-        // turn-start can't leave the turn hung.
-        const row = outboundId
-          ? rows.find((m) => m.id === outboundId && m.direction === 'outbound')
-          : rows
-              .filter((m) => m.direction === 'outbound' && m.createdAt >= pending.startedAt)
-              .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-              .pop();
-        if (stopped || !pendingTurnRef.current) return;
-        if (row?.status === 'complete') void reconcileDone(pending.optimisticId);
-        else if (row?.status === 'failed')
-          failActiveTurn(pending.optimisticId, row.error ?? 'The turn failed.');
-      } catch {
-        /* transient — try again next tick */
-      }
-    };
-    // First poll after a grace period (the stream usually wins), then every 3s.
-    const t = setInterval(tick, 3000);
-    return () => {
-      stopped = true;
-      clearInterval(t);
-    };
-  }, [sending, agentSlug, reconcileDone, failActiveTurn]);
+      const verdict = verdictForSettled(pending, detail);
+      if (!pending || !verdict) return;
+      if (verdict === 'done') void reconcileDone(pending.optimisticId);
+      else failActiveTurn(pending.optimisticId, detail.message ?? 'The turn failed.');
+    });
+  }, [registerTurnListener, reconcileDone, failActiveTurn]);
 
   // A turn for THIS agent is running that this page didn't start (you navigated
   // back mid-flight, or it's a dock reply). Drives a "working" indicator, and

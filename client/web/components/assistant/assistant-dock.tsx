@@ -116,7 +116,15 @@ export type ContextKind = (typeof CONTEXT_KINDS)[number];
  *  the open editor when a specialist edited the node they're showing. `nodeId`
  *  is the on-screen node the turn rode with as pinned context (null for a plain
  *  turn), captured at send time so a late completion still resolves correctly. */
-export type TurnSettled = { agentSlug?: string; nodeId: string | null; status: 'done' | 'error' };
+export type TurnSettled = {
+  agentSlug?: string;
+  nodeId: string | null;
+  status: 'done' | 'error';
+  /** The turn's idempotency key, so a transcript can tell ITS turn settled. */
+  idempotencyKey?: string;
+  /** The user-facing reason, on `error`. */
+  message?: string;
+};
 type TurnSettledListener = (detail: TurnSettled) => void;
 
 /** A thing the assistant should treat as context — either pinned automatically
@@ -822,7 +830,14 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
         settled = true;
         stopDockStream();
         setMessages((prev) => prev.map((m) => (m.id === botId ? { ...m, ...patch } : m)));
-        fireTurnSettled({ agentSlug: target.agentSlug, nodeId: target.nodeId, status });
+        fireTurnSettled({
+          agentSlug: target.agentSlug,
+          nodeId: target.nodeId,
+          status,
+          // `botId` is `a-<idempotencyKey>` (see runTurn).
+          idempotencyKey: botId.slice(2),
+          ...(status === 'error' && typeof patch.text === 'string' ? { message: patch.text } : {}),
+        });
       };
 
       const stop = apiEventStream(
@@ -1005,6 +1020,7 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
                   agentSlug: target.agentSlug,
                   nodeId: target.nodeId,
                   status: 'done',
+                  idempotencyKey: input.idempotencyKey,
                 });
                 return data;
               }
@@ -1053,7 +1069,13 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
             m.id === botId ? { ...m, text: message, pending: false, error: true } : m,
           ),
         );
-        fireTurnSettled({ agentSlug: target.agentSlug, nodeId: target.nodeId, status: 'error' });
+        fireTurnSettled({
+          agentSlug: target.agentSlug,
+          nodeId: target.nodeId,
+          status: 'error',
+          idempotencyKey: input.idempotencyKey,
+          message,
+        });
         throw err;
       }
     },
