@@ -50,7 +50,7 @@ export function ComposerToolbar({
         onClick={() => onAttachClick()}
         disabled={!agentReady || sending || !!attachedFile}
         className="text-muted-foreground"
-        title="Attach image or document"
+        title="Attach image or document (or paste one with Ctrl/Cmd+V)"
         aria-label="Attach image or document"
       >
         <Paperclip aria-hidden />

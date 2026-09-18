@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest';
+import { COMPOSER_ATTACH_ACCEPT, decideComposerPaste, fileMatchesAccept } from './composer-paste';
+
+const f = (name: string, type = '') => ({ name, type });
+
+describe('fileMatchesAccept', () => {
+  it('matches a MIME family', () => {
+    expect(fileMatchesAccept(f('shot.png', 'image/png'), 'image/*')).toBe(true);
+    expect(fileMatchesAccept(f('clip.mp4', 'video/mp4'), 'image/*')).toBe(false);
+  });
+
+  it('matches an extension, case-insensitively, and only at the end of the name', () => {
+    expect(fileMatchesAccept(f('Report.PDF', 'application/pdf'), '.pdf')).toBe(true);
+    expect(fileMatchesAccept(f('notes.md'), '.md')).toBe(true);
+    expect(fileMatchesAccept(f('pdf.exe'), '.pdf')).toBe(false);
+  });
+
+  it('matches by extension when the OS gave no MIME type at all', () => {
+    // Windows often reports '' for .md / .yaml; the extension must still count.
+    expect(fileMatchesAccept(f('config.yaml', ''), COMPOSER_ATTACH_ACCEPT)).toBe(true);
+  });
+
+  it('matches an exact MIME token', () => {
+    expect(fileMatchesAccept(f('x', 'application/pdf'), 'application/pdf')).toBe(true);
+  });
+});
+
+describe('decideComposerPaste', () => {
+  it('leaves an ordinary text paste alone', () => {
+    expect(decideComposerPaste(['text/plain'], [])).toEqual({ kind: 'text' });
+  });
+
+  it('attaches a file copied in Explorer (Files only)', () => {
+    const file = f('invoice.pdf', 'application/pdf');
+    expect(decideComposerPaste(['Files'], [file])).toEqual({ kind: 'attach', file });
+  });
+
+  it('attaches a file copied in Finder, which also carries its NAME as text/plain', () => {
+    // If "has text" meant "text paste", this would type "invoice.pdf" into the
+    // box instead of attaching it.
+    const file = f('invoice.pdf', 'application/pdf');
+    expect(decideComposerPaste(['text/plain', 'Files'], [file])).toEqual({ kind: 'attach', file });
+  });
+
+  it('attaches a pasted screenshot', () => {
+    const file = f('image.png', 'image/png');
+    expect(decideComposerPaste(['Files'], [file])).toEqual({ kind: 'attach', file });
+  });
+
+  it('treats a rich-text copy (Word/Excel/web) as text, not as its picture', () => {
+    const picture = f('image.png', 'image/png');
+    expect(decideComposerPaste(['text/plain', 'text/html', 'Files'], [picture])).toEqual({
+      kind: 'text',
+    });
+    expect(decideComposerPaste(['text/plain', 'text/rtf', 'Files'], [picture])).toEqual({
+      kind: 'text',
+    });
+  });
+
+  it('takes the first ATTACHABLE file when several were copied', () => {
+    const bad = f('setup.exe', 'application/x-msdownload');
+    const good = f('data.csv', 'text/csv');
+    expect(decideComposerPaste(['Files'], [bad, good])).toEqual({ kind: 'attach', file: good });
+  });
+
+  it('rejects an unsupported file with a reason that names it', () => {
+    const d = decideComposerPaste(['Files'], [f('movie.mp4', 'video/mp4')]);
+    expect(d.kind).toBe('reject');
+    if (d.kind === 'reject') {
+      expect(d.reason).toContain('movie.mp4');
+      expect(d.reason).toContain('Supported');
+    }
+  });
+});

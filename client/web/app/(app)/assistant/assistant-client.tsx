@@ -42,6 +42,7 @@ import { ComposerToolbar } from '@/components/assistant/composer-toolbar';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { verdictForSettled } from '@/components/assistant/turn-safety-poll';
+import { COMPOSER_ATTACH_ACCEPT, decideComposerPaste } from '@/lib/composer-paste';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
@@ -1382,7 +1383,7 @@ export function AssistantClient({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.json,.yaml,.yml"
+                accept={COMPOSER_ATTACH_ACCEPT}
                 className="hidden"
                 onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
               />
@@ -1403,6 +1404,27 @@ export function AssistantClient({
                 ref={textareaRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                // Ctrl/Cmd+V of a copied file or a screenshot = the attach
+                // button. The decision (what is a file paste, what is a text
+                // paste that merely carries a picture) is in lib/composer-paste.
+                onPaste={(e) => {
+                  const d = decideComposerPaste(
+                    Array.from(e.clipboardData.types),
+                    Array.from(e.clipboardData.files),
+                  );
+                  if (d.kind === 'text') return;
+                  // Ours either way: without this a Finder paste also types the
+                  // file's name into the box.
+                  e.preventDefault();
+                  // Mid-turn the attach button is disabled too: a correction
+                  // resend carries text only.
+                  if (sending) return;
+                  if (d.kind === 'reject') setError(d.reason);
+                  else {
+                    setError(undefined);
+                    onFilePicked(d.file);
+                  }
+                }}
                 placeholder={
                   !agentReady
                     ? 'Configure an assistant or responder agent first at /settings/agents.'

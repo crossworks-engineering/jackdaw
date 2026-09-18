@@ -60,10 +60,22 @@ export interface ButtonProps
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, type, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
+    // HTML's default for a typeless <button> is SUBMIT, so any Button placed
+    // inside a <form> silently submits it. That is how the assistant composer's
+    // attach, pick, location, mic and Stop buttons all came to send the message.
+    // Default to the inert type; a submitter says so (`type="submit"`, or
+    // <SubmitButton>). With `asChild` the child is not a <button> (usually a
+    // link), so it gets a type only if the caller passed one.
+    const resolvedType = asChild ? type : (type ?? 'button');
     return (
-      <Comp ref={ref} className={cn(buttonVariants({ variant, size, className }))} {...props} />
+      <Comp
+        ref={ref}
+        type={resolvedType}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      />
     );
   },
 );
