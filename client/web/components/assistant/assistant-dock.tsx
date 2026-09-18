@@ -163,7 +163,8 @@ export type SurfaceSelection = {
   onClear?: () => void;
 };
 
-const MAX_CONTEXT = 10;
+/** Most context refs one turn carries (pinned + picked + linked attachments). */
+export const MAX_CONTEXT = 10;
 
 type AssistantDockApi = {
   /** Run a turn through the persistent fetch. Resolves with the server result —

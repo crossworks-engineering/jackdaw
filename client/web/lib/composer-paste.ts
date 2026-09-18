@@ -25,8 +25,9 @@ export type PastedFileLike = { name: string; type: string };
 export type PasteDecision<F extends PastedFileLike> =
   /** Not ours: let the browser paste text as usual. */
   | { kind: 'text' }
-  /** Attach this file; the caller must `preventDefault()`. */
-  | { kind: 'attach'; file: F }
+  /** Attach these files (every attachable one, in clipboard order); the caller
+   *  must `preventDefault()`. */
+  | { kind: 'attach'; files: F[] }
   /** A file was pasted but cannot be attached; the caller must
    *  `preventDefault()` (else Finder's filename lands in the box) and say why. */
   | { kind: 'reject'; reason: string };
@@ -53,8 +54,8 @@ const RICH_TEXT_FLAVOURS = ['text/html', 'text/rtf'];
  * Decide what a paste into the composer means.
  *
  * @param types  `clipboardData.types`
- * @param files  `clipboardData.files` (first attachable file wins: the composer
- *               carries one attachment at a time, same as the attach button)
+ * @param files  `clipboardData.files` (unsupported ones are dropped; the composer
+ *               decides which takes the inline slot and which are linked)
  */
 export function decideComposerPaste<F extends PastedFileLike>(
   types: readonly string[],
@@ -66,8 +67,8 @@ export function decideComposerPaste<F extends PastedFileLike>(
   // and the file is just that app's picture of it.
   if (types.some((t) => RICH_TEXT_FLAVOURS.includes(t.toLowerCase()))) return { kind: 'text' };
 
-  const ok = files.find((f) => fileMatchesAccept(f, accept));
-  if (ok) return { kind: 'attach', file: ok };
+  const ok = files.filter((f) => fileMatchesAccept(f, accept));
+  if (ok.length > 0) return { kind: 'attach', files: ok };
 
   const first = files[0]!;
   const label = first.name || first.type || 'That file';

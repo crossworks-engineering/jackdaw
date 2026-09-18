@@ -17,7 +17,6 @@ import { Button } from '@mantle/web-ui/ui/button';
 export function ComposerToolbar({
   agentReady,
   sending,
-  attachedFile,
   onAttachClick,
   onPick,
   shareLocation,
@@ -29,7 +28,6 @@ export function ComposerToolbar({
 }: {
   agentReady: boolean;
   sending: boolean;
-  attachedFile: File | null;
   onAttachClick: () => void;
   onPick: () => void;
   shareLocation: boolean;
@@ -41,17 +39,17 @@ export function ComposerToolbar({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      {/* Attach picker — images + documents. Triggers the hidden
-                      file input. Disabled when something's already attached
-                      (clear it first via the preview's X). */}
+      {/* Attach picker — images + documents, one or several. Triggers the
+                      hidden file input. The first file is read inline with the
+                      message; further ones are uploaded and linked as context. */}
       <Button
         variant="outline"
         size="icon-xs"
         onClick={() => onAttachClick()}
-        disabled={!agentReady || sending || !!attachedFile}
+        disabled={!agentReady || sending}
         className="text-muted-foreground"
-        title="Attach image or document (or paste one with Ctrl/Cmd+V)"
-        aria-label="Attach image or document"
+        title="Attach images or documents (or paste them with Ctrl/Cmd+V)"
+        aria-label="Attach images or documents"
       >
         <Paperclip aria-hidden />
       </Button>

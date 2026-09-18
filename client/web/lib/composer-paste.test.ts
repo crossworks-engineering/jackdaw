@@ -32,19 +32,22 @@ describe('decideComposerPaste', () => {
 
   it('attaches a file copied in Explorer (Files only)', () => {
     const file = f('invoice.pdf', 'application/pdf');
-    expect(decideComposerPaste(['Files'], [file])).toEqual({ kind: 'attach', file });
+    expect(decideComposerPaste(['Files'], [file])).toEqual({ kind: 'attach', files: [file] });
   });
 
   it('attaches a file copied in Finder, which also carries its NAME as text/plain', () => {
     // If "has text" meant "text paste", this would type "invoice.pdf" into the
     // box instead of attaching it.
     const file = f('invoice.pdf', 'application/pdf');
-    expect(decideComposerPaste(['text/plain', 'Files'], [file])).toEqual({ kind: 'attach', file });
+    expect(decideComposerPaste(['text/plain', 'Files'], [file])).toEqual({
+      kind: 'attach',
+      files: [file],
+    });
   });
 
   it('attaches a pasted screenshot', () => {
     const file = f('image.png', 'image/png');
-    expect(decideComposerPaste(['Files'], [file])).toEqual({ kind: 'attach', file });
+    expect(decideComposerPaste(['Files'], [file])).toEqual({ kind: 'attach', files: [file] });
   });
 
   it('treats a rich-text copy (Word/Excel/web) as text, not as its picture', () => {
@@ -57,10 +60,11 @@ describe('decideComposerPaste', () => {
     });
   });
 
-  it('takes the first ATTACHABLE file when several were copied', () => {
+  it('takes every ATTACHABLE file when several were copied, in order', () => {
     const bad = f('setup.exe', 'application/x-msdownload');
-    const good = f('data.csv', 'text/csv');
-    expect(decideComposerPaste(['Files'], [bad, good])).toEqual({ kind: 'attach', file: good });
+    const a = f('data.csv', 'text/csv');
+    const b = f('shot.png', 'image/png');
+    expect(decideComposerPaste(['Files'], [a, bad, b])).toEqual({ kind: 'attach', files: [a, b] });
   });
 
   it('rejects an unsupported file with a reason that names it', () => {

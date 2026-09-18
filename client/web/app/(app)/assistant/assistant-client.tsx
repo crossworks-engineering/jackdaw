@@ -43,6 +43,9 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { verdictForSettled } from '@/components/assistant/turn-safety-poll';
 import { COMPOSER_ATTACH_ACCEPT, decideComposerPaste } from '@/lib/composer-paste';
+import { planAttachments } from '@/lib/chat-uploads';
+import { useChatUploads } from '@/components/assistant/use-chat-uploads';
+import { MAX_CONTEXT } from '@/components/assistant/assistant-dock';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
@@ -95,6 +98,7 @@ export function AssistantClient({
     clearContext,
     startPicking,
     registerTurnListener,
+    attachContext,
   } = useAssistantDock();
   // Everything that rides this turn as context: the screen-pinned node (the open
   // page/table/app) PLUS any pick-mode chips, deduped. Pinned nodes survive a
@@ -660,6 +664,29 @@ export function AssistantClient({
     setAttachedPreviewUrl(wantsPreviewUrl(file) ? URL.createObjectURL(file) : null);
   };
 
+  // More than one attachment: the first takes the inline slot (read by the
+  // server before the model runs, as ever); the rest are uploaded to the chat
+  // uploads folder and linked as context chips. See lib/chat-uploads.
+  const { inFlight: linkedUploads, addLinked } = useChatUploads({
+    attachContext,
+    onError: setError,
+  });
+  const addFiles = (files: File[]) => {
+    const plan = planAttachments(files, {
+      hasInline: attachedFile != null,
+      contextCount: allContext.length,
+      pendingLinked: linkedUploads.length,
+      maxContext: MAX_CONTEXT,
+    });
+    setError(
+      plan.overflow.length > 0
+        ? `Only ${MAX_CONTEXT} linked items fit on one message, so ${plan.overflow.length} file${plan.overflow.length === 1 ? ' was' : 's were'} not attached.`
+        : undefined,
+    );
+    if (plan.inline) onFilePicked(plan.inline);
+    void addLinked(plan.linked);
+  };
+
   // Read one browser geolocation fix and map it onto the `location` wire shape
   // (LocationPing) the turn route already sanitises. Resolves undefined on any
   // failure (denied / unavailable / timeout) so a turn never blocks on it.
@@ -720,6 +747,9 @@ export function AssistantClient({
     // Allow attachment-only submits — the API route fills in a default
     // prompt server-side when text is empty.
     if ((!text && !attachedFile) || supersedingRef.current) return;
+    // A linked attachment still uploading would miss this turn: Enter waits too,
+    // not only the (disabled) Send button.
+    if (linkedUploads.length > 0) return;
 
     // Idempotency key for this submit — lets the server replay (not re-run)
     // the turn if the request is retried, so we never get duplicate file
@@ -1253,6 +1283,22 @@ export function AssistantClient({
                 Pages gutter marks, with a snippet of each marked block) follow,
                 so it's unambiguous the assistant sees exactly what you selected.
                 Pick-mode chips come last and clear after a send. */}
+            {linkedUploads.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" aria-live="polite">
+                {linkedUploads.map((u) => (
+                  <span
+                    key={u.key}
+                    className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground"
+                  >
+                    <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+                    <span className="truncate">{u.name}</span>
+                    <span className="shrink-0">
+                      {u.stage === 'uploading' ? 'uploading…' : 'indexing…'}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
             {(allContext.length > 0 || (surfaceSelection?.items.length ?? 0) > 0) && (
               <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin">
                 {allContext.map((c) => {
@@ -1384,13 +1430,17 @@ export function AssistantClient({
                 ref={fileInputRef}
                 type="file"
                 accept={COMPOSER_ATTACH_ACCEPT}
+                multiple
                 className="hidden"
-                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  addFiles(Array.from(e.target.files ?? []));
+                  // Reset so picking the same file again still fires onChange.
+                  e.target.value = '';
+                }}
               />
               <ComposerToolbar
                 agentReady={agentReady}
                 sending={sending}
-                attachedFile={attachedFile}
                 onAttachClick={() => fileInputRef.current?.click()}
                 onPick={startPicking}
                 shareLocation={shareLocation}
@@ -1420,10 +1470,7 @@ export function AssistantClient({
                   // resend carries text only.
                   if (sending) return;
                   if (d.kind === 'reject') setError(d.reason);
-                  else {
-                    setError(undefined);
-                    onFilePicked(d.file);
-                  }
+                  else addFiles(d.files);
                 }}
                 placeholder={
                   !agentReady
@@ -1517,8 +1564,12 @@ export function AssistantClient({
                 <Button
                   type="submit"
                   aria-label="Send"
-                  title="Send (Enter)"
-                  disabled={!agentReady || (!draft.trim() && !attachedFile)}
+                  title={
+                    linkedUploads.length > 0 ? 'Waiting for attachments to finish…' : 'Send (Enter)'
+                  }
+                  disabled={
+                    !agentReady || linkedUploads.length > 0 || (!draft.trim() && !attachedFile)
+                  }
                   className="h-auto w-12 self-stretch px-0"
                 >
                   <CornerDownLeft aria-hidden />
