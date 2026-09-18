@@ -24,6 +24,7 @@ import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
   apiEventStream,
+  apiFetch,
   apiUrl,
   bounceToLogin,
   isAuthFailure,
@@ -32,6 +33,7 @@ import {
 import { usePendingQuestions } from '@/components/pending/use-pending-questions';
 import { ASSISTANT_W_DEFAULT, clampAssistantWidth } from '@/lib/nav-width';
 import type { TurnEvent } from '@mantle/client-types';
+import { startTurnSafetyPoll, turnSinceIso, type SafetyPollRow } from './turn-safety-poll';
 
 /**
  * App-wide assistant provider. The turn fetch runs here (in the persistent
@@ -352,6 +354,12 @@ const MAX_DOCK_MSGS = 12;
  *  connect resets the count, so this is an outage, not a slow turn. Same 5 the
  *  team chat and forum settled on. */
 const DOCK_STREAM_MAX_ATTEMPTS = 5;
+/** Rows fetched per safety-poll tick: this turn's pair sits at the top of the
+ *  thread, so a handful is plenty and keeps the request small. */
+const DOCK_POLL_PAGE = 10;
+/** With the live stream gone, how long the safety poll keeps waiting on a row
+ *  that is still `pending` before the bubble stops spinning. */
+const DOCK_POLL_GIVE_UP_MS = 15 * 60_000;
 const AGENT_COOKIE = 'mantle_assistant_agent';
 const DOCK_PREF_KEY = 'mantle_assistant_dock';
 const DOCK_W_KEY = 'mantle_assistant_w';
@@ -782,16 +790,27 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
   useEffect(() => stopDockStream, [stopDockStream]);
 
   const subscribeDockTurn = useCallback(
-    (turnId: string, botId: string, target: { agentSlug?: string; nodeId: string | null }) => {
+    (
+      turnId: string,
+      botId: string,
+      target: { agentSlug?: string; nodeId: string | null },
+      sinceIso: string,
+    ) => {
       // A new turn supersedes whatever was still streaming.
       stopDockStream();
       let replyBuf = '';
       let round = -1;
       let settled = false;
+      // The reply row's durable id, once `turn-start` says it. The safety poll
+      // reads it lazily, and falls back to pairing by time when it never comes.
+      let outboundId: string | null = null;
+      let streamDead = false;
+      const subscribedAt = Date.now();
 
       /**
        * The bubble comes out of `pending` exactly once, whichever announcer gets
-       * there. THREE can now: `done`, `error`, and a stream that simply ends.
+       * there. FOUR can now: `done`, `error`, a stream that simply ends, and the
+       * safety poll reading the durable row (see turn-safety-poll.ts).
        *
        * That third one is the bug. `busy` is derived from any assistant message
        * still pending, so a stream that stopped without saying so left the
@@ -814,6 +833,10 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
           try {
             ev = JSON.parse(raw) as TurnEvent;
           } catch {
+            return;
+          }
+          if (ev.type === 'turn-start') {
+            if (typeof ev.data?.outboundId === 'string') outboundId = ev.data.outboundId;
             return;
           }
           if (ev.type === 'text-delta' && typeof ev.data?.text === 'string') {
@@ -847,21 +870,55 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
           // finishes — hence the wording, which sends the reader to the place
           // that reconciles against the row rather than claiming a failure.
           maxAttempts: DOCK_STREAM_MAX_ATTEMPTS,
+          // The stream is gone, the turn usually is not. The safety poll below
+          // is still watching the durable row, so let IT finish the bubble with
+          // the real reply; it gives up (with `lostConnection`) only if the row
+          // stays pending past DOCK_POLL_GIVE_UP_MS.
           onExhausted: () => {
-            settle(
-              {
-                text:
-                  replyBuf ||
-                  'Lost the live connection to this turn. It may still be running — open the assistant to see the reply.',
-                pending: false,
-                error: true,
-              },
-              'error',
-            );
+            streamDead = true;
           },
         },
       );
-      dockStreamRef.current = stop;
+
+      const lostConnection = () =>
+        settle(
+          {
+            text:
+              replyBuf ||
+              'Lost the live connection to this turn. It may still be running — open the assistant to see the reply.',
+            pending: false,
+            error: true,
+          },
+          'error',
+        );
+
+      // The stream is an optimisation; the durable row is the truth. A proxy
+      // that holds `text/event-stream` back (or a missed terminal event) must
+      // not leave the bubble spinning while the reply sits finished in the
+      // thread, so poll the row alongside the stream: first to report wins.
+      const stopPoll = startTurnSafetyPoll({
+        fetchRows: async () => {
+          const qs = new URLSearchParams({ limit: String(DOCK_POLL_PAGE) });
+          if (target.agentSlug) qs.set('agent', target.agentSlug);
+          const data = await apiFetch<{ messages: SafetyPollRow[] }>(
+            `/api/assistant/messages?${qs.toString()}`,
+            { cache: 'no-store' },
+          );
+          return data.messages ?? [];
+        },
+        getOutboundId: () => outboundId,
+        sinceIso,
+        onComplete: (row) => settle({ text: row.text, pending: false }, 'done'),
+        onFailed: (row) =>
+          settle({ text: row.error || 'The turn failed.', pending: false, error: true }, 'error'),
+        shouldGiveUp: () => streamDead && Date.now() - subscribedAt > DOCK_POLL_GIVE_UP_MS,
+        onGiveUp: lostConnection,
+      });
+
+      dockStreamRef.current = () => {
+        stop();
+        stopPoll();
+      };
     },
     [fireTurnSettled, stopDockStream],
   );
@@ -953,7 +1010,18 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
               }
               // Non-blocking (202): the reply lands over the live stream. Keep the
               // bot bubble pending and let the stream type it out + settle it.
-              subscribeDockTurn(data.turnId, botId, target);
+              // plus the durable-row safety poll, bounded in the SERVER's clock
+              // (the ack's Date header) so client clock skew cannot hide the row.
+              subscribeDockTurn(
+                data.turnId,
+                botId,
+                target,
+                turnSinceIso({
+                  serverDateHeader: res.headers.get('date'),
+                  firstSentAtMs: startedAt,
+                  nowMs: Date.now(),
+                }),
+              );
               return data;
             }
             // Our route only emits 400/500 as real outcomes — surface those. A
