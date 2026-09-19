@@ -99,7 +99,12 @@ import { MeasurePane } from '@mantle/web-ui/ui/measure-pane';
 import { ExportMenu } from '@/components/export/export-menu';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime, updatedAgo } from '@mantle/web-ui/lib/format-datetime';
-import { buildChildrenIndex } from '@mantle/web-ui/page-tree';
+import {
+  buildChildrenIndex,
+  pagePath,
+  sortBySubtreeEdit,
+  subtreeEditedAt,
+} from '@mantle/web-ui/page-tree';
 import { scrollBehavior } from '@mantle/web-ui/lib/motion';
 import type { PageRow } from '@mantle/client-types';
 
@@ -108,6 +113,20 @@ import type { PageRow } from '@mantle/client-types';
 // between the mapper and what this screen renders is now a compile error.
 
 type TagCount = { tag: string; count: number };
+
+/**
+ * A list row as the server sends it: the page plus its place in the hierarchy.
+ * Both fields are optional because a brain older than the release that added
+ * them leaves them out, and this screen then behaves as it did before (a search
+ * hit has no way into its sub-pages) rather than breaking. Becomes the
+ * contract's own `PageListRow` once the pinned client-types carries it.
+ */
+type PageListRow = PageRow & {
+  /** Direct sub-pages, counted over the WHOLE hierarchy, not this response. */
+  childCount?: number;
+  /** The parent page's title; null for a top-level page. */
+  parentTitle?: string | null;
+};
 
 /** Droppable id for the "move to the top level" zone shown while dragging a
  *  nested page. A literal sentinel — page ids are uuids, so it never collides. */
@@ -139,7 +158,7 @@ const SORTS: PageSort[] = ['edited', 'newest', 'oldest', 'title'];
 
 type PagesListResponse = {
   mode: 'tree' | 'list';
-  pages: PageRow[];
+  pages: PageListRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -196,6 +215,11 @@ export function PagesClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [searchInput, setSearchInput] = useState(query);
+  // The `q` a navigation already in flight is heading for. Leaving a search by
+  // drilling into a hit clears the box AND the URL together; without this the
+  // debounced sync below could fire before the URL catches up, read the empty
+  // box as a new search, and navigate to the top level over the drill.
+  const pendingQuery = useRef<string | null>(null);
 
   // Card density. Defaults to OFF: the column is for FINDING a page, and a
   // title plus its sub-page count is what you scan. Summaries and tags are for
@@ -248,7 +272,21 @@ export function PagesClient() {
     ? (pages.find((p) => p.id === drillParent.parentId) ?? null)
     : null;
 
-  const levelPages = mode === 'tree' ? (childrenByParent.get(drillId) ?? []) : pages;
+  // "Last edited" orders each level by the newest edit anywhere in a page's
+  // SUBTREE, so editing a sub-page lifts its ancestors within their own levels
+  // (see subtreeEditedAt for why this is not a server-side timestamp bump).
+  // Tree mode only: a search hit is an individual page, and a parent that
+  // merely contains an edited child is not a hit. The roll-up covers what the
+  // client holds, which is the whole hierarchy up to the server's TREE_LIMIT.
+  const subtreeEdits = useMemo(
+    () => (mode === 'tree' ? subtreeEditedAt(pages, childrenByParent) : null),
+    [mode, pages, childrenByParent],
+  );
+  const levelPages = useMemo(() => {
+    if (mode !== 'tree') return pages;
+    const level = childrenByParent.get(drillId) ?? [];
+    return sort === 'edited' && subtreeEdits ? sortBySubtreeEdit(level, subtreeEdits) : level;
+  }, [mode, pages, childrenByParent, drillId, sort, subtreeEdits]);
   const levelTotal = mode === 'tree' ? levelPages.length : total;
   const levelPageSize = mode === 'tree' ? LEVEL_PAGE_SIZE : pageSize;
   const totalPages = Math.max(1, Math.ceil(levelTotal / levelPageSize));
@@ -378,7 +416,9 @@ export function PagesClient() {
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      if (searchInput.trim() === query) return;
+      const heading = pendingQuery.current ?? query;
+      pendingQuery.current = null;
+      if (searchInput.trim() === heading) return;
       go({ q: searchInput.trim() || null, page: 1, parent: null });
     }, 350);
     return () => clearTimeout(handle);
@@ -453,17 +493,42 @@ export function PagesClient() {
     void queryClient.invalidateQueries({ queryKey: ['pages'] });
   };
 
+  // Drilling out of a search or tag filter has to LEAVE it. `buildHref` keeps
+  // the current `q`/`tag` unless told otherwise, and the screen reads either as
+  // "list mode, no parent", so a drill that kept them would be a no-op.
+  const leaveSearchFor = (parent: string | null, select: string) => {
+    setSelectedId(select);
+    pendingQuery.current = '';
+    setSearchInput('');
+    go({ parent, q: null, tag: null, page: 1 });
+  };
+
   // One card per page in the CURRENT LEVEL (or per search hit). Clicking a
   // card always previews it; a card with children also drills the column into
   // them, which is what Jason described and what makes the pager meaningful.
   const renderCards = (): ReactNode[] =>
     visiblePages.map((p) => {
-      const kids = mode === 'tree' ? childCountOf(p.id) : null;
+      // Tree mode counts from the index it holds. A search or tag filter holds
+      // only the HITS, so there the count is the server's; null when the brain
+      // predates it, which hides the drill link as before.
+      const kids = mode === 'tree' ? childCountOf(p.id) : (p.childCount ?? null);
+      // Why this card sits where it does under "Last edited": a sub-page was
+      // edited more recently than the page itself.
+      const sub = sort === 'edited' ? subtreeEdits?.get(p.id) : undefined;
+      const subEdit =
+        sub && sub.page.id !== p.id
+          ? { at: sub.at, path: pagePath(pages, sub.page.id).slice(pagePath(pages, p.id).length) }
+          : null;
       return (
         <PageCard
           key={p.id}
           row={p}
           childCount={kids}
+          location={mode === 'list' ? (p.parentTitle ?? null) : null}
+          onOpenParent={
+            mode === 'list' && p.parentId ? () => leaveSearchFor(p.parentId, p.id) : undefined
+          }
+          subEdit={subEdit}
           details={details}
           selected={selected?.id === p.id}
           allPages={pages}
@@ -473,7 +538,9 @@ export function PagesClient() {
           dragging={activeId === p.id}
           onSelect={() => {
             setSelectedId(p.id);
-            if (kids && kids > 0) go({ parent: p.id, page: 1 });
+            if (!kids || kids <= 0) return;
+            if (mode === 'list') leaveSearchFor(p.id, p.id);
+            else go({ parent: p.id, page: 1 });
           }}
           onAddChild={() => void createChild(p.id)}
           onDelete={() => setDeleteTarget(p)}
@@ -796,6 +863,9 @@ export function PagesClient() {
 function PageCard({
   row,
   childCount,
+  location,
+  onOpenParent,
+  subEdit,
   details,
   selected,
   allPages,
@@ -812,6 +882,15 @@ function PageCard({
   /** Children in this level's index, or null in search mode where the client
    *  holds only the hits and so cannot derive it (handover §3d). */
   childCount: number | null;
+  /** The parent page's title, shown on a search hit so it says where it lives.
+   *  Null in the tree (the breadcrumb already says) and for a top-level hit. */
+  location: string | null;
+  /** Leave the search for the parent's level, with this page selected in it. */
+  onOpenParent?: () => void;
+  /** Set when a sub-page was edited more recently than the page itself, which
+   *  is why "Last edited" ranks the card here. `path` runs from the first
+   *  sub-page down to the edited one. */
+  subEdit: { at: string; path: string[] } | null;
   /** Card density. Off strips the summary and the tags, leaving the title and
    *  the footer controls — the compact column the cards replaced, but still a
    *  card. */
@@ -885,6 +964,29 @@ function PageCard({
             {row.title}
           </ListCardTitle>
         </RowButton>
+
+        {location &&
+          (onOpenParent ? (
+            <RowButton
+              onClick={onOpenParent}
+              className="flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              title={`Leave the search and open “${location}”`}
+            >
+              <CornerLeftUp className="size-3 shrink-0 opacity-70" aria-hidden />
+              <span className="truncate">in {location}</span>
+            </RowButton>
+          ) : (
+            <p className="truncate px-1 text-xs text-muted-foreground">in {location}</p>
+          ))}
+
+        {subEdit && (
+          <p
+            className="truncate px-1 text-xs text-muted-foreground"
+            title={`${subEdit.path.join(' › ')}, edited ${formatDateTime(subEdit.at)}`}
+          >
+            Sub-page edited {updatedAgo(subEdit.at)}
+          </p>
+        )}
 
         {details && row.summary && (
           <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>
