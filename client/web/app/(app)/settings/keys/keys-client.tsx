@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import {
   Field,
   FieldDescription,
@@ -500,9 +501,9 @@ export function KeysClient() {
 
                   <Field data-invalid={!!createErrors.plaintext || undefined}>
                     <FieldLabel htmlFor="plaintext">Key value</FieldLabel>
-                    <Input
+                    <SecretInput
                       id="plaintext"
-                      type="text"
+                      noun="key"
                       autoComplete="off"
                       value={plaintext}
                       onChange={(e) => {
@@ -605,9 +606,9 @@ export function KeysClient() {
           <form onSubmit={onRotate} noValidate>
             <Field data-invalid={!!rotateError || undefined} className="mb-3">
               <FieldLabel htmlFor="rotate-value">New key value</FieldLabel>
-              <Input
+              <SecretInput
                 id="rotate-value"
-                type="text"
+                noun="key"
                 autoComplete="off"
                 value={rotateValue}
                 onChange={(e) => {

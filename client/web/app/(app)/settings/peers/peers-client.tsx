@@ -7,6 +7,7 @@ import { Check, Copy, KeyRound, Network, Plus, RefreshCw, Search, Trash2, X } fr
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import {
   Field,
   FieldDescription,
@@ -346,8 +347,10 @@ function CreatePeer({ onCreated }: { onCreated: (peer: Peer, inboundToken: strin
           </Field>
           <Field>
             <FieldLabel htmlFor="peer-token">Their token — optional for now</FieldLabel>
-            <Input
+            <SecretInput
               id="peer-token"
+              noun="token"
+              autoComplete="off"
               value={outboundToken}
               onChange={(e) => setOutbound(e.target.value)}
               placeholder="mtlpeer_… (leave empty if they haven't sent it yet)"

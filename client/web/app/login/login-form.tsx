@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { apiUrl } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
@@ -129,9 +130,8 @@ export function LoginForm({
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
-        <Input
+        <SecretInput
           id="password"
-          type="password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}

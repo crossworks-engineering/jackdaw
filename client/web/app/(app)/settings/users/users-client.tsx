@@ -37,6 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import {
   Select,
   SelectContent,
@@ -831,9 +832,8 @@ function AddUserDialog({
           </Field>
           <Field data-invalid={!!errors.password || undefined}>
             <FieldLabel htmlFor="new-user-password">Starting password</FieldLabel>
-            <Input
+            <SecretInput
               id="new-user-password"
-              type="text"
               required
               minLength={8}
               value={password}
@@ -939,9 +939,8 @@ function ResetPasswordDialog({
         <form onSubmit={submit} noValidate className="space-y-3">
           <Field data-invalid={!!error || undefined}>
             <FieldLabel htmlFor="reset-password-value">New password</FieldLabel>
-            <Input
+            <SecretInput
               id="reset-password-value"
-              type="text"
               required
               minLength={8}
               value={password}

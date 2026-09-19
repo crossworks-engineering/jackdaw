@@ -125,6 +125,7 @@
     "./ui/revola": "./src/ui/revola.tsx",
     "./ui/scroll-area": "./src/ui/scroll-area.tsx",
     "./ui/scrollable": "./src/ui/scrollable.tsx",
+    "./ui/secret-input": "./src/ui/secret-input.tsx",
     "./ui/select": "./src/ui/select.tsx",
     "./ui/separator": "./src/ui/separator.tsx",
     "./ui/sheet": "./src/ui/sheet.tsx",

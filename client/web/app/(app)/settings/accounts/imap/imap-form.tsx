@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Eye, EyeOff, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import {
   Field,
@@ -58,7 +58,6 @@ export function ImapForm({ account }: { account?: ImapFormAccount }) {
   const [port, setPort] = useState(account?.imapPort ?? 993);
   const [secure, setSecure] = useState(account?.imapSecure ?? true);
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [smtpHost, setSmtpHost] = useState(account?.smtpHost ?? '');
   const [smtpPort, setSmtpPort] = useState<number | ''>(account?.smtpPort ?? '');
   const [smtpSecure, setSmtpSecure] = useState(account?.smtpSecure ?? true);
@@ -254,30 +253,19 @@ export function ImapForm({ account }: { account?: ImapFormAccount }) {
         </div>
         <Field data-invalid={!!errors.password || undefined}>
           <FieldLabel htmlFor="password">App password</FieldLabel>
-          <div className="relative">
-            <Input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="off"
-              placeholder={isEdit ? 'Leave blank to keep current password' : undefined}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                clear('password');
-              }}
-              className="pr-9"
-              aria-invalid={!!errors.password || undefined}
-              aria-describedby={errors.password ? 'password-error password-hint' : 'password-hint'}
-            />
-            <RowButton
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </RowButton>
-          </div>
+          <SecretInput
+            id="password"
+            name="password"
+            autoComplete="off"
+            placeholder={isEdit ? 'Leave blank to keep current password' : undefined}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              clear('password');
+            }}
+            aria-invalid={!!errors.password || undefined}
+            aria-describedby={errors.password ? 'password-error password-hint' : 'password-hint'}
+          />
           <FieldDescription id="password-hint">
             {isEdit
               ? 'Only enter a password if you want to replace the stored one.'

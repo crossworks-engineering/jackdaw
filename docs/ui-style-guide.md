@@ -235,7 +235,7 @@ Prefer these over hand-rolled markup:
 `textarea`, `checkbox`, `badge`, `select`, `tabs`, `toggle` / `toggle-group`,
 `tooltip`, `popover`, `card`, `avatar`, `separator`, `skeleton`, `switch`,
 `slider`, `radio-group`, `command`, `sheet`, `table`, `toast`, `sidebar`,
-`resizable`, `submit-button`, `field`.
+`resizable`, `submit-button`, `field`, `secret-input`.
 
 ### 4a. Our relationship to shadcn — read this before copying upstream code
 
@@ -544,6 +544,13 @@ arrangement) — do not hand-roll the string.
   (`components/ui/date-time-picker.tsx`), the shadcn Calendar in a popover +
   a time field. Don't use the native `datetime-local` input (used by events +
   heartbeats; value is a `Date | null`).
+- **A password, key, secret or token is entered through `<SecretInput>`**
+  (`components/ui/secret-input.tsx`), never `<Input type="password">` and never
+  a plain text `Input`. It is masked by default and carries the eye toggle, so
+  the value can be checked before it is submitted. It takes every `Input` prop;
+  `noun` names the value in the toggle's label ("Show key"), and
+  `wrapperClassName` sizes it in a row. The one-time reveal dialogs (a new API
+  key, a vault reveal) are a different flow and stay as they are.
 - **Every form submit uses `<SubmitButton>`** (`components/ui/submit-button.tsx`)
   , never a bare `<Button type="submit">`. It standardises the two things a
   save button must do:

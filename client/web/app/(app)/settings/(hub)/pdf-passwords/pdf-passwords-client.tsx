@@ -6,6 +6,7 @@ import { KeyRound, Lock, Plus, Trash2 } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -110,7 +111,7 @@ export function PdfPasswordsClient() {
         </div>
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="pw-value">Password</Label>
-          <Input
+          <SecretInput
             id="pw-value"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

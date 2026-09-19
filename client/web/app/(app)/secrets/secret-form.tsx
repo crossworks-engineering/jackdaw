@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 // `Field` here is a SECRET's label/value pair, so the UI primitive is aliased
 // rather than the domain type renamed — the domain name is the one on the wire.
@@ -194,8 +195,10 @@ export function SecretForm({
                 aria-label={`Field ${i + 1} label`}
                 className="w-1/3"
               />
-              <Input
+              <SecretInput
                 placeholder="Value"
+                noun="value"
+                autoComplete="off"
                 value={f.value}
                 onChange={(e) => setField(i, { value: e.target.value })}
                 aria-label={`Field ${i + 1} value`}

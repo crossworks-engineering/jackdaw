@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { CopyBlock } from '@mantle/web-ui/ui/copy-button';
 import {
   Field,
@@ -923,9 +924,9 @@ export function ConnectorsClient() {
                               <FieldLabel htmlFor="connector-client-secret">
                                 Client secret
                               </FieldLabel>
-                              <Input
+                              <SecretInput
                                 id="connector-client-secret"
-                                type="password"
+                                noun="secret"
                                 autoComplete="off"
                                 value={form.clientSecret}
                                 onChange={(e) =>

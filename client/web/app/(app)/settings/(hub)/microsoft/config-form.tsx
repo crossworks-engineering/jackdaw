@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import type { MsConfigStatus } from '@mantle/client-types';
@@ -34,7 +33,6 @@ export function MsConfigForm({
   const [tenant, setTenant] = useState(status.tenant || 'common');
   const [redirectUri, setRedirectUri] = useState(status.redirectUri ?? suggestedRedirectUri);
   const [secret, setSecret] = useState('');
-  const [showSecret, setShowSecret] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,27 +111,17 @@ export function MsConfigForm({
 
         <div className="space-y-2">
           <Label htmlFor="clientSecret">Client secret</Label>
-          <div className="relative">
-            <Input
-              id="clientSecret"
-              type={showSecret ? 'text' : 'password'}
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder={
-                hasStoredSecret
-                  ? `Leave blank to keep current (${status.secretMasked})`
-                  : 'Client secret value'
-              }
-              className="pr-10"
-            />
-            <RowButton
-              onClick={() => setShowSecret((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-            >
-              {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </RowButton>
-          </div>
+          <SecretInput
+            id="clientSecret"
+            noun="secret"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder={
+              hasStoredSecret
+                ? `Leave blank to keep current (${status.secretMasked})`
+                : 'Client secret value'
+            }
+          />
           <FieldHint id="clientSecret">
             Use the secret <em>value</em> (not the secret ID). Azure only shows it once.
           </FieldHint>

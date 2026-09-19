@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Send } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import type { AgentTelegramBinding, AgentTelegramChat } from '@mantle/client-types';
@@ -195,8 +195,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      <Input
-        type="text"
+      <SecretInput
+        noun="token"
         autoComplete="off"
         value={token}
         onChange={(e) => setToken(e.target.value)}

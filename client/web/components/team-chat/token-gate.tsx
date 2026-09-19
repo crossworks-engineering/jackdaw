@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Input } from '@mantle/web-ui/ui/input';
+import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { teamFetch, teamTokenStore } from '@mantle/web-ui/team-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
@@ -81,8 +81,9 @@ export function TokenGate({
         <Label htmlFor="team-token" className="mb-1.5 block text-sm">
           Team token
         </Label>
-        <Input
+        <SecretInput
           id="team-token"
+          noun="token"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
