@@ -134,7 +134,8 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   return (
     <div
       ref={containerRef}
-      className="max-h-72 w-64 overflow-y-auto scrollbar-thin rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"
+      data-caret-menu-scroller
+      className="max-h-[min(18rem,var(--caret-menu-max-h,18rem))] w-64 overflow-y-auto scrollbar-thin rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"
     >
       {items.map((item, i) => {
         const showGroup = i === 0 || items[i - 1]?.ref !== item.ref;

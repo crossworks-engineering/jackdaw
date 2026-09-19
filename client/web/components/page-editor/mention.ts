@@ -6,6 +6,7 @@ import {
   type MentionListHandle,
   type MentionListProps,
 } from './mention-list';
+import { placeCaretMenu, remToPx, type CaretMenuSide } from './caret-menu-position';
 
 /**
  * @-mention / link. One picker resolves the owner's existing references
@@ -68,26 +69,29 @@ export const PageMention = Mention.extend({
       let popup: HTMLDivElement | null = null;
       let rectFn: (() => DOMRect | null) | null | undefined = null;
       let ro: ResizeObserver | null = null;
+      let side: CaretMenuSide | null = null;
+      let editorDom: HTMLElement | null = null;
+      let frame = 0;
 
+      // Same placement as the slash menu, from the one shared helper: the side
+      // with more room, capped to it, kept inside the visible area (an
+      // overflowing list is what let arrow-key scrollIntoView yank the page).
       const reposition = () => {
         if (!popup || !rectFn) return;
         const rect = rectFn();
         if (!rect) return;
-        const margin = 6;
-        const w = popup.offsetWidth;
-        const h = popup.offsetHeight;
-        const flipUp = rect.bottom + margin + h > window.innerHeight && rect.top - margin - h > 0;
-        let top = flipUp ? rect.top - margin - h : rect.bottom + margin;
-        let left = rect.left;
-        // Clamp fully on-screen so the list never overflows the viewport (which
-        // is what let arrow-key scrollIntoView yank the page on first open).
-        left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
-        top = Math.max(margin, Math.min(top, window.innerHeight - h - margin));
-        popup.style.left = `${Math.round(left)}px`;
-        popup.style.top = `${Math.round(top)}px`;
+        side = placeCaretMenu(popup, rect, {
+          editorDom,
+          margin: 6,
+          maxHeight: remToPx(18),
+          minHeight: remToPx(10),
+          current: side,
+        });
       };
 
       const close = () => {
+        cancelAnimationFrame(frame);
+        side = null;
         ro?.disconnect();
         ro = null;
         popup?.remove();
@@ -99,6 +103,7 @@ export const PageMention = Mention.extend({
       return {
         onStart: (props) => {
           rectFn = props.clientRect;
+          editorDom = props.editor.view.dom;
           component = new ReactRenderer(MentionList, { props, editor: props.editor });
           popup = document.createElement('div');
           popup.style.position = 'fixed';
@@ -115,6 +120,10 @@ export const PageMention = Mention.extend({
           rectFn = props.clientRect;
           component?.updateProps(props);
           reposition();
+          // Results arrive and commit asynchronously, and a capped list does not
+          // change size when its content does. Measure again once they are in.
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(reposition);
         },
         onKeyDown: (props) => {
           if (props.event.key === 'Escape') {

@@ -8,13 +8,14 @@ import {
   type SlashMenuHandle,
   type SlashMenuProps,
 } from './slash-menu';
+import { placeCaretMenu, remToPx, type CaretMenuSide } from './caret-menu-position';
 
 /**
  * Slash command: type "/" to open a spacious block picker. Built on TipTap's
  * Suggestion utility (the same primitive behind @-mentions). The popup is a
  * React component (SlashMenu) mounted to <body> and positioned at the caret
- * with plain fixed-positioning + a flip-up when there's no room below — no
- * tippy / floating-ui dependency.
+ * with plain fixed-positioning (`caret-menu-position.ts`: it opens on the side
+ * with more room and is capped to it), no tippy / floating-ui dependency.
  *
  * No schema/nodes are added here, so this stays editor-only and the read-only
  * PageView (which omits it) renders identically.
@@ -59,28 +60,30 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
           let popup: HTMLDivElement | null = null;
           let rectFn: (() => DOMRect | null) | null | undefined = null;
           let ro: ResizeObserver | null = null;
+          let side: CaretMenuSide | null = null;
+          let editorDom: HTMLElement | null = null;
+          let frame = 0;
 
+          // Side, cap and on-screen clamp all live in `placeCaretMenu`, shared
+          // with the mention list. Keeping the menu inside the visible area is
+          // also what makes the arrow-key scrollIntoView (in SlashMenu) a no-op
+          // instead of yanking the whole page.
           const reposition = () => {
             if (!popup || !rectFn) return;
             const rect = rectFn();
             if (!rect) return;
-            const margin = 8;
-            const w = popup.offsetWidth;
-            const h = popup.offsetHeight;
-            const flipUp =
-              rect.bottom + margin + h > window.innerHeight && rect.top - margin - h > 0;
-            let top = flipUp ? rect.top - margin - h : rect.bottom + margin;
-            let left = rect.left;
-            // Clamp fully on-screen. A menu overflowing the viewport is what let
-            // the arrow-key scrollIntoView (in SlashMenu) yank the whole page on
-            // first open — keeping it on-screen makes that scroll a no-op.
-            left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
-            top = Math.max(margin, Math.min(top, window.innerHeight - h - margin));
-            popup.style.left = `${Math.round(left)}px`;
-            popup.style.top = `${Math.round(top)}px`;
+            side = placeCaretMenu(popup, rect, {
+              editorDom,
+              margin: 8,
+              maxHeight: remToPx(22),
+              minHeight: remToPx(12),
+              current: side,
+            });
           };
 
           const close = () => {
+            cancelAnimationFrame(frame);
+            side = null;
             ro?.disconnect();
             ro = null;
             popup?.remove();
@@ -92,6 +95,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
           return {
             onStart: (props) => {
               rectFn = props.clientRect;
+              editorDom = props.editor.view.dom;
               component = new ReactRenderer(SlashMenu, { props, editor: props.editor });
               popup = document.createElement('div');
               popup.style.position = 'fixed';
@@ -110,6 +114,11 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
               rectFn = props.clientRect;
               component?.updateProps(props);
               reposition();
+              // The filtered list commits asynchronously, and a capped menu does
+              // not change size when its content does, so the ResizeObserver
+              // stays quiet. Measure again once the new rows are in.
+              cancelAnimationFrame(frame);
+              frame = requestAnimationFrame(reposition);
             },
             onKeyDown: (props) => {
               if (props.event.key === 'Escape') {
