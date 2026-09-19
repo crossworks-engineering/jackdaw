@@ -708,6 +708,15 @@ are utilities in `globals.css`). There is **no global default** — `html` and
 `body` compute to `scrollbar-width: auto` — so an element that scrolls without
 the class gets a fat bar, and nothing warns you.
 
+**Small popovers add `scrollbar-hair`** (3px, against thin's 6px): the slash
+menu, the mention list, `Command`, `Select` and `DropdownMenu` content, where a
+6px bar is a visible share of a narrow list. Always written as
+`scrollbar-thin scrollbar-hair`, the hairline refining thin rather than
+replacing it, so a share-ui that predates the class falls back to thin and not
+to the fat default. Page-level panes, tables, code blocks and textareas stay on
+thin alone: 3px is a poor drag target on a long document. Firefox has no pixel
+control over scrollbars, so there the two look the same.
+
 Two consequences worth knowing:
 
 - **Put it on the primitive, not the caller.** `Textarea` carries it, so its

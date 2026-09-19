@@ -394,7 +394,7 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(function Sl
     <div
       ref={containerRef}
       data-caret-menu-scroller
-      className="max-h-[min(22rem,var(--caret-menu-max-h,22rem))] w-80 overflow-y-auto scrollbar-thin rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-lg"
+      className="max-h-[min(22rem,var(--caret-menu-max-h,22rem))] w-80 overflow-y-auto scrollbar-thin scrollbar-hair rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-lg"
     >
       {items.map((item, i) => {
         const showGroup = i === 0 || items[i - 1]?.group !== item.group;
