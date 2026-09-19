@@ -28,21 +28,23 @@
  * The house rule is that the stacked lockup is the hero and "everywhere in-app
  * wears the row lockup or the wordmark alone, so the bird stays an event rather
  * than chrome". A footer credit is chrome, so it takes the row (bird beside
- * wordmark, 338×96) — which is also the shape that stays legible when it is
- * this small. Two imgs swapped by the `dark:` variant, a CSS swap, so flipping
- * the theme never waits on a fetch.
+ * wordmark, 338×96), which is also the shape that reads well in a footer. Two
+ * imgs swapped by the `dark:` variant, a CSS swap, so flipping the theme never
+ * waits on a fetch.
  *
- * `h-6` puts it at 24px tall — about a seventh of the hero — and the intrinsic
+ * `h-12` puts it at 48px tall, about a quarter of the hero. The source PNGs are
+ * 96px tall, so 48px is exactly 2x and stays sharp on retina. The intrinsic
  * `width`/`height` are declared so the footer reserves its box and the form
  * above never shifts when the image decodes.
  */
 export function LoginCredit() {
   return (
     <footer className="flex justify-center pt-8">
-      {/* Softened rather than shrunk further: below ~24px the wordmark stops
-          being readable, so the way to make a credit recede is opacity, not
-          size. Fixed opacity, no hover change — there is nothing to click here,
-          and a mark that reacts to the pointer claims to be a control. */}
+      {/* Softened so it stays a credit at this size: the mark is big enough to
+          read comfortably, and opacity is what keeps it from competing with the
+          owner's hero. Fixed opacity, no hover change: there is nothing to
+          click here, and a mark that reacts to the pointer claims to be a
+          control. */}
       <span className="opacity-50">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -50,7 +52,7 @@ export function LoginCredit() {
           alt="Jackdaw"
           width={344}
           height={96}
-          className="h-6 w-auto dark:hidden"
+          className="h-12 w-auto dark:hidden"
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -58,7 +60,7 @@ export function LoginCredit() {
           alt="Jackdaw"
           width={338}
           height={96}
-          className="hidden h-6 w-auto dark:block"
+          className="hidden h-12 w-auto dark:block"
         />
       </span>
     </footer>
