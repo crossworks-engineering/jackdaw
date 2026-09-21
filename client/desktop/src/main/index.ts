@@ -96,7 +96,9 @@ function vault(): Vault {
 // window is still showing OUR UI and not something a navigation swapped in.
 const windowProfiles = new Map<number, { profileId: string; origin: string }>();
 
-function vaultProfileFor(event: Electron.IpcMainEvent): string | null {
+function vaultProfileFor(
+  event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent,
+): string | null {
   const entry = windowProfiles.get(event.sender.id);
   const frame = event.senderFrame;
   if (!entry || !frame) return null;
@@ -299,6 +301,8 @@ let appRendererUrl: string | null = null;
  *  on the same brain would be a second view of the same cookies and the same
  *  logins, able to switch login under the first one's feet. */
 const profileWindows = new Map<string, BrowserWindow>();
+/** The renderer URL each brain window serves, to build in-app URLs for it. */
+const profileRendererUrls = new Map<string, string>();
 
 function reveal(win: BrowserWindow): void {
   if (win.isMinimized()) win.restore();
@@ -306,16 +310,23 @@ function reveal(win: BrowserWindow): void {
   win.focus();
 }
 
-/** Go to a brain: its window if it has one, a new one if not. */
-async function openBrain(profileId: string): Promise<void> {
+/** Go to a brain: its window if it has one, a new one if not. `path` lands
+ *  it on a particular in-app screen, whether the window is new or already up. */
+async function openBrain(profileId: string, path?: string): Promise<void> {
   const profiles = loadProfiles();
   const profile = profiles.find((p) => p.id === profileId);
   if (!profile) return openConnectWindow();
   profile.lastUsedAt = Date.now();
   saveProfiles(profiles);
   const open = profileWindows.get(profile.id);
-  if (open && !open.isDestroyed()) reveal(open);
-  else await openAppWindow(profile);
+  if (open && !open.isDestroyed()) {
+    reveal(open);
+    const rendererUrl = profileRendererUrls.get(profile.id);
+    const target = path && rendererUrl ? inAppUrl(path, rendererUrl) : null;
+    if (target) void open.loadURL(target);
+  } else {
+    await openAppWindow(profile, path);
+  }
   refreshBrainMenus();
 }
 
@@ -406,7 +417,7 @@ function openConnectWindow(): void {
   }
 }
 
-async function openAppWindow(profile: Profile): Promise<void> {
+async function openAppWindow(profile: Profile, path?: string): Promise<void> {
   const rendererUrl = await ensureRendererUrl(profile.origin);
   const rendererOrigin = new URL(rendererUrl).origin;
   const partition = `persist:brain-${profile.id}`;
@@ -485,6 +496,7 @@ async function openAppWindow(profile: Profile): Promise<void> {
   appWindow = win;
   appRendererUrl = rendererUrl;
   profileWindows.set(profile.id, win);
+  profileRendererUrls.set(profile.id, rendererUrl);
   // With several brains open, "the current one" is the one last looked at:
   // that is where a deep link or a notification click should land.
   win.on('focus', () => {
@@ -497,14 +509,17 @@ async function openAppWindow(profile: Profile): Promise<void> {
   windowProfiles.set(webContentsId, { profileId: profile.id, origin: rendererOrigin });
   win.on('closed', () => {
     windowProfiles.delete(webContentsId);
-    if (profileWindows.get(profile.id) === win) profileWindows.delete(profile.id);
+    if (profileWindows.get(profile.id) === win) {
+      profileWindows.delete(profile.id);
+      profileRendererUrls.delete(profile.id);
+    }
     if (appWindow === win) {
       appWindow = null;
       appRendererUrl = null;
     }
   });
 
-  const initialPath = pendingDeepLinkPath ?? '/';
+  const initialPath = path ?? pendingDeepLinkPath ?? '/';
   pendingDeepLinkPath = null;
   void win.loadURL(inAppUrl(initialPath, rendererUrl) ?? new URL('/', rendererUrl).toString());
 }
@@ -517,6 +532,42 @@ function reportWindowError(error: unknown): void {
 // ── IPC (the connect screen's whole API) ──────────────────────────────────────
 
 type AddResult = { ok: true; profile: Profile } | { ok: false; error: string };
+type OpenForLoginResult =
+  { ok: true; same: true } | { ok: true; same: false; name: string } | { ok: false; error: string };
+
+/** profile id → the email to prefill on that brain's sign-in screen, once. */
+const loginHints = new Map<string, string>();
+
+/** Probe-before-save. A brain already in the list is refreshed, not doubled. */
+async function addBrain(rawUrl: string): Promise<AddResult> {
+  let origin: string;
+  try {
+    origin = normalizeOrigin(String(rawUrl));
+  } catch {
+    return { ok: false, error: 'That does not look like a valid URL.' };
+  }
+  try {
+    const version = await probeBrain(origin);
+    const profiles = loadProfiles();
+    const existing = profiles.find((p) => p.origin === origin);
+    if (existing) {
+      existing.version = version;
+      saveProfiles(profiles);
+      return { ok: true, profile: existing };
+    }
+    const profile: Profile = {
+      id: randomUUID(),
+      origin,
+      name: new URL(origin).hostname,
+      version,
+    };
+    saveProfiles([...profiles, profile]);
+    refreshBrainMenus();
+    return { ok: true, profile };
+  } catch {
+    return { ok: false, error: `Couldn't reach a Mantle server at ${origin}.` };
+  }
+}
 
 function registerIpc(): void {
   ipcMain.handle('shell:info', () => ({ version: app.getVersion() }));
@@ -603,34 +654,55 @@ function registerIpc(): void {
 
   ipcMain.handle('profiles:list', () => loadProfiles());
 
-  ipcMain.handle('profiles:add', async (_event, rawUrl: string): Promise<AddResult> => {
-    let origin: string;
-    try {
-      origin = normalizeOrigin(String(rawUrl));
-    } catch {
-      return { ok: false, error: 'That does not look like a valid URL.' };
-    }
-    try {
-      const version = await probeBrain(origin);
-      const profiles = loadProfiles();
-      const existing = profiles.find((p) => p.origin === origin);
-      if (existing) {
-        existing.version = version;
-        saveProfiles(profiles);
-        return { ok: true, profile: existing };
+  ipcMain.handle('profiles:add', (_event, rawUrl: string) => addBrain(rawUrl));
+
+  // "Add login" inside a brain window, naming ANOTHER brain. The page hands
+  // over an address and, as a courtesy, the email typed so far; never a
+  // password. The brain is checked and saved exactly as the connect screen
+  // does it, and its own window opens on its sign-in screen: a credential is
+  // only ever typed into the window of the brain it is for, which is what
+  // keeps the rule that a window reaches its own brain's logins and no other.
+  ipcMain.handle(
+    'brains:openForLogin',
+    async (event, rawUrl: unknown, email: unknown): Promise<OpenForLoginResult> => {
+      const fromProfileId = vaultProfileFor(event);
+      if (!fromProfileId) return { ok: false, error: 'Not available here.' };
+      if (typeof rawUrl !== 'string' || rawUrl.length > 2048) {
+        return { ok: false, error: 'That does not look like a valid URL.' };
       }
-      const profile: Profile = {
-        id: randomUUID(),
-        origin,
-        name: new URL(origin).hostname,
-        version,
-      };
-      saveProfiles([...profiles, profile]);
-      refreshBrainMenus();
-      return { ok: true, profile };
-    } catch {
-      return { ok: false, error: `Couldn't reach a Mantle server at ${origin}.` };
-    }
+      let origin: string;
+      try {
+        origin = normalizeOrigin(rawUrl);
+      } catch {
+        return { ok: false, error: 'That does not look like a valid URL.' };
+      }
+      const here = loadProfiles().find((p) => p.id === fromProfileId);
+      // This window's own brain: nothing for the shell to do, the page signs in.
+      if (here && here.origin === origin) return { ok: true, same: true };
+
+      const added = await addBrain(origin);
+      if (!added.ok) return added;
+      if (typeof email === 'string' && email.length > 0 && email.length <= 320) {
+        loginHints.set(added.profile.id, email);
+      }
+      try {
+        await openBrain(added.profile.id, '/login?add=1');
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+      return { ok: true, same: false, name: added.profile.name };
+    },
+  );
+
+  // Read once by the sign-in screen of the window that was just opened for it.
+  // Kept here rather than put in the URL: an address bar is no place for an
+  // email, even a local one.
+  ipcMain.handle('brains:takeLoginHint', (event): { email: string } | null => {
+    const profileId = vaultProfileFor(event);
+    const email = profileId ? loginHints.get(profileId) : undefined;
+    if (!profileId || !email) return null;
+    loginHints.delete(profileId);
+    return { email };
   });
 
   ipcMain.handle('profiles:remove', (_event, id: string) => {

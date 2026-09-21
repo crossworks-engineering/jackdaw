@@ -32,6 +32,21 @@ export type DesktopShellApi = {
     /** Move the one-slot bearer to a login that has none yet; returns it. */
     adopt?(sessionId: string): string | null;
   };
+  /** Other brains, from inside a brain window (shells from v0.6.125). The
+   *  shell opens the named brain in ITS OWN window on its sign-in screen; the
+   *  page hands over an address and an email, never a password. */
+  brains?: {
+    openForLogin(
+      url: string,
+      email?: string,
+    ): Promise<
+      | { ok: true; same: true }
+      | { ok: true; same: false; name: string }
+      | { ok: false; error: string }
+    >;
+    /** The email to prefill, once, when this window was opened by the above. */
+    takeLoginHint(): Promise<{ email: string } | null>;
+  };
 };
 
 declare global {

@@ -9,7 +9,9 @@ import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { apiUrl, resetCookieUpgrade, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
+import { currentBrainOrigin } from '@mantle/web-ui/session-registry';
 import { tokenStore } from '@mantle/web-ui/token-store';
+import { sameBrainAddress } from '@/lib/brain-address';
 import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
 import { SetupCodeField, isSetupCodeRefusal } from './setup-code-field';
 
@@ -37,6 +39,14 @@ import { SetupCodeField, isSetupCodeRefusal } from './setup-code-field';
  * credentials for a bearer like any other sign-in. A brain the installer set
  * up asks for its setup code too (`setupCodeRequired`); a setup-code refusal
  * shows on that field.
+ *
+ * Inside the desktop app, adding a login also offers a BRAIN ADDRESS. Left as
+ * it is, the login is added here. Changed, nothing is signed in from this
+ * window at all: the shell checks the address, saves the brain and opens that
+ * brain's own window on its sign-in screen, email carried over. The password
+ * is typed there, in the window of the brain it is for, because a window only
+ * ever reaches its own brain's logins. The browser never shows the field: a
+ * web client talks to the one brain it was deployed for.
  */
 export function LoginForm({
   mode = 'login',
@@ -74,12 +84,43 @@ export function LoginForm({
     if (initialEmail) setEmail((current) => current || initialEmail);
   }, [initialEmail]);
 
+  // The shell's other-brains API, found after mount: the server pass has no
+  // `window`, and a field that appears only in the client render would be a
+  // hydration mismatch if it were decided during it.
+  type BrainsApi = NonNullable<NonNullable<Window['mantleDesktop']>['brains']>;
+  const [brains, setBrains] = useState<BrainsApi | null>(null);
+  const [here, setHere] = useState('');
+  const [address, setAddress] = useState('');
+  const [opened, setOpened] = useState<string | null>(null);
+  useEffect(() => {
+    const api = add ? window.mantleDesktop?.brains : undefined;
+    if (!api) return;
+    const origin = currentBrainOrigin();
+    setBrains(api);
+    setHere(origin);
+    setAddress(origin);
+  }, [add]);
+  /** The address names a brain other than this window's. */
+  const elsewhere = brains !== null && !sameBrainAddress(address, here);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(undefined);
     setCodeError(undefined);
+    setOpened(null);
     try {
+      if (brains && elsewhere) {
+        const result = await brains.openForLogin(address, email.trim() || undefined);
+        if (!result.ok) setError(result.error);
+        else if (result.same) {
+          // The shell is the judge of what counts as the same brain.
+          setAddress(here);
+          setError('That is this brain. Enter the password to add a login here.');
+        } else setOpened(result.name);
+        return;
+      }
+
       const split = isCrossOrigin();
 
       if (isSignup) {
@@ -158,26 +199,52 @@ export function LoginForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {brains && (
+        <div className="space-y-2">
+          <Label htmlFor="brain-address">Brain address</Label>
+          <Input
+            id="brain-address"
+            type="url"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            required
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            {elsewhere
+              ? 'Another brain opens in its own window, and you sign in there.'
+              : 'This brain. Change it to add a login on another one.'}
+          </p>
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
           type="email"
-          required
+          required={!elsewhere}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <SecretInput
-          id="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
-      {askCode && (
+      {/* No password field for another brain: it is typed in that brain's own
+          window, never in this one. */}
+      {!elsewhere && (
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <SecretInput
+            id="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+      )}
+      {/* This brain's setup code: nothing to do with another brain. */}
+      {askCode && !elsewhere && (
         <SetupCodeField
           value={setupCode}
           onChange={(v) => {
@@ -188,8 +255,13 @@ export function LoginForm({
         />
       )}
       {error && <p className="text-sm text-destructive-ink">{error}</p>}
+      {opened && (
+        <p className="text-sm text-muted-foreground">
+          {opened} is open in its own window. Sign in there.
+        </p>
+      )}
       <SubmitButton pending={busy} className="w-full">
-        {isSignup ? 'Create login' : 'Sign in'}
+        {elsewhere ? 'Open brain' : isSignup ? 'Create login' : 'Sign in'}
       </SubmitButton>
     </form>
   );

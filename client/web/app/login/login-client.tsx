@@ -81,6 +81,18 @@ export function LoginClient({
     setReplacesCurrent(!held.active && /(?:^|;\s*)mantle_authed=1/.test(document.cookie));
   }, [add, held.ready, held.active]);
 
+  // Opened by another brain window's "Add login": the shell holds the email
+  // that was typed there, to be read once. Asked for rather than put in the
+  // URL, where an email has no business being.
+  const [hintEmail, setHintEmail] = useState<string>();
+  useEffect(() => {
+    if (!add) return;
+    void window.mantleDesktop?.brains
+      ?.takeLoginHint()
+      .then((hint) => hint && setHintEmail(hint.email))
+      .catch(() => undefined);
+  }, [add]);
+
   const strapline = firstRun
     ? 'Create your login to begin.'
     : target
@@ -111,11 +123,13 @@ export function LoginClient({
           error={error}
           setupCodeRequired={setupCodeRequired}
           add={add}
-          initialEmail={target?.email}
+          initialEmail={target?.email ?? hintEmail}
         />
         {/* No client exists on a brain that is still being set up. */}
         <ClientCodeLink enabled={clientCodes && !firstRun} />
-        {add && (
+        {/* Only when there is an app to go back to: a brain window opened just
+            to sign in has nobody signed in behind this screen. */}
+        {add && (held.active || replacesCurrent) && (
           <p className="text-center text-xs text-muted-foreground">
             <Link href={next ?? '/'} className="underline underline-offset-2 hover:text-foreground">
               Back to the app

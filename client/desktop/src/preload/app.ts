@@ -68,4 +68,12 @@ contextBridge.exposeInMainWorld('mantleDesktop', {
       return typeof value === 'string' ? value : null;
     },
   },
+  // "Add login" for ANOTHER brain: the shell checks the address, saves the
+  // brain and opens its own window on its sign-in screen. Only an address and
+  // an email cross; a password never does.
+  brains: {
+    openForLogin: (url: string, email?: string) =>
+      ipcRenderer.invoke('brains:openForLogin', url, email),
+    takeLoginHint: () => ipcRenderer.invoke('brains:takeLoginHint'),
+  },
 });
