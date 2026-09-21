@@ -6,6 +6,7 @@ import { isLoginRefusal } from './member-destination';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { NavGroup, NavItem } from '@mantle/web-ui/layout/nav-items';
+import { activeSession } from '@mantle/web-ui/session-registry';
 
 /**
  * The destinations this owner has starred, pinned to a Favorites group at the
@@ -34,6 +35,23 @@ const KEY = 'mantle_nav_favorites_v1';
 /** Set once this browser's local list has been moved to the server. */
 const MIGRATED_KEY = 'mantle_nav_favorites_migrated_v1';
 
+/**
+ * The LOCAL list (a brain from before favourites were saved to the profile)
+ * belongs to the LOGIN, now that a device can hold several: two people sharing
+ * a browser should not curate each other's sidebar. `scope` is the active
+ * session's id; without one (a cookie sign-in from before sessions, or a test)
+ * the list is the browser-wide one it always was. On a brain that saves them to
+ * the profile, favourites are the login's there and this does not apply.
+ *
+ * Nobody's stars are lost to this. A login with no list of its own yet reads
+ * the browser-wide one, and its first toggle writes that inherited list, plus
+ * the change, under its own key. The browser-wide list is never deleted: it is
+ * what the next login added to this device starts from.
+ */
+function keyFor(scope?: string | null): string {
+  return scope ? `${KEY}:${scope}` : KEY;
+}
+
 /** Same-tab notification. `storage` only fires in OTHER tabs, so a click would
  *  update localStorage and leave the star in this one unfilled until reload. */
 const EVENT = 'mantle:nav-favorites';
@@ -50,9 +68,9 @@ export type FavoritesStore = Pick<Storage, 'getItem' | 'setItem'>;
  * convenience. Non-strings are dropped individually so ONE bad entry cannot
  * discard a list the owner curated.
  */
-export function readFavorites(store: FavoritesStore): string[] {
+export function readFavorites(store: FavoritesStore, scope?: string | null): string[] {
   try {
-    const raw = store.getItem(KEY);
+    const raw = store.getItem(keyFor(scope)) ?? (scope ? store.getItem(KEY) : null);
     const parsed = raw ? (JSON.parse(raw) as unknown) : null;
     return Array.isArray(parsed) ? parsed.filter((h): h is string => typeof h === 'string') : [];
   } catch {
@@ -67,13 +85,17 @@ export function readFavorites(store: FavoritesStore): string[] {
  * would move rows the owner placed deliberately, and the point of pinning is
  * that the row stays where it was put.
  */
-export function toggleFavoriteIn(store: FavoritesStore, href: string): string[] {
-  const next = readFavorites(store);
+export function toggleFavoriteIn(
+  store: FavoritesStore,
+  href: string,
+  scope?: string | null,
+): string[] {
+  const next = readFavorites(store, scope);
   const at = next.indexOf(href);
   if (at === -1) next.push(href);
   else next.splice(at, 1);
   try {
-    store.setItem(KEY, JSON.stringify(next));
+    store.setItem(keyFor(scope), JSON.stringify(next));
   } catch {
     /* quota / private mode — the list just won't persist */
   }
@@ -141,7 +163,7 @@ export function useNavFavorites(): {
   const [local, setLocal] = useState<string[]>([]);
   useEffect(() => {
     if (!legacy) return;
-    const sync = () => setLocal(readFavorites(window.localStorage));
+    const sync = () => setLocal(readFavorites(window.localStorage, activeSession()?.id));
     sync();
     // Both: `storage` for other tabs, the custom event for this one.
     window.addEventListener('storage', sync);
@@ -177,7 +199,7 @@ export function useNavFavorites(): {
     if (!loaded || server === undefined) return;
     try {
       if (window.localStorage.getItem(MIGRATED_KEY)) return;
-      const localList = readFavorites(window.localStorage);
+      const localList = readFavorites(window.localStorage, activeSession()?.id);
       window.localStorage.setItem(MIGRATED_KEY, '1');
       if (localList.length > 0 && server.length === 0) void save(localList, server);
     } catch {
@@ -190,7 +212,7 @@ export function useNavFavorites(): {
   const toggleFavorite = useCallback(
     (href: string) => {
       if (legacy) {
-        setLocal(toggleFavoriteIn(window.localStorage, href));
+        setLocal(toggleFavoriteIn(window.localStorage, href, activeSession()?.id));
         window.dispatchEvent(new CustomEvent(EVENT));
         return;
       }

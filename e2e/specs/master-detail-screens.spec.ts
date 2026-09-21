@@ -63,6 +63,8 @@ const SCREENS = [
   { path: '/settings/skills', id: 'settings-skills' },
   { path: '/settings/keys', id: 'settings-keys' },
   { path: '/settings/peers', id: 'settings-peers' },
+  // No API behind it: the list is the browser's own (session-registry.ts).
+  { path: '/settings/sessions', id: 'settings-sessions' },
   // `config` is the one screen in this cluster with NO form, so it takes
   // `detailFills` — its detail is a template-vs-live diff, not a measure of
   // form text. Nothing else about the row changes.

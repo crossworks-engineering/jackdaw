@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { destinationAfterSignIn } from '@/lib/member-destination';
 import { useRouter } from 'next/navigation';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -43,12 +43,19 @@ export function LoginForm({
   next,
   error: initialError,
   setupCodeRequired = false,
+  add = false,
+  initialEmail,
 }: {
   mode?: 'login' | 'signup';
   next?: string;
   error?: string;
   /** First-run signup asks for the installer's setup code. */
   setupCodeRequired?: boolean;
+  /** Someone already signed in is adding (or signing back in to) a login. */
+  add?: boolean;
+  /** The login being signed back in to. Arrives after mount, from the device's
+   *  own list, so it fills the field once rather than seeding the state. */
+  initialEmail?: string;
 }) {
   const router = useRouter();
   const isSignup = mode === 'signup';
@@ -62,6 +69,10 @@ export function LoginForm({
   const askCode = isSignup && (setupCodeRequired || codeRefused);
   const [error, setError] = useState<string | undefined>(initialError);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (initialEmail) setEmail((current) => current || initialEmail);
+  }, [initialEmail]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,6 +133,16 @@ export function LoginForm({
         // else's session; this one has not been upgraded yet.
         resetCookieUpgrade();
         await upgradeOwnerCookie();
+      }
+
+      if (add) {
+        // This tab has been someone else until now: its query cache, asset
+        // token and mounted providers are all theirs. A client navigation
+        // would carry that heap into the new login (sign-out.ts tells the
+        // story); a page load is the guarantee. The destination is the one any
+        // sign-in gets, so the role hints describe the login just added.
+        window.location.assign(await destinationAfterSignIn(next));
+        return;
       }
 
       // New accounts go straight into onboarding; returning users to where

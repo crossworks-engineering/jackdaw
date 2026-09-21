@@ -26,7 +26,7 @@ import { LoginCredit } from './login-credit';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; error?: string; add?: string; session?: string }>;
 }) {
   // Whether this brain mails client sign-in codes (client logins C2b): a
   // client has no password, and the screen points them at the codes then.
@@ -67,6 +67,12 @@ export default async function LoginPage({
             next={safeNext(params.next)}
             error={params.error}
             clientCodes={clientCodes}
+            // `add=1`: someone already signed in is adding another login, so the
+            // usual bounce back into the app must not happen. `session`: which
+            // held login is being signed back in to. Both are ids and flags the
+            // client resolves against its own list; neither is trusted for more.
+            add={params.add === '1'}
+            sessionId={params.session}
           />
         </div>
       </div>

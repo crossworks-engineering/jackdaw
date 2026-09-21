@@ -168,3 +168,42 @@ describe('the pinned row and its home row', () => {
     expect(activeNavHref(groups, '/settings/appearance')).toBe('/settings/appearance');
   });
 });
+
+describe('favourites per login', () => {
+  /** Keyed, unlike `fakeStore` above: which key is read and written is the point. */
+  function keyedStore(seed: Record<string, string> = {}) {
+    const map = new Map(Object.entries(seed));
+    return {
+      map,
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+    };
+  }
+
+  it('a login with no list of its own starts from the browser-wide one: no stars are lost', () => {
+    const store = keyedStore({ [KEY]: JSON.stringify(['/pages']) });
+    expect(readFavorites(store, 'session-a')).toEqual(['/pages']);
+  });
+
+  it('its first change is written under its own key, inherited stars included', () => {
+    const store = keyedStore({ [KEY]: JSON.stringify(['/pages']) });
+    expect(toggleFavoriteIn(store, '/tasks', 'session-a')).toEqual(['/pages', '/tasks']);
+    expect(JSON.parse(store.map.get(`${KEY}:session-a`)!)).toEqual(['/pages', '/tasks']);
+    // The browser-wide list is what the NEXT login added here starts from.
+    expect(JSON.parse(store.map.get(KEY)!)).toEqual(['/pages']);
+  });
+
+  it('two logins on one browser do not curate each other', () => {
+    const store = keyedStore();
+    toggleFavoriteIn(store, '/pages', 'session-a');
+    toggleFavoriteIn(store, '/tasks', 'session-b');
+    expect(readFavorites(store, 'session-a')).toEqual(['/pages']);
+    expect(readFavorites(store, 'session-b')).toEqual(['/tasks']);
+  });
+
+  it('a login that unstarred everything stays empty rather than re-inheriting', () => {
+    const store = keyedStore({ [KEY]: JSON.stringify(['/pages']) });
+    toggleFavoriteIn(store, '/pages', 'session-a');
+    expect(readFavorites(store, 'session-a')).toEqual([]);
+  });
+});

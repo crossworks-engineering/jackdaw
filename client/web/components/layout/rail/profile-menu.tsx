@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ChevronsUpDown,
   Dices,
@@ -10,11 +9,14 @@ import {
   LogOut,
   MonitorOff,
   Map as MapIcon,
+  Plus,
   Search as SearchIcon,
   SunMoon,
   User as UserIcon,
 } from 'lucide-react';
-import { performSignOut } from '@mantle/web-ui/sign-out';
+import { currentBrainOrigin } from '@mantle/web-ui/session-registry';
+import { signInAgainPath, signOutActive, switchSession } from '@mantle/web-ui/session-switch';
+import { useSessions, type HeldSession } from '@mantle/web-ui/use-sessions';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import {
   AlertDialog,
@@ -144,7 +146,6 @@ export function ProfileMenu({
    *  — the item is then not rendered rather than rendered inert. */
   onSearchClick?: () => void;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [everywhereOpen, setEverywhereOpen] = useState(false);
@@ -155,13 +156,37 @@ export function ProfileMenu({
   const { colorTheme } = useColorTheme();
   const chord = useSearchChord();
 
+  // The other logins this device holds for THIS brain. One that its brain has
+  // signed out stays in the list on purpose: it leads to signing back in.
+  const held = useSessions();
+  const others =
+    held.ready && held.canHoldSeveral
+      ? held.sessions.filter((s) => !s.active && s.origin === currentBrainOrigin())
+      : [];
+
+  // Ends in a page load either way: on the next login held here, or on the
+  // sign-in screen. The router is not used because a client navigation would
+  // carry this login's cache into whoever comes next (sign-out.ts).
   async function signOut() {
     setBusy(true);
     if (member) setMemberHint(false);
     if (client) setClientHint(false);
-    await performSignOut();
-    router.push(client ? CLIENT_SIGNIN_PATH : '/login');
-    router.refresh();
+    // With no other login to land on: a client's own sign-in page, else /login.
+    await signOutActive(client ? CLIENT_SIGNIN_PATH : '/login');
+  }
+
+  async function switchTo(s: HeldSession) {
+    if (!s.hasToken) {
+      window.location.assign(signInAgainPath(s.id));
+      return;
+    }
+    setBusy(true);
+    const outcome = await switchSession(s.id);
+    if (outcome === 'switched') return;
+    setBusy(false);
+    if (outcome === 'needs-sign-in') window.location.assign(signInAgainPath(s.id));
+    else if (outcome === 'unreachable') toast.error('The brain did not answer. Nothing changed.');
+    else toast.error('Could not switch to that login.');
   }
 
   // Every session this login holds ends, this one too: then the ordinary
@@ -326,12 +351,57 @@ export function ProfileMenu({
         {member || client ? null : <BrowserNotifyItem />}
         <DropdownMenuSeparator />
 
+        {/* The logins this device holds. Plain anchors for the two links, not
+            <Link>: adding a login ends in a page load, and the list screen is
+            reached from a menu that has just closed over a sheet on mobile. */}
+        {held.canHoldSeveral && (
+          <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+            Switch login
+          </DropdownMenuLabel>
+        )}
+        {others.map((s) => (
+          <DropdownMenuItem
+            key={s.id}
+            disabled={busy}
+            onClick={() => void switchTo(s)}
+            className="cursor-pointer"
+          >
+            <Avatar className="size-5">
+              <AvatarFallback className="text-[9px] font-semibold">
+                {agentInitials(s.displayName?.trim() || s.email || 'M')}
+              </AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm">
+                {s.displayName?.trim() || s.email || 'Login'}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {s.hasToken ? s.siteName?.trim() || s.email : 'Signed out. Sign in again'}
+              </span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+        {held.canHoldSeveral && (
+          <DropdownMenuItem asChild>
+            <a href="/login?add=1" className="cursor-pointer">
+              <Plus className="size-4" /> Add login…
+            </a>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem asChild>
+          <Link href="/settings/sessions" onClick={onNavigate} className="cursor-pointer">
+            <KeyRound className="size-4" /> Manage logins…
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+
         <DropdownMenuItem
           onClick={signOut}
           disabled={busy}
           className="cursor-pointer text-destructive-ink focus:text-destructive-ink"
         >
-          <LogOut className="size-4" /> {busy ? 'Signing out…' : 'Sign out'}
+          <LogOut className="size-4" />{' '}
+          {busy ? 'Working…' : others.length > 0 ? 'Sign out of this login' : 'Sign out'}
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => setEverywhereOpen(true)}

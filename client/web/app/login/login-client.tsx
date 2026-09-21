@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { destinationAfterSignIn } from '@/lib/member-destination';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { tokenStore } from '@mantle/web-ui/token-store';
+import { useSessions } from '@mantle/web-ui/use-sessions';
 import { LoginForm } from './login-form';
 import { ClientCodeLink } from './client-code-link';
 
@@ -24,6 +26,8 @@ export function LoginClient({
   next,
   error,
   clientCodes = false,
+  add = false,
+  sessionId,
 }: {
   /** The server-rendered brand block. A React node, not data — this component
    *  has no business knowing which rung of the branding ladder won. */
@@ -32,10 +36,17 @@ export function LoginClient({
   error?: string;
   /** This brain mails client sign-in codes: offer a client the way there. */
   clientCodes?: boolean;
+  /** Someone already signed in is adding another login. */
+  add?: boolean;
+  /** The held login being signed back in to (an id from this device's list). */
+  sessionId?: string;
 }) {
   const router = useRouter();
 
   useEffect(() => {
+    // Adding a login is the one visit here that is SUPPOSED to happen while
+    // signed in.
+    if (add) return;
     if (tokenStore.get()) {
       // Re-assert the presence cookie before bouncing. It can be lost while
       // the token survives (an abrupt shutdown can drop Chromium's unflushed
@@ -44,7 +55,7 @@ export function LoginClient({
       tokenStore.markPresence();
       void destinationAfterSignIn(next).then((to) => router.replace(to));
     }
-  }, [router, next]);
+  }, [router, next, add]);
 
   const bootQuery = useQuery({
     queryKey: ['auth-bootstrap-state'],
@@ -55,25 +66,62 @@ export function LoginClient({
   const firstRun = bootQuery.data?.firstRun ?? false;
   const setupCodeRequired = bootQuery.data?.setupCodeRequired ?? false;
 
+  // The login being signed back in to, if the link named one this device
+  // still lists. Resolved after mount: the list is in localStorage.
+  const held = useSessions();
+  const target = sessionId ? held.sessions.find((s) => s.id === sessionId) : undefined;
+
+  // Signed in, but not as a login this device holds: a cookie sign-in from
+  // before it could hold more than one. There is no bearer to keep for it, so
+  // adding another login replaces it, and the screen has to say so before the
+  // person finds out by losing it.
+  const [replacesCurrent, setReplacesCurrent] = useState(false);
+  useEffect(() => {
+    if (!add || !held.ready) return;
+    setReplacesCurrent(!held.active && /(?:^|;\s*)mantle_authed=1/.test(document.cookie));
+  }, [add, held.ready, held.active]);
+
+  const strapline = firstRun
+    ? 'Create your login to begin.'
+    : target
+      ? `Signed out of ${target.siteName?.trim() || 'this brain'}. Sign in again.`
+      : add
+        ? 'Add another login to this device.'
+        : 'Sign in to your data-aware workspace.';
+
   return (
     // The settings-card shell (ui-style-guide §6e): a form in a content area
     // wears the sectioned card, brand block in the header, form in the body.
     <section className="rounded-xl border border-border bg-card">
       <div className="space-y-2 border-b border-border p-4 text-center md:p-5">
         {mark}
-        <p className="text-sm text-muted-foreground">
-          {firstRun ? 'Create your login to begin.' : 'Sign in to your data-aware workspace.'}
-        </p>
+        <p className="text-sm text-muted-foreground">{strapline}</p>
       </div>
       <div className="space-y-4 p-4 md:p-5">
+        {replacesCurrent && (
+          <p className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            The login you are using now was signed in before this device could hold more than one.
+            Adding another will replace it. Sign in to it again afterwards and the device keeps
+            both.
+          </p>
+        )}
         <LoginForm
           mode={firstRun ? 'signup' : 'login'}
           next={next}
           error={error}
           setupCodeRequired={setupCodeRequired}
+          add={add}
+          initialEmail={target?.email}
         />
         {/* No client exists on a brain that is still being set up. */}
         <ClientCodeLink enabled={clientCodes && !firstRun} />
+        {add && (
+          <p className="text-center text-xs text-muted-foreground">
+            <Link href={next ?? '/'} className="underline underline-offset-2 hover:text-foreground">
+              Back to the app
+            </Link>
+          </p>
+        )}
       </div>
     </section>
   );

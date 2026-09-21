@@ -91,6 +91,14 @@ function vault() {
   return typeof window !== 'undefined' ? (window.mantleDesktop?.tokenVault ?? null) : null;
 }
 
+/** Can this client hold more than one login? Not inside the desktop shell yet:
+ *  its vault backs one bearer per brain window, so a second sign-in there
+ *  REPLACES the first. Screens hide "add" and "switch" on a false rather than
+ *  offer something that quietly costs the person the login they had. */
+export function canHoldSeveralLogins(): boolean {
+  return typeof window !== 'undefined' && vault() === null;
+}
+
 /** The origin of the brain this page talks to: the configured API base, or the
  *  page's own origin on a same-origin box. */
 export function currentBrainOrigin(): string {
@@ -133,9 +141,19 @@ function readList(): Session[] {
   }
 }
 
+/** Fired on `window` whenever the list changes in THIS tab. `storage` only
+ *  fires in the others, so a screen listing the logins listens to both. */
+export const SESSIONS_CHANGED_EVENT = 'mantle:sessions';
+
 function writeList(list: Session[]): void {
   const ls = storage();
-  if (ls) safeSet(ls, SESSIONS_STORAGE_KEY, JSON.stringify(list));
+  if (!ls) return;
+  safeSet(ls, SESSIONS_STORAGE_KEY, JSON.stringify(list));
+  try {
+    window.dispatchEvent?.(new Event(SESSIONS_CHANGED_EVENT));
+  } catch {
+    /* no event target (tests, old shells): listeners are a nicety */
+  }
 }
 
 function readActiveId(): string | null {
@@ -300,6 +318,46 @@ export function signInSession(input: {
   setSessionToken(session.id, input.token);
   const id = session.id;
   return readList().find((s) => s.id === id) ?? null;
+}
+
+/**
+ * Make a held login the active one: its bearer becomes `mantle_token`. That is
+ * ALL this does. Everything a switch also has to forget (the query cache, the
+ * asset token, the other login's cookie) and the page load that follows belong
+ * to `switchSession` in session-switch.ts, which is what screens call.
+ *
+ * False when it cannot be done: an unknown id, a session holding no bearer, or
+ * the desktop shell, whose vault backs one login per window.
+ */
+export function setActiveSession(id: string): boolean {
+  const ls = storage();
+  if (!ls || vault()) return false;
+  const list = readList();
+  const session = list.find((s) => s.id === id);
+  const token = safeGet(ls, sessionTokenKey(id));
+  if (!session || !token) return false;
+  session.lastUsedAt = Date.now();
+  safeSet(ls, ACTIVE_SESSION_STORAGE_KEY, id);
+  safeSet(ls, TOKEN_STORAGE_KEY, token);
+  writeList(list);
+  return true;
+}
+
+/** A brain refused a login that is NOT the active one (a switch probed it).
+ *  Same outcome as `dropActiveCredential`, for a session at rest. */
+export function markSessionRefused(id: string): void {
+  const ls = storage();
+  if (!ls) return;
+  if (readActiveId() === id) {
+    dropActiveCredential();
+    return;
+  }
+  safeRemove(ls, sessionTokenKey(id));
+  const list = readList();
+  const session = list.find((s) => s.id === id);
+  if (!session) return;
+  session.tokenExpiresAt = 0;
+  writeList(list);
 }
 
 /** Fill in what /api/shell says about the active session. The migrated session
