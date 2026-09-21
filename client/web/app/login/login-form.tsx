@@ -7,34 +7,36 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
-import { apiUrl } from '@mantle/web-ui/api-fetch';
+import { apiUrl, resetCookieUpgrade, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
 import { SetupCodeField, isSetupCodeRefusal } from './setup-code-field';
 
 /**
- * Owner sign-in, both topologies:
+ * Owner sign-in. One transport in both topologies: POST /api/auth/token, and
+ * the response bearer is held as a session of its own (the token store, which
+ * also sets the presence cookie for the client middleware). A device can hold
+ * several logins, and a login that is a bearer can be switched to by swapping
+ * a token; one that is a cookie cannot.
  *
- *   same-origin (the client and the API share an origin — single-host
- *     deploys, local dev): cookie login exactly as the monolith (POST
- *     /api/auth/login with credentials) + the presence cookie for the client
- *     middleware.
+ *   split (the API is on another origin): that is all. No cross-origin
+ *     cookies anywhere.
  *
- *   split (the API is on another origin): POST /api/auth/token — the response
- *     bearer goes to the token store (which also sets the presence cookie); no
- *     cross-origin cookies anywhere.
+ *   same-origin (single-host deploys, local dev): the browser-native loaders
+ *     (`<img>`, `<iframe>`, download anchors) can only send a cookie, so the
+ *     bearer is traded for one straight away (POST /api/auth/sso, the same
+ *     upgrade the shell runs on every load) and the navigation waits for it.
+ *     A box signed in bearer-only and holding no cookie is the bug that
+ *     upgrade was written for.
  *
- * The branch is a REAL origin comparison (`isCrossOrigin`), not the old
- * `apiBase set ⇒ split` test — which was true on every same-origin box that
- * configures a base, so owners on a one-domain deployment were signed in
- * bearer-only and held no session cookie. Everything through `apiFetch` worked;
- * the browser-native loaders that can only send a cookie did not.
+ * The topology test is a REAL origin comparison (`isCrossOrigin`), not
+ * `apiBase set`, which is true on every same-origin box that configures one.
  *
- * Signup (first-run) creates the account first, then enters the same branch —
- * in split mode that means an immediate token exchange with the same
- * credentials. A brain the installer set up asks for its setup code too
- * (`setupCodeRequired`); a setup-code refusal shows on that field.
+ * Signup (first-run) creates the account first, then exchanges the same
+ * credentials for a bearer like any other sign-in. A brain the installer set
+ * up asks for its setup code too (`setupCodeRequired`); a setup-code refusal
+ * shows on that field.
  */
 export function LoginForm({
   mode = 'login',
@@ -88,39 +90,38 @@ export function LoginForm({
         }
       }
 
-      if (split) {
-        const res = await fetch(apiUrl('/api/auth/token'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, password, deviceName: 'Web client' }),
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(data.error ?? 'Sign-in failed.');
-          return;
+      const res = await fetch(apiUrl('/api/auth/token'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password, deviceName: 'Web client' }),
+        credentials: split ? 'omit' : 'include',
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? 'Sign-in failed.');
+        return;
+      }
+      const token = await readBearer(res);
+      if (!token) {
+        setError(UNEXPECTED_RESPONSE);
+        return;
+      }
+      tokenStore.signIn({ email, token });
+      if (!split) {
+        // The upgrade resolves a cookie BEFORE a bearer, so a cookie left by
+        // another login (a sign-out that never reached the brain) would be
+        // renewed instead of replaced, and assets would load as that person.
+        // Drop it first. Sent without the bearer: this revokes nothing. Not
+        // after a signup, whose cookie is this very login's.
+        if (!isSignup) {
+          await fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' }).catch(
+            () => undefined,
+          );
         }
-        const token = await readBearer(res);
-        if (!token) {
-          setError(UNEXPECTED_RESPONSE);
-          return;
-        }
-        tokenStore.set(token);
-      } else if (!isSignup) {
-        const res = await fetch(apiUrl('/api/auth/login'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(data.error ?? 'Sign-in failed.');
-          return;
-        }
-        tokenStore.markPresence();
-      } else {
-        // same-origin signup already set the session cookie above.
-        tokenStore.markPresence();
+        // Whatever an earlier visit to this tab memoised is about someone
+        // else's session; this one has not been upgraded yet.
+        resetCookieUpgrade();
+        await upgradeOwnerCookie();
       }
 
       // New accounts go straight into onboarding; returning users to where

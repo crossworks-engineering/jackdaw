@@ -32,7 +32,8 @@ import {
   NAV_W_MAX,
   NAV_W_MIN,
 } from '@/lib/nav-width';
-import { maybeRefreshToken } from '@mantle/web-ui/token-refresh';
+import { recordActiveIdentity } from '@mantle/web-ui/session-registry';
+import { refreshAllSessions } from '@mantle/web-ui/token-refresh';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { NeatSurface } from '@/components/neat-surface';
 import { BrandBlock } from '@/components/layout/rail/brand-block';
@@ -541,11 +542,22 @@ function ShellFrame({
     if (!isMember) void upgradeOwnerCookie();
   }, [isMember]);
 
-  // Split-client bearer upkeep, piggybacked on the shell boot round-trip:
-  // rotate the stored token when <7d from expiry. No-op same-origin (no
-  // stored bearer). See @mantle/web-ui/token-refresh.
+  // Bearer upkeep, piggybacked on the shell boot round-trip: every login held
+  // on this device is rotated when <7d from expiry, and the active one learns
+  // who its shell says it is (a bearer held from before sessions existed has
+  // no email until now). No-op for a cookie-only login, which holds no bearer.
+  // See @mantle/web-ui/token-refresh and session-registry.
   useEffect(() => {
-    if (brand) void maybeRefreshToken();
+    // Whichever shell answered: an admin's /api/shell or a member's
+    // /api/member/shell. Both name the login, and both are bearers worth
+    // keeping alive.
+    if (!brand) return;
+    recordActiveIdentity({
+      email: brand.email,
+      displayName: brand.displayName,
+      siteName: brand.siteName,
+    });
+    void refreshAllSessions();
   }, [brand]);
 
   // Close the drawer on navigation.

@@ -12,10 +12,21 @@
  *
  * Key names are contract with e2e/lib/contract.ts — the split suite seeds
  * them directly.
+ *
+ * This store is a VIEW over the active session in session-registry.ts: the
+ * device may hold several logins, and `mantle_token` always means the active
+ * one. Callers that only want "the bearer to send" never need to know that.
  */
 import './desktop-shell'; // global Window.mantleDesktop declaration
+import {
+  activeSession,
+  dropActiveCredential,
+  reconcile,
+  setSessionToken,
+  signInSession,
+  TOKEN_STORAGE_KEY,
+} from './session-registry';
 
-const TOKEN_STORAGE_KEY = 'mantle_token';
 const PRESENCE_COOKIE = 'mantle_authed';
 
 function canStore(): boolean {
@@ -51,22 +62,47 @@ export const tokenStore = {
             window.localStorage.removeItem(TOKEN_STORAGE_KEY);
           }
         }
+        reconcile();
         return token;
       }
-      return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      // A bearer held from before sessions existed (or seeded by the e2e
+      // suite, or rotated by an older tab) is listed here, on first sight.
+      reconcile();
+      return token;
     } catch {
       return null;
     }
   },
+  /** A sign-in succeeded: hold the bearer as a session of its own (or refresh
+   *  the row this login already has) and make it the active one. */
+  signIn(login: { email: string; token: string }): void {
+    if (!canStore()) return;
+    try {
+      signInSession(login);
+      setPresenceCookie();
+    } catch {
+      /* storage unavailable (private mode etc.) — the session just won't persist */
+    }
+  },
+  /** Replace the ACTIVE session's bearer: a rotation. A sign-in goes through
+   *  `signIn` below, which knows whose bearer it is. With no active session
+   *  the bearer is held anyway and listed on the next read. */
   set(token: string): void {
     if (!canStore()) return;
     try {
-      const v = vault();
-      if (v) {
-        v.set(token);
-        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      const active = activeSession();
+      if (active) {
+        setSessionToken(active.id, token);
       } else {
-        window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        const v = vault();
+        if (v) {
+          v.set(token);
+          window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        } else {
+          window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        }
+        reconcile();
       }
       setPresenceCookie();
     } catch {
@@ -76,6 +112,9 @@ export const tokenStore = {
   clear(): void {
     if (!canStore()) return;
     try {
+      // Forgets the active credential and nothing else: other logins held on
+      // this device are not this call's to touch.
+      dropActiveCredential();
       vault()?.clear();
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
       document.cookie = `${PRESENCE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;

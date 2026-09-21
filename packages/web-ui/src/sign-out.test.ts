@@ -130,3 +130,30 @@ describe('performSignOut', () => {
     expect(assetUrl('/api/files/files/abc?raw=1')).not.toContain('previous-owners-token');
   });
 });
+
+describe('performSignOut · with several logins on the device', () => {
+  it('removes the active login entirely and leaves the others as they were', async () => {
+    const map = new Map<string, string>();
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (k: string) => map.get(k) ?? null,
+        setItem: (k: string, v: string) => void map.set(k, v),
+        removeItem: (k: string) => void map.delete(k),
+      },
+      location: { protocol: 'https:', origin: 'https://x.test', href: 'https://x.test/' },
+    });
+    const { performSignOut } = await freshModule();
+    const registry = await import('./session-registry');
+    const idle = registry.signInSession({ email: 'idle@example.com', token: 'idle.sig' })!;
+    registry.signInSession({ email: 'active@example.com', token: 'active.sig' });
+
+    await performSignOut();
+
+    // Signing out is "I am done with this login": no row is kept to come back
+    // to, unlike a refused bearer.
+    expect(registry.listSessions().map((s) => s.email)).toEqual(['idle@example.com']);
+    expect(registry.sessionToken(idle.id)).toBe('idle.sig');
+    expect(map.has('mantle_token')).toBe(false);
+    expect([...map.values()].some((v) => v.includes('active.sig'))).toBe(false);
+  });
+});

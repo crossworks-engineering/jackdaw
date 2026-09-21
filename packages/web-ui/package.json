@@ -67,6 +67,7 @@
     "./share/file-presenter": "./src/share/file-presenter.tsx",
     "./share/note-presenter": "./src/share/note-presenter.tsx",
     "./share/table-presenter": "./src/share/table-presenter.tsx",
+    "./session-registry": "./src/session-registry.ts",
     "./sign-out": "./src/sign-out.ts",
     "./slugify": "./src/slugify.ts",
     "./tag-pill": "./src/tag-pill.tsx",

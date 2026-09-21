@@ -23,7 +23,9 @@ describe('auth POSTs declare JSON', () => {
   it.each([
     ['../app/client-signin/client-signin-client.tsx', "fetch(apiUrl('/api/auth/client-link')"],
     ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/signup')"],
-    ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/login')"],
+    // Sign-in is a bearer exchange in both topologies now (multi-login): the
+    // form's credential POST is /api/auth/token, still declared JSON.
+    ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/token')"],
     ['../app/invite/invite-client.tsx', "fetch(apiUrl('/api/auth/invite/accept')"],
     ['../components/member/member-password-dialog.tsx', "apiUrl('/api/auth/change-password')"],
     // client-code and client-code/verify go through the form's one helper.
