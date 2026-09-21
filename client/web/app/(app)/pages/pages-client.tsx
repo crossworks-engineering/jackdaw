@@ -106,7 +106,7 @@ import {
   subtreeEditedAt,
 } from '@mantle/web-ui/page-tree';
 import { scrollBehavior } from '@mantle/web-ui/lib/motion';
-import type { PageRow } from '@mantle/client-types';
+import type { PageListRow as ContractPageListRow, PageRow } from '@mantle/client-types';
 
 // Wire shape is the GET /api/pages mapper's output — single source of truth
 // (the canonical row also carries `width`, unused by this list view). Drift
@@ -115,18 +115,13 @@ import type { PageRow } from '@mantle/client-types';
 type TagCount = { tag: string; count: number };
 
 /**
- * A list row as the server sends it: the page plus its place in the hierarchy.
- * Both fields are optional because a brain older than the release that added
- * them leaves them out, and this screen then behaves as it did before (a search
- * hit has no way into its sub-pages) rather than breaking. Becomes the
- * contract's own `PageListRow` once the pinned client-types carries it.
+ * A list row as the server sends it: the page plus its place in the hierarchy
+ * (the contract's `PageListRow`). Both placement fields are read as OPTIONAL
+ * here although the contract makes them required, because a brain older than
+ * mantle v0.232.206 leaves them out, and this screen then behaves as it did
+ * before (a search hit has no way into its sub-pages) rather than breaking.
  */
-type PageListRow = PageRow & {
-  /** Direct sub-pages, counted over the WHOLE hierarchy, not this response. */
-  childCount?: number;
-  /** The parent page's title; null for a top-level page. */
-  parentTitle?: string | null;
-};
+type PageListRow = PageRow & Partial<Pick<ContractPageListRow, 'childCount' | 'parentTitle'>>;
 
 /** Droppable id for the "move to the top level" zone shown while dragging a
  *  nested page. A literal sentinel — page ids are uuids, so it never collides. */
