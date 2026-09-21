@@ -22,6 +22,7 @@ import {
   activeSession,
   dropActiveCredential,
   reconcile,
+  sessionToken,
   setSessionToken,
   signInSession,
   TOKEN_STORAGE_KEY,
@@ -51,6 +52,18 @@ export const tokenStore = {
     if (!canStore()) return null;
     try {
       const v = vault();
+      if (v && v.getFor) {
+        // A shell with one slot per login. A pre-vault plaintext bearer still
+        // moves into the vault first (its one slot), and the registry then
+        // adopts that into the login it belongs to.
+        const plain = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+        if (plain) {
+          if (!activeSession() && !v.get()) v.set(plain);
+          window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        }
+        const active = activeSession(); // reconciles, which is what adopts
+        return active ? sessionToken(active.id) : null;
+      }
       if (v) {
         let token = v.get();
         if (!token) {

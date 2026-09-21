@@ -62,11 +62,20 @@ unsigned mac build.
 - **`window.__MANTLE_ENV__` injection** via preload (read-only), with the dev
   server's `/env.js` neutralized so the user's chosen brain always wins.
 - **No secrets in the shell config.** The server URL list (`profiles.json`
-  in userData) is plain config; the bearer lives in the per-profile **token
-  vault** — an OS-keychain-encrypted file (Electron `safeStorage`), the same
-  at-rest posture as the mobile companion's Keychain. The UI's token-store
-  feature-detects the vault and migrates a pre-vault localStorage bearer on
-  first read.
+  in userData) is plain config; bearers live in the **token vault**
+  (`src/main/vault.ts`): OS-keychain-encrypted files (Electron `safeStorage`),
+  the same at-rest posture as the mobile companion's Keychain. One file per
+  login held for a brain (`vault/<profileId>/<sessionId>.tok`), so a brain
+  window can hold several logins and switch between them. A window reaches
+  only its own brain's files, and the session id, which comes from the page,
+  is validated before it is used in a path. The one-slot file earlier builds
+  wrote (`vault/<profileId>.tok`) is adopted into a login by a rename on the
+  first run after the update, so updating signs nobody out. The UI's
+  token-store feature-detects the vault and also moves a pre-vault
+  localStorage bearer into it on first read.
+- **One window per brain**, listed in the tray and the Brain menu, most
+  recently used first. Logins WITHIN a brain are switched inside its window
+  (the profile menu); the shell knows brains, the page knows logins.
 - External links (share links, docs) open in the system browser.
 
 ## Media permissions

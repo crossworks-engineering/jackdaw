@@ -20,10 +20,13 @@
  * and nowhere else. So the mirror is read as the truth about the active
  * bearer and the registry catches up to it (`reconcile`), never the reverse.
  *
- * Inside the desktop shell the bearer lives in the shell's vault, which holds
- * exactly one token per brain window until the shell learns session-scoped
- * vault calls. There, no bearer is ever written to localStorage, and the list
- * holds the one session the vault can back.
+ * Inside the desktop shell no bearer is ever written to localStorage: they live
+ * in the shell's OS-keychain-backed vault, one per login (`getFor` / `setFor`),
+ * and there is no mirror, because the vault answers for the active login
+ * directly. A shell from before it learned that holds one bearer per brain
+ * window, so there the list holds the one session that slot can back. The
+ * first run after the shell update ADOPTS the one-slot bearer into the login
+ * it belongs to (a rename, in the shell), so the update signs nobody out.
  *
  * The rule every line here is written under: an upgrade signs nobody out.
  */
@@ -91,12 +94,69 @@ function vault() {
   return typeof window !== 'undefined' ? (window.mantleDesktop?.tokenVault ?? null) : null;
 }
 
-/** Can this client hold more than one login? Not inside the desktop shell yet:
- *  its vault backs one bearer per brain window, so a second sign-in there
- *  REPLACES the first. Screens hide "add" and "switch" on a false rather than
+type TokenVault = NonNullable<ReturnType<typeof vault>>;
+type ScopedVault = TokenVault & Required<Pick<TokenVault, 'getFor' | 'setFor' | 'clearFor'>>;
+
+/** The vault, when the shell can keep one bearer per login. */
+function scopedVault(): ScopedVault | null {
+  const v = vault();
+  return v && v.getFor && v.setFor && v.clearFor ? (v as ScopedVault) : null;
+}
+
+/** A vault with ONE slot per brain window: a shell from before per-login slots. */
+function oneSlotVault(): TokenVault | null {
+  return scopedVault() ? null : vault();
+}
+
+// ── Where a bearer lives ─────────────────────────────────────────────────────
+// Three homes, one set of verbs. Everything below this block asks these and
+// never touches a vault or a token key itself.
+//   browser        mantle_token:<id>, and mantle_token mirrors the active one
+//   scoped vault   the shell's per-login slot; nothing in localStorage
+//   one-slot vault the shell's single slot, which only the ACTIVE login can use
+
+function bearerGet(ls: Storage, id: string, isActive: boolean): string | null {
+  const scoped = scopedVault();
+  if (scoped) return scoped.getFor(id);
+  const one = oneSlotVault();
+  if (one) return isActive ? one.get() : null;
+  return safeGet(ls, sessionTokenKey(id));
+}
+
+/** False when it could not be stored: an idle login in a one-slot shell. */
+function bearerSet(ls: Storage, id: string, token: string, isActive: boolean): boolean {
+  const scoped = scopedVault();
+  if (scoped) {
+    scoped.setFor(id, token);
+    safeRemove(ls, TOKEN_STORAGE_KEY);
+    return true;
+  }
+  const one = oneSlotVault();
+  if (one) {
+    if (!isActive) return false;
+    one.set(token);
+    safeRemove(ls, TOKEN_STORAGE_KEY);
+    return true;
+  }
+  safeSet(ls, sessionTokenKey(id), token);
+  if (isActive) safeSet(ls, TOKEN_STORAGE_KEY, token);
+  return true;
+}
+
+function bearerRemove(ls: Storage, id: string, isActive: boolean): void {
+  const scoped = scopedVault();
+  if (scoped) scoped.clearFor(id);
+  else if (isActive) oneSlotVault()?.clear();
+  safeRemove(ls, sessionTokenKey(id));
+  if (isActive) safeRemove(ls, TOKEN_STORAGE_KEY);
+}
+
+/** Can this client hold more than one login? Not inside a desktop shell from
+ *  before per-login vault slots: its vault backs one bearer per brain window,
+ *  so a second sign-in there REPLACES the first. Screens hide "add" and "switch" on a false rather than
  *  offer something that quietly costs the person the login they had. */
 export function canHoldSeveralLogins(): boolean {
-  return typeof window !== 'undefined' && vault() === null;
+  return typeof window !== 'undefined' && oneSlotVault() === null;
 }
 
 /** The origin of the brain this page talks to: the configured API base, or the
@@ -165,12 +225,33 @@ function sameLogin(a: { origin: string; email: string }, b: { origin: string; em
   return a.origin === b.origin && a.email.toLowerCase() === b.email.toLowerCase();
 }
 
-/** Where the active bearer is read from: the vault in the shell, else the mirror. */
+/**
+ * The bearer this device is actually holding for the login in use.
+ *
+ * In the scoped shell that is the active login's own slot, and when that is
+ * empty, the one slot an earlier build wrote, ADOPTED into it on the spot. With
+ * no active login yet, the one slot is read as it is: `reconcile` is about to
+ * list it and adopt it under the id it mints.
+ */
 function readActiveBearer(): string | null {
+  const scoped = scopedVault();
+  if (scoped) {
+    const id = readActiveId();
+    if (!id) return scoped.get();
+    return scoped.getFor(id) ?? scoped.adopt?.(id) ?? null;
+  }
   const v = vault();
   if (v) return v.get();
   const ls = storage();
   return ls ? safeGet(ls, TOKEN_STORAGE_KEY) : null;
+}
+
+/** Hand the one-slot bearer to a freshly listed login. */
+function adoptInto(scoped: ScopedVault, id: string, token: string): void {
+  if (scoped.adopt?.(id)) return;
+  // A shell with slots but no adopt: copy, then empty the one slot.
+  scoped.setFor(id, token);
+  scoped.clear();
 }
 
 /**
@@ -220,7 +301,9 @@ export function reconcile(): void {
       lastUsedAt: now,
       tokenExpiresAt: tokenExpEpoch(token),
     };
-    if (!vault()) safeSet(ls, sessionTokenKey(session.id), token);
+    const scoped = scopedVault();
+    if (scoped) adoptInto(scoped, session.id, token);
+    else if (!vault()) safeSet(ls, sessionTokenKey(session.id), token);
     writeList([...list, session]);
     safeSet(ls, ACTIVE_SESSION_STORAGE_KEY, session.id);
   } catch {
@@ -245,8 +328,7 @@ export function sessionToken(id: string): string | null {
   const ls = storage();
   if (!ls) return null;
   try {
-    if (vault()) return readActiveId() === id ? readActiveBearer() : null;
-    return safeGet(ls, sessionTokenKey(id));
+    return bearerGet(ls, id, readActiveId() === id);
   } catch {
     return null;
   }
@@ -263,17 +345,8 @@ export function setSessionToken(id: string, token: string): void {
   const list = readList();
   const session = list.find((s) => s.id === id);
   if (!session) return;
-  const isActive = readActiveId() === id;
-  const v = vault();
-  if (v) {
-    // One token per vault: only the active session can be backed.
-    if (!isActive) return;
-    v.set(token);
-    safeRemove(ls, TOKEN_STORAGE_KEY);
-  } else {
-    safeSet(ls, sessionTokenKey(id), token);
-    if (isActive) safeSet(ls, TOKEN_STORAGE_KEY, token);
-  }
+  // A one-slot shell can back the active login and no other.
+  if (!bearerSet(ls, id, token, readActiveId() === id)) return;
   session.tokenExpiresAt = tokenExpEpoch(token);
   writeList(list);
 }
@@ -306,9 +379,9 @@ export function signInSession(input: {
   }
   if (input.displayName !== undefined) session.displayName = input.displayName;
   if (input.siteName !== undefined) session.siteName = input.siteName;
-  if (vault()) {
-    // The vault is about to hold this bearer and no other, so any other row is
-    // a login this window can no longer back. Dropping it is honest; keeping
+  if (oneSlotVault()) {
+    // The one slot is about to hold this bearer and no other, so any other row
+    // is a login this window can no longer back. Dropping it is honest; keeping
     // it would list a login that cannot be switched to.
     const keep = session;
     list = list.filter((s) => s === keep);
@@ -327,18 +400,20 @@ export function signInSession(input: {
  * to `switchSession` in session-switch.ts, which is what screens call.
  *
  * False when it cannot be done: an unknown id, a session holding no bearer, or
- * the desktop shell, whose vault backs one login per window.
+ * a desktop shell whose vault still backs one login per window.
  */
 export function setActiveSession(id: string): boolean {
   const ls = storage();
-  if (!ls || vault()) return false;
+  if (!ls || oneSlotVault()) return false;
   const list = readList();
   const session = list.find((s) => s.id === id);
-  const token = safeGet(ls, sessionTokenKey(id));
+  const token = bearerGet(ls, id, false);
   if (!session || !token) return false;
   session.lastUsedAt = Date.now();
   safeSet(ls, ACTIVE_SESSION_STORAGE_KEY, id);
-  safeSet(ls, TOKEN_STORAGE_KEY, token);
+  // The browser mirrors the active bearer; the scoped vault has no mirror,
+  // because it answers for whichever login is active.
+  if (!vault()) safeSet(ls, TOKEN_STORAGE_KEY, token);
   writeList(list);
   return true;
 }
@@ -352,7 +427,7 @@ export function markSessionRefused(id: string): void {
     dropActiveCredential();
     return;
   }
-  safeRemove(ls, sessionTokenKey(id));
+  bearerRemove(ls, id, false);
   const list = readList();
   const session = list.find((s) => s.id === id);
   if (!session) return;
@@ -412,11 +487,13 @@ export function dropActiveCredential(): void {
 
 function forgetActive(ls: Storage): void {
   const id = readActiveId();
+  // The one slot too, whatever kind of vault: with no active login it is
+  // where a bearer nobody has listed yet would be sitting.
   vault()?.clear();
   safeRemove(ls, TOKEN_STORAGE_KEY);
   safeRemove(ls, ACTIVE_SESSION_STORAGE_KEY);
   if (!id) return;
-  safeRemove(ls, sessionTokenKey(id));
+  bearerRemove(ls, id, true);
   const list = readList();
   const session = list.find((s) => s.id === id);
   if (!session) return;
@@ -435,12 +512,9 @@ export function removeSession(id: string): void {
   const ls = storage();
   if (!ls) return;
   try {
-    if (readActiveId() === id) {
-      vault()?.clear();
-      safeRemove(ls, TOKEN_STORAGE_KEY);
-      safeRemove(ls, ACTIVE_SESSION_STORAGE_KEY);
-    }
-    safeRemove(ls, sessionTokenKey(id));
+    const wasActive = readActiveId() === id;
+    bearerRemove(ls, id, wasActive);
+    if (wasActive) safeRemove(ls, ACTIVE_SESSION_STORAGE_KEY);
     writeList(readList().filter((s) => s.id !== id));
   } catch {
     /* ignore */

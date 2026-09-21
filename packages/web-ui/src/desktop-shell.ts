@@ -24,6 +24,13 @@ export type DesktopShellApi = {
     get(): string | null;
     set(token: string): void;
     clear(): void;
+    /** One bearer per login (shells from v0.6.125). Optional as a group: a
+     *  shell without them holds one login per brain window. */
+    getFor?(sessionId: string): string | null;
+    setFor?(sessionId: string, token: string): void;
+    clearFor?(sessionId: string): void;
+    /** Move the one-slot bearer to a login that has none yet; returns it. */
+    adopt?(sessionId: string): string | null;
   };
 };
 

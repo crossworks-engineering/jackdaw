@@ -51,5 +51,21 @@ contextBridge.exposeInMainWorld('mantleDesktop', {
     },
     set: (token: string) => ipcRenderer.send('vault:set', token),
     clear: () => ipcRenderer.send('vault:clear'),
+    // One bearer per LOGIN held for this window's brain (session-registry.ts).
+    // Their presence is what tells the UI this shell can hold several; the
+    // unscoped three above are the one slot earlier builds wrote, kept so the
+    // first run after an update has something to adopt from.
+    getFor: (sessionId: string): string | null => {
+      const value = ipcRenderer.sendSync('vault:getFor', sessionId) as unknown;
+      return typeof value === 'string' ? value : null;
+    },
+    setFor: (sessionId: string, token: string) =>
+      ipcRenderer.send('vault:setFor', sessionId, token),
+    clearFor: (sessionId: string) => ipcRenderer.send('vault:clearFor', sessionId),
+    /** Move the one-slot bearer to a login that has none, and return it. */
+    adopt: (sessionId: string): string | null => {
+      const value = ipcRenderer.sendSync('vault:adopt', sessionId) as unknown;
+      return typeof value === 'string' ? value : null;
+    },
   },
 });

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -21,6 +21,7 @@ import {
 import { autoUpdater } from 'electron-updater';
 import { attentionMode, safeInAppPath } from './attention';
 import { stripBrowserOnlyHeaders } from './brain-fence';
+import { createVault, type Vault } from './vault';
 
 /**
  * Jackdaw desktop — shell around the owner UI.
@@ -76,14 +77,19 @@ const saveConfig = (config: ShellConfig) => writeJson(configPath(), config);
 
 // ── Token vault ──────────────────────────────────────────────────────────────
 //
-// The bearer at rest, encrypted with Electron safeStorage (OS keychain-backed:
-// Keychain / DPAPI / libsecret) — the mobile companion's posture, replacing
-// localStorage's plaintext leveldb. Where a keychain is absent (bare Linux)
-// it falls back to a 0600 file, which is no worse than localStorage was.
-// Access is scoped: only registered app-window webContents may use the IPC,
-// each mapped to its own profile.
+// The bearers at rest live in ./vault (encrypted with safeStorage, one file per
+// login held for a brain). What stays HERE is who may ask: only registered
+// app-window webContents may use the IPC, each mapped to its own profile, so a
+// window can reach the logins of its own brain and no other.
 
-const vaultFile = (profileId: string) => join(app.getPath('userData'), 'vault', `${profileId}.tok`);
+let vaultInstance: Vault | null = null;
+/** Built on first use, not at import: `userData` is only final once the app is
+ *  ready, and every caller is an IPC handler registered after that. */
+function vault(): Vault {
+  vaultInstance ??= createVault(app.getPath('userData'), safeStorage);
+  return vaultInstance;
+}
+
 // webContents id → the profile the window was opened for, and the renderer
 // origin it is allowed to be showing. Both are checked before the vault
 // answers: the sender id says WHICH window asked, the frame origin says the
@@ -99,30 +105,6 @@ function vaultProfileFor(event: Electron.IpcMainEvent): string | null {
   } catch {
     return null;
   }
-}
-
-function vaultRead(profileId: string): string | null {
-  try {
-    const raw = JSON.parse(readFileSync(vaultFile(profileId), 'utf8')) as {
-      encrypted?: boolean;
-      data?: string;
-    };
-    if (typeof raw.data !== 'string') return null;
-    const buf = Buffer.from(raw.data, 'base64');
-    return raw.encrypted ? safeStorage.decryptString(buf) : buf.toString('utf8');
-  } catch {
-    return null;
-  }
-}
-
-function vaultWrite(profileId: string, token: string): void {
-  const path = vaultFile(profileId);
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  const encrypted = safeStorage.isEncryptionAvailable();
-  const data = encrypted ? safeStorage.encryptString(token) : Buffer.from(token, 'utf8');
-  writeFileSync(path, JSON.stringify({ v: 1, encrypted, data: data.toString('base64') }), {
-    mode: 0o600,
-  });
 }
 
 // ── Profile helpers ──────────────────────────────────────────────────────────
@@ -313,12 +295,33 @@ let connectWindow: BrowserWindow | null = null;
  *  clicks land here. */
 let appWindow: BrowserWindow | null = null;
 let appRendererUrl: string | null = null;
+/** One window per brain. Its partition is the brain's own, so a second window
+ *  on the same brain would be a second view of the same cookies and the same
+ *  logins, able to switch login under the first one's feet. */
+const profileWindows = new Map<string, BrowserWindow>();
+
+function reveal(win: BrowserWindow): void {
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** Go to a brain: its window if it has one, a new one if not. */
+async function openBrain(profileId: string): Promise<void> {
+  const profiles = loadProfiles();
+  const profile = profiles.find((p) => p.id === profileId);
+  if (!profile) return openConnectWindow();
+  profile.lastUsedAt = Date.now();
+  saveProfiles(profiles);
+  const open = profileWindows.get(profile.id);
+  if (open && !open.isDestroyed()) reveal(open);
+  else await openAppWindow(profile);
+  refreshBrainMenus();
+}
 
 function focusOrOpen(): void {
   if (appWindow && !appWindow.isDestroyed()) {
-    if (appWindow.isMinimized()) appWindow.restore();
-    appWindow.show();
-    appWindow.focus();
+    reveal(appWindow);
     return;
   }
   const lastUsed = loadProfiles()
@@ -481,10 +484,20 @@ async function openAppWindow(profile: Profile): Promise<void> {
 
   appWindow = win;
   appRendererUrl = rendererUrl;
+  profileWindows.set(profile.id, win);
+  // With several brains open, "the current one" is the one last looked at:
+  // that is where a deep link or a notification click should land.
+  win.on('focus', () => {
+    if (appWindow === win) return;
+    appWindow = win;
+    appRendererUrl = rendererUrl;
+    refreshBrainMenus(); // the mark on the brain in front
+  });
   const webContentsId = win.webContents.id;
   windowProfiles.set(webContentsId, { profileId: profile.id, origin: rendererOrigin });
   win.on('closed', () => {
     windowProfiles.delete(webContentsId);
+    if (profileWindows.get(profile.id) === win) profileWindows.delete(profile.id);
     if (appWindow === win) {
       appWindow = null;
       appRendererUrl = null;
@@ -552,19 +565,40 @@ function registerIpc(): void {
     }
   });
 
+  // The one slot every earlier build used. Still answered: it is what a login
+  // is adopted FROM on the first run after the update.
   ipcMain.on('vault:get', (event) => {
     const profileId = vaultProfileFor(event);
-    event.returnValue = profileId ? vaultRead(profileId) : null;
+    event.returnValue = profileId ? vault().read(profileId) : null;
   });
   ipcMain.on('vault:set', (event, token: unknown) => {
     const profileId = vaultProfileFor(event);
-    if (profileId && typeof token === 'string' && token.length > 0 && token.length < 8192) {
-      vaultWrite(profileId, token);
+    if (profileId && typeof token === 'string' && token.length > 0) {
+      vault().write(profileId, token);
     }
   });
   ipcMain.on('vault:clear', (event) => {
     const profileId = vaultProfileFor(event);
-    if (profileId) rmSync(vaultFile(profileId), { force: true });
+    if (profileId) vault().clear(profileId);
+  });
+
+  // One bearer per login held for this window's brain. The session id is the
+  // page's; ./vault validates it before it is anywhere near a path.
+  ipcMain.on('vault:getFor', (event, sessionId: unknown) => {
+    const profileId = vaultProfileFor(event);
+    event.returnValue = profileId ? vault().readFor(profileId, sessionId) : null;
+  });
+  ipcMain.on('vault:setFor', (event, sessionId: unknown, token: unknown) => {
+    const profileId = vaultProfileFor(event);
+    if (profileId) vault().writeFor(profileId, sessionId, token);
+  });
+  ipcMain.on('vault:clearFor', (event, sessionId: unknown) => {
+    const profileId = vaultProfileFor(event);
+    if (profileId) vault().clearFor(profileId, sessionId);
+  });
+  ipcMain.on('vault:adopt', (event, sessionId: unknown) => {
+    const profileId = vaultProfileFor(event);
+    event.returnValue = profileId ? vault().adopt(profileId, sessionId) : null;
   });
 
   ipcMain.handle('profiles:list', () => loadProfiles());
@@ -592,6 +626,7 @@ function registerIpc(): void {
         version,
       };
       saveProfiles([...profiles, profile]);
+      refreshBrainMenus();
       return { ok: true, profile };
     } catch {
       return { ok: false, error: `Couldn't reach a Mantle server at ${origin}.` };
@@ -599,17 +634,21 @@ function registerIpc(): void {
   });
 
   ipcMain.handle('profiles:remove', (_event, id: string) => {
-    saveProfiles(loadProfiles().filter((p) => p.id !== id));
+    const profiles = loadProfiles();
+    // Only an id this app minted: the id names a directory to delete.
+    if (!profiles.some((p) => p.id === id)) return;
+    saveProfiles(profiles.filter((p) => p.id !== id));
+    // A removed brain leaves no bearer behind on disk.
+    vault().removeProfile(id);
+    refreshBrainMenus();
   });
 
   ipcMain.handle('profiles:connect', async (event, id: string) => {
-    const profiles = loadProfiles();
-    const profile = profiles.find((p) => p.id === id);
-    if (!profile) return { ok: false, error: 'Unknown brain — refresh the list.' };
-    profile.lastUsedAt = Date.now();
-    saveProfiles(profiles);
+    if (!loadProfiles().some((p) => p.id === id)) {
+      return { ok: false, error: 'Unknown brain — refresh the list.' };
+    }
     try {
-      await openAppWindow(profile);
+      await openBrain(id);
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -619,6 +658,37 @@ function registerIpc(): void {
 }
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
+
+/**
+ * The brains this app knows, most recently used first, one click each. Someone
+ * looking after several brains should not have to open a dialog and pick from
+ * a list every time they change which one they are looking at.
+ *
+ * A radio mark on the one in front; the others are a click away whether their
+ * window is open or not. Logins WITHIN a brain are switched inside its window
+ * (the profile menu): the shell knows brains, the page knows logins.
+ */
+function brainMenuItems(): Electron.MenuItemConstructorOptions[] {
+  const brains = loadProfiles().sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
+  if (brains.length === 0) return [];
+  const front = [...profileWindows.entries()].find(([, win]) => win === appWindow)?.[0];
+  return [
+    ...brains.map((brain): Electron.MenuItemConstructorOptions => ({
+      label: brain.name,
+      type: 'radio',
+      checked: brain.id === front,
+      click: () => void openBrain(brain.id).catch(reportWindowError),
+    })),
+    { type: 'separator' },
+  ];
+}
+
+/** Rebuild both menus: the list in them is a snapshot, and it changes when a
+ *  brain is added, removed or brought to the front. */
+function refreshBrainMenus(): void {
+  buildMenu();
+  tray?.setContextMenu(trayMenu());
+}
 
 function buildMenu(): void {
   Menu.setApplicationMenu(
@@ -631,8 +701,9 @@ function buildMenu(): void {
       {
         label: 'Brain',
         submenu: [
+          ...brainMenuItems(),
           {
-            label: 'Switch Brain…',
+            label: 'Add or Remove a Brain…',
             accelerator: 'CmdOrCtrl+Shift+B',
             click: () => openConnectWindow(),
           },
@@ -644,18 +715,22 @@ function buildMenu(): void {
 
 let tray: Tray | null = null;
 
+function trayMenu(): Menu {
+  return Menu.buildFromTemplate([
+    { label: 'Open Mantle', click: focusOrOpen },
+    { type: 'separator' },
+    ...brainMenuItems(),
+    { label: 'Add or Remove a Brain…', click: () => openConnectWindow() },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ]);
+}
+
 function setupTray(): void {
   const icon = nativeImage.createFromPath(ICON_PATH).resize({ width: 22, height: 22 });
   tray = new Tray(icon);
   tray.setToolTip('Jackdaw');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Open Mantle', click: focusOrOpen },
-      { label: 'Switch Brain…', click: () => openConnectWindow() },
-      { type: 'separator' },
-      { label: 'Quit', click: () => app.quit() },
-    ]),
-  );
+  tray.setContextMenu(trayMenu());
   tray.on('click', focusOrOpen);
 }
 
