@@ -93,6 +93,31 @@ export function paramsFromForm(kind: AiWorkerKind, fd: FormData): Record<string,
         max_tokens: num(fd.get('max_tokens')),
         huggingface_routing: str(fd.get('huggingface_routing')),
       };
+    case 'decider': {
+      // Experimental per-use switches (see worker-fields-decider.tsx). A use
+      // whose checkbox is off is written as enabled:false so the operator's
+      // mode/threshold choice survives the round trip.
+      const uses: Record<string, Record<string, unknown>> = {};
+      for (const [k] of fd.entries()) {
+        const m = /^use_([a-z_]+)_(enabled|mode|threshold)$/.exec(k);
+        if (!m) continue;
+        const [, use] = m;
+        if (uses[use!]) continue;
+        const threshold = num(fd.get(`use_${use}_threshold`));
+        uses[use!] = {
+          enabled: fd.get(`use_${use}_enabled`) === 'on',
+          mode: str(fd.get(`use_${use}_mode`)) === 'live' ? 'live' : 'shadow',
+          ...(threshold != null ? { threshold } : {}),
+        };
+      }
+      return {
+        uses,
+        zdr: fd.get('zdr') === 'on',
+        timeout_ms: num(fd.get('timeout_ms')),
+        defer_below: num(fd.get('defer_below')),
+        act_alone_at: num(fd.get('act_alone_at')),
+      };
+    }
     default:
       return {};
   }

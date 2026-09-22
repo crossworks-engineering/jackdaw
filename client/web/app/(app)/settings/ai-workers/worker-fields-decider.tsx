@@ -1,0 +1,208 @@
+'use client';
+
+/**
+ * The Decider field group: the experimental typed-decision layer (TypeSafe
+ * Jev). The worker's own enable toggle in the header is the master switch;
+ * this section holds one switch PER USE, each with a mode (`shadow` = the
+ * answer only lands in the trace, behaviour unchanged; `live` = the answer
+ * is used) and, where the use has one, a threshold. A use missing from
+ * `params.uses` is off. Spec: mantle docs/decisions.md.
+ */
+import { Input } from '@mantle/web-ui/ui/input';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
+import { Field, FieldLabel } from '@mantle/web-ui/ui/field';
+import { SelectItem } from '@mantle/web-ui/ui/select';
+import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
+import { FormSelect } from './worker-form-select';
+
+/** The uses the server knows (mantle `DecisionUse`). Order = display order.
+ *  A use listed here but not yet built on the server is harmless: the
+ *  server ignores switches for uses it has no call site for. */
+export const DECISION_USES: ReadonlyArray<{
+  id: string;
+  label: string;
+  description: string;
+  /** Default threshold when the use has one; omitted = no threshold field. */
+  threshold?: number;
+}> = [
+  {
+    id: 'passage_scoring',
+    label: 'Passage scoring',
+    description:
+      'Scores each search passage 0–3 for “does it answer the question” and, when live, drops the weak ones before they enter the prompt (search_chunks and the responder’s auto-context).',
+    threshold: 1.5,
+  },
+  {
+    id: 'context_pruning',
+    label: 'Context pruning',
+    description:
+      'One call per turn over every injected fact, content hit and passage; when live, items under the threshold are dropped. Preferences are always kept; history and the corpus map are never touched.',
+    threshold: 1.0,
+  },
+  {
+    id: 'delegation_hint',
+    label: 'Delegation hint',
+    description:
+      'Before a turn, picks which delegate (or none) the message looks like work for. When live, one hint line is added to the system context — the responder still decides.',
+  },
+  {
+    id: 'version_grouping',
+    label: 'Version grouping (not built yet)',
+    description: 'Groups passages that state the same fact so code can keep the newest by date.',
+  },
+  {
+    id: 'fact_add_prefilter',
+    label: 'Fact ADD pre-filter (not built yet)',
+    description: 'Lets a confident ADD skip the chat classifier during fact extraction.',
+  },
+  {
+    id: 'model_routing',
+    label: 'Model routing (not built yet)',
+    description: 'Sizes each request so a cheaper model can take the simple ones.',
+  },
+];
+
+type UseConfig = { enabled?: boolean; mode?: 'shadow' | 'live'; threshold?: number };
+
+export function DeciderFields({ params }: { params: Record<string, unknown> }) {
+  const uses = (params.uses ?? {}) as Record<string, UseConfig | undefined>;
+  return (
+    <div className="space-y-5">
+      <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        The decider is a <strong>typed-decision model</strong>: it writes no text. Code sends it
+        state and typed questions and gets back a choice, a score or a yes/no with probabilities in
+        about 300 ms. Every use below is <strong>experimental</strong> and off until you switch it
+        on. Start in <strong>shadow</strong>: the answers land in /traces (steps named{' '}
+        <code>decide_*</code>) and nothing else changes. Flip a use to <strong>live</strong> only
+        after you have read a week of them.
+      </p>
+      <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+        <strong>Privacy:</strong> the state sent to the decider leaves this box (OpenRouter →
+        TypeSafe). Zero data retention is requested on every call. Keep the worker off on a brain
+        whose owner has not opted in.
+      </p>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Experimental uses
+        </h3>
+        {DECISION_USES.map((u) => {
+          const cfg = uses[u.id] ?? {};
+          const base = `use_${u.id}`;
+          return (
+            <div key={u.id} className="space-y-2 rounded-md border border-border p-3">
+              <Field orientation="horizontal">
+                <Checkbox
+                  id={`${base}_enabled`}
+                  name={`${base}_enabled`}
+                  defaultChecked={cfg.enabled === true}
+                />
+                <FieldLabel htmlFor={`${base}_enabled`} className="cursor-pointer font-medium">
+                  {u.label}
+                </FieldLabel>
+              </Field>
+              <p className="text-xs text-muted-foreground">{u.description}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor={`${base}_mode`}>Mode</FieldLabel>
+                  <FormSelect
+                    id={`${base}_mode`}
+                    name={`${base}_mode`}
+                    defaultValue={cfg.mode === 'live' ? 'live' : 'shadow'}
+                    describedBy={hintId(`${base}_mode`)}
+                  >
+                    <SelectItem value="shadow">Shadow (log only)</SelectItem>
+                    <SelectItem value="live">Live (act on the answer)</SelectItem>
+                  </FormSelect>
+                  <FieldHint id={`${base}_mode`}>
+                    Shadow first. Live only after a week of traces.
+                  </FieldHint>
+                </Field>
+                {u.threshold != null && (
+                  <Field>
+                    <FieldLabel htmlFor={`${base}_threshold`}>Threshold (0–3)</FieldLabel>
+                    <Input
+                      id={`${base}_threshold`}
+                      name={`${base}_threshold`}
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="3"
+                      defaultValue={typeof cfg.threshold === 'number' ? cfg.threshold : u.threshold}
+                      aria-describedby={hintId(`${base}_threshold`)}
+                    />
+                    <FieldHint id={`${base}_threshold`}>
+                      Items scoring below this are dropped when live.
+                    </FieldHint>
+                  </Field>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Worker-level limits
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor="defer_below">Defer below (confidence)</FieldLabel>
+            <Input
+              id="defer_below"
+              name="defer_below"
+              type="number"
+              step="0.05"
+              min="0"
+              max="1"
+              defaultValue={(params.defer_below as number) ?? 0.6}
+              aria-describedby={hintId('defer_below')}
+            />
+            <FieldHint id="defer_below">
+              Under this confidence an answer is recorded, not acted on.
+            </FieldHint>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="act_alone_at">Act alone at (confidence)</FieldLabel>
+            <Input
+              id="act_alone_at"
+              name="act_alone_at"
+              type="number"
+              step="0.05"
+              min="0"
+              max="1"
+              defaultValue={(params.act_alone_at as number) ?? 0.9}
+              aria-describedby={hintId('act_alone_at')}
+            />
+            <FieldHint id="act_alone_at">
+              Only at or above this may an answer be acted on with no second check.
+            </FieldHint>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="timeout_ms">Timeout (ms)</FieldLabel>
+            <Input
+              id="timeout_ms"
+              name="timeout_ms"
+              type="number"
+              step="100"
+              min="200"
+              max="10000"
+              defaultValue={(params.timeout_ms as number) ?? 1500}
+              aria-describedby={hintId('timeout_ms')}
+            />
+            <FieldHint id="timeout_ms">
+              A slow decision is worse than none: past this, the caller carries on without it.
+            </FieldHint>
+          </Field>
+          <Field orientation="horizontal" className="self-end">
+            <Checkbox id="zdr" name="zdr" defaultChecked={params.zdr !== false} />
+            <FieldLabel htmlFor="zdr" className="cursor-pointer font-normal">
+              Request zero data retention on every call
+            </FieldLabel>
+          </Field>
+        </div>
+      </div>
+    </div>
+  );
+}

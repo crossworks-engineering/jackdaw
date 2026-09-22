@@ -93,6 +93,11 @@ const KIND_META: Record<AiWorkerKind, { label: string; description: string }> = 
     description:
       'A stronger, slower Sonar model for hard or conflicting questions — backs the web_search_pro tool. The Researcher reaches for it only when needed.',
   },
+  decider: {
+    label: 'Decider (typed decisions)',
+    description:
+      'Experimental. A typed-decision model (TypeSafe Jev) that returns a choice, a score or a yes/no with probabilities instead of text. Each use — passage scoring, context pruning, delegation hint — has its own switch and starts in shadow (log only). Off until you turn it on.',
+  },
 };
 
 // Note: this is a plain string[] (not a Record key set), so TS doesn't
@@ -113,6 +118,7 @@ const KIND_ORDER: AiWorkerKind[] = [
   'image_gen',
   'search',
   'search_advanced',
+  'decider',
 ];
 
 type Selection = { mode: 'edit'; id: string } | { mode: 'create'; kind: AiWorkerKind } | null;

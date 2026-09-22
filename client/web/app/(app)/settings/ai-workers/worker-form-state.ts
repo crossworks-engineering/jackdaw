@@ -92,6 +92,8 @@ export const PROVIDER_FOR_KIND: Record<AiWorkerKind, string> = {
   // Narrator + suggester run on the cheap/fast OpenRouter workhorse by default.
   narrator: 'openrouter',
   suggester: 'openrouter',
+  // The decider reaches TypeSafe Jev through OpenRouter's decisions endpoint.
+  decider: 'openrouter',
 };
 
 /** Suggested model per kind, used as the placeholder. */

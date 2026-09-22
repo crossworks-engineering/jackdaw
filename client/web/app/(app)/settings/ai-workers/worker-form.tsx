@@ -50,6 +50,8 @@ import { ChatTestButton } from '@/components/settings/chat-test-button';
 import { VisionTestButton } from './vision-test-button';
 import { DocumentTestButton } from './document-test-button';
 import { ImageGenTestButton } from './image-gen-test-button';
+import { DecisionTestButton } from './decision-test-button';
+import { DeciderFields } from './worker-fields-decider';
 import { SttFields, TtsFields } from './worker-fields-speech';
 import { DocumentFields, ImageGenFields, VisionFields } from './worker-fields-media';
 import { COLUMN_DIMS, EmbeddingFields } from './worker-fields-embedding';
@@ -106,6 +108,8 @@ const MODEL_HINT_FOR_KIND: Record<AiWorkerKind, string> = {
   narrator: 'google/gemini-3.1-flash-lite',
   // Cheap + fast: one short question per turn, off the critical path.
   suggester: 'google/gemini-3.1-flash-lite',
+  // The only typed-decision model on OpenRouter (alpha decisions endpoint).
+  decider: 'typesafe/jev-1.13',
 };
 
 export function WorkerForm({
@@ -757,6 +761,7 @@ export function WorkerForm({
           {kind === 'narrator' && 'Narrator settings'}
           {kind === 'suggester' && 'Suggester settings'}
           {kind === 'embedding' && 'Embedding settings'}
+          {kind === 'decider' && 'Decider settings (experimental)'}
         </h2>
 
         {kind === 'tts' && (
@@ -815,6 +820,7 @@ export function WorkerForm({
             onDimChange={setEmbeddingDim}
           />
         )}
+        {kind === 'decider' && <DeciderFields params={params} />}
       </section>
 
       {/* ── Priority ─────────────────────────────────────────────── */}
@@ -888,6 +894,17 @@ export function WorkerForm({
               ' (This provider has no native-PDF adapter — at ingest it would rasterize instead.)'}
           </p>
           <DocumentTestButton workerId={worker.id} />
+        </section>
+      )}
+      {mode === 'edit' && worker && kind === 'decider' && (
+        <section className="space-y-2 border-t border-border pt-6">
+          <h3 className="text-sm font-semibold">Test a decision</h3>
+          <p className="text-xs text-muted-foreground">
+            Sends one sample message through this worker's adapter ({provider}) with three fixed
+            questions (which team, how urgent, is it a bug). Works while every use is still off — it
+            checks the key, the model and the endpoint.
+          </p>
+          <DecisionTestButton workerId={worker.id} />
         </section>
       )}
       {mode === 'edit' && worker && kind === 'image_gen' && (
