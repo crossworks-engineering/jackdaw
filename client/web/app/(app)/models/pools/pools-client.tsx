@@ -44,6 +44,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { comparisonRows, fmtMTokens, fmtPerM, type PoolDef, type PoolEntry } from './pools-math';
 import { ModelsNav } from '../models-nav';
+import { RecurateDialog } from './recurate-dialog';
 
 type Bundle = { pools: PoolDef[]; entries: PoolEntry[] };
 
@@ -187,6 +188,7 @@ export function PoolsClient({ initialPool }: { initialPool: string }) {
                   <Button type="button" size="sm" variant="outline" onClick={exportPools}>
                     <Copy /> Export template
                   </Button>
+                  <RecurateDialog onApplied={refresh} />
                 </div>
               </div>
 
