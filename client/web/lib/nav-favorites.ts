@@ -1,31 +1,37 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { useToast } from '@mantle/web-ui/ui/toast';
 import type { NavGroup, NavItem } from '@mantle/web-ui/layout/nav-items';
 
 /**
  * The destinations this owner has starred, pinned to a Favorites group at the
  * top of the sidebar.
  *
- * Stored per BROWSER in localStorage: a personalisation convenience, no server
- * surface, no PII, safe to lose. Jason chose this over a synced account
- * preference — that would need a mantle change, a new preference key and a
- * paired release, for a list of menu shortcuts.
+ * Stored on the LOGIN's profile (PUT /api/profile/nav-favorites, read back in
+ * GET /api/shell as `navFavorites`), so favourites follow the person to
+ * another browser, another machine and the desktop app. They used to live in
+ * this browser's localStorage only; the first load against a brain that
+ * stores them moves that list up once (see `useNavFavorites`).
  *
- * ⚠ So favourites do NOT follow you to another machine, another browser, or
- * through a "clear site data". If that becomes the wrong trade, only the two
- * functions below change: the sidebar talks to `useNavFavorites` and knows
- * nothing about where the list lives.
+ * A brain on an older release doesn't send `navFavorites` at all. Against one
+ * of those this falls back to localStorage exactly as before, which is why the
+ * storage half below is still here.
  *
  * ── Why this one is LIVE ──────────────────────────────────────────────────
  * The nav's old usage ranking deliberately froze per mount, because a menu that
  * reorders under the cursor moves the row you were aiming at. (That ranking is
  * gone — it fed the group fold, which Jason removed.) The reasoning does not
  * transfer here, and copying it would be a bug: starring is a DELIBERATE act,
- * and the whole feedback for it is the row appearing under Favorites. So this
- * subscribes, and a star fills and the group updates in the same frame.
+ * and the whole feedback for it is the row appearing under Favorites. So a star
+ * fills and the group updates in the same frame (optimistically, then saved).
  */
 const KEY = 'mantle_nav_favorites_v1';
+
+/** Set once this browser's local list has been moved to the server. */
+const MIGRATED_KEY = 'mantle_nav_favorites_migrated_v1';
 
 /** Same-tab notification. `storage` only fires in OTHER tabs, so a click would
  *  update localStorage and leave the star in this one unfilled until reload. */
@@ -95,23 +101,42 @@ export function favoriteItems<I extends NavItem>(
 /** Narrowing helper so callers can build the group without repeating the type. */
 export type FavoritesGroup = Pick<NavGroup, 'label' | 'items'>;
 
+/** Toggle one href in a list (pure; new stars append, see toggleFavoriteIn). */
+export function toggledList(list: readonly string[], href: string): string[] {
+  return list.includes(href) ? list.filter((h) => h !== href) : [...list, href];
+}
+
+type ShellFavorites = { navFavorites?: string[] };
+
 /**
  * The list, and a toggle.
  *
- * Starts EMPTY rather than reading localStorage during render, and fills in on
- * mount. The server has no localStorage, so seeding from it would make the
- * first client render disagree with the HTML and React would discard the tree
- * with a hydration error. An empty first paint is the honest shared state.
+ * Reads the shell query AppShell already runs (same key, so no second
+ * request). Until it lands the list is EMPTY, the honest shared state for the
+ * first paint; the server has no localStorage and the shell has no data yet.
  */
 export function useNavFavorites(): {
   favorites: string[];
   isFavorite: (href: string) => boolean;
   toggleFavorite: (href: string) => void;
 } {
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const qc = useQueryClient();
+  const toast = useToast();
+  const shell = useQuery({
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<ShellFavorites>('/api/shell'),
+    staleTime: Infinity,
+    select: (d: ShellFavorites) => d.navFavorites,
+  });
+  const loaded = shell.isSuccess;
+  const server = shell.data; // undefined once loaded ⇒ a brain that predates this
+  const legacy = loaded && server === undefined;
 
+  // Legacy path: this browser's localStorage, live across tabs, as before.
+  const [local, setLocal] = useState<string[]>([]);
   useEffect(() => {
-    const sync = () => setFavorites(readFavorites(window.localStorage));
+    if (!legacy) return;
+    const sync = () => setLocal(readFavorites(window.localStorage));
     sync();
     // Both: `storage` for other tabs, the custom event for this one.
     window.addEventListener('storage', sync);
@@ -120,12 +145,55 @@ export function useNavFavorites(): {
       window.removeEventListener('storage', sync);
       window.removeEventListener(EVENT, sync);
     };
-  }, []);
+  }, [legacy]);
 
-  const toggleFavorite = useCallback((href: string) => {
-    setFavorites(toggleFavoriteIn(window.localStorage, href));
-    window.dispatchEvent(new CustomEvent(EVENT));
-  }, []);
+  const save = useCallback(
+    async (next: string[], prev: string[]) => {
+      qc.setQueryData<ShellFavorites>(['shell'], (d) => (d ? { ...d, navFavorites: next } : d));
+      try {
+        const res = await apiSend<{ navFavorites: string[] }>('/api/profile/nav-favorites', 'PUT', {
+          navFavorites: next,
+        });
+        qc.setQueryData<ShellFavorites>(['shell'], (d) =>
+          d ? { ...d, navFavorites: res.navFavorites } : d,
+        );
+      } catch {
+        qc.setQueryData<ShellFavorites>(['shell'], (d) => (d ? { ...d, navFavorites: prev } : d));
+        toast.error('Could not save your favorites');
+      }
+    },
+    [qc, toast],
+  );
+
+  // One-time move of a pre-sync local list up to the profile. Only into an
+  // EMPTY server list: if this login already has favourites (starred on
+  // another device), those win and the stale local copy is just retired.
+  useEffect(() => {
+    if (!loaded || server === undefined) return;
+    try {
+      if (window.localStorage.getItem(MIGRATED_KEY)) return;
+      const localList = readFavorites(window.localStorage);
+      window.localStorage.setItem(MIGRATED_KEY, '1');
+      if (localList.length > 0 && server.length === 0) void save(localList, server);
+    } catch {
+      /* private mode: nothing stored locally to move */
+    }
+  }, [loaded, server, save]);
+
+  const favorites = useMemo(() => (legacy ? local : (server ?? [])), [legacy, local, server]);
+
+  const toggleFavorite = useCallback(
+    (href: string) => {
+      if (legacy) {
+        setLocal(toggleFavoriteIn(window.localStorage, href));
+        window.dispatchEvent(new CustomEvent(EVENT));
+        return;
+      }
+      if (server === undefined) return; // not loaded yet
+      void save(toggledList(server, href), server);
+    },
+    [legacy, server, save],
+  );
 
   const isFavorite = useCallback((href: string) => favorites.includes(href), [favorites]);
 

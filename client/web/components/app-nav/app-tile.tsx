@@ -1,0 +1,79 @@
+import { AppWindow, Folder } from 'lucide-react';
+import { cn } from '@mantle/web-ui/lib/utils';
+import { LUCIDE_ICON_PREFIX, type AppTint } from '@mantle/web-ui/types/app-nav';
+import { APP_ICONS } from './app-icons';
+
+/**
+ * Tile classes per tint key. Literal strings on purpose: Tailwind v4 only
+ * emits classes it can find verbatim, so `bg-app-tint-${key}` would render
+ * nothing. The colours themselves are theme-mixed tokens (globals.css), which
+ * is what keeps them legible on every theme and in both modes.
+ */
+export const TINT_CLASSES: Record<AppTint, string> = {
+  slate: 'bg-app-tint-slate text-app-tint-slate-ink',
+  red: 'bg-app-tint-red text-app-tint-red-ink',
+  orange: 'bg-app-tint-orange text-app-tint-orange-ink',
+  amber: 'bg-app-tint-amber text-app-tint-amber-ink',
+  lime: 'bg-app-tint-lime text-app-tint-lime-ink',
+  green: 'bg-app-tint-green text-app-tint-green-ink',
+  teal: 'bg-app-tint-teal text-app-tint-teal-ink',
+  sky: 'bg-app-tint-sky text-app-tint-sky-ink',
+  blue: 'bg-app-tint-blue text-app-tint-blue-ink',
+  indigo: 'bg-app-tint-indigo text-app-tint-indigo-ink',
+  violet: 'bg-app-tint-violet text-app-tint-violet-ink',
+  pink: 'bg-app-tint-pink text-app-tint-pink-ink',
+};
+
+/** The neutral tile: no tint chosen. */
+const NEUTRAL = 'bg-muted text-muted-foreground';
+
+const SIZES = {
+  sm: { tile: 'size-5 rounded-[5px] text-[11px]', icon: 'size-3' },
+  md: { tile: 'size-6 rounded-md text-sm', icon: 'size-3.5' },
+  lg: { tile: 'size-9 rounded-lg text-lg', icon: 'size-5' },
+} as const;
+
+/**
+ * An app or folder face: an icon (emoji or curated lucide) on a tinted tile.
+ * An icon this client doesn't know, or none at all, falls back to the default
+ * glyph for the kind, so a stale stored name never renders as broken text.
+ */
+export function AppTile({
+  icon,
+  color,
+  kind = 'app',
+  size = 'md',
+  className,
+}: {
+  icon?: string | null;
+  color?: AppTint | null;
+  kind?: 'app' | 'folder';
+  size?: keyof typeof SIZES;
+  className?: string;
+}) {
+  const s = SIZES[size];
+  const Lucide = icon?.startsWith(LUCIDE_ICON_PREFIX)
+    ? APP_ICONS[icon.slice(LUCIDE_ICON_PREFIX.length)]
+    : undefined;
+  const emoji = icon && !icon.startsWith(LUCIDE_ICON_PREFIX) ? icon : null;
+  const Fallback = kind === 'folder' ? Folder : AppWindow;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center leading-none',
+        s.tile,
+        color ? TINT_CLASSES[color] : NEUTRAL,
+        className,
+      )}
+    >
+      {Lucide ? (
+        <Lucide className={s.icon} />
+      ) : emoji ? (
+        <span>{emoji}</span>
+      ) : (
+        <Fallback className={s.icon} />
+      )}
+    </span>
+  );
+}

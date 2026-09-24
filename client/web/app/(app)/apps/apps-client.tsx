@@ -40,6 +40,8 @@ import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppRow } from '@mantle/client-types';
+import type { AppRowWithColor } from '@mantle/web-ui/types/app-nav';
+import { AppTile } from '@/components/app-nav/app-tile';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
 
@@ -202,7 +204,11 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                         onClick={() => setSelectedId(app.id)}
                       >
                         <span className="flex items-center gap-2 text-sm font-medium">
-                          <span aria-hidden>{app.icon ?? '🧩'}</span>
+                          <AppTile
+                            icon={app.icon}
+                            color={(app as AppRowWithColor).color}
+                            size="md"
+                          />
                           <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
                           <span className="ml-auto flex shrink-0 items-center gap-1">
                             {app.hasDraft && <Badge variant="secondary">draft</Badge>}

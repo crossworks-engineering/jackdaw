@@ -20,7 +20,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@mantle/web-ui/ui/tabs
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
-import { EmojiPicker } from '@/components/emoji-picker';
+import { AppLookPicker } from '@/components/app-nav/app-look-picker';
+import { AppTile } from '@/components/app-nav/app-tile';
+import { useAppNav } from '@/components/app-nav/use-app-nav';
+import type { AppRowWithColor } from '@mantle/web-ui/types/app-nav';
 import { ShareControl } from '@/components/share-control';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
@@ -83,21 +86,14 @@ function AppDetailView({ app }: { app: AppDetail }) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  // Icon edits are optimistic-local + a fire-and-forget PATCH. Deliberately NO
-  // query invalidation: reloading the app here re-syncs the source tree and
-  // would drop unsaved editor changes for a cosmetic write.
-  const [icon, setIcon] = useState<string | null>(app.icon);
-  useEffect(() => setIcon(app.icon), [app.icon]);
-  const saveIcon = async (next: string) => {
-    const prev = icon;
-    setIcon(next || null);
-    try {
-      await apiSend(`/api/apps/${app.id}`, 'PATCH', { icon: next });
-    } catch (err) {
-      setIcon(prev);
-      toast.error(err instanceof Error ? err.message : 'Could not save the icon');
-    }
-  };
+  // Icon and colour edits go through the app-nav hook: optimistic in the
+  // sidebar and here, one PATCH, every other client notified. It deliberately
+  // does NOT invalidate this app's query: reloading it re-syncs the source
+  // tree and would drop unsaved editor changes for a cosmetic write.
+  const { data: nav, setAppLook } = useAppNav();
+  const face = nav?.apps.find((a) => a.id === app.id);
+  const icon = face ? face.icon : app.icon;
+  const color = face ? face.color : ((app as AppRowWithColor).color ?? null);
 
   const source = app.draft ?? app.source;
   // Editable working copy of the source tree. Re-synced from the server on every
@@ -264,20 +260,21 @@ function AppDetailView({ app }: { app: AppDetail }) {
         <div className="flex items-center gap-3">
           <BackLink href="/apps">Apps</BackLink>
           <span className="flex items-center gap-2 font-semibold">
-            <EmojiPicker
-              value={icon || null}
-              onSelect={(e) => void saveIcon(e)}
-              onClear={() => void saveIcon('')}
+            <AppLookPicker
+              icon={icon}
+              color={color}
+              label={app.title}
+              onChange={(l) => void setAppLook(app.id, l)}
               align="start"
               trigger={
                 <Button
                   type="button"
                   variant="ghost"
-                  aria-label="Change app icon"
-                  title="Change icon"
-                  className="size-8 shrink-0 rounded-md p-0 text-lg leading-none hover:bg-accent"
+                  size="icon-xs"
+                  aria-label="Change icon and colour"
+                  title="Change icon and colour"
                 >
-                  {icon || '🧩'}
+                  <AppTile icon={icon} color={color} size="md" />
                 </Button>
               }
             />

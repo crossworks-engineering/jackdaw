@@ -18,11 +18,11 @@ import { cn } from '@mantle/web-ui/lib/utils';
  * the chosen emoji; `onClear` (when provided) renders a "Remove" action.
  */
 
-type EmojiEntry = { e: string; k: string };
+export type EmojiEntry = { e: string; k: string };
 type EmojiSection = { name: string; items: EmojiEntry[] };
 
 // k = space-joined search keywords. Kept terse; search is substring over k.
-const SECTIONS: EmojiSection[] = [
+export const EMOJI_SECTIONS: EmojiSection[] = [
   {
     name: 'Docs & work',
     items: [
@@ -158,7 +158,7 @@ const SECTIONS: EmojiSection[] = [
   },
 ];
 
-const ALL: EmojiEntry[] = SECTIONS.flatMap((s) => s.items);
+const ALL: EmojiEntry[] = EMOJI_SECTIONS.flatMap((s) => s.items);
 
 export function EmojiPicker({
   value,
@@ -225,7 +225,7 @@ export function EmojiPicker({
               <div className="grid grid-cols-8 gap-0.5">{matches.map(cell)}</div>
             )
           ) : (
-            SECTIONS.map((s) => (
+            EMOJI_SECTIONS.map((s) => (
               <div key={s.name} className="mb-1.5">
                 <p className="px-1 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {s.name}
