@@ -15,7 +15,7 @@ export type ModelSelectSortKey = 'newest' | 'name' | 'cheapest' | 'context';
  *  (`~google/gemini-pro-latest` = "newest Gemini Pro today"): the id is a
  *  moving target that re-points as the family updates. The server's
  *  pinned-model-drift maintenance treats `~` pins as tracks-on-purpose; the
- *  picker's job is to make sure choosing one is never an accident — a NATREF
+ *  picker's job is to make sure choosing one is never an accident — a client
  *  vision worker once sat on an alias and indexed 9 drawing sheets with junk
  *  before anyone realised which model was actually answering. */
 export function isAliasModel(id: string): boolean {

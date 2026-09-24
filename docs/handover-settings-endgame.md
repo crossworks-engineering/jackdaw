@@ -197,16 +197,16 @@ Full detail in `handover-ui-consistency.md` §4. The two that bite are unchanged
 worktree serves `:3100`**.
 
 ```sh
-ssh jasons@192.168.100.75 'pkill -f "[t]sx watch server/main.ts"'
+ssh me@workstation 'pkill -f "[t]sx watch server/main.ts"'
 # hold this open for the whole session — it will not return:
-ssh jasons@192.168.100.75 'cd /tmp/kanban-mig-verify/server/web && PORT=3999 pnpm dev'
+ssh me@workstation 'cd /tmp/kanban-mig-verify/server/web && PORT=3999 pnpm dev'
 # from YOUR worktree:
-MANTLE_SERVER_ORIGIN=http://192.168.100.75:3999 PORT=3100 pnpm -C client/web dev
+MANTLE_SERVER_ORIGIN=http://workstation.lan:3999 PORT=3100 pnpm -C client/web dev
 lsof -a -p "$(lsof -tiTCP:3100 -sTCP:LISTEN | head -1)" -d cwd -Fn   # verify the worktree
 ```
 
 ```sh
-E2E_SERVER_URL=http://192.168.100.75:3999 E2E_CLIENT_URL=http://localhost:3100 \
+E2E_SERVER_URL=http://workstation.lan:3999 E2E_CLIENT_URL=http://localhost:3100 \
 E2E_EMAIL=audit@example.com E2E_PASSWORD=e2e-owner-password-1 \
 E2E_SKIP_PDF=1 pnpm -C e2e e2e
 ```

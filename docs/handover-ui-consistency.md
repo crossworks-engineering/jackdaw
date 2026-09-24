@@ -153,15 +153,15 @@ server, so **`:3100`** is the one to use.
 # own command line contains the pattern — `pkill -f "tsx watch server/main.ts"`
 # matches it, kills the shell it is running in, and returns 255. `[t]sx` cannot
 # match the literal text `tsx`, so the pattern excludes its own wrapper.
-ssh jasons@192.168.100.75 'pkill -f "[t]sx watch server/main.ts"'
-ssh jasons@192.168.100.75 'cd /tmp/kanban-mig-verify/server/web && \
+ssh me@workstation 'pkill -f "[t]sx watch server/main.ts"'
+ssh me@workstation 'cd /tmp/kanban-mig-verify/server/web && \
   PORT=3999 setsid nohup pnpm dev >> /tmp/kanban-brain.log 2>&1 < /dev/null & disown'
 
 # Client (Mac), from the worktree you are working in:
-MANTLE_SERVER_ORIGIN=http://192.168.100.75:3999 PORT=3100 pnpm -C client/web dev
+MANTLE_SERVER_ORIGIN=http://workstation.lan:3999 PORT=3100 pnpm -C client/web dev
 
 # The suite, split topology:
-E2E_SERVER_URL=http://192.168.100.75:3999 E2E_CLIENT_URL=http://localhost:3100 \
+E2E_SERVER_URL=http://workstation.lan:3999 E2E_CLIENT_URL=http://localhost:3100 \
 E2E_EMAIL=audit@example.com E2E_PASSWORD=e2e-owner-password-1 \
 E2E_SKIP_PDF=1 pnpm -C e2e e2e
 ```

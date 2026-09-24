@@ -426,10 +426,12 @@ export function JournalClient() {
                           {openGap ? 'Open' : 'Resolved'}
                         </span>
                       )}
-                      {n.author === 'agent' && (
+                      {/* An agent's own entry, or a rule the user wrote for one
+                          agent over MCP (author user + agent slug). */}
+                      {(n.author === 'agent' || n.agentSlug) && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                           <Bot className="size-3" aria-hidden />
-                          {n.agentSlug ?? 'agent'}
+                          {n.author === 'agent' ? (n.agentSlug ?? 'agent') : `for ${n.agentSlug}`}
                         </span>
                       )}
                       {n.tags.map((t) => (
@@ -579,10 +581,12 @@ function JournalPreview({
                 {openGap ? 'Open question' : 'Resolved'}
               </span>
             )}
-            {entry.author === 'agent' && (
+            {(entry.author === 'agent' || entry.agentSlug) && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 <Bot className="size-3.5" aria-hidden />
-                logged by {entry.agentSlug ?? 'an agent'}
+                {entry.author === 'agent'
+                  ? `logged by ${entry.agentSlug ?? 'an agent'}`
+                  : `written by you for ${entry.agentSlug}`}
               </span>
             )}
             {entry.tags.map((t) => (

@@ -6,7 +6,7 @@
  */
 import type { AgentAvatarDTO, AgentDTO, AgentMemoryConfigDTO } from '@mantle/client-types';
 
-export const DEFAULT_REFLECTOR_PROMPT = `You are a reflector for a personal AI assistant. You will be given a transcript of recent exchanges + the assistant's current persona_notes. Spot NEW signals worth remembering, AND ONLY new ones.
+export const DEFAULT_REFLECTOR_PROMPT = `You are a reflector for a personal AI assistant. You will be given a transcript of recent exchanges + the notes the assistant has already learned. Spot NEW signals worth remembering, AND ONLY new ones.
 
 Look for: style hints (response format preferences), relationship notes (how user and assistant interact), corrections (when the user said something is wrong).
 
@@ -15,7 +15,7 @@ Output STRICT JSON, no markdown:
 { "new_notes": [{ "kind": "style|relationship|correction", "content": "<single declarative sentence>" }] }
 
 Rules:
-- Skip anything already covered by an existing persona_note.
+- Skip anything already covered by an existing note.
 - Be specific — "the user prefers terse, no-bullet replies" beats "user likes brevity".
 - Don't invent — only return notes grounded in the transcript.
 - Return an EMPTY new_notes array if nothing notable surfaces.
