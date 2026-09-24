@@ -83,7 +83,7 @@ export type Role = (typeof ROLES)[number]['value'];
  *  `?selected=` deep links are one-shot, so the section is deliberately not
  *  URL-driven. Every `TabsContent` carries `data-agent-section` so submit
  *  validation can jump to the tab holding the first invalid field. */
-export type AgentSection = 'general' | 'model' | 'behaviour' | 'memory' | 'learned';
+export type AgentSection = 'general' | 'model' | 'behaviour' | 'memory';
 
 /** Which field of the agent form can be wrong, keyed by the control's `id`. */
 export type AgentErrors = Partial<

@@ -14,6 +14,7 @@ import {
   Sparkles,
   Target,
   Trash2,
+  X,
 } from 'lucide-react';
 import { KINDS, kindLabel } from '@mantle/content-core/journal-options';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -92,19 +93,28 @@ export function JournalClient() {
   const view: ViewKey = viewRaw === 'agents' || viewRaw === 'questions' ? viewRaw : 'you';
   const activeKind = searchParams.get('kind')?.trim() || null;
   const activeTag = searchParams.get('tag')?.trim() || null;
+  // One agent's learned rules (the agent form's "Open in Journal"): every kind
+  // it learned, so it cuts across the lanes.
+  const learnedBy = searchParams.get('learned_by')?.trim() || null;
 
   // The kinds the current view's narrow-filter offers.
   const viewKinds = useMemo(
-    () => KINDS.filter((k) => (view === 'you' ? k.lane === 'user' : k.lane === 'agent')),
-    [view],
+    () =>
+      learnedBy
+        ? KINDS.filter((k) => k.key !== 'gap')
+        : KINDS.filter((k) => (view === 'you' ? k.lane === 'user' : k.lane === 'agent')),
+    [view, learnedBy],
   );
 
   const listQuery = useQuery({
-    queryKey: ['journal', { view, q: query, kind: activeKind, tag: activeTag, page }],
+    queryKey: ['journal', { view, q: query, kind: activeKind, tag: activeTag, learnedBy, page }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
-      if (view === 'questions') {
+      if (learnedBy) {
+        qs.set('learned_by', learnedBy);
+        if (activeKind) qs.set('kind', activeKind);
+      } else if (view === 'questions') {
         // Open questions only — the whole point of the view.
         qs.set('kind', 'gap');
         qs.set('status', 'open');
@@ -184,7 +194,7 @@ export function JournalClient() {
   const switchView = (v: ViewKey) =>
     guard(() => {
       // Kind filters don't carry across lanes; selection rarely survives either.
-      go({ view: v === 'you' ? null : v, kind: null, page: null });
+      go({ view: v === 'you' ? null : v, kind: null, learned_by: null, page: null });
       setSelectedId(null);
       syncSelectionParam('selected', null);
       exitEdit();
@@ -263,8 +273,9 @@ export function JournalClient() {
     );
   }
 
-  const emptyCopy =
-    query || activeKind || activeTag
+  const emptyCopy = learnedBy
+    ? 'This agent has not learned any rules yet.'
+    : query || activeKind || activeTag
       ? 'No journal entries match your search or filters.'
       : view === 'questions'
         ? 'No open questions — the brain has everything it needs right now.'
@@ -299,7 +310,7 @@ export function JournalClient() {
             <Button
               key={v.key}
               size="sm"
-              variant={view === v.key ? 'default' : 'outline'}
+              variant={view === v.key && !learnedBy ? 'default' : 'outline'}
               className="h-7 rounded-full px-3"
               onClick={() => switchView(v.key)}
             >
@@ -307,6 +318,17 @@ export function JournalClient() {
             </Button>
           ))}
         </div>
+
+        {learnedBy && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 rounded-full px-3"
+            onClick={() => go({ learned_by: null, kind: null, page: null })}
+          >
+            Learned by {learnedBy} <X />
+          </Button>
+        )}
 
         {view !== 'questions' && (
           <Select

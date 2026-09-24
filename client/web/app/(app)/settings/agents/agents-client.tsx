@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Plus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { BookOpen, Copy, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import {
@@ -46,7 +47,6 @@ import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/experience';
 import { useAvatarStyle } from '@mantle/web-ui/avatar-style-provider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
-import { PersonaNotesEditor } from './persona-notes-editor';
 import { ChatTestButton } from '@/components/settings/chat-test-button';
 import { ModelsTab } from './models-tab';
 import { BackupRouteSection, MemorySection, NONE, RouteHostFields } from './agent-form-sections';
@@ -184,7 +184,7 @@ export function AgentsClient() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [slugTouched, setSlugTouched] = useState(false);
   // Kept across agent switches (handy for comparing the same setting across
-  // agents); only bounced off `learned`, which create mode doesn't render.
+  // agents).
   const [section, setSection] = useState<AgentSection>('general');
   const [errors, setErrors] = useState<AgentErrors>({});
   // Only complain AFTER a submit has failed: validating from the first
@@ -245,7 +245,6 @@ export function AgentsClient() {
   const openCreate = () => {
     setForm(emptyForm());
     setSlugTouched(false);
-    setSection((s) => (s === 'learned' ? 'general' : s));
     setEditing({ mode: 'create' });
   };
 
@@ -305,7 +304,6 @@ export function AgentsClient() {
       avatar: null,
     });
     setSlugTouched(false);
-    setSection((s) => (s === 'learned' ? 'general' : s));
     setEditing({ mode: 'create' });
   };
 
@@ -734,17 +732,14 @@ export function AgentsClient() {
                     {/* Sub-tabs of the editor. `TabsContent` is `forceMount` +
                   CSS-hidden so (a) all fields stay in the DOM for
                   checkValidity() across tabs and (b) self-persisting children
-                  (TelegramBotSection, PersonaNotesEditor) keep their local
-                  state across tab switches. */}
+                  (TelegramBotSection) keep their local state across tab
+                  switches. */}
                     <Tabs value={section} onValueChange={(v) => setSection(v as AgentSection)}>
                       <TabsList className="h-auto flex-wrap justify-start">
                         <TabsTrigger value="general">General</TabsTrigger>
                         <TabsTrigger value="model">Model & routing</TabsTrigger>
                         <TabsTrigger value="behaviour">Behaviour</TabsTrigger>
                         <TabsTrigger value="memory">Memory</TabsTrigger>
-                        {editing.mode === 'edit' && (
-                          <TabsTrigger value="learned">Learned</TabsTrigger>
-                        )}
                       </TabsList>
                       {/* noValidate: see submitForm — the browser can't focus an
                     invalid field on a hidden tab, so constraints are re-run
@@ -1303,6 +1298,9 @@ export function AgentsClient() {
                           className="mt-0 space-y-4 data-[state=inactive]:hidden"
                         >
                           <MemorySection form={form} setForm={setForm} />
+                          {editing.mode === 'edit' && (
+                            <LearnedInJournal slug={editing.agent.slug} />
+                          )}
                         </TabsContent>
 
                         <TabsContent
@@ -1519,21 +1517,6 @@ export function AgentsClient() {
                           </fieldset>
                         </TabsContent>
 
-                        {editing.mode === 'edit' && (
-                          <TabsContent
-                            forceMount
-                            value="learned"
-                            data-agent-section="learned"
-                            className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                          >
-                            <PersonaNotesEditor
-                              key={editing.agent.id}
-                              agentId={editing.agent.id}
-                              initialNotes={editing.agent.personaNotes}
-                            />
-                          </TabsContent>
-                        )}
-
                         <div className="flex justify-end gap-2 border-t border-border pt-3">
                           <Button type="button" variant="outline" onClick={closeDialog}>
                             Cancel
@@ -1570,5 +1553,34 @@ export function AgentsClient() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** What an agent learned lives in the Journal (mantle v0.232.236: the Journal
+ *  is every agent's notes target). The old Learned tab edited the agent's
+ *  persona notes, which no agent writes any more; this points at the
+ *  Journal's view of the rules this agent learned instead. */
+function LearnedInJournal({ slug }: { slug: string }) {
+  const { data } = useQuery({
+    queryKey: ['journal', { learnedBy: slug, count: true }],
+    queryFn: () =>
+      apiFetch<{ total: number }>(`/api/journal?learned_by=${encodeURIComponent(slug)}`),
+  });
+  return (
+    <fieldset className="space-y-2 rounded-md border border-border p-3">
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Learned
+      </legend>
+      <p className="text-sm text-muted-foreground">
+        What this agent learns about working for you is kept in the Journal
+        {data ? ` (${data.total} rule${data.total === 1 ? '' : 's'})` : ''}. Edit or retire a rule
+        there.
+      </p>
+      <Button asChild variant="outline" size="sm">
+        <Link href={`/journal?learned_by=${encodeURIComponent(slug)}`}>
+          <BookOpen /> Open in Journal
+        </Link>
+      </Button>
+    </fieldset>
   );
 }
