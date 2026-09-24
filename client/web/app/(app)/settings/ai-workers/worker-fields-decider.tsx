@@ -24,6 +24,10 @@ export const DECISION_USES: ReadonlyArray<{
   description: string;
   /** Default threshold when the use has one; omitted = no threshold field. */
   threshold?: number;
+  /** `score` = Jev's 0–3 score, `probability` = a yes/no probability 0–1. */
+  scale?: 'score' | 'probability';
+  /** What the threshold does, for the field hint. */
+  thresholdHint?: string;
 }> = [
   {
     id: 'passage_scoring',
@@ -31,6 +35,8 @@ export const DECISION_USES: ReadonlyArray<{
     description:
       'Scores each search passage 0–3 for “does it answer the question” and, when live, drops the weak ones before they enter the prompt (search_chunks and the responder’s auto-context).',
     threshold: 1.5,
+    scale: 'score',
+    thresholdHint: 'Passages scoring below this are dropped when live.',
   },
   {
     id: 'context_pruning',
@@ -38,6 +44,8 @@ export const DECISION_USES: ReadonlyArray<{
     description:
       'One call per turn over every injected fact, content hit and passage; when live, items under the threshold are dropped. Preferences are always kept; history and the corpus map are never touched.',
     threshold: 1.0,
+    scale: 'score',
+    thresholdHint: 'Items scoring below this are dropped when live.',
   },
   {
     id: 'delegation_hint',
@@ -47,13 +55,45 @@ export const DECISION_USES: ReadonlyArray<{
   },
   {
     id: 'version_grouping',
-    label: 'Version grouping (not built yet)',
-    description: 'Groups passages that state the same fact so code can keep the newest by date.',
+    label: 'Version grouping',
+    description:
+      'Once per turn, finds two passages that are versions of the same text. A superseded hit goes when its successor is also there; for unlinked look-alikes Jev decides, and when live the lower-ranked copy is dropped.',
+    threshold: 0.9,
+    scale: 'probability',
+    thresholdHint: 'A “same passage” yes at or above this drops the lower-ranked copy.',
   },
   {
     id: 'fact_add_prefilter',
-    label: 'Fact ADD pre-filter (not built yet)',
-    description: 'Lets a confident ADD skip the chat classifier during fact extraction.',
+    label: 'Fact ADD pre-filter',
+    description:
+      'During fact extraction, a confident “add” from Jev skips the chat classifier. Any other answer still goes to the classifier; Jev never updates or deletes a fact.',
+  },
+  {
+    id: 'history_recall',
+    label: 'History recall',
+    description:
+      'Scores the exchanges older than the history limit (up to 50 messages back) for “does a reply need it”. When live, the ones at the threshold rejoin the history, marked as recalled. Pairs with a history limit of 20.',
+    threshold: 1.0,
+    scale: 'score',
+    thresholdHint: 'Older exchanges scoring at or above this come back when live.',
+  },
+  {
+    id: 'journal_recall',
+    label: 'Journal recall',
+    description:
+      'Scores every rule the agent learned against the message. When live, the best rules (at the threshold, up to 25) are sent with the turn instead of the similarity pick.',
+    threshold: 1.5,
+    scale: 'score',
+    thresholdHint: 'Learned rules scoring at or above this are sent when live.',
+  },
+  {
+    id: 'rule_reconcile',
+    label: 'Rule reconcile',
+    description:
+      'When an agent learns a rule, checks its close older rules: same rule, or changed by the new one? When live, the older rule is retired into the new one (reversible). Also needed by the Journal rules cleanup task.',
+    threshold: 0.8,
+    scale: 'probability',
+    thresholdHint: 'A “same” or “changes it” yes at or above this retires the older rule.',
   },
   {
     id: 'model_routing',
@@ -71,10 +111,9 @@ export function DeciderFields({ params }: { params: Record<string, unknown> }) {
       <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
         The decider is a <strong>typed-decision model</strong>: it writes no text. Code sends it
         state and typed questions and gets back a choice, a score or a yes/no with probabilities in
-        about 300 ms. Every use below is <strong>experimental</strong> and off until you switch it
-        on. Start in <strong>shadow</strong>: the answers land in /traces (steps named{' '}
-        <code>decide_*</code>) and nothing else changes. Flip a use to <strong>live</strong> only
-        after you have read a week of them.
+        about 300 ms. A fresh brain ships every built use <strong>live</strong>. Switch a use to{' '}
+        <strong>shadow</strong> to watch it without acting: the answers land in /traces (steps named{' '}
+        <code>decide_*</code>) and nothing else changes. Untick a use to turn it off.
       </p>
       <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
         <strong>Privacy:</strong> the state sent to the decider leaves this box (OpenRouter →
@@ -84,7 +123,7 @@ export function DeciderFields({ params }: { params: Record<string, unknown> }) {
 
       <div className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Experimental uses
+          Uses
         </h3>
         {DECISION_USES.map((u) => {
           const cfg = uses[u.id] ?? {};
@@ -115,25 +154,25 @@ export function DeciderFields({ params }: { params: Record<string, unknown> }) {
                     <SelectItem value="live">Live (act on the answer)</SelectItem>
                   </FormSelect>
                   <FieldHint id={`${base}_mode`}>
-                    Shadow first. Live only after a week of traces.
+                    Shadow logs the answer only. Live acts on it.
                   </FieldHint>
                 </Field>
                 {u.threshold != null && (
                   <Field>
-                    <FieldLabel htmlFor={`${base}_threshold`}>Threshold (0–3)</FieldLabel>
+                    <FieldLabel htmlFor={`${base}_threshold`}>
+                      Threshold ({u.scale === 'probability' ? '0–1' : '0–3'})
+                    </FieldLabel>
                     <Input
                       id={`${base}_threshold`}
                       name={`${base}_threshold`}
                       type="number"
-                      step="0.1"
+                      step={u.scale === 'probability' ? '0.05' : '0.1'}
                       min="0"
-                      max="3"
+                      max={u.scale === 'probability' ? '1' : '3'}
                       defaultValue={typeof cfg.threshold === 'number' ? cfg.threshold : u.threshold}
                       aria-describedby={hintId(`${base}_threshold`)}
                     />
-                    <FieldHint id={`${base}_threshold`}>
-                      Items scoring below this are dropped when live.
-                    </FieldHint>
+                    <FieldHint id={`${base}_threshold`}>{u.thresholdHint}</FieldHint>
                   </Field>
                 )}
               </div>
