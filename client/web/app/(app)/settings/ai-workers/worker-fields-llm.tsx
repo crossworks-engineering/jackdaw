@@ -120,7 +120,7 @@ export function LlmWorkerFields({
             </FieldHint>
           </Field>
           <Field>
-            <FieldLabel htmlFor="max_notes_per_run">Max notes per run</FieldLabel>
+            <FieldLabel htmlFor="max_notes_per_run">Max rules per run</FieldLabel>
             <Input
               id="max_notes_per_run"
               name="max_notes_per_run"
@@ -128,8 +128,8 @@ export function LlmWorkerFields({
               defaultValue={(params.max_notes_per_run as number) ?? 10}
               aria-describedby={hintId('max_notes_per_run')}
             />
-            <FieldHint id="max_notes_per_run" warn="Raise it and the persona fills with trivia.">
-              Ceiling on persona notes written per run. Default 10.
+            <FieldHint id="max_notes_per_run" warn="Raise it and the Journal fills with trivia.">
+              Ceiling on learned rules written per run. Default 10.
             </FieldHint>
           </Field>
         </div>

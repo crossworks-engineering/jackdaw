@@ -722,8 +722,8 @@ function AssistantFields({
           </Select>
           <FieldHint id={sourceId}>
             The copy keeps its source&apos;s model, prompt, skills and tools, but answers to the
-            name you give it here — it just gets its own chat history. Telegram bots and learned
-            persona notes aren&apos;t copied.
+            name you give it here — it just gets its own chat history. Telegram bots and the rules
+            it learned (in the Journal) aren&apos;t copied.
           </FieldHint>
         </Field>
       )}

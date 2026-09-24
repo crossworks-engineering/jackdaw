@@ -71,7 +71,7 @@ export const ROLES = [
   { value: 'responder', label: 'Responder — replies to Telegram / async DMs' },
   { value: 'extractor', label: 'Extractor — summary + facts + entities at ingest' },
   { value: 'summarizer', label: 'Summarizer — Tier-2 conversation rollups' },
-  { value: 'reflector', label: 'Reflector — appends persona notes from dialog' },
+  { value: 'reflector', label: 'Reflector — learns rules from dialog, into the Journal' },
   { value: 'worker', label: 'Worker — runner-queue step executor (proposes, never chats)' },
   { value: 'custom', label: 'Custom' },
 ] as const;

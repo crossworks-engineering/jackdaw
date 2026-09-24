@@ -33,7 +33,7 @@ const KIND_META: Record<AiWorkerKind, { label: string; description: string }> = 
   reflector: {
     label: 'Reflector',
     description:
-      'Background pass that watches dialog and appends style/relationship/correction notes to the responder.',
+      'Background pass that watches dialog and writes what the responder should learn (style, relationship, corrections) to the Journal as learned rules.',
   },
   extractor: {
     label: 'Extractor',

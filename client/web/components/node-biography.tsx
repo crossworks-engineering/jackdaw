@@ -34,7 +34,7 @@ const KIND_DESCRIPTIONS: Record<string, string> = {
   summarizer_run:
     'The summarizer rolls older conversation turns into compact digests for memory tier 2.',
   reflector_run:
-    'The reflector reviews recent activity and decides whether the persona notes need updating.',
+    'The reflector reviews recent activity and decides whether the agent learned a rule worth keeping.',
   responder_turn: 'The responder LLM answered a user turn that referenced this node.',
   photo_ingest:
     'A photo arrived via Telegram and was routed through the vision worker before being saved as this node.',

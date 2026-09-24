@@ -110,10 +110,10 @@ export const API_CATALOG: CatalogGroup[] = [
     },
     { n: 'Delete agent', m: 'DELETE', p: '/api/agents/{id}' },
     {
-      n: 'Manage persona notes',
+      n: 'Manage persona notes (legacy)',
       m: 'POST',
       p: '/api/agents/{id}/persona',
-      d: 'Add/edit/retire/restore persona notes (style, relationship, correction). Soft-retire only.',
+      d: 'Legacy: only agents with memory_config.notes_target = persona read these. Learned rules live in the Journal (GET /api/journal?learned_by={slug}). Add/edit/retire/restore; soft-retire only.',
       b: '{\n  "action": "add",\n  "kind": "style",\n  "content": "Prefers concise replies"\n}',
     },
     {

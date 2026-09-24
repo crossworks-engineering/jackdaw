@@ -29,7 +29,6 @@ import type {
   ContentIndexCoverage,
   DuplicateEdgeStats,
   FactCostCapStats,
-  PersonaNotesRow,
   ToolValidationAgg,
   TopError,
   Traffic,
@@ -129,7 +128,7 @@ const TABS: Tab[] = [
     href: '/debug/agents',
     label: 'Agents',
     icon: Bot,
-    description: "Configured agents and the reflector's persona notes.",
+    description: 'Configured agents and their activity.',
   },
   {
     href: '/debug/telegram',
@@ -187,10 +186,7 @@ function useDebugStats(): Record<string, Stat | undefined> {
   const context = useListTotal('context');
   const agents = useQuery({
     queryKey: ['debug', 'agents'],
-    queryFn: () =>
-      apiFetch<{ agents: AgentActivityRow[]; personaNotes: PersonaNotesRow[] }>(
-        '/api/debug/agents',
-      ),
+    queryFn: () => apiFetch<{ agents: AgentActivityRow[] }>('/api/debug/agents'),
     staleTime: 30_000,
   });
   const journey = useQuery({
@@ -262,12 +258,7 @@ function useDebugStats(): Record<string, Stat | undefined> {
     stats['/debug/context'] = { text: `${rows(context.data.total, 'turn')} audited` };
 
   if (agents.data) {
-    const notes = agents.data.personaNotes.length;
-    stats['/debug/agents'] = {
-      text: `${rows(agents.data.agents.length, 'agent')}${
-        notes > 0 ? ` · ${rows(notes, 'persona note')}` : ''
-      }`,
-    };
+    stats['/debug/agents'] = { text: rows(agents.data.agents.length, 'agent') };
   }
 
   if (journey.data) stats['/debug/journey'] = { text: rows(journey.data.items.length, 'action') };
