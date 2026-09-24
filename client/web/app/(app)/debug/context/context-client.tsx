@@ -132,7 +132,8 @@ function ContextCell({ snapshot }: { snapshot: ContextSnapshot | null }) {
   const counts = [
     `${snapshot.history.count} history turns`,
     `${snapshot.digests.count} digests`,
-    `${snapshot.personaNotes.count} persona notes`,
+    // Only an agent still on persona notes (notes_target = persona) has any.
+    ...(snapshot.personaNotes.count > 0 ? [`${snapshot.personaNotes.count} persona notes`] : []),
   ].join(' · ');
   return (
     <div className="space-y-3 p-3">
@@ -155,6 +156,8 @@ function ContextCell({ snapshot }: { snapshot: ContextSnapshot | null }) {
         dropped={snapshot.chunkHits.dropped}
         cutoffNote={`cutoff ${snapshot.chunkHits.cutoff}`}
       />
+      {snapshot.journal && <JournalSection journal={snapshot.journal} />}
+      {snapshot.historyRecall && <HistoryRecallSection recall={snapshot.historyRecall} />}
       {snapshot.relations.length > 0 && (
         <div>
           <CellLabel>Relations ({snapshot.relations.length})</CellLabel>
@@ -173,6 +176,108 @@ function ContextCell({ snapshot }: { snapshot: ContextSnapshot | null }) {
           <span> · topics: {snapshot.digests.topics.join(', ')}</span>
         )}
       </p>
+    </div>
+  );
+}
+
+type JournalSnap = NonNullable<ContextSnapshot['journal']>;
+type HistoryRecallSnap = NonNullable<ContextSnapshot['historyRecall']>;
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const shortId = (id: string) => id.slice(0, 8);
+
+/** What the Journal tiers sent: tier 1 (always-on), the per-message picks
+ *  (Jev's journal_recall scores when it ran) and what they made redundant. */
+function JournalSection({ journal }: { journal: JournalSnap }) {
+  const verb = journal.mode === 'live' ? 'sent' : 'would send';
+  const { recall, tier1, dedupe } = journal;
+  const redundant = dedupe.facts + dedupe.chunkHits + (dedupe.contentHits ?? 0);
+  return (
+    <div>
+      <CellLabel>
+        Journal ({journal.picked.length})
+        <span className="ml-2 font-normal normal-case text-muted-foreground/70">
+          {journal.mode}
+          {journal.skipped === 'small_talk' && ' · skipped (small talk)'}
+        </span>
+      </CellLabel>
+      <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+        {tier1 && (
+          <li>
+            Always on: {plural(tier1.shown, 'entry', 'entries')} (
+            {tier1.chars.toLocaleString('en-GB')} chars)
+            {tier1.overflow > 0 && `, ${tier1.overflow} did not fit`}
+          </li>
+        )}
+        <li>
+          Picked for this message: {plural(journal.picked.length, 'entry', 'entries')} {verb} (
+          {journal.chars.toLocaleString('en-GB')} chars)
+        </li>
+        {recall && (
+          <li>
+            Jev scored {recall.scored} of {plural(recall.rules, 'learned rule')}, picked{' '}
+            {recall.picked.length} at {recall.threshold} or more ({recall.mode}, {recall.ms} ms
+            {recall.failed > 0 && `, ${plural(recall.failed, 'group')} failed`})
+          </li>
+        )}
+        {redundant > 0 && (
+          <li>
+            Made redundant: {plural(dedupe.facts, 'fact')}, {plural(dedupe.chunkHits, 'passage')}
+            {dedupe.contentHits ? `, ${plural(dedupe.contentHits, 'content hit')}` : ''}
+          </li>
+        )}
+        {journal.gap && <li>Open question offered: {shortId(journal.gap.nodeId)}</li>}
+      </ul>
+      {journal.picked.length > 0 && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-xs text-muted-foreground">Picked entries</summary>
+          <ul className="mt-1 space-y-0.5">
+            {journal.picked.map((p) => (
+              <li key={p.nodeId} className="font-mono text-xs text-muted-foreground">
+                {p.kind} {shortId(p.nodeId)} ·{' '}
+                {p.score != null ? `score ${p.score}` : `sim ${p.similarity.toFixed(2)}`} ·{' '}
+                {p.chars} chars{p.whole ? ' · whole' : p.passage ? ' · passage' : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** The decider's history_recall: older exchanges scored, and the ones that
+ *  rejoined the history (live) or would have (shadow). */
+function HistoryRecallSection({ recall }: { recall: HistoryRecallSnap }) {
+  const verb = recall.mode === 'live' ? 'added' : 'would add';
+  const scored = recall.exchanges.filter((e) => e.score != null);
+  return (
+    <div>
+      <CellLabel>
+        History recall ({recall.wouldAdd})
+        <span className="ml-2 font-normal normal-case text-muted-foreground/70">
+          {recall.mode} · threshold {recall.threshold}
+        </span>
+      </CellLabel>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {plural(recall.exchanges.length, 'older exchange')} scored, {verb} {recall.wouldAdd} (
+        {recall.chars.toLocaleString('en-GB')} chars), {recall.ms} ms
+        {recall.cached && ', cached'}
+        {recall.failed > 0 && `, ${plural(recall.failed, 'group')} failed`}
+      </p>
+      {scored.length > 0 && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-xs text-muted-foreground">Scores</summary>
+          <ul className="mt-1 space-y-0.5">
+            {scored.map((e) => (
+              <li key={e.back} className="font-mono text-xs text-muted-foreground">
+                {e.back} back · score {e.score} · {e.chars} chars
+                {(e.score ?? 0) >= recall.threshold ? ` · ${verb}` : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

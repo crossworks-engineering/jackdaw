@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { formatMicroUsd } from '@mantle/web-ui/traces-format';
@@ -57,22 +58,45 @@ export function SpendClient() {
               </thead>
               <tbody className="divide-y divide-border">
                 {modelSpend.map((m) => (
-                  <tr key={m.model}>
-                    <td className="px-3 py-2 font-mono text-xs">{m.model}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{m.calls}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {m.tokensIn.toLocaleString('en-GB')}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {m.tokensOut.toLocaleString('en-GB')}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                      {m.cacheReadTokens.toLocaleString('en-GB')}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {formatMicroUsd(m.costMicroUsd)}
-                    </td>
-                  </tr>
+                  <Fragment key={m.model}>
+                    <tr>
+                      <td className="px-3 py-2 font-mono text-xs">{m.model}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{m.calls}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {m.tokensIn.toLocaleString('en-GB')}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {m.tokensOut.toLocaleString('en-GB')}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {m.cacheReadTokens.toLocaleString('en-GB')}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {formatMicroUsd(m.costMicroUsd)}
+                      </td>
+                    </tr>
+                    {/* The decider's calls split by use (decide_<use> steps). */}
+                    {m.uses?.map((u) => (
+                      <tr key={`${m.model}:${u.use}`} className="text-xs text-muted-foreground">
+                        <td className="py-1.5 pl-8 pr-3 font-mono">{u.use}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {u.calls}
+                          {u.failed > 0 && (
+                            <span className="ml-1 text-warning-ink">({u.failed} failed)</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {u.tokensIn.toLocaleString('en-GB')}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums" colSpan={2}>
+                          {u.avgMs != null ? `avg ${u.avgMs} ms` : ''}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {formatMicroUsd(u.costMicroUsd)}
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
