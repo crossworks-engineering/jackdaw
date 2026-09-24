@@ -33,6 +33,7 @@ import type {
   RunHistoryEntry,
   StartRunRequest,
 } from '@mantle/web-ui/types/maintenance';
+import { ArgsRunButtons } from './maintenance-args-run';
 
 const KIND_ORDER = ['recurring', 'remedy', 'ops', 'backfill'] as const;
 const KIND_LABELS: Record<(typeof KIND_ORDER)[number], string> = {
@@ -76,10 +77,12 @@ function StatePill({ run }: { run: MaintenanceRunView }) {
 function RunButtons({
   task,
   busy,
+  lastLines,
   onStart,
 }: {
   task: MaintenanceTaskInfo;
   busy: boolean;
+  lastLines?: string[];
   onStart: (req: Omit<StartRunRequest, 'slug'>) => void;
 }) {
   if (!task.uiRunnable) {
@@ -94,6 +97,10 @@ function RunButtons({
         needs env: {task.missingEnv.join(', ')}
       </span>
     );
+  }
+
+  if (task.args?.length) {
+    return <ArgsRunButtons task={task} busy={busy} lastLines={lastLines} onStart={onStart} />;
   }
 
   const spend = task.cost === 'llm' || task.cost === 'embedding';
@@ -334,6 +341,7 @@ export function MaintenanceView() {
                   <RunButtons
                     task={t}
                     busy={Boolean(running)}
+                    lastLines={run?.slug === t.slug ? run.lines : undefined}
                     onStart={(req) => start(t.slug, req)}
                   />
                 </li>
