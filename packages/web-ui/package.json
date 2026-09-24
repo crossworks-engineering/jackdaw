@@ -153,7 +153,7 @@
   },
   "dependencies": {
     "@dicebear/core": "^10.7.0",
-    "@mantle/client-types": "npm:@crossworks/client-types@0.232.216",
+    "@mantle/client-types": "npm:@crossworks/client-types@0.232.236",
     "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.85",
     "@radix-ui/react-alert-dialog": "^1.1.23",
     "@radix-ui/react-avatar": "^1.2.6",
