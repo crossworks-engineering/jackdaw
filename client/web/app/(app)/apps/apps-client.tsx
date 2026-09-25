@@ -40,10 +40,16 @@ import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppRow } from '@mantle/client-types';
+import { appNavAppIds } from '@mantle/web-ui/lib/app-nav-tree';
+import { AppsTree } from '@/components/app-nav/apps-tree';
+import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
 import type { AppRowWithColor } from '@mantle/web-ui/types/app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
+
+/** What the preview pane and the delete dialog need, from either list. */
+type SelectedApp = { id: string; title: string; hasBuild: boolean };
 
 /**
  * One badge for the app's exposure, most-specific wins: Hub (the designated
@@ -121,19 +127,57 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   const { pending, go } = useListNav();
   const { zen } = useZenMode();
 
+  // The organised list: the brain's folder tree (GET /api/app-nav). A brain on
+  // a release before app nav answers 404, and the page keeps the flat,
+  // paginated list below it.
+  const { data: nav, unsupported } = useAppNav();
+  const treeMode = !unsupported && nav !== undefined;
+
+  // Everything selectable in the current mode, in the order a fresh visit
+  // should pick from: pins first, then the tree, then the rest.
+  const choices: SelectedApp[] = useMemo(() => {
+    if (!treeMode || !nav) return apps;
+    const byId = new Map(nav.apps.map((a) => [a.id, a]));
+    const order = [...nav.pins, ...appNavAppIds(nav.nav.entries), ...nav.apps.map((a) => a.id)];
+    const seen = new Set<string>();
+    return order
+      .filter((id) => !seen.has(id) && seen.add(id) && byId.has(id))
+      .map((id) => byId.get(id)!);
+  }, [treeMode, nav, apps]);
+
   const [selectedId, setSelectedId] = useState<string | null>(apps[0]?.id ?? null);
   const [q, setQ] = useState(query);
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<AppRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SelectedApp | null>(null);
 
-  // Keep a valid selection as the list changes (filter/page).
+  // Keep a valid selection as the list changes (filter/page, a deleted app,
+  // or the switch from the first paint's flat list to the tree).
   useEffect(() => {
-    if (!apps.some((a) => a.id === selectedId)) setSelectedId(apps[0]?.id ?? null);
-  }, [apps, selectedId]);
+    if (!choices.some((a) => a.id === selectedId)) setSelectedId(choices[0]?.id ?? null);
+  }, [choices, selectedId]);
 
-  const selected = useMemo(() => apps.find((a) => a.id === selectedId) ?? null, [apps, selectedId]);
+  const selected = useMemo(
+    () => choices.find((a) => a.id === selectedId) ?? null,
+    [choices, selectedId],
+  );
 
-  async function handleDelete(app: AppRow) {
+  const createButton = (
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon-sm" aria-label="New app" title="New app">
+          <Plus />
+        </Button>
+      </DialogTrigger>
+      <CreateAppDialog
+        onCreated={(id) => {
+          setCreateOpen(false);
+          router.push(`/apps/${id}`);
+        }}
+      />
+    </Dialog>
+  );
+
+  async function handleDelete(app: SelectedApp) {
     try {
       await apiSend(`/api/apps/${app.id}`, 'DELETE');
     } catch {
@@ -143,6 +187,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
     toast.success(`Deleted "${app.title}".`);
     setDeleteTarget(null);
     void queryClient.invalidateQueries({ queryKey: ['apps'] });
+    void queryClient.invalidateQueries({ queryKey: APP_NAV_KEY });
   }
 
   return (
@@ -159,81 +204,73 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         // prop's note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          <>
-            <div className="flex items-center gap-2 border-b border-border p-2">
-              <form
-                className="flex-1"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  go({ q: q || null, page: null });
-                }}
-              >
-                <Input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search apps…"
-                  className="h-9"
-                />
-              </form>
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button size="icon-sm" aria-label="New app">
-                    <Plus />
-                  </Button>
-                </DialogTrigger>
-                <CreateAppDialog
-                  onCreated={(id) => {
-                    setCreateOpen(false);
-                    router.push(`/apps/${id}`);
+          treeMode ? (
+            <AppsTree selectedId={selectedId} onSelect={setSelectedId} actions={createButton} />
+          ) : (
+            <>
+              <div className="flex items-center gap-2 border-b border-border p-2">
+                <form
+                  className="flex-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    go({ q: q || null, page: null });
                   }}
-                />
-              </Dialog>
-            </div>
+                >
+                  <Input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search apps…"
+                    className="h-9"
+                  />
+                </form>
+                {createButton}
+              </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-3">
-              {apps.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  No apps yet. Create one, or ask Saskia to “build me an app”.
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {apps.map((app) => (
-                    <li key={app.id}>
-                      <ListCard
-                        selected={app.id === selectedId}
-                        onClick={() => setSelectedId(app.id)}
-                      >
-                        <span className="flex items-center gap-2 text-sm font-medium">
-                          <AppTile
-                            icon={app.icon}
-                            color={(app as AppRowWithColor).color}
-                            size="md"
-                          />
-                          <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
-                          <span className="ml-auto flex shrink-0 items-center gap-1">
-                            {app.hasDraft && <Badge variant="secondary">draft</Badge>}
-                            <ExposureBadge app={app} />
+              <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-3">
+                {apps.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    No apps yet. Create one, or ask Saskia to “build me an app”.
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {apps.map((app) => (
+                      <li key={app.id}>
+                        <ListCard
+                          selected={app.id === selectedId}
+                          onClick={() => setSelectedId(app.id)}
+                        >
+                          <span className="flex items-center gap-2 text-sm font-medium">
+                            <AppTile
+                              icon={app.icon}
+                              color={(app as AppRowWithColor).color}
+                              size="md"
+                            />
+                            <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
+                            <span className="ml-auto flex shrink-0 items-center gap-1">
+                              {app.hasDraft && <Badge variant="secondary">draft</Badge>}
+                              <ExposureBadge app={app} />
+                            </span>
                           </span>
-                        </span>
-                        {app.description && (
-                          <ListCardSnippet className="line-clamp-1">
-                            {app.description}
-                          </ListCardSnippet>
-                        )}
-                      </ListCard>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <ListPager
-              page={page}
-              total={total}
-              pageSize={pageSize}
-              pending={pending}
-              onGo={(p) => go({ page: p })}
-            />
-          </>
+                          {app.description && (
+                            <ListCardSnippet className="line-clamp-1">
+                              {app.description}
+                            </ListCardSnippet>
+                          )}
+                        </ListCard>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <ListPager
+                page={page}
+                total={total}
+                pageSize={pageSize}
+                pending={pending}
+                onGo={(p) => go({ page: p })}
+              />
+            </>
+          )
         }
         detail={
           /* The app gets the full pane (viewport frame) and handles its own

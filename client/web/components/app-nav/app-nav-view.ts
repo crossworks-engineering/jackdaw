@@ -1,13 +1,10 @@
 import type { AppNavEntry, AppNavItem, AppNavResponse } from '@mantle/web-ui/types/app-nav';
 
 /**
- * Pure derivations the sidebar renders from one AppNavResponse. Kept out of
+ * Pure derivations the /apps list tree renders from one AppNavResponse. Kept out of
  * the component so the rules (what "unsorted" means, how search ranks, what
  * counts as recent) are testable without a DOM.
  */
-
-/** Where an app opens from the sidebar: the full-pane runner. */
-export const appRunHref = (id: string) => `/apps/${id}/run`;
 
 /** Folder names from the root down to each placed app. */
 export function folderPaths(entries: readonly AppNavEntry[]): Map<string, string[]> {

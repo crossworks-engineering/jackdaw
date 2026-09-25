@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search, Star, X } from 'lucide-react';
@@ -16,9 +16,6 @@ import {
   TooltipTrigger,
 } from '@mantle/web-ui/ui/tooltip';
 import { useRealtime } from '@/components/realtime/use-realtime';
-import { SidebarApps } from '@/components/app-nav/sidebar-apps';
-import { searchApps } from '@/components/app-nav/app-nav-view';
-import { useAppNav } from '@/components/app-nav/use-app-nav';
 import { activeNavHref } from '@/lib/nav-active';
 import { favoriteItems, useNavFavorites } from '@/lib/nav-favorites';
 import { NAV_SCOPES, scopeGroups, useNavScope } from '@/lib/nav-scope';
@@ -54,9 +51,6 @@ export function SidebarNav({
 
   const { favorites, isFavorite, toggleFavorite } = useNavFavorites();
   const { scope, setScope } = useNavScope();
-  // The brain's apps, for the Apps section and so a search that only matches
-  // an app doesn't claim "No matches".
-  const { data: appNav } = useAppNav();
 
   // The shared nav list, with the live pending-approvals badge injected onto
   // the Pending item at render time.
@@ -115,10 +109,6 @@ export function SidebarNav({
         .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
         .filter((g) => g.items.length > 0)
     : browseGroups;
-
-  const appHits = filtering && appNav ? searchApps(appNav, q).length : 0;
-  const appsHere = !collapsed && browseGroups.some((g) => g.label === 'Workspace');
-  const favoritesFirst = browseGroups[0]?.label === 'Favorites';
 
   const renderItem = (item: NavItem) => {
     const active = isActive(item);
@@ -291,31 +281,11 @@ export function SidebarNav({
           </div>
         )}
 
-        {visibleGroups.length === 0 && appHits === 0 ? (
+        {visibleGroups.length === 0 ? (
           <p className="px-3 py-2 text-sm text-muted-foreground">No matches.</p>
-        ) : filtering ? (
-          <>
-            {visibleGroups.map((group) => (
-              <NavGroupBlock key={group.label} group={group} renderItem={renderItem} />
-            ))}
-            <SidebarApps query={q} onNavigate={onNavigate} />
-          </>
         ) : (
-          visibleGroups.map((group, i) => (
-            <Fragment key={group.label}>
-              {/* The Apps section sits right under Favorites, or first when
-                  nothing is starred: the apps a brain builds are its most
-                  used destinations, so they don't belong below sixteen
-                  built-in screens. Only in scopes that show Workspace, and
-                  never at icon-rail width, where the plain Apps row stays. */}
-              {appsHere && i === 0 && !favoritesFirst && (
-                <SidebarApps query="" onNavigate={onNavigate} />
-              )}
-              <NavGroupBlock group={group} renderItem={renderItem} />
-              {appsHere && i === 0 && favoritesFirst && (
-                <SidebarApps query="" onNavigate={onNavigate} />
-              )}
-            </Fragment>
+          visibleGroups.map((group) => (
+            <NavGroupBlock key={group.label} group={group} renderItem={renderItem} />
           ))
         )}
       </nav>

@@ -30,6 +30,7 @@ export function AppLookPicker({
   onChange,
   trigger,
   anchor,
+  virtualAnchor,
   open: openProp,
   onOpenChange,
   align = 'start',
@@ -45,6 +46,8 @@ export function AppLookPicker({
   trigger?: ReactNode;
   /** …or, opened from elsewhere (a row's menu), the element to sit beside. */
   anchor?: ReactNode;
+  /** …or a DOM element to sit beside, without wrapping it. */
+  virtualAnchor?: HTMLElement | null;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   align?: 'start' | 'center' | 'end';
@@ -116,10 +119,20 @@ export function AppLookPicker({
     >
       {trigger ? (
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      ) : virtualAnchor !== undefined ? (
+        <PopoverAnchor virtualRef={{ current: virtualAnchor }} />
       ) : (
         <PopoverAnchor asChild>{anchor}</PopoverAnchor>
       )}
-      <PopoverContent align={align} side={side} className="w-80 p-3">
+      <PopoverContent
+        align={align}
+        side={side}
+        className="w-80 p-3"
+        // Close on a click outside or Escape, never on focus moving: a row
+        // menu that opens this picker refocuses itself while it animates
+        // closed, which read as "focus left" and shut the picker instantly.
+        onFocusOutside={(e) => e.preventDefault()}
+      >
         <div className="mb-3 flex items-center gap-3">
           <AppTile icon={icon} color={color} kind={kind} size="lg" />
           <p className="min-w-0 truncate text-sm font-medium">{label}</p>

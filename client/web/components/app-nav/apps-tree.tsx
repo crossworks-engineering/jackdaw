@@ -4,12 +4,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -21,9 +21,19 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from '@dnd-kit/core';
-import { ChevronRight, FolderPlus, Inbox, MoreHorizontal, Pin, PinOff, Tag } from 'lucide-react';
+import {
+  ChevronRight,
+  FolderPlus,
+  Inbox,
+  MoreHorizontal,
+  Pin,
+  PinOff,
+  Search,
+  Tag,
+} from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Input } from '@mantle/web-ui/ui/input';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -61,7 +71,6 @@ import { AppTile } from './app-tile';
 import { AppLookPicker, type AppLook } from './app-look-picker';
 import { DeleteFolderDialog, FolderNameDialog } from './folder-dialogs';
 import {
-  appRunHref,
   appTags,
   folderAppCount,
   folderPaths,
@@ -73,20 +82,20 @@ import {
 import { recordAppOpen, useAppNav, type LayoutOp } from './use-app-nav';
 
 /**
- * The sidebar's Apps section: pinned apps, the brain's folder tree, and the
- * unsorted apps below it. Folders nest up to three deep; expanding one draws
- * dotted ├ / └ guides from each child back to its parent.
+ * The /apps list column, organised: pinned apps, the brain's folder tree, and
+ * the unsorted apps below it. Folders nest up to three deep; expanding one
+ * draws dotted guides from each child back to its parent. Selecting an app
+ * shows it in the page's preview pane.
  *
  * What syncs and what doesn't:
  *  - the tree, folder names/icons/colours and each app's icon/colour are the
  *    BRAIN's (every admin, every device);
  *  - pins and the Recent / Most used counts are this LOGIN's;
- *  - which folders are open, the section fold and the chosen view are this
- *    BROWSER's (localStorage): how a list is folded on a laptop says nothing
- *    about how it should look on a phone.
+ *  - which folders are open and the chosen view are this BROWSER's
+ *    (localStorage): how a list is folded on a laptop says nothing about how
+ *    it should look on a phone.
  *
- * Searching is the sidebar's own "Filter menu…" box (`query`): while it holds
- * text this section lists matching apps flat, each with its folder path.
+ * The search box lists matching apps flat, each with its folder path.
  */
 
 const INDENT = 20; // px per level; the guide for level d sits at d*INDENT + 10
@@ -142,11 +151,20 @@ type DropHint = { over: string; pos: DropPos } | null;
 const treeKey = (id: string) => `t:${id}`;
 const unsortedKey = (id: string) => `u:${id}`;
 
-export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?: () => void }) {
+export function AppsTree({
+  selectedId,
+  onSelect,
+  actions,
+}: {
+  selectedId: string | null;
+  onSelect: (appId: string) => void;
+  /** Extra toolbar controls (the page's New app button). */
+  actions?: ReactNode;
+}) {
+  const [query, setQuery] = useState('');
   const { data, query: q, unsupported, editLayout, togglePin, setAppLook } = useAppNav();
   const qc = useQueryClient();
   const toast = useToast();
-  const pathname = usePathname();
 
   const [closedList, setClosed] = useLocal<string[]>(
     'mantle_app_nav_closed_v1',
@@ -154,9 +172,6 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
     parseStringArray,
   );
   const closed = useMemo(() => new Set(closedList), [closedList]);
-  const [sectionOpen, setSectionOpen] = useLocal('mantle_app_nav_section_v1', true, (r) =>
-    r === 'false' ? false : true,
-  );
   const [view, setView] = useLocal<View>('mantle_app_nav_view_v1', 'tree', (r) =>
     VIEWS.some((v) => v.id === r) ? (r as View) : null,
   );
@@ -166,7 +181,12 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
     { mode: 'new'; parent: AppNavFolder | null } | { mode: 'rename'; folder: AppNavFolder } | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<AppNavFolder | null>(null);
+  // The icon-and-colour picker: ONE popover for the whole tree, anchored to
+  // the row it was opened from. Wrapping the row itself in a popover on demand
+  // remounted the row, and the closing row menu handed focus back to its
+  // trigger, which the new popover took as a click outside and closed on.
   const [lookFor, setLookFor] = useState<string | null>(null);
+  const rowEls = useRef(new Map<string, HTMLElement>());
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [hint, setHint] = useState<DropHint>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -175,6 +195,9 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
 
   const toggleFolder = (id: string) =>
     setClosed(closed.has(id) ? closedList.filter((c) => c !== id) : [...closedList, id]);
+
+  // After the menu's own close has run, so the picker isn't born into it.
+  const openLook = (key: string) => window.setTimeout(() => setLookFor(key), 0);
 
   const edit = (op: LayoutOp, failure?: string) => {
     if (!editLayout(op) && failure) toast.error(failure);
@@ -196,8 +219,6 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
   const entries = data.nav.entries;
   const unsorted = unsortedApps(data);
   const hasFolders = entries.some((e) => e.kind === 'folder');
-  const isActiveApp = (id: string) =>
-    pathname === `/apps/${id}` || pathname.startsWith(`/apps/${id}/`);
   const tags = appTags(data);
   const allFolders = flattenAppNav(entries, () => true).filter(
     (r): r is AppNavRow & { entry: AppNavFolder } => r.entry.kind === 'folder',
@@ -235,15 +256,16 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
     return ((es: AppNavEntry[]) => placeAppNavApp(es, id, parent, index)) as LayoutOp;
   };
 
-  const onDragMove = (e: DragMoveEvent) => {
+  // Where a drop would land, from the dragged row's position over its target.
+  // Used for the live indicator AND at release: a quick drag can end without
+  // a move event after activation, so the drop must not rely on hint state.
+  const dropAt = (e: DragMoveEvent | DragEndEvent): DropHint => {
     const { active, over } = e;
     const rect = active.rect.current.translated;
-    if (!over || !rect) return setHint(null);
+    if (!over || !rect) return null;
     const overId = String(over.id);
     if (overId === UNSORTED || overId.startsWith('u:')) {
-      return setHint(
-        active.id.toString().startsWith('t:') ? { over: UNSORTED, pos: 'unsort' } : null,
-      );
+      return String(active.id).startsWith('t:') ? { over: UNSORTED, pos: 'unsort' } : null;
     }
     const rel = (rect.top + rect.height / 2 - over.rect.top) / over.rect.height;
     const isFolder = findAppNavEntry(entries, overId.slice(2))?.entry.kind === 'folder';
@@ -256,15 +278,16 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
       : rel < 0.5
         ? 'before'
         : 'after';
-    const valid = dropTarget(String(active.id), overId, pos) !== null;
-    setHint(valid ? { over: overId, pos } : null);
+    return dropTarget(String(active.id), overId, pos) !== null ? { over: overId, pos } : null;
   };
 
+  const onDragMove = (e: DragMoveEvent) => setHint(dropAt(e));
+
   const onDragEnd = (e: DragEndEvent) => {
-    const h = hint;
+    const h = dropAt(e);
     setHint(null);
     setDragging(null);
-    if (!h || !e.over) return;
+    if (!h) return;
     const op = dropTarget(String(e.active.id), h.over, h.pos);
     if (op) edit(op, `Folders nest at most ${APP_NAV_MAX_DEPTH} levels deep.`);
   };
@@ -355,27 +378,39 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
   const appMenu = (app: AppNavItem, key: string) => {
     const pinned = data.pins.includes(app.id);
     return (
-      <DropdownMenuContent align="start" side="right" className="w-52">
+      <DropdownMenuContent
+        align="start"
+        side="right"
+        className="w-52"
+        // Focus must not return to the "…" trigger: when the menu opens the
+        // picker, that focus lands outside the picker and closes it.
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <DropdownMenuItem onSelect={() => togglePin(app.id)}>
           {pinned ? <PinOff /> : <Pin />}
           {pinned ? 'Unpin' : 'Pin to top'}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setLookFor(key)}>Icon and colour…</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openLook(key)}>Icon and colour…</DropdownMenuItem>
         <DropdownMenuSeparator />
         {moveToItems(app.id, false)}
         {orderItems(app.id)}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href={`/apps/${app.id}`} onClick={() => onNavigate?.()}>
-            Open editor
-          </Link>
+          <Link href={`/apps/${app.id}`}>Open editor</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     );
   };
 
   const folderMenu = (folder: AppNavFolder, depth: number, key: string) => (
-    <DropdownMenuContent align="start" side="right" className="w-52">
+    <DropdownMenuContent
+      align="start"
+      side="right"
+      className="w-52"
+      // Focus must not return to the "…" trigger: when the menu opens the
+      // picker, that focus lands outside the picker and closes it.
+      onCloseAutoFocus={(e) => e.preventDefault()}
+    >
       {depth + 1 < APP_NAV_MAX_DEPTH && (
         <DropdownMenuItem onSelect={() => setFolderDialog({ mode: 'new', parent: folder })}>
           <FolderPlus />
@@ -385,7 +420,7 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
       <DropdownMenuItem onSelect={() => setFolderDialog({ mode: 'rename', folder })}>
         Rename…
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => setLookFor(key)}>Icon and colour…</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => openLook(key)}>Icon and colour…</DropdownMenuItem>
       <DropdownMenuSeparator />
       {moveToItems(folder.id, true)}
       {orderItems(folder.id)}
@@ -433,6 +468,8 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
     return out;
   };
 
+  // Every row's look, collected as the rows render, for the one picker.
+  const looks = new Map<string, NonNullable<Parameters<typeof rowShell>[0]['look']>>();
   const rowShell = (opts: {
     key: string;
     dragKey?: string;
@@ -448,64 +485,58 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
       onChange: (l: AppLook) => void;
     };
     body: (style: CSSProperties) => ReactNode;
-  }) => (
-    <DndRow
-      key={opts.key}
-      rowKey={opts.key}
-      dragKey={opts.dragKey}
-      hint={hint}
-      dragging={dragging === opts.dragKey}
-    >
-      {(dnd) => {
-        const row = (
-          <div
-            className="group/app-row relative flex items-center"
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenuFor(opts.key);
-            }}
-            {...dnd}
-          >
-            {guides({ depth: opts.depth, isLast: opts.isLast, guides: opts.guideFlags })}
-            {opts.body({ paddingLeft: ROW_PAD + opts.depth * INDENT })}
-            <DropdownMenu
-              open={menuFor === opts.key}
-              onOpenChange={(o) => setMenuFor(o ? opts.key : null)}
+  }): ReactNode => {
+    if (opts.look) looks.set(opts.key, opts.look);
+    return (
+      <DndRow
+        key={opts.key}
+        rowKey={opts.key}
+        dragKey={opts.dragKey}
+        hint={hint}
+        dragging={dragging === opts.dragKey}
+      >
+        {(dnd) => {
+          const row = (
+            <div
+              ref={(el) => {
+                if (el) rowEls.current.set(opts.key, el);
+                else rowEls.current.delete(opts.key);
+              }}
+              className="group/app-row relative flex items-center"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenuFor(opts.key);
+              }}
+              {...dnd}
             >
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-2xs"
-                  aria-label="More actions"
-                  className={cn(
-                    'absolute right-0.5 top-1/2 shrink-0 -translate-y-1/2 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/app-row:opacity-100',
-                    menuFor === opts.key && 'opacity-100',
-                  )}
-                >
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              {opts.menu}
-            </DropdownMenu>
-          </div>
-        );
-        if (lookFor !== opts.key || !opts.look) return row;
-        return (
-          <AppLookPicker
-            open
-            onOpenChange={(o) => !o && setLookFor(null)}
-            anchor={row}
-            side="right"
-            icon={opts.look.icon}
-            color={opts.look.color}
-            kind={opts.look.kind}
-            label={opts.look.label}
-            onChange={opts.look.onChange}
-          />
-        );
-      }}
-    </DndRow>
-  );
+              {guides({ depth: opts.depth, isLast: opts.isLast, guides: opts.guideFlags })}
+              {opts.body({ paddingLeft: ROW_PAD + opts.depth * INDENT })}
+              <DropdownMenu
+                open={menuFor === opts.key}
+                onOpenChange={(o) => setMenuFor(o ? opts.key : null)}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-2xs"
+                    aria-label="More actions"
+                    className={cn(
+                      'absolute right-0.5 top-1/2 shrink-0 -translate-y-1/2 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/app-row:opacity-100',
+                      menuFor === opts.key && 'opacity-100',
+                    )}
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                {opts.menu}
+              </DropdownMenu>
+            </div>
+          );
+          return row;
+        }}
+      </DndRow>
+    );
+  };
 
   const appRow = (
     app: AppNavItem,
@@ -533,31 +564,29 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
         onChange: (l) => void setAppLook(app.id, l),
       },
       body: (style) => (
-        <Link
-          href={appRunHref(app.id)}
+        <RowButton
           onClick={() => {
             recordAppOpen(qc, app.id);
-            onNavigate?.();
+            onSelect(app.id);
           }}
-          aria-current={isActiveApp(app.id) ? 'page' : undefined}
+          aria-current={selectedId === app.id ? 'true' : undefined}
           title={o.path?.length ? `${o.path.join(' / ')} / ${app.title}` : app.title}
           style={style}
           className={cn(
-            'flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md pr-7 text-sm transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            isActiveApp(app.id)
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+            'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-8 text-sm',
+            selectedId === app.id
+              ? 'bg-accent text-accent-foreground'
+              : 'text-foreground/90 hover:bg-foreground/[0.06]',
           )}
         >
           <AppTile icon={app.icon} color={app.color} size="sm" />
           <span className="min-w-0 flex-1 truncate">{app.title}</span>
           {o.path && o.path.length > 0 && (
-            <span className="max-w-[45%] shrink truncate text-[11px] text-muted-foreground/80">
+            <span className="max-w-[45%] shrink truncate text-[11px] text-muted-foreground">
               {o.path.join(' / ')}
             </span>
           )}
-        </Link>
+        </RowButton>
       ),
     });
 
@@ -590,7 +619,7 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
           onClick={() => toggleFolder(f.id)}
           aria-expanded={open}
           style={style}
-          className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md pr-7 text-sm font-medium text-foreground/85 transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-8 text-sm font-medium text-foreground/85 hover:bg-foreground/[0.06]"
         >
           <AppTile icon={f.icon} color={f.color} kind="folder" size="sm" />
           <span className="min-w-0 flex-1 truncate text-left">{f.name}</span>
@@ -702,7 +731,7 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
                       onClick={() => toggleFolder(UNSORTED)}
                       aria-expanded={unsortedOpen}
                       style={{ paddingLeft: ROW_PAD }}
-                      className="flex h-7 w-full items-center gap-2 rounded-md pr-2 text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex h-8 w-full items-center gap-2 rounded-md pr-2 text-sm text-muted-foreground hover:bg-foreground/[0.06]"
                     >
                       <span className="inline-flex size-5 items-center justify-center rounded-[5px] border border-dashed border-muted-foreground/40">
                         <Inbox className="size-3" aria-hidden />
@@ -739,15 +768,8 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
               )
             ))}
           {data.apps.length === 0 && (
-            <p className="px-3 py-1 text-xs text-muted-foreground">
-              No apps yet.{' '}
-              <Link
-                href="/apps"
-                className="underline underline-offset-2"
-                onClick={() => onNavigate?.()}
-              >
-                Create one
-              </Link>
+            <p className="p-6 text-center text-sm text-muted-foreground">
+              No apps yet. Create one, or ask Saskia to “build me an app”.
             </p>
           )}
         </div>
@@ -755,33 +777,70 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
     );
   }
 
-  if (searching && body === null) return null;
+  if (searching && body === null) {
+    body = (
+      <p className="p-6 text-center text-sm text-muted-foreground">
+        No apps match. Try a folder name or a tag.
+      </p>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <div className="group/apps-head flex items-center gap-1 pr-1">
-        <RowButton
-          onClick={() => setSectionOpen(!sectionOpen, String)}
-          aria-expanded={sectionOpen}
-          className="flex flex-1 items-center gap-1 px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-        >
-          Apps
-          <ChevronRight
-            aria-hidden
-            className={cn('size-3 transition-transform', sectionOpen && 'rotate-90')}
-          />
-        </RowButton>
-        {!searching && sectionOpen && (
-          <>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex flex-col gap-2 border-b border-border p-2">
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+              placeholder="Search apps, folders, tags"
+              aria-label="Search apps"
+              className="h-9 pl-8"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="New folder"
+            title="New folder"
+            onClick={() => setFolderDialog({ mode: 'new', parent: null })}
+          >
+            <FolderPlus />
+          </Button>
+          {actions}
+        </div>
+        {!searching && data.apps.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={view}
+              onValueChange={(v) => v && setView(v as View, String)}
+              aria-label="How to list apps"
+              className="grid flex-1 grid-cols-4"
+            >
+              {VIEWS.map((v) => (
+                <ToggleGroupItem key={v.id} value={v.id} className="h-8 px-1 text-xs">
+                  {v.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
             {tags.length > 0 && view === 'az' && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="icon-2xs"
+                    variant="outline"
+                    size="icon-xs"
                     aria-label="Filter by tag"
-                    title="Filter by tag"
-                    className={cn('text-muted-foreground', tag && 'text-foreground')}
+                    title={tag ? `Tag: ${tag}` : 'Filter by tag'}
+                    className={cn(tag && 'bg-accent text-accent-foreground')}
                   >
                     <Tag />
                   </Button>
@@ -805,41 +864,21 @@ export function SidebarApps({ query, onNavigate }: { query: string; onNavigate?:
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <Button
-              variant="ghost"
-              size="icon-2xs"
-              aria-label="New folder"
-              title="New folder"
-              className="text-muted-foreground"
-              onClick={() => setFolderDialog({ mode: 'new', parent: null })}
-            >
-              <FolderPlus />
-            </Button>
-          </>
+          </div>
         )}
       </div>
 
-      {(sectionOpen || searching) && (
-        <>
-          {!searching && data.apps.length > 0 && (
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              value={view}
-              onValueChange={(v) => v && setView(v as View, String)}
-              aria-label="How to list apps"
-              className="mb-1 grid w-full grid-cols-4 px-1"
-            >
-              {VIEWS.map((v) => (
-                <ToggleGroupItem key={v.id} value={v.id} className="h-7 px-1 text-[11px]">
-                  {v.label}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          )}
-          {body}
-        </>
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">{body}</div>
+
+      {lookFor && looks.get(lookFor) && (
+        <AppLookPicker
+          open
+          onOpenChange={(o) => !o && setLookFor(null)}
+          virtualAnchor={rowEls.current.get(lookFor) ?? null}
+          side="right"
+          align="start"
+          {...looks.get(lookFor)!}
+        />
       )}
 
       <FolderNameDialog
