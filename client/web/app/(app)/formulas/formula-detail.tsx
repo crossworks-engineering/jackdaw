@@ -1,6 +1,8 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
+import type { AccessLevel } from '@mantle/client-types';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import katex from 'katex';
 import { AlertTriangle, Pencil, Sigma, Trash2 } from 'lucide-react';
 import type { CoverageGap, FormulaSpec, FormulaValue } from '@mantle/content-core/formula-spec';
@@ -49,7 +51,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { parseInputText } from '@mantle/content-core/formula-eval';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 
 export type FormulaRow = {
   id: string;
@@ -59,6 +61,8 @@ export type FormulaRow = {
   summary: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Access level; absent from brains older than the level rows. */
+  audience?: AccessLevel;
 };
 
 type EvalResponse =
@@ -293,6 +297,7 @@ export function FormulaDetail({
                 {spec.unitSystem}
               </Badge>
             ) : null}
+            <AudienceBadge level={formula.audience} />
           </h2>
           {cite ? <p className="mt-1 text-xs text-muted-foreground">{cite}</p> : null}
         </div>
@@ -304,11 +309,10 @@ export function FormulaDetail({
               not in TEAM_WORKSPACE_TYPES (a deliberate whitelist), so that
               would be false here. Listing formulas in the hub is deferred
               work; until then the link must be passed along directly. */}
-          <ShareControl
+          <AccessControl
             nodeId={formula.id}
             iconOnly
-            teamMode
-            teamHint="Visitors must enter their team token to open the calculator. Formulas don't appear in the team workspace yet — send the link directly."
+            hint="Formulas don’t appear in the team workspace yet: at Client or Public, send the link directly."
           />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil />

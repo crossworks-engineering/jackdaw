@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/react';
@@ -89,7 +90,7 @@ import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { TagInput } from '@/components/tag-input';
 import { PageView } from '@/components/page-editor/page-view';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { buildPageToc } from '@mantle/content-core/page-toc';
 import { FocusToggle } from '@/components/layout/focus-toggle';
@@ -958,6 +959,7 @@ function PageCard({
           <ListCardTitle wrap className="min-w-0 flex-1">
             {row.title}
           </ListCardTitle>
+          <AudienceBadge level={row.audience} className="mt-0.5" />
         </RowButton>
 
         {location &&
@@ -1331,6 +1333,7 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               Draft · uncommitted
             </span>
           )}
+          <AudienceBadge level={row.audience} />
         </h2>
         <div className="flex shrink-0 gap-2">
           <ExportMenu nodeId={row.id} />
@@ -1339,7 +1342,7 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               serves the last COMMITTED page — which is what /s renders in any
               case. The "Draft · uncommitted" badge beside the title is what
               says so. */}
-          <ShareControl nodeId={row.id} teamMode allowCascade />
+          <AccessControl nodeId={row.id} />
           {/* This header survives focus mode (the shell's chrome doesn't), so
               the toggle here is the whole control, enter and exit. */}
           <FocusToggle />

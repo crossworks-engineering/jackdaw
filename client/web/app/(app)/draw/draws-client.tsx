@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AccessLevel } from '@mantle/client-types';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,7 +32,7 @@ import { syncSelectionParam } from '@/lib/url-sync';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { drawSnapshotClass } from '@/components/draw/snapshot-theme';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { DrawViewer } from '@/components/draw/draw-viewer';
 import { Move } from 'lucide-react';
@@ -49,6 +51,8 @@ type DrawRow = {
   hasDraft: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Access level; absent from brains older than the level rows. */
+  audience?: AccessLevel;
 };
 
 type ListResponse = {
@@ -273,6 +277,7 @@ export function DrawsClient() {
                                   aria-label="Uncommitted edits"
                                 />
                               )}
+                              <AudienceBadge level={d.audience} />
                             </div>
                             {d.summary ? <ListCardSnippet>{d.summary}</ListCardSnippet> : null}
                           </div>
@@ -423,6 +428,7 @@ function DrawPreview({
                 Draft · uncommitted
               </span>
             )}
+            <AudienceBadge level={draw.audience} />
           </h2>
           {/* The user's own one-liner wins; the extractor's summary fills in
               when none was written. */}
@@ -437,7 +443,7 @@ function DrawPreview({
               the editor, which a list screen cannot do, so the link serves the
               last COMMITTED scene. The "Draft · uncommitted" badge says when
               that is behind. */}
-          <ShareControl nodeId={draw.id} teamMode />
+          <AccessControl nodeId={draw.id} />
           {/* The snapshot can't be panned or zoomed, so a diagram bigger than
               the pane was unreadable without opening it for EDITING. This
               mounts the real canvas in upstream's view mode instead: pan and

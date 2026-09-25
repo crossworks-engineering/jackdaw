@@ -27,7 +27,7 @@ import {
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { TaskForm, taskToForm, type TaskPayload } from './task-form';
 import { PRIORITY_BADGE, STATUSES, STATUS_BADGE, STATUS_LABEL, type Status } from './task-meta';
 import { TaskTodos } from './task-todos';
@@ -134,7 +134,7 @@ export function TaskDetail({
             </h2>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ShareControl nodeId={task.id} iconOnly teamMode />
+            <AccessControl nodeId={task.id} iconOnly />
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil /> Edit
             </Button>

@@ -38,7 +38,8 @@ import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppRow } from '@mantle/client-types';
@@ -51,40 +52,6 @@ type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number 
 
 /** What the preview pane and the delete dialog need, from either list. */
 type SelectedApp = { id: string; title: string; hasBuild: boolean };
-
-/**
- * One badge for the app's exposure, most-specific wins: Hub (the designated
- * /team hub) ⊃ Team (active team-mode share) ⊃ Public (active public share).
- * Owner-only apps get no badge — unlabelled = private, the quiet default.
- */
-function ExposureBadge({ app }: { app: Pick<AppRow, 'shareMode' | 'isHub'> }) {
-  if (app.isHub) {
-    return (
-      <Badge title="Designated Team Hub — renders full-screen at /team for members">hub</Badge>
-    );
-  }
-  if (app.shareMode === 'team') {
-    return (
-      <Badge
-        variant="secondary"
-        title="Team-shared — members reach it with their team token; listed on the /team hub"
-      >
-        team
-      </Badge>
-    );
-  }
-  if (app.shareMode === 'public') {
-    return (
-      <Badge
-        variant="outline"
-        title="Publicly shared — anyone with the link can open it (read-only tools)"
-      >
-        public
-      </Badge>
-    );
-  }
-  return null;
-}
 
 /** Outer query-gate so the page stays data-free. The URL params (driven by
  *  `useListNav` in the list) key the query, so navigating refetches. */
@@ -255,7 +222,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                             <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
                             <span className="ml-auto flex shrink-0 items-center gap-1">
                               {app.hasDraft && <Badge variant="secondary">draft</Badge>}
-                              <ExposureBadge app={app} />
+                              <AudienceBadge level={app.audience} hub={app.isHub} />
                             </span>
                           </span>
                           {app.description && (
@@ -311,10 +278,9 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                     only once there's a published build to point the link at.
                     Same control and hint as the editor header. */}
                 {selected.hasBuild && (
-                  <ShareControl
+                  <AccessControl
                     nodeId={selected.id}
-                    teamMode
-                    teamHint="Visitors must enter their team token, and every action is audited to that member. Team members can use the app’s Mantle tools and write to its data — a public link can only read the app’s own data. Grant it to people you trust."
+                    hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A client or public link can only read the app’s own data."
                   />
                 )}
                 {/* Focus mode: the shell drops its chrome and the list column

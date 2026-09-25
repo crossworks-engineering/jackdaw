@@ -6,6 +6,7 @@
  */
 
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
+import type { AccessLevel } from '@mantle/client-types';
 
 export const FILES_ROOT = 'files';
 
@@ -25,6 +26,8 @@ export type FolderRow = {
   fileCount: number;
   createdAt: string;
   updatedAt: string;
+  /** Access level; absent from brains older than the level rows. */
+  audience?: AccessLevel;
 };
 
 export type FileRow = {
@@ -42,6 +45,8 @@ export type FileRow = {
   indexingApplied: 'full' | 'metadata' | null;
   createdAt: string;
   updatedAt: string;
+  /** Access level; absent from brains older than the level rows. */
+  audience?: AccessLevel;
 };
 
 /** One `/api/search?branch=files` hit — the server's node shape, trimmed to

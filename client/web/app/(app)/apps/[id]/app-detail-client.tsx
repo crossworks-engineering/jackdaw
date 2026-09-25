@@ -23,7 +23,8 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { useAppNav } from '@/components/app-nav/use-app-nav';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { AppLoader } from '@/components/app-nav/app-loader';
@@ -281,6 +282,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
             />
             {app.title}
             {app.hasDraft && <Badge variant="secondary">unpublished draft</Badge>}
+            <AudienceBadge level={app.audience} hub={app.isHub} />
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -314,10 +316,9 @@ function AppDetailView({ app }: { app: AppDetail }) {
           {/* Share the published app at a public full-screen /s/<token> URL.
               Only once there's a published build to point the link at. */}
           {app.publishedBuild?.ok && (
-            <ShareControl
+            <AccessControl
               nodeId={app.id}
-              teamMode
-              teamHint="Visitors must enter their team token, and every action is audited to that member. Team members can use the app’s Mantle tools and write to its data — a public link can only read the app’s own data. Grant it to people you trust."
+              hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A client or public link can only read the app’s own data."
             />
           )}
         </div>

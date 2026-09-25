@@ -38,7 +38,7 @@ import {
 } from '@mantle/web-ui/ui/dropdown-menu';
 import { ExportMenu } from '@/components/export/export-menu';
 import { EmojiPicker } from '@/components/emoji-picker';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { TableGrid } from '@/components/table-grid/table-grid';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
@@ -527,11 +527,10 @@ export function TableDetailClient({
             {importing ? <Loader2 className="animate-spin" /> : <Upload />} Import
           </Button>
           <ExportMenu nodeId={initial.id} kind="table" />
-          <ShareControl
+          <AccessControl
             nodeId={initial.id}
             iconOnly
-            teamMode
-            teamHint="Visitors must enter their team token to open the link. The link always shows the last committed version — never your draft."
+            hint="Members and link holders always see the last committed version, never your draft."
           />
           {dirty && (
             <Button

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
@@ -55,7 +56,7 @@ import type {
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
 import { SetPageTitle } from '@/components/layout/page-title';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -712,10 +713,9 @@ function FilesView({
 
                   {currentFolder && currentFolder.path !== FILES_ROOT && (
                     <div className="mt-1 flex items-center justify-end gap-1">
-                      <ShareControl
+                      <AccessControl
                         nodeId={currentFolder.id}
-                        teamMode
-                        teamHint="Visitors must enter their team token to open the link. The link covers every file in this folder and its subfolders — including files added later."
+                        hint="The link opens every file in this folder and its subfolders, including files added later."
                       />
                       {/* Brain-indexing toggle. The trigger shows the
                           EFFECTIVE mode (own flag or inherited) because that
@@ -1003,7 +1003,12 @@ function FilesView({
                               </span>
                             </span>
                             <span className="flex flex-col gap-0.5 px-2 py-1.5">
-                              <span className="truncate text-xs font-medium">{f.filename}</span>
+                              <span className="flex min-w-0 items-center gap-1">
+                                <span className="min-w-0 truncate text-xs font-medium">
+                                  {f.filename}
+                                </span>
+                                <AudienceBadge level={f.audience} />
+                              </span>
                               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                 {fmtSize(f.sizeBytes)}
                                 {(f.indexing === 'metadata' ||

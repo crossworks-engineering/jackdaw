@@ -24,7 +24,7 @@ import { TagInput } from '@/components/tag-input';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { RecallBadge } from './recall-badge';
 
 /** The two tags that DO something. Everything else on a page is a label; these
@@ -991,7 +991,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
             <FileCode2 /> Markdown
           </Button>
           <ExportMenu nodeId={initial.id} />
-          <ShareControl nodeId={initial.id} beforeEnable={commit} teamMode allowCascade />
+          <AccessControl nodeId={initial.id} beforeEnable={commit} />
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
               page exits too (the shell drops focus on navigation). */}

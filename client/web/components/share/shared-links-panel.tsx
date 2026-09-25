@@ -83,7 +83,7 @@ export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
 
   const copy = async (row: SharedLinkRow) => {
     try {
-      // Same origin fix as ShareControl: /s/… is the server tier's surface.
+      // Same origin fix as AccessControl: /s/… is the server tier’s surface.
       await navigator.clipboard.writeText(serverUrl(row.path));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);

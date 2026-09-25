@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -28,7 +29,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 import { ExportButton } from '@/components/export/export-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
@@ -421,7 +422,10 @@ export function NotesClient() {
                     <div className="flex items-start gap-2">
                       <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
-                        <ListCardTitle>{n.title}</ListCardTitle>
+                        <div className="flex items-center gap-1.5">
+                          <ListCardTitle className="min-w-0">{n.title}</ListCardTitle>
+                          <AudienceBadge level={n.audience} />
+                        </div>
                         {(n.summary || n.content) && (
                           <ListCardSnippet>{n.summary ?? n.content.slice(0, 200)}</ListCardSnippet>
                         )}
@@ -567,7 +571,10 @@ function NotePreview({
     <div className="flex h-full min-h-0 flex-col">
       <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/60 px-6 py-3 backdrop-blur">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-semibold">{note.title}</h2>
+          <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
+            <span className="min-w-0 truncate">{note.title}</span>
+            <AudienceBadge level={note.audience} />
+          </h2>
           {note.tags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {note.tags.map((t) => (
@@ -578,7 +585,7 @@ function NotePreview({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <ExportButton nodeId={note.id} label="Word" />
-          <ShareControl nodeId={note.id} teamMode />
+          <AccessControl nodeId={note.id} />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil /> Edit
           </Button>

@@ -23,7 +23,7 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { ShareControl } from '@/components/share-control';
+import { AccessControl } from '@/components/share/access-control';
 
 type FileRow = {
   id: string;
@@ -253,7 +253,7 @@ export function FileEditor({
               </ToggleGroupItem>
             </ToggleGroup>
           )}
-          <ShareControl nodeId={file.id} teamMode />
+          <AccessControl nodeId={file.id} />
           {/* History link → /nodes/[id]/history: every trace that touched
               this file (ingest, extractor, summarizer, …). */}
           <Button asChild variant="outline" size="sm">

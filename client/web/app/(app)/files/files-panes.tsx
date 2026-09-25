@@ -8,6 +8,7 @@
  * already standalone, just living in the wrong file. No signatures changed.
  */
 import { useMemo, useState } from 'react';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Folder } from 'lucide-react';
@@ -72,7 +73,10 @@ export function ChildFolders({
                 size="lg"
               />
               <div className="min-w-0 flex-1">
-                <ListCardTitle>{f.slug}</ListCardTitle>
+                <div className="flex items-center gap-1.5">
+                  <ListCardTitle className="min-w-0">{f.slug}</ListCardTitle>
+                  <AudienceBadge level={f.audience} />
+                </div>
                 <ListCardMeta>{folderCounts(f)}</ListCardMeta>
               </div>
             </ListCard>

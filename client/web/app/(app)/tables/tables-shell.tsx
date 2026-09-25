@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -355,7 +356,10 @@ export function TablesShell() {
                       )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <ListCardTitle>{t.title}</ListCardTitle>
+                      <div className="flex items-center gap-1.5">
+                        <ListCardTitle className="min-w-0">{t.title}</ListCardTitle>
+                        <AudienceBadge level={t.audience} />
+                      </div>
                       <ListCardMeta>
                         Updated {new Date(t.updatedAt).toLocaleDateString()} · {t.columnCount} cols
                         · {t.rowCount} rows
