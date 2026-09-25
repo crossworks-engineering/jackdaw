@@ -11,7 +11,10 @@
  * Only a GENUINELY cross-origin client (isCrossOrigin — the API on another
  * origin, not merely configured absolutely) falls back to opening shares
  * top-level via OpenShare → the SSO handoff: inline reading there would
- * strand cookie-authenticated subresources (page images, downloads).
+ * strand cookie-authenticated subresources (page images, downloads). APPS are
+ * the exception — they need no cookie (ShareReader points their brokers at
+ * the brain with the member bearer), so the Apps section reads inline in
+ * every shape.
  *
  * List state is URL-driven (the /pages pattern): `?q=` search, `?tag=`
  * filter, `?sort=` order, `?page=` pager, `?s=<token>` selection — so
@@ -683,7 +686,7 @@ export function TeamSection({
                   </OpenShare>
                 </div>
               )}
-              {!isCrossOrigin() ? (
+              {type === 'app' || !isCrossOrigin() ? (
                 <ShareReader
                   key={selected.token}
                   token={selected.token}

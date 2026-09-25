@@ -60,6 +60,7 @@ export function OpenShare({
   style,
   children,
   onPlainClick,
+  plainClickWhenSplit = false,
   ariaLabel,
   target = '_blank',
 }: {
@@ -70,8 +71,13 @@ export function OpenShare({
   children: ReactNode;
   /** Same-origin only: intercept a plain (unmodified) click — the in-hub
    *  reader. Modified clicks (new tab/window) keep native anchor behavior.
-   *  Ignored in split mode, where every open goes through the SSO form. */
+   *  Ignored in split mode, where every open goes through the SSO form —
+   *  unless `plainClickWhenSplit`. */
   onPlainClick?: () => void;
+  /** Honour `onPlainClick` in split mode too — for targets the in-hub reader
+   *  CAN render cross-origin (apps: ShareReader sends their brokers to the
+   *  brain with the member bearer). Modified clicks still take the SSO form. */
+  plainClickWhenSplit?: boolean;
   ariaLabel?: string;
   /** Split mode: where the SSO navigation lands. '_self' reads in place
    *  (browser Back returns to the app); '_blank' opens a tab. */
@@ -125,7 +131,16 @@ export function OpenShare({
         className={className}
         style={style}
         aria-label={ariaLabel}
-        onClick={() => {
+        onClick={(e: MouseEvent) => {
+          if (
+            plainClickWhenSplit &&
+            onPlainClick &&
+            !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+          ) {
+            e.preventDefault();
+            onPlainClick();
+            return;
+          }
           if (tbRef.current) tbRef.current.value = teamTokenStore.get() ?? '';
           if (nextRef.current) nextRef.current.value = `/s/${token}`;
         }}

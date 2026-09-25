@@ -18,6 +18,15 @@
  * BEFORE the scroll container below: an app scrolls itself, and the 'card'
  * frame's reported-height sizing cuts a tall one off at its 4000px clamp.
  *
+ * Genuinely cross-origin client (isCrossOrigin — dev:fe, the desktop app, a
+ * split client image): only APPS read inline. Their parent-page fetches
+ * (frame-ticket, brokers) go to the brain origin with the member bearer —
+ * the same props the designated hub app gets — and the frame document
+ * authenticates by its ticket, so nothing needs the cookie. Every other kind
+ * loads cookie-authenticated subresources (page images, downloads, rows) that
+ * can't follow across origins, so it shows the top-level open instead. The
+ * callers only route apps here in that shape; the fallback is the backstop.
+ *
  * Failure shapes: 401 = no live team session for a team-mode share (the pane
  * offers the top-level open, which can re-establish one via SSO); anything
  * else = a plain retry.
@@ -27,7 +36,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps 
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
-import { teamFetch, upgradeTeamCookie } from '@mantle/web-ui/team-fetch';
+import { teamFetch, teamUrl, upgradeTeamCookie, withTeamAuth } from '@mantle/web-ui/team-fetch';
+import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { buttonVariants } from '@mantle/web-ui/ui/button';
 import {
   Table,
@@ -171,6 +181,9 @@ export function ShareReader({
   // simply cut off, with no scrollbar of its own to recover it. 'viewport' hands
   // the app the pane and lets it scroll itself, which is what the owner /apps
   // screen and /hub already do.
+  // Cross-origin, the brokers live on the brain and the parent-page fetches
+  // carry the member bearer — exactly the designated hub app's props.
+  const split = isCrossOrigin();
   if (view.kind === 'app') {
     return (
       <div className="min-h-0 flex-1">
@@ -180,8 +193,26 @@ export function ShareReader({
             shareToken={token}
             loader={<AppLoader />}
             frame="viewport"
+            apiBase={split ? teamUrl(`/s/${token}`) : undefined}
+            fetcher={split ? (input, init) => fetch(input, withTeamAuth(init)) : undefined}
           />
         </SurfaceErrorBoundary>
+      </div>
+    );
+  }
+
+  if (split) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="max-w-sm text-center">
+          <p className="text-sm text-muted-foreground">
+            This item opens on the brain&rsquo;s own site.
+          </p>
+          <OpenShare token={token} className={cn(buttonVariants(), 'mt-4')}>
+            <ExternalLink />
+            <span className="max-w-56 truncate">Open {title}</span>
+          </OpenShare>
+        </div>
       </div>
     );
   }

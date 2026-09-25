@@ -13,10 +13,11 @@
  * Split client origin: the designated hub APP still runs here, first-class —
  * AppSandbox's broker fetches happen in THIS page (not the sandboxed iframe),
  * so they cross to the server origin with the member bearer (the /s app
- * brokers accept it; middleware CORS covers them). Only the non-app share
- * READER changes shape: a cross-origin iframe can never carry the member
- * cookie, so briefings/apps open top-level through the SSO handoff instead
- * of the in-hub iframe.
+ * brokers accept it; middleware CORS covers them). Team-app launchers read
+ * in-hub the same way (ShareReader gives their AppSandbox the same props).
+ * Only BRIEFINGS change shape: a cross-origin page can never carry the member
+ * cookie their subresources need, so they open top-level through the SSO
+ * handoff instead of the in-hub reader.
  */
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { useCallback, useEffect, useState } from 'react';
@@ -33,7 +34,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react';
-import { Button } from '@mantle/web-ui/ui/button';
+import { Button, buttonVariants } from '@mantle/web-ui/ui/button';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { TeamChatClient } from '@/components/team-chat/team-chat-client';
@@ -164,10 +165,10 @@ type ReaderTarget = { token: string; title: string; icon?: string | null };
 
 /** In-hub reader: the share content INLINE (ShareReader → GET /s/<token>/view,
  *  no iframe) — members read briefings and open team apps without leaving the
- *  hub. Shared by both hubs. Same-origin ONLY: on a genuinely cross-origin
- *  client the reader view is never entered (cards open top-level via
- *  OpenShare instead — the reader's cookie-authenticated subresources can't
- *  follow across origins). */
+ *  hub. Shared by both hubs. On a genuinely cross-origin client only APPS
+ *  enter it (their brokers follow the bearer); briefings open top-level via
+ *  OpenShare — a page's cookie-authenticated subresources can't follow across
+ *  origins. */
 function ReaderView({ target, onBack }: { target: ReaderTarget; onBack: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -180,11 +181,15 @@ function ReaderView({ target, onBack }: { target: ReaderTarget; onBack: () => vo
           {target.icon ? <span className="mr-1.5">{target.icon}</span> : null}
           {target.title}
         </p>
-        <Button variant="ghost" size="sm" asChild aria-label="Open in a new tab">
-          <a href={`/s/${target.token}`} target="_blank" rel="noreferrer">
-            <ExternalLink />
-          </a>
-        </Button>
+        {/* OpenShare, not a bare /s anchor: split, /s lives on the brain and
+            needs the SSO handoff (apps read here in that shape too). */}
+        <OpenShare
+          token={target.token}
+          ariaLabel="Open in a new tab"
+          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+        >
+          <ExternalLink />
+        </OpenShare>
       </div>
       <ShareReader key={target.token} token={target.token} title={target.title} />
     </div>
@@ -260,8 +265,9 @@ export function TeamHubShell() {
   // one-domain deploy (apiBase set but EQUAL to the page origin) reads
   // in-hub like the monolith always did.
   const split = isCrossOrigin();
-  const openReader = (target: ReaderTarget) => {
-    if (split) openShareOnServer(target.token);
+  // Apps read in-hub in every shape; a split briefing goes top-level.
+  const openReader = (target: ReaderTarget, isApp: boolean) => {
+    if (split && !isApp) openShareOnServer(target.token);
     else setView({ reader: target });
   };
 
@@ -276,13 +282,13 @@ export function TeamHubShell() {
         // Only open apps that are REAL team-app launchers — never an arbitrary
         // token an app hands us. The reader opens /s/<token> like a briefing.
         const appCard = (data.apps ?? []).find((a) => a.token === target.app);
-        if (appCard) openReader(appCard);
+        if (appCard) openReader(appCard, true);
         return;
       }
       // Only open briefings that are REAL hub sections (active team-mode page
       // shares) — never navigate to an arbitrary token an app hands us.
       const section = data.sections.find((s) => s.token === target.briefing);
-      if (section) openReader(section);
+      if (section) openReader(section, false);
     };
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -468,6 +474,7 @@ export function TeamHubShell() {
                   token={a.token}
                   target="_self"
                   onPlainClick={() => setView({ reader: a })}
+                  plainClickWhenSplit
                   className="group block w-full rounded-lg border border-border bg-card p-5 text-left text-card-foreground transition-colors hover:border-primary/50"
                 >
                   <div className="flex items-start justify-between gap-3">
