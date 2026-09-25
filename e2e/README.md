@@ -65,8 +65,8 @@ it at a throwaway one, never at a brain anyone relies on.
 ### No brain to point at? Build a throwaway one
 
 The brain is a mantle checkout. This assumes mantle's dev sidecars are already
-up (`mantle_dev_pg`, `mantle_dev_minio`) — if they are not, `pnpm start` in that
-repo brings them up. Everything here is deliberately beside the dev brain rather
+up (`mantle_dev_pg`, `mantle_dev_objectstore`); if they are not, `pnpm start` in
+that repo brings them up. Everything here is deliberately beside the dev brain rather
 than on top of it: its own database, its own bucket, its own port.
 
 ```sh
@@ -75,8 +75,8 @@ docker exec mantle_dev_pg psql -U postgres -d postgres -c 'CREATE DATABASE mantl
 for f in infra/postgres/init/*.sql; do
   docker exec -i mantle_dev_pg psql -U postgres -d mantle_e2e -v ON_ERROR_STOP=1 < "$f"
 done
-docker exec mantle_dev_minio sh -c \
-  'mc alias set local http://localhost:9000 minio minio12345 && mc mb -p local/mantle-e2e'
+# plain S3 calls against the dev RustFS; no `mc` (it went with MinIO)
+S3_BUCKET=mantle-e2e pnpm -C packages/storage objectstore:ensure
 
 export DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:54323/mantle_e2e'
 pnpm -C packages/db migrate
@@ -113,7 +113,9 @@ Three things that are easy to get wrong:
   reads as a missing feature rather than as a brain that does not know where
   its client lives.
 
-Tear down with `DROP DATABASE mantle_e2e` and `mc rb --force local/mantle-e2e`.
+Tear down with `DROP DATABASE mantle_e2e`, then delete the `mantle-e2e` bucket in
+the dev RustFS console (http://localhost:9001, `minio` / `minio12345`) or with
+any S3 client pointed at `http://localhost:9000`.
 
 That combination — owner UI on its own origin, brain on another — _is_ the
 `split` topology, so `pnpm e2e` runs the `split` project. The `same-origin`

@@ -140,16 +140,7 @@ jobs:
         if: vars.E2E_SERVER_URL == ''
         run: docker pull titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }}
 
-      # MinIO is NOT a service container. A `services:` entry cannot carry a
-      # command, and this image needs `server /data` — without it the container
-      # prints its own usage text and exits, which the runner reports only as
-      # "failed to initialize container" with no mention of a missing argument.
-      #
-      # quay.io, NOT Docker Hub: `docker pull minio/minio` is denied on a runner
-      # ("repository does not exist or may require 'docker login'"). quay is
-      # MinIO's own registry and pulls anonymously.
-      # The browser sidecar is NOT a service container either, and for a subtler
-      # reason than MinIO's. Two specs make the brain spawn a browser (the PDF
+      # The browser sidecar is NOT a service container. Two specs make the brain spawn a browser (the PDF
       # export and the draw snapshot re-render), and the sidecar then fetches a
       # URL BACK from the brain. A service container sits on the bridge network,
       # where `localhost` is its own container — so the brain, which runs on the
@@ -167,18 +158,35 @@ jobs:
             sleep 2
           done
 
+      # RustFS, the store mantle's own compose runs (v0.232.249+), from our
+      # digest-pinned mirror of rustfs/rustfs (mantle infra/rustfs/IMAGE). It was
+      # MinIO until MinIO left open source: its public images went, quay.io
+      # started denying the anonymous pull, and this job failed on every release
+      # from v0.6.131. A mirror we publish cannot vanish that way.
+      #
+      # Started by hand on the host network, like the browser sidecar, so the
+      # brain reaches it as localhost and a failed start can print its own log.
+      # No volume: the image makes /data and hands it to UID 10001 (the user
+      # RustFS runs as), and the anonymous volume docker creates keeps that
+      # owner. A bind mount would need a chown first, as mantle's
+      # objectstore_init does. The console is off (it would take :9001), logs go
+      # to stdout so `docker logs` shows them, and the nofile limit is the one
+      # mantle's compose sets (RustFS drops its file-descriptor cache below it).
       - name: Start the object store
         if: vars.E2E_SERVER_URL == ''
         run: |
-          docker run -d --name e2e-minio --network host \
-            -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          docker run -d --name e2e-objectstore --network host \
+            --ulimit nofile=65536:65536 \
+            -e RUSTFS_ACCESS_KEY=e2e-access -e RUSTFS_SECRET_KEY=e2e-secret-key \
+            -e RUSTFS_CONSOLE_ENABLE=false -e RUSTFS_REGION=us-east-1 \
+            -e RUSTFS_OBS_LOG_DIRECTORY= \
+            titanwest/mantle-rustfs:1.0.0
           for i in $(seq 1 40); do
-            curl -sf -o /dev/null http://localhost:9000/minio/health/live && break
+            curl -sf -o /dev/null http://localhost:9000/health/ready && break
             sleep 2
           done
-          curl -sf -o /dev/null http://localhost:9000/minio/health/live \
-            || { docker logs e2e-minio; exit 1; }
+          curl -sf -o /dev/null http://localhost:9000/health/ready \
+            || { docker logs e2e-objectstore; exit 1; }
 
       # The postgres image runs /docker-entrypoint-initdb.d/*.sql once, at first
       # cluster init, for the DEFAULT database only — and those files live in the
@@ -219,8 +227,11 @@ jobs:
           echo "MANTLE_MASTER_KEY=$MK" >> "$GITHUB_ENV"
           echo "SESSION_SECRET=$SS" >> "$GITHUB_ENV"
 
-      # Migrations, the pg-boss schema and the DBOS system database — the same
-      # one-shot command mantle's own compose `migrate` service runs.
+      # Migrations, the pg-boss schema, the DBOS system database and the bucket:
+      # the same one-shot command mantle's own compose `migrate` service runs.
+      # `objectstore:ensure` creates S3_BUCKET with plain S3 calls (it replaced
+      # MinIO's `mc`), and waits for the store to answer first. It is in the
+      # server image from v0.232.245, so E2E_SERVER_IMAGE_TAG must not pin older.
       - name: Migrate the brain
         if: vars.E2E_SERVER_URL == ''
         run: |
@@ -229,19 +240,10 @@ jobs:
             -e SESSION_SECRET="$SESSION_SECRET" \
             -e MANTLE_MASTER_KEY="$MANTLE_MASTER_KEY" \
             -e S3_ENDPOINT='http://localhost:9000' -e S3_REGION=us-east-1 \
-            -e S3_BUCKET=mantle -e S3_ACCESS_KEY=minio -e S3_SECRET_KEY=minio12345 \
+            -e S3_BUCKET=mantle -e S3_ACCESS_KEY=e2e-access -e S3_SECRET_KEY=e2e-secret-key \
             -e S3_FORCE_PATH_STYLE=true -e NODE_ENV=production \
             titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }} \
-            sh -c "pnpm -C packages/db migrate && pnpm -C server/web pgboss:init && pnpm -C server/api provision"
-
-      # mc rejects a host whose name contains an underscore ("invalid hostname"),
-      # which is why this addresses MinIO over localhost rather than by a
-      # container name.
-      - name: Create the object-store bucket
-        if: vars.E2E_SERVER_URL == ''
-        run: |
-          docker run --rm --network host --entrypoint sh quay.io/minio/mc:latest -c \
-            "mc alias set local http://localhost:9000 minio minio12345 && mc mb -p local/mantle"
+            sh -c "pnpm -C packages/db migrate && pnpm -C server/web pgboss:init && pnpm -C server/api provision && pnpm -C packages/storage objectstore:ensure"
 
       # CORS is not optional: MANTLE_API_CORS_ORIGINS must name the client origin
       # or every browser spec fails on CORS while the API-only ones pass — a
@@ -255,7 +257,7 @@ jobs:
             -e SESSION_SECRET="$SESSION_SECRET" \
             -e MANTLE_MASTER_KEY="$MANTLE_MASTER_KEY" \
             -e S3_ENDPOINT='http://localhost:9000' -e S3_REGION=us-east-1 \
-            -e S3_BUCKET=mantle -e S3_ACCESS_KEY=minio -e S3_SECRET_KEY=minio12345 \
+            -e S3_BUCKET=mantle -e S3_ACCESS_KEY=e2e-access -e S3_SECRET_KEY=e2e-secret-key \
             -e S3_FORCE_PATH_STYLE=true -e NODE_ENV=production \
             -e PORT=3900 \
             -e MANTLE_PUBLIC_URL='http://localhost:3900' \
@@ -290,6 +292,7 @@ jobs:
         run: |
           echo '── brain ──'; docker logs e2e-brain 2>&1 | tail -200
           echo '── browser sidecar ──'; docker logs e2e-browser 2>&1 | tail -40
+          echo '── object store ──'; docker logs e2e-objectstore 2>&1 | tail -40
 
       # Traces are retained on failure (playwright.config), and they are the
       # only way to see what a headless run actually did.
