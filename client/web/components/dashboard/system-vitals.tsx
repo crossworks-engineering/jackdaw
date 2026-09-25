@@ -81,7 +81,9 @@ export function SystemVitals() {
         <CardTitle className="text-base">System vitals</CardTitle>
         <div className="flex items-center gap-1.5">
           <Pill ok={postgres.up} label="Postgres" />
-          <Pill ok={storage.minioUp} label="MinIO" />
+          {/* objectStoreUp arrived with the backend-neutral object store (mantle
+              v0.232.245); older brains only send minioUp. */}
+          <Pill ok={storage.objectStoreUp ?? storage.minioUp} label="Object store" />
           <Pill ok={tika.up} label="Tika" title={tika.version ?? undefined} />
           <Pill ok={browser.up} label="Chromium" title={browser.version ?? undefined} />
           <Pill

@@ -132,7 +132,7 @@ export function SanityClient() {
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
             Read-only checks for features that break <strong>silently</strong> — a setting hidden in
             env, or a provisioning step only <code>scripts/up.sh</code> runs (so a registry-pull box
-            that never ran it looks healthy yet a feature is dead). Catches the missing MinIO bucket
+            that never ran it looks healthy yet a feature is dead). Catches the missing object store bucket
             that fails every app build, an unconfigured updater (<code>MANTLE_STACK_DIR</code>) that
             hangs updates, missing secrets, a stray files root, a localhost public URL, an unloaded
             embedder model. Each failure shows the fix — nothing is changed from here.
