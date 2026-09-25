@@ -26,6 +26,7 @@ import { useAppNav } from '@/components/app-nav/use-app-nav';
 import type { AppRowWithColor } from '@mantle/web-ui/types/app-nav';
 import { ShareControl } from '@/components/share-control';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
+import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { AppAccessLog } from '@mantle/web-ui/app-sandbox/access-log';
 import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
@@ -378,6 +379,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
               <SurfaceErrorBoundary label="this app" resetKeys={[app.id, reloadKey]}>
                 <AppSandbox
                   appId={app.id}
+                  {...ownerAppSandboxProps(app.id)}
                   frame="viewport"
                   reloadKey={reloadKey}
                   onError={(m) => toast.error(m)}

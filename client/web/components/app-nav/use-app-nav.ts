@@ -88,12 +88,13 @@ async function persist(qc: QueryClient, onConflictLost: () => void): Promise<voi
   }
 }
 
-export function useAppNav() {
+export function useAppNav(opts: { refetchOnMount?: 'always' } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
 
   const query = useQuery({
     queryKey: APP_NAV_KEY,
+    ...(opts.refetchOnMount ? { refetchOnMount: opts.refetchOnMount } : {}),
     queryFn: () => apiFetch<AppNavResponse>('/api/app-nav'),
     // A 404 is a brain on a release before app nav: the sidebar falls back to
     // the plain Apps row. Don't hammer it with retries.

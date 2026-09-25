@@ -34,6 +34,7 @@ import { useListNav } from '@/lib/use-list-nav';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
+import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ShareControl } from '@/components/share-control';
@@ -130,8 +131,14 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   // The organised list: the brain's folder tree (GET /api/app-nav). A brain on
   // a release before app nav answers 404, and the page keeps the flat,
   // paginated list below it.
-  const { data: nav, unsupported } = useAppNav();
+  // Always fresh on arrival: build state and open counts change elsewhere
+  // (the editor, an agent), and realtime is best-effort.
+  const { data: nav, unsupported, query: navQuery } = useAppNav({ refetchOnMount: 'always' });
   const treeMode = !unsupported && nav !== undefined;
+  // Until the tree answers, show a spinner in the list column rather than the
+  // flat list, which would flash and then be replaced. Only a 404 (a brain
+  // before app nav) or a failed load falls back to the flat list.
+  const navLoading = navQuery.isPending;
 
   // Everything selectable in the current mode, in the order a fresh visit
   // should pick from: pins first, then the tree, then the rest.
@@ -204,7 +211,11 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         // prop's note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          treeMode ? (
+          navLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Spinner />
+            </div>
+          ) : treeMode ? (
             <AppsTree selectedId={selectedId} onSelect={setSelectedId} actions={createButton} />
           ) : (
             <>
@@ -335,9 +346,29 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                 {/* The sandbox host runs the broker, the file tree and the
                     access log beside the iframe; a throw in any of them used
                     to take the app list with it. */}
-                <SurfaceErrorBoundary label="this app" resetKeys={[selected.id]}>
-                  <AppSandbox appId={selected.id} frame="viewport" />
-                </SurfaceErrorBoundary>
+                {selected.hasBuild ? (
+                  <SurfaceErrorBoundary label="this app" resetKeys={[selected.id]}>
+                    <AppSandbox
+                      appId={selected.id}
+                      {...ownerAppSandboxProps(selected.id)}
+                      frame="viewport"
+                    />
+                  </SurfaceErrorBoundary>
+                ) : (
+                  // The sandbox's full-pane "isn't available" line is worded
+                  // for share visitors; the owner gets the way to fix it.
+                  <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center text-sm text-muted-foreground">
+                    <AppWindow className="size-8 opacity-50" aria-hidden />
+                    This app hasn’t been built yet. Ask Appsmith to build it, or build it from the
+                    editor.
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/apps/${selected.id}`}>
+                        <Pencil />
+                        Open editor
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )
