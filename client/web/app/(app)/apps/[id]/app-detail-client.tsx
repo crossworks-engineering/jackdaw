@@ -23,11 +23,10 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { useAppNav } from '@/components/app-nav/use-app-nav';
-import type { AppRowWithColor } from '@mantle/web-ui/types/app-nav';
 import { ShareControl } from '@/components/share-control';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
-import { appLoaderProp } from '@/components/app-nav/app-loader';
+import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { AppAccessLog } from '@mantle/web-ui/app-sandbox/access-log';
 import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
@@ -95,7 +94,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
   const { data: nav, setAppLook } = useAppNav();
   const face = nav?.apps.find((a) => a.id === app.id);
   const icon = face ? face.icon : app.icon;
-  const color = face ? face.color : ((app as AppRowWithColor).color ?? null);
+  const color = face ? face.color : app.color;
 
   const source = app.draft ?? app.source;
   // Editable working copy of the source tree. Re-synced from the server on every
@@ -381,7 +380,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 <AppSandbox
                   appId={app.id}
                   {...ownerAppSandboxProps(app.id)}
-                  {...appLoaderProp({ title: app.title, icon, color })}
+                  loader={<AppLoader title={app.title} icon={icon} color={color} />}
                   frame="viewport"
                   reloadKey={reloadKey}
                   onError={(m) => toast.error(m)}

@@ -22,7 +22,7 @@
  * offers the top-level open, which can re-establish one via SSO); anything
  * else = a plain retry.
  */
-import { appLoaderProp } from '@/components/app-nav/app-loader';
+import { AppLoader } from '@/components/app-nav/app-loader';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -175,7 +175,12 @@ export function ShareReader({
     return (
       <div className="min-h-0 flex-1">
         <SurfaceErrorBoundary label="this app" resetKeys={[view.appId]}>
-          <AppSandbox appId={view.appId} shareToken={token} {...appLoaderProp()} frame="viewport" />
+          <AppSandbox
+            appId={view.appId}
+            shareToken={token}
+            loader={<AppLoader />}
+            frame="viewport"
+          />
         </SurfaceErrorBoundary>
       </div>
     );

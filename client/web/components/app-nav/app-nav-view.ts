@@ -1,4 +1,4 @@
-import type { AppNavEntry, AppNavItem, AppNavResponse } from '@mantle/web-ui/types/app-nav';
+import type { AppNavEntry, AppNavItem, AppNavResponse } from '@mantle/client-types/app-nav';
 
 /**
  * Pure derivations the /apps list tree renders from one AppNavResponse. Kept out of

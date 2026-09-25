@@ -1,7 +1,7 @@
 'use client';
 
 import { ThinkingOrb } from 'thinking-orbs';
-import type { AppTint } from '@mantle/web-ui/types/app-nav';
+import type { AppTint } from '@mantle/client-types/app-nav';
 import { AppTile } from './app-tile';
 
 /**
@@ -38,16 +38,4 @@ export function AppLoader({
       )}
     </div>
   );
-}
-
-/**
- * The `loader` prop for AppSandbox.
- *
- * Contract-next: share-ui's next release adds `loader` to AppSandbox. The
- * pinned version doesn't declare it (and simply ignores the prop at runtime),
- * hence the cast. After the pin bump, pass `loader={<AppLoader … />}` directly
- * and delete this helper.
- */
-export function appLoaderProp(look: Parameters<typeof AppLoader>[0] = {}): object {
-  return { loader: <AppLoader {...look} /> };
 }

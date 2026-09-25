@@ -35,17 +35,16 @@ import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
-import { appLoaderProp } from '@/components/app-nav/app-loader';
+import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ShareControl } from '@/components/share-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppRow } from '@mantle/client-types';
-import { appNavAppIds } from '@mantle/web-ui/lib/app-nav-tree';
+import { appNavAppIds } from '@mantle/content-core/app-nav';
 import { AppsTree } from '@/components/app-nav/apps-tree';
 import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
-import type { AppRowWithColor } from '@mantle/web-ui/types/app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
@@ -252,11 +251,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                           onClick={() => setSelectedId(app.id)}
                         >
                           <span className="flex items-center gap-2 text-sm font-medium">
-                            <AppTile
-                              icon={app.icon}
-                              color={(app as AppRowWithColor).color}
-                              size="md"
-                            />
+                            <AppTile icon={app.icon} color={app.color} size="md" />
                             <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
                             <span className="ml-auto flex shrink-0 items-center gap-1">
                               {app.hasDraft && <Badge variant="secondary">draft</Badge>}
@@ -352,11 +347,13 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                     <AppSandbox
                       appId={selected.id}
                       {...ownerAppSandboxProps(selected.id)}
-                      {...appLoaderProp({
-                        title: selected.title,
-                        icon: nav?.apps.find((a) => a.id === selected.id)?.icon,
-                        color: nav?.apps.find((a) => a.id === selected.id)?.color,
-                      })}
+                      loader={
+                        <AppLoader
+                          title={selected.title}
+                          icon={nav?.apps.find((a) => a.id === selected.id)?.icon}
+                          color={nav?.apps.find((a) => a.id === selected.id)?.color}
+                        />
+                      }
                       frame="viewport"
                     />
                   </SurfaceErrorBoundary>

@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import type { AppNav, AppNavEntry, AppNavResponse, AppTint } from '@mantle/web-ui/types/app-nav';
+import type { AppNav, AppNavEntry, AppNavResponse, AppTint } from '@mantle/client-types/app-nav';
 import { useRealtime } from '@/components/realtime/use-realtime';
 
 /**

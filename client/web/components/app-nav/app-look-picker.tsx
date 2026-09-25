@@ -8,7 +8,7 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
-import { APP_TINTS, LUCIDE_ICON_PREFIX, type AppTint } from '@mantle/web-ui/types/app-nav';
+import { APP_TINTS, LUCIDE_ICON_PREFIX, type AppTint } from '@mantle/client-types/app-nav';
 import { EMOJI_SECTIONS } from '@/components/emoji-picker';
 import { APP_ICONS, APP_ICON_CATEGORIES } from './app-icons';
 import { AppTile, TINT_CLASSES } from './app-tile';

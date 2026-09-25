@@ -55,7 +55,7 @@ import {
   type AppNavEntry,
   type AppNavFolder,
   type AppNavItem,
-} from '@mantle/web-ui/types/app-nav';
+} from '@mantle/client-types/app-nav';
 import {
   canMoveAppNavEntry,
   dissolveAppNavFolder,
@@ -66,7 +66,7 @@ import {
   pruneAppNav,
   updateAppNavFolder,
   type AppNavRow,
-} from '@mantle/web-ui/lib/app-nav-tree';
+} from '@mantle/content-core/app-nav';
 import { AppTile } from './app-tile';
 import { AppLookPicker, type AppLook } from './app-look-picker';
 import { DeleteFolderDialog, FolderNameDialog } from './folder-dialogs';

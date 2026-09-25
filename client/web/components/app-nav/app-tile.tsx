@@ -1,6 +1,6 @@
 import { AppWindow, Folder } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { LUCIDE_ICON_PREFIX, type AppTint } from '@mantle/web-ui/types/app-nav';
+import { LUCIDE_ICON_PREFIX, type AppTint } from '@mantle/client-types/app-nav';
 import { APP_ICONS } from './app-icons';
 
 /**

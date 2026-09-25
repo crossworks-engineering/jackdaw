@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { APP_NAV_FOLDER_NAME_MAX } from '@mantle/web-ui/types/app-nav';
+import { APP_NAV_FOLDER_NAME_MAX } from '@mantle/client-types/app-nav';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
