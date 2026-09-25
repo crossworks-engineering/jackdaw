@@ -70,6 +70,7 @@ import {
 import { AppTile } from './app-tile';
 import { AppLookPicker, type AppLook } from './app-look-picker';
 import { DeleteFolderDialog, FolderNameDialog } from './folder-dialogs';
+import { TREE_INDENT, TREE_ROW_PAD, TreeGuides } from './tree-guides';
 import {
   appTags,
   folderAppCount,
@@ -98,8 +99,6 @@ import { recordAppOpen, useAppNav, type LayoutOp } from './use-app-nav';
  * The search box lists matching apps flat, each with its folder path.
  */
 
-const INDENT = 20; // px per level; the guide for level d sits at d*INDENT + 10
-const ROW_PAD = 8; // px before the first tile
 const UNSORTED = 'unsorted';
 
 type View = 'tree' | AppListMode;
@@ -435,39 +434,6 @@ export function AppsTree({
   );
 
   // ── Rows ───────────────────────────────────────────────────────────────
-  const guides = (row: Pick<AppNavRow, 'depth' | 'isLast' | 'guides'>) => {
-    const out: ReactNode[] = [];
-    for (let c = 0; c < row.depth; c++) {
-      const x = ROW_PAD + c * INDENT + 9;
-      if (c === row.depth - 1) {
-        out.push(
-          <span
-            key={`v${c}`}
-            aria-hidden
-            className="pointer-events-none absolute top-0 border-l-[1.5px] border-dotted border-muted-foreground/45"
-            style={{ left: x, height: row.isLast ? '50%' : '100%' }}
-          />,
-          <span
-            key={`h${c}`}
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 border-t-[1.5px] border-dotted border-muted-foreground/45"
-            style={{ left: x, width: INDENT - 9 }}
-          />,
-        );
-      } else if (!row.guides[c + 1]) {
-        out.push(
-          <span
-            key={`v${c}`}
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 border-l-[1.5px] border-dotted border-muted-foreground/45"
-            style={{ left: x }}
-          />,
-        );
-      }
-    }
-    return out;
-  };
-
   // Every row's look, collected as the rows render, for the one picker.
   const looks = new Map<string, NonNullable<Parameters<typeof rowShell>[0]['look']>>();
   const rowShell = (opts: {
@@ -509,8 +475,8 @@ export function AppsTree({
               }}
               {...dnd}
             >
-              {guides({ depth: opts.depth, isLast: opts.isLast, guides: opts.guideFlags })}
-              {opts.body({ paddingLeft: ROW_PAD + opts.depth * INDENT })}
+              <TreeGuides depth={opts.depth} isLast={opts.isLast} guides={opts.guideFlags} />
+              {opts.body({ paddingLeft: TREE_ROW_PAD + opts.depth * TREE_INDENT })}
               <DropdownMenu
                 open={menuFor === opts.key}
                 onOpenChange={(o) => setMenuFor(o ? opts.key : null)}
@@ -730,7 +696,7 @@ export function AppsTree({
                       {...dnd}
                       onClick={() => toggleFolder(UNSORTED)}
                       aria-expanded={unsortedOpen}
-                      style={{ paddingLeft: ROW_PAD }}
+                      style={{ paddingLeft: TREE_ROW_PAD }}
                       className="flex h-8 w-full items-center gap-2 rounded-md pr-2 text-sm text-muted-foreground hover:bg-foreground/[0.06]"
                     >
                       <span className="inline-flex size-5 items-center justify-center rounded-[5px] border border-dashed border-muted-foreground/40">

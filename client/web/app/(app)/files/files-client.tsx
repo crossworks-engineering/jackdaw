@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsRight,
-  Clock,
   Columns2,
   Eye,
   EyeOff,
@@ -35,7 +34,8 @@ import { FileEditor } from './file-editor';
 import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
 import { useFileSearch } from './use-file-search';
 import { CreateFileDialog, CreateFolderDialog, RenameDialog } from './files-dialogs';
-import { ChildFolders, DualPane, FolderTreeRail } from './files-panes';
+import { ChildFolders, DualPane } from './files-panes';
+import { FolderTreeRail } from './folder-tree-rail';
 import {
   FILES_ROOT,
   describeDerivedCounts,
@@ -463,14 +463,19 @@ function FilesView({
              does not — without it the tinted background stops wherever the
              tree happens to end. */
           <aside className="flex h-full flex-col bg-muted/20">
-            <div className="p-2 pb-1">
+            <div className="border-b border-border p-2">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
                   placeholder="Filter folders, search files…"
-                  className="h-8 pl-7 pr-7 text-sm"
+                  aria-label="Filter folders and search files"
+                  className="h-9 pl-8 pr-8"
                 />
                 {query && (
                   <Button
@@ -485,21 +490,7 @@ function FilesView({
                 )}
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-2 pt-1">
-              {!searchActive && (
-                <RowButton
-                  onClick={() => setRecentView(true)}
-                  className={
-                    'mb-1 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-sm ' +
-                    (recentView
-                      ? 'bg-primary/10 font-semibold text-primary-ink'
-                      : 'hover:bg-muted/40')
-                  }
-                >
-                  <Clock className="size-3.5 text-muted-foreground" />
-                  Recent
-                </RowButton>
-              )}
+            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">
               <FolderTreeRail
                 tree={tree}
                 currentPath={recentView ? '' : currentPath}
@@ -509,6 +500,12 @@ function FilesView({
                   navigateFolder(p);
                 }}
                 filter={query.trim()}
+                recentActive={recentView}
+                onRecent={() => setRecentView(true)}
+                onNewFolder={(parentPath) => setDialog({ kind: 'createFolder', parentPath })}
+                onRename={(f) =>
+                  setDialog({ kind: 'rename', target: { kind: 'folder', id: f.id, slug: f.slug } })
+                }
               />
             </div>
           </aside>
@@ -1192,7 +1189,7 @@ function FilesView({
       <CreateFolderDialog
         open={dialog?.kind === 'createFolder'}
         onOpenChange={(open) => !open && closeDialog('createFolder')}
-        parentPath={currentPath}
+        parentPath={(dialog?.kind === 'createFolder' && dialog.parentPath) || currentPath}
         onCreated={refresh}
       />
 

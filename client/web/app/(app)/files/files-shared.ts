@@ -17,6 +17,10 @@ export type FolderRow = {
   description: string;
   /** The folder's own indexing flag; null = inherit from ancestors. */
   indexing: 'full' | 'metadata' | null;
+  /** The folder's face: an emoji or `lucide:<name>`, and a tint key (the
+   *  app-nav vocabulary). Absent from brains that predate folder looks. */
+  icon?: string | null;
+  color?: string | null;
   childFolderCount: number;
   fileCount: number;
   createdAt: string;
@@ -192,7 +196,7 @@ export function fmtRelative(iso: string): string {
  * the `cascadeConfirm && …` guard every field of that dialog used to carry.
  */
 export type FilesDialog =
-  | { kind: 'createFolder' }
+  | { kind: 'createFolder'; parentPath?: string }
   | { kind: 'createFile'; ext: TextExt }
   | { kind: 'deleteFolder' }
   | { kind: 'bulkDelete' }

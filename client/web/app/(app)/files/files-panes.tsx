@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * The Files screen's layout pieces: the child-folder strip, the dual pane and its file pane, and the folder tree rail.
+ * The Files screen's layout pieces: the child-folder strip, and the dual pane and its file pane.
+ * The folder tree rail lives in folder-tree-rail.tsx.
  *
  * Moved out of files-client.tsx unchanged (structure pass, phase 1):
  * already standalone, just living in the wrong file. No signatures changed.
  */
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Folder } from 'lucide-react';
@@ -15,6 +15,8 @@ import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
+import { isAppTint } from '@mantle/client-types/app-nav';
+import { AppTile } from '@/components/app-nav/app-tile';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { FILES_ROOT, fmtSize } from './files-shared';
@@ -49,23 +51,29 @@ export function ChildFolders({
       <div className="text-xs uppercase tracking-wider text-muted-foreground">
         Folders ({children.length})
       </div>
-      <ul className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-3">
+      {/* As many columns as fit, every card the same height: one line of
+          name, one of counts. The description would make the rows ragged, so
+          it rides as the card's tooltip (and in the folder's own header). */}
+      <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-2">
         {children.map((f) => (
-          <li key={f.id}>
+          <li key={f.id} className="flex">
             <ListCard
               onClick={() => onNavigate(f.path)}
               data-mark-id={f.id}
               data-mark-kind="folder"
               data-mark-label={f.slug}
-              className="flex items-start gap-2"
+              title={f.description ? `${f.slug}: ${f.description}` : f.slug}
+              className="flex h-full items-center gap-2.5"
             >
-              <Folder className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <AppTile
+                icon={f.icon}
+                color={isAppTint(f.color) ? f.color : null}
+                kind="folder"
+                size="lg"
+              />
               <div className="min-w-0 flex-1">
                 <ListCardTitle>{f.slug}</ListCardTitle>
-                {f.description && <ListCardMeta>{f.description}</ListCardMeta>}
-                <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {f.childFolderCount} folders · {f.fileCount} files
-                </div>
+                <ListCardMeta>{folderCounts(f)}</ListCardMeta>
               </div>
             </ListCard>
           </li>
@@ -73,6 +81,15 @@ export function ChildFolders({
       </ul>
     </div>
   );
+}
+
+/** "3 folders · 12 files", dropping a zero part; "Empty" when both are. */
+function folderCounts(f: FolderRow): string {
+  const parts = [
+    f.childFolderCount > 0 && `${f.childFolderCount} folder${f.childFolderCount === 1 ? '' : 's'}`,
+    f.fileCount > 0 && `${f.fileCount} file${f.fileCount === 1 ? '' : 's'}`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Empty';
 }
 
 /**
@@ -347,62 +364,5 @@ export function FilePane({
         </ul>
       </div>
     </div>
-  );
-}
-
-export function FolderTreeRail({
-  tree,
-  currentPath,
-  onNavigate,
-  filter,
-}: {
-  tree: FolderRow[];
-  currentPath: string;
-  onNavigate: (path: string) => void;
-  /** Substring filter over slug/path. Ancestors of a match stay visible so
-   *  the result still reads as a tree, not a flat list of orphans. */
-  filter?: string;
-}) {
-  // Sort by path so parents appear before children.
-  const sorted = useMemo(() => {
-    const all = [...tree].sort((a, b) => a.path.localeCompare(b.path));
-    const q = (filter ?? '').toLowerCase();
-    if (!q) return all;
-    const keep = new Set<string>();
-    for (const f of all) {
-      if (!f.path.toLowerCase().includes(q) && !f.slug.toLowerCase().includes(q)) continue;
-      // The match plus every ancestor path.
-      const segs = f.path.split('.');
-      for (let i = 1; i <= segs.length; i++) keep.add(segs.slice(0, i).join('.'));
-    }
-    return all.filter((f) => keep.has(f.path));
-  }, [tree, filter]);
-  return (
-    <ul className="text-sm">
-      {sorted.map((f) => {
-        const depth = (f.path.match(/\./g) ?? []).length;
-        return (
-          <li key={f.id} style={{ paddingLeft: depth * 12 }}>
-            <Link
-              href={`/files?path=${encodeURIComponent(f.path)}`}
-              onClick={(e) => {
-                e.preventDefault();
-                onNavigate(f.path);
-              }}
-              className={
-                'flex items-center gap-1.5 rounded px-1.5 py-1 ' +
-                (f.path === currentPath
-                  ? 'bg-primary/10 font-semibold text-primary-ink'
-                  : 'hover:bg-muted/40')
-              }
-              title={f.description || undefined}
-            >
-              <Folder className="size-3.5 text-muted-foreground" />
-              <span className="truncate">{f.path === FILES_ROOT ? 'files' : f.slug}</span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
