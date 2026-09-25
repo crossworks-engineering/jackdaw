@@ -10,7 +10,7 @@ One spec set, two topologies:
 | `split`       | client (owner UI) on its own origin, server on the canonical origin                                | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
-team-token entry, PDF export, `/app-runtime` CORS, the editor header, `/tasks`
+team-token entry, PDF export, the brain's `/app-runtime` CORS, the editor header, `/tasks`
 behaviour, the resizable shell, and the shared field primitives. Fixtures make
 specs topology-blind — same-origin auth is the session cookie, split auth is the
 kind-`'m'` bearer (localStorage contract in `lib/contract.ts`).

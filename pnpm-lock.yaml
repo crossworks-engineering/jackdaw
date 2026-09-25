@@ -9,7 +9,6 @@ overrides:
   '@mantle/content-core': npm:@crossworks/content-core@0.232.246
   '@mantle/voice-client': npm:@crossworks/voice-client@0.232.246
   '@mantle/share-ui': npm:@crossworks/share-ui@0.232.246
-  '@mantle/app-build': npm:@crossworks/app-build@0.232.85
   '@excalidraw/mermaid-to-excalidraw': link:./stubs/mermaid-to-excalidraw
   fast-uri: 3.1.6
   '@xmldom/xmldom': 0.8.15
@@ -228,9 +227,6 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
     devDependencies:
-      '@mantle/app-build':
-        specifier: npm:@crossworks/app-build@0.232.85
-        version: '@crossworks/app-build@0.232.85(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)'
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -511,9 +507,6 @@ packages:
 
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
-
-  '@crossworks/app-build@0.232.85':
-    resolution: {integrity: sha512-GOdDAF4KpR5/3oIenYI+v4A6RfIP+rx14CkHhkxoqoXW4caGjhAGSnhZ9hV4j/mv9gFGzbA4WUoFoiHiddfEtA==}
 
   '@crossworks/client-types@0.232.246':
     resolution: {integrity: sha512-2TApb6dc2eXTjhDFPfR1Ijre+b/C5+aHohcy+pZ+3nJY9gzaxo7qnP+6xXSkCj0RmJIyboVWirxFLF3DcxLqPw==}
@@ -5740,20 +5733,6 @@ snapshots:
     dependencies:
       hashery: 1.5.1
       keyv: 5.6.0
-
-  '@crossworks/app-build@0.232.85(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)':
-    dependencies:
-      '@mantle/share-ui': '@crossworks/share-ui@0.232.246(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
-      '@tailwindcss/oxide': 4.3.3
-      esbuild: 0.28.2
-      lucide-react: 1.41.0(react@19.2.8)
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-      tailwindcss: 4.3.3
-    transitivePeerDependencies:
-      - '@types/react'
-      - '@types/react-dom'
-      - supports-color
 
   '@crossworks/client-types@0.232.246': {}
 

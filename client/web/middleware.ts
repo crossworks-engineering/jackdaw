@@ -14,12 +14,12 @@ import { MEMBER_SURFACE_HEADER } from '@/lib/member-surface';
  */
 const PRESENCE_COOKIE = 'mantle_authed';
 
-/** Paths that render without a session: login itself, the runtime bits, the
+/** Paths that render without a session: login itself, the runtime env, the
  *  team-member surfaces (members are not brain users — they authenticate
  *  with a team token against /api/team/*, never the owner presence flow), and
  *  `/pair` — the static page a browser lands on when it scans the phone
  *  sign-in QR; it holds no data and never reads the code in the fragment. */
-const PUBLIC_PREFIXES = ['/login', '/env.js', '/app-runtime', '/team', '/hub', '/pair'];
+const PUBLIC_PREFIXES = ['/login', '/env.js', '/team', '/hub', '/pair'];
 
 /** Member surfaces get the owner-brand LOCK rendered into the original HTML.
  *  The root layout can't see the pathname, so this is forwarded as a request

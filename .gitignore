@@ -12,7 +12,8 @@ coverage/
 # needs the committed file: `tsc --noEmit` passes without it, and the Docker
 # build runs `next build`, which writes it.
 client/web/next-env.d.ts
-# Generated at build time by @mantle/app-build's build-runtime (npm: @crossworks/app-build)
+# No longer generated (the brain serves the only /app-runtime the sandbox
+# frames load); still ignored so a leftover copy in an older checkout stays out.
 client/web/public/app-runtime/
 # Written and re-added by `next dev` (node_modules/next/dist/server/lib/
 # generate-agent-files.js): AGENTS.md is one delimited block of Next's own

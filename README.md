@@ -99,7 +99,7 @@ see `client/desktop/README.md`.
 - `e2e`: the UI end-to-end suite (drives a running brain).
 
 The wire contract is consumed from npm, published by the mantle repo on every
-release: `@crossworks/{client-types,content-core,voice-client,share-ui,app-build}`.
+release: `@crossworks/{client-types,content-core,voice-client,share-ui}`.
 Workspace imports keep the `@mantle/*` names; pnpm overrides map them to the
 published packages. Those overrides live in `pnpm-workspace.yaml`, not in
 `package.json#pnpm`: pnpm 11 reads its settings from the workspace file and

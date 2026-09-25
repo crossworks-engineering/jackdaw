@@ -28,12 +28,10 @@ const nextConfig: NextConfig = {
     '@mantle/content-core',
     '@mantle/voice-client',
     '@mantle/share-ui',
-    '@mantle/app-build',
     '@crossworks/client-types',
     '@crossworks/content-core',
     '@crossworks/voice-client',
     '@crossworks/share-ui',
-    '@crossworks/app-build',
   ],
   // Pin the dev/build root to THIS checkout. Without it Turbopack infers the
   // root by scanning upward for lockfiles, finds the integrator clone's, and
@@ -57,10 +55,9 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_GIT_SHA: process.env.MANTLE_GIT_SHA ?? '',
     NEXT_PUBLIC_BUILD_TIME: process.env.MANTLE_BUILD_TIME ?? '',
   },
-  // Mini-app sandbox runtime — this app renders sandboxes too (owner /apps),
-  // and the OPAQUE-origin iframes (sandbox without allow-same-origin) fetch
-  // the runtime cross-origin (Origin: null) → ACAO:* required. Same block as
-  // server/web (which serves it for the team/share surfaces).
+  // No /app-runtime here: every mini-app sandbox frames a document the BRAIN
+  // renders (`${apiBase}/frame`), whose import map and CSP both point at the
+  // brain's own /app-runtime. Nothing ever loaded a copy from this origin.
   async headers() {
     return [
       // The origin-independent half of the CSP, on every response. Resolved at
@@ -73,20 +70,6 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: [{ key: 'Content-Security-Policy', value: CSP_ENFORCED_STATIC }],
-      },
-      {
-        source: '/app-runtime/:file(.+\\.js)',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
-      {
-        source: '/app-runtime/manifest.json',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Cache-Control', value: 'no-cache' },
-        ],
       },
     ];
   },
