@@ -35,6 +35,7 @@ import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
+import { appLoaderProp } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ShareControl } from '@/components/share-control';
@@ -351,6 +352,11 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                     <AppSandbox
                       appId={selected.id}
                       {...ownerAppSandboxProps(selected.id)}
+                      {...appLoaderProp({
+                        title: selected.title,
+                        icon: nav?.apps.find((a) => a.id === selected.id)?.icon,
+                        color: nav?.apps.find((a) => a.id === selected.id)?.color,
+                      })}
                       frame="viewport"
                     />
                   </SurfaceErrorBoundary>

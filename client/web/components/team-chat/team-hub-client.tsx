@@ -18,6 +18,7 @@
  * cookie, so briefings/apps open top-level through the SSO handoff instead
  * of the in-hub iframe.
  */
+import { appLoaderProp } from '@/components/app-nav/app-loader';
 import { useCallback, useEffect, useState } from 'react';
 import {
   AppWindow,
@@ -293,6 +294,7 @@ export function TeamHubShell() {
             <AppSandbox
               appId={appId}
               shareToken={shareToken}
+              {...appLoaderProp()}
               frame="viewport"
               // Split: the brokers live on the server origin and the parent-page
               // fetches carry the member bearer (the /s app brokers accept it).
