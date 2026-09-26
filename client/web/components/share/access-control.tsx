@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Loader2, Share2 } from 'lucide-react';
 import type {
@@ -40,8 +40,14 @@ import {
  * explicit "Lower them too". Tasks, events and the other admin-only kinds
  * stay at admin; an old link on one can be removed here.
  *
+ * Picking a level does not change it. The level is a server write that can
+ * create an open link, so the arrow keys (which move the selection in a kit
+ * ToggleGroup) only pick; the change happens on the explicit Apply.
+ *
  * API: GET/PATCH /api/access/nodes/:id (plus /api/shares/cascade for pages'
- * sub-pages). Loads lazily on first open.
+ * sub-pages). Loads fresh on every open, and again when the host reuses this
+ * control for another item (list screens keep it mounted across selection);
+ * a response for an item that is no longer shown is dropped.
  */
 export function AccessControl({
   nodeId,
@@ -61,30 +67,43 @@ export function AccessControl({
   const toast = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<AccessNodeView | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Every piece of loaded state carries the item it belongs to, so a host that
+  // swaps `nodeId` under a mounted control can never show (or copy the link
+  // of) the previous item: a view for another id reads as "not loaded".
+  const [state, setState] = useState<{ nodeId: string; view: AccessNodeView | null } | null>(null);
+  const view = state?.nodeId === nodeId ? state.view : null;
+  const loaded = state?.nodeId === nodeId;
+  // The level the owner has picked but not applied yet (null = none).
+  const [choice, setChoice] = useState<AccessLevel | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // The item on screen now; async work checks it before writing state.
+  const current = useRef(nodeId);
+  current.current = nodeId;
 
   const load = useCallback(async () => {
+    const id = nodeId;
+    let next: AccessNodeView | null = null;
     try {
-      setView(
-        await apiFetch<AccessNodeView>(`/api/access/nodes/${encodeURIComponent(nodeId)}`, {
-          cache: 'no-store',
-        }),
-      );
+      next = await apiFetch<AccessNodeView>(`/api/access/nodes/${encodeURIComponent(id)}`, {
+        cache: 'no-store',
+      });
     } catch (e) {
-      if (!(e instanceof ApiError && e.status === 401)) {
+      if (current.current === id && !(e instanceof ApiError && e.status === 401)) {
         toast.error(e instanceof Error ? e.message : 'Could not load who can see this');
       }
-    } finally {
-      setLoaded(true);
     }
+    if (current.current === id) setState({ nodeId: id, view: next });
   }, [nodeId, toast]);
 
+  // Fresh on every open and on every item change while open. Closing drops
+  // what was loaded, so the next open never flashes a stale level.
   useEffect(() => {
-    if (open && !loaded) void load();
-  }, [open, loaded, load]);
+    setChoice(null);
+    setCopied(false);
+    if (open) void load();
+    else setState(null);
+  }, [open, load]);
 
   const refreshScreens = (type: string) => {
     for (const queryKey of queryKeysForType(type)) void queryClient.invalidateQueries({ queryKey });
@@ -92,22 +111,31 @@ export function AccessControl({
 
   const setLevel = async (next: AccessLevel, withClosure = false) => {
     if (!view) return;
+    const id = nodeId;
     setBusy(true);
     try {
       if (view.item.audience === 'admin' && next !== 'admin') await beforeEnable?.();
       const res = await apiSend<AccessNodeUpdate>(
-        `/api/access/nodes/${encodeURIComponent(nodeId)}`,
+        `/api/access/nodes/${encodeURIComponent(id)}`,
         'PATCH',
         { audience: next, withClosure },
       );
-      const lowered = new Map(res.lowered.map((i) => [i.id, i]));
-      setView({
-        ...view,
-        item: res.item,
-        share: res.share,
-        closure: view.closure.map((c) => lowered.get(c.id) ?? c),
-      });
+      // The lowered embeds live on their own screens (a page's files, a
+      // folder's contents): refresh those too, not just this item's.
       refreshScreens(res.item.type);
+      for (const type of new Set(res.lowered.map((i) => i.type))) refreshScreens(type);
+      if (current.current !== id) return;
+      const lowered = new Map(res.lowered.map((i) => [i.id, i]));
+      setState({
+        nodeId: id,
+        view: {
+          ...view,
+          item: res.item,
+          share: res.share,
+          closure: view.closure.map((c) => lowered.get(c.id) ?? c),
+        },
+      });
+      setChoice(null);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
       toast.error(e instanceof Error ? e.message : 'Could not change who can see this');
@@ -120,8 +148,14 @@ export function AccessControl({
     if (!view?.share) return;
     setBusy(true);
     try {
-      const d = await apiSend<{ count?: number }>('/api/shares/cascade', 'POST', { nodeId, on });
-      setView({ ...view, share: { ...view.share, cascade: on } });
+      const id = nodeId;
+      const d = await apiSend<{ count?: number }>('/api/shares/cascade', 'POST', {
+        nodeId: id,
+        on,
+      });
+      if (current.current === id) {
+        setState({ nodeId: id, view: { ...view, share: { ...view.share, cascade: on } } });
+      }
       const n = d.count ?? view.childCount;
       toast.success(
         on ? `${n} sub-page${n === 1 ? '' : 's'} now match this page` : 'Sub-pages back to admin',
@@ -147,6 +181,7 @@ export function AccessControl({
   };
 
   const level = view?.item.audience ?? 'admin';
+  const picked = choice ?? level;
   const above: AccessItemView[] = view ? closureAbove(view.closure, level) : [];
 
   return (
@@ -179,10 +214,12 @@ export function AccessControl({
                 variant="outline"
                 size="default"
                 className="w-full"
-                value={level}
+                loop={false}
+                value={picked}
                 disabled={busy || !view.canLower}
                 onValueChange={(v) => {
-                  if (isAccessLevel(v) && v !== level) void setLevel(v);
+                  // Empty = a press on the picked item: keep the pick.
+                  if (isAccessLevel(v)) setChoice(v === level ? null : v);
                 }}
               >
                 {LEVEL_ORDER.map((l) => (
@@ -193,9 +230,22 @@ export function AccessControl({
               </ToggleGroup>
               <p className="text-xs text-muted-foreground">
                 {view.canLower
-                  ? LEVEL_MEANING[level]
+                  ? LEVEL_MEANING[picked]
                   : 'Admin only. Only pages, notes, drawings, tables, files, folders, apps and formulas can be shared.'}
               </p>
+              {choice && (
+                <div className="flex items-center justify-end gap-2">
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => setChoice(null)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" disabled={busy} onClick={() => void setLevel(choice)}>
+                    {busy && <Loader2 className="animate-spin" aria-hidden />}
+                    {showsLink(choice) && !showsLink(level)
+                      ? `Make ${LEVEL_LABEL[choice]} (open link)`
+                      : `Set to ${LEVEL_LABEL[choice]}`}
+                  </Button>
+                </div>
+              )}
             </div>
 
             {view.canLower && showsLink(level) && (
