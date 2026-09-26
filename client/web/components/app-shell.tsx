@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { isMemberLoginRefusal } from '@/lib/member-destination';
+import { isMemberLoginRefusal, setMemberHint } from '@/lib/member-destination';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
@@ -258,9 +258,18 @@ function ShellFrame({
     retry: (count, err) => !isMemberLoginRefusal(err) && count < 1,
   });
   // A MEMBER login has its own surface: every admin API refuses it.
+  // The hint cookie lets the middleware skip this shell next time; an admin
+  // shell load clears it (a browser that switched logins).
   useEffect(() => {
-    if (isMemberLoginRefusal(shellQuery.error)) router.replace('/m');
+    if (isMemberLoginRefusal(shellQuery.error)) {
+      setMemberHint(true);
+      router.replace('/m');
+    }
   }, [shellQuery.error, router]);
+  const shellLoaded = shellQuery.isSuccess;
+  useEffect(() => {
+    if (shellLoaded) setMemberHint(false);
+  }, [shellLoaded]);
   const userAvatar = shellQuery.data?.avatar ?? null;
   // Hand the uploader the server's cap as soon as it is known, so an oversized
   // file is refused before a byte is sent, with the real number in the message.

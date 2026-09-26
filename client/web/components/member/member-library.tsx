@@ -14,6 +14,7 @@ import {
   ListCardTitle,
 } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import useMediaQuery from '@mantle/web-ui/hooks/use-media-query';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -37,15 +38,18 @@ const KIND_ICON: Record<MemberLibraryKind, string> = {
 };
 
 /**
- * The member Library: every item the brain lets this member read (team,
- * client and public levels), newest first. The brain filters with row
- * security; this screen lists and reads. The selected item lives in the URL
- * (?id=) so a link to it works.
+ * The member Library: the items the brain lists for this member (team-level
+ * items), newest first. The brain filters with row security; this screen
+ * lists and reads. The selected item lives in the URL (?id=) so a link to it
+ * works. On a phone it shows the list OR the reader (its X goes back), since
+ * the stacked panes would put the reader below the whole list.
  */
 export function MemberLibrary() {
   const router = useRouter();
   const pathname = usePathname() ?? '/m';
   const params = useSearchParams();
+  // null until measured: treat as desktop, as MasterDetail does.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
   const selectedId = params.get('id');
   const [kind, setKind] = useState<MemberLibraryKind | null>(null);
   const [q, setQ] = useState('');
@@ -172,5 +176,12 @@ export function MemberLibrary() {
     </div>
   );
 
+  if (isDesktop === false) {
+    return selectedId ? (
+      <div className="relative min-h-0 flex-1">{detailPane}</div>
+    ) : (
+      <div className="relative min-h-0 flex-1">{listPane}</div>
+    );
+  }
   return <MasterDetail id="member-library" list={listPane} detail={detailPane} />;
 }

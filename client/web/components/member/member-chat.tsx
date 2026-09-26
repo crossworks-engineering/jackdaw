@@ -11,8 +11,10 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { replyLanded } from '@/lib/member-chat';
 
 const KEY = ['member-chat'];
+const GIVE_UP_MS = 120_000;
 
 /**
  * A member's own chat with the brain's team-level agent. One thread per
@@ -24,33 +26,38 @@ export function MemberChat() {
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   // Set on send, cleared once the reply lands: the turn's rows appear a moment
   // after the POST returns, so "anything pending?" alone would stop polling.
-  const [awaitingSince, setAwaitingSince] = useState<number | null>(null);
+  const [awaiting, setAwaiting] = useState<{ known: Set<string>; at: number } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   const thread = useQuery({
     queryKey: KEY,
     queryFn: () => apiFetch<MemberChatThread>('/api/member/chat'),
     refetchInterval: (q) =>
-      awaitingSince !== null || q.state.data?.messages.some((m) => m.status === 'pending')
+      awaiting !== null || q.state.data?.messages.some((m) => m.status === 'pending')
         ? 1500
         : false,
   });
   const messages = useMemo(() => thread.data?.messages ?? [], [thread.data?.messages]);
   const last = messages[messages.length - 1];
-  const waiting = sending || awaitingSince !== null || messages.some((m) => m.status === 'pending');
+  const waiting = sending || awaiting !== null || messages.some((m) => m.status === 'pending');
+  // false = this login has no team contact, so the brain refuses a send.
+  const unlinked = thread.data?.linked === false;
 
-  // The reply has landed (or failed) once the newest row is a finished
-  // outbound written after the send. Give up waiting after two minutes.
+  // Stop polling once the reply has landed (or failed); give up after two
+  // minutes, which only happens when the brain never wrote the turn.
+  const [gaveUp, setGaveUp] = useState(false);
   useEffect(() => {
-    if (awaitingSince === null) return;
-    const landed =
-      last?.direction === 'outbound' &&
-      last.status !== 'pending' &&
-      new Date(last.createdAt).getTime() >= awaitingSince - 5_000;
-    if (landed || Date.now() - awaitingSince > 120_000) setAwaitingSince(null);
-  }, [last, awaitingSince]);
+    if (awaiting === null) return;
+    if (replyLanded(messages, awaiting.known)) {
+      setAwaiting(null);
+    } else if (Date.now() - awaiting.at > GIVE_UP_MS) {
+      setAwaiting(null);
+      setGaveUp(true);
+    }
+  }, [messages, awaiting]);
 
   const lastStatus = last?.status;
   useEffect(() => {
@@ -59,22 +66,40 @@ export function MemberChat() {
 
   const send = async () => {
     const body = text.trim();
-    if (!body || waiting) return;
+    // The ref closes the gap before `sending` re-renders (a double Enter).
+    if (!body || waiting || unlinked || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
+    setGaveUp(false);
     try {
-      const sentAt = Date.now();
+      const known = new Set(messages.map((m) => m.id));
       await apiSend('/api/member/chat', 'POST', { text: body });
       setText('');
-      setAwaitingSince(sentAt);
+      setAwaiting({ known, at: Date.now() });
       await qc.invalidateQueries({ queryKey: KEY });
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 401)) {
         toast.error(e instanceof Error ? e.message : 'Could not send that');
       }
+      // A 409 means the brain's state changed (unlinked, or chat closed):
+      // reload the thread so the screen says so instead of a lone toast.
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: KEY });
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
+
+  if (thread.isError && !thread.data) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+        <p className="text-sm text-muted-foreground">Could not load the chat.</p>
+        <Button size="sm" variant="outline" onClick={() => void thread.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
   if (thread.data && !thread.data.agent) {
     return (
@@ -123,9 +148,20 @@ export function MemberChat() {
               ),
             )
           )}
+          {gaveUp && (
+            <p className="text-sm text-muted-foreground">
+              No reply yet. It may still arrive; reload the page to check.
+            </p>
+          )}
           <div ref={bottom} />
         </div>
       </div>
+      {unlinked && (
+        <p className="border-t border-border px-4 py-2 text-center text-sm text-muted-foreground">
+          This login is not linked to a team contact yet, so it cannot send. Ask the admin to link
+          it.
+        </p>
+      )}
       <div className="border-t border-border bg-background/80 p-3 backdrop-blur">
         <form
           className="mx-auto flex max-w-2xl items-end gap-2"
@@ -145,10 +181,16 @@ export function MemberChat() {
             }}
             placeholder="Message…"
             aria-label="Message"
+            disabled={unlinked}
             rows={1}
             className={cn('max-h-40 min-h-9 resize-none scrollbar-thin')}
           />
-          <Button type="submit" size="icon" aria-label="Send" disabled={!text.trim() || waiting}>
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Send"
+            disabled={!text.trim() || waiting || unlinked}
+          >
             {waiting ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
           </Button>
         </form>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { MEMBER_SURFACE_HEADER } from '@/lib/member-surface';
+import { MEMBER_HINT_COOKIE, MEMBER_SURFACE_HEADER, sendsMemberHome } from '@/lib/member-surface';
 
 /**
  * ZERO-SECRET client middleware. This app holds no SESSION_SECRET, so it can
@@ -43,6 +43,17 @@ export function middleware(req: NextRequest): NextResponse {
     return pass();
   }
   if (req.cookies.get(PRESENCE_COOKIE)?.value === '1') {
+    // A member login's browser goes to its own surface without first
+    // rendering the owner shell (UX only, see MEMBER_HINT_COOKIE).
+    if (
+      req.cookies.get(MEMBER_HINT_COOKIE)?.value === '1' &&
+      sendsMemberHome(pathname, PUBLIC_PREFIXES)
+    ) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/m';
+      url.search = '';
+      return NextResponse.redirect(url, 307);
+    }
     return pass();
   }
   const url = req.nextUrl.clone();

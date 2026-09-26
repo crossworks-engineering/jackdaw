@@ -17,6 +17,8 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { BrandBlock } from '@/components/layout/rail/brand-block';
 import { NeatSurface } from '@/components/neat-surface';
 import { assetTokenRefreshDelayMs } from '@mantle/web-ui/token-claims';
+import { maybeRefreshToken } from '@mantle/web-ui/token-refresh';
+import { setMemberHint } from '@/lib/member-destination';
 
 const MemberContext = createContext<MemberShellData | null>(null);
 
@@ -81,6 +83,7 @@ function RailFoot({ name }: { name: string }) {
         disabled={busy}
         onClick={async () => {
           setBusy(true);
+          setMemberHint(false);
           await performSignOut();
           router.push('/login');
           router.refresh();
@@ -112,8 +115,21 @@ export function MemberShell({ children }: { children: ReactNode }) {
   // An admin login has no business here: its home is the owner app.
   useEffect(() => {
     const e = shell.error;
-    if (e instanceof ApiError && e.status === 403) router.replace('/');
+    if (e instanceof ApiError && e.status === 403) {
+      setMemberHint(false);
+      router.replace('/');
+    }
   }, [shell.error, router]);
+
+  // A member's browser skips the owner shell from now on (UX only), and a
+  // split-client bearer is rotated before it expires, as the owner shell
+  // does: without it a member's web session died at the 30-day TTL.
+  const loaded = shell.isSuccess;
+  useEffect(() => {
+    if (!loaded) return;
+    setMemberHint(true);
+    void maybeRefreshToken();
+  }, [loaded]);
 
   // Library images and file links carry the member asset token (?at=).
   useEffect(() => {
@@ -177,7 +193,11 @@ export function MemberShell({ children }: { children: ReactNode }) {
             >
               <NeatSurface shared />
             </div>
-            <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
+            {/* Scrolls on a phone, where the screens stack; on md and up each
+                screen scrolls its own panes. */}
+            <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin md:overflow-hidden">
+              {children}
+            </main>
           </div>
         </div>
       </TooltipProvider>
