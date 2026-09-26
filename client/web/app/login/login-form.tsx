@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { destinationAfterSignIn } from '@/lib/member-destination';
 import { useRouter } from 'next/navigation';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -107,7 +108,7 @@ export function LoginForm({
 
       // New accounts go straight into onboarding; returning users to where
       // they were headed (AppShell redirects to /onboarding if not yet done).
-      router.push(isSignup ? '/onboarding' : (next ?? '/'));
+      router.push(isSignup ? '/onboarding' : await destinationAfterSignIn(next));
       router.refresh();
     } catch (err) {
       setError(signInErrorMessage(err));

@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { isMemberLoginRefusal } from '@/lib/member-destination';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
@@ -252,7 +253,14 @@ function ShellFrame({
     // one that has been open in front of you for hours. It is one small
     // request, and it is the one carrying a credential with a hard expiry.
     refetchOnWindowFocus: true,
+    // A member login is refused here for good (403): retrying only delays the
+    // redirect below.
+    retry: (count, err) => !isMemberLoginRefusal(err) && count < 1,
   });
+  // A MEMBER login has its own surface: every admin API refuses it.
+  useEffect(() => {
+    if (isMemberLoginRefusal(shellQuery.error)) router.replace('/m');
+  }, [shellQuery.error, router]);
   const userAvatar = shellQuery.data?.avatar ?? null;
   // Hand the uploader the server's cap as soon as it is known, so an oversized
   // file is refused before a byte is sent, with the real number in the message.

@@ -27,7 +27,9 @@ const PUBLIC_PREFIXES = ['/login', '/env.js', '/team', '/hub', '/pair'];
  *  it only locks the spoofer's own theme, but determinism matters). NOTE:
  *  '/team-admin' is the OWNER's console, not a member surface — the prefix
  *  match below is exact-or-slash so it doesn't catch it. */
-const MEMBER_PREFIXES = ['/team', '/hub'];
+// '/m' = the member-login surface (member logins, Phase 1): same owner-brand
+// lock as the team portal.
+const MEMBER_PREFIXES = ['/team', '/hub', '/m'];
 
 export function middleware(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;

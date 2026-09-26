@@ -105,11 +105,28 @@ function renderStatic(input: { html?: string; json?: JSONContent }): string {
   return tpl.innerHTML;
 }
 
+/** Point every stored asset path in rendered HTML somewhere else (the member
+ *  surface serves bytes from its own routes). Runs on a detached template, so
+ *  the original src never loads. */
+function remapAssets(rendered: string, mapAssetPath: (path: string) => string): string {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = rendered;
+  for (const img of tpl.content.querySelectorAll<HTMLImageElement>(`img[${ASSET_PATH_ATTR}]`)) {
+    const path = img.getAttribute(ASSET_PATH_ATTR);
+    if (!path) continue;
+    const mapped = mapAssetPath(path);
+    img.setAttribute(ASSET_PATH_ATTR, mapped);
+    img.setAttribute('src', assetUrl(mapped));
+  }
+  return tpl.innerHTML;
+}
+
 export function StaticDoc({
   html,
   json,
   className,
   onClick,
+  mapAssetPath,
 }: {
   /** HTML to normalise through the schema (the assistant's markdown path). */
   html?: string;
@@ -117,6 +134,8 @@ export function StaticDoc({
   json?: JSONContent;
   className?: string;
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  /** Rewrite each image's stored asset path (the member surface). */
+  mapAssetPath?: (path: string) => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Rendered in an effect, not in a `useMemo`, so the SSR pass and the
@@ -125,8 +144,9 @@ export function StaticDoc({
   // mounted. Rendering during hydration instead would be a mismatch.
   const [rendered, setRendered] = useState<string | null>(null);
   useEffect(() => {
-    setRendered(renderStatic({ html, json }));
-  }, [html, json]);
+    const out = renderStatic({ html, json });
+    setRendered(mapAssetPath ? remapAssets(out, mapAssetPath) : out);
+  }, [html, json, mapAssetPath]);
 
   // The editor path gets this from a ProseMirror plugin (see image.ts); a
   // static container has no plugins, so it re-signs its own images when the

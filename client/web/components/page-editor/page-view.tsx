@@ -19,7 +19,15 @@ import { StaticDoc } from './static-doc';
  * One deliberate difference: a callout renders as the share surface's tinted
  * panel rather than the editor NodeView's bordered box with a lucide icon.
  */
-export function PageView({ content }: { content: JSONContent }) {
+export function PageView({
+  content,
+  mapAssetPath,
+}: {
+  content: JSONContent;
+  /** Rewrite image asset paths (the member surface reads bytes from its own
+   *  routes). Pass a stable function. */
+  mapAssetPath?: (path: string) => string;
+}) {
   // READ surface only: clicking an inline image opens the fullscreen zoom
   // viewer. The EDITOR keeps native clicks (select/drag the node) — zooming
   // while editing would fight the selection.
@@ -27,6 +35,7 @@ export function PageView({ content }: { content: JSONContent }) {
     <ZoomableImages className="contents">
       <StaticDoc
         json={content}
+        mapAssetPath={mapAssetPath}
         className="prose dark:prose-invert prose-accent prose-document max-w-none focus:outline-none"
       />
     </ZoomableImages>

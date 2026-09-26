@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { destinationAfterSignIn } from '@/lib/member-destination';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
@@ -37,7 +38,7 @@ export function LoginClient({
       // cookie store; localStorage flushes eagerly) — and without it the
       // middleware redirects the bounce right back here, a deadlock.
       tokenStore.markPresence();
-      router.replace(next ?? '/');
+      void destinationAfterSignIn(next).then((to) => router.replace(to));
     }
   }, [router, next]);
 
