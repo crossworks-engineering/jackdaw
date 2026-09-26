@@ -44,7 +44,6 @@ export function MemberChat() {
   const last = messages[messages.length - 1];
   const waiting = sending || awaiting !== null || messages.some((m) => m.status === 'pending');
   // false = this login has no team contact, so the brain refuses a send.
-  const unlinked = thread.data?.linked === false;
 
   // Stop polling once the reply has landed (or failed); give up after two
   // minutes, which only happens when the brain never wrote the turn.
@@ -67,7 +66,7 @@ export function MemberChat() {
   const send = async () => {
     const body = text.trim();
     // The ref closes the gap before `sending` re-renders (a double Enter).
-    if (!body || waiting || unlinked || sendingRef.current) return;
+    if (!body || waiting || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
     setGaveUp(false);
@@ -81,7 +80,7 @@ export function MemberChat() {
       if (!(e instanceof ApiError && e.status === 401)) {
         toast.error(e instanceof Error ? e.message : 'Could not send that');
       }
-      // A 409 means the brain's state changed (unlinked, or chat closed):
+      // A 409 means the brain's state changed (chat closed):
       // reload the thread so the screen says so instead of a lone toast.
       if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: KEY });
     } finally {
@@ -156,12 +155,6 @@ export function MemberChat() {
           <div ref={bottom} />
         </div>
       </div>
-      {unlinked && (
-        <p className="border-t border-border px-4 py-2 text-center text-sm text-muted-foreground">
-          This login is not linked to a team contact yet, so it cannot send. Ask the admin to link
-          it.
-        </p>
-      )}
       <div className="border-t border-border bg-background/80 p-3 backdrop-blur">
         <form
           className="mx-auto flex max-w-2xl items-end gap-2"
@@ -181,16 +174,10 @@ export function MemberChat() {
             }}
             placeholder="Message…"
             aria-label="Message"
-            disabled={unlinked}
             rows={1}
             className={cn('max-h-40 min-h-9 resize-none scrollbar-thin')}
           />
-          <Button
-            type="submit"
-            size="icon"
-            aria-label="Send"
-            disabled={!text.trim() || waiting || unlinked}
-          >
+          <Button type="submit" size="icon" aria-label="Send" disabled={!text.trim() || waiting}>
             {waiting ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
           </Button>
         </form>

@@ -10,18 +10,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Copy,
-  Mail,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  Trash2,
-  UserRound,
-  Users,
-  X,
-} from 'lucide-react';
+import { Mail, Phone, Plus, Search, Trash2, UserRound, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -34,7 +23,6 @@ import {
   FieldLabel,
 } from '@mantle/web-ui/ui/field';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
-import { Switch } from '@mantle/web-ui/ui/switch';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import {
   AlertDialog,
@@ -46,14 +34,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@mantle/web-ui/ui/dialog';
-import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagInput } from '@/components/tag-input';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
@@ -195,12 +175,6 @@ export function ContactsClient() {
                   >
                     <div className="flex items-center gap-1.5">
                       <ListCardTitle>{c.title}</ListCardTitle>
-                      {c.team && (
-                        <Users
-                          className="size-3.5 shrink-0 text-muted-foreground"
-                          aria-label="Team member"
-                        />
-                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       {/* Surface company on the secondary line — but only when
@@ -291,13 +265,6 @@ function ContactForm({ contact }: { contact: ContactRow }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, start] = useTransition();
   const [pendingDelete, startDelete] = useTransition();
-  // Team-member role. `mintedToken` holds the plaintext token for the
-  // shown-once dialog right after enable/rotate — it never lives anywhere
-  // else client-side and closing the dialog drops it.
-  const [mintedToken, setMintedToken] = useState<string | null>(null);
-  const [confirmDisable, setConfirmDisable] = useState(false);
-  const [confirmRotate, setConfirmRotate] = useState(false);
-  const [teamPending, startTeam] = useTransition();
 
   // Reset the form whenever a different contact is selected. (`key` on the
   // parent already remounts us; this is belt-and-braces if the parent stops
@@ -373,36 +340,6 @@ function ContactForm({ contact }: { contact: ContactRow }) {
     });
   };
 
-  const teamAction = (action: 'enable' | 'rotate' | 'disable') => {
-    startTeam(async () => {
-      try {
-        const res = await apiSend<{ token?: string }>(`/api/contacts/${contact.id}/team`, 'POST', {
-          action,
-        });
-        if (action === 'disable') {
-          toast.success('Team access revoked');
-        } else if (res.token) {
-          setMintedToken(res.token);
-        }
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
-        toast.error(e instanceof Error ? e.message : 'Could not update team access');
-        return;
-      } finally {
-        setConfirmDisable(false);
-        setConfirmRotate(false);
-      }
-      void queryClient.invalidateQueries({ queryKey: ['contacts'] });
-    });
-  };
-
-  const onCopyToken = async () => {
-    if (!mintedToken) return;
-    const ok = await copyText(mintedToken);
-    if (ok) toast.success('Token copied');
-    else toast.error('Could not copy — select and copy it manually.');
-  };
-
   const emailCount = contact.contactCounts.email ?? 0;
   const lastEmailAt = contact.lastContactedAt.email;
 
@@ -412,7 +349,7 @@ function ContactForm({ contact }: { contact: ContactRow }) {
     <div className="flex flex-col gap-6 px-6 py-6">
       {/* §8 "Detail header anatomy": glyph inside the h2, title truncates,
           actions `shrink-0`, delete icon-only and last. Settings-style editors
-          keep their boolean flags as header Switches — that stays. */}
+          keep their boolean flags as header Switches. */}
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="flex min-w-0 items-center gap-2 text-lg font-semibold">
@@ -422,18 +359,6 @@ function ContactForm({ contact }: { contact: ContactRow }) {
           <p className="text-xs text-muted-foreground">Added {formatDateTime(contact.createdAt)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-4">
-          <label className="flex items-center gap-2 text-sm" htmlFor="team-member">
-            <span className="text-muted-foreground">Team member</span>
-            <Switch
-              id="team-member"
-              checked={!!contact.team}
-              disabled={teamPending}
-              onCheckedChange={(next) => {
-                if (next) teamAction('enable');
-                else setConfirmDisable(true);
-              }}
-            />
-          </label>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -445,34 +370,6 @@ function ContactForm({ contact }: { contact: ContactRow }) {
           </Button>
         </div>
       </header>
-
-      {/* Team membership strip — mirrors the activity strip below. */}
-      {contact.team && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
-          <span className="inline-flex items-center gap-1.5">
-            <Users className="size-3.5 text-muted-foreground" aria-hidden />
-            <span className="text-muted-foreground">
-              Team member since{' '}
-              <span className="text-foreground">{formatDateTime(contact.team.since)}</span>
-            </span>
-          </span>
-          <span className="text-muted-foreground">
-            token last used{' '}
-            <span className="text-foreground">
-              {contact.team.lastUsedAt ? formatDateTime(contact.team.lastUsedAt) : 'never'}
-            </span>
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto"
-            disabled={teamPending}
-            onClick={() => setConfirmRotate(true)}
-          >
-            <RefreshCw aria-hidden /> Regenerate token
-          </Button>
-        </div>
-      )}
 
       {/* Activity summary — counts + last-contacted per method. */}
       {(emailCount > 0 || lastEmailAt) && (
@@ -648,79 +545,13 @@ function ContactForm({ contact }: { contact: ContactRow }) {
         </div>
       </FieldGroup>
 
-      {/* Shown-once token dialog. Closing drops the plaintext for good —
-          after that the only way to a working token is Regenerate. */}
-      <Dialog open={mintedToken !== null} onOpenChange={(open) => !open && setMintedToken(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Team token for {contact.title}</DialogTitle>
-            <DialogDescription>
-              Share this token with them privately — they&apos;ll enter it to open apps you share
-              with the team. It is shown only once; if it&apos;s lost, regenerate a new one.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 select-all rounded-md border border-border bg-muted/30 px-4 py-3 text-center font-mono text-2xl tracking-widest">
-              {mintedToken}
-            </code>
-            <Button variant="outline" size="icon" aria-label="Copy token" onClick={onCopyToken}>
-              <Copy aria-hidden />
-            </Button>
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={() => setMintedToken(null)}>Done — token saved</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={confirmDisable} onOpenChange={setConfirmDisable}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove from team?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {contact.title}&apos;s token stops working immediately — they lose access to anything
-              shared with the team. The contact itself is kept.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={teamPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => teamAction('disable')}
-              disabled={teamPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {teamPending ? 'Removing…' : 'Remove from team'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Regenerate the token?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The current token stops working immediately; you&apos;ll get a new one to hand to{' '}
-              {contact.title}.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={teamPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => teamAction('rotate')} disabled={teamPending}>
-              {teamPending ? 'Regenerating…' : 'Regenerate token'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this contact?</AlertDialogTitle>
             <AlertDialogDescription>
               {contact.title} will be removed. Saskia will no longer be able to email this address
-              (deleting also removes them from the email allowlist
-              {contact.team ? ' and revokes their team token' : ''}).
+              (deleting also removes them from the email allowlist).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
