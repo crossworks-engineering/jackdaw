@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import type { JSONContent } from '@tiptap/core';
@@ -25,9 +26,18 @@ const KIND_ICON = { page: '📄', note: '📝', draw: '✏️', table: '📊', f
  */
 export function MemberReader({ id, onClose }: { id: string; onClose: () => void }) {
   const asset = useAssetUrl();
+  // A table's chosen tab, kept with the item it belongs to so opening another
+  // item starts on its first tab. Null = the server's default (the first).
+  const [picked, setPicked] = useState<{ itemId: string; tabId: string } | null>(null);
+  const tabId = picked?.itemId === id ? picked.tabId : null;
   const q = useQuery({
-    queryKey: ['member-item', id],
-    queryFn: () => apiFetch<{ item: MemberLibraryItem }>(`/api/member/library/${id}`),
+    queryKey: ['member-item', id, tabId],
+    queryFn: () =>
+      apiFetch<{ item: MemberLibraryItem }>(
+        `/api/member/library/${id}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
+      ),
+    // Switching tabs keeps the current grid on screen until the next lands.
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === id ? prev : undefined),
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
   });
 
@@ -71,12 +81,41 @@ export function MemberReader({ id, onClose }: { id: string; onClose: () => void 
       break;
     case 'table': {
       const table = item.table as TableDetail;
+      const tabs = table.tabs ?? [];
+      const current = table.tabId ?? tabs[0]?.id ?? null;
+      // A tab past the server's materialize window arrives as a leading window.
+      const totalRows = tabs.find((t) => t.id === current)?.rows ?? table.data.rows.length;
       body = (
-        <TablePresenter
-          view={{ title: item.title, icon: item.icon, tabs: null, legacyDoc: table.data }}
-          token=""
-          chrome="embedded"
-        />
+        <div className="space-y-2">
+          {tabs.length > 1 ? (
+            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Table tabs">
+              {tabs.map((t) => (
+                <Button
+                  key={t.id}
+                  size="sm"
+                  variant={t.id === current ? 'default' : 'ghost'}
+                  role="tab"
+                  aria-selected={t.id === current}
+                  onClick={() => setPicked({ itemId: id, tabId: t.id })}
+                >
+                  {t.name}
+                  <span className="text-xs opacity-70">{t.rows.toLocaleString()}</span>
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <TablePresenter
+            view={{ title: item.title, icon: item.icon, tabs: null, legacyDoc: table.data }}
+            token=""
+            chrome="embedded"
+          />
+          {table.docClipped ? (
+            <p className="text-xs text-muted-foreground">
+              Showing the first {table.data.rows.length.toLocaleString()} of{' '}
+              {totalRows.toLocaleString()} rows.
+            </p>
+          ) : null}
+        </div>
       );
       break;
     }
