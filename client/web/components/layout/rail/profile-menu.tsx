@@ -35,6 +35,7 @@ import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { themeLabel } from '@mantle/web-ui/lib/themes';
 import { RandomThemeItems } from '@/components/random-theme-toggle';
 import { agentInitials } from '@/lib/agent-color';
+import { setMemberHint } from '@/lib/member-destination';
 
 export type ProfileIdentity = {
   /** The actor's display name, when they have set one. */
@@ -103,10 +104,14 @@ export function ProfileMenu({
   variant = 'rail',
   onNavigate,
   onSearchClick,
+  member = false,
 }: {
   identity: ProfileIdentity;
   variant?: 'rail' | 'bar';
   onNavigate?: () => void;
+  /** A member login: no Profile screen (it is admin-only) and no brain-wide
+   *  random theme; sign-out also clears the member hint. */
+  member?: boolean;
   /** Opens the search palette. Absent on surfaces that have no palette to open
    *  — the item is then not rendered rather than rendered inert. */
   onSearchClick?: () => void;
@@ -120,6 +125,7 @@ export function ProfileMenu({
 
   async function signOut() {
     setBusy(true);
+    if (member) setMemberHint(false);
     await performSignOut();
     router.push('/login');
     router.refresh();
@@ -206,11 +212,13 @@ export function ProfileMenu({
           </DropdownMenuItem>
         )}
 
-        <DropdownMenuItem asChild>
-          <Link href="/settings/profile" onClick={onNavigate} className="cursor-pointer">
-            <UserIcon className="size-4" /> Profile
-          </Link>
-        </DropdownMenuItem>
+        {member ? null : (
+          <DropdownMenuItem asChild>
+            <Link href="/settings/profile" onClick={onNavigate} className="cursor-pointer">
+              <UserIcon className="size-4" /> Profile
+            </Link>
+          </DropdownMenuItem>
+        )}
 
         {/* Appearance lives here rather than as its own rail row: it is a
             once-a-month decision sitting permanently in a column that has to

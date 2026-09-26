@@ -25,13 +25,16 @@ export interface SlashCommandOptions {
    *  `parent_id` set to this, so it needs to know "which page am I in?".
    *  Exposed via storage so the static slash items can read it off `editor`. */
   pageId: string | null;
+  /** A member login (member logins): no command that creates or uploads into
+   *  the brain (sub-page, image, drawing, file); those routes refuse a member. */
+  member: boolean;
 }
 
 export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
 
   addOptions() {
-    return { pageId: null };
+    return { pageId: null, member: false };
   },
 
   // Mirror the page id into storage so a slash item's command (which only
@@ -54,7 +57,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         command: ({ editor, range, props }) => {
           props.command({ editor, range });
         },
-        items: ({ query }) => getSlashItems(query),
+        items: ({ query }) => getSlashItems(query, { member: this.options.member }),
         render: () => {
           let component: ReactRenderer<SlashMenuHandle, SlashMenuProps> | null = null;
           let popup: HTMLDivElement | null = null;

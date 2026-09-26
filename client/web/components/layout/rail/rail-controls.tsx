@@ -23,10 +23,14 @@ export function RailControls({
   identity,
   onSearchClick,
   onNavigate,
+  member = false,
 }: {
   identity: ProfileIdentity;
-  onSearchClick: () => void;
+  /** Absent = no search palette on this shell (a member's). */
+  onSearchClick?: () => void;
   onNavigate?: () => void;
+  /** A member login: the menu drops the admin-only profile screen. */
+  member?: boolean;
 }) {
   return (
     // `relative` is load-bearing, exactly as on the rail's other three bands:
@@ -36,7 +40,12 @@ export function RailControls({
     <div className="relative flex shrink-0 flex-col gap-1 border-b border-sidebar-border px-3 py-2 group-data-[nav-collapsed=true]/shell:items-center group-data-[nav-collapsed=true]/shell:gap-1.5 group-data-[nav-collapsed=true]/shell:px-2">
       {/* Everything this band used to hold separately — appearance, theme,
           search — now hangs off this one control. See the note above. */}
-      <ProfileMenu identity={identity} onNavigate={onNavigate} onSearchClick={onSearchClick} />
+      <ProfileMenu
+        identity={identity}
+        onNavigate={onNavigate}
+        onSearchClick={onSearchClick}
+        member={member}
+      />
     </div>
   );
 }

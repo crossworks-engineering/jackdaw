@@ -3,6 +3,8 @@ import { SystemVitals } from '@/components/dashboard/system-vitals';
 import { OpenQuestions } from '@/components/dashboard/open-questions';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { DashboardClient } from './dashboard-client';
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberHome } from '@/components/member/member-home';
 
 /**
  * Dashboard — the "brain health" overview. Data-free: the live host/Postgres
@@ -12,24 +14,26 @@ import { DashboardClient } from './dashboard-client';
  */
 export default async function DashboardPage() {
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <SetPageTitle title="Dashboard" />
-      <header className="flex flex-wrap items-center justify-end gap-2">
-        <nav className="flex items-center gap-3 text-sm">
-          <Link href="/debug" className="text-primary-ink underline-offset-2 hover:underline">
-            Operator view
-          </Link>
-          <Link href="/traces" className="text-primary-ink underline-offset-2 hover:underline">
-            Traces
-          </Link>
-        </nav>
-      </header>
+    <RoleSwitch member={<MemberHome />}>
+      <div className="space-y-6 p-4 md:p-6">
+        <SetPageTitle title="Dashboard" />
+        <header className="flex flex-wrap items-center justify-end gap-2">
+          <nav className="flex items-center gap-3 text-sm">
+            <Link href="/debug" className="text-primary-ink underline-offset-2 hover:underline">
+              Operator view
+            </Link>
+            <Link href="/traces" className="text-primary-ink underline-offset-2 hover:underline">
+              Traces
+            </Link>
+          </nav>
+        </header>
 
-      <SystemVitals />
+        <SystemVitals />
 
-      <OpenQuestions />
+        <OpenQuestions />
 
-      <DashboardClient />
-    </div>
+        <DashboardClient />
+      </div>
+    </RoleSwitch>
   );
 }

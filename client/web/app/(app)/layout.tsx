@@ -8,6 +8,7 @@ import {
 } from '@/lib/nav-width';
 import { UsageCard } from '@/components/usage-card';
 import type { SpendRange } from '@mantle/client-types';
+import { MEMBER_HINT_COOKIE } from '@/lib/member-surface';
 
 /**
  * App shell: the rail on the left (brand, account, search, nav, launchers),
@@ -45,10 +46,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const navWidth = clampNavWidth(cookieStore.get(NAV_W_COOKIE)?.value);
   const activityWidth = clampActivityWidth(cookieStore.get(ACTIVITY_W_COOKIE)?.value);
   const spendRange = readSpendRange(cookieStore.get('mantle_spend_range')?.value);
+  // Member logins: the hint seeds the member shell for the first paint (no
+  // flash of owner chrome); the shell confirms it and reloads if wrong.
+  const role = cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : 'admin';
 
   return (
     <AppShell
-      contextCard={<UsageCard initialRange={spendRange} />}
+      role={role}
+      contextCard={role === 'member' ? null : <UsageCard initialRange={spendRange} />}
       initialNavCollapsed={navCollapsed}
       initialNavWidth={navWidth}
       initialActivityWidth={activityWidth}

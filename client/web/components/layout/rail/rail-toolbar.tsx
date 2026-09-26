@@ -26,7 +26,11 @@ export function RailToolbar({
   onToggleNav,
   showCollapse = true,
   onLaunch,
+  member = false,
 }: {
+  /** A member login: no help rail, marker pick or assistant launcher yet
+   *  (member chat reaches this dock with Phase 3). */
+  member?: boolean;
   navCollapsed: boolean;
   onToggleNav: () => void;
   /** The mobile drawer has nothing to collapse to — it is open or it is gone. */
@@ -69,8 +73,12 @@ export function RailToolbar({
         </Button>
       )}
 
-      <HelpLauncher />
-      <HighlightButton />
+      {member ? null : (
+        <>
+          <HelpLauncher />
+          <HighlightButton />
+        </>
+      )}
 
       {/* Pushed to the far end of the row so the strip reads as "three utilities,
           then the thing you actually came for". In the stacked icon rail there is
@@ -81,9 +89,11 @@ export function RailToolbar({
           answer (the icon gains a count badge). Without a shrinkable end the
           strip would overflow the rail exactly when it most needs to be read.
           The label truncates instead; the badge never does. */}
-      <span className="ml-auto min-w-0 group-data-[nav-collapsed=true]/shell:ml-0">
-        <AssistantButton />
-      </span>
+      {member ? null : (
+        <span className="ml-auto min-w-0 group-data-[nav-collapsed=true]/shell:ml-0">
+          <AssistantButton />
+        </span>
+      )}
     </div>
   );
 }

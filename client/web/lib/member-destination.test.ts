@@ -4,12 +4,14 @@ import { isMemberLoginRefusal, memberHome } from './member-destination';
 import { sendsMemberHome } from './member-surface';
 
 describe('memberHome', () => {
-  it('sends a member to /m, keeping a destination already inside it', () => {
-    expect(memberHome(null)).toBe('/m');
-    expect(memberHome('/pages')).toBe('/m');
+  it('sends a member home, keeping a destination a member may open', () => {
+    expect(memberHome(null)).toBe('/');
+    expect(memberHome('/pages')).toBe('/pages');
+    expect(memberHome('/pages/abc?x=1')).toBe('/pages/abc?x=1');
     expect(memberHome('/m/chat')).toBe('/m/chat');
-    expect(memberHome('/m?id=x')).toBe('/m?id=x');
-    expect(memberHome('/models')).toBe('/m');
+    expect(memberHome('/models')).toBe('/');
+    expect(memberHome('/settings/profile')).toBe('/');
+    expect(memberHome('//evil.example')).toBe('/');
   });
 });
 
@@ -30,13 +32,16 @@ describe('isMemberLoginRefusal', () => {
 
 describe('sendsMemberHome', () => {
   const PUBLIC = ['/login', '/env.js', '/team', '/hub', '/pair'];
-  it('sends a hinted member from owner paths to /m', () => {
-    expect(sendsMemberHome('/', PUBLIC)).toBe(true);
-    expect(sendsMemberHome('/pages/abc', PUBLIC)).toBe(true);
+  it('sends a hinted member off admin-only paths', () => {
     expect(sendsMemberHome('/models', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/team-admin', PUBLIC)).toBe(true);
+    expect(sendsMemberHome('/settings', PUBLIC)).toBe(true);
+    expect(sendsMemberHome('/pagesx', PUBLIC)).toBe(true);
   });
-  it('leaves member and public surfaces alone', () => {
+  it('leaves the member home, member screens and public surfaces alone', () => {
+    expect(sendsMemberHome('/', PUBLIC)).toBe(false);
+    expect(sendsMemberHome('/pages/abc', PUBLIC)).toBe(false);
+    expect(sendsMemberHome('/files', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/m', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/m/chat', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/login', PUBLIC)).toBe(false);

@@ -320,10 +320,14 @@ const ITEMS: SlashItem[] = [
 ];
 
 /** Filter the command list by the text typed after the slash. */
-export function getSlashItems(query: string): SlashItem[] {
+/** Slash items a member may not use: each creates or uploads into the brain. */
+const MEMBER_HIDDEN = new Set(['Sub-page', 'Image', 'Drawing', 'File']);
+
+export function getSlashItems(query: string, opts: { member?: boolean } = {}): SlashItem[] {
   const q = query.trim().toLowerCase();
-  if (!q) return ITEMS;
-  return ITEMS.filter(
+  const items = opts.member ? ITEMS.filter((i) => !MEMBER_HIDDEN.has(i.title)) : ITEMS;
+  if (!q) return items;
+  return items.filter(
     (i) => i.title.toLowerCase().includes(q) || (i.keywords ?? []).some((k) => k.includes(q)),
   );
 }

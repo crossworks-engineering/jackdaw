@@ -1,4 +1,6 @@
 import { PageDetailClient } from './page-detail-client';
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberGoToList } from '@/components/member/member-go-to-list';
 
 /**
  * /pages/[id] — the page editor (auth gate only). The page row + backlinks are
@@ -7,5 +9,9 @@ import { PageDetailClient } from './page-detail-client';
  */
 export default async function PageEditorRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <PageDetailClient pageId={id} />;
+  return (
+    <RoleSwitch member={<MemberGoToList path="/pages" id={id} />}>
+      <PageDetailClient pageId={id} />
+    </RoleSwitch>
+  );
 }

@@ -39,7 +39,8 @@ export function MobileBar({
   logoVersion?: string | null;
   logoDarkVersion?: string | null;
   onMenuClick: () => void;
-  onSearchClick: () => void;
+  /** Absent = no search palette on this shell (a member's). */
+  onSearchClick?: () => void;
 }) {
   // As in the rail: an unnamed brain wears the brand art rather than the
   // brand's name set in type. There is no collapsed state here — the bar is
@@ -89,9 +90,11 @@ export function MobileBar({
         />
       </Link>
 
-      <Button variant="ghost" size="icon" onClick={onSearchClick} aria-label="Search">
-        <Search />
-      </Button>
+      {onSearchClick ? (
+        <Button variant="ghost" size="icon" onClick={onSearchClick} aria-label="Search">
+          <Search />
+        </Button>
+      ) : null}
       <ProfileMenu identity={identity} variant="bar" />
     </header>
   );

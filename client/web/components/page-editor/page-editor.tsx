@@ -62,7 +62,13 @@ export function PageEditor({
   onBlur,
   onEditorReady,
   editable = true,
+  member = false,
 }: {
+  /** A member login (member logins): the editor keeps to the page itself. No
+   *  file drop/paste uploads, no sub-page / image / drawing / file commands, no
+   *  drawing picker and no drag handle (its "turn into page" creates in the
+   *  brain). Every one of those calls a route that refuses a member. */
+  member?: boolean;
   content: JSONContent;
   /** Id of the page being edited — handed to the `/page` slash command so the
    *  sub-pages it creates get `parent_id` set to this page (Phase 4a). */
@@ -111,6 +117,7 @@ export function PageEditor({
   // the useEditor config, before `editor` is assigned).
   const editorRef = useRef<Editor | null>(null);
   const onDiffActionRef = useRef(onDiffAction);
+  const memberRef = useRef(member);
   useEffect(() => {
     onChangeRef.current = onChange;
     onBlurRef.current = onBlur;
@@ -138,6 +145,7 @@ export function PageEditor({
         const dt = (event as DragEvent).dataTransfer;
         const files = Array.from(dt?.files ?? []);
         if (files.length === 0) return false;
+        if (memberRef.current) return true; // swallowed: members cannot upload here
         const pos = view.posAtCoords({
           left: (event as DragEvent).clientX,
           top: (event as DragEvent).clientY,
@@ -150,6 +158,7 @@ export function PageEditor({
         // Image/file from the clipboard → upload + insert.
         const files = Array.from(cd?.files ?? []);
         if (files.length > 0) {
+          if (memberRef.current) return true; // swallowed: members cannot upload here
           if (!editorRef.current) return false;
           return handleDroppedFiles(editorRef.current, files);
         }
@@ -195,7 +204,7 @@ export function PageEditor({
     // parents sub-pages here.
     extensions: [
       ...pageExtensions,
-      SlashCommand.configure({ pageId: pageId ?? null }),
+      SlashCommand.configure({ pageId: pageId ?? null, member }),
       FocusMarks,
       DiffReview,
     ],
@@ -262,9 +271,9 @@ export function PageEditor({
       <EditorBubbleMenu editor={editor} />
       {/* Marker mode swaps the gutter's job: the drag handle steps aside so the
           focus strip owns the left band. Marks stay highlighted either way. */}
-      {markerMode ? null : <EditorDragHandle editor={editor} />}
+      {markerMode || member ? null : <EditorDragHandle editor={editor} />}
       <TableControls editor={editor} />
-      <DrawPicker editor={editor} />
+      {member ? null : <DrawPicker editor={editor} />}
       <div className="relative">
         {markerMode && onMarksChange && (
           <FocusGutter editor={editor} marks={marks ?? []} onChange={onMarksChange} />

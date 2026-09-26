@@ -1,5 +1,5 @@
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
-import { MEMBER_HINT_COOKIE } from './member-surface';
+import { MEMBER_HINT_COOKIE, memberMayOpen } from './member-surface';
 
 /** Set or clear the UX-only member hint cookie (see MEMBER_HINT_COOKIE). */
 export function setMemberHint(on: boolean): void {
@@ -10,9 +10,11 @@ export function setMemberHint(on: boolean): void {
     : `${MEMBER_HINT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
 }
 
-/** Where a MEMBER lands: the member surface, unless already headed inside it. */
+/** Where a MEMBER lands: `next` when a member may open it, else the home. */
 export function memberHome(next: string | null | undefined): string {
-  return next && (next === '/m' || next.startsWith('/m/') || next.startsWith('/m?')) ? next : '/m';
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/';
+  const path = next.split(/[?#]/)[0] ?? '/';
+  return memberMayOpen(path) ? next : '/';
 }
 
 /** True when an API error is the brain refusing a member login on an admin
@@ -26,7 +28,8 @@ export function isMemberLoginRefusal(err: unknown): boolean {
 }
 
 /**
- * After sign-in: a member goes to /m, anyone else to `next` (or /). Asks the
+ * After sign-in: a member goes to the member home (or `next` when a member may
+ * open it), anyone else to `next` (or /). Asks the
  * member shell, which answers only a member; a failure of any other kind keeps
  * the ordinary destination (the admin shell sorts out the rest).
  */

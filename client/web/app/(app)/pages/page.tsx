@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberWorkspace } from '@/components/member/member-workspace';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { PagesClient } from './pages-client';
@@ -20,7 +22,9 @@ export default async function PagesPage() {
           </div>
         }
       >
-        <PagesClient />
+        <RoleSwitch member={<MemberWorkspace kind="page" />}>
+          <PagesClient />
+        </RoleSwitch>
       </Suspense>
     </>
   );

@@ -11,18 +11,35 @@
 export const MEMBER_SURFACE_HEADER = 'x-mantle-member-surface';
 
 /**
- * UX-only cookie: this browser's session is a MEMBER login (member logins,
- * Phase 1). With it, the middleware sends a page load on an owner path
- * straight to /m, so a member never gets a flash of the owner shell whose
- * queries and event stream would only collect 403s. Set by the member shell
- * and at sign-in, cleared by the owner shell and at sign-out. Spoofable and
- * authenticates nothing: the brain refuses a member on every admin route.
+ * UX-only cookie: this browser's session is a MEMBER login (member logins).
+ * The (app) layout reads it to render the member shell from the first paint
+ * (no flash of owner chrome whose queries would only collect 403s), and the
+ * middleware sends a hinted member off admin-only paths to the member home.
+ * Set by the shells and at sign-in, cleared by the owner shell and at
+ * sign-out. Spoofable and authenticates nothing: the brain refuses a member
+ * on every admin route, and a spoofing admin just gets the member shell,
+ * which notices and reloads as the admin.
  */
 export const MEMBER_HINT_COOKIE = 'mantle_member';
 
-/** Owner paths a hinted member is sent away from: anything that is not a
- *  member or public surface. Pure, so the rule is unit-tested. */
-export function sendsMemberHome(pathname: string, publicPrefixes: readonly string[]): boolean {
+/**
+ * The (app) screens a member works in (member logins Phase 2, the real app
+ * shell): each renders a member screen for a member and the owner screen for
+ * an admin. `/` is the member home.
+ */
+export const MEMBER_APP_PREFIXES = ['/pages', '/notes', '/draw', '/tables', '/files'] as const;
+
+/** A path a member may open: the home, the member app screens, the old /m
+ *  surface (chat lives there until the dock takes members), public paths. */
+export function memberMayOpen(pathname: string, publicPrefixes: readonly string[] = []): boolean {
   const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
-  return !under('/m') && !publicPrefixes.some(under);
+  return (
+    pathname === '/' || under('/m') || MEMBER_APP_PREFIXES.some(under) || publicPrefixes.some(under)
+  );
+}
+
+/** Owner paths a hinted member is sent away from (to the member home). Pure,
+ *  so the rule is unit-tested. */
+export function sendsMemberHome(pathname: string, publicPrefixes: readonly string[]): boolean {
+  return !memberMayOpen(pathname, publicPrefixes);
 }

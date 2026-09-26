@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberWorkspace } from '@/components/member/member-workspace';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { TablesShell } from './tables-shell';
 
@@ -18,7 +20,9 @@ export default async function TablesPage() {
         </div>
       }
     >
-      <TablesShell />
+      <RoleSwitch member={<MemberWorkspace kind="table" />}>
+        <TablesShell />
+      </RoleSwitch>
     </Suspense>
   );
 }

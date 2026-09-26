@@ -29,15 +29,15 @@ export function useMember(): MemberShellData {
   return v;
 }
 
+// Members work in the app shell now (/, /pages, …); /m keeps only the chat
+// until the assistant dock takes members (Phase 3).
 const NAV = [
-  { href: '/m', label: 'Library', icon: BookOpen },
+  { href: '/', label: 'Workspace', icon: BookOpen },
   { href: '/m/chat', label: 'Chat', icon: MessageSquare },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
-  return href === '/m'
-    ? pathname === '/m' || pathname.startsWith('/m/items')
-    : pathname.startsWith(href);
+  return href === '/' ? false : pathname.startsWith(href);
 }
 
 function RailNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -153,7 +153,7 @@ export function MemberShell({ children }: { children: ReactNode }) {
       peerName={null}
       logoVersion={data.logoVersion}
       logoDarkVersion={data.logoDarkVersion}
-      href="/m"
+      href="/"
       inDrawer={inDrawer}
       onNavigate={inDrawer ? () => setMobileNavOpen(false) : undefined}
     />

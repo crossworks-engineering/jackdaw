@@ -1,13 +1,10 @@
-import { Suspense } from 'react';
-import { MemberLibrary } from '@/components/member/member-library';
+import { redirect } from 'next/navigation';
 
-export const metadata = { title: 'Library' };
-
+/**
+ * The old member Library. Members work in the app shell now: the Library is a
+ * source on each kind's screen (Pages, Notes, …), and the member home lists
+ * what is new in it.
+ */
 export default function MemberLibraryPage() {
-  // useSearchParams (the selected item) needs a Suspense boundary.
-  return (
-    <Suspense>
-      <MemberLibrary />
-    </Suspense>
-  );
+  redirect('/');
 }
