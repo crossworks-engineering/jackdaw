@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Pictures the agent produced, on the MEMBER surfaces (Team Chat + the Forum).
+ * Pictures the agent produced, on the member Forum.
  *
  * Two ways one arrives, matching the owner assistant exactly:
  *   - the reply writes `![alt](media:<node-id>)` and the picture lands in the
@@ -177,7 +177,7 @@ export function AgentMediaStrip({
  * Deliberately NOT the owner's route. `/pages` and the owner assistant render
  * through TipTap + `lib/rich-markdown.ts`, which brings callouts, columns and
  * the whole page schema with it — the member dialect is standard Markdown on
- * purpose (see the note in team-chat-client.tsx). This is the one marker they
+ * purpose (the rich dialect stays owner-side). This is the one marker they
  * need, and nothing else.
  *
  * Two markers now: `media:<id>` for a picture the responder produced, and

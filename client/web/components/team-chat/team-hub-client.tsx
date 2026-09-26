@@ -4,8 +4,8 @@
  * The Team Hub — the /team landing for team members. A briefing surface served
  * straight from the brain: hero + "Ask the brain" CTA, the owner's team-shared
  * pages as section cards, team-shared apps as launcher cards, live content
- * stats, and the existing chat client one tap away (view switch, no separate
- * route — same token gate, same cookie).
+ * stats, and the team Forum one tap away (the 1:1 team chat this once opened
+ * was removed 2026-09-26; the Forum at /team/forum is where members ask).
  *
  * Public surface: teamFetch on purpose (apiFetch is the app shell's
  * authenticated wrapper); a 401 anywhere flips back to the token gate.
@@ -21,6 +21,7 @@
  */
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AppWindow,
   ArrowLeft,
@@ -37,7 +38,6 @@ import {
 import { Button, buttonVariants } from '@mantle/web-ui/ui/button';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
-import { TeamChatClient } from '@/components/team-chat/team-chat-client';
 import { TokenGate } from '@/components/team-chat/token-gate';
 import { OpenShare, openShareOnServer } from '@/components/team-workspace/open-on-server';
 import { ShareReader } from '@/components/team-workspace/share-reader';
@@ -143,21 +143,8 @@ function formatDate(iso: string): string {
   }
 }
 
-/** The live Team Chat as a hub sub-view — shared by the built-in hub and the
- *  hub-app shell (the app can only OPEN this view via hub.nav, never embed it). */
-function ChatView({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-border/60 px-2 py-1.5">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft />
-          Back to the hub
-        </Button>
-      </div>
-      <TeamChatClient />
-    </div>
-  );
-}
+/** Where members ask the brain: the team Forum (the old 1:1 chat is gone). */
+const FORUM_HREF = '/team/forum';
 
 /** What the in-hub reader can open: a briefing section or a team-app launcher
  *  card — both are just an active team-mode /s/<token> under the hood. */
@@ -199,7 +186,8 @@ function ReaderView({ target, onBack }: { target: ReaderTarget; onBack: () => vo
 export function TeamHubShell() {
   const [data, setData] = useState<HubData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null); // null = resolving
-  const [view, setView] = useState<'hub' | 'chat' | { reader: ReaderTarget }>('hub');
+  const router = useRouter();
+  const [view, setView] = useState<'hub' | { reader: ReaderTarget }>('hub');
   // Which designated app's bundle failed to load — fall back to the built-in
   // hub for THAT app rather than showing members a broken slot. Keyed by app id
   // so a later designation change (or redeploy under a new app) gets a fresh
@@ -253,11 +241,11 @@ export function TeamHubShell() {
   }
 
   // Designated hub app — render it full-bleed in place of the built-in hub
-  // body. The shell keeps everything that must be core (the gate above, chat,
-  // the reader); the app reaches those only via validated hub.nav intents. Any
-  // load failure flips to the built-in hub below — designation must never cost
-  // members a working hub. The sandbox stays MOUNTED (hidden) while chat/reader
-  // views are open, so "back to the hub" restores the app instantly with its
+  // body. The shell keeps everything that must be core (the gate above, the
+  // Forum link, the reader); the app reaches those only via validated hub.nav
+  // intents. Any load failure flips to the built-in hub below — designation
+  // must never cost members a working hub. The sandbox stays MOUNTED (hidden)
+  // while the reader is open, so "back to the hub" restores the app instantly with its
   // scroll position and state intact instead of re-fetching + remounting.
   // Genuinely cross-origin client: no in-hub reader (its cookie-authenticated
   // subresources can't follow) — validated share opens go top-level through
@@ -275,7 +263,8 @@ export function TeamHubShell() {
     const { appId, shareToken } = data.hubApp;
     const onNav = (target: HubNavTarget) => {
       if (target === 'chat') {
-        setView('chat');
+        // 'chat' keeps its name for built hub apps; it opens the Forum now.
+        router.push(FORUM_HREF);
         return;
       }
       if ('app' in target) {
@@ -293,8 +282,8 @@ export function TeamHubShell() {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className={view === 'hub' ? 'min-h-0 flex-1' : 'hidden'}>
-          {/* A custom hub app that throws must not take the chat and reader
-              views beside it — `onLoadFailure` below only covers the app
+          {/* A custom hub app that throws must not take the reader view
+              beside it — `onLoadFailure` below only covers the app
               failing to LOAD, not the host throwing while rendering it. */}
           <SurfaceErrorBoundary label="this hub" resetKeys={[appId]}>
             <AppSandbox
@@ -321,15 +310,12 @@ export function TeamHubShell() {
             />
           </SurfaceErrorBoundary>
         </div>
-        {view === 'chat' ? <ChatView onBack={() => setView('hub')} /> : null}
         {typeof view === 'object' ? (
           <ReaderView target={view.reader} onBack={() => setView('hub')} />
         ) : null}
       </div>
     );
   }
-
-  if (view === 'chat') return <ChatView onBack={() => setView('hub')} />;
 
   if (typeof view === 'object') {
     return <ReaderView target={view.reader} onBack={() => setView('hub')} />;
@@ -368,7 +354,7 @@ export function TeamHubShell() {
             directly.
           </p>
           <div className="mt-7">
-            <Button size="lg" onClick={() => setView('chat')}>
+            <Button size="lg" onClick={() => router.push(FORUM_HREF)}>
               <MessageCircle />
               Ask the brain
             </Button>
@@ -537,9 +523,9 @@ export function TeamHubShell() {
                 The brain knows this project end to end — ask it anything, any time.
               </p>
             </div>
-            <Button className="mt-4 md:mt-0" onClick={() => setView('chat')}>
+            <Button className="mt-4 md:mt-0" onClick={() => router.push(FORUM_HREF)}>
               <MessageCircle />
-              Open Team Chat
+              Open the Forum
             </Button>
           </div>
         </section>

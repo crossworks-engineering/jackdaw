@@ -101,7 +101,7 @@ export const WORKSPACE_NAV: Array<{
   // every subroute (same trick the owner sidebar uses for "/").
   { type: 'dashboard', name: 'Dashboard', href: '/team', icon: LayoutDashboard, exact: true },
   // The Forum leads the sections: it's the team's shared threads with the
-  // brain — the successor to the 1:1 Assistant chat (now the read-only Archive).
+  // brain — the successor to the removed 1:1 Assistant chat.
   { type: 'forum', name: 'Forum', href: '/team/forum', icon: MessagesSquare },
   { type: 'note', name: 'Notes', href: '/team/notes', icon: FileText },
   { type: 'page', name: 'Pages', href: '/team/pages', icon: BookText },

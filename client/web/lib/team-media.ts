@@ -4,27 +4,24 @@
  * React renderer in the suite.
  */
 
-/** Which member surface owns the authorization — a forum topic, or a thread. */
-export type MediaSurface = 'forum' | 'messages';
+/** Which member surface owns the authorization. Only the forum is left: the
+ *  1:1 team chat (and its `messages` doors) was removed 2026-09-26. */
+export type MediaSurface = 'forum';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Where a member fetches an agent-produced picture. Mirrors the two routes in
- *  mantle's `server/web/app/api/team/{forum,messages}/media/[nodeId]`. */
-export function teamMediaPath(surface: MediaSurface, nodeId: string): string {
-  return surface === 'forum'
-    ? `/api/team/forum/media/${nodeId}`
-    : `/api/team/messages/media/${nodeId}`;
+/** Where a member fetches an agent-produced picture. Mirrors mantle's
+ *  `server/web/app/api/team/forum/media/[nodeId]`. */
+export function teamMediaPath(_surface: MediaSurface, nodeId: string): string {
+  return `/api/team/forum/media/${nodeId}`;
 }
 
 /** Where a member fetches a DRAWING's committed snapshot. Its own route rather
  *  than the media one because that serves file bytes and refuses any non-image
  *  mime, which a draw node is not. Mirrors mantle's
- *  `server/web/app/api/team/{forum,messages}/drawing/[nodeId]`. */
-export function teamDrawingPath(surface: MediaSurface, nodeId: string): string {
-  return surface === 'forum'
-    ? `/api/team/forum/drawing/${nodeId}`
-    : `/api/team/messages/drawing/${nodeId}`;
+ *  `server/web/app/api/team/forum/drawing/[nodeId]`. */
+export function teamDrawingPath(_surface: MediaSurface, nodeId: string): string {
+  return `/api/team/forum/drawing/${nodeId}`;
 }
 
 /**

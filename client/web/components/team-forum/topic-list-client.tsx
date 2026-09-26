@@ -423,9 +423,6 @@ export function TopicListClient() {
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="xs" className="text-muted-foreground" asChild>
-            <Link href="/team/assistant">Chat archive</Link>
-          </Button>
         </div>
       </div>
 

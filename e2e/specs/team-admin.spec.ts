@@ -15,9 +15,15 @@ test.describe('team admin (owner, client origin)', () => {
     // Scoped to the tab strip: the sidebar now carries a "Settings" row of its
     // own (the settings hub), so an unscoped link-by-name is ambiguous.
     const tabs = ownerPage.getByRole('navigation', { name: 'Team admin' });
-    // Members tab (default): the roster pane header.
-    await expect(ownerPage.getByRole('heading', { name: 'Team members' })).toBeVisible({
+    // Code holders tab (default): the roster pane header.
+    await expect(ownerPage.getByRole('heading', { name: 'Team-code holders' })).toBeVisible({
       timeout: 30_000,
+    });
+
+    // Member chats tab: member logins' chats with the team agent.
+    await tabs.getByRole('link', { name: 'Member chats' }).click();
+    await expect(ownerPage.getByRole('heading', { name: 'Member chats' })).toBeVisible({
+      timeout: 15_000,
     });
 
     // Requests tab: empty-state or queue — either way the pane rendered.

@@ -37,9 +37,8 @@ describe('mediaNodeId', () => {
 });
 
 describe('teamMediaPath', () => {
-  it('routes each surface to its own authorization', () => {
+  it('routes the forum surface to its own authorization', () => {
     expect(teamMediaPath('forum', 'n1')).toBe('/api/team/forum/media/n1');
-    expect(teamMediaPath('messages', 'n1')).toBe('/api/team/messages/media/n1');
   });
 });
 
@@ -76,9 +75,8 @@ describe('drawingNodeId', () => {
 });
 
 describe('teamDrawingPath', () => {
-  it('routes each surface to its own authorization', () => {
+  it('routes the forum surface to its own authorization', () => {
     expect(teamDrawingPath('forum', 'n1')).toBe('/api/team/forum/drawing/n1');
-    expect(teamDrawingPath('messages', 'n1')).toBe('/api/team/messages/drawing/n1');
   });
 
   it('is not the media path — a drawing is a node, not a file', () => {

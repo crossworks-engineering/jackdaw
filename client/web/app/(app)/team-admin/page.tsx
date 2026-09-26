@@ -3,7 +3,11 @@
 /**
  * /team-admin — the owner's window into the external team surface.
  *
- * Tabs: Members · Topics · Requests · Shared links · Settings.
+ * Tabs: Code holders · Member chats · Topics · Requests · Shared links ·
+ * Settings. Code holders = contacts holding an old team code (forum, team
+ * links); Member chats = member LOGINS' chats with the team agent (users are
+ * the team). The 1:1 team-code chat itself was removed 2026-09-26; its old
+ * transcripts stay as each code holder's Chat archive.
  *
  * The T5 rehome of the old server-rendered server/web page: the JSX is a
  * near-verbatim carry-over, but data now arrives per tab from
@@ -55,6 +59,7 @@ import {
   Users,
 } from 'lucide-react';
 import { MemberActivityPager } from '@/components/team-admin/member-activity-pager';
+import { RevokeCodeButton } from '@/components/team-admin/revoke-code-button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -89,6 +94,23 @@ type ArchiveMessage = {
 };
 
 type AccessRow = { id: string; kind: string; detail: unknown; createdAt: string };
+
+/** GET /api/team-admin/member-chats: one member login and its chat. */
+type MemberChatRow = {
+  loginId: string;
+  name: string;
+  email: string;
+  active: boolean;
+  lastMessageAt: string | null;
+  lastMessageText: string | null;
+  lastMessageDirection: 'inbound' | 'outbound' | null;
+  messageCount: number;
+};
+
+type MemberChatsResponse = {
+  members: MemberChatRow[];
+  selected: { loginId: string; thread: ArchiveMessage[]; windowSize: number } | null;
+};
 
 type MembersResponse = {
   badges: Badges;
@@ -173,7 +195,7 @@ function TeamTabs({
   active,
   openRequestCount,
 }: {
-  active: 'members' | 'topics' | 'requests' | 'shares' | 'settings';
+  active: 'members' | 'chats' | 'topics' | 'requests' | 'shares' | 'settings';
   openRequestCount: number;
 }) {
   const tab = (label: string, href: string, isActive: boolean, badge?: number) => (
@@ -195,11 +217,12 @@ function TeamTabs({
     </Link>
   );
   return (
-    // A labelled `nav`, not a bare div: these five are navigation, and the name
+    // A labelled `nav`, not a bare div: these tabs are navigation, and the name
     // is what tells "Settings the tab" apart from "Settings the sidebar row"
     // now that the sidebar has one. Screen readers get the same benefit.
     <nav aria-label="Team admin" className="flex items-center gap-1 border-b border-border px-3">
-      {tab('Members', '/team-admin', active === 'members')}
+      {tab('Code holders', '/team-admin', active === 'members')}
+      {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
       {tab('Topics', '/team-admin?view=topics', active === 'topics')}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', openRequestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
@@ -212,11 +235,11 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
   if (members.length === 0) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        No team members yet. Enable a contact as a team member from their page in{' '}
-        <Link href="/contacts" className="underline">
-          Contacts
-        </Link>{' '}
-        — their token is what unlocks <code>/team</code>.
+        No one holds a team code. New people get a login in{' '}
+        <Link href="/settings/users" className="underline">
+          Settings &gt; Users
+        </Link>
+        .
       </div>
     );
   }
@@ -382,13 +405,60 @@ function MemberRequestList({ requests }: { requests: TeamRequest[] }) {
   );
 }
 
+/** A chat thread, oldest first: the member's messages on the right, the
+ *  agent's replies (with a trace link) on the left. */
+function ThreadMessages({ thread }: { thread: ArchiveMessage[] }) {
+  return (
+    <>
+      {thread.map((m) =>
+        m.direction === 'inbound' ? (
+          <div
+            key={m.id}
+            className="ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
+          >
+            <p className="whitespace-pre-wrap">{m.text}</p>
+            <p className="mt-1 text-right text-xs text-primary-foreground/70">
+              {fmtWhen(m.createdAt)}
+            </p>
+          </div>
+        ) : (
+          <div key={m.id} className="mr-auto w-full max-w-[85%] rounded-lg bg-muted/40 px-3 py-2">
+            {m.status === 'failed' ? (
+              <p className="text-sm text-destructive-ink">
+                Turn failed: {m.error ?? 'unknown error'}
+              </p>
+            ) : m.status === 'pending' ? (
+              <p className="text-sm italic text-muted-foreground">answering…</p>
+            ) : (
+              <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+              </div>
+            )}
+            <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+              <span>{fmtWhen(m.createdAt)}</span>
+              {m.traceId ? (
+                <Link
+                  href={`/traces/${m.traceId}`}
+                  className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                >
+                  <ExternalLink className="size-3" /> trace
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ),
+      )}
+    </>
+  );
+}
+
 function ChatArchive({ thread, count }: { thread: ArchiveMessage[]; count: number }) {
   return (
     <details className="rounded-lg border border-border bg-card text-card-foreground">
       <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">
         <Archive className="size-3.5" aria-hidden />
         Chat archive ({count} {count === 1 ? 'message' : 'messages'})
-        <span className="font-normal">— the 1:1 thread, before the Forum</span>
+        <span className="font-normal">— the old 1:1 team-code chat</span>
       </summary>
       <div className="flex flex-col gap-3 border-t border-border/60 px-3 py-3">
         {thread.length < count && (
@@ -396,42 +466,7 @@ function ChatArchive({ thread, count }: { thread: ArchiveMessage[]; count: numbe
             Showing the latest {thread.length} of {count}.
           </p>
         )}
-        {thread.map((m) =>
-          m.direction === 'inbound' ? (
-            <div
-              key={m.id}
-              className="ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
-            >
-              <p className="whitespace-pre-wrap">{m.text}</p>
-              <p className="mt-1 text-right text-xs text-primary-foreground/70">
-                {fmtWhen(m.createdAt)}
-              </p>
-            </div>
-          ) : (
-            <div key={m.id} className="mr-auto w-full max-w-[85%] rounded-lg bg-muted/40 px-3 py-2">
-              {m.status === 'failed' ? (
-                <p className="text-sm text-destructive-ink">
-                  Turn failed: {m.error ?? 'unknown error'}
-                </p>
-              ) : (
-                <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
-                </div>
-              )}
-              <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{fmtWhen(m.createdAt)}</span>
-                {m.traceId ? (
-                  <Link
-                    href={`/traces/${m.traceId}`}
-                    className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
-                  >
-                    <ExternalLink className="size-3" /> trace
-                  </Link>
-                ) : null}
-              </div>
-            </div>
-          ),
-        )}
+        <ThreadMessages thread={thread} />
       </div>
     </details>
   );
@@ -509,7 +544,7 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
         list={
           <>
             <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">Team members</h2>
+              <h2 className="text-sm font-semibold">Team-code holders</h2>
               {data.members.length > 0 && (
                 <span className="text-xs text-muted-foreground">{data.members.length}</span>
               )}
@@ -533,12 +568,18 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
                       {fmtWhen(selectedMember.tokenLastUsedAt)}
                     </p>
                   </div>
-                  <Link
-                    href={`/contacts?selected=${selectedMember.contactId}`}
-                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  >
-                    Manage token →
-                  </Link>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Link
+                      href={`/contacts?selected=${selectedMember.contactId}`}
+                      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                      Contact →
+                    </Link>
+                    <RevokeCodeButton
+                      contactId={selectedMember.contactId}
+                      name={selectedMember.contactName}
+                    />
+                  </div>
                 </div>
                 <ThreadAccessSplit
                   thread={
@@ -612,10 +653,122 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
               <div className="flex flex-1 items-center justify-center">
                 <div className="text-center text-sm text-muted-foreground">
                   <Users className="mx-auto mb-2 size-6" />
-                  <p>Enable a contact as a team member to see their activity here.</p>
-                  <p className="mt-1 text-xs">
-                    Their token is what unlocks <code>/team</code>.
+                  <p>No one holds a team code.</p>
+                  <p className="mt-1 text-xs">New people get a login in Settings &gt; Users.</p>
+                </div>
+              </div>
+            )}
+          </section>
+        }
+      />
+    </Tab>
+  );
+}
+
+function MemberChatsTab({ login }: { login?: string }) {
+  const qs = new URLSearchParams();
+  if (login) qs.set('login', login);
+  const q = useQuery({
+    queryKey: ['team-admin', 'member-chats', login ?? null],
+    queryFn: () => apiFetch<MemberChatsResponse>(`/api/team-admin/member-chats?${qs.toString()}`),
+  });
+  const data = q.data;
+  if (!data)
+    return (
+      <Tab active="chats">
+        <Loading />
+      </Tab>
+    );
+  const selected = data.selected;
+  const member = selected
+    ? (data.members.find((m) => m.loginId === selected.loginId) ?? null)
+    : null;
+  return (
+    <Tab active="chats">
+      <MasterDetail
+        id="team-admin-member-chats"
+        className="min-h-0 flex-1"
+        defaultListSize="340px"
+        defaultDetailSize="768px"
+        maxDetailSize="100%"
+        list={
+          <>
+            <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold">Member chats</h2>
+              {data.members.length > 0 && (
+                <span className="text-xs text-muted-foreground">{data.members.length}</span>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+              {data.members.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">
+                  No member logins yet. Add one in{' '}
+                  <Link href="/settings/users" className="underline">
+                    Settings &gt; Users
+                  </Link>
+                  .
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-2 p-3">
+                  {data.members.map((m) => (
+                    <li key={m.loginId}>
+                      <ListCard asChild selected={m.loginId === selected?.loginId}>
+                        <Link href={`/team-admin?view=chats&login=${m.loginId}`}>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <ListCardTitle>{m.name}</ListCardTitle>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {fmtWhen(m.lastMessageAt)}
+                            </span>
+                          </div>
+                          <ListCardMeta>
+                            {!m.active ? 'no longer a member · ' : ''}
+                            {m.lastMessageText ? m.lastMessageText : `${m.email} · no messages yet`}
+                          </ListCardMeta>
+                        </Link>
+                      </ListCard>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        }
+        detail={
+          <section className="flex h-full min-h-0 flex-col">
+            {selected && member ? (
+              <>
+                <div className="border-b border-border px-4 py-3">
+                  <h2 className="text-sm font-semibold">{member.name}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {member.email} · {member.messageCount}{' '}
+                    {member.messageCount === 1 ? 'message' : 'messages'}
+                    {member.active ? '' : ' · no longer a member'}
                   </p>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+                  <div className="flex w-full flex-col gap-3 p-4">
+                    {selected.thread.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+                        {member.name} has not chatted yet.
+                      </p>
+                    ) : (
+                      <>
+                        {member.messageCount > selected.thread.length && (
+                          <p className="text-center text-xs text-muted-foreground">
+                            Showing the latest {selected.thread.length} of {member.messageCount}.
+                          </p>
+                        )}
+                        <ThreadMessages thread={selected.thread} />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <div className="text-center text-sm text-muted-foreground">
+                  <MessagesSquare className="mx-auto mb-2 size-6" />
+                  <p>A member&rsquo;s chat with the team agent shows here.</p>
                 </div>
               </div>
             )}
@@ -1197,9 +1350,12 @@ export default function TeamAdminPage({
     /** Activity-feed page on the Members tab — deliberately not `page`, so the
      *  two tabs' pagers never read each other's cursor. */
     apage?: string;
+    /** The selected login on the Member chats tab. */
+    login?: string;
   }>;
 }) {
-  const { contact, view, topic, q, page, apage } = use(searchParams);
+  const { contact, view, topic, q, page, apage, login } = use(searchParams);
+  if (view === 'chats') return <MemberChatsTab login={login} />;
   if (view === 'settings') return <SettingsTab />;
   if (view === 'shares') return <SharesTab />;
   if (view === 'topics') return <TopicsTab topic={topic} q={q} page={page} />;
