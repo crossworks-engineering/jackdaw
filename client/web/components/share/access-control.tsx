@@ -22,6 +22,7 @@ import {
   LEVEL_MEANING,
   LEVEL_ORDER,
   closureAbove,
+  closureBelow,
   isAccessLevel,
   queryKeysForType,
   showsLink,
@@ -37,8 +38,11 @@ import {
  *
  * Lowering an item does not lower what it embeds (a page's files and
  * drawings, a folder's contents). Those show as "still above" with one
- * explicit "Lower them too". Tasks, events and the other admin-only kinds
- * stay at admin; an old link on one can be removed here.
+ * explicit "Lower them too". The mirror: raising an item (back to admin, or
+ * its link revoked elsewhere) leaves what it holds below it, so those show
+ * too, with "Raise them too". Nothing follows an item on its own. Tasks,
+ * events and the other admin-only kinds stay at admin; an old link on one
+ * can be removed here.
  *
  * Picking a level does not change it. The level is a server write that can
  * create an open link, so the arrow keys (which move the selection in a kit
@@ -109,7 +113,10 @@ export function AccessControl({
     for (const queryKey of queryKeysForType(type)) void queryClient.invalidateQueries({ queryKey });
   };
 
-  const setLevel = async (next: AccessLevel, withClosure = false) => {
+  const setLevel = async (
+    next: AccessLevel,
+    closure: { withClosure?: boolean; raiseClosure?: boolean } = {},
+  ) => {
     if (!view) return;
     const id = nodeId;
     setBusy(true);
@@ -118,14 +125,16 @@ export function AccessControl({
       const res = await apiSend<AccessNodeUpdate>(
         `/api/access/nodes/${encodeURIComponent(id)}`,
         'PATCH',
-        { audience: next, withClosure },
+        { audience: next, ...closure },
       );
       // The lowered embeds live on their own screens (a page's files, a
       // folder's contents): refresh those too, not just this item's.
+      // `raised` is absent from brains before 0.232.264.
+      const changed = [...res.lowered, ...(res.raised ?? [])];
       refreshScreens(res.item.type);
-      for (const type of new Set(res.lowered.map((i) => i.type))) refreshScreens(type);
+      for (const type of new Set(changed.map((i) => i.type))) refreshScreens(type);
       if (current.current !== id) return;
-      const lowered = new Map(res.lowered.map((i) => [i.id, i]));
+      const lowered = new Map(changed.map((i) => [i.id, i]));
       setState({
         nodeId: id,
         view: {
@@ -183,6 +192,7 @@ export function AccessControl({
   const level = view?.item.audience ?? 'admin';
   const picked = choice ?? level;
   const above: AccessItemView[] = view ? closureAbove(view.closure, level) : [];
+  const below: AccessItemView[] = view ? closureBelow(view.closure, level) : [];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -312,9 +322,38 @@ export function AccessControl({
                   size="sm"
                   variant="outline"
                   disabled={busy}
-                  onClick={() => void setLevel(level, true)}
+                  onClick={() => void setLevel(level, { withClosure: true })}
                 >
                   Lower {above.length === 1 ? 'it' : 'them'} too
+                </Button>
+              </div>
+            )}
+
+            {below.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground">
+                  {below.length} item{below.length === 1 ? '' : 's'} it{' '}
+                  {view.item.type === 'branch' ? 'holds' : 'embeds'}{' '}
+                  {below.length === 1 ? 'is' : 'are'} still open to more people than{' '}
+                  {LEVEL_LABEL[level]}:
+                </p>
+                <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
+                  {below.map((c) => (
+                    <li key={c.id} className="flex min-w-0 justify-between gap-2">
+                      <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {LEVEL_LABEL[c.audience]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void setLevel(level, { raiseClosure: true })}
+                >
+                  Raise {below.length === 1 ? 'it' : 'them'} too
                 </Button>
               </div>
             )}

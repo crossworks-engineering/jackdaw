@@ -3,6 +3,7 @@ import type { AccessItemView } from '@mantle/client-types';
 import {
   LEVEL_ORDER,
   closureAbove,
+  closureBelow,
   isAbove,
   isAccessLevel,
   queryKeysForType,
@@ -41,6 +42,13 @@ describe('access levels', () => {
     expect(closureAbove(closure, 'team').map((c) => c.id)).toEqual(['a']);
     expect(closureAbove(closure, 'public').map((c) => c.id)).toEqual(['a', 't']);
     expect(closureAbove(closure, 'admin')).toEqual([]);
+  });
+
+  it('lists the closure items below a level (MED 7)', () => {
+    const closure = [item('a', 'admin'), item('t', 'team'), item('p', 'public')];
+    expect(closureBelow(closure, 'admin').map((c) => c.id)).toEqual(['t', 'p']);
+    expect(closureBelow(closure, 'team').map((c) => c.id)).toEqual(['p']);
+    expect(closureBelow(closure, 'public')).toEqual([]);
   });
 
   it('refreshes the screens that show the item', () => {

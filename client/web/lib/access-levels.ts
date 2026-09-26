@@ -53,6 +53,15 @@ export function closureAbove(
   return closure.filter((c) => isAbove(c.audience, level));
 }
 
+/** The closure items that sit BELOW `level`: the item went up (back to admin,
+ *  say) but these are still open to more people than it is. */
+export function closureBelow(
+  closure: readonly AccessItemView[],
+  level: AccessLevel,
+): AccessItemView[] {
+  return closure.filter((c) => isAbove(level, c.audience));
+}
+
 /** The TanStack Query prefixes to refresh after an item's level changes, so
  *  its list card and detail title badge follow. */
 export function queryKeysForType(type: string): string[][] {
