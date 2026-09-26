@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isMemberLoginRefusal } from './member-destination';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { NavGroup, NavItem } from '@mantle/web-ui/layout/nav-items';
@@ -126,6 +127,10 @@ export function useNavFavorites(): {
     queryKey: ['shell'],
     queryFn: () => apiFetch<ShellFavorites>('/api/shell'),
     staleTime: Infinity,
+    // Same rule as the shell's own observer of this query: a member login is
+    // refused for good, and a retry here would hold the shell's switch to the
+    // member view behind the retry delay.
+    retry: (count, err) => !isMemberLoginRefusal(err) && count < 1,
     select: (d: ShellFavorites) => d.navFavorites,
   });
   const loaded = shell.isSuccess;

@@ -527,7 +527,10 @@ function ShellFrame({
           <MemberSidebarNav onNavigate={onNavigate} collapsed={collapsed} />
         ) : (
           <>
-            <UpdateBanner onNavigate={onNavigate} />
+            {/* Only once the brain has confirmed an admin: its route answers a
+                member with 401, which bounces to /login before the shell can
+                switch to the member view (a member whose hint cookie is gone). */}
+            {shellLoaded ? <UpdateBanner onNavigate={onNavigate} /> : null}
             <SidebarNav
               pendingApprovals={pendingApprovals}
               onNavigate={onNavigate}
