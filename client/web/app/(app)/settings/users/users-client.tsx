@@ -37,6 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { Switch } from '@mantle/web-ui/ui/switch';
 import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import {
   Select,
@@ -63,7 +64,100 @@ type UserRow = {
   lastLoginAt: string | null;
   /** This login's personal assistant, or null when it shares the brain default. */
   agent: { id: string; slug: string; name: string } | null;
+  /** 'member' = a team contact's own login: refused by every admin screen,
+   *  reads team-level items at /m (member logins, Phase 1). */
+  role: 'admin' | 'member';
+  contactId: string | null;
+  disabledAt: string | null;
 };
+
+/** A team contact a member login can belong to (the /team-admin roster). */
+type TeamContact = { contactId: string; contactName: string };
+
+function useTeamContacts(enabled: boolean) {
+  return useQuery({
+    queryKey: ['users', 'team-contacts'],
+    enabled,
+    queryFn: async () => {
+      const { members } = await apiFetch<{ members: TeamContact[] }>('/api/team-admin/members');
+      return members
+        .map((m) => ({ contactId: m.contactId, contactName: m.contactName }))
+        .sort((a, b) => a.contactName.localeCompare(b.contactName));
+    },
+  });
+}
+
+/** Admin / Member, and the contact a member belongs to. Member only while the
+ *  brain has member logins on (MANTLE_MEMBERS=1). */
+function RoleFields({
+  idPrefix,
+  role,
+  onRoleChange,
+  contactId,
+  onContactIdChange,
+  contacts,
+  contactError,
+}: {
+  idPrefix: string;
+  role: 'admin' | 'member';
+  onRoleChange: (role: 'admin' | 'member') => void;
+  contactId: string;
+  onContactIdChange: (id: string) => void;
+  contacts: TeamContact[];
+  contactError?: string;
+}) {
+  const roleId = `${idPrefix}-role`;
+  const contactFieldId = `${idPrefix}-contact`;
+  return (
+    <>
+      <Field>
+        <FieldLabel htmlFor={roleId}>Role</FieldLabel>
+        <Select value={role} onValueChange={(v) => onRoleChange(v as 'admin' | 'member')}>
+          <SelectTrigger id={roleId} aria-describedby={hintId(roleId)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="admin">Admin: the whole brain</SelectItem>
+            <SelectItem value="member">Member: team-level items and chat only</SelectItem>
+          </SelectContent>
+        </Select>
+        <FieldHint id={roleId}>
+          {role === 'member'
+            ? 'A member sees only what is set to Team (or lower), in their own space at /m. They never see admin screens.'
+            : 'An admin is a full co-owner of this brain.'}
+        </FieldHint>
+      </Field>
+      {role === 'member' && (
+        <Field data-invalid={!!contactError || undefined}>
+          <FieldLabel htmlFor={contactFieldId}>Team contact</FieldLabel>
+          <Select value={contactId} onValueChange={onContactIdChange}>
+            <SelectTrigger
+              id={contactFieldId}
+              aria-invalid={!!contactError || undefined}
+              aria-describedby={hintId(contactFieldId)}
+            >
+              <SelectValue
+                placeholder={contacts.length ? 'Choose a team member' : 'No team members yet'}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {contacts.map((c) => (
+                <SelectItem key={c.contactId} value={c.contactId}>
+                  {c.contactName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldHint id={contactFieldId}>
+            The person this login belongs to. Only team members (contacts with team access) are
+            listed.
+          </FieldHint>
+          <FieldError id={`${contactFieldId}-error`}>{contactError}</FieldError>
+        </Field>
+      )}
+    </>
+  );
+}
 
 /** One option in the "copy from" picker. */
 type SourceAgent = { id: string; slug: string; name: string; role: string; model: string };
@@ -99,7 +193,10 @@ export function UsersClient() {
   const queryClient = useQueryClient();
   const usersQuery = useQuery({
     queryKey: ['users'],
-    queryFn: () => apiFetch<{ users: UserRow[]; currentActorId: string }>('/api/users'),
+    queryFn: () =>
+      apiFetch<{ users: UserRow[]; currentActorId: string; membersEnabled?: boolean }>(
+        '/api/users',
+      ),
   });
 
   // Deep link: /settings/users?selected=<id-or-email> preselects that user
@@ -131,6 +228,7 @@ export function UsersClient() {
   }
 
   const { users, currentActorId } = usersQuery.data;
+  const membersEnabled = usersQuery.data.membersEnabled === true;
   const selected =
     users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null;
 
@@ -163,6 +261,16 @@ export function UsersClient() {
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
                       {u.displayName || u.email}
                     </span>
+                    {u.role === 'member' && (
+                      <Badge variant="secondary" className="shrink-0">
+                        Member
+                      </Badge>
+                    )}
+                    {u.disabledAt && (
+                      <Badge variant="outline" className="shrink-0">
+                        Disabled
+                      </Badge>
+                    )}
                     {u.agent && (
                       <Badge variant="outline" className="shrink-0" title={u.agent.name}>
                         <Bot className="size-3" /> {u.agent.name}
@@ -192,6 +300,7 @@ export function UsersClient() {
             <UserDetail
               key={selected.id}
               user={selected}
+              membersEnabled={membersEnabled}
               isSelf={selected.id === currentActorId}
               onChanged={invalidate}
               onRequestDelete={() => setDeleteOpen(true)}
@@ -206,6 +315,7 @@ export function UsersClient() {
       />
 
       <AddUserDialog
+        membersEnabled={membersEnabled}
         open={addOpen}
         onOpenChange={setAddOpen}
         onCreated={(id) => {
@@ -233,12 +343,14 @@ export function UsersClient() {
 
 function UserDetail({
   user,
+  membersEnabled,
   isSelf,
   onChanged,
   onRequestDelete,
   onRequestReset,
 }: {
   user: UserRow;
+  membersEnabled: boolean;
   isSelf: boolean;
   onChanged: () => void;
   onRequestDelete: () => void;
@@ -280,7 +392,9 @@ function UserDetail({
           <p className="text-sm text-muted-foreground">
             {user.isOwner
               ? 'The anchor login. The brain is keyed to it, so it can’t be deleted.'
-              : 'Another way into this brain. Same brain, same data, same settings — actions are recorded under this identity.'}
+              : user.role === 'member'
+                ? 'A member login: team-level items and chat only, at /m. Admin screens refuse it.'
+                : 'Another way into this brain. Same brain, same data, same settings — actions are recorded under this identity.'}
           </p>
         </div>
         {!user.isOwner && !isSelf && (
@@ -331,7 +445,11 @@ function UserDetail({
         <SubmitButton pending={saving}>Save user</SubmitButton>
       </form>
 
-      <AssistantCard user={user} onChanged={onChanged} />
+      {!user.isOwner && !isSelf && (
+        <AccessCard user={user} membersEnabled={membersEnabled} onChanged={onChanged} />
+      )}
+
+      {user.role !== 'member' && <AssistantCard user={user} onChanged={onChanged} />}
 
       <div className="rounded-md border border-border p-4">
         <div className="flex items-center justify-between gap-3">
@@ -351,6 +469,100 @@ function UserDetail({
 
       <DevicesCard user={user} isSelf={isSelf} />
       {isSelf && <PairPhoneCard userId={user.id} />}
+    </div>
+  );
+}
+
+/**
+ * Role and access for one login (member logins, Phase 1): admin or member,
+ * the team contact a member belongs to, and a Disabled switch that stops the
+ * login at once (sessions are re-checked every request; bearers are revoked).
+ * Never shown for the anchor or your own login.
+ */
+function AccessCard({
+  user,
+  membersEnabled,
+  onChanged,
+}: {
+  user: UserRow;
+  membersEnabled: boolean;
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const [role, setRole] = useState<'admin' | 'member'>(user.role);
+  const [contactId, setContactId] = useState(user.contactId ?? '');
+  const [contactError, setContactError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
+  const contacts = useTeamContacts(membersEnabled || user.role === 'member');
+  const dirty = role !== user.role || (contactId || null) !== user.contactId;
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (role === 'member' && !contactId) {
+      setContactError('Pick the team member this login belongs to.');
+      return;
+    }
+    setContactError(undefined);
+    setSaving(true);
+    try {
+      await apiSend(`/api/users/${user.id}`, 'PATCH', {
+        role,
+        ...(role === 'member' ? { contactId } : {}),
+      });
+      onChanged();
+      toast.success(role === 'member' ? 'Now a member login' : 'Now an admin login');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setDisabled = async (disabled: boolean) => {
+    setSaving(true);
+    try {
+      await apiSend(`/api/users/${user.id}`, 'PATCH', { disabled });
+      onChanged();
+      toast.success(disabled ? 'Login disabled' : 'Login enabled');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not change the login');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 rounded-md border border-border p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium">Disabled</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Stops this login at once: it cannot sign in, and every session it holds ends.
+          </p>
+        </div>
+        <Switch
+          checked={!!user.disabledAt}
+          disabled={saving}
+          onCheckedChange={(v) => void setDisabled(v)}
+          aria-label="Disable this login"
+        />
+      </div>
+      {membersEnabled || user.role === 'member' ? (
+        <form onSubmit={save} noValidate className="space-y-3 border-t border-border pt-4">
+          <RoleFields
+            idPrefix={`user-${user.id}`}
+            role={role}
+            onRoleChange={setRole}
+            contactId={contactId}
+            onContactIdChange={setContactId}
+            contacts={contacts.data ?? []}
+            contactError={contactError}
+          />
+          <SubmitButton pending={saving} disabled={!dirty}>
+            Save role
+          </SubmitButton>
+        </form>
+      ) : null}
     </div>
   );
 }
@@ -732,10 +944,12 @@ function AssistantFields({
 }
 
 function AddUserDialog({
+  membersEnabled,
   open,
   onOpenChange,
   onCreated,
 }: {
+  membersEnabled: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (id: string) => void;
@@ -743,7 +957,10 @@ function AddUserDialog({
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; contact?: string }>({});
+  const [role, setRole] = useState<'admin' | 'member'>('admin');
+  const [contactId, setContactId] = useState('');
+  const contacts = useTeamContacts(membersEnabled && open);
   const [displayName, setDisplayName] = useState('');
   const [agentName, setAgentName] = useState('');
   const [sourceAgentId, setSourceAgentId] = useState('');
@@ -755,13 +972,15 @@ function AddUserDialog({
     // §6b. `required` + `type="email"` + `minLength` were the browser's bubble:
     // announced to nothing and gone on the next click. Same rules, on the
     // controls. The form is `noValidate`.
-    const errs: { email?: string; password?: string } = {};
+    const errs: { email?: string; password?: string; contact?: string } = {};
     if (!email.trim()) errs.email = 'An email address is required.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       errs.email = 'That does not look like an email address.';
     if (!password) errs.password = 'A starting password is required.';
     else if (password.length < 8) errs.password = 'Use at least 8 characters.';
-    if (errs.email || errs.password) {
+    if (role === 'member' && !contactId)
+      errs.contact = 'Pick the team member this login belongs to.';
+    if (errs.email || errs.password || errs.contact) {
       setErrors(errs);
       document.getElementById(errs.email ? 'new-user-email' : 'new-user-password')?.focus();
       return;
@@ -771,7 +990,7 @@ function AddUserDialog({
     try {
       // A blank assistant name means "share the brain default", exactly as every
       // login behaved before per-login assistants existed.
-      const wantsAgent = agentName.trim().length > 0;
+      const wantsAgent = role === 'admin' && agentName.trim().length > 0;
       const source = sourceAgentId || sources.data?.[0]?.id;
       if (wantsAgent && !source) {
         toast.error('No agent available to copy from.');
@@ -782,6 +1001,7 @@ function AddUserDialog({
         password,
         displayName: displayName.trim() || undefined,
         ...(wantsAgent ? { agent: { name: agentName.trim(), sourceAgentId: source } } : {}),
+        ...(role === 'member' ? { role, contactId } : {}),
       });
       if (res.agentError) toast.error(res.agentError);
       else toast.success(wantsAgent ? 'Login and assistant added' : 'User added');
@@ -790,6 +1010,8 @@ function AddUserDialog({
       setDisplayName('');
       setAgentName('');
       setSourceAgentId('');
+      setRole('admin');
+      setContactId('');
       onOpenChange(false);
       onCreated(res.id);
     } catch (err) {
@@ -868,14 +1090,27 @@ function AddUserDialog({
               Falls back to the email address when blank.
             </FieldHint>
           </Field>
-          <AssistantFields
-            idPrefix="new-user"
-            name={agentName}
-            onNameChange={setAgentName}
-            sourceAgentId={sourceAgentId}
-            onSourceAgentIdChange={setSourceAgentId}
-            sources={sources.data ?? []}
-          />
+          {membersEnabled && (
+            <RoleFields
+              idPrefix="new-user"
+              role={role}
+              onRoleChange={setRole}
+              contactId={contactId}
+              onContactIdChange={setContactId}
+              contacts={contacts.data ?? []}
+              contactError={errors.contact}
+            />
+          )}
+          {role === 'admin' && (
+            <AssistantFields
+              idPrefix="new-user"
+              name={agentName}
+              onNameChange={setAgentName}
+              sourceAgentId={sourceAgentId}
+              onSourceAgentIdChange={setSourceAgentId}
+              sources={sources.data ?? []}
+            />
+          )}
           <div className="flex justify-end pt-1">
             <SubmitButton pending={pending}>Add login</SubmitButton>
           </div>
