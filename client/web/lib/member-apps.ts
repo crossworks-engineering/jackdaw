@@ -25,17 +25,20 @@ export type MemberAppCard = {
 
 export type MemberAppList = { apps: MemberAppCard[]; homeAppId: string | null };
 
-/** GET /api/member/home: the pinned home app (null = the built-in home) and
- *  what its `host.hub.get()` answers. A section's token is a page id; an app
- *  card's token is an app id. */
-export type MemberHomeData = {
-  homeApp: { appId: string; title: string } | null;
-  hub: HubData;
-};
+/** GET /api/member/home: the pinned home app (null = the built-in home, and
+ *  then `hub` is null too) and what its `host.hub.get()` answers. A section's
+ *  token is a page id; an app card's token is an app id. */
+export type MemberHomeData =
+  | {
+      homeApp: { appId: string; title: string; icon: string | null; color: AppTint | null };
+      hub: HubData;
+    }
+  | { homeApp: null; hub: null };
 
 /** The `apiBase` + `fetcher` a member's AppSandbox needs: the member routes,
- *  on the brain's origin, with the member's credential (the cookie; members
- *  hold no bearer). The frame itself authenticates by its ticket. */
+ *  on the brain's origin, with the member's credential (`withAuth`: the
+ *  cookie same-origin, the member's bearer on a split client). The frame
+ *  itself authenticates by its ticket. */
 export function memberAppSandboxProps(appId: string): {
   apiBase: string;
   fetcher: (input: string, init?: RequestInit) => Promise<Response>;
@@ -68,4 +71,21 @@ export function memberHubNav(
   if (!section) return null;
   const sp = new URLSearchParams({ id: section.token, src: 'library' });
   return { kind: 'href', href: `/pages?${sp.toString()}` };
+}
+
+/** The launcher's apps: every app the member may run except the home app,
+ *  which lives on the home page (it needs the home's hub data). */
+export function launcherApps(list: MemberAppList): MemberAppCard[] {
+  return list.apps.filter((a) => a.id !== list.homeAppId);
+}
+
+/** What a member sees when their app reports a problem. The sandbox speaks
+ *  to builders ("add it with app_tools_set"); a member can only tell an
+ *  admin, and an expired session means signing in again. */
+export function memberAppProblem(message: string): { signIn: true } | { text: string } {
+  if (/frame ticket failed \(401\)/.test(message)) return { signIn: true };
+  if (/tried to use the tool/i.test(message)) {
+    return { text: 'This app needs something team members cannot use. Tell an admin.' };
+  }
+  return { text: 'This app hit a problem. Try again, or tell an admin.' };
 }

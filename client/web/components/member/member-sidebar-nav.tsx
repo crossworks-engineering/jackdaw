@@ -2,18 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  AppWindow,
-  BookText,
-  FileText,
-  FolderTree,
-  Home,
-  MessageSquare,
-  PenTool,
-  Table2,
-  type LucideIcon,
-} from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { MEMBER_NAV } from '@/lib/member-nav';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import {
@@ -22,29 +12,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@mantle/web-ui/ui/tooltip';
-
-/** `chat` opens the assistant dock beside the current screen instead of
- *  navigating (member logins, Phase 3). */
-type Item = { name: string; href: string; icon: LucideIcon; chat?: true };
-
-/** What a member reaches (member logins, plan section 7): their home, the five
- *  workspace kinds (each with Mine, Team drafts and the Library), the apps
- *  they may run (Phase 4b), and chat. */
-export const MEMBER_NAV: { label: string; items: Item[] }[] = [
-  { label: 'Home', items: [{ name: 'Home', href: '/', icon: Home }] },
-  {
-    label: 'Workspace',
-    items: [
-      { name: 'Pages', href: '/pages', icon: BookText },
-      { name: 'Notes', href: '/notes', icon: FileText },
-      { name: 'Draw', href: '/draw', icon: PenTool },
-      { name: 'Tables', href: '/tables', icon: Table2 },
-      { name: 'Files', href: '/files', icon: FolderTree },
-      { name: 'Apps', href: '/apps', icon: AppWindow },
-    ],
-  },
-  { label: 'Assistant', items: [{ name: 'Chat', href: '#chat', icon: MessageSquare, chat: true }] },
-];
 
 function isActive(pathname: string, href: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);

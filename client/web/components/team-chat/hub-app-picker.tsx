@@ -51,8 +51,8 @@ export function HubAppPicker({
         });
         toast.success(
           res.modeChanged
-            ? 'Hub app designated. Its share link is now team-members-only.'
-            : 'Hub app designated — members see it on /team.',
+            ? 'Hub app set. It is now at Team level, and its share link is team-members-only.'
+            : 'Hub app set. Members see it as their home.',
         );
       }
       router.refresh();
@@ -84,8 +84,9 @@ export function HubAppPicker({
         </SelectContent>
       </Select>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        A published app rendered as the members&rsquo; hub. Falls back to the built-in hub if the
-        app breaks.
+        A published app shown as the members&rsquo; home (and the /team hub). Choosing one sets it
+        to Team level, so every member can run it. Falls back to the built-in home if the app
+        breaks.
       </p>
     </div>
   );

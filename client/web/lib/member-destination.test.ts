@@ -75,3 +75,13 @@ describe('isAdminLoginRefusal', () => {
     expect(isAdminLoginRefusal(new ApiError('unauthorized', 401))).toBe(false);
   });
 });
+
+describe('the member nav', () => {
+  it('links only to paths a member may open (a new item needs its prefix)', async () => {
+    const { MEMBER_NAV } = await import('./member-nav');
+    for (const item of MEMBER_NAV.flatMap((g) => g.items)) {
+      if (item.chat) continue;
+      expect(sendsMemberHome(item.href, []), item.href).toBe(false);
+    }
+  });
+});

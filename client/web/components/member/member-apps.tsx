@@ -3,22 +3,24 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { AppTile } from '@/components/app-nav/app-tile';
-import { memberAppHref, type MemberAppList } from '@/lib/member-apps';
+import { launcherApps, memberAppHref, type MemberAppList } from '@/lib/member-apps';
 
 /**
  * The member app launcher (member logins Phase 4b): the apps an admin set to
  * team level and published. A card opens the run view; there is nothing to
- * create, edit or share here.
+ * create, edit or share here. The pinned home app is left out: it lives on
+ * the home page, which gives it its hub data.
  */
 export function MemberApps() {
   const list = useQuery({
     queryKey: ['member-apps'],
     queryFn: () => apiFetch<MemberAppList>('/api/member/apps'),
   });
-  const apps = list.data?.apps ?? [];
+  const apps = list.data ? launcherApps(list.data) : [];
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-8">
       <SetPageTitle title="Apps" />
@@ -27,7 +29,12 @@ export function MemberApps() {
           <Spinner />
         </div>
       ) : list.isError ? (
-        <p className="text-sm text-destructive-ink">Could not load the apps. Try again later.</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-destructive-ink">Could not load the apps.</p>
+          <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
+            Try again
+          </Button>
+        </div>
       ) : apps.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No apps yet. An admin can make an app available to the team.
