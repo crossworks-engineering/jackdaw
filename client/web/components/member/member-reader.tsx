@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import type { JSONContent } from '@tiptap/core';
-import type { MemberLibraryItem } from '@mantle/client-types';
+import type { MemberAcceptedItem, MemberLibraryItem } from '@mantle/client-types';
 import type { TableDetail } from '@mantle/content-core/table-model';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
@@ -12,32 +12,46 @@ import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
 import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { PageView } from '@/components/page-editor/page-view';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { memberAssetPath, memberDrawUrlPath, memberFileUrlPath } from '@/lib/member-assets';
+import { MEMBER_KIND } from '@/lib/member-kinds';
+import { acceptedPlace } from '@/lib/member-space';
 
-const KIND_ICON = { page: '📄', note: '📝', draw: '✏️', table: '📊', file: '📎' } as const;
+type ReaderItem = MemberLibraryItem | MemberAcceptedItem;
 
 /**
- * One Library item, read-only, with the same presenters the share links use.
- * Bytes (images, drawings, files) come from the member routes, which the
- * brain serves at the member's level.
+ * One item, read-only, with the same presenters the share links use: a
+ * Library item, or one the member wrote and an admin accepted (`accepted`,
+ * the saved version at any level). Bytes (images, drawings, files) come from
+ * the member routes, which serve the member's level and the author's own
+ * accepted items.
  */
-export function MemberReader({ id, onClose }: { id: string; onClose: () => void }) {
+export function MemberReader({
+  id,
+  source = 'library',
+  onClose,
+}: {
+  id: string;
+  source?: 'library' | 'accepted';
+  onClose: () => void;
+}) {
   const asset = useAssetUrl();
   // A table's chosen tab, kept with the item it belongs to so opening another
   // item starts on its first tab. Null = the server's default (the first).
   const [picked, setPicked] = useState<{ itemId: string; tabId: string } | null>(null);
   const tabId = picked?.itemId === id ? picked.tabId : null;
   const q = useQuery({
-    queryKey: ['member-item', id, tabId],
+    queryKey: ['member-item', id, source, tabId],
     queryFn: () =>
-      apiFetch<{ item: MemberLibraryItem }>(
-        `/api/member/library/${id}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
+      apiFetch<{ item: ReaderItem }>(
+        `/api/member/${source}/${id}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
       ),
     // Switching tabs keeps the current grid on screen until the next lands.
-    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === id ? prev : undefined),
+    placeholderData: (prev, prevQuery) =>
+      prevQuery?.queryKey[1] === id && prevQuery?.queryKey[2] === source ? prev : undefined,
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
   });
 
@@ -142,7 +156,7 @@ export function MemberReader({ id, onClose }: { id: string; onClose: () => void 
       <div className="space-y-4 p-6">
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
-            <span aria-hidden>{item.icon ?? KIND_ICON[item.type]}</span>
+            <span aria-hidden>{item.icon ?? MEMBER_KIND[item.type].icon}</span>
             <span className="min-w-0 truncate">{item.title || 'Untitled'}</span>
             <AudienceBadge level={item.audience === 'team' ? null : item.audience} />
           </h2>
@@ -152,11 +166,35 @@ export function MemberReader({ id, onClose }: { id: string; onClose: () => void 
             </Button>
           </div>
         </div>
-        {item.summary && item.type !== 'note' ? (
+        <Byline item={item} />
+        {'summary' in item && item.summary && item.type !== 'note' ? (
           <p className="text-sm text-muted-foreground">{item.summary}</p>
         ) : null}
         {body}
       </div>
     </div>
+  );
+}
+
+/** Who wrote it: the member-authored badge on a Library item, or, on the
+ *  author's own accepted item, when it was accepted and where it sits now. */
+function Byline({ item }: { item: ReaderItem }) {
+  if ('acceptedAt' in item) {
+    const when = item.acceptedAt ? new Date(item.acceptedAt).toLocaleDateString() : null;
+    return (
+      <p className="text-xs text-muted-foreground">
+        You wrote this. An admin accepted it into the brain{when ? ` on ${when}` : ''} ·{' '}
+        {acceptedPlace(item.audience)}. You read the saved version.
+      </p>
+    );
+  }
+  if (!item.author) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      <Badge variant="secondary" className="mr-1.5 align-middle">
+        Member-authored
+      </Badge>
+      Written by {item.author.name}
+    </p>
   );
 }

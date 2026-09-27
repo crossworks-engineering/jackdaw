@@ -9,6 +9,7 @@ import type {
   AccessNodeUpdate,
   AccessNodeView,
 } from '@mantle/client-types';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
@@ -217,6 +218,20 @@ export function AccessControl({
           </p>
         ) : (
           <div className="space-y-3">
+            {view.author ? (
+              // A member wrote it and an admin accepted it (member logins
+              // Phase 4): the author keeps read access at every level.
+              <p className="text-xs text-muted-foreground">
+                <Badge variant="secondary" className="mr-1.5 align-middle">
+                  Member-authored
+                </Badge>
+                Written by {view.author.name}
+                {view.author.acceptedAt
+                  ? `, accepted ${new Date(view.author.acceptedAt).toLocaleDateString()}`
+                  : ''}
+                . They can always read it.
+              </p>
+            ) : null}
             <div className="space-y-2">
               <p className="text-sm font-medium">Who can see this</p>
               <ToggleGroup

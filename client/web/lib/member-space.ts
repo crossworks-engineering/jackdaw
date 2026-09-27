@@ -7,6 +7,7 @@
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { TableDetail } from '@mantle/content-core/table-model';
 import type {
+  AccessLevel,
   MemberItemKind,
   MemberReviewState,
   MemberSpaceFile,
@@ -24,8 +25,9 @@ export type SpaceSharing = MemberSpaceSharing;
 export type ReviewState = MemberReviewState;
 
 /** Where a member's list reads from: their own items, teammates' shared
- *  items, or the Library (brain items at the team level). */
-export type SpaceSource = 'mine' | 'team' | 'library';
+ *  items, the Library (brain items at the team level), or what they wrote
+ *  and an admin accepted into the brain (any level; brains from 0.232.285). */
+export type SpaceSource = 'mine' | 'team' | 'library' | 'accepted';
 
 export type SpaceItemRow = MemberSpaceItemRow;
 export type SpaceFile = MemberSpaceFile;
@@ -98,7 +100,9 @@ export function listPath(
       ? '/api/member/space'
       : source === 'team'
         ? '/api/member/team-drafts'
-        : '/api/member/library';
+        : source === 'accepted'
+          ? '/api/member/accepted'
+          : '/api/member/library';
   return `${base}?${sp.toString()}`;
 }
 
@@ -222,7 +226,8 @@ export function workspaceNavMode(
 
 /**
  * Which source an item id opens from, for a link to its own route
- * (/pages/<id>, /draw/<id>): Mine first, then Team drafts, then the Library.
+ * (/pages/<id>, /draw/<id>): Mine first, then Team drafts, the Library, and
+ * last what the member wrote and an admin accepted (at any level).
  * `probe` reads the item from one source. A 404 (or a 400 for an id that is
  * no item's) means "not in this source"; any other failure stops the search
  * and answers Mine, whose screen says it could not load the item. Null when
@@ -231,7 +236,7 @@ export function workspaceNavMode(
 export async function resolveMemberSource(
   probe: (source: SpaceSource) => Promise<unknown>,
 ): Promise<SpaceSource | null> {
-  for (const source of ['mine', 'team', 'library'] as const) {
+  for (const source of ['mine', 'team', 'library', 'accepted'] as const) {
     try {
       await probe(source);
       return source;
@@ -246,9 +251,18 @@ export async function resolveMemberSource(
 /** The read `resolveMemberSource` probes with: one item from one source. */
 export function probeMemberItem(id: string): (source: SpaceSource) => Promise<unknown> {
   return (source) =>
-    source === 'library'
-      ? apiFetch(`/api/member/library/${encodeURIComponent(id)}`)
+    source === 'library' || source === 'accepted'
+      ? apiFetch(`/api/member/${source}/${encodeURIComponent(id)}`)
       : apiFetch(itemBase(source, encodeURIComponent(id)));
+}
+
+/**
+ * Where an accepted item now sits, in the author's words: at admin only
+ * admins see it in the brain (the author still reads it here), at team or
+ * lower it is in the Library for the whole team.
+ */
+export function acceptedPlace(level: AccessLevel): string {
+  return level === 'admin' ? 'Admins only' : 'In the Library';
 }
 
 /** Where an item's bytes stream from (files) for this source. */

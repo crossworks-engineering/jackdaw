@@ -8,6 +8,8 @@ import {
   refusalMessage,
   resolveMemberSource,
   reviewListPath,
+  acceptedPlace,
+  listPath,
   splitByReview,
   workspaceNavMode,
   workspaceQuery,
@@ -145,6 +147,15 @@ describe('resolveMemberSource', () => {
     expect(lib.asked).toEqual(['mine', 'team', 'library']);
   });
 
+  it('opens an item the member wrote and an admin accepted, last', async () => {
+    const acc = found(['accepted']);
+    await expect(resolveMemberSource(acc.probe)).resolves.toBe('accepted');
+    expect(acc.asked).toEqual(['mine', 'team', 'library', 'accepted']);
+    // At team level it is in the Library too: the Library wins.
+    const both = found(['library', 'accepted']);
+    await expect(resolveMemberSource(both.probe)).resolves.toBe('library');
+  });
+
   it('answers null when no source has it (a bad id counts as missing)', async () => {
     await expect(resolveMemberSource(found([]).probe)).resolves.toBeNull();
     const bad = found([], { source: 'mine', err: new ApiError('Invalid id.', 400) });
@@ -175,5 +186,19 @@ describe('commentsOpen', () => {
     expect(commentsOpen({ sharing: 'private', reviewState: 'submitted' })).toBe(true);
     expect(commentsOpen({ sharing: 'private', reviewState: 'draft' })).toBe(false);
     expect(commentsOpen({ sharing: 'private', reviewState: 'returned' })).toBe(false);
+  });
+});
+
+describe('accepted items (Phase 4)', () => {
+  it('lists and reads from the accepted routes', () => {
+    expect(listPath('accepted', { kind: 'page', q: ' plan ', page: 2 })).toBe(
+      '/api/member/accepted?kind=page&page=2&q=plan',
+    );
+  });
+
+  it('says where an accepted item sits now', () => {
+    expect(acceptedPlace('admin')).toBe('Admins only');
+    expect(acceptedPlace('team')).toBe('In the Library');
+    expect(acceptedPlace('public')).toBe('In the Library');
   });
 });

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Upload } from 'lucide-react';
-import type { MemberLibraryPage } from '@mantle/client-types';
+import type { AccessLevel, MemberAcceptedPage, MemberLibraryPage } from '@mantle/client-types';
 import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -21,6 +21,7 @@ import useMediaQuery from '@mantle/web-ui/hooks/use-media-query';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { SetPageTitle } from '@/components/layout/page-title';
 import {
+  acceptedPlace,
   listPath,
   memberSpace,
   memberUploadRefusal,
@@ -43,10 +44,11 @@ const SOURCES: { value: SpaceSource; label: string }[] = [
   { value: 'mine', label: 'Mine' },
   { value: 'team', label: 'Team drafts' },
   { value: 'library', label: 'Library' },
+  { value: 'accepted', label: 'Accepted' },
 ];
 
 function asSource(v: string | null): SpaceSource {
-  return v === 'team' || v === 'library' ? v : 'mine';
+  return v === 'team' || v === 'library' || v === 'accepted' ? v : 'mine';
 }
 
 type Row = {
@@ -56,6 +58,11 @@ type Row = {
   updatedAt: string;
   summary?: string | null;
   space?: SpaceItemRow;
+  /** Library: who wrote it, when a member did and an admin accepted it. */
+  author?: string | null;
+  /** Accepted: when, and the level the admin chose. */
+  acceptedAt?: string | null;
+  audience?: AccessLevel;
 };
 
 /**
@@ -82,9 +89,10 @@ function useSpaceEvents() {
 
 /**
  * A member's screen for one kind (member logins, the real app shell): the
- * same URL an admin uses (/pages, /notes, …), three sources side by side:
+ * same URL an admin uses (/pages, /notes, …), four sources side by side:
  * Mine (their own items, editable), Team drafts (teammates' shared items,
- * saved versions) and the Library (brain items at the team level, read-only).
+ * saved versions), the Library (brain items at the team level, read-only)
+ * and Accepted (what they wrote and an admin accepted, read-only, any level).
  * The source and the selected item live in the URL (?src=, ?id=).
  */
 export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
@@ -136,6 +144,23 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
             icon: r.icon,
             updatedAt: r.updatedAt,
             summary: r.summary,
+            author: r.author?.name ?? null,
+          })),
+          total: d.total,
+          page: d.page,
+          pageSize: d.pageSize,
+        };
+      }
+      if (source === 'accepted') {
+        const d = await apiFetch<MemberAcceptedPage>(path);
+        return {
+          rows: d.items.map((r) => ({
+            id: r.id,
+            title: r.title,
+            icon: r.icon,
+            updatedAt: r.updatedAt,
+            acceptedAt: r.acceptedAt,
+            audience: r.audience,
           })),
           total: d.total,
           page: d.page,
@@ -202,10 +227,12 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const data = list.data;
   const empty =
     source === 'mine'
-      ? `You have no ${meta.title.toLowerCase()} yet.`
+      ? `You have no ${meta.many} yet.`
       : source === 'team'
         ? 'No teammate has shared any with the team yet.'
-        : 'Nothing of this kind has been shared with the team yet.';
+        : source === 'accepted'
+          ? `None of your ${meta.many} has been accepted into the brain yet.`
+          : 'Nothing of this kind has been shared with the team yet.';
 
   const listPane = (
     <div className="flex h-full min-h-0 flex-col">
@@ -215,6 +242,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
             type="single"
             variant="outline"
             size="sm"
+            spacing={1}
             value={source}
             onValueChange={(v) => {
               if (!v) return;
@@ -222,7 +250,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
               setParams({ src: v as SpaceSource, id: null });
             }}
             aria-label="Whose items"
-            className="grid flex-1 grid-cols-3"
+            className="grid flex-1 grid-cols-2"
           >
             {SOURCES.map((s) => (
               <ToggleGroupItem key={s.value} value={s.value} className="text-xs">
@@ -315,7 +343,18 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
                             <StatusChip row={row.space} />
                           </span>
                         ) : null}
-                        Updated {new Date(row.updatedAt).toLocaleDateString()}
+                        {source === 'accepted' ? (
+                          <>
+                            Accepted{' '}
+                            {new Date(row.acceptedAt ?? row.updatedAt).toLocaleDateString()}
+                            {row.audience ? ` · ${acceptedPlace(row.audience)}` : null}
+                          </>
+                        ) : (
+                          <>
+                            Updated {new Date(row.updatedAt).toLocaleDateString()}
+                            {row.author ? ` · by ${row.author}` : null}
+                          </>
+                        )}
                       </ListCardMeta>
                     </div>
                   </div>
@@ -351,7 +390,11 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     ) : source === 'team' ? (
       <TeamDraftItem id={selectedId} onClose={close} />
     ) : (
-      <MemberReader id={selectedId} onClose={close} />
+      <MemberReader
+        id={selectedId}
+        source={source === 'accepted' ? 'accepted' : 'library'}
+        onClose={close}
+      />
     )
   ) : (
     <div className="flex h-full items-center justify-center p-6">
