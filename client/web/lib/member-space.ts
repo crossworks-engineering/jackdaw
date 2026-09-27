@@ -1,66 +1,41 @@
 /**
  * The member's personal-space API (member logins Phase 2), as the brain
- * serves it under /api/member/*. Types mirror the brain's member-space.ts;
- * they move into the published contract once the member UI settles.
+ * serves it under /api/member/*. The wire shapes are the brain's published
+ * contract (@mantle/client-types, audit M3); the local names stay so callers
+ * need not change. The client narrows the editor documents and the table.
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { TableDetail } from '@mantle/content-core/table-model';
-import type { MemberLibraryKind } from '@mantle/client-types';
+import type {
+  MemberItemKind,
+  MemberReviewState,
+  MemberSpaceFile,
+  MemberSpaceItem,
+  MemberSpaceItemBody,
+  MemberSpaceItemRow,
+  MemberSpaceList,
+  MemberSpaceSharing,
+  NodeComment,
+} from '@mantle/client-types';
 import { formatBytes } from './upload-progress';
 
-export type SpaceKind = MemberLibraryKind;
-export type SpaceSharing = 'private' | 'team';
-export type ReviewState = 'draft' | 'submitted' | 'returned' | 'accepted';
+export type SpaceKind = MemberItemKind;
+export type SpaceSharing = MemberSpaceSharing;
+export type ReviewState = MemberReviewState;
 
 /** Where a member's list reads from: their own items, teammates' shared
  *  items, or the Library (brain items at the team level). */
 export type SpaceSource = 'mine' | 'team' | 'library';
 
-export type SpaceItemRow = {
-  id: string;
-  type: SpaceKind;
-  title: string;
-  icon: string | null;
-  sharing: SpaceSharing;
-  reviewState: ReviewState;
-  submittedAt: string | null;
-  returnedNote: string | null;
-  authorLoginId: string | null;
-  updatedAt: string;
-};
-
-export type SpaceFile = {
-  id: string;
-  filename: string;
-  extension: string;
-  mimeType: string;
-  sizeBytes: number;
-  sha256: string | null;
-};
+export type SpaceItemRow = MemberSpaceItemRow;
+export type SpaceFile = MemberSpaceFile;
 
 type Doc = Record<string, unknown>;
 
-export type SpaceItemBody =
-  | { type: 'page'; page: { doc: Doc; draft: Doc | null; draftRev?: number; title: string } }
-  | { type: 'note'; note: { content: string; title: string } }
-  | { type: 'draw'; draw: { scene: Doc; draft: Doc | null; draftRev?: number } | null }
-  | { type: 'table'; table: TableDetail }
-  | { type: 'file'; file: SpaceFile };
-
-export type SpaceItem = { row: SpaceItemRow; body: SpaceItemBody };
-
-export type SpaceList = { items: SpaceItemRow[]; total: number; page: number; pageSize: number };
-
-export type SpaceComment = {
-  id: string;
-  nodeId: string;
-  authorKind: string;
-  authorName: string;
-  mine: boolean;
-  body: string;
-  createdAt: string;
-  editedAt: string | null;
-};
+export type SpaceItemBody = MemberSpaceItemBody<Doc, TableDetail>;
+export type SpaceItem = MemberSpaceItem<Doc, TableDetail>;
+export type SpaceList = MemberSpaceList;
+export type SpaceComment = NodeComment;
 
 /** What a member reads for a refusal the brain answered without a sentence
  *  of its own (it normally sends one in `error`). */

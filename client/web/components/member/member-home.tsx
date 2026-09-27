@@ -16,28 +16,14 @@ import {
   type SpaceList,
   type SpaceSource,
 } from '@/lib/member-space';
+import { MEMBER_KIND } from '@/lib/member-kinds';
 import { StatusChip } from './space-status';
-
-const PATH: Record<SpaceKind, string> = {
-  page: '/pages',
-  note: '/notes',
-  draw: '/draw',
-  table: '/tables',
-  file: '/files',
-};
-const ICON: Record<SpaceKind, string> = {
-  page: '📄',
-  note: '📝',
-  draw: '✏️',
-  table: '📊',
-  file: '📎',
-};
 
 /** Where an item opens: its kind's screen, the right source, selected. */
 export function memberItemHref(kind: SpaceKind, id: string, src: SpaceSource): string {
   const sp = new URLSearchParams({ id });
   if (src !== 'mine') sp.set('src', src);
-  return `${PATH[kind]}?${sp.toString()}`;
+  return `${MEMBER_KIND[kind].path}?${sp.toString()}`;
 }
 
 type Entry = {
@@ -74,7 +60,7 @@ function Section({
                 href={memberItemHref(e.type, e.id, src)}
                 className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-foreground/[0.04]"
               >
-                <span aria-hidden>{e.icon ?? ICON[e.type]}</span>
+                <span aria-hidden>{e.icon ?? MEMBER_KIND[e.type].icon}</span>
                 <span className="min-w-0 flex-1 truncate">{e.title || 'Untitled'}</span>
                 {e.status ? <StatusChip row={e.status} /> : null}
                 <span className="shrink-0 text-xs text-muted-foreground">

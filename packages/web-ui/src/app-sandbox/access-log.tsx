@@ -21,19 +21,32 @@ type AccessEntry = {
   createdAt: string;
 };
 
-function describe(e: AccessEntry): { icon: typeof KeyRound; label: string } {
+/** The row's words. A member row (`detail.via` 'member', member logins
+ *  Phase 4b) opened the app through their own login, not a team token; a
+ *  refused call says so. Exported for the test. */
+export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
+  icon: typeof KeyRound;
+  label: string;
+} {
+  const refused = typeof e.detail.refused === 'string' ? ' (refused)' : '';
   switch (e.kind) {
     case 'auth':
-      return { icon: KeyRound, label: 'Entered their team token' };
+      return {
+        icon: KeyRound,
+        label: e.detail.via === 'member' ? 'Opened the app' : 'Entered their team token',
+      };
     case 'tool':
       return {
         icon: Wrench,
-        label: `Used tool ${typeof e.detail.slug === 'string' ? e.detail.slug : ''}`.trim(),
+        label:
+          `Used tool ${typeof e.detail.slug === 'string' ? e.detail.slug : ''}`.trim() + refused,
       };
     case 'db':
       return {
         icon: Database,
-        label: e.detail.op === 'exec' ? 'Wrote to the app database' : 'Queried the app database',
+        label:
+          (e.detail.op === 'exec' ? 'Wrote to the app database' : 'Queried the app database') +
+          refused,
       };
   }
 }

@@ -9,6 +9,15 @@ import {
   Table2,
   type LucideIcon,
 } from 'lucide-react';
+import { MEMBER_ITEM_KINDS, MEMBER_KIND, type MemberItemKind } from './member-kinds';
+
+const KIND_ICON: Record<MemberItemKind, LucideIcon> = {
+  page: BookText,
+  note: FileText,
+  draw: PenTool,
+  table: Table2,
+  file: FolderTree,
+};
 
 /** `chat` opens the assistant dock beside the current screen instead of
  *  navigating (member logins, Phase 3). */
@@ -22,11 +31,11 @@ export const MEMBER_NAV: { label: string; items: MemberNavItem[] }[] = [
   {
     label: 'Workspace',
     items: [
-      { name: 'Pages', href: '/pages', icon: BookText },
-      { name: 'Notes', href: '/notes', icon: FileText },
-      { name: 'Draw', href: '/draw', icon: PenTool },
-      { name: 'Tables', href: '/tables', icon: Table2 },
-      { name: 'Files', href: '/files', icon: FolderTree },
+      ...MEMBER_ITEM_KINDS.map((k) => ({
+        name: MEMBER_KIND[k].title,
+        href: MEMBER_KIND[k].path,
+        icon: KIND_ICON[k],
+      })),
       { name: 'Apps', href: '/apps', icon: AppWindow },
     ],
   },

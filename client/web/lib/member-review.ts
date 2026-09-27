@@ -11,6 +11,7 @@
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { AccessLevel } from '@mantle/client-types';
+import { MEMBER_KIND } from './member-kinds';
 import type {
   SpaceComment,
   SpaceItemBody,
@@ -136,16 +137,11 @@ export function splitQueue(items: readonly ReviewItemRow[]): {
 export function bundleSummary(items: readonly BundleItem[]): string {
   const rest = items.slice(1);
   if (!rest.length) return 'Nothing else moves with it.';
-  const noun: Record<SpaceKind, [string, string]> = {
-    page: ['page', 'pages'],
-    note: ['note', 'notes'],
-    draw: ['drawing', 'drawings'],
-    table: ['table', 'tables'],
-    file: ['file', 'files'],
-  };
   const counts = new Map<SpaceKind, number>();
   for (const i of rest) counts.set(i.type, (counts.get(i.type) ?? 0) + 1);
-  const parts = [...counts].map(([k, n]) => `${n} ${noun[k][n === 1 ? 0 : 1]}`);
+  const parts = [...counts].map(
+    ([k, n]) => `${n} ${n === 1 ? MEMBER_KIND[k].one : MEMBER_KIND[k].many}`,
+  );
   return `Also moves ${parts.join(', ')}.`;
 }
 

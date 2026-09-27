@@ -31,21 +31,13 @@ import {
   type SpaceList,
   type SpaceSource,
 } from '@/lib/member-space';
+import { MEMBER_KIND } from '@/lib/member-kinds';
 import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
 import { TeamDraftItem } from './team-draft-item';
 import { StatusChip, spaceErrorMessage } from './space-status';
 
-const KIND: Record<
-  SpaceKind,
-  { title: string; one: string; icon: string; create: boolean; upload?: boolean }
-> = {
-  page: { title: 'Pages', one: 'page', icon: '📄', create: true },
-  note: { title: 'Notes', one: 'note', icon: '📝', create: true },
-  draw: { title: 'Draw', one: 'drawing', icon: '✏️', create: true },
-  table: { title: 'Tables', one: 'table', icon: '📊', create: true },
-  file: { title: 'Files', one: 'file', icon: '📎', create: false, upload: true },
-};
+const KIND = MEMBER_KIND;
 
 const SOURCES: { value: SpaceSource; label: string }[] = [
   { value: 'mine', label: 'Mine' },

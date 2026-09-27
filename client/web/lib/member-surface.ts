@@ -1,3 +1,5 @@
+import { MEMBER_KIND_PATHS } from './member-kinds';
+
 /**
  * Request header the middleware sets (always overwriting the inbound value)
  * when the path is a team-MEMBER surface (/team, /hub — not /team-admin,
@@ -28,14 +30,7 @@ export const MEMBER_HINT_COOKIE = 'mantle_member';
  * an admin. `/` is the member home. `/apps` is the member app launcher and
  * run view (Phase 4b): a member never reaches the owner app editor.
  */
-export const MEMBER_APP_PREFIXES = [
-  '/pages',
-  '/notes',
-  '/draw',
-  '/tables',
-  '/files',
-  '/apps',
-] as const;
+export const MEMBER_APP_PREFIXES: readonly string[] = [...MEMBER_KIND_PATHS, '/apps'];
 
 /** A path a member may open: the home, the member app screens, public
  *  paths. Chat is the assistant dock, on any of them (the old /m is gone). */
