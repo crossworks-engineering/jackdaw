@@ -1,0 +1,220 @@
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { BrowserContext } from '@playwright/test';
+
+/**
+ * An in-memory member API for the member specs: a real HTTP server in the
+ * test process that answers the /api/member/* routes a member's Mine screen
+ * calls, with the draft etag contract of the real ones (`if_rev` in,
+ * `draft_rev` out, 409 `current_rev` on a stale etag). The owner UI runs
+ * with MANTLE_SERVER_ORIGIN pointed here (playwright.member.config.ts).
+ *
+ * A server rather than page.route(): a write the browser starts while the tab
+ * unloads (the leave flush on a reload, sent keepalive) outlives the page,
+ * and Playwright's interception never sees it. A server does, as the brain
+ * would.
+ *
+ * Admin routes a member must never call are answered the way the brain
+ * answers a member (403 `member-login`) and recorded, so a spec can assert
+ * that none was called.
+ */
+
+type Doc = Record<string, unknown>;
+
+export const MOCK_API_PORT = Number(process.env.E2E_MEMBER_API_PORT || 3912);
+/** The "brain" origin the owner UI is started against. */
+export const MOCK_API_ORIGIN = `http://127.0.0.1:${MOCK_API_PORT}`;
+export const PAGE_ID = '11111111-1111-4111-8111-111111111111';
+export const FILE_ID = '22222222-2222-4222-8222-222222222222';
+export const CHILD_ID = '33333333-3333-4333-8333-333333333333';
+export const DRAW_ID = '44444444-4444-4444-8444-444444444444';
+export const PAGE_TITLE = 'Field notes';
+
+/** A page that embeds what a member editor used to fetch from admin routes:
+ *  an uploaded image, a sub-page card and a drawing. */
+export const PAGE_DOC: Doc = {
+  type: 'doc',
+  content: [
+    { type: 'paragraph', content: [{ type: 'text', text: 'Start.' }] },
+    { type: 'image', attrs: { src: `/api/files/files/${FILE_ID}?raw=1`, nodeId: FILE_ID } },
+    { type: 'childPage', attrs: { pageId: CHILD_ID, title: 'A sub-page' } },
+    { type: 'image', attrs: { src: null, drawId: DRAW_ID } },
+  ],
+};
+
+/** Admin routes the member surface must not call (the brain refuses them). */
+const ADMIN_ONLY = [
+  /^\/api\/pages(\/|$)/,
+  /^\/api\/files\//,
+  /^\/api\/draws\//,
+  /^\/api\/profile\/photo/,
+  /^\/api\/shell$/,
+];
+
+const PNG_1PX = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+
+export type MockMemberApi = {
+  /** The page's server draft, as the last accepted PUT left it. */
+  draft: Doc | null;
+  draftRev: number;
+  /** Every draft PUT body, in order, with when it arrived (Date.now()). */
+  puts: { doc: Doc; if_rev?: number; at: number }[];
+  /** Admin-only routes the page called (should stay empty). */
+  adminCalls: string[];
+  /** Member asset routes the page called. */
+  memberAssetCalls: string[];
+  close: () => Promise<void>;
+};
+
+/** Sign the browser in as a member, the way the client sees it: the
+ *  presence cookie and the member hint (both UX-only; the API is mocked). */
+export async function signInAsMember(context: BrowserContext, baseURL: string): Promise<void> {
+  await context.addCookies([
+    { name: 'mantle_authed', value: '1', url: baseURL },
+    { name: 'mantle_member', value: '1', url: baseURL },
+  ]);
+}
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+export async function startMockMemberApi(clientOrigin: string): Promise<MockMemberApi> {
+  const state: MockMemberApi = {
+    draft: null,
+    draftRev: 0,
+    puts: [],
+    adminCalls: [],
+    memberAssetCalls: [],
+    close: async () => undefined,
+  };
+  const now = new Date().toISOString();
+  const row = () => ({
+    id: PAGE_ID,
+    type: 'page',
+    title: PAGE_TITLE,
+    icon: null,
+    sharing: 'private',
+    reviewState: 'draft',
+    submittedAt: null,
+    returnedNote: null,
+    authorLoginId: 'login-1',
+    updatedAt: now,
+  });
+
+  const cors = {
+    'access-control-allow-origin': clientOrigin,
+    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'access-control-allow-headers': 'content-type, authorization, last-event-id',
+    'access-control-max-age': '600',
+  };
+  const send = (res: ServerResponse, status: number, type: string, body: string | Buffer) => {
+    res.writeHead(status, { ...cors, 'content-type': type, 'cache-control': 'no-store' });
+    res.end(body);
+  };
+  const json = (res: ServerResponse, status: number, body: unknown) =>
+    send(res, status, 'application/json', JSON.stringify(body));
+
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? '/', 'http://mock');
+    const path = url.pathname;
+    const method = req.method ?? 'GET';
+    if (method === 'OPTIONS') {
+      res.writeHead(204, cors);
+      res.end();
+      return;
+    }
+    if (ADMIN_ONLY.some((re) => re.test(path))) {
+      state.adminCalls.push(`${method} ${path}`);
+      return json(res, 403, { error: 'forbidden', reason: 'member-login' });
+    }
+    if (path === '/api/member/shell') {
+      return json(res, 200, {
+        role: 'member',
+        loginId: 'login-1',
+        displayName: 'Mo Member',
+        email: 'member@example.com',
+        avatar: null,
+        // Set, so a rail that still loads the admin photo route is caught.
+        avatarPhotoVersion: 'abc12345',
+        assetToken: '',
+        siteName: null,
+        colorTheme: null,
+        fontLogo: null,
+        fontTitle: null,
+        fontUi: null,
+        fontProse: null,
+        fontSize: null,
+        fontLogoSize: null,
+        fontTitleSize: null,
+        fontProseSize: null,
+        logoVersion: null,
+        logoDarkVersion: null,
+      });
+    }
+    if (path === '/api/member/realtime') return send(res, 200, 'text/event-stream', ':\n\n');
+    if (path === '/api/member/space' && method === 'GET') {
+      const items = url.searchParams.get('kind') === 'page' ? [row()] : [];
+      return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
+    }
+    if (path === `/api/member/space/${PAGE_ID}` && method === 'GET') {
+      return json(res, 200, {
+        row: row(),
+        body: {
+          type: 'page',
+          page: { doc: PAGE_DOC, draft: state.draft, draftRev: state.draftRev, title: PAGE_TITLE },
+        },
+      });
+    }
+    if (path === `/api/member/space/${PAGE_ID}/draft` && method === 'PUT') {
+      const body = JSON.parse(await readBody(req)) as { doc: Doc; if_rev?: number };
+      state.puts.push({ ...body, at: Date.now() });
+      if (body.if_rev !== undefined && body.if_rev !== state.draftRev) {
+        return json(res, 409, { error: 'The draft changed.', current_rev: state.draftRev });
+      }
+      state.draft = body.doc;
+      state.draftRev += 1;
+      return json(res, 200, { ok: true, draft_rev: state.draftRev });
+    }
+    if (path.startsWith('/api/member/space/') && path.endsWith('/comments')) {
+      return json(res, 200, { comments: [] });
+    }
+    if (path.startsWith('/api/member/files/')) {
+      state.memberAssetCalls.push(path);
+      return send(res, 200, 'image/png', PNG_1PX);
+    }
+    if (path.startsWith('/api/member/draws/')) {
+      state.memberAssetCalls.push(path);
+      return send(
+        res,
+        200,
+        'image/svg+xml',
+        '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>',
+      );
+    }
+    if (path === '/api/version') return json(res, 200, { version: 'mock' });
+    // Anything else: a plain 404, never a 401 (that would bounce to /login).
+    return json(res, 404, { error: `not mocked: ${method} ${path}` });
+  };
+
+  const server = createServer((req, res) => {
+    handle(req, res).catch((err: unknown) => json(res, 500, { error: String(err) }));
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(MOCK_API_PORT, '127.0.0.1', () => resolve());
+  });
+  state.close = () =>
+    new Promise<void>((resolve) => {
+      server.closeAllConnections();
+      server.close(() => resolve());
+    });
+  return state;
+}

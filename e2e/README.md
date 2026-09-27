@@ -22,6 +22,21 @@ passes whatever the app does. Read the authored rules out of `document
 .styleSheets` instead — `shell-layout.spec.ts` does, and the comment there
 explains why.
 
+## The member specs (`pnpm e2e:member`): no brain needed
+
+`e2e/member/` holds specs for the member surface (member logins) that run
+against an in-memory member API the spec starts in its own process
+(`member/mock-member-api.ts`), not against a brain. Its own config,
+`playwright.member.config.ts`, starts `next dev` for this checkout on `:3911`
+with `MANTLE_SERVER_ORIGIN` pointed at the mock on `:3912`; nothing else is
+needed. Stop a `next dev` running in `client/web` first (Next allows one per
+directory). `E2E_BROWSER_CHANNEL=chrome` drives the installed Chrome when
+Playwright's bundled browser is not downloaded.
+
+The mock is a real HTTP server, not `page.route()`, on purpose: a write the
+browser starts while a tab unloads (the leave flush on a reload, sent
+keepalive) outlives the page, and route interception never sees it.
+
 ## The route coverage gate (`pnpm e2e:routes`)
 
 A different instrument from the suite: `e2e/check-routes.mjs` derives every

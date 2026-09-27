@@ -8,6 +8,7 @@
     "e2e": "playwright test",
     "e2e:same": "playwright test --project=same-origin",
     "e2e:split": "playwright test --project=split",
+    "e2e:member": "playwright test -c playwright.member.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
