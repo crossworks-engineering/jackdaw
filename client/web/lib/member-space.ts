@@ -189,6 +189,37 @@ export function workspaceQuery(
   return sp.toString();
 }
 
+/**
+ * Which source an item id opens from, for a link to its own route
+ * (/pages/<id>, /draw/<id>): Mine first, then Team drafts, then the Library.
+ * `probe` reads the item from one source. A 404 (or a 400 for an id that is
+ * no item's) means "not in this source"; any other failure stops the search
+ * and answers Mine, whose screen says it could not load the item. Null when
+ * no source has it.
+ */
+export async function resolveMemberSource(
+  probe: (source: SpaceSource) => Promise<unknown>,
+): Promise<SpaceSource | null> {
+  for (const source of ['mine', 'team', 'library'] as const) {
+    try {
+      await probe(source);
+      return source;
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 404 || err.status === 400)) continue;
+      return 'mine';
+    }
+  }
+  return null;
+}
+
+/** The read `resolveMemberSource` probes with: one item from one source. */
+export function probeMemberItem(id: string): (source: SpaceSource) => Promise<unknown> {
+  return (source) =>
+    source === 'library'
+      ? apiFetch(`/api/member/library/${encodeURIComponent(id)}`)
+      : apiFetch(itemBase(source, encodeURIComponent(id)));
+}
+
 /** Where an item's bytes stream from (files) for this source. */
 export function bytesPath(source: 'mine' | 'team', id: string): string {
   return `${itemBase(source, id)}/bytes`;
