@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   MEMBER_MAX_UPLOAD_BYTES,
+  commentsOpen,
+  isEditable,
   memberUploadRefusal,
   refusalMessage,
   resolveMemberSource,
@@ -153,5 +155,25 @@ describe('resolveMemberSource', () => {
     const down = found(['library'], { source: 'team', err: new TypeError('Failed to fetch') });
     await expect(resolveMemberSource(down.probe)).resolves.toBe('mine');
     expect(down.asked).toEqual(['mine', 'team']);
+  });
+});
+
+describe('isEditable', () => {
+  it('lets a member edit a draft or a returned item only', () => {
+    expect(isEditable({ reviewState: 'draft' })).toBe(true);
+    expect(isEditable({ reviewState: 'returned' })).toBe(true);
+    // Submitted is frozen until Recall, Accept or Return; accepted is done.
+    expect(isEditable({ reviewState: 'submitted' })).toBe(false);
+    expect(isEditable({ reviewState: 'accepted' })).toBe(false);
+  });
+});
+
+describe('commentsOpen', () => {
+  it('opens the thread while an own item is shared or submitted', () => {
+    expect(commentsOpen({ sharing: 'team', reviewState: 'draft' })).toBe(true);
+    // A private item under review carries the review discussion.
+    expect(commentsOpen({ sharing: 'private', reviewState: 'submitted' })).toBe(true);
+    expect(commentsOpen({ sharing: 'private', reviewState: 'draft' })).toBe(false);
+    expect(commentsOpen({ sharing: 'private', reviewState: 'returned' })).toBe(false);
   });
 });

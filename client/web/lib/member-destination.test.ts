@@ -8,6 +8,10 @@ describe('memberHome', () => {
     expect(memberHome(null)).toBe('/');
     expect(memberHome('/pages')).toBe('/pages');
     expect(memberHome('/pages/abc?x=1')).toBe('/pages/abc?x=1');
+    expect(memberHome('/notes?selected=n1')).toBe('/notes?selected=n1');
+    expect(memberHome('/draw/abc')).toBe('/draw/abc');
+    expect(memberHome('/tables')).toBe('/tables');
+    expect(memberHome('/files')).toBe('/files');
     expect(memberHome('/m/chat')).toBe('/');
     expect(memberHome('/models')).toBe('/');
     expect(memberHome('/settings/profile')).toBe('/');
@@ -43,6 +47,11 @@ describe('sendsMemberHome', () => {
   });
   it('leaves the member home, member screens and public surfaces alone', () => {
     expect(sendsMemberHome('/', PUBLIC)).toBe(false);
+    // Every workspace kind a member works in, list and item routes.
+    for (const p of ['/pages', '/notes', '/draw', '/tables', '/files']) {
+      expect(sendsMemberHome(p, PUBLIC), p).toBe(false);
+      expect(sendsMemberHome(`${p}/abc`, PUBLIC), `${p}/abc`).toBe(false);
+    }
     expect(sendsMemberHome('/pages/abc', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/files', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/login', PUBLIC)).toBe(false);
