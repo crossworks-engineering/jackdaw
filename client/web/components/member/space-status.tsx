@@ -3,12 +3,16 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Lock, Send, Undo2, Users } from 'lucide-react';
-import { ApiError } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { memberSpace, type SpaceItemRow, type SpaceSharing } from '@/lib/member-space';
+import {
+  memberSpace,
+  refusalMessage,
+  type SpaceItemRow,
+  type SpaceSharing,
+} from '@/lib/member-space';
 
 const REVIEW_LABEL: Record<SpaceItemRow['reviewState'], string | null> = {
   draft: null,
@@ -42,13 +46,10 @@ export function StatusChip({ row }: { row: Pick<SpaceItemRow, 'sharing' | 'revie
   );
 }
 
-/** A 409 from the brain carries a sentence the member can read. */
+/** A refusal from the brain carries a sentence the member can read (quota,
+ *  embed, frozen, a rate limit, …); anything else gets the caller's. */
 function messageOf(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    const b = err.body as { error?: string } | undefined;
-    if (b?.error) return b.error;
-  }
-  return fallback;
+  return refusalMessage(err) ?? fallback;
 }
 
 /** Refresh everything that shows this item (its detail, the lists, home). */

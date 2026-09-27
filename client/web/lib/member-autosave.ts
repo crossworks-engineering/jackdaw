@@ -28,6 +28,7 @@
  *    server, which is what Submit and the leave hook await.
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
+import { refusalMessage } from './member-space';
 
 export type AutosaveState =
   /** The server holds what the editor shows. */
@@ -106,14 +107,14 @@ export function classifySaveError(err: unknown): SaveFailure {
     if (err.status === 401) return { kind: 'auth' };
     if (err.status === 409) {
       if (typeof body.reason === 'string' && body.reason) {
-        return { kind: 'state', reason: body.reason, message: err.message };
+        return { kind: 'state', reason: body.reason, message: refusalMessage(err) ?? err.message };
       }
       return typeof body.current_rev === 'number'
         ? { kind: 'conflict', currentRev: body.current_rev }
         : { kind: 'conflict' };
     }
     if (err.status >= 500 || err.status === 408 || err.status === 429) return { kind: 'network' };
-    return { kind: 'invalid', status: err.status, message: err.message };
+    return { kind: 'invalid', status: err.status, message: refusalMessage(err) ?? err.message };
   }
   // fetch() rejects with a TypeError when the request never got an answer.
   return { kind: 'network' };

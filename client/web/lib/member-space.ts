@@ -3,7 +3,7 @@
  * serves it under /api/member/*. Types mirror the brain's member-space.ts;
  * they move into the published contract once the member UI settles.
  */
-import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { TableDetail } from '@mantle/content-core/table-model';
 import type { MemberLibraryKind } from '@mantle/client-types';
 
@@ -60,6 +60,34 @@ export type SpaceComment = {
   createdAt: string;
   editedAt: string | null;
 };
+
+/** What a member reads for a refusal the brain answered without a sentence
+ *  of its own (it normally sends one in `error`). */
+const REFUSAL_TEXT: Record<string, string> = {
+  quota: 'Your space is full. Delete something to make room, then try again.',
+  embed:
+    'This uses items you cannot share: only your own items and Library items. Remove them, then save.',
+  'rate-limit': 'Too many requests just now. Wait a moment, then try again.',
+  frozen: 'Submitted for review: nobody can change it now. Recall it to make a correction.',
+};
+
+/**
+ * The sentence for a member-route refusal: the brain's own `error` when it
+ * sent one (every state refusal does: quota, embed, frozen, …), else a
+ * sentence for its `reason` (a 429 counts as rate-limit), else null so the
+ * caller keeps its own fallback.
+ */
+export function refusalMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const body = (err.body ?? {}) as { error?: unknown; reason?: unknown };
+  const reason =
+    typeof body.reason === 'string' ? body.reason : err.status === 429 ? 'rate-limit' : null;
+  // `forbidden` / `unauthorized` are codes, not sentences.
+  if (typeof body.error === 'string' && body.error && !/^[a-z-]+$/.test(body.error)) {
+    return body.error;
+  }
+  return (reason && REFUSAL_TEXT[reason]) || null;
+}
 
 /** The routes one item answers on: own items vs a teammate's shared one. */
 export function itemBase(source: 'mine' | 'team', id: string): string {

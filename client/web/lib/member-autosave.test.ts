@@ -213,11 +213,12 @@ describe('member autosave: 409 and network failures', () => {
   });
 
   it('a state refusal (409 frozen) stops at once, no retry', async () => {
-    const send = vi
-      .fn<AutosaveSend<Doc>>()
-      .mockRejectedValue(
-        new ApiError('Submitted for review: it cannot change now.', 409, { reason: 'frozen' }),
-      );
+    const send = vi.fn<AutosaveSend<Doc>>().mockRejectedValue(
+      new ApiError('Submitted for review: it cannot change now.', 409, {
+        error: 'Submitted for review: it cannot change now.',
+        reason: 'frozen',
+      }),
+    );
     const { q, type } = setup(send);
     type('late words');
     await expect(q.flush()).resolves.toBe(false);
@@ -236,6 +237,7 @@ describe('member autosave: 409 and network failures', () => {
     type('links a foreign item');
     const res = await q.commit(async () => {
       throw new ApiError('This page uses items you cannot share.', 409, {
+        error: 'This page uses items you cannot share.',
         reason: 'embed',
         ids: ['x'],
       });
@@ -248,6 +250,24 @@ describe('member autosave: 409 and network failures', () => {
     type('links a foreign item, then more');
     await vi.advanceTimersByTimeAsync(800);
     expect(send).toHaveBeenCalledTimes(1);
+    expect(q.state()).toEqual({ status: 'saved' });
+  });
+
+  it('a full space (409 quota) fails that write with a clear sentence, autosave stays on', async () => {
+    const send = vi
+      .fn<AutosaveSend<Doc>>()
+      .mockRejectedValueOnce(new ApiError('409 Conflict', 409, { reason: 'quota' }))
+      .mockResolvedValueOnce({ rev: 2 });
+    const { q, type } = setup(send);
+    type('a big row');
+    await expect(q.flush()).resolves.toBe(false);
+    expect(q.state()).toEqual({
+      status: 'failed',
+      message: 'Your space is full. Delete something to make room, then try again.',
+    });
+    type('a big row, trimmed');
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenCalledTimes(2);
     expect(q.state()).toEqual({ status: 'saved' });
   });
 
