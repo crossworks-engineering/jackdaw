@@ -1,7 +1,10 @@
+import type { AutosaveState } from '@/lib/member-autosave';
+
 /**
  * What an own-item editor in Mine hands back to MineItem (member logins):
  * flush the working copy to the draft, and Save version. Both answer false
  * when the brain refused, so Submit (which takes the SAVED version) stops.
+ * Every editor saves through the shared queue (lib/member-autosave.ts).
  */
 export type MemberEditorHandle = {
   flush: () => Promise<boolean>;
@@ -16,4 +19,6 @@ export type MemberEditorProps = {
   onUnsavedChange: (unsaved: boolean) => void;
   /** The saved version changed (lists and the home show it). */
   onSaved: () => void;
+  /** The autosave state, for MineItem's inline line (retrying, stopped). */
+  onStatus?: (state: AutosaveState) => void;
 };

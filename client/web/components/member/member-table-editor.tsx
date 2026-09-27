@@ -1,10 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { useFlushOnLeave } from '@mantle/web-ui/use-flush-on-leave';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import {
   diffTableDocs,
@@ -13,9 +11,10 @@ import {
   type TableDoc,
 } from '@mantle/content-core/table-model';
 import { TableGrid } from '@/components/table-grid/table-grid';
+import { SaveRefused, type SaveFailure } from '@/lib/member-autosave';
 import { memberSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
-import { spaceErrorMessage } from './space-status';
+import { useMemberAutosave } from './use-member-autosave';
 
 const DRAFT_DEBOUNCE_MS = 800;
 
@@ -34,20 +33,17 @@ export function MemberTableEditor({
   handleRef,
   onUnsavedChange,
   onSaved,
+  onStatus,
 }: MemberEditorProps & { table: TableDetail }) {
   const toast = useToast();
   const [table, setTable] = useState(initial);
   const [doc, setDoc] = useState<TableDoc>(() => ensureTableDoc(initial.draft ?? initial.data));
   const [switching, setSwitching] = useState(false);
   const docRef = useRef(doc);
-  docRef.current = doc;
-  const savedDocRef = useRef<TableDoc>(ensureTableDoc(initial.draft ?? initial.data));
-  const savedKeyRef = useRef(JSON.stringify(savedDocRef.current));
   const committedKeyRef = useRef(JSON.stringify(ensureTableDoc(initial.data)));
-  const draftRevRef = useRef(initial.draftRev ?? 0);
   const hasDraftRef = useRef(initial.draft != null);
   const tabRef = useRef(initial.tabId);
-  const chain = useRef<Promise<boolean>>(Promise.resolve(true));
+  const tabCountRef = useRef(initial.tabs?.length ?? 1);
   const clipped = table.docClipped === true;
   const fileBacked = table.tabs !== undefined;
 
@@ -57,6 +53,55 @@ export function MemberTableEditor({
     );
   }, [onUnsavedChange]);
 
+  /** Write the working doc on top of `base` (what the brain holds): ops
+   *  scoped to the open tab, or a whole document for a single-tab table
+   *  when the change cannot be written as ops (a reorder). */
+  const sendDraft = async (snapshot: TableDoc, rev: number, base: TableDoc) => {
+    const ops = fileBacked ? diffTableDocs(base, snapshot) : null;
+    if (ops !== null) {
+      if (ops.length === 0) return { rev };
+      const tabId = tabRef.current;
+      const res = await memberSpace.draft(id, {
+        ops: tabId ? ops.map((o) => ({ ...o, tabId })) : ops,
+        if_rev: rev,
+      });
+      return { rev: res.draft_rev };
+    }
+    // A whole document would drop the other tabs of a multi-tab workbook.
+    if (tabCountRef.current > 1) {
+      throw new SaveRefused('Reordering is not supported on a table with several tabs yet.');
+    }
+    const res = await memberSpace.draft(id, {
+      table: snapshot as unknown as Record<string, unknown>,
+      if_rev: rev,
+    });
+    return { rev: res.draft_rev };
+  };
+
+  /** A refused op (400) would fail every later diff from the same base:
+   *  take the brain's copy of the tab as the base again. */
+  const onFailure = (failure: SaveFailure) => {
+    if (failure.kind === 'invalid' && failure.status === 400) {
+      toast.error('Reloaded the latest copy of this table.');
+      void reloadRef.current().catch(() => undefined);
+    }
+  };
+
+  const queue = useMemberAutosave<TableDoc>({
+    id,
+    read: () => docRef.current,
+    saved: docRef.current,
+    rev: initial.draftRev ?? 0,
+    send: sendDraft,
+    debounceMs: DRAFT_DEBOUNCE_MS,
+    onFailure,
+    onSaved: () => {
+      hasDraftRef.current = true;
+      report();
+    },
+    onState: onStatus,
+  });
+
   /** Take the brain's copy of a tab as the new base. */
   const adopt = useCallback(
     (t: TableDetail) => {
@@ -64,15 +109,14 @@ export function MemberTableEditor({
       setTable(t);
       setDoc(fresh);
       docRef.current = fresh;
-      savedDocRef.current = fresh;
-      savedKeyRef.current = JSON.stringify(fresh);
       committedKeyRef.current = JSON.stringify(ensureTableDoc(t.data));
-      draftRevRef.current = t.draftRev ?? 0;
       hasDraftRef.current = t.draft != null;
       tabRef.current = t.tabId;
+      tabCountRef.current = t.tabs?.length ?? 1;
+      queue.reset(fresh, t.draftRev ?? 0);
       report();
     },
-    [report],
+    [queue, report],
   );
 
   const reload = useCallback(
@@ -82,107 +126,65 @@ export function MemberTableEditor({
     },
     [adopt, id],
   );
-
-  const runDraft = useCallback(async (): Promise<boolean> => {
-    if (clipped) return true;
-    const snapshot = docRef.current;
-    const key = JSON.stringify(snapshot);
-    if (key === savedKeyRef.current) return true;
-    try {
-      const ops = fileBacked ? diffTableDocs(savedDocRef.current, snapshot) : null;
-      if (ops !== null) {
-        if (ops.length > 0) {
-          const tabId = tabRef.current;
-          const res = await memberSpace.draft(id, {
-            ops: tabId ? ops.map((o) => ({ ...o, tabId })) : ops,
-            if_rev: draftRevRef.current,
-          });
-          draftRevRef.current = res.draft_rev;
-        }
-      } else {
-        // Not expressible as ops (a reorder). A whole document would drop
-        // the other tabs of a multi-tab workbook.
-        if ((table.tabs?.length ?? 1) > 1) {
-          toast.error('Reordering is not supported on a table with several tabs yet.');
-          return false;
-        }
-        const res = await memberSpace.draft(id, {
-          table: snapshot as unknown as Record<string, unknown>,
-          if_rev: draftRevRef.current,
-        });
-        draftRevRef.current = res.draft_rev;
-      }
-      savedDocRef.current = snapshot;
-      savedKeyRef.current = key;
-      hasDraftRef.current = true;
-      report();
-      return true;
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) return false;
-      const reason = (err as ApiError).body as { reason?: string } | undefined;
-      if (
-        err instanceof ApiError &&
-        (err.status === 400 || (err.status === 409 && !reason?.reason))
-      ) {
-        // A stale etag or a refused op would wedge every later save: take
-        // the brain's copy as the base again.
-        toast.error(
-          err.status === 409
-            ? 'This table changed elsewhere. Reloaded the latest copy.'
-            : `That change could not be saved: ${err.message}. Reloaded the latest copy.`,
-        );
-        void reload().catch(() => undefined);
-        return false;
-      }
-      toast.error(spaceErrorMessage(err, 'Could not autosave. Check your connection.'));
-      return false;
-    }
-  }, [clipped, fileBacked, id, reload, report, table.tabs?.length, toast]);
-
-  // Saves are serialized: two overlapping diffs from one base would 409.
-  const flush = useCallback((): Promise<boolean> => {
-    const p = chain.current.then(runDraft, runDraft);
-    chain.current = p;
-    return p;
-  }, [runDraft]);
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
 
   const saveVersion = useCallback(async (): Promise<boolean> => {
-    if (!(await flush())) return false;
-    try {
+    // In the queue's chain: the working doc goes to the draft first (the
+    // save publishes the brain's draft workbook), then the save itself.
+    const res = await queue.commit(async (snapshot, rev, base) => {
+      const drafted =
+        JSON.stringify(snapshot) === JSON.stringify(base)
+          ? { rev }
+          : await sendDraft(snapshot, rev, base);
       const saved = await memberSpace.save(id, {});
-      if (saved.body.type === 'table') adopt(saved.body.table);
-      onSaved();
-      toast.success('Version saved.');
-      return true;
-    } catch (err) {
-      toast.error(spaceErrorMessage(err, 'Could not save the version.'));
+      if (saved.body.type !== 'table') return drafted;
+      const t = saved.body.table;
+      // The version is saved; the grid keeps what is on screen (typing that
+      // landed during the save stays and is autosaved next).
+      setTable(t);
+      committedKeyRef.current = JSON.stringify(ensureTableDoc(t.data));
+      return { rev: t.draftRev ?? drafted.rev };
+    });
+    if (!res.ok) {
+      // A refusal already said its piece through the queue's state.
+      if (res.failure.kind === 'network') {
+        toast.error('Could not save the version. Check your connection.');
+      }
       return false;
     }
-  }, [adopt, flush, id, onSaved, toast]);
+    hasDraftRef.current = false;
+    report();
+    onSaved();
+    toast.success('Version saved.');
+    return true;
+    // sendDraft reads refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, onSaved, queue, report, toast]);
 
   useEffect(() => {
-    handleRef.current = { flush, saveVersion };
+    handleRef.current = { flush: () => queue.flush(), saveVersion };
     return () => {
       handleRef.current = null;
     };
-  }, [flush, saveVersion, handleRef]);
+  }, [handleRef, queue, saveVersion]);
 
   useEffect(() => {
     report();
-    if (clipped || JSON.stringify(doc) === savedKeyRef.current) return;
-    const h = setTimeout(() => void flush(), DRAFT_DEBOUNCE_MS);
-    return () => clearTimeout(h);
-  }, [clipped, doc, flush, report]);
+  }, [report]);
 
-  const flushRef = useRef(flush);
-  flushRef.current = flush;
-  useFlushOnLeave(() => void flushRef.current());
+  const onGridChange = (next: TableDoc) => {
+    setDoc(next);
+    docRef.current = next;
+    report();
+    queue.changed();
+  };
 
   const switchTab = async (tabId: string) => {
     if (tabId === tabRef.current || switching) return;
     setSwitching(true);
     try {
-      if (await flush()) await reload(tabId);
+      if (await queue.flush()) await reload(tabId);
     } catch {
       toast.error('Could not open that tab.');
     } finally {
@@ -222,7 +224,7 @@ export function MemberTableEditor({
           />
         </>
       ) : (
-        <TableGrid doc={doc} onChange={setDoc} />
+        <TableGrid doc={doc} onChange={onGridChange} />
       )}
     </div>
   );

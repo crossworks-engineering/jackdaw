@@ -230,6 +230,27 @@ describe('member autosave: 409 and network failures', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it('a refusal of one write (embed on Save version) leaves autosave on', async () => {
+    const send = vi.fn<AutosaveSend<Doc>>().mockResolvedValue({ rev: 2 });
+    const { q, type } = setup(send);
+    type('links a foreign item');
+    const res = await q.commit(async () => {
+      throw new ApiError('This page uses items you cannot share.', 409, {
+        reason: 'embed',
+        ids: ['x'],
+      });
+    });
+    expect(res.ok).toBe(false);
+    expect(q.state()).toEqual({
+      status: 'failed',
+      message: 'This page uses items you cannot share.',
+    });
+    type('links a foreign item, then more');
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(q.state()).toEqual({ status: 'saved' });
+  });
+
   it('a network failure retries with backoff and then saves', async () => {
     const send = vi
       .fn<AutosaveSend<Doc>>()

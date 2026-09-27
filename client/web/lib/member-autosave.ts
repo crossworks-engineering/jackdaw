@@ -20,8 +20,9 @@
  *    their own draft and the local editor holds the latest typing, so this
  *    is the intended outcome, not a clobber. A second conflict in a row stops
  *    autosave and says so.
- *  - A state refusal (409 with a `reason`: frozen, not-draft, quota, embed, …)
- *    stops autosave with the brain's own sentence. Retrying cannot help.
+ *  - A state refusal that freezes the item (409 `frozen` or `not-draft`)
+ *    stops autosave with the brain's own sentence: retrying cannot help. Any
+ *    other refusal (`embed` on Save version, `quota`) fails that write only.
  *  - A network failure (or a 5xx) retries with backoff, bounded.
  *  - `flush()` resolves true only once everything read at call time is on the
  *    server, which is what Submit and the leave hook await.
@@ -84,6 +85,10 @@ export const CONFLICT_MESSAGE =
   'This item changed in another tab or window. Reload it to keep working.';
 const OFFLINE_MESSAGE = 'Could not save your changes. Check your connection.';
 
+/** State refusals that mean the item cannot change at all right now (it was
+ *  submitted, or left draft, elsewhere). Anything else refuses one write. */
+const STOP_REASONS: ReadonlySet<string> = new Set(['frozen', 'not-draft']);
+
 /** A write the editor refuses to send (not a brain answer): shown to the
  *  member as it is, and the next edit tries again. */
 export class SaveRefused extends Error {
@@ -132,9 +137,6 @@ export type AutosaveQueue<T> = {
   state(): AutosaveState;
   /** Resolves when nothing is on the wire or queued. */
   settled(): Promise<void>;
-  /** No more state callbacks (the editor unmounted). Scheduled retries still
-   *  run: they save what the member typed. */
-  detach(): void;
 };
 
 export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<T> {
@@ -151,7 +153,6 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
   let pendingSince: number | null = null;
   let busy = 0;
   let chain: Promise<void> = Promise.resolve();
-  let attached = true;
   let last = '';
 
   const isDirty = () => keyOf(opts.read()) !== savedKey;
@@ -167,7 +168,7 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
   };
 
   const emit = (edited = false) => {
-    if (!attached || !opts.onState) return;
+    if (!opts.onState) return;
     const s = current(edited);
     const k = JSON.stringify(s);
     if (k === last) return;
@@ -235,8 +236,12 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
         }
         if (failure.kind === 'conflict') {
           stopped = { reason: 'conflict', message: CONFLICT_MESSAGE };
-        } else if (failure.kind === 'state') {
+        } else if (failure.kind === 'state' && STOP_REASONS.has(failure.reason)) {
           stopped = { reason: failure.reason, message: failure.message };
+        } else if (failure.kind === 'state') {
+          // A refusal of THIS write (embed on Save version, quota): the draft
+          // itself can still change, so autosave stays on.
+          failed = failure.message;
         } else if (failure.kind === 'network') {
           scheduleRetry();
         } else if (failure.kind === 'invalid') {
@@ -331,9 +336,6 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
     rev: () => rev,
     state: current,
     settled: () => chain,
-    detach() {
-      attached = false;
-    },
   };
 }
 

@@ -1,13 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, Trash2, X } from 'lucide-react';
-import type { JSONContent } from '@tiptap/react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   AlertDialog,
@@ -19,18 +17,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { PageEditor } from '@/components/page-editor/page-editor';
+import { memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
 import { commentsOpen, isEditable, memberSpace, type SpaceItem } from '@/lib/member-space';
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
 import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
 import { MemberDrawEditor } from './member-draw-editor';
 import { MemberTableEditor } from './member-table-editor';
+import { MineNoteEditor } from './mine-note-editor';
+import { MinePageEditor } from './mine-page-editor';
 import type { MemberEditorHandle } from './member-editor';
-
-const AUTOSAVE_MS = 800;
-
-type Doc = Record<string, unknown>;
 
 /**
  * One of the member's OWN items (member logins Phase 2): edit it (pages,
@@ -42,10 +38,23 @@ type Doc = Record<string, unknown>;
 export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
   const q = useQuery({
     queryKey: ['member-space-item', 'mine', id],
-    queryFn: () => memberSpace.get('mine', id),
+    // An editor that just closed on this item may still be saving what was
+    // typed before it left: read after that save, not before it.
+    queryFn: async () => {
+      await memberSavesSettled(id);
+      return memberSpace.get('mine', id);
+    },
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
   });
-  if (q.isError) {
+  // Bumped by Reload (after a conflict): a fresh editor on the brain's copy.
+  const [generation, setGeneration] = useState(0);
+  const reload = useCallback(async () => {
+    await q.refetch();
+    setGeneration((g) => g + 1);
+  }, [q]);
+  // A failed background refetch keeps the data it had (react-query v5): only
+  // an item that never loaded is an error screen.
+  if (q.isError && !q.data) {
     const gone = q.error instanceof ApiError && q.error.status === 404;
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -55,7 +64,10 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
     );
   }
-  if (!q.data) {
+  // Wait for this mount's own read too: a cached copy can predate the save
+  // an editor made on its way out, and an editor seeded from it would show
+  // the old text and write it back over the saved words.
+  if (!q.data || !q.isFetchedAfterMount) {
     return (
       <div className="p-6">
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -63,85 +75,79 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
     );
   }
   // Keyed on the id: a new item gets a fresh editor, never a reused one.
-  return <MineItemLoaded key={id} item={q.data} onClose={onClose} />;
+  return (
+    <MineItemLoaded
+      key={`${id}:${generation}`}
+      item={q.data}
+      onClose={onClose}
+      onReload={() => void reload()}
+    />
+  );
 }
 
-function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => void }) {
+/** Why the working copy is not on the brain, when that needs saying. */
+function AutosaveNote({ state, onReload }: { state: AutosaveState; onReload: () => void }) {
+  let text: string | null = null;
+  if (state.status === 'retrying') text = 'Not saved yet: trying again…';
+  else if (state.status === 'failed' || state.status === 'stopped') text = state.message;
+  if (!text) return null;
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+    >
+      <span className="min-w-0 flex-1">{text}</span>
+      {state.status === 'stopped' && state.reason === 'conflict' ? (
+        <Button size="sm" variant="outline" onClick={onReload}>
+          Reload
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function MineItemLoaded({
+  item,
+  onClose,
+  onReload,
+}: {
+  item: SpaceItem;
+  onClose: () => void;
+  onReload: () => void;
+}) {
   const { row, body } = item;
   const toast = useToast();
   const qc = useQueryClient();
   const editable = isEditable(row);
   const [title, setTitle] = useState(row.title);
-  const refreshLists = () => {
+  const refreshLists = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ['member-space-list'] });
     void qc.invalidateQueries({ queryKey: ['member-home'] });
-  };
-  const refreshItem = () => void qc.invalidateQueries({ queryKey: ['member-space-item'] });
-
-  // ── Page: the working copy autosaves as a draft; Save version publishes. ──
-  const pageDoc = useRef<Doc | null>(
-    body.type === 'page' ? ((body.page.draft ?? body.page.doc) as Doc) : null,
+  }, [qc]);
+  const refreshItem = useCallback(
+    () => void qc.invalidateQueries({ queryKey: ['member-space-item'] }),
+    [qc],
   );
-  const rev = useRef<number>(body.type === 'page' ? (body.page.draftRev ?? 0) : 0);
-  const [unsaved, setUnsaved] = useState(body.type === 'page' && body.page.draft != null);
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const flushDraft = useCallback(async (): Promise<boolean> => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (!dirty || !pageDoc.current) return true;
-    try {
-      const res = await memberSpace.draft(row.id, { doc: pageDoc.current, if_rev: rev.current });
-      rev.current = res.draft_rev;
-      setDirty(false);
-      setUnsaved(true);
-      return true;
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        toast.error(spaceErrorMessage(err, 'This page changed elsewhere. Reload it.'));
-      } else {
-        toast.error('Could not autosave. Check your connection.');
-      }
-      return false;
-    }
-  }, [dirty, row.id, toast]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    timer.current = setTimeout(() => void flushDraft(), AUTOSAVE_MS);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [dirty, flushDraft]);
-
-  const saveVersion = async (): Promise<boolean> => {
-    if (body.type !== 'page' || !pageDoc.current) return true;
-    setSaving(true);
-    try {
-      if (timer.current) clearTimeout(timer.current);
-      const saved = await memberSpace.save(row.id, { doc: pageDoc.current, if_rev: rev.current });
-      if (saved.body.type === 'page') rev.current = saved.body.page.draftRev ?? 0;
-      setDirty(false);
-      setUnsaved(false);
-      toast.success('Version saved.');
-      refreshLists();
-      return true;
-    } catch (err) {
-      toast.error(spaceErrorMessage(err, 'Could not save the version.'));
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Drawing / table: the editor owns its draft; this row drives it. ──────
+  // ── The editor (page, note, drawing, table) owns its working copy and its
+  // autosave (the shared queue); this row drives it through the handle. ────
   const editorHandle = useRef<MemberEditorHandle | null>(null);
   const [editorUnsaved, setEditorUnsaved] = useState(false);
+  const unsavedRef = useRef(false);
+  const onUnsavedChange = useCallback((unsaved: boolean) => {
+    unsavedRef.current = unsaved;
+    setEditorUnsaved(unsaved);
+  }, []);
   const [editorSaving, setEditorSaving] = useState(false);
+  const [autosave, setAutosave] = useState<AutosaveState>({ status: 'saved' });
+  const onStatus = useCallback(
+    (state: AutosaveState) => {
+      setAutosave(state);
+      // Frozen or out of draft elsewhere: show the item as it now stands.
+      if (state.status === 'stopped' && state.reason !== 'conflict') refreshItem();
+    },
+    [refreshItem],
+  );
   const saveEditorVersion = async (): Promise<boolean> => {
     const h = editorHandle.current;
     if (!h) return false;
@@ -151,19 +157,6 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
     } finally {
       setEditorSaving(false);
     }
-  };
-
-  // ── Note: saves as it goes (no draft). ────────────────────────────────────
-  const [noteText, setNoteText] = useState(body.type === 'note' ? body.note.content : '');
-  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveNote = (content: string) => {
-    if (noteTimer.current) clearTimeout(noteTimer.current);
-    noteTimer.current = setTimeout(() => {
-      memberSpace
-        .patch(row.id, { content })
-        .then(refreshLists)
-        .catch((err) => toast.error(spaceErrorMessage(err, 'Could not save the note.')));
-    }, AUTOSAVE_MS);
   };
 
   const saveTitle = () => {
@@ -190,67 +183,34 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
     }
   };
 
-  // Submit takes the SAVED version: save first when there is anything unsaved.
+  // Submit takes the SAVED version: everything typed goes to the brain first
+  // (awaited, for notes too), then a Save version when the saved version is
+  // behind. A refusal on the way stops the submit.
   const beforeSubmit = async () => {
-    if (body.type === 'draw' || body.type === 'table') {
-      const h = editorHandle.current;
-      if (!h || !(await h.flush())) return false;
-      return editorUnsaved ? saveEditorVersion() : true;
-    }
-    if (body.type !== 'page') return true;
-    if (!(await flushDraft())) return false;
-    return unsaved || dirty ? saveVersion() : true;
+    const h = editorHandle.current;
+    if (!h) return true;
+    if (!(await h.flush())) return false;
+    return unsavedRef.current ? saveEditorVersion() : true;
   };
 
+  const editorProps = {
+    id: row.id,
+    handleRef: editorHandle,
+    onUnsavedChange,
+    onSaved: refreshLists,
+    onStatus,
+  };
   let editor: React.ReactNode;
   if (!editable) {
     editor = <SpaceItemView source="mine" item={item} />;
   } else if (body.type === 'page') {
-    editor = (
-      <PageEditor
-        member
-        pageId={row.id}
-        content={(body.page.draft ?? body.page.doc) as JSONContent}
-        onChange={(doc) => {
-          pageDoc.current = doc as Doc;
-          setDirty(true);
-        }}
-        onBlur={() => void flushDraft()}
-      />
-    );
+    editor = <MinePageEditor {...editorProps} page={body.page} />;
   } else if (body.type === 'note') {
-    editor = (
-      <Textarea
-        value={noteText}
-        onChange={(e) => {
-          setNoteText(e.target.value);
-          saveNote(e.target.value);
-        }}
-        rows={16}
-        aria-label="Note text"
-        className="font-[family-name:var(--font-prose)]"
-      />
-    );
+    editor = <MineNoteEditor {...editorProps} content={body.note.content} />;
   } else if (body.type === 'draw') {
-    editor = (
-      <MemberDrawEditor
-        id={row.id}
-        draw={body.draw}
-        handleRef={editorHandle}
-        onUnsavedChange={setEditorUnsaved}
-        onSaved={refreshLists}
-      />
-    );
+    editor = <MemberDrawEditor {...editorProps} draw={body.draw} />;
   } else if (body.type === 'table') {
-    editor = (
-      <MemberTableEditor
-        id={row.id}
-        table={body.table}
-        handleRef={editorHandle}
-        onUnsavedChange={setEditorUnsaved}
-        onSaved={refreshLists}
-      />
-    );
+    editor = <MemberTableEditor {...editorProps} table={body.table} />;
   } else {
     editor = <SpaceItemView source="mine" item={item} />;
   }
@@ -279,18 +239,7 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
           <StatusChip row={row} />
           <span className="flex-1" />
           <SharingControl row={row} />
-          {body.type === 'page' && editable ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={saving || (!dirty && !unsaved)}
-              onClick={() => void saveVersion()}
-              title="Save a version: what teammates and a reviewer see"
-            >
-              <Save /> {saving ? 'Saving…' : 'Save version'}
-            </Button>
-          ) : null}
-          {(body.type === 'draw' || body.type === 'table') && editable ? (
+          {(body.type === 'page' || body.type === 'draw' || body.type === 'table') && editable ? (
             <Button
               size="sm"
               variant="outline"
@@ -326,6 +275,8 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
             Submitted for review: nobody can change it now. Recall it to make a correction.
           </p>
         ) : null}
+
+        {editable ? <AutosaveNote state={autosave} onReload={onReload} /> : null}
 
         {editor}
 
