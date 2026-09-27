@@ -41,7 +41,9 @@ export function MemberReader({ id, onClose }: { id: string; onClose: () => void 
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
   });
 
-  if (q.isError) {
+  // react-query v5 keeps the data through a failed background refetch: only
+  // an item that never loaded is an error screen.
+  if (q.isError && !q.data) {
     const gone = q.error instanceof ApiError && q.error.status === 404;
     return (
       <div className="flex h-full items-center justify-center p-6">
