@@ -309,6 +309,8 @@ function ShellFrame({
     }
   }, [memberShellQuery.error]);
   const shellLoaded = shellQuery.isSuccess;
+  const shellSettledAsAdmin =
+    shellLoaded || (shellQuery.isError && !isMemberLoginRefusal(shellQuery.error));
   useEffect(() => {
     if (shellLoaded) setMemberHint(false);
   }, [shellLoaded]);
@@ -534,10 +536,12 @@ function ShellFrame({
           <MemberSidebarNav onNavigate={onNavigate} collapsed={collapsed} />
         ) : (
           <>
-            {/* Only once the brain has confirmed an admin: its route answers a
-                member with 401, which bounces to /login before the shell can
-                switch to the member view (a member whose hint cookie is gone). */}
-            {shellLoaded ? <UpdateBanner onNavigate={onNavigate} /> : null}
+            {/* Only once /api/shell has answered, and never for a member
+                refusal: the banner's route answers a member with 401, which
+                bounces to /login before the shell can switch to the member
+                view (a member whose hint cookie is gone). An admin whose
+                shell failed for any other reason still sees it. */}
+            {shellSettledAsAdmin ? <UpdateBanner onNavigate={onNavigate} /> : null}
             <SidebarNav
               pendingApprovals={pendingApprovals}
               onNavigate={onNavigate}
