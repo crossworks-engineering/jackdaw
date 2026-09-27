@@ -28,6 +28,9 @@ export const FILE_ID = '22222222-2222-4222-8222-222222222222';
 export const CHILD_ID = '33333333-3333-4333-8333-333333333333';
 export const DRAW_ID = '44444444-4444-4444-8444-444444444444';
 export const PAGE_TITLE = 'Field notes';
+/** A Library page (a brain item at the team level), not in Mine. */
+export const LIBRARY_ID = '55555555-5555-4555-8555-555555555555';
+export const LIBRARY_TITLE = 'Team handbook';
 
 /** A page that embeds what a member editor used to fetch from admin routes:
  *  an uploaded image, a sub-page card and a drawing. */
@@ -182,6 +185,23 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       state.draft = body.doc;
       state.draftRev += 1;
       return json(res, 200, { ok: true, draft_rev: state.draftRev });
+    }
+    if (path === `/api/member/library/${LIBRARY_ID}` && method === 'GET') {
+      return json(res, 200, {
+        item: {
+          id: LIBRARY_ID,
+          type: 'page',
+          title: LIBRARY_TITLE,
+          icon: null,
+          summary: null,
+          audience: 'team',
+          updatedAt: now,
+          doc: {
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Read me.' }] }],
+          },
+        },
+      });
     }
     if (path.startsWith('/api/member/space/') && path.endsWith('/comments')) {
       return json(res, 200, { comments: [] });
