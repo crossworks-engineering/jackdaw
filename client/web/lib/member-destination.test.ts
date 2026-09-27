@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import { isMemberLoginRefusal, memberHome } from './member-destination';
+import { isAdminLoginRefusal, isMemberLoginRefusal, memberHome } from './member-destination';
 import { sendsMemberHome } from './member-surface';
 
 describe('memberHome', () => {
@@ -47,5 +47,21 @@ describe('sendsMemberHome', () => {
     expect(sendsMemberHome('/files', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/login', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/team/x', PUBLIC)).toBe(false);
+  });
+});
+
+describe('isAdminLoginRefusal', () => {
+  it('matches only the brain refusing an admin on a member route', () => {
+    expect(
+      isAdminLoginRefusal(
+        new ApiError('forbidden', 403, { error: 'forbidden', reason: 'admin-login' }),
+      ),
+    ).toBe(true);
+    // A proxy or WAF 403 carries no reason: it must not flip the shell.
+    expect(isAdminLoginRefusal(new ApiError('Forbidden', 403))).toBe(false);
+    expect(isAdminLoginRefusal(new ApiError('forbidden', 403, { reason: 'member-login' }))).toBe(
+      false,
+    );
+    expect(isAdminLoginRefusal(new ApiError('unauthorized', 401))).toBe(false);
   });
 });

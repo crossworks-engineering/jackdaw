@@ -1,10 +1,15 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { isMemberLoginRefusal, setMemberHint } from '@/lib/member-destination';
+import {
+  isAdminLoginRefusal,
+  isMemberLoginRefusal,
+  memberHome,
+  setMemberHint,
+} from '@/lib/member-destination';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
+import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import type { MemberShell as MemberShellData } from '@mantle/client-types';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
@@ -283,20 +288,22 @@ function ShellFrame({
     enabled: isMember,
     refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
     refetchOnWindowFocus: true,
-    retry: (count, err) => !(err instanceof ApiError && err.status === 403) && count < 1,
+    retry: (count, err) => !isAdminLoginRefusal(err) && count < 1,
   });
   // A wrong hint either way reloads as what the brain says this login is: a
   // full reload, so the layout renders the right shell from the first paint.
   // The hint cookie also lets the middleware keep a member off admin paths.
+  // Only the brain's own refusal counts (a proxy 403 names nobody, and
+  // reacting to one flipped the hint back and forth in a reload loop), and
+  // the reload keeps the deep link wherever a member may open it.
   useEffect(() => {
     if (isMemberLoginRefusal(shellQuery.error)) {
       setMemberHint(true);
-      window.location.replace('/');
+      window.location.replace(memberHome(window.location.pathname + window.location.search));
     }
   }, [shellQuery.error]);
   useEffect(() => {
-    const e = memberShellQuery.error;
-    if (e instanceof ApiError && e.status === 403) {
+    if (isAdminLoginRefusal(memberShellQuery.error)) {
       setMemberHint(false);
       window.location.reload();
     }

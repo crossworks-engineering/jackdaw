@@ -27,6 +27,17 @@ export function isMemberLoginRefusal(err: unknown): boolean {
   );
 }
 
+/** True when an API error is the brain refusing an ADMIN on a member route
+ *  (`getMemberOr401` answers 403 `admin-login`): the member hint was wrong.
+ *  Any other 403 (a proxy, a WAF) says nothing about who is signed in. */
+export function isAdminLoginRefusal(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.status === 403 &&
+    (err.body as { reason?: string } | undefined)?.reason === 'admin-login'
+  );
+}
+
 /**
  * After sign-in: a member goes to the member home (or `next` when a member may
  * open it), anyone else to `next` (or /). Asks the
