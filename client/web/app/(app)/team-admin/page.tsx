@@ -3,8 +3,9 @@
 /**
  * /team-admin — the owner's window into the external team surface.
  *
- * Tabs: Code holders · Member chats · Topics · Requests · Shared links ·
- * Settings. Code holders = contacts holding an old team code (forum, team
+ * Tabs: Code holders · Member chats · Review · Topics · Requests · Shared
+ * links · Settings. Review = member items submitted for review, and what
+ * deactivated logins left shared (member logins Phase 4). Code holders = contacts holding an old team code (forum, team
  * links); Member chats = member LOGINS' chats with the team agent (users are
  * the team). The 1:1 team-code chat itself was removed 2026-09-26; its old
  * transcripts stay as each code holder's Chat archive.
@@ -60,6 +61,7 @@ import {
 } from 'lucide-react';
 import { MemberActivityPager } from '@/components/team-admin/member-activity-pager';
 import { RevokeCodeButton } from '@/components/team-admin/revoke-code-button';
+import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -195,9 +197,11 @@ function TeamTabs({
   active,
   openRequestCount,
 }: {
-  active: 'members' | 'chats' | 'topics' | 'requests' | 'shares' | 'settings';
+  active: 'members' | 'chats' | 'review' | 'topics' | 'requests' | 'shares' | 'settings';
   openRequestCount: number;
 }) {
+  // Waiting items only: what deactivated logins left behind is not urgent.
+  const reviewCount = useReviewQueue().data?.counts.submitted ?? 0;
   const tab = (label: string, href: string, isActive: boolean, badge?: number) => (
     <Link
       href={href}
@@ -223,6 +227,7 @@ function TeamTabs({
     <nav aria-label="Team admin" className="flex items-center gap-1 border-b border-border px-3">
       {tab('Code holders', '/team-admin', active === 'members')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
+      {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
       {tab('Topics', '/team-admin?view=topics', active === 'topics')}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', openRequestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
@@ -1352,10 +1357,18 @@ export default function TeamAdminPage({
     apage?: string;
     /** The selected login on the Member chats tab. */
     login?: string;
+    /** The selected item on the Review tab. */
+    item?: string;
   }>;
 }) {
-  const { contact, view, topic, q, page, apage, login } = use(searchParams);
+  const { contact, view, topic, q, page, apage, login, item } = use(searchParams);
   if (view === 'chats') return <MemberChatsTab login={login} />;
+  if (view === 'review')
+    return (
+      <Tab active="review">
+        <ReviewPanel itemId={item} />
+      </Tab>
+    );
   if (view === 'settings') return <SettingsTab />;
   if (view === 'shares') return <SharesTab />;
   if (view === 'topics') return <TopicsTab topic={topic} q={q} page={page} />;
