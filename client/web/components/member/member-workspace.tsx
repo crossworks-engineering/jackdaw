@@ -39,8 +39,8 @@ const KIND: Record<
 > = {
   page: { title: 'Pages', one: 'page', icon: '📄', create: true },
   note: { title: 'Notes', one: 'note', icon: '📝', create: true },
-  draw: { title: 'Draw', one: 'drawing', icon: '✏️', create: false },
-  table: { title: 'Tables', one: 'table', icon: '📊', create: false },
+  draw: { title: 'Draw', one: 'drawing', icon: '✏️', create: true },
+  table: { title: 'Tables', one: 'table', icon: '📊', create: true },
   file: { title: 'Files', one: 'file', icon: '📎', create: false, upload: true },
 };
 
@@ -164,7 +164,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   });
 
   const create = async () => {
-    if (kind !== 'page' && kind !== 'note') return;
+    if (kind === 'file') return;
     setBusy(true);
     try {
       const { item } = await memberSpace.create({ type: kind, title: '' });

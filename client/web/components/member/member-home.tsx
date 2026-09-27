@@ -145,7 +145,7 @@ export function MemberHome() {
         title="Your recent work"
         entries={recent}
         src="mine"
-        empty="Nothing yet. Start a page or a note from the menu."
+        empty="Nothing yet. Start a page, note, drawing or table from the menu."
       />
       <Section title="Shared by teammates" entries={shared} src="team" />
       <Section
