@@ -8,7 +8,14 @@ import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
-import type { SpaceKind, SpaceList, SpaceSource } from '@/lib/member-space';
+import {
+  reviewListPath,
+  splitByReview,
+  type SpaceItemRow,
+  type SpaceKind,
+  type SpaceList,
+  type SpaceSource,
+} from '@/lib/member-space';
 import { StatusChip } from './space-status';
 
 const PATH: Record<SpaceKind, string> = {
@@ -93,6 +100,12 @@ export function MemberHome() {
     queryKey: ['member-home', 'mine'],
     queryFn: () => apiFetch<SpaceList>('/api/member/space?page=1'),
   });
+  // What came back and what waits, from the whole space (a filtered read),
+  // not picked out of the newest page of Mine above.
+  const review = useQuery({
+    queryKey: ['member-home', 'review'],
+    queryFn: () => apiFetch<SpaceList>(reviewListPath(['returned', 'submitted'])),
+  });
   const team = useQuery({
     queryKey: ['member-home', 'team'],
     queryFn: () => apiFetch<SpaceList>('/api/member/team-drafts?page=1'),
@@ -102,19 +115,21 @@ export function MemberHome() {
     queryFn: () => apiFetch<MemberLibraryPage>('/api/member/library?page=1'),
   });
 
-  const own: Entry[] = (mine.data?.items ?? []).map((r) => ({
+  const ownEntry = (r: SpaceItemRow): Entry => ({
     id: r.id,
     type: r.type,
     title: r.title,
     icon: r.icon,
     updatedAt: r.updatedAt,
     status: r,
-  }));
-  const returned = own.filter((e) => e.status?.reviewState === 'returned');
-  const submitted = own.filter((e) => e.status?.reviewState === 'submitted');
-  const recent = own
-    .filter((e) => e.status?.reviewState !== 'returned' && e.status?.reviewState !== 'submitted')
-    .slice(0, 8);
+  });
+  const inReview = splitByReview(review.data?.items ?? []);
+  const returned = inReview.returned.map(ownEntry);
+  const submitted = inReview.submitted.map(ownEntry);
+  const recent = (mine.data?.items ?? [])
+    .filter((r) => r.reviewState !== 'returned' && r.reviewState !== 'submitted')
+    .slice(0, 8)
+    .map(ownEntry);
   const shared: Entry[] = (team.data?.items ?? []).slice(0, 8).map((r) => ({
     id: r.id,
     type: r.type,

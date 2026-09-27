@@ -109,6 +109,27 @@ export function listPath(
   return `${base}?${sp.toString()}`;
 }
 
+/**
+ * Mine filtered by review state (`?review=` takes a comma list), for the
+ * member home's Returned and Waiting for review lists: read from the whole
+ * space, not picked out of the newest page. A brain older than the filter
+ * ignores it and answers the newest page, which `splitByReview` still sorts.
+ */
+export function reviewListPath(states: readonly ReviewState[], page = 1): string {
+  const sp = new URLSearchParams({ review: states.join(','), page: String(page) });
+  return `/api/member/space?${sp.toString()}`;
+}
+
+/** The returned and the submitted rows of a list, each in list order. */
+export function splitByReview<T extends Pick<SpaceItemRow, 'reviewState'>>(
+  rows: readonly T[],
+): { returned: T[]; submitted: T[] } {
+  return {
+    returned: rows.filter((r) => r.reviewState === 'returned'),
+    submitted: rows.filter((r) => r.reviewState === 'submitted'),
+  };
+}
+
 /** The browser's cap on keepalive request bodies is 64 KB (shared by all of
  *  a page's keepalive requests in flight); stay under it. */
 const KEEPALIVE_MAX_BYTES = 60_000;
