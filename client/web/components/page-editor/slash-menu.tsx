@@ -91,6 +91,8 @@ async function insertSubPage(editor: Editor, range: Range) {
 }
 
 export type SlashItem = {
+  /** Stable key: what code matches on (the title is display copy). */
+  id: string;
   title: string;
   description: string;
   group: string;
@@ -102,6 +104,7 @@ export type SlashItem = {
 const ITEMS: SlashItem[] = [
   {
     group: 'Basic',
+    id: 'text',
     title: 'Text',
     description: 'Plain paragraph.',
     icon: Type,
@@ -110,6 +113,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Basic',
+    id: 'heading-1',
     title: 'Heading 1',
     description: 'Large section heading.',
     icon: Heading1,
@@ -119,6 +123,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Basic',
+    id: 'heading-2',
     title: 'Heading 2',
     description: 'Medium section heading.',
     icon: Heading2,
@@ -128,6 +133,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Basic',
+    id: 'heading-3',
     title: 'Heading 3',
     description: 'Small section heading.',
     icon: Heading3,
@@ -137,6 +143,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Pages',
+    id: 'sub-page',
     title: 'Sub-page',
     description: 'Create a nested page and link it here.',
     icon: FilePlus2,
@@ -145,6 +152,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Lists',
+    id: 'bullet-list',
     title: 'Bulleted list',
     description: 'A simple bullet list.',
     icon: List,
@@ -154,6 +162,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Lists',
+    id: 'ordered-list',
     title: 'Numbered list',
     description: 'A list with ordering.',
     icon: ListOrdered,
@@ -163,6 +172,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Lists',
+    id: 'task-list',
     title: 'To-do list',
     description: 'A checklist with checkboxes.',
     icon: ListTodo,
@@ -172,6 +182,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'quote',
     title: 'Quote',
     description: 'Capture a quotation.',
     icon: TextQuote,
@@ -181,6 +192,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'callout',
     title: 'Callout',
     description: 'A highlighted info box.',
     icon: Info,
@@ -199,6 +211,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'aside',
     title: 'Aside',
     description: 'A boxed note with a themed gradient.',
     icon: Sparkles,
@@ -217,6 +230,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'code',
     title: 'Code',
     description: 'A formatted code block.',
     icon: Code2,
@@ -226,6 +240,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'equation',
     title: 'Equation',
     description: 'A block math formula (KaTeX).',
     icon: Sigma,
@@ -240,6 +255,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Media',
+    id: 'image',
     title: 'Image',
     description: 'Upload and embed an image.',
     icon: ImageIcon,
@@ -248,6 +264,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Media',
+    id: 'drawing',
     title: 'Drawing',
     description: 'Embed a whiteboard drawing (live snapshot).',
     icon: PenTool,
@@ -261,6 +278,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Media',
+    id: 'file',
     title: 'File',
     description: 'Attach a file as a download.',
     icon: Paperclip,
@@ -269,6 +287,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'divider',
     title: 'Divider',
     description: 'A horizontal rule.',
     icon: Minus,
@@ -278,6 +297,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Blocks',
+    id: 'table',
     title: 'Table',
     description: 'A simple table (+ to add, trash handles to delete rows/columns).',
     icon: TableIcon,
@@ -292,6 +312,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Columns',
+    id: 'columns-2',
     title: '2 columns',
     description: 'Two side-by-side columns.',
     icon: Columns2,
@@ -301,6 +322,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Columns',
+    id: 'columns-3',
     title: '3 columns',
     description: 'Three side-by-side columns.',
     icon: Columns3,
@@ -310,6 +332,7 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Columns',
+    id: 'columns-4',
     title: '4 columns',
     description: 'Four side-by-side columns.',
     icon: Columns4,
@@ -319,13 +342,14 @@ const ITEMS: SlashItem[] = [
   },
 ];
 
-/** Filter the command list by the text typed after the slash. */
-/** Slash items a member may not use: each creates or uploads into the brain. */
-const MEMBER_HIDDEN = new Set(['Sub-page', 'Image', 'Drawing', 'File']);
+/** Slash items a member may not use, by id: each creates or uploads into
+ *  the brain. Matched by id so renaming an item's title cannot re-show it. */
+export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['sub-page', 'image', 'drawing', 'file']);
 
+/** Filter the command list by the text typed after the slash. */
 export function getSlashItems(query: string, opts: { member?: boolean } = {}): SlashItem[] {
   const q = query.trim().toLowerCase();
-  const items = opts.member ? ITEMS.filter((i) => !MEMBER_HIDDEN.has(i.title)) : ITEMS;
+  const items = opts.member ? ITEMS.filter((i) => !MEMBER_HIDDEN.has(i.id)) : ITEMS;
   if (!q) return items;
   return items.filter(
     (i) => i.title.toLowerCase().includes(q) || (i.keywords ?? []).some((k) => k.includes(q)),
@@ -404,7 +428,7 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(function Sl
         const showGroup = i === 0 || items[i - 1]?.group !== item.group;
         const Icon = item.icon;
         return (
-          <div key={item.title}>
+          <div key={item.id}>
             {showGroup && (
               <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {item.group}
