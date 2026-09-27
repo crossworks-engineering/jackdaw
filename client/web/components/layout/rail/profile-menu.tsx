@@ -142,11 +142,14 @@ export function ProfileMenu({
       <AvatarFallback className="text-[10px] font-semibold">{initials}</AvatarFallback>
     </Avatar>
   );
-  const face = photoVersion ? (
-    <ProfilePhoto version={photoVersion} size={28} fallback={generated} />
-  ) : (
-    generated
-  );
+  // A member has no photo route (the brain's /api/profile/photo is admin
+  // only), so a member's face starts at the generated rung.
+  const face =
+    photoVersion && !member ? (
+      <ProfilePhoto version={photoVersion} size={28} fallback={generated} />
+    ) : (
+      generated
+    );
 
   return (
     <DropdownMenu>

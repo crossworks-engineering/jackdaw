@@ -60,7 +60,12 @@ function assetTokenRefreshPlugin(): Plugin {
  * Markdown `![alt](url)` parses straight into this via `img[src]`, so Saskia can
  * embed images by URL too (uploads are an editor affordance — see upload.ts).
  */
-export const PageImage = Node.create({
+export const PageImage = Node.create<{
+  /** Rewrite the asset path an image loads from. A member's editor maps the
+   *  admin byte routes onto the member ones (lib/member-assets.ts): the brain
+   *  refuses a member on /api/files and /api/draws. Null = as stored. */
+  mapAssetPath: ((path: string) => string) | null;
+}>({
   name: 'image',
   group: 'block',
   atom: true,
@@ -90,6 +95,10 @@ export const PageImage = Node.create({
 
   parseHTML() {
     return [{ tag: 'img[src]' }];
+  },
+
+  addOptions() {
+    return { mapAssetPath: null };
   },
 
   addProseMirrorPlugins() {
@@ -129,6 +138,11 @@ export const PageImage = Node.create({
       src = assetUrl(assetPath);
     } else if (rawSrc && rawSrc.startsWith('/')) {
       assetPath = rawSrc;
+      src = assetUrl(assetPath);
+    }
+    const map = this.options.mapAssetPath;
+    if (map && assetPath) {
+      assetPath = map(assetPath);
       src = assetUrl(assetPath);
     }
     return [

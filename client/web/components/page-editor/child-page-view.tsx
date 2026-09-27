@@ -5,6 +5,7 @@ import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import Link from 'next/link';
 import { ChevronRight, FileText } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { useIsMember } from '@/components/member/viewer-role';
 
 /**
  * Card chrome for a `childPage` block — a clickable link to a sub-page. The
@@ -24,12 +25,15 @@ export function ChildPageView({ node }: NodeViewProps) {
 
   const [title, setTitle] = useState(snapTitle);
   const [icon, setIcon] = useState<string | null>(snapIcon);
+  // A member has no route to a page by id outside their own space: the
+  // admin one refuses them, so the card keeps its snapshot.
+  const member = useIsMember();
 
   // Refresh the live title/icon so renames of the child reflect here. Display
   // only — we don't write back into the node attrs (that would churn the
   // autosave every time the parent opens).
   useEffect(() => {
-    if (!pageId) return;
+    if (!pageId || member) return;
     let cancelled = false;
     apiFetch<{ page?: { title?: string; icon?: string | null } }>(`/api/pages/${pageId}`)
       .then((data) => {
@@ -41,7 +45,7 @@ export function ChildPageView({ node }: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [pageId]);
+  }, [pageId, member]);
 
   return (
     <NodeViewWrapper className="my-2" data-drag-handle>

@@ -17,6 +17,8 @@ import { FocusGutter } from './focus-gutter';
 import { DiffReview, diffReviewKey, DIFF_ACTION_EVENT } from './diff-review';
 import { handleDroppedFiles } from './upload';
 import { MemberMode } from './mention';
+import { PageImage } from './image';
+import { memberAssetPath } from '@/lib/member-assets';
 import { markdownToDoc } from '@mantle/content-core/markdown';
 import type { DiffOverlay } from '@mantle/content-core/page-diff';
 import type { JSONContent as TipTapJSON } from '@tiptap/react';
@@ -40,6 +42,12 @@ function isMarkdownDocPaste(text: string): boolean {
     (/^\s*\|.+\|\s*$/m.test(text) && /\|\s*:?-{2,}/.test(text))
   );
 }
+
+/** A member's editor loads image and drawing bytes from the member routes:
+ *  the brain refuses a member on the admin byte routes. */
+const memberPageExtensions = pageExtensions.map((ext) =>
+  ext === PageImage ? PageImage.configure({ mapAssetPath: memberAssetPath }) : ext,
+);
 
 /**
  * The "invisible" editing surface: no border, no card, no fixed toolbar — just
@@ -204,7 +212,7 @@ export function PageEditor({
     // PageView stays identical. SlashCommand carries the page id so `/page`
     // parents sub-pages here.
     extensions: [
-      ...pageExtensions,
+      ...(member ? memberPageExtensions : pageExtensions),
       SlashCommand.configure({ pageId: pageId ?? null, member }),
       FocusMarks,
       DiffReview,

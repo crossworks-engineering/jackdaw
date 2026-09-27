@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import type { Editor } from '@tiptap/react';
 import { assetTokenReady, assetUrl } from '@mantle/web-ui/asset-url';
 import { snapshotPlacesImage } from '@/components/draw/snapshot-theme';
+import { ASSET_PATH_ATTR } from './image';
 
 /**
  * Marks the drawings a page embeds as safe to theme-invert under dark mode.
@@ -23,12 +24,19 @@ import { snapshotPlacesImage } from '@/components/draw/snapshot-theme';
  * are memoised for the session: an embed appearing on ten pages costs one look.
  */
 
-/** drawId → "may this be inverted". Module-level so it survives remounts and
- *  is shared by the editor and the read-only view. */
+/** Snapshot path → "may this be inverted". Module-level so it survives
+ *  remounts and is shared by the editor and the read-only view. */
 const cache = new Map<string, Promise<boolean>>();
 
-function mayInvert(drawId: string): Promise<boolean> {
-  const hit = cache.get(drawId);
+/** The path the embed's own <img> loads: the stored one for an admin, the
+ *  member route when a member's editor or reader remapped it (the brain
+ *  refuses a member on /api/draws). */
+function snapshotPath(img: HTMLImageElement, drawId: string): string {
+  return img.getAttribute(ASSET_PATH_ATTR) ?? `/api/draws/${encodeURIComponent(drawId)}/svg?raw=1`;
+}
+
+function mayInvert(path: string): Promise<boolean> {
+  const hit = cache.get(path);
   if (hit) return hit;
   // Resolved INSIDE the promise, after the token is ready: the answer is
   // memoised for the session, so signing the url a beat too early would cache
@@ -36,13 +44,13 @@ function mayInvert(drawId: string): Promise<boolean> {
   // The SAME url the <img> uses (assetUrl adds the `?at=` token a detached
   // client needs), so this is a cache hit rather than a second download.
   const p = assetTokenReady()
-    .then(() => fetch(assetUrl(`/api/draws/${encodeURIComponent(drawId)}/svg?raw=1`)))
+    .then(() => fetch(assetUrl(path)))
     .then((res) => (res.ok ? res.text() : null))
     .then((svg) => svg !== null && !snapshotPlacesImage(svg))
     // A drawing that can't be read stays light: the failure must not be
     // louder than the thing it was trying to improve.
     .catch(() => false);
-  cache.set(drawId, p);
+  cache.set(path, p);
   return p;
 }
 
@@ -61,7 +69,7 @@ export function stampDrawEmbeds(root: ParentNode): () => void {
   for (const img of imgs) {
     const id = img.getAttribute('data-draw-id');
     if (!id) continue;
-    void mayInvert(id).then((ok) => {
+    void mayInvert(snapshotPath(img, id)).then((ok) => {
       // Re-read the element's own id: ProseMirror recycles DOM across
       // edits, so the node under this reference may have moved on.
       if (live && ok && img.getAttribute('data-draw-id') === id) {
