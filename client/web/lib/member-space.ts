@@ -116,6 +116,31 @@ export const memberSpace = {
     apiSend<{ ok: true }>(`${itemBase(source, id)}/comments/${commentId}`, 'DELETE'),
 };
 
+/**
+ * The query string a member's workspace moves to (`?src=`, `?id=`). The
+ * admin screens' redirects (/notes/<id>, /tables/<id>) write `?selected=<id>`
+ * and `&edit=1`, which the workspace reads as the open item too: so any
+ * change of the open item drops both, or Close would leave `selected` open
+ * and a source switch would keep it open under the wrong source.
+ */
+export function workspaceQuery(
+  current: string,
+  next: { src?: SpaceSource; id?: string | null },
+): string {
+  const sp = new URLSearchParams(current);
+  if (next.src !== undefined) {
+    if (next.src === 'mine') sp.delete('src');
+    else sp.set('src', next.src);
+  }
+  if (next.id !== undefined) {
+    sp.delete('selected');
+    sp.delete('edit');
+    if (next.id) sp.set('id', next.id);
+    else sp.delete('id');
+  }
+  return sp.toString();
+}
+
 /** Where an item's bytes stream from (files) for this source. */
 export function bytesPath(source: 'mine' | 'team', id: string): string {
   return `${itemBase(source, id)}/bytes`;

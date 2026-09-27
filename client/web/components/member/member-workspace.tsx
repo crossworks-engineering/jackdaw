@@ -23,6 +23,7 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import {
   listPath,
   memberSpace,
+  workspaceQuery,
   type SpaceItemRow,
   type SpaceKind,
   type SpaceList,
@@ -112,16 +113,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
 
   const setParams = useCallback(
     (next: { src?: SpaceSource; id?: string | null }) => {
-      const sp = new URLSearchParams(params.toString());
-      if (next.src !== undefined) {
-        if (next.src === 'mine') sp.delete('src');
-        else sp.set('src', next.src);
-      }
-      if (next.id !== undefined) {
-        if (next.id) sp.set('id', next.id);
-        else sp.delete('id');
-      }
-      const qs = sp.toString();
+      const qs = workspaceQuery(params.toString(), next);
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [params, pathname, router],
