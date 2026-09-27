@@ -81,6 +81,26 @@ export function listPath(
   return `${base}?${sp.toString()}`;
 }
 
+/** The browser's cap on keepalive request bodies is 64 KB (shared by all of
+ *  a page's keepalive requests in flight); stay under it. */
+const KEEPALIVE_MAX_BYTES = 60_000;
+
+/**
+ * An autosave write. `keepalive` lets a write that starts while the tab is
+ * unloading (the leave flush on a reload or a tab close: pagehide,
+ * visibilitychange) reach the brain instead of being cancelled with the
+ * page. Bigger bodies go without it, as every write did before.
+ */
+function sendAutosave<T>(path: string, method: 'PUT' | 'PATCH', body: unknown): Promise<T> {
+  const text = JSON.stringify(body);
+  return apiFetch<T>(path, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: text,
+    keepalive: new TextEncoder().encode(text).length < KEEPALIVE_MAX_BYTES,
+  });
+}
+
 export const memberSpace = {
   create: (body: { type: 'page' | 'note' | 'draw' | 'table'; title: string }) =>
     apiSend<{ item: SpaceItemRow }>('/api/member/space', 'POST', body),
@@ -89,7 +109,7 @@ export const memberSpace = {
       `${itemBase(source, id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
     ),
   patch: (id: string, body: { title?: string; icon?: string; content?: string }) =>
-    apiSend<SpaceItem>(`/api/member/space/${id}`, 'PATCH', body),
+    sendAutosave<SpaceItem>(`/api/member/space/${id}`, 'PATCH', body),
   remove: (id: string) => apiSend<{ ok: true }>(`/api/member/space/${id}`, 'DELETE'),
   /** Autosave: a page `doc`, a drawing `scene`, or a table as a whole
    *  `table` document or an `ops` batch (the owner's op schema). */
@@ -97,7 +117,7 @@ export const memberSpace = {
     id: string,
     body: { doc?: Doc; scene?: Doc; table?: Doc; ops?: unknown[]; if_rev?: number },
   ) =>
-    apiSend<{ ok: true; draft_rev: number; created_ids?: (string | null)[] }>(
+    sendAutosave<{ ok: true; draft_rev: number; created_ids?: (string | null)[] }>(
       `/api/member/space/${id}/draft`,
       'PUT',
       body,
