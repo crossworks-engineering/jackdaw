@@ -24,14 +24,17 @@ import { commentsOpen, isEditable, memberSpace, type SpaceItem } from '@/lib/mem
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
 import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
+import { MemberDrawEditor } from './member-draw-editor';
+import { MemberTableEditor } from './member-table-editor';
+import type { MemberEditorHandle } from './member-editor';
 
 const AUTOSAVE_MS = 800;
 
 type Doc = Record<string, unknown>;
 
 /**
- * One of the member's OWN items (member logins Phase 2): edit it (pages and
- * notes here; drawings, tables and files open read-only for now), Save
+ * One of the member's OWN items (member logins Phase 2): edit it (pages,
+ * notes, drawings and tables; files are upload and download only), Save
  * version (what teammates and a reviewer see), share it with the team or keep
  * it private, submit it for review or recall it, discuss it, delete it.
  * A submitted item is frozen: read-only until Recall, Accept or Return.
@@ -135,6 +138,21 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
     }
   };
 
+  // ── Drawing / table: the editor owns its draft; this row drives it. ──────
+  const editorHandle = useRef<MemberEditorHandle | null>(null);
+  const [editorUnsaved, setEditorUnsaved] = useState(false);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const saveEditorVersion = async (): Promise<boolean> => {
+    const h = editorHandle.current;
+    if (!h) return false;
+    setEditorSaving(true);
+    try {
+      return await h.saveVersion();
+    } finally {
+      setEditorSaving(false);
+    }
+  };
+
   // ── Note: saves as it goes (no draft). ────────────────────────────────────
   const [noteText, setNoteText] = useState(body.type === 'note' ? body.note.content : '');
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,6 +192,11 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
 
   // Submit takes the SAVED version: save first when there is anything unsaved.
   const beforeSubmit = async () => {
+    if (body.type === 'draw' || body.type === 'table') {
+      const h = editorHandle.current;
+      if (!h || !(await h.flush())) return false;
+      return editorUnsaved ? saveEditorVersion() : true;
+    }
     if (body.type !== 'page') return true;
     if (!(await flushDraft())) return false;
     return unsaved || dirty ? saveVersion() : true;
@@ -208,18 +231,28 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
         className="font-[family-name:var(--font-prose)]"
       />
     );
-  } else if (body.type === 'file') {
-    editor = <SpaceItemView source="mine" item={item} />;
-  } else {
+  } else if (body.type === 'draw') {
     editor = (
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">
-          Editing {body.type === 'draw' ? 'drawings' : 'tables'} here comes next; this is your
-          current copy.
-        </p>
-        <SpaceItemView source="mine" item={item} working />
-      </div>
+      <MemberDrawEditor
+        id={row.id}
+        draw={body.draw}
+        handleRef={editorHandle}
+        onUnsavedChange={setEditorUnsaved}
+        onSaved={refreshLists}
+      />
     );
+  } else if (body.type === 'table') {
+    editor = (
+      <MemberTableEditor
+        id={row.id}
+        table={body.table}
+        handleRef={editorHandle}
+        onUnsavedChange={setEditorUnsaved}
+        onSaved={refreshLists}
+      />
+    );
+  } else {
+    editor = <SpaceItemView source="mine" item={item} />;
   }
 
   return (
@@ -255,6 +288,17 @@ function MineItemLoaded({ item, onClose }: { item: SpaceItem; onClose: () => voi
               title="Save a version: what teammates and a reviewer see"
             >
               <Save /> {saving ? 'Saving…' : 'Save version'}
+            </Button>
+          ) : null}
+          {(body.type === 'draw' || body.type === 'table') && editable ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={editorSaving || !editorUnsaved}
+              onClick={() => void saveEditorVersion()}
+              title="Save a version: what teammates and a reviewer see"
+            >
+              <Save /> {editorSaving ? 'Saving…' : 'Save version'}
             </Button>
           ) : null}
           <ReviewActions row={row} beforeSubmit={beforeSubmit} />

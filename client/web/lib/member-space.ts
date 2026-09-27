@@ -91,8 +91,17 @@ export const memberSpace = {
   patch: (id: string, body: { title?: string; icon?: string; content?: string }) =>
     apiSend<SpaceItem>(`/api/member/space/${id}`, 'PATCH', body),
   remove: (id: string) => apiSend<{ ok: true }>(`/api/member/space/${id}`, 'DELETE'),
-  draft: (id: string, body: { doc?: Doc; scene?: Doc; if_rev?: number }) =>
-    apiSend<{ ok: true; draft_rev: number }>(`/api/member/space/${id}/draft`, 'PUT', body),
+  /** Autosave: a page `doc`, a drawing `scene`, or a table as a whole
+   *  `table` document or an `ops` batch (the owner's op schema). */
+  draft: (
+    id: string,
+    body: { doc?: Doc; scene?: Doc; table?: Doc; ops?: unknown[]; if_rev?: number },
+  ) =>
+    apiSend<{ ok: true; draft_rev: number; created_ids?: (string | null)[] }>(
+      `/api/member/space/${id}/draft`,
+      'PUT',
+      body,
+    ),
   save: (id: string, body: { doc?: Doc; scene?: Doc; svg?: string; if_rev?: number }) =>
     apiSend<SpaceItem>(`/api/member/space/${id}/save`, 'POST', body),
   share: (id: string, sharing: SpaceSharing) =>

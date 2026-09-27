@@ -66,6 +66,9 @@ type ExcalidrawCanvasProps = {
   viewMode?: boolean;
   /** Receives the imperative API once the canvas mounts (exports, updateScene). */
   onApiReady?: (api: ExcalidrawImperativeAPI) => void;
+  /** Offer the image tool (default on). A member's personal drawing turns it
+   *  off: its routes store no scene images. */
+  imageTool?: boolean;
 };
 
 export function ExcalidrawCanvas({
@@ -73,6 +76,7 @@ export function ExcalidrawCanvas({
   onChange,
   viewMode = false,
   onApiReady,
+  imageTool = true,
 }: ExcalidrawCanvasProps) {
   const { resolvedTheme } = useTheme();
 
@@ -103,6 +107,7 @@ export function ExcalidrawCanvas({
             // Scene load/save-to-disk stay available — they're user data
             // portability, same spirit as the pages Download button.
           },
+          tools: { image: imageTool },
         }}
       />
     </div>

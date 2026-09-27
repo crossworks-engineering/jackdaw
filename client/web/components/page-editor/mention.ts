@@ -1,3 +1,4 @@
+import { Extension } from '@tiptap/core';
 import Mention from '@tiptap/extension-mention';
 import { ReactRenderer } from '@tiptap/react';
 import {
@@ -19,6 +20,14 @@ import { placeCaretMenu, remToPx, type CaretMenuSide } from './caret-menu-positi
  * brain. Targets that don't match an existing page/note/entity aren't
  * mentionable — type them as plain text.
  */
+/**
+ * Marks a member login's editor (member logins). A member has no mention
+ * source yet (the picker's /api/mentions/search is brain-wide and refuses a
+ * member), and a chip would open an owner route, so the @ menu stays shut for
+ * them: `@` is plain text. Added by PageEditor only when `member` is set.
+ */
+export const MemberMode = Extension.create({ name: 'memberMode' });
+
 export const PageMention = Mention.extend({
   addAttributes() {
     return {
@@ -39,6 +48,8 @@ export const PageMention = Mention.extend({
   HTMLAttributes: { class: 'mention' },
   suggestion: {
     char: '@',
+    allow: ({ editor }) =>
+      !editor.extensionManager.extensions.some((e) => e.name === MemberMode.name),
 
     // No data fetch here on purpose. The suggestion plugin shares one `props`
     // object across its async `update()` calls, so awaiting a fetch in `items`

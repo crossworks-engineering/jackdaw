@@ -16,6 +16,7 @@ import { FocusMarks, focusMarksKey } from './focus-marks';
 import { FocusGutter } from './focus-gutter';
 import { DiffReview, diffReviewKey, DIFF_ACTION_EVENT } from './diff-review';
 import { handleDroppedFiles } from './upload';
+import { MemberMode } from './mention';
 import { markdownToDoc } from '@mantle/content-core/markdown';
 import type { DiffOverlay } from '@mantle/content-core/page-diff';
 import type { JSONContent as TipTapJSON } from '@tiptap/react';
@@ -207,6 +208,8 @@ export function PageEditor({
       SlashCommand.configure({ pageId: pageId ?? null, member }),
       FocusMarks,
       DiffReview,
+      // No @ menu for a member (see MemberMode).
+      ...(member ? [MemberMode] : []),
     ],
     content,
     immediatelyRender: false, // required for Next.js SSR (avoids hydration mismatch)
