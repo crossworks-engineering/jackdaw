@@ -7,6 +7,7 @@ import type { MemberLibraryPage } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SetPageTitle } from '@/components/layout/page-title';
+import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import type { SpaceKind, SpaceList, SpaceSource } from '@/lib/member-space';
 import { StatusChip } from './space-status';
 
@@ -87,6 +88,7 @@ function Section({
  * in the Library. None of the admin dashboard's ops cards: they are admin data.
  */
 export function MemberHome() {
+  const { openAssistant } = useAssistantDock();
   const mine = useQuery({
     queryKey: ['member-home', 'mine'],
     queryFn: () => apiFetch<SpaceList>('/api/member/space?page=1'),
@@ -133,10 +135,8 @@ export function MemberHome() {
       <SetPageTitle title="Home" />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Welcome back</h1>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/m/chat">
-            <MessageSquare /> Ask the assistant
-          </Link>
+        <Button variant="outline" size="sm" onClick={() => openAssistant()}>
+          <MessageSquare /> Ask the assistant
         </Button>
       </header>
       <Section title="Returned to you" entries={returned} src="mine" />

@@ -13,6 +13,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { Button } from '@mantle/web-ui/ui/button';
+import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import {
   Tooltip,
   TooltipContent,
@@ -20,7 +22,9 @@ import {
   TooltipTrigger,
 } from '@mantle/web-ui/ui/tooltip';
 
-type Item = { name: string; href: string; icon: LucideIcon };
+/** `chat` opens the assistant dock beside the current screen instead of
+ *  navigating (member logins, Phase 3). */
+type Item = { name: string; href: string; icon: LucideIcon; chat?: true };
 
 /** What a member reaches (member logins, plan section 7): their home, the five
  *  workspace kinds (each with Mine, Team drafts and the Library), and chat. */
@@ -36,7 +40,7 @@ export const MEMBER_NAV: { label: string; items: Item[] }[] = [
       { name: 'Files', href: '/files', icon: FolderTree },
     ],
   },
-  { label: 'Assistant', items: [{ name: 'Chat', href: '/m/chat', icon: MessageSquare }] },
+  { label: 'Assistant', items: [{ name: 'Chat', href: '#chat', icon: MessageSquare, chat: true }] },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -56,6 +60,7 @@ export function MemberSidebarNav({
   collapsed?: boolean;
 }) {
   const pathname = usePathname() ?? '/';
+  const { panel, openAssistant } = useAssistantDock();
   return (
     <TooltipProvider delayDuration={0}>
       <nav
@@ -68,27 +73,46 @@ export function MemberSidebarNav({
               {group.label}
             </p>
             {group.items.map((item) => {
-              const active = isActive(pathname, item.href);
+              const active = item.chat ? panel === 'open' : isActive(pathname, item.href);
               const Icon = item.icon;
-              const link = (
+              const cls = cn(
+                'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
+                active
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+              );
+              const inner = (
+                <>
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span className="flex-1 truncate text-left group-data-[nav-collapsed=true]/shell:hidden">
+                    {item.name}
+                  </span>
+                </>
+              );
+              const link = item.chat ? (
+                <Button
+                  key={item.href}
+                  variant="ghost"
+                  onClick={() => {
+                    onNavigate?.();
+                    openAssistant();
+                  }}
+                  aria-pressed={active}
+                  className={cn(cls, 'h-auto w-full justify-start')}
+                >
+                  {inner}
+                </Button>
+              ) : (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => onNavigate?.()}
                   aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
-                    active
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-                  )}
+                  className={cls}
                 >
-                  <Icon className="size-4 shrink-0" aria-hidden />
-                  <span className="flex-1 truncate group-data-[nav-collapsed=true]/shell:hidden">
-                    {item.name}
-                  </span>
+                  {inner}
                 </Link>
               );
               return collapsed ? (

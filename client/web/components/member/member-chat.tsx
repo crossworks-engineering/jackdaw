@@ -13,13 +13,14 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { replyLanded } from '@/lib/member-chat';
 
-const KEY = ['member-chat'];
+export const MEMBER_CHAT_KEY = ['member-chat'];
 const GIVE_UP_MS = 120_000;
 
 /**
- * A member's own chat with the brain's team-level agent. One thread per
- * login. The reply is written into the thread by the brain; this screen polls
- * while a reply is pending (no streaming: it survives proxies that buffer).
+ * A member's own chat with the brain's team-level agent: the body of the
+ * assistant dock for a member (MemberChatThread). One thread per login. The
+ * reply is written into the thread by the brain; this polls while a reply is
+ * pending (no streaming: it survives proxies that buffer).
  */
 export function MemberChat() {
   const toast = useToast();
@@ -33,7 +34,7 @@ export function MemberChat() {
   const bottom = useRef<HTMLDivElement>(null);
 
   const thread = useQuery({
-    queryKey: KEY,
+    queryKey: MEMBER_CHAT_KEY,
     queryFn: () => apiFetch<MemberChatThread>('/api/member/chat'),
     refetchInterval: (q) =>
       awaiting !== null || q.state.data?.messages.some((m) => m.status === 'pending')
@@ -75,14 +76,15 @@ export function MemberChat() {
       await apiSend('/api/member/chat', 'POST', { text: body });
       setText('');
       setAwaiting({ known, at: Date.now() });
-      await qc.invalidateQueries({ queryKey: KEY });
+      await qc.invalidateQueries({ queryKey: MEMBER_CHAT_KEY });
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 401)) {
         toast.error(e instanceof Error ? e.message : 'Could not send that');
       }
       // A 409 means the brain's state changed (chat closed):
       // reload the thread so the screen says so instead of a lone toast.
-      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: KEY });
+      if (e instanceof ApiError && e.status === 409)
+        void qc.invalidateQueries({ queryKey: MEMBER_CHAT_KEY });
     } finally {
       sendingRef.current = false;
       setSending(false);

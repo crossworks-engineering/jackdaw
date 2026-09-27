@@ -8,7 +8,7 @@ describe('memberHome', () => {
     expect(memberHome(null)).toBe('/');
     expect(memberHome('/pages')).toBe('/pages');
     expect(memberHome('/pages/abc?x=1')).toBe('/pages/abc?x=1');
-    expect(memberHome('/m/chat')).toBe('/m/chat');
+    expect(memberHome('/m/chat')).toBe('/');
     expect(memberHome('/models')).toBe('/');
     expect(memberHome('/settings/profile')).toBe('/');
     expect(memberHome('//evil.example')).toBe('/');
@@ -37,13 +37,14 @@ describe('sendsMemberHome', () => {
     expect(sendsMemberHome('/team-admin', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/settings', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/pagesx', PUBLIC)).toBe(true);
+    // The old member surface is gone: chat is the dock now.
+    expect(sendsMemberHome('/m', PUBLIC)).toBe(true);
+    expect(sendsMemberHome('/m/chat', PUBLIC)).toBe(true);
   });
   it('leaves the member home, member screens and public surfaces alone', () => {
     expect(sendsMemberHome('/', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/pages/abc', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/files', PUBLIC)).toBe(false);
-    expect(sendsMemberHome('/m', PUBLIC)).toBe(false);
-    expect(sendsMemberHome('/m/chat', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/login', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/team/x', PUBLIC)).toBe(false);
   });

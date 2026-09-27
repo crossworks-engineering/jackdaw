@@ -4,6 +4,7 @@ import { PanelLeft, PanelLeftClose } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AssistantButton, HighlightButton } from '@/components/assistant/assistant-dock';
+import { MemberChatButton } from '@/components/member/member-chat-button';
 import { HelpLauncher } from '@/components/help/help-launcher';
 
 /**
@@ -28,8 +29,8 @@ export function RailToolbar({
   onLaunch,
   member = false,
 }: {
-  /** A member login: no help rail, marker pick or assistant launcher yet
-   *  (member chat reaches this dock with Phase 3). */
+  /** A member login: no help rail or marker pick, and the chat launcher
+   *  instead of the Assistant (member logins, Phase 3). */
   member?: boolean;
   navCollapsed: boolean;
   onToggleNav: () => void;
@@ -89,11 +90,9 @@ export function RailToolbar({
           answer (the icon gains a count badge). Without a shrinkable end the
           strip would overflow the rail exactly when it most needs to be read.
           The label truncates instead; the badge never does. */}
-      {member ? null : (
-        <span className="ml-auto min-w-0 group-data-[nav-collapsed=true]/shell:ml-0">
-          <AssistantButton />
-        </span>
-      )}
+      <span className="ml-auto min-w-0 group-data-[nav-collapsed=true]/shell:ml-0">
+        {member ? <MemberChatButton /> : <AssistantButton />}
+      </span>
     </div>
   );
 }

@@ -29,13 +29,11 @@ export const MEMBER_HINT_COOKIE = 'mantle_member';
  */
 export const MEMBER_APP_PREFIXES = ['/pages', '/notes', '/draw', '/tables', '/files'] as const;
 
-/** A path a member may open: the home, the member app screens, the old /m
- *  surface (chat lives there until the dock takes members), public paths. */
+/** A path a member may open: the home, the member app screens, public
+ *  paths. Chat is the assistant dock, on any of them (the old /m is gone). */
 export function memberMayOpen(pathname: string, publicPrefixes: readonly string[] = []): boolean {
   const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
-  return (
-    pathname === '/' || under('/m') || MEMBER_APP_PREFIXES.some(under) || publicPrefixes.some(under)
-  );
+  return pathname === '/' || MEMBER_APP_PREFIXES.some(under) || publicPrefixes.some(under);
 }
 
 /** Owner paths a hinted member is sent away from (to the member home). Pure,

@@ -690,7 +690,10 @@ function ShellFrame({
 
         {/* The full assistant as a content-area overlay — fills the same box as
             <main>, above every route, summoned from anywhere by the bubble/⌘I. */}
-        {/* Admin-only surfaces. A member's chat comes to this dock with Phase 3. */}
+        {/* A member chats in the same dock (member logins, Phase 3): the
+            panel renders the member's own thread. Everything else here is
+            admin-only. */}
+        {isMember ? <AssistantPanel member /> : null}
         {isMember ? null : (
           <>
             <AssistantPanel />

@@ -33,6 +33,21 @@ const AssistantThreadClient = dynamic(
   },
 );
 
+/** A member login's thread (member logins, Phase 3): the member's own chat
+ *  with the team-level agent. Its own chunk, so a member never downloads the
+ *  owner thread and an admin never downloads this one. */
+const MemberChatThread = dynamic(
+  () => import('@/components/member/member-chat-thread').then((m) => m.MemberChatThread),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center">
+        <Spinner />
+      </div>
+    ),
+  },
+);
+
 /** Keyboard resize steps for the window's corner grip. There is deliberately no
  *  minimum here: `setPopout` runs every value through the dock's `clampPopout`,
  *  which owns the floor and the viewport cap for the pointer drag too — so the
@@ -92,7 +107,7 @@ function firstPlacement() {
  * draft, and any live turn stream survive a minimise/restore — or a change of
  * shape — without a re-fetch. `Esc` minimises.
  */
-export function AssistantPanel() {
+export function AssistantPanel({ member = false }: { member?: boolean } = {}) {
   const {
     panel,
     everOpened,
@@ -168,14 +183,16 @@ export function AssistantPanel() {
   // fast navigation away does not leave work queued.
   useEffect(() => {
     if (everOpened) return;
-    const warm = () => void import('@/app/(app)/assistant/assistant-thread-client');
+    const warm = member
+      ? () => void import('@/components/member/member-chat-thread')
+      : () => void import('@/app/(app)/assistant/assistant-thread-client');
     if (typeof window.requestIdleCallback === 'function') {
       const id = window.requestIdleCallback(warm, { timeout: 4000 });
       return () => window.cancelIdleCallback?.(id);
     }
     const id = window.setTimeout(warm, 2000);
     return () => window.clearTimeout(id);
-  }, [everOpened]);
+  }, [everOpened, member]);
 
   // Never mounted until the first open. Every hook above runs regardless, so
   // Esc handling and window placement are wired the moment the panel exists.
@@ -247,7 +264,7 @@ export function AssistantPanel() {
         />
       )}
 
-      <AssistantThreadClient slugHint={activeAgentSlug} />
+      {member ? <MemberChatThread /> : <AssistantThreadClient slugHint={activeAgentSlug} />}
 
       {/* The window's size grip. Bottom-right, the corner every desktop window
           is sized from, and drawn at rest like every other draggable edge in
