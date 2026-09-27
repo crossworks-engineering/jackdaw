@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -18,6 +18,11 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
   const toast = useToast();
   const qc = useQueryClient();
   const [text, setText] = useState('');
+  // Posting clears the composer and disables its button; deleting removes
+  // the focused button: either way focus returns to the composer, not the
+  // page body.
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const toComposer = () => composer.current?.focus();
   const key = ['member-space-comments', source, id];
   const q = useQuery({ queryKey: key, queryFn: () => memberSpace.comments(source, id) });
   const refresh = () => void qc.invalidateQueries({ queryKey: key });
@@ -26,12 +31,16 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
     onSuccess: () => {
       setText('');
       refresh();
+      toComposer();
     },
     onError: (err) => toast.error(spaceErrorMessage(err, 'Could not post the comment.')),
   });
   const del = useMutation({
     mutationFn: (commentId: string) => memberSpace.deleteComment(source, id, commentId),
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      toComposer();
+    },
     onError: (err) => toast.error(spaceErrorMessage(err, 'Could not delete the comment.')),
   });
   const comments = q.data?.comments ?? [];
@@ -54,7 +63,9 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
                   <Button
                     variant="ghost"
                     size="icon-2xs"
-                    className="ml-auto opacity-0 group-hover/comment:opacity-100 focus-visible:opacity-100"
+                    // Hover-revealed only where the pointer can hover; on
+                    // touch it stays visible, at reduced emphasis.
+                    className="ml-auto opacity-60 group-focus-within/comment:opacity-100 group-hover/comment:opacity-100 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0"
                     aria-label="Delete comment"
                     disabled={del.isPending}
                     onClick={() => del.mutate(c.id)}
@@ -76,6 +87,7 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
         }}
       >
         <Textarea
+          ref={composer}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add a comment…"

@@ -100,6 +100,8 @@ export function MemberSidebarNav({
                     openAssistant();
                   }}
                   aria-pressed={active}
+                  // The collapsed rail hides the text: keep the name.
+                  aria-label={item.name}
                   className={cn(cls, 'h-auto w-full justify-start')}
                 >
                   {inner}
@@ -110,6 +112,8 @@ export function MemberSidebarNav({
                   href={item.href}
                   onClick={() => onNavigate?.()}
                   aria-current={active ? 'page' : undefined}
+                  // The collapsed rail hides the text: keep the name.
+                  aria-label={item.name}
                   className={cls}
                 >
                   {inner}
