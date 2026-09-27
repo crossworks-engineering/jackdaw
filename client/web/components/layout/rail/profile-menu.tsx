@@ -109,8 +109,10 @@ export function ProfileMenu({
   identity: ProfileIdentity;
   variant?: 'rail' | 'bar';
   onNavigate?: () => void;
-  /** A member login: no Profile screen (it is admin-only) and no brain-wide
-   *  random theme; sign-out also clears the member hint. */
+  /** A member login: no Profile screen (it is admin-only) and no profile
+   *  photo (its route is admin-only too); sign-out also clears the member
+   *  hint. The random theme stays: it is visitor-local and never writes to
+   *  the brain. */
   member?: boolean;
   /** Opens the search palette. Absent on surfaces that have no palette to open
    *  — the item is then not rendered rather than rendered inert. */

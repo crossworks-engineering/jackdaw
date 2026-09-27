@@ -22,7 +22,9 @@ export function SpaceItemView({
 }: {
   source: 'mine' | 'team';
   item: SpaceItem;
-  /** Own items: show the working copy (unsaved edits included). */
+  /** Own items: a page or a table shows its working copy (the draft, when
+   *  there is one). A drawing always shows its saved SVG and a note has no
+   *  draft, so for those two this changes nothing. */
   working?: boolean;
 }) {
   const asset = useAssetUrl();
