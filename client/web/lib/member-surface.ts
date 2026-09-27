@@ -25,9 +25,17 @@ export const MEMBER_HINT_COOKIE = 'mantle_member';
 /**
  * The (app) screens a member works in (member logins Phase 2, the real app
  * shell): each renders a member screen for a member and the owner screen for
- * an admin. `/` is the member home.
+ * an admin. `/` is the member home. `/apps` is the member app launcher and
+ * run view (Phase 4b): a member never reaches the owner app editor.
  */
-export const MEMBER_APP_PREFIXES = ['/pages', '/notes', '/draw', '/tables', '/files'] as const;
+export const MEMBER_APP_PREFIXES = [
+  '/pages',
+  '/notes',
+  '/draw',
+  '/tables',
+  '/files',
+  '/apps',
+] as const;
 
 /** A path a member may open: the home, the member app screens, public
  *  paths. Chat is the assistant dock, on any of them (the old /m is gone). */

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  AppWindow,
   BookText,
   FileText,
   FolderTree,
@@ -27,7 +28,8 @@ import {
 type Item = { name: string; href: string; icon: LucideIcon; chat?: true };
 
 /** What a member reaches (member logins, plan section 7): their home, the five
- *  workspace kinds (each with Mine, Team drafts and the Library), and chat. */
+ *  workspace kinds (each with Mine, Team drafts and the Library), the apps
+ *  they may run (Phase 4b), and chat. */
 export const MEMBER_NAV: { label: string; items: Item[] }[] = [
   { label: 'Home', items: [{ name: 'Home', href: '/', icon: Home }] },
   {
@@ -38,6 +40,7 @@ export const MEMBER_NAV: { label: string; items: Item[] }[] = [
       { name: 'Draw', href: '/draw', icon: PenTool },
       { name: 'Tables', href: '/tables', icon: Table2 },
       { name: 'Files', href: '/files', icon: FolderTree },
+      { name: 'Apps', href: '/apps', icon: AppWindow },
     ],
   },
   { label: 'Assistant', items: [{ name: 'Chat', href: '#chat', icon: MessageSquare, chat: true }] },

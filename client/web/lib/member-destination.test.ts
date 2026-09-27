@@ -41,6 +41,7 @@ describe('sendsMemberHome', () => {
     expect(sendsMemberHome('/team-admin', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/settings', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/pagesx', PUBLIC)).toBe(true);
+    expect(sendsMemberHome('/appsx', PUBLIC)).toBe(true);
     // The old member surface is gone: chat is the dock now.
     expect(sendsMemberHome('/m', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/m/chat', PUBLIC)).toBe(true);
@@ -48,7 +49,7 @@ describe('sendsMemberHome', () => {
   it('leaves the member home, member screens and public surfaces alone', () => {
     expect(sendsMemberHome('/', PUBLIC)).toBe(false);
     // Every workspace kind a member works in, list and item routes.
-    for (const p of ['/pages', '/notes', '/draw', '/tables', '/files']) {
+    for (const p of ['/pages', '/notes', '/draw', '/tables', '/files', '/apps']) {
       expect(sendsMemberHome(p, PUBLIC), p).toBe(false);
       expect(sendsMemberHome(`${p}/abc`, PUBLIC), `${p}/abc`).toBe(false);
     }

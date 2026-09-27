@@ -1,4 +1,6 @@
 import { SetPageTitle } from '@/components/layout/page-title';
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberApps } from '@/components/member/member-apps';
 import { AppsClient } from './apps-client';
 
 /** Valid sort keys (mirrors `@mantle/content`'s AppSort) — kept local so the
@@ -21,10 +23,11 @@ export default async function AppsPage({
   const query = sp.q?.trim() || '';
   const sort = (SORTS as readonly string[]).includes(sp.sort ?? '') ? sp.sort! : 'edited';
 
+  // A member gets the launcher: team-level published apps, run only.
   return (
-    <>
+    <RoleSwitch member={<MemberApps />}>
       <SetPageTitle title="Apps" />
       <AppsClient page={page} query={query} sort={sort} />
-    </>
+    </RoleSwitch>
   );
 }

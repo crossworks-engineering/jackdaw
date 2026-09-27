@@ -1,3 +1,5 @@
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberAppRun } from '@/components/member/member-app-run';
 import { AppDetailClient } from './app-detail-client';
 
 /**
@@ -7,5 +9,10 @@ import { AppDetailClient } from './app-detail-client';
  */
 export default async function AppDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <AppDetailClient id={id} />;
+  // A member only runs the published build; the editor never mounts for one.
+  return (
+    <RoleSwitch member={<MemberAppRun id={id} />}>
+      <AppDetailClient id={id} />
+    </RoleSwitch>
+  );
 }

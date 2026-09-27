@@ -4,7 +4,7 @@ import { OpenQuestions } from '@/components/dashboard/open-questions';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { DashboardClient } from './dashboard-client';
 import { RoleSwitch } from '@/components/member/viewer-role';
-import { MemberHome } from '@/components/member/member-home';
+import { MemberHomeSwitch } from '@/components/member/member-home-app';
 
 /**
  * Dashboard — the "brain health" overview. Data-free: the live host/Postgres
@@ -14,7 +14,7 @@ import { MemberHome } from '@/components/member/member-home';
  */
 export default async function DashboardPage() {
   return (
-    <RoleSwitch member={<MemberHome />}>
+    <RoleSwitch member={<MemberHomeSwitch />}>
       <div className="space-y-6 p-4 md:p-6">
         <SetPageTitle title="Dashboard" />
         <header className="flex flex-wrap items-center justify-end gap-2">
