@@ -211,6 +211,23 @@ export function workspaceQuery(
 }
 
 /**
+ * How the workspace moves to `next`: opening an item (a different id) is a
+ * new history entry, so Back on a phone returns to the list instead of
+ * leaving the screen. Everything else replaces the entry: closing, switching
+ * the source, and rewriting a redirect's `?selected=` to `?id=` for the item
+ * already open.
+ */
+export function workspaceNavMode(
+  current: string,
+  next: { src?: SpaceSource; id?: string | null },
+): 'push' | 'replace' {
+  if (!next.id) return 'replace';
+  const sp = new URLSearchParams(current);
+  const open = sp.get('id') ?? sp.get('selected');
+  return next.id === open ? 'replace' : 'push';
+}
+
+/**
  * Which source an item id opens from, for a link to its own route
  * (/pages/<id>, /draw/<id>): Mine first, then Team drafts, then the Library.
  * `probe` reads the item from one source. A 404 (or a 400 for an id that is

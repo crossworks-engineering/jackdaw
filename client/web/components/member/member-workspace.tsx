@@ -23,6 +23,7 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import {
   listPath,
   memberSpace,
+  workspaceNavMode,
   workspaceQuery,
   type SpaceItemRow,
   type SpaceKind,
@@ -111,12 +112,22 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
 
+  // The item this screen pushed a history entry for, from no open item:
+  // Close then goes Back to that list entry instead of stacking a second one.
+  const pushedFromList = useRef<string | null>(null);
   const setParams = useCallback(
     (next: { src?: SpaceSource; id?: string | null }) => {
-      const qs = workspaceQuery(params.toString(), next);
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      const current = params.toString();
+      const qs = workspaceQuery(current, next);
+      const href = qs ? `${pathname}?${qs}` : pathname;
+      if (workspaceNavMode(current, next) === 'push') {
+        pushedFromList.current = selectedId ? null : (next.id ?? null);
+        router.push(href, { scroll: false });
+      } else {
+        router.replace(href, { scroll: false });
+      }
     },
-    [params, pathname, router],
+    [params, pathname, router, selectedId],
   );
 
   const list = useQuery({
@@ -326,7 +337,14 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     </div>
   );
 
-  const close = () => setParams({ id: null });
+  const close = () => {
+    if (selectedId && pushedFromList.current === selectedId) {
+      pushedFromList.current = null;
+      router.back();
+    } else {
+      setParams({ id: null });
+    }
+  };
   const detailPane = selectedId ? (
     source === 'mine' ? (
       <MineItem id={selectedId} onClose={close} />

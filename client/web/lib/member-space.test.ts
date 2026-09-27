@@ -5,6 +5,7 @@ import {
   resolveMemberSource,
   reviewListPath,
   splitByReview,
+  workspaceNavMode,
   workspaceQuery,
   type ReviewState,
   type SpaceSource,
@@ -56,6 +57,23 @@ describe('refusalMessage', () => {
   it('leaves the fallback to the caller otherwise', () => {
     expect(refusalMessage(new ApiError('forbidden', 403, { error: 'forbidden' }))).toBeNull();
     expect(refusalMessage(new TypeError('Failed to fetch'))).toBeNull();
+  });
+});
+
+describe('workspaceNavMode', () => {
+  it('opening an item is a new history entry (Back returns to the list)', () => {
+    expect(workspaceNavMode('', { id: 'n1' })).toBe('push');
+    expect(workspaceNavMode('src=team', { id: 'n1' })).toBe('push');
+    // Another item while one is open, and a new item after create.
+    expect(workspaceNavMode('id=n1', { id: 'n2' })).toBe('push');
+    expect(workspaceNavMode('id=n1', { src: 'mine', id: 'n2' })).toBe('push');
+  });
+
+  it('closing, switching the source and normalising a redirect replace it', () => {
+    expect(workspaceNavMode('id=n1', { id: null })).toBe('replace');
+    expect(workspaceNavMode('id=n1', { src: 'library', id: null })).toBe('replace');
+    expect(workspaceNavMode('selected=n1&edit=1', { id: 'n1' })).toBe('replace');
+    expect(workspaceNavMode('', { src: 'team' })).toBe('replace');
   });
 });
 
