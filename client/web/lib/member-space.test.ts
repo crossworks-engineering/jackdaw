@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  MEMBER_MAX_UPLOAD_BYTES,
+  memberUploadRefusal,
   refusalMessage,
   resolveMemberSource,
   reviewListPath,
@@ -74,6 +76,20 @@ describe('workspaceNavMode', () => {
     expect(workspaceNavMode('id=n1', { src: 'library', id: null })).toBe('replace');
     expect(workspaceNavMode('selected=n1&edit=1', { id: 'n1' })).toBe('replace');
     expect(workspaceNavMode('', { src: 'team' })).toBe('replace');
+  });
+});
+
+describe('member upload cap', () => {
+  it('refuses a file over the brain cap before it is sent, naming both sizes', () => {
+    expect(MEMBER_MAX_UPLOAD_BYTES).toBe(100 * 1024 * 1024);
+    expect(memberUploadRefusal(MEMBER_MAX_UPLOAD_BYTES)).toBeNull();
+    expect(memberUploadRefusal(1024)).toBeNull();
+    expect(memberUploadRefusal(MEMBER_MAX_UPLOAD_BYTES + 1)).toBe(
+      'This file is over the 100 MB upload limit.',
+    );
+    expect(memberUploadRefusal(250 * 1024 * 1024)).toBe(
+      'This file is 250 MB, over the 100 MB upload limit.',
+    );
   });
 });
 

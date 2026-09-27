@@ -54,9 +54,7 @@ import { ZenModeContext } from '@/components/layout/zen-mode';
 import { SearchPalette } from '@/components/search/search-palette';
 import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
 import { ViewerRoleProvider, type ViewerRole } from '@/components/member/viewer-role';
-
-/** A member's per-upload cap (the brain's SPACE_FILE_MAX_BYTES). */
-const MEMBER_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
 
 /**
  * App shell — TWO fixed regions, the left rail and the right live column,

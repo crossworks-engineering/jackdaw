@@ -6,6 +6,7 @@
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { TableDetail } from '@mantle/content-core/table-model';
 import type { MemberLibraryKind } from '@mantle/client-types';
+import { formatBytes } from './upload-progress';
 
 export type SpaceKind = MemberLibraryKind;
 export type SpaceSharing = 'private' | 'team';
@@ -87,6 +88,23 @@ export function refusalMessage(err: unknown): string | null {
     return body.error;
   }
   return (reason && REFUSAL_TEXT[reason]) || null;
+}
+
+/** A member's per-upload cap: the brain's SPACE_FILE_MAX_BYTES (100 MB,
+ *  docs/member-logins.md section 5). A member's upload goes straight to
+ *  /api/member/space-files, not through the upload dock, so the workspace
+ *  checks it itself before a byte is sent. The brain still refuses above it. */
+export const MEMBER_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+/** Why a member upload of `size` bytes is refused before it starts, or null
+ *  when it may go. Names the file's size unless it rounds to the limit's. */
+export function memberUploadRefusal(size: number): string | null {
+  if (size <= MEMBER_MAX_UPLOAD_BYTES) return null;
+  const limit = formatBytes(MEMBER_MAX_UPLOAD_BYTES);
+  const actual = formatBytes(size);
+  return actual === limit
+    ? `This file is over the ${limit} upload limit.`
+    : `This file is ${actual}, over the ${limit} upload limit.`;
 }
 
 /** The routes one item answers on: own items vs a teammate's shared one. */

@@ -23,6 +23,7 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import {
   listPath,
   memberSpace,
+  memberUploadRefusal,
   workspaceNavMode,
   workspaceQuery,
   type SpaceItemRow,
@@ -181,6 +182,13 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   };
 
   const upload = async (file: File) => {
+    // Refused here, before a byte is sent: this upload skips the upload dock
+    // and its size check, and the brain would only refuse it after the lot.
+    const tooLarge = memberUploadRefusal(file.size);
+    if (tooLarge) {
+      toast.error(tooLarge);
+      return;
+    }
     setBusy(true);
     try {
       const fd = new FormData();
