@@ -593,6 +593,7 @@ function ShellFrame({
             logoDarkVersion={brand?.logoDarkVersion ?? null}
             onMenuClick={() => setMobileOpen(true)}
             onSearchClick={isMember ? undefined : () => setSearchOpen(true)}
+            member={isMember}
           />
         )}
 
