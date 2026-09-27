@@ -45,6 +45,9 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
       return memberSpace.get('mine', id);
     },
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
+    // Always read on open, whatever the app's staleTime: the editor seeds
+    // from this read (see the wait below).
+    refetchOnMount: 'always',
   });
   // Bumped by Reload (after a conflict): a fresh editor on the brain's copy.
   const [generation, setGeneration] = useState(0);
