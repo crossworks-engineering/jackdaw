@@ -7,10 +7,18 @@ demo is the first deployment that does.
 
 ## Running one
 
-| How | What happens |
-|---|---|
+| How                                        | What happens                                                                                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MANTLE_TOUR=<id>` on the client container | The tour opens by itself, once per browser. A browser that finished or skipped it is not shown it again (`localStorage` key `mantle_tour:<id>`, values `done` / `dismissed`). |
-| `?tour=<id>` on any URL | Opens that tour now, finished or not. This is the link for a marketing page, and the way to see it again. |
+| `?tour=<id>` on any URL                    | Opens that tour now, finished or not. This is the link for a marketing page, and the way to see it again.                                                                     |
+
+A **member** login (member logins) gets the member tour instead: it opens
+once per browser on the member home, `?tour=member` or Take the tour in the
+account menu opens it again, and a member never gets the deployment's tour,
+whose stops are admin screens (`toursFor` in `lib/tour/tours.ts`). For a
+member, `?tour=demo` names no tour. The member shell's targets: `brand`,
+`main`, `profile`, `nav:<href>` on the member rail (`nav:#chat` for Chat)
+and `member-sources` on a workspace list.
 
 An id that names no tour in this build opens nothing — never an empty
 overlay. The env var is read per request through `/env.js`, like every other
@@ -34,15 +42,15 @@ points at nothing for a moment.
 
 Targets are `data-tour` attributes. The shell provides:
 
-| target | element |
-|---|---|
-| `brand` | the brand block at the top of the rail |
-| `profile` | the account menu (appearance and search live under it) |
-| `nav:<href>` | every rail item, e.g. `nav:/pages` |
-| `help` | the "About this screen" launcher |
-| `assistant` | the Assistant launcher |
-| `main` | the content area |
-| `activity` | the live-activity column |
+| target       | element                                                |
+| ------------ | ------------------------------------------------------ |
+| `brand`      | the brand block at the top of the rail                 |
+| `profile`    | the account menu (appearance and search live under it) |
+| `nav:<href>` | every rail item, e.g. `nav:/pages`                     |
+| `help`       | the "About this screen" launcher                       |
+| `assistant`  | the Assistant launcher                                 |
+| `main`       | the content area                                       |
+| `activity`   | the live-activity column                               |
 
 Add an attribute to a screen's own element when a step needs to point inside
 it. Keep values stable: a renamed target is a step that silently stops
