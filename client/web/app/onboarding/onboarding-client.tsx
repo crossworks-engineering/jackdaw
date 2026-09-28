@@ -37,6 +37,8 @@ import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { ToastProvider, useToast } from '@mantle/web-ui/ui/toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { PurposeFieldNote } from '@/components/purpose-field-note';
+import { checkPurpose } from '@/lib/purpose-input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 
 type SanityCheck = { label: string; ok: boolean; detail: string };
@@ -234,11 +236,11 @@ function Wizard({
   const [azureKey, setAzureKey] = useState('');
   const [modelsSaved, setModelsSaved] = useState(false);
 
-  // Memory step — model + route choices. OpenRouter is pre-selected when its
-  // key was saved a step earlier (it gets reused — no second signup).
-  const [embProvider, setEmbProvider] = useState<'openrouter' | 'openai'>(
-    savedServices.includes('openrouter') ? 'openrouter' : 'openai',
-  );
+  // Memory step — model + route choices. OpenRouter is always the default:
+  // it is the one-key path the Models step already runs on. This used to key
+  // off `savedServices`, but that is the page-load snapshot, so a key saved a
+  // step earlier in THIS session never counted and the step fell to OpenAI.
+  const [embProvider, setEmbProvider] = useState<'openrouter' | 'openai'>('openrouter');
   const [embModel, setEmbModel] = useState<'text-embedding-3-large' | 'text-embedding-3-small'>(
     'text-embedding-3-large',
   );
@@ -259,6 +261,7 @@ function Wizard({
   // Step 7 — purpose: the brain's speciality + a free-text description.
   const [archetype, setArchetype] = useState<string>(PURPOSE_ARCHETYPES[0]!.key);
   const [purposeText, setPurposeText] = useState('');
+  const purposeCheck = checkPurpose(purposeText);
 
   // Step 8 — personality
   const [presetKey, setPresetKey] = useState<PersonaPresetKey>('warm');
@@ -387,6 +390,11 @@ function Wizard({
       toast.error('Tell your assistant what this brain is for.');
       return;
     }
+    // The server refuses an over-long purpose (400); say so before the round trip.
+    if (purposeCheck.over) {
+      toast.error('The description is too long. Keep it to one or two sentences.');
+      return;
+    }
     setBusy(true);
     try {
       const res = await onboardingPost<{ ok: boolean; error?: string }>('purpose', {
@@ -396,6 +404,8 @@ function Wizard({
       if (!res.ok) return toast.error(res.error ?? 'Could not save.');
       toast.success('Purpose saved.');
       go(index + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setBusy(false);
     }
@@ -896,7 +906,7 @@ function Wizard({
         {step === 'purpose' && (
           <StepShell
             title="What is this brain for?"
-            blurb="Pick the speciality that fits best, then describe what it’s mainly going to be used for. This grounds your assistant in the brain’s purpose from the first message."
+            blurb="Pick the speciality that fits best, then say in a sentence or two what the brain is for. This is not your assistant’s personality: you choose that on the next step."
           >
             <div className="space-y-5">
               <RadioGroup
@@ -918,16 +928,16 @@ function Wizard({
                 ))}
               </RadioGroup>
 
-              <Field
-                label="Description *"
-                hint="A sentence or two on what this brain is mainly going to do."
-              >
+              <Field label="What this brain is for *">
                 <Textarea
                   rows={3}
                   placeholder="e.g. Analyse RBI inspection reports and answer questions about asset integrity for a refinery."
                   value={purposeText}
                   onChange={(e) => setPurposeText(e.target.value)}
+                  aria-invalid={purposeCheck.over || undefined}
+                  aria-describedby="purpose-note"
                 />
+                <PurposeFieldNote id="purpose-note" check={purposeCheck} inWizard />
               </Field>
             </div>
           </StepShell>
@@ -1196,8 +1206,10 @@ function ModelChoiceCards({
               <RadioGroupItem value={m.id} className="mt-0.5" disabled={blocked} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium">{m.name}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{m.price}</span>
+                  <span className="min-w-0 text-sm font-medium">{m.name}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+                    {m.price}
+                  </span>
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">{m.blurb}</span>
                 <span className="mt-1.5 flex flex-wrap gap-1.5">

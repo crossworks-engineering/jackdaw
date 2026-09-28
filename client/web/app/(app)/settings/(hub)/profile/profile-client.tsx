@@ -41,6 +41,8 @@ import { AvatarPicker, type AvatarValue } from '@/components/avatar-picker';
 import { ProfilePhotoControl } from '@/components/profile-photo-control';
 import { Avatar, AvatarFallback } from '@mantle/web-ui/ui/avatar';
 import { agentInitials } from '@/lib/agent-color';
+import { PurposeFieldNote } from '@/components/purpose-field-note';
+import { checkPurpose } from '@/lib/purpose-input';
 // Import the value from the browser-safe LEAF, not the @mantle/content barrel —
 // the barrel pulls backup.ts (node:os) + identity-context (@mantle/db) into the
 // client bundle. The type is erased, so it's safe from the barrel.
@@ -145,6 +147,7 @@ function ProfileForm({ data }: { data: ProfileData }) {
   const savedAvatarSeed = useRef(defaults.avatarSeed ?? '');
   const savedAvatarParts = useRef(JSON.stringify(defaults.avatarParts ?? {}));
   const [purpose, setPurpose] = useState(defaults.purpose ?? '');
+  const purposeCheck = checkPurpose(purpose);
   const [houseStyle, setHouseStyle] = useState(defaults.houseStyle ?? '');
   const [siteName, setSiteName] = useState(defaults.siteName ?? '');
   const [peerName, setPeerName] = useState(defaults.peerName ?? '');
@@ -212,6 +215,11 @@ function ProfileForm({ data }: { data: ProfileData }) {
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    // The server refuses an over-long purpose (400); stop here with the reason.
+    if (purposeCheck.over) {
+      setError('“What this brain is for” is too long. Keep it to one or two sentences.');
+      return;
+    }
     // Builder pins ride along ONLY when this session changed them ({} = clear;
     // an omitted key leaves the server's copy alone). An old brain's schema
     // isn't strict here, so when it strips the key the pins are lost — but
@@ -351,8 +359,11 @@ function ProfileForm({ data }: { data: ProfileData }) {
             value={purpose}
             onChange={(e) => setPurpose(e.target.value)}
             placeholder="A sentence or two on what this brain is mainly used for."
+            aria-invalid={purposeCheck.over || undefined}
+            aria-describedby="purpose-note purpose-help"
           />
-          <p className="text-xs text-muted-foreground">
+          <PurposeFieldNote id="purpose-note" check={purposeCheck} />
+          <p id="purpose-help" className="text-xs text-muted-foreground">
             Grounds every assistant in the brain&apos;s mission — injected at the top of each
             conversation. Leave blank to clear it.
           </p>
