@@ -8,6 +8,10 @@ import type { BrowserContext } from '@playwright/test';
  * `draft_rev` out, 409 `current_rev` on a stale etag). The owner UI runs
  * with MANTLE_SERVER_ORIGIN pointed here (playwright.member.config.ts).
  *
+ * Started with `{ role: 'admin' }` it answers an ADMIN instead: the shell,
+ * the Review queue and the admin's private space, enough for Take over and
+ * Give back (audit F07). Anything else an admin screen asks for is a 404.
+ *
  * A server rather than page.route(): a write the browser starts while the tab
  * unloads (the leave flush on a reload, sent keepalive) outlives the page,
  * and Playwright's interception never sees it. A server does, as the brain
@@ -40,6 +44,32 @@ export const LIBRARY_NOTE_TITLE = 'Gate codes';
 export const ACCEPTED_ID = '77777777-7777-4777-8777-777777777777';
 export const ACCEPTED_TITLE = 'Site survey';
 export const ACCEPTED_AT = '2026-09-20T10:00:00.000Z';
+
+/** Take over (audit F07), the member's side: a page an admin took over.
+ *  Mine lists it as a `with-admin` row; every route of it answers 409. */
+export const TAKEN_ID = '99999999-9999-4999-8999-999999999999';
+export const TAKEN_TITLE = 'Pump report';
+/** A submitted page (HOLDER) that shows a draft page of the member's
+ *  (BUNDLE_CHILD) inside it: the child is frozen with it (audit F04). */
+export const HOLDER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+export const HOLDER_TITLE = 'Weekly summary';
+export const BUNDLE_CHILD_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+export const BUNDLE_CHILD_TITLE = 'Pump photo notes';
+/** An accepted file an admin changed after accepting it: no bytes served. */
+export const CHANGED_FILE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+export const CHANGED_FILE_NAME = 'valve-diagram.png';
+
+/** The admin side (`role: 'admin'`): a submitted item in the Review queue,
+ *  one released back to it (its taker was deactivated), and the admin's own
+ *  private page. */
+export const SUBMITTED_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+export const SUBMITTED_TITLE = 'Crane inspection';
+export const SUBMITTED_IMAGE_TITLE = 'Hook close-up';
+export const RELEASED_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+export const RELEASED_TITLE = 'Boiler log';
+export const ADMIN_OWN_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+export const ADMIN_OWN_TITLE = 'My outline';
+export const MEMBER_NAME = 'Mo Member';
 
 /** A page that embeds what a member editor used to fetch from admin routes:
  *  an uploaded image, a sub-page card and a drawing. */
@@ -120,7 +150,43 @@ export type MockMemberApi = {
   /** What GET /api/version answers; set `contractVersion` to fake a brain
    *  on another wire contract. */
   version: { version: string; contractVersion?: number };
+  /** Take over, the member's side: TAKEN_ID is with an admin. */
+  withAdmin: boolean;
+  /** ...and Mine's list says so (false: a list read before the take over,
+   *  so only the item's own 409 tells). */
+  listWithAdmin: boolean;
+  /** Mine holds HOLDER (submitted) and BUNDLE_CHILD inside it: the child's
+   *  draft PUTs answer 409 `frozen` naming the holder. */
+  bundle: boolean;
+  /** Submit of PAGE_ID answers 409 `unsaved-draft` naming BUNDLE_CHILD. */
+  submitUnsaved: boolean;
+  /** Accepted lists CHANGED_FILE_ID, which an admin changed since. */
+  changedFile: boolean;
+  /** Every member request for an item an admin holds (should be none when
+   *  the list already said so). */
+  withAdminReads: string[];
+  /** Admin: the Review queue, the admin's private rows, and what was done. */
+  admin: MockAdminState;
   close: () => Promise<void>;
+};
+
+type MovedItem = { id: string; type: string; title: string };
+
+export type MockAdminState = {
+  /** Submission ids still waiting in the queue. */
+  queue: string[];
+  /** Items in the admin's private space: their own, and taken ones. */
+  privateIds: string[];
+  /** Can the member of a taken item still take it back? */
+  authorActive: boolean;
+  /** Set to make Take over answer this instead (a refusal). */
+  takeOverAnswer: { status: number; body: unknown } | null;
+  /** Set to make Give back answer this instead (a refusal). */
+  giveBackAnswer: { status: number; body: unknown } | null;
+  takeOvers: string[];
+  giveBacks: { id: string; note: string }[];
+  accepts: { id: string; body: unknown }[];
+  deletes: string[];
 };
 
 /** Sign the browser in as a member, the way the client sees it: the
@@ -132,6 +198,12 @@ export async function signInAsMember(context: BrowserContext, baseURL: string): 
   ]);
 }
 
+/** Sign the browser in as an admin: the presence cookie only (no member
+ *  hint), so the owner shell renders. */
+export async function signInAsAdmin(context: BrowserContext, baseURL: string): Promise<void> {
+  await context.addCookies([{ name: 'mantle_authed', value: '1', url: baseURL }]);
+}
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -141,7 +213,11 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-export async function startMockMemberApi(clientOrigin: string): Promise<MockMemberApi> {
+export async function startMockMemberApi(
+  clientOrigin: string,
+  opts: { role?: 'member' | 'admin' } = {},
+): Promise<MockMemberApi> {
+  const role = opts.role ?? 'member';
   const state: MockMemberApi = {
     draft: null,
     draftRev: 0,
@@ -155,6 +231,23 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     tokenSignIns: [],
     logouts: [],
     version: { version: 'mock' },
+    withAdmin: false,
+    listWithAdmin: true,
+    bundle: false,
+    submitUnsaved: false,
+    changedFile: false,
+    withAdminReads: [],
+    admin: {
+      queue: [SUBMITTED_ID, RELEASED_ID],
+      privateIds: [ADMIN_OWN_ID],
+      authorActive: true,
+      takeOverAnswer: null,
+      giveBackAnswer: null,
+      takeOvers: [],
+      giveBacks: [],
+      accepts: [],
+      deletes: [],
+    },
     close: async () => undefined,
   };
   const now = new Date().toISOString();
@@ -172,12 +265,218 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     updatedAt: now,
   });
 
+  /** A member row of Mine, in the brain's shape. */
+  const spaceRow = (id: string, title: string, reviewState: string, type = 'page') => ({
+    id,
+    type,
+    title,
+    icon: null,
+    sharing: 'private',
+    reviewState,
+    submittedAt: reviewState === 'submitted' || reviewState === 'with-admin' ? now : null,
+    returnedNote: null,
+    authorLoginId: 'login-1',
+    updatedAt: now,
+  });
+  const pageBody = (title: string, text: string) => ({
+    type: 'page',
+    page: {
+      doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+      draft: null,
+      draftRev: 0,
+      title,
+    },
+  });
+  const withAdminRefusal = {
+    error:
+      'An admin is working on this item. It comes back to you if they give it back; if they accept it, it shows under Accepted.',
+    reason: 'with-admin',
+  };
+
+  // ── The admin side (role 'admin') ─────────────────────────────────────
+  const A = state.admin;
+  const member = () => ({
+    loginId: 'login-1',
+    name: MEMBER_NAME,
+    email: 'member@example.com',
+    inactive: false,
+  });
+  const queueRow = (id: string) =>
+    id === RELEASED_ID
+      ? {
+          ...spaceRow(RELEASED_ID, RELEASED_TITLE, 'taken'),
+          reason: 'submitted',
+          author: member(),
+        }
+      : {
+          ...spaceRow(SUBMITTED_ID, SUBMITTED_TITLE, 'submitted'),
+          reason: 'submitted',
+          author: member(),
+        };
+  const TAKEN_BY_ADMIN = new Set([SUBMITTED_ID, RELEASED_ID]);
+  const privateRow = (id: string) => {
+    const title =
+      id === ADMIN_OWN_ID ? ADMIN_OWN_TITLE : id === RELEASED_ID ? RELEASED_TITLE : SUBMITTED_TITLE;
+    const taken = TAKEN_BY_ADMIN.has(id);
+    return {
+      ...spaceRow(id, title, taken ? 'taken' : 'draft'),
+      authorLoginId: taken ? 'login-1' : 'admin-1',
+      takenFrom: taken
+        ? {
+            loginId: 'login-1',
+            name: MEMBER_NAME,
+            canGiveBack: A.authorActive,
+            takenAt: now,
+          }
+        : null,
+    };
+  };
+  const moved = (id: string): MovedItem[] => [
+    { id, type: 'page', title: queueRow(id).title },
+    ...(id === SUBMITTED_ID ? [{ id: FILE_ID, type: 'file', title: SUBMITTED_IMAGE_TITLE }] : []),
+  ];
+
+  /** The admin routes; true when it answered. */
+  const handleAdmin = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    path: string,
+    method: string,
+  ): Promise<boolean> => {
+    if (path === '/api/shell') {
+      json(res, 200, {
+        onboarded: true,
+        avatar: null,
+        avatarPhotoVersion: null,
+        pendingApprovals: 0,
+        displayName: 'Ada Admin',
+        email: 'admin@example.com',
+        siteName: null,
+        peerName: null,
+        logoVersion: null,
+        logoDarkVersion: null,
+        colorTheme: null,
+        fontLogo: null,
+        fontTitle: null,
+        fontUi: null,
+        fontProse: null,
+        fontSize: null,
+        fontLogoSize: null,
+        fontTitleSize: null,
+        fontProseSize: null,
+        assetToken: '',
+      });
+      return true;
+    }
+    if (path === '/api/team-admin/submissions' && method === 'GET') {
+      const items = A.queue.map(queueRow);
+      json(res, 200, { items, counts: { submitted: items.length, leftBehind: 0 } });
+      return true;
+    }
+    const sub = /^\/api\/team-admin\/submissions\/([0-9a-f-]{36})(\/[a-z-]+)?$/.exec(path);
+    if (sub) {
+      const [, id, tail] = sub as unknown as [string, string, string | undefined];
+      const waiting = A.queue.includes(id);
+      if (!tail && method === 'GET') {
+        if (!waiting) return (json(res, 404, { error: 'Not found.' }), true);
+        json(res, 200, {
+          row: queueRow(id),
+          body: pageBody(queueRow(id).title, 'Checked the hook.'),
+          comments: [],
+        });
+        return true;
+      }
+      if (tail === '/bundle' && method === 'GET') {
+        json(res, 200, {
+          items: moved(id).map(({ id: i, type, title }) => ({ id: i, type, title })),
+          linksStayingBehind: 0,
+        });
+        return true;
+      }
+      if (tail === '/take-over' && method === 'POST') {
+        A.takeOvers.push(id);
+        if (A.takeOverAnswer) {
+          json(res, A.takeOverAnswer.status, A.takeOverAnswer.body);
+          return true;
+        }
+        if (!waiting) return (json(res, 404, { error: 'Not found.' }), true);
+        A.queue = A.queue.filter((q) => q !== id);
+        A.privateIds = [id, ...A.privateIds];
+        json(res, 200, { id, moved: moved(id) });
+        return true;
+      }
+      json(res, 404, { error: `not mocked: ${method} ${path}` });
+      return true;
+    }
+    if (path === '/api/admin/space' && method === 'GET') {
+      const items = url.searchParams.get('kind') === 'page' ? A.privateIds.map(privateRow) : [];
+      json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
+      return true;
+    }
+    const own = /^\/api\/admin\/space\/([0-9a-f-]{36})(\/[a-z-]+)?$/.exec(path);
+    if (own) {
+      const [, id, tail] = own as unknown as [string, string, string | undefined];
+      if (!A.privateIds.includes(id)) return (json(res, 404, { error: 'Not found.' }), true);
+      const row = privateRow(id);
+      if (!tail && method === 'GET') {
+        json(res, 200, { row, body: pageBody(row.title, 'Checked the hook.') });
+        return true;
+      }
+      if (!tail && method === 'DELETE') {
+        A.deletes.push(id);
+        if (row.takenFrom?.canGiveBack) {
+          json(res, 409, { error: 'The member can still take this back.', reason: 'taken' });
+          return true;
+        }
+        A.privateIds = A.privateIds.filter((i) => i !== id);
+        json(res, 200, { ok: true });
+        return true;
+      }
+      if (tail === '/draft' && method === 'PUT') {
+        await readBody(req);
+        json(res, 200, { ok: true, draft_rev: 1 });
+        return true;
+      }
+      if (tail === '/give-back' && method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { note: string };
+        A.giveBacks.push({ id, note: body.note });
+        if (A.giveBackAnswer) {
+          json(res, A.giveBackAnswer.status, A.giveBackAnswer.body);
+          return true;
+        }
+        if (!row.takenFrom) return (json(res, 404, { error: 'Not found.' }), true);
+        A.privateIds = A.privateIds.filter((i) => i !== id);
+        json(res, 200, { id, returned: moved(id) });
+        return true;
+      }
+      if (tail === '/accept' && method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as unknown;
+        A.accepts.push({ id, body });
+        A.privateIds = A.privateIds.filter((i) => i !== id);
+        json(res, 200, { id, audience: 'admin', moved: moved(id), linksStayingBehind: 0 });
+        return true;
+      }
+    }
+    return false;
+  };
+
   const acceptedRow = () => ({
     id: ACCEPTED_ID,
     type: 'page',
     title: ACCEPTED_TITLE,
     icon: null,
     audience: 'admin',
+    acceptedAt: ACCEPTED_AT,
+    updatedAt: now,
+  });
+
+  const changedFileRow = () => ({
+    id: CHANGED_FILE_ID,
+    type: 'file',
+    title: CHANGED_FILE_NAME,
+    icon: null,
+    audience: 'team',
     acceptedAt: ACCEPTED_AT,
     updatedAt: now,
   });
@@ -204,7 +503,9 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       res.end();
       return;
     }
-    if (isAdminOnly(path)) {
+    if (role === 'admin') {
+      if (await handleAdmin(req, res, url, path, method)) return;
+    } else if (isAdminOnly(path)) {
       state.adminCalls.push(`${method} ${path}`);
       return json(res, 403, { error: 'forbidden', reason: 'member-login' });
     }
@@ -295,9 +596,67 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       }
       return json(res, 200, { token: 'member-bearer-token' });
     }
+    // An item an admin took over: every route of it answers 409 (audit F07).
+    if (state.withAdmin && path.startsWith(`/api/member/space/${TAKEN_ID}`)) {
+      state.withAdminReads.push(`${method} ${path}`);
+      return json(res, 409, withAdminRefusal);
+    }
     if (path === '/api/member/space' && method === 'GET') {
-      const items = url.searchParams.get('kind') === 'page' ? [row()] : [];
+      const kind = url.searchParams.get('kind');
+      const review = url.searchParams.get('review')?.split(',') ?? null;
+      const held =
+        state.withAdmin &&
+        state.listWithAdmin &&
+        (!kind || kind === 'page') &&
+        (!review || review.includes('with-admin'))
+          ? [spaceRow(TAKEN_ID, TAKEN_TITLE, 'with-admin')]
+          : [];
+      const own = (
+        kind === 'page'
+          ? [
+              row(),
+              ...(state.bundle
+                ? [
+                    spaceRow(HOLDER_ID, HOLDER_TITLE, 'submitted'),
+                    spaceRow(BUNDLE_CHILD_ID, BUNDLE_CHILD_TITLE, 'draft'),
+                  ]
+                : []),
+            ]
+          : []
+      ).filter((r) => !review || review.includes(r.reviewState));
+      const items = [...held, ...own];
       return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
+    }
+    if (state.bundle && path === `/api/member/space/${HOLDER_ID}` && method === 'GET') {
+      return json(res, 200, {
+        row: spaceRow(HOLDER_ID, HOLDER_TITLE, 'submitted'),
+        body: pageBody(HOLDER_TITLE, 'The week.'),
+      });
+    }
+    if (state.bundle && path === `/api/member/space/${BUNDLE_CHILD_ID}` && method === 'GET') {
+      return json(res, 200, {
+        row: spaceRow(BUNDLE_CHILD_ID, BUNDLE_CHILD_TITLE, 'draft'),
+        body: pageBody(BUNDLE_CHILD_TITLE, 'Photos of the pump.'),
+      });
+    }
+    if (state.bundle && path === `/api/member/space/${BUNDLE_CHILD_ID}/draft`) {
+      await readBody(req);
+      return json(res, 409, {
+        error: `This item is part of "${HOLDER_TITLE}", which is submitted for review. Recall that item to make changes.`,
+        reason: 'frozen',
+        ids: [HOLDER_ID],
+      });
+    }
+    if (path === `/api/member/space/${PAGE_ID}/submit` && method === 'POST') {
+      if (state.submitUnsaved) {
+        return json(res, 409, {
+          error: `Items shown in this one have unsaved changes: "${BUNDLE_CHILD_TITLE}". Save a version of each, then submit.`,
+          reason: 'unsaved-draft',
+          ids: [BUNDLE_CHILD_ID],
+        });
+      }
+      state.frozen = true;
+      return json(res, 200, { item: row() });
     }
     if (path === `/api/member/space/${PAGE_ID}` && method === 'GET') {
       return json(res, 200, {
@@ -355,6 +714,27 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
           content: 'Ask at the front desk.',
         },
       });
+    }
+    if (state.changedFile && path === '/api/member/accepted' && method === 'GET') {
+      const items = url.searchParams.get('kind') === 'file' ? [changedFileRow()] : [];
+      if (items.length) return json(res, 200, { items, total: 1, page: 1, pageSize: 20 });
+    }
+    if (state.changedFile && path === `/api/member/accepted/${CHANGED_FILE_ID}`) {
+      return json(res, 200, {
+        item: {
+          ...changedFileRow(),
+          filename: CHANGED_FILE_NAME,
+          mimeType: 'image/png',
+          sizeBytes: 2048,
+          changedByAdmin: true,
+        },
+      });
+    }
+    if (path === `/api/member/files/${CHANGED_FILE_ID}`) {
+      // The brain serves an accepted file's bytes only while they are the
+      // ones accepted: this one an admin changed.
+      state.memberAssetCalls.push(path);
+      return json(res, 404, { error: 'Not found.' });
     }
     if (path === '/api/member/accepted' && method === 'GET') {
       const items = url.searchParams.get('kind') === 'page' ? [acceptedRow()] : [];
