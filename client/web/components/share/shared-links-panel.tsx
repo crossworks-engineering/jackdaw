@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, ExternalLink, Link2, Link2Off } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
@@ -37,6 +38,11 @@ export type SharedLinkRow = {
   lastViewedAt: string | null;
 };
 
+/** The Shared links tab's query (GET /api/team-admin/shares). */
+export const SHARES_KEY = ['team-admin', 'shares'] as const;
+
+type SharesData = { shares: SharedLinkRow[] };
+
 const TYPE_LABEL: Record<string, string> = {
   page: 'Page',
   note: 'Note',
@@ -57,18 +63,21 @@ const TYPE_LABEL: Record<string, string> = {
  * Master-detail: the links as cards on the left, and the SELECTED link's real
  * `/s/…` page framed on the right. The preview is the server surface itself,
  * so it shows exactly what a visitor gets. Copy, open and revoke live in the
- * detail header; revocation updates locally.
+ * detail header. The rows are the tab's query, not a copy of it: a revoke
+ * takes the link out of that query at once and then refetches it, so a
+ * revoked link cannot come back on the next tab switch, and a later refetch
+ * always shows.
  */
-export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
+export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
   const toast = useToast();
-  const [rows, setRows] = useState(initial);
-  const [selectedId, setSelectedId] = useState<string | null>(initial[0]?.id ?? null);
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
   const [confirmRevoke, setConfirmRevoke] = useState<SharedLinkRow | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Keep the selection on a live row — a revoke (or a parent refetch swapping
-  // `initial`) must not leave the preview on a link that no longer exists.
+  // Keep the selection on a live row: a revoke (or a refetch) must not leave
+  // the preview on a link that no longer exists.
   useEffect(() => {
     if (selectedId && rows.some((r) => r.id === selectedId)) return;
     setSelectedId(rows[0]?.id ?? null);
@@ -92,7 +101,11 @@ export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
     setBusy(true);
     try {
       await apiSend(`/api/shares/${confirmRevoke.id}`, 'DELETE');
-      setRows((r) => r.filter((x) => x.id !== confirmRevoke.id));
+      const gone = confirmRevoke.id;
+      queryClient.setQueryData<SharesData>(SHARES_KEY, (d) =>
+        d ? { ...d, shares: d.shares.filter((x) => x.id !== gone) } : d,
+      );
+      void queryClient.invalidateQueries({ queryKey: SHARES_KEY });
       toast.success(`Unshared "${confirmRevoke.title}"`);
       setConfirmRevoke(null);
     } catch (e) {

@@ -42,3 +42,21 @@ describe('the tab strip at phone width', () => {
     expect(page).toMatch(/aria-label="Team admin"\s+className="[^"]*overflow-x-auto[^"]*scrollbar-thin/);
   });
 });
+
+describe('Shared links: a revoked link stays gone', () => {
+  const panel = readFileSync(
+    fileURLToPath(new URL('../../../components/share/shared-links-panel.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  it('reads its rows from the tab query, not a copy of it', () => {
+    expect(panel).not.toMatch(/useState\(initial\)|setRows/);
+    expect(page).toContain('queryKey: SHARES_KEY,');
+    expect(page).toContain('<SharedLinksPanel rows={q.data.shares} />');
+  });
+
+  it('takes the link out of that query and refetches it after a revoke', () => {
+    expect(panel).toMatch(/queryClient\.setQueryData<SharesData>\(SHARES_KEY/);
+    expect(panel).toContain('void queryClient.invalidateQueries({ queryKey: SHARES_KEY });');
+  });
+});

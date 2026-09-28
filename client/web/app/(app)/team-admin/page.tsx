@@ -40,7 +40,11 @@ import type {
   MemberChatsResponse,
   MemberChatPortalThread,
 } from '@mantle/client-types';
-import { SharedLinksPanel, type SharedLinkRow } from '@/components/share/shared-links-panel';
+import {
+  SHARES_KEY,
+  SharedLinksPanel,
+  type SharedLinkRow,
+} from '@/components/share/shared-links-panel';
 import { HubAppPicker } from '@/components/team-chat/hub-app-picker';
 import { PrivateReadsToggle } from '@/components/team-chat/private-reads-toggle';
 import { RequestReply } from '@/components/team-chat/request-reply';
@@ -839,13 +843,13 @@ function RequestsTab() {
 
 function SharesTab() {
   const q = useQuery({
-    queryKey: ['team-admin', 'shares'],
+    queryKey: SHARES_KEY,
     queryFn: () => apiFetch<SharesResponse>('/api/team-admin/shares'),
   });
   if (!q.data) return <TabPending active="shares" query={q} what="shared links" />;
   return (
     <Tab active="shares" badges={q.data.badges}>
-      <SharedLinksPanel initial={q.data.shares} />
+      <SharedLinksPanel rows={q.data.shares} />
     </Tab>
   );
 }
