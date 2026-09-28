@@ -32,6 +32,7 @@ import {
   privateDeleteMessage,
   takenFromOf,
 } from './admin-private';
+import type { AdminSpaceItemRow } from '@mantle/client-types';
 
 /**
  * Take over and the accepted snapshot (audit F07, brain migration 0183), the
@@ -198,19 +199,21 @@ describe('the admin’s private view of a taken item', () => {
   const from = (canGiveBack: boolean) => ({
     takenFrom: { loginId: 'l1', name: 'Mo Member', canGiveBack, takenAt: null },
   });
+  // A brain before Take over sends no `takenFrom` at all.
+  const older = {} as Pick<AdminSpaceItemRow, 'takenFrom'>;
 
   it('gives back only while the member can take it; deletes only once they cannot', () => {
     expect(canGiveBack(from(true))).toBe(true);
     expect(canGiveBack(from(false))).toBe(false);
     expect(canGiveBack({ takenFrom: null })).toBe(false);
-    expect(canGiveBack({})).toBe(false);
+    expect(canGiveBack(older)).toBe(false);
     // The admin's own item: always theirs to delete.
     expect(canDeletePrivate({ takenFrom: null })).toBe(true);
-    expect(canDeletePrivate({})).toBe(true);
+    expect(canDeletePrivate(older)).toBe(true);
     // The member can still take it back: the brain refuses (409 taken).
     expect(canDeletePrivate(from(true))).toBe(false);
     expect(canDeletePrivate(from(false))).toBe(true);
-    expect(takenFromOf({})).toBeNull();
+    expect(takenFromOf(older)).toBeNull();
     expect(takenFromOf(from(true))?.name).toBe('Mo Member');
   });
 

@@ -8,20 +8,14 @@
  */
 import type { TeamRequest } from '@mantle/client-types';
 
-// TODO(contract after mantle v0.232.305): the audit fix release adds `loginId`
-// to TeamRequest; drop this extension at that @crossworks pin bump.
-export type TeamRequestWithLogin = TeamRequest & { loginId?: string | null };
-
 /** Can an admin reply to whoever filed it? Either a login or a contact. */
-export function canReplyToRequest(r: Pick<TeamRequestWithLogin, 'contactId' | 'loginId'>): boolean {
+export function canReplyToRequest(r: Pick<TeamRequest, 'contactId' | 'loginId'>): boolean {
   return Boolean(r.loginId || r.contactId);
 }
 
 /** Where "View their chat" goes: the login's Member chat (where a reply to
  *  it lands), else the contact's Chat archive, else nowhere. */
-export function requestChatHref(
-  r: Pick<TeamRequestWithLogin, 'contactId' | 'loginId'>,
-): string | null {
+export function requestChatHref(r: Pick<TeamRequest, 'contactId' | 'loginId'>): string | null {
   if (r.loginId) return `/team-admin?view=chats&login=${encodeURIComponent(r.loginId)}`;
   if (r.contactId) return `/team-admin?contact=${encodeURIComponent(r.contactId)}`;
   return null;

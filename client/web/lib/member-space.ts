@@ -14,11 +14,14 @@ import type { TableDetail } from '@mantle/content-core/table-model';
 import type {
   AccessLevel,
   MemberItemKind,
+  GiveBackResult,
+  MemberAcceptedItem,
   MemberReviewState,
   MemberSpaceFile,
   MemberSpaceItem,
   MemberSpaceItemBody,
   MemberSpaceItemRow,
+  MemberSpaceItemState,
   MemberSpaceList,
   MemberSpaceSharing,
   NodeComment,
@@ -31,65 +34,40 @@ import type { AcceptInput, AcceptResult } from './member-review';
 export type SpaceKind = MemberItemKind;
 export type SpaceSharing = MemberSpaceSharing;
 
-// TODO(contract after mantle v0.232.305): the audit fix release (Take over,
-// audit F07) adds `taken` to MemberReviewState, MemberSpaceItemState (with
-// `with-admin`) as the row's state, AdminSpaceItemRow, AdminTakenFrom,
-// MovedSpaceItem, TakeOverResult, GiveBackResult and `changedByAdmin` on
-// MemberAcceptedItem. Swap these local types for the contract's at that
-// @crossworks pin bump.
-
 /** A personal item's stored review state. `taken`: an admin took the
  *  submitted item into their own private space (admin rows and the Review
  *  queue only; a member's list says `with-admin` instead). */
-export type ReviewState = MemberReviewState | 'taken';
+export type ReviewState = MemberReviewState;
 
 /** A row's state in a list: the stored state, or `with-admin` on the
  *  member's own list for an item an admin took over (title and kind only;
  *  every route of it answers 409 `with-admin`). */
-export type SpaceItemState = ReviewState | 'with-admin';
+export type SpaceItemState = MemberSpaceItemState;
 
 /** Where a member's list reads from: their own items, teammates' shared
  *  items, the Library (brain items at the team level), or what they wrote
  *  and an admin accepted into the brain (any level; brains from 0.232.285). */
 export type SpaceSource = 'mine' | 'team' | 'library' | 'accepted';
 
-export type SpaceItemRow = Omit<MemberSpaceItemRow, 'reviewState'> & {
-  reviewState: SpaceItemState;
-};
+export type SpaceItemRow = MemberSpaceItemRow;
 export type SpaceFile = MemberSpaceFile;
 
 type Doc = Record<string, unknown>;
 
 export type SpaceItemBody = MemberSpaceItemBody<Doc, TableDetail>;
-export type SpaceItem = Omit<MemberSpaceItem<Doc, TableDetail>, 'row'> & { row: SpaceItemRow };
-export type SpaceList = Omit<MemberSpaceList, 'items'> & { items: SpaceItemRow[] };
+export type SpaceItem = MemberSpaceItem<Doc, TableDetail>;
+export type SpaceList = MemberSpaceList;
 export type SpaceComment = NodeComment;
 
-/** Who wrote an item an admin took over from the Review queue. */
-export type AdminTakenFrom = {
-  /** The member login; null once that login is deleted. */
-  loginId: string | null;
-  /** Display name, else the email's local part; "Removed member" once the
-   *  login is deleted. */
-  name: string;
-  /** False when the member is deactivated, deleted or no longer a member:
-   *  Give back is refused (409 `author-inactive`); accept it or delete it. */
-  canGiveBack: boolean;
-  takenAt: string | null;
-};
-
-/** A row of the admin's private space: `takenFrom` names the member when
- *  the admin took it over, else null (absent on brains before Take over). */
-export type AdminSpaceItemRow = SpaceItemRow & { takenFrom?: AdminTakenFrom | null };
-
-/** GET /api/admin/space: the admin's private items, taken ones included. */
-export type AdminSpaceList = Omit<SpaceList, 'items'> & { items: AdminSpaceItemRow[] };
-
-/** An item that moved with a Take over or a Give back. */
-export type MovedSpaceItem = { id: string; type: SpaceKind; title: string };
-
-/** POST /api/admin/space/:id/give-back { note } */
-export type GiveBackResult = { id: string; returned: MovedSpaceItem[] };
+/** The admin's private space (Take over, audit F07): each row names who
+ *  wrote it when the admin took it over (`takenFrom`), else null. */
+export type {
+  AdminSpaceItemRow,
+  AdminSpaceList,
+  AdminTakenFrom,
+  GiveBackResult,
+  MovedSpaceItem,
+} from '@mantle/client-types';
 
 /** What a member reads for a refusal the brain answered without a sentence
  *  of its own (it normally sends one in `error`). */
@@ -554,10 +532,12 @@ export function commentsOpen(row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>)
 /**
  * An accepted file or drawing an admin changed after Accept (audit F07): the
  * brain keeps the author's snapshot but no longer serves the bytes, so the
- * reader says so instead of a broken image. TODO(contract after mantle
- * v0.232.305): `changedByAdmin` is on the contract's MemberAcceptedItem.
+ * reader says so instead of a broken image. The reader passes Library items
+ * through here too; they never carry the flag.
  */
-export function acceptedBytesChanged(item: { type: string; changedByAdmin?: unknown }): boolean {
+export function acceptedBytesChanged(
+  item: Pick<MemberAcceptedItem, 'type'> & { changedByAdmin?: boolean },
+): boolean {
   return (item.type === 'file' || item.type === 'draw') && item.changedByAdmin === true;
 }
 

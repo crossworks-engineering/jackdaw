@@ -10,11 +10,10 @@
  * contract with the member-space types (lib/member-space.ts).
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import type { AccessLevel } from '@mantle/client-types';
+import type { AccessLevel, TakeOverResult } from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
 import {
   refusalReason,
-  type MovedSpaceItem,
   type SpaceComment,
   type SpaceItemBody,
   type SpaceKind,
@@ -73,15 +72,6 @@ export type AcceptResult = {
   moved: BundleItem[];
   linksStayingBehind: number;
   levelWarning?: string;
-};
-
-/** POST /api/team-admin/submissions/:id/take-over. TODO(contract after
- *  mantle v0.232.305): the contract's TakeOverResult. */
-export type TakeOverResult = {
-  /** The taken item: now in the acting admin's private space, same id. */
-  id: string;
-  /** It and its bundle, in bundle order. */
-  moved: MovedSpaceItem[];
 };
 
 const base = (id: string) => `/api/team-admin/submissions/${id}`;

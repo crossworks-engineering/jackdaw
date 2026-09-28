@@ -61,7 +61,7 @@ import {
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
-import { canReplyToRequest, requestChatHref, type TeamRequestWithLogin } from '@/lib/team-requests';
+import { canReplyToRequest, requestChatHref } from '@/lib/team-requests';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -108,7 +108,7 @@ type MembersResponse = {
   } | null;
 };
 
-type RequestsResponse = { badges: Badges; requests: TeamRequestWithLogin[] };
+type RequestsResponse = { badges: Badges; requests: TeamRequest[] };
 
 type SharesResponse = { badges: Badges; shares: SharedLinkRow[] };
 
