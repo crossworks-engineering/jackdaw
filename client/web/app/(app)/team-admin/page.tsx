@@ -23,7 +23,9 @@
 import Link from 'next/link';
 import { use, useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { Button } from '@mantle/web-ui/ui/button';
+import { useToast } from '@mantle/web-ui/ui/toast';
 import type {
   TeamMemberActivity,
   TeamRequest,
@@ -33,6 +35,7 @@ import type {
   ForumMemberPost,
   ForumAuthoredTopic,
   MemberChatsResponse,
+  MemberChatPortalThread,
 } from '@mantle/client-types';
 import { SharedLinksPanel, type SharedLinkRow } from '@/components/share/shared-links-panel';
 import { HubAppPicker } from '@/components/team-chat/hub-app-picker';
@@ -58,6 +61,7 @@ import {
   ExternalLink,
   Inbox,
   CheckCircle2,
+  Loader2,
   Paperclip,
   Users,
 } from 'lucide-react';
@@ -65,6 +69,7 @@ import { MemberActivityPager } from '@/components/team-admin/member-activity-pag
 import { RevokeCodeButton } from '@/components/team-admin/revoke-code-button';
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
+import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -465,6 +470,71 @@ function ChatArchive({ thread, count }: { thread: ArchiveMessage[]; count: numbe
   );
 }
 
+/**
+ * A member login's OLD team portal chat (member logins Phase 6): the thread
+ * its contact had on the team code before the invite. History for the admin
+ * only, so it sits in its own labelled, collapsed, read-only section and is
+ * never merged into the member's thread. "Load older" pages it with
+ * ?portalBefore=; a short window is the start.
+ */
+function PortalThread({ loginId, portal }: { loginId: string; portal: MemberChatPortalThread }) {
+  const [thread, setThread] = useState(portal.thread);
+  const [atStart, setAtStart] = useState(() => portalAtStart(portal.thread, portal.windowSize));
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  const loadOlder = async () => {
+    const cursor = portalCursor(thread);
+    if (!cursor || loading) return;
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ login: loginId, portalBefore: cursor });
+      const res = await apiFetch<MemberChatsResponse>(`/api/team-admin/member-chats?${qs}`);
+      const page = res.selected?.portalThread;
+      const older = page?.thread ?? [];
+      setThread((shown) => prependOlder(older, shown));
+      setAtStart(portalAtStart(older, page?.windowSize ?? portal.windowSize));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not load older messages');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <details className="rounded-lg border border-border bg-card text-card-foreground">
+      <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">
+        <Archive className="size-3.5" aria-hidden />
+        Earlier team chat (before their member login)
+        <span className="font-normal">· read only</span>
+      </summary>
+      <div className="flex flex-col gap-3 border-t border-border/60 px-3 py-3">
+        <p className="text-xs text-muted-foreground">
+          Their chat on the old team code. The member does not see it here, and the agent does not
+          read it.
+        </p>
+        {!atStart && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="self-center text-muted-foreground"
+            disabled={loading}
+            onClick={() => void loadOlder()}
+          >
+            {loading ? <Loader2 className="animate-spin" /> : null}
+            Load older
+          </Button>
+        )}
+        {thread.length === 0 ? (
+          <p className="text-center text-xs text-muted-foreground">No messages.</p>
+        ) : (
+          <ThreadMessages thread={thread} />
+        )}
+      </div>
+    </details>
+  );
+}
+
 // ── Tab panels (each owns its query) ────────────────────────────────────────
 
 function Tab({
@@ -744,6 +814,14 @@ function MemberChatsTab({ login }: { login?: string }) {
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
                   <div className="flex w-full flex-col gap-3 p-4">
+                    {selected.portalThread && (
+                      <PortalThread
+                        // A fresh section (and paging state) per login.
+                        key={`${selected.loginId}:${selected.portalThread.contactId}`}
+                        loginId={selected.loginId}
+                        portal={selected.portalThread}
+                      />
+                    )}
                     {selected.thread.length === 0 ? (
                       <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
                         {member.name} has not chatted yet.
