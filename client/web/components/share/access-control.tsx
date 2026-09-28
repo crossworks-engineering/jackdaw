@@ -6,6 +6,7 @@ import { Check, Copy, Loader2, Share2 } from 'lucide-react';
 import type {
   AccessItemView,
   AccessLevel,
+  AccessLoweredView,
   AccessNodeUpdate,
   AccessNodeView,
 } from '@mantle/client-types';
@@ -22,15 +23,12 @@ import {
   LEVEL_LABEL,
   LEVEL_MEANING,
   LEVEL_ORDER,
-  alsoLoweredOf,
   closureAbove,
   closureBelow,
-  embedsFollowIn,
   embedsSharedWith,
   isAccessLevel,
   queryKeysForType,
   showsLink,
-  type AccessLoweredView,
 } from '@/lib/access-levels';
 
 /**
@@ -162,8 +160,9 @@ export function AccessControl({
       refreshScreens(res.item.type);
       for (const type of new Set(changed.map((i) => i.type))) refreshScreens(type);
       if (current.current !== id) return;
-      const also = alsoLoweredOf(res);
-      setLastLowered(also && also.length > 0 ? { nodeId: id, items: also } : null);
+      // `alsoLowered` is absent from brains before 0.232.314.
+      const also = res.alsoLowered ?? [];
+      setLastLowered(also.length > 0 ? { nodeId: id, items: also } : null);
       const lowered = new Map(changed.map((i) => [i.id, i]));
       setState({
         nodeId: id,
@@ -224,7 +223,8 @@ export function AccessControl({
   const above: AccessItemView[] = view ? closureAbove(view.closure, level) : [];
   const below: AccessItemView[] = view ? closureBelow(view.closure, level) : [];
   // The item's embeds follow it on this brain: nothing to offer, only to say.
-  const follows = !!view && embedsFollowIn(view);
+  // `embedsFollow` is absent from brains before 0.232.314.
+  const follows = view?.embedsFollow === true;
   const willShare: AccessItemView[] =
     view && choice ? embedsSharedWith(follows, view.closure, choice) : [];
   const shownLowered = lastLowered?.nodeId === nodeId ? lastLowered.items : [];
