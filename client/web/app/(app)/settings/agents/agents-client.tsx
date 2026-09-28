@@ -19,6 +19,8 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Input } from '@mantle/web-ui/ui/input';
+import { Label } from '@mantle/web-ui/ui/label';
+import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
 import {
   Select,
@@ -52,6 +54,12 @@ import { ModelsTab } from './models-tab';
 import { BackupRouteSection, MemorySection, NONE, RouteHostFields } from './agent-form-sections';
 import { ContextWindowHint, DelegatePicker, SkillPicker, ToolGroupPicker } from './agent-pickers';
 import { useModelCatalog } from './use-model-catalog';
+import {
+  agentDeleteOutcome,
+  agentDeletePath,
+  type AgentDeleteResponse,
+  type ConversationMode,
+} from './agent-delete';
 import {
   ROLES,
   defaultsForRole,
@@ -107,6 +115,12 @@ export function AgentsClient() {
   // stored row matches what everything actually renders.
   const { avatarStyle } = useAvatarStyle();
   const [deleteTarget, setDeleteTarget] = useState<AgentSummary | null>(null);
+  // Keep is the safe default and is re-armed every time the dialog opens.
+  const [deleteConversation, setDeleteConversation] = useState<ConversationMode>('keep');
+  const openDelete = (a: AgentSummary) => {
+    setDeleteConversation('keep');
+    setDeleteTarget(a);
+  };
   const [saving, setSaving] = useState(false);
 
   // All data is client-fetched against `/api/**` (Phase 2 · Task 4) — no
@@ -513,13 +527,17 @@ export function AgentsClient() {
   const confirmDelete = async () => {
     const a = deleteTarget;
     if (!a) return;
+    const mode = deleteConversation;
+    let res: AgentDeleteResponse;
     try {
-      await apiSend(`/api/agents/${a.id}`, 'DELETE');
+      res = await apiSend<AgentDeleteResponse>(agentDeletePath(a.id, mode), 'DELETE');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed.');
       return;
     }
-    toast.success(`Deleted ${a.name}`);
+    const outcome = agentDeleteOutcome(a.name, mode, res);
+    if (outcome.warn) toast.info(outcome.message);
+    else toast.success(outcome.message);
     if (editing?.mode === 'edit' && editing.agent.id === a.id) closeDialog();
     await invalidateAgentQueries(queryClient);
   };
@@ -722,7 +740,7 @@ export function AgentsClient() {
                             variant="ghost"
                             size="sm"
                             className="text-muted-foreground hover:text-destructive-ink"
-                            onClick={() => setDeleteTarget(editing.agent)}
+                            onClick={() => openDelete(editing.agent)}
                           >
                             <Trash2 /> Delete
                           </Button>
@@ -1539,15 +1557,41 @@ export function AgentsClient() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{deleteTarget?.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This cannot be undone. Choose what happens to its conversation.
+            </AlertDialogDescription>
           </AlertDialogHeader>
+          <RadioGroup
+            aria-label="Conversation"
+            value={deleteConversation}
+            onValueChange={(v) => setDeleteConversation(v as ConversationMode)}
+          >
+            <div className="flex items-start gap-2">
+              <RadioGroupItem id="agent_delete_keep" value="keep" className="mt-0.5" />
+              <Label htmlFor="agent_delete_keep" className="grid gap-0.5 font-normal">
+                <span className="text-sm font-medium">Keep conversation</span>
+                <span className="text-xs text-muted-foreground">
+                  The chat stays in the brain. Replay can still find it, but no screen can open it.
+                </span>
+              </Label>
+            </div>
+            <div className="flex items-start gap-2">
+              <RadioGroupItem id="agent_delete_conversation" value="delete" className="mt-0.5" />
+              <Label htmlFor="agent_delete_conversation" className="grid gap-0.5 font-normal">
+                <span className="text-sm font-medium">Delete conversation</span>
+                <span className="text-xs text-muted-foreground">
+                  Remove every message and conversation summary of this agent.
+                </span>
+              </Label>
+            </div>
+          </RadioGroup>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={confirmDelete}
             >
-              Delete
+              {deleteConversation === 'delete' ? 'Delete agent and chat' : 'Delete agent'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

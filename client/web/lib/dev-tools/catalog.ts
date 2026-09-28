@@ -108,7 +108,13 @@ export const API_CATALOG: CatalogGroup[] = [
       d: 'All fields optional; 404 if not found.',
       b: '{\n  "name": "Renamed agent",\n  "enabled": true\n}',
     },
-    { n: 'Delete agent', m: 'DELETE', p: '/api/agents/{id}' },
+    {
+      n: 'Delete agent',
+      m: 'DELETE',
+      p: '/api/agents/{id}',
+      d: 'conversation=keep (default) leaves its chat in the brain with no agent; conversation=delete removes its messages and conversation digests too.',
+      q: [{ key: 'conversation', description: 'keep | delete' }],
+    },
     {
       n: 'Manage persona notes (legacy)',
       m: 'POST',
