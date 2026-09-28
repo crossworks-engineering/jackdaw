@@ -51,20 +51,34 @@ export const PAGE_DOC: Doc = {
 };
 
 /** What a member may call: its own routes, and the few the brain answers
- *  for every login or for nobody in particular. Everything else under /api/
- *  is an admin route (the brain refuses a member there), recorded so a spec
- *  can assert none was called. */
+ *  for every login or for nobody in particular (the public invite routes and
+ *  the token sign-in among them). Everything else under /api/ is an admin
+ *  route (the brain refuses a member there), recorded so a spec can assert
+ *  none was called. */
 const MEMBER_OK = [
   /^\/api\/member\//,
   /^\/api\/version$/,
   /^\/api\/appearance(\/|$)/,
   /^\/api\/auth\/change-password$/,
+  /^\/api\/auth\/invite\//,
+  /^\/api\/auth\/token$/,
 ];
 const isAdminOnly = (path: string) =>
   path.startsWith('/api/') && !MEMBER_OK.some((re) => re.test(path));
 
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
+
+/** Member invites (Phase 6). GOOD previews and redeems; TEAM is an old
+ *  8-character team code whose contact has an open invite (previews and
+ *  redeems); STALE previews but was used meanwhile, so accept refuses it (the
+ *  uniform 401). Any other code previews as the uniform 404. */
+export const INVITE_GOOD_CODE = 'GoodCode2345abcd';
+export const INVITE_TEAM_CODE = 'Xy7kPq2M';
+export const INVITE_STALE_CODE = 'StaleCode234abcd';
+export const INVITE_EMAIL = 'sam@example.com';
+export const INVITE_NAME = 'Sam Botha';
+export const INVITE_SITE = 'Field Office';
 
 const PNG_1PX = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -83,6 +97,10 @@ export type MockMemberApi = {
   memberAssetCalls: string[];
   /** Every password change the page sent, in order. */
   passwordChanges: { oldPassword: string; newPassword: string }[];
+  /** Every invite accept the page sent, in order, with the answer's status. */
+  inviteAccepts: { code: string; password: string; status: number }[];
+  /** Every token sign-in the page sent (the split client after an accept). */
+  tokenSignIns: { email: string; password: string }[];
   /** What GET /api/version answers; set `contractVersion` to fake a brain
    *  on another wire contract. */
   version: { version: string; contractVersion?: number };
@@ -115,6 +133,8 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     adminCalls: [],
     memberAssetCalls: [],
     passwordChanges: [],
+    inviteAccepts: [],
+    tokenSignIns: [],
     version: { version: 'mock' },
     close: async () => undefined,
   };
@@ -205,6 +225,41 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       }
       password = body.newPassword;
       return json(res, 200, { ok: true });
+    }
+    // The public invite routes (server/web/app/api/auth/invite in mantle).
+    if (path.startsWith('/api/auth/invite/') && path !== '/api/auth/invite/accept') {
+      const code = decodeURIComponent(path.slice('/api/auth/invite/'.length));
+      if ([INVITE_GOOD_CODE, INVITE_TEAM_CODE, INVITE_STALE_CODE].includes(code)) {
+        return json(res, 200, {
+          email: INVITE_EMAIL,
+          displayName: INVITE_NAME,
+          siteName: INVITE_SITE,
+        });
+      }
+      return json(res, 404, { error: 'Invite not found.' });
+    }
+    if (path === '/api/auth/invite/accept' && method === 'POST') {
+      const body = JSON.parse(await readBody(req)) as { code: string; password: string };
+      const answer = (status: number, out: unknown) => {
+        state.inviteAccepts.push({ code: body.code, password: body.password, status });
+        return json(res, status, out);
+      };
+      if (typeof body.password !== 'string' || body.password.length < 8) {
+        return answer(400, { error: 'Choose a password of at least 8 characters.' });
+      }
+      if (body.code !== INVITE_GOOD_CODE && body.code !== INVITE_TEAM_CODE) {
+        return answer(401, { error: 'This invite is not valid. Ask for a new one.' });
+      }
+      password = body.password;
+      return answer(200, { ok: true, email: INVITE_EMAIL });
+    }
+    if (path === '/api/auth/token' && method === 'POST') {
+      const body = JSON.parse(await readBody(req)) as { email: string; password: string };
+      state.tokenSignIns.push({ email: body.email, password: body.password });
+      if (body.email !== INVITE_EMAIL || body.password !== password) {
+        return json(res, 401, { error: 'Invalid email or password.' });
+      }
+      return json(res, 200, { token: 'member-bearer-token' });
     }
     if (path === '/api/member/space' && method === 'GET') {
       const items = url.searchParams.get('kind') === 'page' ? [row()] : [];
