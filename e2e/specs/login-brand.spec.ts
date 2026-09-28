@@ -125,7 +125,9 @@ test.describe('login branding', () => {
 
     const email = visitorPage.getByLabel('Email');
     await expect(email).toBeVisible();
-    await expect(visitorPage.getByLabel('Password')).toBeVisible();
+    // Exact: the SecretInput eye toggle is labelled "Show password", and a
+    // substring match resolves to both it and the field.
+    await expect(visitorPage.getByLabel('Password', { exact: true })).toBeVisible();
     await expect(visitorPage.getByRole('button', { name: /^sign in$/i })).toBeVisible();
     // The first-run gate resolves client-side and defaults to "sign in" — the
     // create-account copy is for a genuinely fresh install.

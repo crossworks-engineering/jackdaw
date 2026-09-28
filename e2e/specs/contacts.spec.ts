@@ -5,8 +5,8 @@ import { ARTIFACTS_DIR } from '../lib/env';
  * `/contacts`, ported to the Tasks standard (phase 2a).
  *
  * Contacts is a different shape from Events on purpose: there is no read view,
- * the detail pane IS the form, and its boolean flag lives in the header as a
- * Switch (the settings-editor convention §8 keeps). So this pins the parts of
+ * the detail pane IS the form, and its header carries no flag (the Team member
+ * Switch left when users became the team). So this pins the parts of
  * the standard that survive that shape — the `<MasterDetail>` scaffold, the §8
  * header, and §6b reaching a repeating field group.
  */
@@ -43,8 +43,9 @@ test.describe('contacts', () => {
       await expect(del).toBeVisible();
       await expect(del).toHaveText('');
 
-      // The header flag stays a Switch (settings-editor convention).
-      await expect(detail.getByRole('switch', { name: /Team member/ })).toBeVisible();
+      // No team switch: users are the team, managed on the Users screen, so a
+      // contact no longer carries a membership flag in its header.
+      await expect(detail.getByRole('switch', { name: /Team member/ })).toHaveCount(0);
 
       // §6: verb + noun, and no text-swap to "Saving…" while in flight.
       await expect(detail.getByRole('button', { name: 'Save contact' })).toBeVisible();

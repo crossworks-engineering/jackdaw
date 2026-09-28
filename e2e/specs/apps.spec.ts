@@ -43,7 +43,10 @@ test.describe('apps', () => {
       await ownerPage.goto('/apps');
 
       const list = ownerPage.locator('[data-testid="list"]');
-      const search = ownerPage.getByPlaceholder('Search apps…');
+      // The folder tree's search box (a brain with /api/app-nav, which the
+      // e2e brain always is). The flat list's "Search apps…" box is only the
+      // fallback for a brain before app nav.
+      const search = ownerPage.getByRole('searchbox', { name: 'Search apps' });
       await expect(list).toBeVisible();
       await expect(search).toBeVisible();
 
@@ -86,7 +89,7 @@ test.describe('apps', () => {
       // after a reload with no handle left to drag it back — unrecoverable
       // without clearing localStorage.
       await ownerPage.reload();
-      await expect(ownerPage.getByPlaceholder('Search apps…')).toBeVisible();
+      await expect(search).toBeVisible();
       await expect.poll(widthOf, 'a collapsed width was saved and reloaded').toBeGreaterThan(300);
     });
   });

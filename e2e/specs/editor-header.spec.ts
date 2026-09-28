@@ -64,7 +64,10 @@ test.describe('editor header layout', () => {
       await ownerPage.getByRole('button', { name: 'Focus mode' }).click();
       await expect(ownerPage.getByRole('link', { name: /home$/ })).toBeHidden();
       await ownerPage.getByRole('link', { name: 'All pages' }).click();
-      await expect(ownerPage).toHaveURL(/\/pages(\?|$)/);
+      // The e2e client is `next dev`, and nothing before this spec has opened
+      // the /pages list, so the first visit compiles the route. On a CI runner
+      // that alone can outlast the default 5s.
+      await expect(ownerPage).toHaveURL(/\/pages(\?|$)/, { timeout: 30_000 });
       await expect(ownerPage.getByRole('link', { name: /home$/ })).toBeVisible();
     } finally {
       await ownerApi.delete(`/api/pages/${row.id}`);
