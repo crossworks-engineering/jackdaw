@@ -206,8 +206,13 @@ export function spaceClient(base: SpaceApiBase = MEMBER_API_BASE) {
   const own = (id: string) => ownItemPath(id, base);
   return {
     base,
-    create: (body: { type: 'page' | 'note' | 'draw' | 'table'; title: string }) =>
-      apiSend<{ item: SpaceItemRow }>(`${base}/space`, 'POST', body),
+    /** A note may take its text in the same call. */
+    create: (body: { type: 'page' | 'note' | 'draw' | 'table'; title: string; content?: string }) =>
+      apiFetch<{ item: SpaceItemRow }>(`${base}/space`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: memberWriteJson(body),
+      }),
     /** One own item; a table reads one tab (`tabId`, else its first). */
     item: (id: string, tabId?: string | null) =>
       apiFetch<SpaceItem>(`${own(id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`),

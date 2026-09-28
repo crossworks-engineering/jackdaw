@@ -18,7 +18,7 @@ function fakeClient() {
   return {
     log,
     bodies,
-    create: async (body: { type: string; title: string }) => {
+    create: async (body: { type: string; title: string; content?: string }) => {
       log.push(`create ${body.type}`);
       bodies.push(body);
       return { item: { id: 'new-1' } as never };
@@ -76,19 +76,31 @@ describe('Keep private in the create flows', () => {
     },
   );
 
-  it("a kept-private note takes its text in right after (a page's does not)", async () => {
+  it("a kept-private note takes its text in the one create call (a page's does not)", async () => {
     const c = fakeClient();
     const href = await createPrivateItem('note', { title: 'N', content: '# hi' }, c);
-    expect(c.log).toEqual(['create note', 'patch new-1']);
-    expect(c.bodies[1]).toEqual({ content: '# hi' });
+    // One write: a refused text can no longer leave an empty note behind.
+    expect(c.log).toEqual(['create note']);
+    expect(c.bodies[0]).toEqual({ type: 'note', title: 'N', content: '# hi' });
     expect(href).toBe('/notes?space=private&id=new-1');
 
     const empty = fakeClient();
     await createPrivateItem('note', { title: 'N', content: '' }, empty);
-    expect(empty.log).toEqual(['create note']);
+    expect(empty.bodies[0]).toEqual({ type: 'note', title: 'N' });
     const page = fakeClient();
     await createPrivateItem('page', { title: 'P', content: 'ignored' }, page);
-    expect(page.log).toEqual(['create page']);
+    expect(page.bodies[0]).toEqual({ type: 'page', title: 'P' });
+  });
+
+  it('a refused note text makes no note at all', async () => {
+    const c = fakeClient();
+    c.create = async () => {
+      throw new Error('Too long.');
+    };
+    await expect(createPrivateItem('note', { title: 'N', content: 'x' }, c)).rejects.toThrow(
+      'Too long.',
+    );
+    expect(c.log).toEqual([]);
   });
 
   it('a private upload goes to the private space and opens there', async () => {

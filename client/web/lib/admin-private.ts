@@ -53,15 +53,20 @@ export function acceptedBrainHref(kind: SpaceKind, id: string, folderPath?: stri
 /**
  * "Keep private" in a create flow: make the item in the admin's private
  * space (never the brain route) and answer the Private view that opens it.
- * A note's text goes in right after, the way its editor saves.
+ * A note's text goes in the same create call (the route takes it for a
+ * note): with a second write, a refused text (too long, an embed) left an
+ * empty private note behind, and Create again made a second one.
  */
 export async function createPrivateItem(
   kind: CreatableKind,
   input: { title: string; content?: string },
-  client: Pick<AdminSpaceClient, 'create' | 'patch'> = adminSpace,
+  client: Pick<AdminSpaceClient, 'create'> = adminSpace,
 ): Promise<string> {
-  const { item } = await client.create({ type: kind, title: input.title.trim() });
-  if (kind === 'note' && input.content) await client.patch(item.id, { content: input.content });
+  const { item } = await client.create({
+    type: kind,
+    title: input.title.trim(),
+    ...(kind === 'note' && input.content ? { content: input.content } : {}),
+  });
   return privateViewHref(kind, item.id);
 }
 
