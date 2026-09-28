@@ -4,6 +4,8 @@ import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
+import { RoleSwitch } from '@/components/member/viewer-role';
+import { MemberGoToList } from '@/components/member/member-go-to-list';
 
 /**
  * Universal node permalink — `/n/<id>`. The one canonical, type-agnostic deep
@@ -17,6 +19,11 @@ import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
  * screen that edits/displays it. Keeping the map HERE means tools stay
  * type-blind (they only ever hold an id) and links survive a surface's URL
  * shape changing.
+ *
+ * A member login cannot read /api/nodes (admins only), and cites the same
+ * links (the team agent's `nodeUrl`): for a member the id is found in their
+ * sources instead (Mine, Team drafts, the Library, Accepted) and opens on
+ * that kind's member screen (MemberGoToList).
  */
 function surfaceFor(type: string, id: string): string {
   const enc = encodeURIComponent(id);
@@ -55,6 +62,14 @@ function surfaceFor(type: string, id: string): string {
 
 export default function NodePermalink({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  return (
+    <RoleSwitch member={<MemberGoToList id={id} />}>
+      <OwnerPermalink id={id} />
+    </RoleSwitch>
+  );
+}
+
+function OwnerPermalink({ id }: { id: string }) {
   const router = useRouter();
 
   const nodeQuery = useQuery({

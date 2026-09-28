@@ -20,11 +20,23 @@ export const MEMBER_HINT_COOKIE = 'mantle_member';
  */
 export const MEMBER_APP_PREFIXES: readonly string[] = [...MEMBER_KIND_PATHS, '/apps'];
 
-/** A path a member may open: the home, the member app screens, public
- *  paths. Chat is the assistant dock, on any of them (the old /m is gone). */
+/** Links a member follows that are not screens: `/n/<id>`, the permalink the
+ *  team agent cites its sources with (and Library pages link each other
+ *  with). For a member it finds the item's source and kind and moves on to
+ *  that kind's screen (components/member/member-go-to-list.tsx). */
+export const MEMBER_LINK_PREFIXES: readonly string[] = ['/n'];
+
+/** A path a member may open: the home, the member app screens, the item
+ *  permalink, public paths. Chat is the assistant dock, on any of them (the
+ *  old /m is gone). */
 export function memberMayOpen(pathname: string, publicPrefixes: readonly string[] = []): boolean {
   const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
-  return pathname === '/' || MEMBER_APP_PREFIXES.some(under) || publicPrefixes.some(under);
+  return (
+    pathname === '/' ||
+    MEMBER_APP_PREFIXES.some(under) ||
+    MEMBER_LINK_PREFIXES.some(under) ||
+    publicPrefixes.some(under)
+  );
 }
 
 /** Owner paths a hinted member is sent away from (to the member home). Pure,

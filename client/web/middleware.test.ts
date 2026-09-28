@@ -98,3 +98,23 @@ describe('middleware: the retired team portal', () => {
     expect(res.headers.get('x-middleware-request-x-mantle-member-surface')).toBeNull();
   });
 });
+
+describe('middleware: a member follows an item link', () => {
+  const member = { mantle_authed: '1', mantle_member: '1' };
+
+  it('lets a hinted member open /n/<id> (the team agent cites sources so)', () => {
+    expect(location(middleware(request('/n/55555555-5555-4555-8555-555555555555', member)))).toBeNull();
+  });
+
+  it('lets a hinted member open /notes/<id> and /tables/<id>', () => {
+    for (const path of ['/notes/abc', '/tables/abc']) {
+      expect(location(middleware(request(path, member))), path).toBeNull();
+    }
+  });
+
+  it('still sends a hinted member off an admin path that only starts with n', () => {
+    for (const path of ['/nodes/abc/history', '/n-other']) {
+      expect(new URL(location(middleware(request(path, member)))!).pathname, path).toBe('/');
+    }
+  });
+});

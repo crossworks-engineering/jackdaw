@@ -3,45 +3,74 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { probeMemberItem, resolveMemberSource, workspaceQuery } from '@/lib/member-space';
+import { Button } from '@mantle/web-ui/ui/button';
+import { memberItemHref, probeMemberItem, resolveMemberItem } from '@/lib/member-space';
 
-const LIST_NAME: Record<string, string> = { '/pages': 'Pages', '/draw': 'Draw' };
+const LIST_NAME: Record<string, string> = {
+  '/pages': 'Pages',
+  '/notes': 'Notes',
+  '/draw': 'Draw',
+  '/tables': 'Tables',
+};
 
-/** A member opening an item's own route (/pages/<id>, /draw/<id>) lands on
- *  the kind's member screen with the item selected: members have no separate
- *  detail routes (their editors live in the list's detail pane). The link may
- *  point at an own item, a teammate's shared one or a Library item, so the
- *  source is found first (Mine, then Team drafts, then the Library); an id no
- *  source has says so here instead of opening an empty Mine pane. */
-export function MemberGoToList({ path, id }: { path: string; id: string }) {
+/** A member opening an item's own route (/pages/<id>, /draw/<id>,
+ *  /notes/<id>, /tables/<id>) or its permalink (/n/<id>, which the team
+ *  agent cites) lands on the kind's member screen with the item selected:
+ *  members have no separate detail routes (their editors live in the list's
+ *  detail pane), and /api/nodes answers admins only. The link may point at an
+ *  own item, a teammate's shared one, a Library item or one an admin
+ *  accepted, so the source is found first (Mine, then Team drafts, the
+ *  Library, Accepted), and with it the item's kind; an id no source has says
+ *  so here instead of opening an empty Mine pane. `path` is the kind's screen
+ *  the route named; a permalink names none. */
+export function MemberGoToList({ path, id }: { path?: string; id: string }) {
   const router = useRouter();
-  // The id no source had (a new id starts the search over).
-  const [missingId, setMissingId] = useState<string | null>(null);
-  const missing = missingId === id;
+  // What became of which id (a new id, or Try again, starts over).
+  const [outcome, setOutcome] = useState<{ id: string; state: 'missing' | 'failed' } | null>(
+    null,
+  );
+  const [attempt, setAttempt] = useState(0);
+  const state = outcome?.id === id ? outcome.state : null;
   useEffect(() => {
     let live = true;
-    void resolveMemberSource(probeMemberItem(id)).then((src) => {
+    void resolveMemberItem(probeMemberItem(id)).then((found) => {
       if (!live) return;
-      if (!src) {
-        setMissingId(id);
-        return;
-      }
-      router.replace(`${path}?${workspaceQuery('', { src, id })}`);
+      const href = found ? memberItemHref(found, id, path) : null;
+      if (href) router.replace(href);
+      else setOutcome({ id, state: found ? 'failed' : 'missing' });
     });
     return () => {
       live = false;
     };
-  }, [router, path, id]);
+  }, [router, path, id, attempt]);
+  const back = path ?? '/';
+  const backName = path ? `Back to ${LIST_NAME[path] ?? 'the list'}` : 'Back to your home';
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-      {missing ? (
+      {state === 'missing' ? (
         <>
           <p className="text-sm text-muted-foreground" role="status">
             This item is gone, or it is not shared with you.
           </p>
-          <Link href={path} className="text-sm underline underline-offset-4">
-            Back to {LIST_NAME[path] ?? 'the list'}
+          <Link href={back} className="text-sm underline underline-offset-4">
+            {backName}
           </Link>
+        </>
+      ) : state === 'failed' ? (
+        <>
+          <p className="text-sm text-muted-foreground" role="status">
+            Could not open this item just now.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setOutcome(null);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Try again
+          </Button>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">Opening…</p>

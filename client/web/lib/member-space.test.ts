@@ -5,7 +5,10 @@ import {
   commentsOpen,
   isEditable,
   memberUploadRefusal,
+  memberItemHref,
+  memberItemKind,
   refusalMessage,
+  resolveMemberItem,
   resolveMemberSource,
   reviewListPath,
   acceptedPlace,
@@ -166,6 +169,85 @@ describe('resolveMemberSource', () => {
     const down = found(['library'], { source: 'team', err: new TypeError('Failed to fetch') });
     await expect(resolveMemberSource(down.probe)).resolves.toBe('mine');
     expect(down.asked).toEqual(['mine', 'team']);
+  });
+});
+
+describe('resolveMemberItem (a link to an item: /n/<id>, /notes/<id>, ...)', () => {
+  const nf = () => new ApiError('Not found.', 404, { error: 'Not found.' });
+  // What each source answers for one item: Mine and Team drafts a row and a
+  // body, the Library and Accepted the item itself.
+  const reads: Record<SpaceSource, (type: string) => unknown> = {
+    mine: (type) => ({ row: { id: 'x', type }, body: { type } }),
+    team: (type) => ({ row: { id: 'x', type }, body: { type } }),
+    library: (type) => ({ item: { id: 'x', type } }),
+    accepted: (type) => ({ item: { id: 'x', type } }),
+  };
+  const at = (where: SpaceSource, type: string) => async (source: SpaceSource) => {
+    if (source !== where) throw nf();
+    return reads[source](type);
+  };
+
+  it.each([
+    ['mine', 'page'],
+    ['team', 'draw'],
+    ['library', 'note'],
+    ['accepted', 'table'],
+    ['library', 'file'],
+  ] as const)('finds a %s %s with its kind', async (source, kind) => {
+    await expect(resolveMemberItem(at(source, kind))).resolves.toEqual({ source, kind });
+  });
+
+  it('answers null when no source has it', async () => {
+    await expect(
+      resolveMemberItem(async () => {
+        throw nf();
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('answers Mine with no kind when a source fails another way', async () => {
+    await expect(
+      resolveMemberItem(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    ).resolves.toEqual({ source: 'mine', kind: null });
+  });
+
+  it('reads the kind from either wrapper, and nothing else', () => {
+    expect(memberItemKind({ row: { type: 'note' } })).toBe('note');
+    expect(memberItemKind({ item: { type: 'table' } })).toBe('table');
+    expect(memberItemKind({ item: { type: 'task' } })).toBeNull();
+    expect(memberItemKind({})).toBeNull();
+    expect(memberItemKind(null)).toBeNull();
+  });
+});
+
+describe('memberItemHref', () => {
+  const ID = '55555555-5555-4555-8555-555555555555';
+
+  it("opens the item on its kind's screen, from its source", () => {
+    expect(memberItemHref({ source: 'library', kind: 'page' }, ID)).toBe(
+      `/pages?src=library&id=${ID}`,
+    );
+    expect(memberItemHref({ source: 'mine', kind: 'note' }, ID)).toBe(`/notes?id=${ID}`);
+    expect(memberItemHref({ source: 'team', kind: 'table' }, ID, '/tables')).toBe(
+      `/tables?src=team&id=${ID}`,
+    );
+    expect(memberItemHref({ source: 'accepted', kind: 'file' }, ID)).toBe(
+      `/files?src=accepted&id=${ID}`,
+    );
+  });
+
+  it("follows the kind over the route's own screen", () => {
+    // /notes/<id> for what is a page: the page opens where pages open.
+    expect(memberItemHref({ source: 'library', kind: 'page' }, ID, '/notes')).toBe(
+      `/pages?src=library&id=${ID}`,
+    );
+  });
+
+  it("falls back to the route's screen when the kind is unknown, else nowhere", () => {
+    expect(memberItemHref({ source: 'mine', kind: null }, ID, '/notes')).toBe(`/notes?id=${ID}`);
+    expect(memberItemHref({ source: 'mine', kind: null }, ID)).toBeNull();
   });
 });
 

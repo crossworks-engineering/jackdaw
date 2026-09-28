@@ -31,6 +31,9 @@ export const PAGE_TITLE = 'Field notes';
 /** A Library page (a brain item at the team level), not in Mine. */
 export const LIBRARY_ID = '55555555-5555-4555-8555-555555555555';
 export const LIBRARY_TITLE = 'Team handbook';
+/** A Library NOTE, for the item links (/notes/<id>, /n/<id>). */
+export const LIBRARY_NOTE_ID = '88888888-8888-4888-8888-888888888888';
+export const LIBRARY_NOTE_TITLE = 'Gate codes';
 /** A page this member wrote and an admin accepted into the brain at the
  *  ADMIN level: gone from Mine and from the Library, still readable by its
  *  author through /api/member/accepted. */
@@ -300,6 +303,20 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
             type: 'doc',
             content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Read me.' }] }],
           },
+        },
+      });
+    }
+    if (path === `/api/member/library/${LIBRARY_NOTE_ID}` && method === 'GET') {
+      return json(res, 200, {
+        item: {
+          id: LIBRARY_NOTE_ID,
+          type: 'note',
+          title: LIBRARY_NOTE_TITLE,
+          icon: null,
+          summary: null,
+          audience: 'team',
+          updatedAt: now,
+          content: 'Ask at the front desk.',
         },
       });
     }

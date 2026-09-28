@@ -23,6 +23,7 @@ import type {
   MemberSpaceSharing,
   NodeComment,
 } from '@mantle/client-types';
+import { MEMBER_ITEM_KINDS, MEMBER_KIND } from './member-kinds';
 import { formatBytes } from './upload-progress';
 import { dropRescue, keepRescue } from './member-rescue';
 import type { AcceptInput, AcceptResult } from './member-review';
@@ -307,26 +308,56 @@ export function workspaceNavMode(
 
 /**
  * Which source an item id opens from, for a link to its own route
- * (/pages/<id>, /draw/<id>): Mine first, then Team drafts, the Library, and
- * last what the member wrote and an admin accepted (at any level).
- * `probe` reads the item from one source. A 404 (or a 400 for an id that is
- * no item's) means "not in this source"; any other failure stops the search
- * and answers Mine, whose screen says it could not load the item. Null when
- * no source has it.
+ * (/pages/<id>, /draw/<id>, /notes/<id>, /tables/<id>, /n/<id>): Mine first,
+ * then Team drafts, the Library, and last what the member wrote and an admin
+ * accepted (at any level). `probe` reads the item from one source and answers
+ * what that source sent, so the item's kind comes with it. A 404 (or a 400
+ * for an id that is no item's) means "not in this source"; any other failure
+ * stops the search and answers Mine with no kind, whose screen says it could
+ * not load the item. Null when no source has it.
  */
-export async function resolveMemberSource(
+export async function resolveMemberItem(
   probe: (source: SpaceSource) => Promise<unknown>,
-): Promise<SpaceSource | null> {
+): Promise<{ source: SpaceSource; kind: SpaceKind | null } | null> {
   for (const source of ['mine', 'team', 'library', 'accepted'] as const) {
     try {
-      await probe(source);
-      return source;
+      return { source, kind: memberItemKind(await probe(source)) };
     } catch (err) {
       if (err instanceof ApiError && (err.status === 404 || err.status === 400)) continue;
-      return 'mine';
+      return { source: 'mine', kind: null };
     }
   }
   return null;
+}
+
+/** `resolveMemberItem`, the source only. */
+export async function resolveMemberSource(
+  probe: (source: SpaceSource) => Promise<unknown>,
+): Promise<SpaceSource | null> {
+  return (await resolveMemberItem(probe))?.source ?? null;
+}
+
+/** The kind of one item read: Mine and Team drafts answer `{ row, body }`,
+ *  the Library and Accepted `{ item }`. Null for anything else. */
+export function memberItemKind(read: unknown): SpaceKind | null {
+  const r = (read ?? {}) as { row?: { type?: unknown }; item?: { type?: unknown } };
+  const type = r.row?.type ?? r.item?.type;
+  return typeof type === 'string' && (MEMBER_ITEM_KINDS as readonly string[]).includes(type)
+    ? (type as SpaceKind)
+    : null;
+}
+
+/** Where a resolved item opens: its kind's member screen with the source and
+ *  the item in the query. `fallbackPath` (the route the link named) serves
+ *  when the kind is unknown; null when there is neither. */
+export function memberItemHref(
+  found: { source: SpaceSource; kind: SpaceKind | null },
+  id: string,
+  fallbackPath?: string,
+): string | null {
+  const path = found.kind ? MEMBER_KIND[found.kind].path : fallbackPath;
+  if (!path) return null;
+  return `${path}?${workspaceQuery('', { src: found.source, id })}`;
 }
 
 /** The read `resolveMemberSource` probes with: one item from one source. */

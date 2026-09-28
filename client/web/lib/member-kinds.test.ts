@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND, MEMBER_KIND_PATHS } from './member-kinds';
 import { MEMBER_NAV } from './member-nav';
 import { MEMBER_APP_PREFIXES, memberMayOpen } from './member-surface';
+import { memberHome } from './member-destination';
 import { bundleSummary } from './member-review';
 
 describe('the one member kind map (audit M2)', () => {
@@ -14,6 +15,10 @@ describe('the one member kind map (audit M2)', () => {
   it('the route guard and the nav reach every kind’s screen, and Apps', () => {
     expect([...MEMBER_APP_PREFIXES]).toEqual([...MEMBER_KIND_PATHS, '/apps']);
     for (const p of MEMBER_KIND_PATHS) expect(memberMayOpen(`${p}/x`)).toBe(true);
+    // The item permalink the team agent cites, and a sign-in that carried it.
+    expect(memberMayOpen('/n/x')).toBe(true);
+    expect(memberHome('/n/x')).toBe('/n/x');
+    expect(memberMayOpen('/nodes/x/history')).toBe(false);
     const workspace = MEMBER_NAV.find((g) => g.label === 'Workspace')!.items;
     expect(workspace.map((i) => [i.name, i.href])).toEqual([
       ['Pages', '/pages'],
