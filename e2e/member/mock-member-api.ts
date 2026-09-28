@@ -277,13 +277,14 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     // sends first. Both answer ok, whatever the session.
     if ((path === '/api/auth/logout' || path === '/api/auth/mobile-logout') && method === 'POST') {
       const raw = await readBody(req);
-      let body: unknown = null;
-      try {
-        body = raw ? JSON.parse(raw) : null;
-      } catch {
-        body = raw;
-      }
-      state.logouts.push({ path, body });
+      const parse = (): unknown => {
+        try {
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return raw;
+        }
+      };
+      state.logouts.push({ path, body: parse() });
       return json(res, 200, { ok: true });
     }
     if (path === '/api/auth/token' && method === 'POST') {
