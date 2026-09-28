@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
 import { MemberWorkspace } from '@/components/member/member-workspace';
+import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { NotesClient } from './notes-client';
@@ -23,7 +24,9 @@ export default async function NotesPage() {
         }
       >
         <RoleSwitch member={<MemberWorkspace kind="note" />}>
-          <NotesClient />
+          <AdminSpaces kind="note">
+            <NotesClient />
+          </AdminSpaces>
         </RoleSwitch>
       </Suspense>
     </>

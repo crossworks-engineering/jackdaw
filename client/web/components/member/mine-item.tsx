@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
@@ -19,8 +20,17 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
-import { commentsOpen, isEditable, memberSpace, type SpaceItem } from '@/lib/member-space';
+import { acceptedBrainHref } from '@/lib/admin-private';
+import {
+  adminSpace,
+  commentsOpen,
+  isAdminSpace,
+  isEditable,
+  type SpaceItem,
+} from '@/lib/member-space';
+import { AcceptIntoBrainDialog } from '@/components/team-admin/review-dialogs';
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
+import { useSpaceApi } from './space-api';
 import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
 import { MemberDrawEditor } from './member-draw-editor';
@@ -35,17 +45,24 @@ import type { MemberEditorHandle } from './member-editor';
  * version (what teammates and a reviewer see), share it with the team or keep
  * it private, submit it for review or recall it, discuss it, delete it.
  * A submitted item is frozen: read-only until Recall, Accept or Return.
+ *
+ * Under an `adminSpace` provider it is an ADMIN's own private item (Phase
+ * 7): the same editors on the admin routes, Save version and Delete, and
+ * "Accept into brain" in place of sharing, review and the discussion, none
+ * of which an item only its admin sees has.
  */
 export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
+  const api = useSpaceApi();
+  const admin = isAdminSpace(api);
   const q = useQuery({
-    queryKey: ['member-space-item', 'mine', id],
+    queryKey: admin ? ['admin-space-item', id] : ['member-space-item', 'mine', id],
     // An editor that just closed on this item may still be saving what was
     // typed before it left: read after that save, not before it.
     queryFn: async () => {
       await memberSavesSettled(id);
       // A big save a reload cut off last time goes first (member-rescue.ts).
-      await replayRescue(id);
-      return memberSpace.get('mine', id);
+      await replayRescue(id, Date.now(), api.base);
+      return api.item(id);
     },
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
     // Always read on open, whatever the app's staleTime: the editor seeds
@@ -124,15 +141,23 @@ function MineItemLoaded({
   const { row, body } = item;
   const toast = useToast();
   const qc = useQueryClient();
+  const router = useRouter();
+  const api = useSpaceApi();
+  const admin = isAdminSpace(api);
   const editable = isEditable(row);
   const [title, setTitle] = useState(row.title);
   const refreshLists = useCallback(() => {
+    if (admin) {
+      void qc.invalidateQueries({ queryKey: ['admin-space-list'] });
+      return;
+    }
     void qc.invalidateQueries({ queryKey: ['member-space-list'] });
     void qc.invalidateQueries({ queryKey: ['member-home'] });
-  }, [qc]);
+  }, [admin, qc]);
   const refreshItem = useCallback(
-    () => void qc.invalidateQueries({ queryKey: ['member-space-item'] }),
-    [qc],
+    () =>
+      void qc.invalidateQueries({ queryKey: [admin ? 'admin-space-item' : 'member-space-item'] }),
+    [admin, qc],
   );
 
   // ── The editor (page, note, drawing, table) owns its working copy and its
@@ -168,7 +193,7 @@ function MineItemLoaded({
   const saveTitle = () => {
     const t = title.trim();
     if (t === row.title) return;
-    memberSpace
+    api
       .patch(row.id, { title: t })
       .then(() => {
         refreshLists();
@@ -180,7 +205,7 @@ function MineItemLoaded({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const remove = async () => {
     try {
-      await memberSpace.remove(row.id);
+      await api.remove(row.id);
       toast.success('Deleted.');
       refreshLists();
       onClose();
@@ -244,19 +269,44 @@ function MineItemLoaded({
         <div className="flex flex-wrap items-center gap-2">
           <StatusChip row={row} />
           <span className="flex-1" />
-          <SharingControl row={row} />
+          {admin ? null : <SharingControl row={row} />}
           {(body.type === 'page' || body.type === 'draw' || body.type === 'table') && editable ? (
             <Button
               size="sm"
               variant="outline"
               disabled={editorSaving || !editorUnsaved}
               onClick={() => void saveEditorVersion()}
-              title="Save a version: what teammates and a reviewer see"
+              title={
+                admin
+                  ? 'Save a version: what goes into the brain when you accept it'
+                  : 'Save a version: what teammates and a reviewer see'
+              }
             >
               <Save /> {editorSaving ? 'Saving…' : 'Save version'}
             </Button>
           ) : null}
-          <ReviewActions row={row} beforeSubmit={beforeSubmit} />
+          {admin ? (
+            <AcceptIntoBrainDialog
+              item={row}
+              triggerLabel="Accept into brain"
+              description={
+                <>
+                  “{row.title || 'Untitled'}” leaves your private space and becomes a brain item at
+                  the level you pick. Its saved version goes in.
+                </>
+              }
+              // The saved version goes in: what was typed is saved first.
+              beforeAccept={beforeSubmit}
+              accept={(input) => adminSpace.accept(row.id, input)}
+              onAccepted={(res, input) => {
+                refreshLists();
+                router.push(acceptedBrainHref(row.type, res.id, input.folderPath));
+              }}
+              errorMessage={spaceErrorMessage}
+            />
+          ) : (
+            <ReviewActions row={row} beforeSubmit={beforeSubmit} />
+          )}
           {editable ? (
             <Button
               size="icon-sm"
@@ -286,7 +336,7 @@ function MineItemLoaded({
 
         {editor}
 
-        {commentsOpen(row) ? <SpaceComments source="mine" id={row.id} /> : null}
+        {!admin && commentsOpen(row) ? <SpaceComments source="mine" id={row.id} /> : null}
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -294,7 +344,9 @@ function MineItemLoaded({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{row.title || 'Untitled'}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              It is removed from your space for good. This cannot be undone.
+              {admin
+                ? 'It is removed from your private space for good. This cannot be undone.'
+                : 'It is removed from your space for good. This cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

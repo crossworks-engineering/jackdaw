@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
 import { MemberWorkspace } from '@/components/member/member-workspace';
+import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { DrawsClient } from './draws-client';
@@ -24,7 +25,9 @@ export default async function DrawPage() {
         }
       >
         <RoleSwitch member={<MemberWorkspace kind="draw" />}>
-          <DrawsClient />
+          <AdminSpaces kind="draw">
+            <DrawsClient />
+          </AdminSpaces>
         </RoleSwitch>
       </Suspense>
     </>

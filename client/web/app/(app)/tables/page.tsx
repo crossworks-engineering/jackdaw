@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
 import { MemberWorkspace } from '@/components/member/member-workspace';
+import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { TablesShell } from './tables-shell';
 
@@ -21,7 +22,9 @@ export default async function TablesPage() {
       }
     >
       <RoleSwitch member={<MemberWorkspace kind="table" />}>
-        <TablesShell />
+        <AdminSpaces kind="table">
+          <TablesShell />
+        </AdminSpaces>
       </RoleSwitch>
     </Suspense>
   );
