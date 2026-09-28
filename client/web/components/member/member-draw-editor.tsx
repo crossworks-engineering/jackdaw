@@ -9,8 +9,8 @@ import type {
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ExcalidrawCanvas, type SceneChange } from '@/components/draw/excalidraw-canvas';
-import { memberSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
+import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
 
 type ExcalidrawModule = typeof import('@excalidraw/excalidraw');
@@ -68,6 +68,7 @@ export function MemberDrawEditor({
   } | null;
 }) {
   const toast = useToast();
+  const api = useSpaceApi();
   const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
   const modRef = useRef<ExcalidrawModule | null>(null);
   const sceneRef = useRef<Working>(EMPTY);
@@ -102,7 +103,7 @@ export function MemberDrawEditor({
     saved: EMPTY,
     rev: draw?.draftRev ?? 0,
     send: async (scene, rev) => {
-      const res = await memberSpace.draft(id, {
+      const res = await api.draft(id, {
         scene: sceneBody(scene, withoutImages(scene.elements)),
         if_rev: rev,
       });
@@ -182,7 +183,7 @@ export function MemberDrawEditor({
         svg = undefined;
       }
       svgMissing = !svg;
-      const saved = await memberSpace.save(id, {
+      const saved = await api.save(id, {
         scene: sceneBody(scene, live),
         ...(svg ? { svg } : {}),
         if_rev: rev,
@@ -205,7 +206,7 @@ export function MemberDrawEditor({
     if (svgMissing) toast.error('Version saved, but the preview could not be made.');
     else toast.success('Version saved.');
     return true;
-  }, [id, onSaved, queue, report, toast]);
+  }, [api, id, onSaved, queue, report, toast]);
 
   useEffect(() => {
     handleRef.current = { flush: () => queue.flush(), saveVersion };

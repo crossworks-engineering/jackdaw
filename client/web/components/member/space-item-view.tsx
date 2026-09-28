@@ -8,7 +8,8 @@ import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageView } from '@/components/page-editor/page-view';
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
-import { bytesPath, type SpaceItem } from '@/lib/member-space';
+import { bytesPath, isAdminSpace, type SpaceItem } from '@/lib/member-space';
+import { useSpaceApi } from './space-api';
 
 /**
  * A personal item, read-only: a teammate's shared item (its SAVED version,
@@ -28,11 +29,15 @@ export function SpaceItemView({
   working?: boolean;
 }) {
   const asset = useAssetUrl();
+  const api = useSpaceApi();
+  // An admin's private item reads its bytes from the admin routes, and the
+  // brain items it embeds from their own (owner) routes, never the member ones.
+  const admin = isAdminSpace(api);
   const { row, body } = item;
   switch (body.type) {
     case 'page': {
       const doc = (working ? (body.page.draft ?? body.page.doc) : body.page.doc) as JSONContent;
-      return <PageView content={doc} mapAssetPath={memberAssetPath} />;
+      return <PageView content={doc} mapAssetPath={admin ? undefined : memberAssetPath} />;
     }
     case 'note':
       return (
@@ -42,7 +47,7 @@ export function SpaceItemView({
       return (
         <DrawPresenter
           view={{ title: row.title, hasSvg: true }}
-          src={asset(memberDrawUrlPath(row.id))}
+          src={asset(admin ? `/api/draws/${row.id}/svg` : memberDrawUrlPath(row.id))}
           chrome="embedded"
         />
       );
@@ -66,7 +71,7 @@ export function SpaceItemView({
             mimeType: body.file.mimeType,
             size: body.file.sizeBytes,
           }}
-          assetUrl={() => asset(bytesPath(source, row.id))}
+          assetUrl={() => asset(admin ? api.bytesPath(row.id) : bytesPath(source, row.id))}
           chrome="embedded"
         />
       );

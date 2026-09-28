@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { PageEditor } from '@/components/page-editor/page-editor';
-import { memberSpace } from '@/lib/member-space';
+import { isAdminSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
+import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
 
 type Doc = Record<string, unknown>;
@@ -30,6 +31,10 @@ export function MinePageEditor({
   page: { doc: Doc; draft: Doc | null; draftRev?: number };
 }) {
   const toast = useToast();
+  const api = useSpaceApi();
+  // An admin's private page may embed any brain item the admin can see, so
+  // it keeps the owner editor's embeds (see PageEditor `privateItem`).
+  const admin = isAdminSpace(api);
   const initial = (page.draft ?? page.doc) as Doc;
   const docRef = useRef<Doc>(initial);
   // The server holds a draft the saved version does not have yet.
@@ -41,7 +46,7 @@ export function MinePageEditor({
     saved: initial,
     rev: page.draftRev ?? 0,
     send: async (doc, rev) => {
-      const res = await memberSpace.draft(id, { doc, if_rev: rev });
+      const res = await api.draft(id, { doc, if_rev: rev });
       return { rev: res.draft_rev };
     },
     debounceMs: AUTOSAVE_MS,
@@ -56,7 +61,7 @@ export function MinePageEditor({
 
   const saveVersion = useCallback(async (): Promise<boolean> => {
     const res = await queue.commit(async (doc, rev) => {
-      const saved = await memberSpace.save(id, { doc, if_rev: rev });
+      const saved = await api.save(id, { doc, if_rev: rev });
       return { rev: saved.body.type === 'page' ? (saved.body.page.draftRev ?? rev) : rev };
     });
     if (!res.ok) {
@@ -71,7 +76,7 @@ export function MinePageEditor({
     toast.success('Version saved.');
     onSaved();
     return true;
-  }, [id, onSaved, onUnsavedChange, queue, toast]);
+  }, [api, id, onSaved, onUnsavedChange, queue, toast]);
 
   useEffect(() => {
     handleRef.current = { flush: () => queue.flush(), saveVersion };
@@ -88,7 +93,8 @@ export function MinePageEditor({
 
   return (
     <PageEditor
-      member
+      member={!admin}
+      privateItem={admin}
       pageId={id}
       content={initial as JSONContent}
       onChange={(doc) => {

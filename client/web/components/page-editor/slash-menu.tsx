@@ -346,10 +346,18 @@ const ITEMS: SlashItem[] = [
  *  the brain. Matched by id so renaming an item's title cannot re-show it. */
 export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['sub-page', 'image', 'drawing', 'file']);
 
+/** Slash items an admin's private item may not use: a sub-page is a brain
+ *  page parented to the page it sits in, and a private item is not one. */
+export const PRIVATE_HIDDEN: ReadonlySet<string> = new Set(['sub-page']);
+
 /** Filter the command list by the text typed after the slash. */
-export function getSlashItems(query: string, opts: { member?: boolean } = {}): SlashItem[] {
+export function getSlashItems(
+  query: string,
+  opts: { member?: boolean; privateItem?: boolean } = {},
+): SlashItem[] {
   const q = query.trim().toLowerCase();
-  const items = opts.member ? ITEMS.filter((i) => !MEMBER_HIDDEN.has(i.id)) : ITEMS;
+  const hidden = opts.member ? MEMBER_HIDDEN : opts.privateItem ? PRIVATE_HIDDEN : null;
+  const items = hidden ? ITEMS.filter((i) => !hidden.has(i.id)) : ITEMS;
   if (!q) return items;
   return items.filter(
     (i) => i.title.toLowerCase().includes(q) || (i.keywords ?? []).some((k) => k.includes(q)),

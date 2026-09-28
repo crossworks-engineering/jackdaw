@@ -28,13 +28,16 @@ export interface SlashCommandOptions {
   /** A member login (member logins): no command that creates or uploads into
    *  the brain (sub-page, image, drawing, file); those routes refuse a member. */
   member: boolean;
+  /** An admin's private item (member logins Phase 7): it is not a brain page,
+   *  so no sub-page can hang under it. Everything else stays. */
+  privateItem: boolean;
 }
 
 export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
 
   addOptions() {
-    return { pageId: null, member: false };
+    return { pageId: null, member: false, privateItem: false };
   },
 
   // Mirror the page id into storage so a slash item's command (which only
@@ -57,7 +60,11 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         command: ({ editor, range, props }) => {
           props.command({ editor, range });
         },
-        items: ({ query }) => getSlashItems(query, { member: this.options.member }),
+        items: ({ query }) =>
+          getSlashItems(query, {
+            member: this.options.member,
+            privateItem: this.options.privateItem,
+          }),
         render: () => {
           let component: ReactRenderer<SlashMenuHandle, SlashMenuProps> | null = null;
           let popup: HTMLDivElement | null = null;
