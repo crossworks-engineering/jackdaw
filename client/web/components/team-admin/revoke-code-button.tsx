@@ -4,8 +4,8 @@
  * Revoke one contact's team code (the old team-code portal). The code stops
  * working at once: every team request re-checks it, so an open session ends
  * mid-use. There is no way to mint a new code here on purpose: new people get
- * a login (Settings > Users). Server: POST /api/contacts/[id]/team
- * { action: 'disable' }.
+ * a member invite (Invite as member, beside this button). Server:
+ * POST /api/contacts/[id]/team { action: 'disable' }.
  */
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -56,7 +56,7 @@ export function RevokeCodeButton({ contactId, name }: { contactId: string; name:
             <AlertDialogTitle>Revoke {name}&rsquo;s team code?</AlertDialogTitle>
             <AlertDialogDescription>
               The code stops working now, and any open session ends. Their forum posts stay. You
-              cannot issue a new code: give them a login in Settings &gt; Users instead.
+              cannot issue a new code: invite them as a member instead.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

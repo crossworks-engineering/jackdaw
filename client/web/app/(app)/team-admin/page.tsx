@@ -3,8 +3,9 @@
 /**
  * /team-admin — the owner's window into the external team surface.
  *
- * Tabs: Code holders · Member chats · Review · Topics · Requests · Shared
- * links · Settings. Review = member items submitted for review, and what
+ * Tabs: Code holders · Invites · Member chats · Review · Topics · Requests ·
+ * Shared links · Settings. Invites = member invites (member logins Phase 6):
+ * an invite link makes a member login, for a code holder or anyone by email. Review = member items submitted for review, and what
  * deactivated logins left shared (member logins Phase 4). Code holders = contacts holding an old team code (forum, team
  * links); Member chats = member LOGINS' chats with the team agent (users are
  * the team). The 1:1 team-code chat itself was removed 2026-09-26; its old
@@ -62,6 +63,7 @@ import {
 } from 'lucide-react';
 import { MemberActivityPager } from '@/components/team-admin/member-activity-pager';
 import { RevokeCodeButton } from '@/components/team-admin/revoke-code-button';
+import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
@@ -181,7 +183,8 @@ function TeamTabs({
   active,
   openRequestCount,
 }: {
-  active: 'members' | 'chats' | 'review' | 'topics' | 'requests' | 'shares' | 'settings';
+  active:
+    'members' | 'invites' | 'chats' | 'review' | 'topics' | 'requests' | 'shares' | 'settings';
   openRequestCount: number;
 }) {
   // Waiting items only: what deactivated logins left behind is not urgent.
@@ -210,6 +213,7 @@ function TeamTabs({
     // now that the sidebar has one. Screen readers get the same benefit.
     <nav aria-label="Team admin" className="flex items-center gap-1 border-b border-border px-3">
       {tab('Code holders', '/team-admin', active === 'members')}
+      {tab('Invites', '/team-admin?view=invites', active === 'invites')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
       {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
       {tab('Topics', '/team-admin?view=topics', active === 'topics')}
@@ -224,9 +228,9 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
   if (members.length === 0) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        No one holds a team code. New people get a login in{' '}
-        <Link href="/settings/users" className="underline">
-          Settings &gt; Users
+        No one holds a team code. Invite new people from{' '}
+        <Link href="/team-admin?view=invites" className="underline">
+          Invites
         </Link>
         .
       </div>
@@ -564,6 +568,10 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
                     >
                       Contact →
                     </Link>
+                    <InviteMemberButton
+                      contactId={selectedMember.contactId}
+                      name={selectedMember.contactName}
+                    />
                     <RevokeCodeButton
                       contactId={selectedMember.contactId}
                       name={selectedMember.contactName}
@@ -643,7 +651,7 @@ function MembersTab({ contact, apage }: { contact?: string; apage?: string }) {
                 <div className="text-center text-sm text-muted-foreground">
                   <Users className="mx-auto mb-2 size-6" />
                   <p>No one holds a team code.</p>
-                  <p className="mt-1 text-xs">New people get a login in Settings &gt; Users.</p>
+                  <p className="mt-1 text-xs">Invite new people from the Invites tab.</p>
                 </div>
               </div>
             )}
@@ -1347,6 +1355,17 @@ export default function TeamAdminPage({
 }) {
   const { contact, view, topic, q, page, apage, login, item } = use(searchParams);
   if (view === 'chats') return <MemberChatsTab login={login} />;
+  if (view === 'invites')
+    return (
+      <Tab active="invites">
+        {/* One measured column, like Settings: a list with no detail pane. */}
+        <div className="min-h-0 flex-1">
+          <MeasuredPane id="team-admin-invites">
+            <InvitesPanel />
+          </MeasuredPane>
+        </div>
+      </Tab>
+    );
   if (view === 'review')
     return (
       <Tab active="review">
