@@ -23,7 +23,7 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { isOldClientLink, kindLabel, linkLevels } from '@/lib/access-levels';
-import type { SharedLinkRow as AllSharesRow } from '@/lib/contract-next';
+import type { SharedLinkRow as AllSharesRow } from '@mantle/client-types';
 import { LinkLevel } from './link-level';
 
 /** One active link from GET /api/team-admin/shares. Every link is open

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClientReport, ClientReportAckResponse } from './contract-next';
+import type { ClientReport, ClientReportAckResponse } from '@mantle/client-types';
 
 /**
  * "What clients see" (client logins C1): the ack sends exactly the ids on

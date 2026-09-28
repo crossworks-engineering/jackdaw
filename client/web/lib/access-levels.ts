@@ -13,7 +13,7 @@
  */
 import type { AccessItemView, AccessLevel } from '@mantle/client-types';
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import type { ShareRetiredReason } from './contract-next';
+import type { ShareRetiredReason } from '@mantle/client-types';
 
 /** Highest first: the order the Access control shows them in. */
 export const LEVEL_ORDER: readonly AccessLevel[] = ['admin', 'team', 'client', 'public'];

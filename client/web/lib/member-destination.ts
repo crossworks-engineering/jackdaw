@@ -1,5 +1,5 @@
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
-import type { LoginRefused, LoginRefusedReason } from './contract-next';
+import type { LoginRefused, LoginRefusedReason } from '@mantle/client-types';
 import { MEMBER_HINT_COOKIE, memberMayOpen } from './member-surface';
 
 /** Set or clear the UX-only member hint cookie (see MEMBER_HINT_COOKIE). */

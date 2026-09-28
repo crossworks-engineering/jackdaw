@@ -21,7 +21,7 @@ import type {
   ClientReportAck,
   ClientReportAckResponse,
   ClientReportRef,
-} from './contract-next';
+} from '@mantle/client-types';
 
 export const CLIENT_REPORT_KEY = ['team-admin', 'client-report'] as const;
 

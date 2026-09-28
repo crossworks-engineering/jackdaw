@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ClientReport } from '../../lib/contract-next';
+import type { ClientReport } from '@mantle/client-types';
 import { ClientReportView } from './client-report';
 
 /**

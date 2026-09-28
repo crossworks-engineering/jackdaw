@@ -10,7 +10,7 @@
  * Pure: no React, so every answer is unit-tested (shell-role.test.ts).
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import type { LoginKind } from './contract-next';
+import type { LoginKind } from '@mantle/client-types';
 import { isLoginRefusal, loginRefusalReason } from './member-destination';
 
 /** Who the shell is rendering for. The brain's own login roles. */
