@@ -318,7 +318,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
           {app.publishedBuild?.ok && (
             <AccessControl
               nodeId={app.id}
-              hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A client or public link can only read the app’s own data."
+              hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data."
             />
           )}
         </div>

@@ -68,6 +68,13 @@ describe('reviewErrorMessage', () => {
     expect(reviewErrorMessage(new ApiError('Pick a level.', 400, {}), 'x')).toBe('Pick a level.');
     expect(reviewErrorMessage(new Error('boom'), 'fallback')).toBe('fallback');
   });
+
+  it("shows Accept's confirm-level refusal in the brain's words (client logins C1)", () => {
+    const words =
+      'A client wrote this. At client level every client login reads it, and what it embeds goes down with it. Confirm that, or accept it at team.';
+    const err = new ApiError(words, 409, { error: words, reason: 'confirm-level' });
+    expect(reviewErrorMessage(err, 'Could not accept this item.')).toBe(words);
+  });
 });
 
 describe('the accept dialog: the parent page', () => {

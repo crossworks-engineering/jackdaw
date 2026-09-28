@@ -280,7 +280,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                 {selected.hasBuild && (
                   <AccessControl
                     nodeId={selected.id}
-                    hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A client or public link can only read the app’s own data."
+                    hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data."
                   />
                 )}
                 {/* Focus mode: the shell drops its chrome and the list column

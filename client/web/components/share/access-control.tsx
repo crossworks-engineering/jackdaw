@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Loader2, Share2 } from 'lucide-react';
+import { Loader2, Share2 } from 'lucide-react';
 import type {
   AccessItemView,
   AccessLevel,
@@ -12,7 +12,6 @@ import type {
 } from '@mantle/client-types';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Input } from '@mantle/web-ui/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
@@ -23,6 +22,7 @@ import {
   LEVEL_LABEL,
   LEVEL_MEANING,
   LEVEL_ORDER,
+  accessErrorMessage,
   closureAbove,
   closureBelow,
   embedsSharedWith,
@@ -30,15 +30,19 @@ import {
   queryKeysForType,
   showsLink,
 } from '@/lib/access-levels';
+import { AccessLinkBox } from './access-link-box';
 
 /**
  * The owner's Access control for one item: who can see it, as one level
  * (Admin / Team / Client / Public). The level is the truth and the server
  * keeps the item's share link in step: none at admin or team (members read a
- * team item by level, signed in with their own logins), an open link at
- * client and public, which is the only time the link shows here. Replaces the
- * old ShareControl. There is no team link to make (member logins Phase 6
- * stage 6): setting an item to Team is how it reaches members.
+ * team item by level, signed in with their own logins), none at client
+ * (signed-in clients and the team, client logins C1: setting an item to
+ * client removes its open link), and an open link at public, the only time
+ * the link shows here. Replaces the old ShareControl. There is no team link
+ * to make (member logins Phase 6 stage 6): setting an item to Team is how it
+ * reaches members. A link on a client item is refused by the brain
+ * (`client-links-retired`), and the toast says its words.
  *
  * Embedding means sharing: lowering a page, drawing or note is the admin's
  * decision for the item AND what it embeds (images, files, drawings, child
@@ -176,7 +180,7 @@ export function AccessControl({
       setChoice(null);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
-      toast.error(e instanceof Error ? e.message : 'Could not change who can see this');
+      toast.error(accessErrorMessage(e, 'Could not change who can see this'));
     } finally {
       setBusy(false);
     }
@@ -201,7 +205,7 @@ export function AccessControl({
       refreshScreens('page');
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return;
-      toast.error(e instanceof Error ? e.message : 'Could not change the sub-pages');
+      toast.error(accessErrorMessage(e, 'Could not change the sub-pages'));
     } finally {
       setBusy(false);
     }
@@ -305,6 +309,11 @@ export function AccessControl({
                   }))}
                 />
               )}
+              {choice && view.share && !showsLink(choice) && (
+                // Client (like Team and Admin) takes no link: applying it
+                // removes this one (client logins C1).
+                <p className="text-xs text-muted-foreground">Its link will stop working.</p>
+              )}
               {choice && (
                 <div className="flex items-center justify-end gap-2">
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => setChoice(null)}>
@@ -320,47 +329,34 @@ export function AccessControl({
               )}
             </div>
 
-            {view.canLower && showsLink(level) && (
-              <div className="border-t border-border pt-3">
-                {view.share ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      readOnly
-                      value={absoluteUrl}
-                      className="h-8 text-xs"
-                      aria-label="Link"
-                      onFocus={(e) => e.currentTarget.select()}
-                    />
-                    <Button size="icon-xs" variant="outline" onClick={copy} aria-label="Copy link">
-                      {copied ? <Check /> : <Copy />}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">This item has no link.</p>
-                )}
+            <AccessLinkBox
+              level={level}
+              canLower={view.canLower}
+              share={view.share}
+              url={absoluteUrl}
+              copied={copied}
+              onCopy={() => void copy()}
+            />
+
+            {/* Sub-pages ride the link, so only where a link lives: public. An
+                old client link cannot be extended (client-links-retired). */}
+            {view.item.type === 'page' && view.share && showsLink(level) && view.childCount > 0 && (
+              <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Include sub-pages</p>
+                  <p className="text-xs text-muted-foreground">
+                    The {view.childCount} page{view.childCount === 1 ? '' : 's'} nested under this
+                    one take its level. Off puts them back to admin.
+                  </p>
+                </div>
+                <Switch
+                  checked={view.share.cascade}
+                  disabled={busy}
+                  onCheckedChange={(v) => void setCascade(v)}
+                  aria-label="Include sub-pages"
+                />
               </div>
             )}
-
-            {view.item.type === 'page' &&
-              view.share &&
-              level !== 'admin' &&
-              view.childCount > 0 && (
-                <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">Include sub-pages</p>
-                    <p className="text-xs text-muted-foreground">
-                      The {view.childCount} page{view.childCount === 1 ? '' : 's'} nested under this
-                      one take its level. Off puts them back to admin.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={view.share.cascade}
-                    disabled={busy}
-                    onCheckedChange={(v) => void setCascade(v)}
-                    aria-label="Include sub-pages"
-                  />
-                </div>
-              )}
 
             {shownLowered.length > 0 && (
               <div className="border-t border-border pt-3">

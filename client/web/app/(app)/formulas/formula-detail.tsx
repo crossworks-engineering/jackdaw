@@ -302,16 +302,17 @@ export function FormulaDetail({
           {cite ? <p className="mt-1 text-xs text-muted-foreground">{cite}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* The shared page is a live calculator: at Client or Public,
-              anyone with the link can put their own numbers in without an
-              account. There is no team link (member logins Phase 6 stage 6),
-              and a formula is not a member kind (MEMBER_KIND), so no member
-              screen lists one at Team. Until one does, the link must be
-              passed along directly. */}
+          {/* The shared page is a live calculator: at Public, anyone with
+              the link can put their own numbers in without an account
+              (Client takes no link since client logins C1). There is no
+              team link (member logins Phase 6 stage 6), and a formula is
+              not a member kind (MEMBER_KIND), so no member screen lists one
+              at Team. Until one does, the link must be passed along
+              directly. */}
           <AccessControl
             nodeId={formula.id}
             iconOnly
-            hint="Members don’t see formulas in their screens yet: at Client or Public, send the link directly."
+            hint="Members don’t see formulas in their screens yet: at Public, send the link directly."
           />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil />

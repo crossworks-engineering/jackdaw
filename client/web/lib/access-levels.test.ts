@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { AccessItemView } from '@mantle/client-types';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   AUDIENCE_TITLE,
   LEVEL_MEANING,
+  OLD_CLIENT_LINK,
+  accessErrorMessage,
+  isOldClientLink,
+  kindLabel,
   LEVEL_ORDER,
   closureAbove,
   closureBelow,
@@ -36,8 +41,43 @@ describe('access levels', () => {
     expect(isAccessLevel(undefined)).toBe(false);
   });
 
-  it('shows a link only at client and public', () => {
-    expect(LEVEL_ORDER.filter(showsLink)).toEqual(['client', 'public']);
+  it('shows a link only at public (client logins C1: client takes no link)', () => {
+    expect(LEVEL_ORDER.filter(showsLink)).toEqual(['public']);
+  });
+
+  it('says client means signed-in clients (and the team), never an open link', () => {
+    expect(LEVEL_MEANING.client).toMatch(/^Signed-in clients \(and the team\)/);
+    expect(AUDIENCE_TITLE.client).toMatch(/signed-in clients \(and the team\)/);
+    for (const text of [LEVEL_MEANING.client, AUDIENCE_TITLE.client]) {
+      expect(text).not.toMatch(/anyone with the link|open link/i);
+    }
+    // Public keeps its link.
+    expect(LEVEL_MEANING.public).toMatch(/anyone with the link/i);
+  });
+
+  it('marks a live link on a client item as an old client link, and nothing else', () => {
+    expect(isOldClientLink('client')).toBe(true);
+    for (const l of ['admin', 'team', 'public', undefined] as const) {
+      expect(isOldClientLink(l), String(l)).toBe(false);
+    }
+    expect(OLD_CLIENT_LINK).toBe('Old client link: clients will sign in instead');
+  });
+
+  it("says a refused client link in the brain's words", () => {
+    const words = 'Client items have no open link: clients sign in to read them.';
+    const refused = new ApiError(words, 400, { error: words, reason: 'client-links-retired' });
+    expect(accessErrorMessage(refused, 'fallback')).toBe(words);
+    // With no message of its own, it still says why rather than the fallback.
+    const bare = new ApiError('', 400, { reason: 'client-links-retired' });
+    expect(accessErrorMessage(bare, 'fallback')).toMatch(/clients sign in/);
+    expect(accessErrorMessage(new ApiError('Not found.', 404), 'fallback')).toBe('Not found.');
+    expect(accessErrorMessage('nope', 'fallback')).toBe('fallback');
+  });
+
+  it('names each kind, and passes an unknown one through', () => {
+    expect(kindLabel('branch')).toBe('Folder');
+    expect(kindLabel('draw')).toBe('Drawing');
+    expect(kindLabel('journal')).toBe('journal');
   });
 
   it('says a team item reaches members by their logins, not a link or the old workspace', () => {
