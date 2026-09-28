@@ -20,10 +20,7 @@ export function AudienceBadge({
 }) {
   if (hub) {
     return (
-      <Badge
-        className={cn('shrink-0', className)}
-        title="Home app: members see it as their home"
-      >
+      <Badge className={cn('shrink-0', className)} title="Home app: members see it as their home">
         hub
       </Badge>
     );
