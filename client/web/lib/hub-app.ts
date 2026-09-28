@@ -1,23 +1,21 @@
 /**
- * The home app designation's answer (PUT /api/team-admin/hub-app), read the
- * way both brains send it. Pure, so the rule is unit-tested (hub-app.test.ts).
+ * The home app designation's answer (PUT /api/team-admin/hub-app). Pure, so
+ * the rule is unit-tested (hub-app.test.ts).
  *
  * `levelChanged`: the app was at admin and the brain moved it to team, so
  * every member can now see and run it. No link is made: team links are
- * retired (member logins Phase 6 stage 6). A brain before 0.232.297 sends
- * only `modeChanged` (it meant the same move, plus a team-only link), and
- * the brain keeps sending it for one contract cycle.
+ * retired (member logins Phase 6 stage 6). The brain answers exactly
+ * `{ appId, levelChanged }`; the old `modeChanged` alias is retired and not
+ * read.
  */
 export type HubAppSetResponse = {
   appId?: string;
   levelChanged?: boolean;
-  /** Retired alias of `levelChanged`, for one contract cycle. */
-  modeChanged?: boolean;
 };
 
 /** Did designating move the app from admin to team? */
 export function hubAppLevelChanged(res: HubAppSetResponse | null | undefined): boolean {
-  return res?.levelChanged ?? res?.modeChanged ?? false;
+  return res?.levelChanged ?? false;
 }
 
 /** The toast after a home app is set. */

@@ -11,17 +11,15 @@
  * team portal chat, newest first, read only, each with "Invite as member".
  * Team codes are gone (brain migration 0178 dropped them; only an invite code
  * redeems now), so a row's "first message" is its first portal message and
- * there is no "code last used" (`tokenLastUsedAt` is always null, one
- * contract cycle). Member chats = member LOGINS' chats with the team agent
- * (users are the team).
+ * there is no "code last used". Member chats = member LOGINS' chats with the
+ * team agent (users are the team).
  *
  * The team portal (/team, /hub) and its forum are retired (member logins
  * Phase 6): the Topics tab, the forum columns and the upload queue went with
  * them. The forum's tables are dropped (brain migration 0177) and nothing on
  * this page offers an export any more; the forum's content lives on as the
- * admin-level Forum archive pages. The brain still answers `forum`, `posts`,
- * `authored` and `uploads` on these routes, always empty, for one contract
- * cycle; this page no longer reads them.
+ * admin-level Forum archive pages. These routes no longer answer any forum
+ * or upload parts, and every tab's `badges` is `{ openRequestCount }`.
  *
  * Data arrives per tab from GET /api/team-admin/{members,member-chats,
  * requests,shares,settings} via apiFetch (owner bearer cross-origin, cookie
@@ -78,7 +76,7 @@ function fmtWhen(iso: string | null): string {
 
 // ── Response shapes (Dates arrive as ISO strings over JSON) ─────────────────
 
-type Badges = { openRequestCount: number; openRequests: number; pendingUploadCount: number };
+type Badges = { openRequestCount: number };
 
 type MemberRow = TeamMemberActivity;
 

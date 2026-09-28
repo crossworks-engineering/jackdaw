@@ -1,20 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { hubAppLevelChanged, hubAppSetMessage } from './hub-app';
+import { hubAppLevelChanged, hubAppSetMessage, type HubAppSetResponse } from './hub-app';
+
+/** An answer carrying the retired alias, as a brain before 0.232.297 sent it. */
+const retired = (modeChanged: boolean) => ({ modeChanged }) as unknown as HubAppSetResponse;
 
 describe('hubAppLevelChanged', () => {
-  it('reads levelChanged (mantle 0.232.297 and later)', () => {
+  it('reads levelChanged', () => {
     expect(hubAppLevelChanged({ levelChanged: true })).toBe(true);
     expect(hubAppLevelChanged({ levelChanged: false })).toBe(false);
   });
 
-  it('prefers levelChanged over the retired modeChanged', () => {
-    expect(hubAppLevelChanged({ levelChanged: false, modeChanged: true })).toBe(false);
-    expect(hubAppLevelChanged({ levelChanged: true, modeChanged: false })).toBe(true);
-  });
-
-  it('falls back to modeChanged from an older brain', () => {
-    expect(hubAppLevelChanged({ modeChanged: true })).toBe(true);
-    expect(hubAppLevelChanged({ modeChanged: false })).toBe(false);
+  it('no longer reads the retired modeChanged alias', () => {
+    expect(hubAppLevelChanged(retired(true))).toBe(false);
+    expect(hubAppSetMessage(retired(true))).toBe(hubAppSetMessage({ levelChanged: false }));
   });
 
   it('is false when the brain says neither', () => {
@@ -31,12 +29,8 @@ describe('hubAppSetMessage', () => {
     expect(text).toMatch(/every team member/);
   });
 
-  it('says the same for an older brain that sends only modeChanged', () => {
-    expect(hubAppSetMessage({ modeChanged: true })).toBe(hubAppSetMessage({ levelChanged: true }));
-  });
-
   it('never promises a team-only link (team links are retired)', () => {
-    for (const res of [{ levelChanged: true }, { modeChanged: true }, { levelChanged: false }]) {
+    for (const res of [{ levelChanged: true }, { levelChanged: false }]) {
       expect(hubAppSetMessage(res)).not.toMatch(/link|members-only|members only/i);
     }
   });

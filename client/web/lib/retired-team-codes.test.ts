@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
  * Team codes are gone (member logins Phase 6, brain migration 0178 drops
  * `contact_team_tokens`): only a 16-character invite code redeems, on /invite
  * as everywhere. The Team admin tab that listed code holders now lists every
- * contact with old portal chat (Chat archive), and `tokenLastUsedAt` is
- * always null for one contract cycle. So no screen may offer a team code,
- * name code holders, or show when a code was last used.
+ * contact with old portal chat (Chat archive), and the brain no longer
+ * answers `tokenLastUsedAt` (it was always null). So no screen may offer a
+ * team code, name code holders, or show when a code was last used.
  *
  * Discovered, not declared: every non-test .ts/.tsx file under client/web and
  * packages is read with its comments stripped (a comment may tell the
