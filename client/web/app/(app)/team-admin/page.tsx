@@ -8,7 +8,8 @@
  * an invite link makes a member login, for a code holder or anyone by email.
  * Review = member items submitted for review, and what deactivated logins
  * left shared (member logins Phase 4). Code holders = contacts holding an old
- * team code (it still admits team-mode share links and redeems one invite);
+ * team code (it only redeems an invite now: team links and revoking a code
+ * are retired, member logins Phase 6 stage 6);
  * Member chats = member LOGINS' chats with the team agent (users are the
  * team). The 1:1 team-code chat was removed 2026-09-26; its old transcripts
  * stay as each code holder's Chat archive.
@@ -52,7 +53,6 @@ import {
   Loader2,
   Users,
 } from 'lucide-react';
-import { RevokeCodeButton } from '@/components/team-admin/revoke-code-button';
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { ForumArchiveBanner } from '@/components/team-admin/forum-archive-export';
@@ -468,10 +468,6 @@ function MembersTab({ contact }: { contact?: string }) {
                       Contact →
                     </Link>
                     <InviteMemberButton
-                      contactId={selectedMember.contactId}
-                      name={selectedMember.contactName}
-                    />
-                    <RevokeCodeButton
                       contactId={selectedMember.contactId}
                       name={selectedMember.contactName}
                     />
