@@ -4,8 +4,11 @@ import {
   AUDIENCE_TITLE,
   LEVEL_MEANING,
   LEVEL_ORDER,
+  alsoLoweredOf,
   closureAbove,
   closureBelow,
+  embedsFollowIn,
+  embedsSharedWith,
   isAbove,
   isAccessLevel,
   queryKeysForType,
@@ -68,5 +71,28 @@ describe('access levels', () => {
     expect(queryKeysForType('branch')).toEqual([['files']]);
     expect(queryKeysForType('formula')).toEqual([['formulas'], ['formula']]);
     expect(queryKeysForType('journal')).toEqual([]);
+  });
+
+  it('says what lowering will also share, only where the brain lowers embeds', () => {
+    const closure = [item('a', 'admin'), item('t', 'team'), item('p', 'public')];
+    expect(embedsSharedWith(true, closure, 'public').map((c) => c.id)).toEqual(['a', 't']);
+    expect(embedsSharedWith(true, closure, 'team').map((c) => c.id)).toEqual(['a']);
+    // Raising shares nothing.
+    expect(embedsSharedWith(true, closure, 'admin')).toEqual([]);
+    // A folder's contents do not follow it, and an older brain does not lower them.
+    expect(embedsSharedWith(false, closure, 'public')).toEqual([]);
+  });
+
+  it('reads whether embeds follow from the brain, absent meaning an older brain', () => {
+    expect(embedsFollowIn({ embedsFollow: true })).toBe(true);
+    expect(embedsFollowIn({ embedsFollow: false })).toBe(false);
+    expect(embedsFollowIn({})).toBe(false);
+  });
+
+  it('reads what the brain lowered, or null from a brain that does not say', () => {
+    const l = { id: 'f', type: 'file', title: 'f', from: 'admin', to: 'public' } as const;
+    expect(alsoLoweredOf({ alsoLowered: [l] })).toEqual([l]);
+    expect(alsoLoweredOf({ alsoLowered: [] })).toEqual([]);
+    expect(alsoLoweredOf({ lowered: [] })).toBeNull();
   });
 });

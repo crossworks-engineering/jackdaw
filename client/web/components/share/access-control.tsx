@@ -22,11 +22,15 @@ import {
   LEVEL_LABEL,
   LEVEL_MEANING,
   LEVEL_ORDER,
+  alsoLoweredOf,
   closureAbove,
   closureBelow,
+  embedsFollowIn,
+  embedsSharedWith,
   isAccessLevel,
   queryKeysForType,
   showsLink,
+  type AccessLoweredView,
 } from '@/lib/access-levels';
 
 /**
@@ -38,11 +42,18 @@ import {
  * old ShareControl. There is no team link to make (member logins Phase 6
  * stage 6): setting an item to Team is how it reaches members.
  *
- * Lowering an item does not lower what it embeds (a page's files and
- * drawings, a folder's contents). Those show as "still above" with one
- * explicit "Lower them too". The mirror: raising an item (back to admin, or
- * its link revoked elsewhere) leaves what it holds below it, so those show
- * too, with "Raise them too". Nothing follows an item on its own. Tasks,
+ * Embedding means sharing: lowering a page, drawing or note is the admin's
+ * decision for the item AND what it embeds (images, files, drawings, child
+ * pages), and the brain lowers them in the same write. So before the admin
+ * confirms a lower level, the control says how many embedded items will be
+ * shared too (the list on expand), and after it, what the brain lowered
+ * (`alsoLowered`). An embed still above the item (one an admin raised on
+ * purpose, or a kind that is admin only) is listed, never offered to lower.
+ * A folder's contents do not follow it: those show as "still above" with
+ * one explicit "Lower them too" (so do a page's embeds on a brain before
+ * embeds followed, whose GET has no `embedsFollow`). The mirror:
+ * raising an item (back to admin, or its link revoked elsewhere) leaves
+ * what it holds below it, so those show too, with "Raise them too". Tasks,
  * events and the other admin-only kinds stay at admin; an old link on one
  * can be removed here.
  *
@@ -83,6 +94,12 @@ export function AccessControl({
   const [choice, setChoice] = useState<AccessLevel | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // What the brain lowered with the item on the last change (`alsoLowered`),
+  // shown until the next pick or close.
+  const [lastLowered, setLastLowered] = useState<{
+    nodeId: string;
+    items: AccessLoweredView[];
+  } | null>(null);
   // The item on screen now; async work checks it before writing state.
   const current = useRef(nodeId);
   current.current = nodeId;
@@ -115,6 +132,7 @@ export function AccessControl({
   useEffect(() => {
     setChoice(null);
     setCopied(false);
+    setLastLowered(null);
     if (open) void load();
     else setState(null);
   }, [open, load]);
@@ -144,6 +162,8 @@ export function AccessControl({
       refreshScreens(res.item.type);
       for (const type of new Set(changed.map((i) => i.type))) refreshScreens(type);
       if (current.current !== id) return;
+      const also = alsoLoweredOf(res);
+      setLastLowered(also && also.length > 0 ? { nodeId: id, items: also } : null);
       const lowered = new Map(changed.map((i) => [i.id, i]));
       setState({
         nodeId: id,
@@ -203,6 +223,11 @@ export function AccessControl({
   const picked = choice ?? level;
   const above: AccessItemView[] = view ? closureAbove(view.closure, level) : [];
   const below: AccessItemView[] = view ? closureBelow(view.closure, level) : [];
+  // The item's embeds follow it on this brain: nothing to offer, only to say.
+  const follows = !!view && embedsFollowIn(view);
+  const willShare: AccessItemView[] =
+    view && choice ? embedsSharedWith(follows, view.closure, choice) : [];
+  const shownLowered = lastLowered?.nodeId === nodeId ? lastLowered.items : [];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -253,7 +278,10 @@ export function AccessControl({
                 disabled={busy || !view.canLower}
                 onValueChange={(v) => {
                   // Empty = a press on the picked item: keep the pick.
-                  if (isAccessLevel(v)) setChoice(v === level ? null : v);
+                  if (isAccessLevel(v)) {
+                    setChoice(v === level ? null : v);
+                    setLastLowered(null);
+                  }
                 }}
               >
                 {LEVEL_ORDER.map((l) => (
@@ -267,6 +295,16 @@ export function AccessControl({
                   ? LEVEL_MEANING[picked]
                   : 'Admin only. Only pages, notes, drawings, tables, files, folders, apps and formulas can be shared.'}
               </p>
+              {choice && willShare.length > 0 && (
+                <ItemList
+                  summary={`${willShare.length} embedded item${willShare.length === 1 ? '' : 's'} will be shared too`}
+                  items={willShare.map((c) => ({
+                    id: c.id,
+                    title: c.title,
+                    note: `${LEVEL_LABEL[c.audience]} to ${LEVEL_LABEL[choice]}`,
+                  }))}
+                />
+              )}
               {choice && (
                 <div className="flex items-center justify-end gap-2">
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => setChoice(null)}>
@@ -324,7 +362,41 @@ export function AccessControl({
                 </div>
               )}
 
-            {above.length > 0 && (
+            {shownLowered.length > 0 && (
+              <div className="border-t border-border pt-3">
+                <ItemList
+                  summary={`${shownLowered.length} embedded item${shownLowered.length === 1 ? '' : 's'} shared too`}
+                  items={shownLowered.map((l) => ({
+                    id: l.id,
+                    title: l.title,
+                    note: `${LEVEL_LABEL[l.from]} to ${LEVEL_LABEL[l.to]}`,
+                  }))}
+                />
+              </div>
+            )}
+
+            {above.length > 0 && follows && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground">
+                  {above.length} embedded item{above.length === 1 ? '' : 's'}{' '}
+                  {above.length === 1 ? 'stays' : 'stay'} above {LEVEL_LABEL[level]} (raised on
+                  purpose, or admin only), so people at this level and its link will not see{' '}
+                  {above.length === 1 ? 'it' : 'them'}:
+                </p>
+                <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
+                  {above.map((c) => (
+                    <li key={c.id} className="flex min-w-0 justify-between gap-2">
+                      <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {LEVEL_LABEL[c.audience]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {above.length > 0 && !follows && (
               <div className="space-y-2 border-t border-border pt-3">
                 <p className="text-xs text-muted-foreground">
                   {above.length} item{above.length === 1 ? '' : 's'} it{' '}
@@ -403,5 +475,29 @@ export function AccessControl({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** A count that expands to its items (a native disclosure: keyboard and
+ *  screen reader work without extra wiring). */
+function ItemList({
+  summary,
+  items,
+}: {
+  summary: string;
+  items: { id: string; title: string; note: string }[];
+}) {
+  return (
+    <details className="text-xs text-muted-foreground">
+      <summary className="cursor-pointer select-none">{summary}</summary>
+      <ul className="scrollbar-thin scrollbar-hair mt-1 max-h-28 space-y-0.5 overflow-y-auto">
+        {items.map((i) => (
+          <li key={i.id} className="flex min-w-0 justify-between gap-2">
+            <span className="min-w-0 truncate text-foreground">{i.title || 'Untitled'}</span>
+            <span className="shrink-0">{i.note}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

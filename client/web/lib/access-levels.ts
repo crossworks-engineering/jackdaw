@@ -52,6 +52,55 @@ export function showsLink(level: AccessLevel): boolean {
   return level === 'client' || level === 'public';
 }
 
+/**
+ * Whether the brain lowers this item's embeds with it (embedding means
+ * sharing, brain v0.232.311 on): lowering a page, drawing or note is the
+ * admin's decision for the item AND what it embeds (images, files, drawings,
+ * child pages), so the brain lowers them in the same write, and the control
+ * says what will be shared instead of offering "Lower them too". False for
+ * a folder, whose contents keep their own levels, and on an older brain,
+ * which answers without the field and lowers embeds only on request.
+ * TODO(mantle v0.232.311): read `AccessNodeView.embedsFollow` from
+ * @mantle/client-types once the pin carries it.
+ */
+export function embedsFollowIn(view: object): boolean {
+  return (view as { embedsFollow?: unknown }).embedsFollow === true;
+}
+
+/** What setting the item to `next` will also share: the embeds above `next`,
+ *  shown before the admin confirms. Nothing at admin, and nothing where the
+ *  embeds do not follow (a folder, an older brain). */
+export function embedsSharedWith(
+  follows: boolean,
+  closure: readonly AccessItemView[],
+  next: AccessLevel,
+): AccessItemView[] {
+  if (!follows || next === 'admin') return [];
+  return closureAbove(closure, next);
+}
+
+/**
+ * One item the brain lowered with the item that embeds it.
+ * TODO(mantle v0.232.311): take `AccessLoweredView` and
+ * `AccessNodeUpdate.alsoLowered` from @mantle/client-types once the pin
+ * carries them, and drop these local copies.
+ */
+export type AccessLoweredView = {
+  id: string;
+  type: string;
+  title: string;
+  from: AccessLevel;
+  to: AccessLevel;
+};
+
+/** The PATCH answer's `alsoLowered`, or null from a brain before embeds
+ *  followed (it answers without the field and lowers them only on "Lower
+ *  them too"). */
+export function alsoLoweredOf(res: object): AccessLoweredView[] | null {
+  const v = (res as { alsoLowered?: unknown }).alsoLowered;
+  return Array.isArray(v) ? (v as AccessLoweredView[]) : null;
+}
+
 /** The closure items (embeds, folder contents) that sit ABOVE `level`: people
  *  at `level` will not see them in the item. */
 export function closureAbove(
