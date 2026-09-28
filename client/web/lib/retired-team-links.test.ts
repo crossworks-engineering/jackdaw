@@ -46,4 +46,13 @@ describe('retired team links', () => {
   it('never revokes a team code (POST /api/contacts/:id/team is gone)', () => {
     expect(hits(/\/api\/contacts\/[^'"`\s]*\/team(?![-\w])/)).toEqual([]);
   });
+
+  it('never reads keptTeam from a share DELETE', () => {
+    expect(hits(/\bkeptTeam\b/)).toEqual([]);
+  });
+
+  it('never shows or asks for a team link mode', () => {
+    expect(hits(/\bmode\s*(===|!==|:)\s*'team'/)).toEqual([]);
+    expect(hits(/\bTeamPill\b/)).toEqual([]);
+  });
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, Copy, ExternalLink, Link2, Link2Off, Users } from 'lucide-react';
+import { Check, Copy, ExternalLink, Link2, Link2Off } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   AlertDialog,
@@ -21,6 +21,9 @@ import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 
+/** One active link from GET /api/team-admin/shares. Every link is open
+ *  (anyone with it can view): team links are retired (member logins Phase 6
+ *  stage 6), so the row's share `mode` is always 'public' and is not read. */
 export type SharedLinkRow = {
   id: string;
   path: string;
@@ -28,7 +31,6 @@ export type SharedLinkRow = {
   nodeType: string;
   title: string;
   icon: string | null;
-  mode: 'public' | 'team';
   cascade: boolean;
   createdAt: string;
   viewCount: number;
@@ -47,22 +49,15 @@ const TYPE_LABEL: Record<string, string> = {
   branch: 'Folder',
 };
 
-function TeamPill() {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
-      <Users className="size-2.5" aria-hidden /> team
-    </span>
-  );
-}
-
 /**
- * The owner's exposure registry: every active share link (public and team),
- * newest first — one glance answers "what can people outside see right now?".
+ * The owner's exposure registry: every active share link, newest first. One
+ * glance answers "what can people outside see right now?". A link is always
+ * open: members read team items by level with their own logins, not by link.
  *
  * Master-detail: the links as cards on the left, and the SELECTED link's real
- * `/s/…` page framed on the right — the preview is the server surface itself,
- * so it shows exactly what a visitor gets, team SSO gate included. Copy, open
- * and revoke live in the detail header; revocation updates locally.
+ * `/s/…` page framed on the right. The preview is the server surface itself,
+ * so it shows exactly what a visitor gets. Copy, open and revoke live in the
+ * detail header; revocation updates locally.
  */
 export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
   const toast = useToast();
@@ -147,7 +142,6 @@ export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
                         <span className="flex min-w-0 items-center gap-1.5">
                           {row.icon ? <span aria-hidden>{row.icon}</span> : null}
                           <ListCardTitle>{row.title}</ListCardTitle>
-                          {row.mode === 'team' && <TeamPill />}
                         </span>
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {formatDate(row.createdAt)}
@@ -175,7 +169,6 @@ export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
                     <h2 className="flex items-center gap-2 text-sm font-semibold">
                       {selected.icon ? <span aria-hidden>{selected.icon}</span> : null}
                       <span className="truncate">{selected.title}</span>
-                      {selected.mode === 'team' && <TeamPill />}
                     </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {TYPE_LABEL[selected.nodeType] ?? selected.nodeType}
@@ -216,10 +209,9 @@ export function SharedLinksPanel({ initial }: { initial: SharedLinkRow[] }) {
                     </Button>
                   </div>
                 </div>
-                {/* The share surface itself, framed — what a visitor actually
-                    sees at this link, team SSO gate included. Keyed so a
-                    selection change remounts rather than pushing iframe
-                    history. */}
+                {/* The share surface itself, framed: what a visitor actually
+                    sees at this link. Keyed so a selection change remounts
+                    rather than pushing iframe history. */}
                 <iframe
                   key={selected.id}
                   src={serverUrl(selected.path)}
