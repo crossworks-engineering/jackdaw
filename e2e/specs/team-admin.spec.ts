@@ -15,10 +15,18 @@ test.describe('team admin (owner, client origin)', () => {
     // Scoped to the tab strip: the sidebar now carries a "Settings" row of its
     // own (the settings hub), so an unscoped link-by-name is ambiguous.
     const tabs = ownerPage.getByRole('navigation', { name: 'Team admin' });
-    // Code holders tab (default): the roster pane header.
-    await expect(ownerPage.getByRole('heading', { name: 'Team-code holders' })).toBeVisible({
+    // Chat archive tab (default, the old Code holders URL): every contact with
+    // old portal chat. Team codes are gone (brain 0178), so nothing here says
+    // when a code was last used.
+    await expect(ownerPage.getByRole('heading', { name: 'Chat archive' })).toBeVisible({
       timeout: 30_000,
     });
+    await expect(tabs.getByRole('link', { name: 'Chat archive' })).toHaveAttribute(
+      'href',
+      '/team-admin',
+    );
+    await expect(tabs.getByRole('link', { name: 'Code holders' })).toHaveCount(0);
+    await expect(ownerPage.getByText(/code last used/i)).toHaveCount(0);
 
     // Member chats tab: member logins' chats with the team agent.
     await tabs.getByRole('link', { name: 'Member chats' }).click();
@@ -45,13 +53,13 @@ test.describe('team admin (owner, client origin)', () => {
     await expect(ownerPage.getByRole('heading', { name: 'Dashboard sections' })).toHaveCount(0);
 
     // The forum's Topics tab is gone with the retired portal (member logins
-    // Phase 6); its export to Pages stays, on Code holders.
+    // Phase 6), and so is its export (brain 0177 dropped the forum tables).
     await expect(tabs.getByRole('link', { name: /^Topics/ })).toHaveCount(0);
   });
 
-  test('Code holders and Member chats each remember their OWN width', async ({ ownerPage }) => {
+  test('Chat archive and Member chats each remember their OWN width', async ({ ownerPage }) => {
     // Two grids in one file. They could have shared a `MasterDetail` id, and
-    // that is exactly what this rules out: a code-holder roster and a member
+    // that is exactly what this rules out: a chat archive roster and a member
     // login list are different lengths, so a width dragged on one must not
     // follow the reader to the other.
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
@@ -77,7 +85,7 @@ test.describe('team admin (owner, client origin)', () => {
     });
     await ownerPage.mouse.up();
     const widened = await widthOf();
-    expect(widened, 'the Code holders divider did not move').toBeGreaterThan(before + 60);
+    expect(widened, 'the Chat archive divider did not move').toBeGreaterThan(before + 60);
 
     await ownerPage
       .getByRole('navigation', { name: 'Team admin' })
@@ -88,7 +96,7 @@ test.describe('team admin (owner, client origin)', () => {
     });
     expect(
       Math.abs((await widthOf()) - widened),
-      'Member chats inherited the width dragged on Code holders: shared key?',
+      'Member chats inherited the width dragged on Chat archive: shared key?',
     ).toBeGreaterThan(3);
 
     // Drag Member chats too, then look at what was written. A layout is only
