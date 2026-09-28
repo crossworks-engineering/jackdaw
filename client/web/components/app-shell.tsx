@@ -369,7 +369,7 @@ function ShellFrame({
   const { open: helpOpen } = useHelpRail();
   const helpW = helpOpen ? '22rem' : '0rem';
 
-  // Shell chrome — avatar, pending-approvals badge, onboarding gate — from
+  // Shell chrome (avatar, pending-approvals badge, onboarding gate) from
   // the probes the role came from (useShellRole above the providers): the
   // same queries, so the chrome and the gate read one answer.
   const shellQuery = probes.shell;
