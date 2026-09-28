@@ -3,6 +3,11 @@
  * serves it under /api/member/*. The wire shapes are the brain's published
  * contract (@mantle/client-types, audit M3); the local names stay so callers
  * need not change. The client narrows the editor documents and the table.
+ *
+ * An ADMIN's own private space (Phase 7) is the same routes under
+ * /api/admin/* (same methods, bodies and shapes), minus everything a member
+ * does with other people (share, submit, recall, comments, realtime), plus a
+ * self-accept into the brain. `spaceClient(base)` serves both.
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { TableDetail } from '@mantle/content-core/table-model';
@@ -20,6 +25,7 @@ import type {
 } from '@mantle/client-types';
 import { formatBytes } from './upload-progress';
 import { dropRescue, keepRescue } from './member-rescue';
+import type { AcceptInput, AcceptResult } from './member-review';
 
 export type SpaceKind = MemberItemKind;
 export type SpaceSharing = MemberSpaceSharing;
@@ -85,25 +91,44 @@ export function memberUploadRefusal(size: number): string | null {
     : `This file is ${actual}, over the ${limit} upload limit.`;
 }
 
+/** Whose own space a client reads: a member's, or an admin's private one. */
+export type SpaceApiBase = '/api/member' | '/api/admin';
+export const MEMBER_API_BASE: SpaceApiBase = '/api/member';
+export const ADMIN_API_BASE: SpaceApiBase = '/api/admin';
+
+/** The route one own item answers on, under its space's base. */
+export function ownItemPath(id: string, base: SpaceApiBase = MEMBER_API_BASE): string {
+  return `${base}/space/${id}`;
+}
+
+/** An own-space list page (`?kind=&q=&page=`), under its space's base. */
+export function ownListPath(
+  opts: { kind: SpaceKind; q?: string; page?: number },
+  base: SpaceApiBase = MEMBER_API_BASE,
+): string {
+  const sp = new URLSearchParams({ kind: opts.kind, page: String(opts.page ?? 1) });
+  if (opts.q?.trim()) sp.set('q', opts.q.trim());
+  return `${base}/space?${sp.toString()}`;
+}
+
 /** The routes one item answers on: own items vs a teammate's shared one. */
 export function itemBase(source: 'mine' | 'team', id: string): string {
-  return source === 'mine' ? `/api/member/space/${id}` : `/api/member/team-drafts/${id}`;
+  return source === 'mine' ? ownItemPath(id) : `/api/member/team-drafts/${id}`;
 }
 
 export function listPath(
   source: SpaceSource,
   opts: { kind: SpaceKind; q?: string; page?: number },
 ): string {
+  if (source === 'mine') return ownListPath(opts);
   const sp = new URLSearchParams({ kind: opts.kind, page: String(opts.page ?? 1) });
   if (opts.q?.trim()) sp.set('q', opts.q.trim());
   const base =
-    source === 'mine'
-      ? '/api/member/space'
-      : source === 'team'
-        ? '/api/member/team-drafts'
-        : source === 'accepted'
-          ? '/api/member/accepted'
-          : '/api/member/library';
+    source === 'team'
+      ? '/api/member/team-drafts'
+      : source === 'accepted'
+        ? '/api/member/accepted'
+        : '/api/member/library';
   return `${base}?${sp.toString()}`;
 }
 
@@ -157,29 +182,57 @@ async function sendAutosave<T>(path: string, method: 'PUT' | 'PATCH', body: unkn
   }
 }
 
+/**
+ * The own-space routes one space answers on: create, read, autosave, save a
+ * version, delete, upload and the list. The same for a member (/api/member)
+ * and for an admin's private space (/api/admin); nothing here reaches another
+ * person, so the admin variant is this and no more (plus `accept`).
+ */
+export function spaceClient(base: SpaceApiBase = MEMBER_API_BASE) {
+  const own = (id: string) => ownItemPath(id, base);
+  return {
+    base,
+    create: (body: { type: 'page' | 'note' | 'draw' | 'table'; title: string }) =>
+      apiSend<{ item: SpaceItemRow }>(`${base}/space`, 'POST', body),
+    /** One own item; a table reads one tab (`tabId`, else its first). */
+    item: (id: string, tabId?: string | null) =>
+      apiFetch<SpaceItem>(`${own(id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`),
+    patch: (id: string, body: { title?: string; icon?: string; content?: string }) =>
+      sendAutosave<SpaceItem>(own(id), 'PATCH', body),
+    remove: (id: string) => apiSend<{ ok: true }>(own(id), 'DELETE'),
+    /** Autosave: a page `doc`, a drawing `scene`, or a table as a whole
+     *  `table` document or an `ops` batch (the owner's op schema). */
+    draft: (
+      id: string,
+      body: { doc?: Doc; scene?: Doc; table?: Doc; ops?: unknown[]; if_rev?: number },
+    ) =>
+      sendAutosave<{ ok: true; draft_rev: number; created_ids?: (string | null)[] }>(
+        `${own(id)}/draft`,
+        'PUT',
+        body,
+      ),
+    save: (id: string, body: { doc?: Doc; scene?: Doc; svg?: string; if_rev?: number }) =>
+      apiSend<SpaceItem>(`${own(id)}/save`, 'POST', body),
+    /** A file into the space (multipart). */
+    upload: (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      return apiFetch<{ row: SpaceItemRow }>(`${base}/space-files`, { method: 'POST', body: fd });
+    },
+    listPath: (opts: { kind: SpaceKind; q?: string; page?: number }) => ownListPath(opts, base),
+    /** Where an own file's bytes stream from. */
+    bytesPath: (id: string) => `${own(id)}/bytes`,
+  };
+}
+
+export type SpaceClient = ReturnType<typeof spaceClient>;
+
 export const memberSpace = {
-  create: (body: { type: 'page' | 'note' | 'draw' | 'table'; title: string }) =>
-    apiSend<{ item: SpaceItemRow }>('/api/member/space', 'POST', body),
+  ...spaceClient(MEMBER_API_BASE),
   get: (source: 'mine' | 'team', id: string, tabId?: string | null) =>
     apiFetch<SpaceItem>(
       `${itemBase(source, id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
     ),
-  patch: (id: string, body: { title?: string; icon?: string; content?: string }) =>
-    sendAutosave<SpaceItem>(`/api/member/space/${id}`, 'PATCH', body),
-  remove: (id: string) => apiSend<{ ok: true }>(`/api/member/space/${id}`, 'DELETE'),
-  /** Autosave: a page `doc`, a drawing `scene`, or a table as a whole
-   *  `table` document or an `ops` batch (the owner's op schema). */
-  draft: (
-    id: string,
-    body: { doc?: Doc; scene?: Doc; table?: Doc; ops?: unknown[]; if_rev?: number },
-  ) =>
-    sendAutosave<{ ok: true; draft_rev: number; created_ids?: (string | null)[] }>(
-      `/api/member/space/${id}/draft`,
-      'PUT',
-      body,
-    ),
-  save: (id: string, body: { doc?: Doc; scene?: Doc; svg?: string; if_rev?: number }) =>
-    apiSend<SpaceItem>(`/api/member/space/${id}/save`, 'POST', body),
   share: (id: string, sharing: SpaceSharing) =>
     apiSend<{ item: SpaceItemRow }>(`/api/member/space/${id}/share`, 'POST', { sharing }),
   submit: (id: string) => apiSend<{ item: SpaceItemRow }>(`/api/member/space/${id}/submit`, 'POST'),
@@ -191,6 +244,24 @@ export const memberSpace = {
   deleteComment: (source: 'mine' | 'team', id: string, commentId: string) =>
     apiSend<{ ok: true }>(`${itemBase(source, id)}/comments/${commentId}`, 'DELETE'),
 };
+
+/**
+ * An admin's own private space (member logins Phase 7): seen by that admin
+ * only, no review. `accept` moves an item into the brain directly, with the
+ * body and answer of the Team admin submissions accept route.
+ */
+export const adminSpace = {
+  ...spaceClient(ADMIN_API_BASE),
+  accept: (id: string, input: AcceptInput) =>
+    apiSend<AcceptResult>(`${ownItemPath(id, ADMIN_API_BASE)}/accept`, 'POST', input),
+};
+
+export type AdminSpaceClient = typeof adminSpace;
+
+/** Is this the admin's private space (not a member's)? */
+export function isAdminSpace(client: Pick<SpaceClient, 'base'>): boolean {
+  return client.base === ADMIN_API_BASE;
+}
 
 /**
  * The query string a member's workspace moves to (`?src=`, `?id=`). The
