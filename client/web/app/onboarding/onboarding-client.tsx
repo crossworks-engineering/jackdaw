@@ -37,6 +37,8 @@ import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { ToastProvider, useToast } from '@mantle/web-ui/ui/toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { PurposeFieldNote } from '@/components/purpose-field-note';
+import { checkPurpose } from '@/lib/purpose-input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 
 type SanityCheck = { label: string; ok: boolean; detail: string };
@@ -259,6 +261,7 @@ function Wizard({
   // Step 7 — purpose: the brain's speciality + a free-text description.
   const [archetype, setArchetype] = useState<string>(PURPOSE_ARCHETYPES[0]!.key);
   const [purposeText, setPurposeText] = useState('');
+  const purposeCheck = checkPurpose(purposeText);
 
   // Step 8 — personality
   const [presetKey, setPresetKey] = useState<PersonaPresetKey>('warm');
@@ -387,6 +390,11 @@ function Wizard({
       toast.error('Tell your assistant what this brain is for.');
       return;
     }
+    // The server refuses an over-long purpose (400); say so before the round trip.
+    if (purposeCheck.over) {
+      toast.error('The description is too long. Keep it to one or two sentences.');
+      return;
+    }
     setBusy(true);
     try {
       const res = await onboardingPost<{ ok: boolean; error?: string }>('purpose', {
@@ -396,6 +404,8 @@ function Wizard({
       if (!res.ok) return toast.error(res.error ?? 'Could not save.');
       toast.success('Purpose saved.');
       go(index + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setBusy(false);
     }
@@ -896,7 +906,7 @@ function Wizard({
         {step === 'purpose' && (
           <StepShell
             title="What is this brain for?"
-            blurb="Pick the speciality that fits best, then describe what it’s mainly going to be used for. This grounds your assistant in the brain’s purpose from the first message."
+            blurb="Pick the speciality that fits best, then say in a sentence or two what the brain is for. This is not your assistant’s personality: you choose that on the next step."
           >
             <div className="space-y-5">
               <RadioGroup
@@ -918,16 +928,16 @@ function Wizard({
                 ))}
               </RadioGroup>
 
-              <Field
-                label="Description *"
-                hint="A sentence or two on what this brain is mainly going to do."
-              >
+              <Field label="What this brain is for *">
                 <Textarea
                   rows={3}
                   placeholder="e.g. Analyse RBI inspection reports and answer questions about asset integrity for a refinery."
                   value={purposeText}
                   onChange={(e) => setPurposeText(e.target.value)}
+                  aria-invalid={purposeCheck.over || undefined}
+                  aria-describedby="purpose-note"
                 />
+                <PurposeFieldNote id="purpose-note" check={purposeCheck} inWizard />
               </Field>
             </div>
           </StepShell>
