@@ -283,13 +283,6 @@ export const API_CATALOG: CatalogGroup[] = [
     },
     { n: 'Discard draft', m: 'POST', p: '/api/pages/{id}/discard-draft', d: 'Idempotent.' },
     {
-      n: 'AI assist',
-      m: 'POST',
-      p: '/api/pages/{id}/ai-assist',
-      d: 'Run the Pages agent against this page; writes land in the draft.',
-      b: '{\n  "prompt": "Tighten the introduction"\n}',
-    },
-    {
       n: 'Count descendants',
       m: 'GET',
       p: '/api/pages/{id}/descendant-count',
@@ -321,13 +314,6 @@ export const API_CATALOG: CatalogGroup[] = [
       b: '{\n  "data": { "columns": [], "rows": [] }\n}',
     },
     { n: 'Discard draft', m: 'POST', p: '/api/tables/{id}/discard-draft' },
-    {
-      n: 'AI assist',
-      m: 'POST',
-      p: '/api/tables/{id}/ai-assist',
-      d: 'Delegate to the Tables agent; writes land in the draft grid.',
-      b: '{\n  "prompt": "Add a totals row"\n}',
-    },
     {
       n: 'Import spreadsheet',
       m: 'POST',
