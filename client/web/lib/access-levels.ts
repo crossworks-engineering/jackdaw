@@ -66,6 +66,17 @@ export function isOldClientLink(level: AccessLevel | undefined): boolean {
   return level === 'client';
 }
 
+/** Each live link's item level by link id, from GET /api/shares/all (whose
+ *  rows carry `level` since client logins C1). A row without one (an older
+ *  brain) is left out, so the caller shows nothing extra for it. */
+export function linkLevels(
+  rows: readonly { id: string; level?: AccessLevel }[] | undefined,
+): Map<string, AccessLevel> {
+  const out = new Map<string, AccessLevel>();
+  for (const r of rows ?? []) if (r.level && isAccessLevel(r.level)) out.set(r.id, r.level);
+  return out;
+}
+
 /** What an old client link is, in the owner's words. */
 export const OLD_CLIENT_LINK = 'Old client link: clients will sign in instead';
 

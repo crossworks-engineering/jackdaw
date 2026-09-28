@@ -8,6 +8,7 @@ import {
   accessErrorMessage,
   isOldClientLink,
   kindLabel,
+  linkLevels,
   LEVEL_ORDER,
   closureAbove,
   closureBelow,
@@ -72,6 +73,20 @@ describe('access levels', () => {
     expect(accessErrorMessage(bare, 'fallback')).toMatch(/clients sign in/);
     expect(accessErrorMessage(new ApiError('Not found.', 404), 'fallback')).toBe('Not found.');
     expect(accessErrorMessage('nope', 'fallback')).toBe('fallback');
+  });
+
+  it("reads each link's level by id, leaving out rows without one (an older brain)", () => {
+    const map = linkLevels([
+      { id: 'a', level: 'public' },
+      { id: 'b', level: 'client' },
+      { id: 'c' },
+      { id: 'd', level: 'everyone' as 'public' },
+    ]);
+    expect([...map.entries()]).toEqual([
+      ['a', 'public'],
+      ['b', 'client'],
+    ]);
+    expect(linkLevels(undefined).size).toBe(0);
   });
 
   it('names each kind, and passes an unknown one through', () => {

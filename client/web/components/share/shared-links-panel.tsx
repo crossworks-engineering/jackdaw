@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { AccessLevel } from '@mantle/client-types';
 import { Check, Copy, ExternalLink, Link2, Link2Off } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
@@ -18,13 +19,19 @@ import {
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
+import { isOldClientLink, kindLabel, linkLevels } from '@/lib/access-levels';
+import type { SharedLinkRow as AllSharesRow } from '@/lib/contract-next';
+import { LinkLevel } from './link-level';
 
 /** One active link from GET /api/team-admin/shares. Every link is open
  *  (anyone with it can view): team links are retired (member logins Phase 6
- *  stage 6), so the row's share `mode` is always 'public' and is not read. */
+ *  stage 6), so the row's share `mode` is always 'public' and is not read.
+ *  `level` is the item's level where the row carries it; otherwise it comes
+ *  from GET /api/shares/all (client logins C1), and on an older brain it is
+ *  absent and nothing extra shows. */
 export type SharedLinkRow = {
   id: string;
   path: string;
@@ -36,29 +43,24 @@ export type SharedLinkRow = {
   createdAt: string;
   viewCount: number;
   lastViewedAt: string | null;
+  level?: AccessLevel;
 };
 
 /** The Shared links tab's query (GET /api/team-admin/shares). */
 export const SHARES_KEY = ['team-admin', 'shares'] as const;
 
-type SharesData = { shares: SharedLinkRow[] };
+/** Each link's item level (GET /api/shares/all, which carries it since
+ *  client logins C1). A failure or an older brain: no levels, nothing extra. */
+const SHARE_LEVELS_KEY = ['team-admin', 'share-levels'] as const;
 
-const TYPE_LABEL: Record<string, string> = {
-  page: 'Page',
-  note: 'Note',
-  task: 'Task',
-  event: 'Event',
-  file: 'File',
-  app: 'App',
-  table: 'Table',
-  formula: 'Formula',
-  branch: 'Folder',
-};
+type SharesData = { shares: SharedLinkRow[] };
 
 /**
  * The owner's exposure registry: every active share link, newest first. One
  * glance answers "what can people outside see right now?". A link is always
  * open: members read team items by level with their own logins, not by link.
+ * Each link shows its item's level; a live link on a client item is an OLD
+ * client link (client logins C1: clients will sign in instead), marked so.
  *
  * Master-detail: the links as cards on the left, and the SELECTED link's real
  * `/s/…` page framed on the right. The preview is the server surface itself,
@@ -75,6 +77,13 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
   const [confirmRevoke, setConfirmRevoke] = useState<SharedLinkRow | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const levelsQuery = useQuery({
+    queryKey: SHARE_LEVELS_KEY,
+    queryFn: () => apiFetch<{ shares: AllSharesRow[] }>('/api/shares/all'),
+    retry: false,
+  });
+  const levels = linkLevels(levelsQuery.data?.shares);
+  const levelOf = (row: SharedLinkRow): AccessLevel | undefined => row.level ?? levels.get(row.id);
 
   // Keep the selection on a live row: a revoke (or a refetch) must not leave
   // the preview on a link that no longer exists.
@@ -161,11 +170,12 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
                         </span>
                       </div>
                       <ListCardMeta>
-                        {TYPE_LABEL[row.nodeType] ?? row.nodeType}
+                        {kindLabel(row.nodeType)}
                         {row.cascade ? ' · sub-pages included' : ''} · {row.viewCount} view
                         {row.viewCount === 1 ? '' : 's'}
                         {row.lastViewedAt ? `, last ${formatDate(row.lastViewedAt)}` : ''}
                       </ListCardMeta>
+                      <LinkLevel level={levelOf(row)} />
                     </ListCard>
                   </li>
                 ))}
@@ -184,11 +194,14 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
                       <span className="truncate">{selected.title}</span>
                     </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {TYPE_LABEL[selected.nodeType] ?? selected.nodeType}
+                      {kindLabel(selected.nodeType)}
                       {selected.cascade ? ' · sub-pages included' : ''} · shared{' '}
                       {formatDate(selected.createdAt)} · {selected.viewCount} view
                       {selected.viewCount === 1 ? '' : 's'}
                     </p>
+                    <div className="mt-1">
+                      <LinkLevel level={levelOf(selected)} />
+                    </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <Button
@@ -252,6 +265,9 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
               {confirmRevoke?.cascade
                 ? `"${confirmRevoke?.title}" and its shared sub-pages stop being accessible immediately. The content itself is untouched.`
                 : `"${confirmRevoke?.title}" stops being accessible immediately. The content itself is untouched.`}
+              {confirmRevoke && isOldClientLink(levelOf(confirmRevoke))
+                ? ' It stays at Client, for signed-in clients.'
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
