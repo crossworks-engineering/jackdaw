@@ -73,3 +73,10 @@ describe('passwordOutcome', () => {
     expect(passwordOutcome(403, { error: 'forbidden', reason: 'member-login' }).kind).toBe('error');
   });
 });
+
+describe('after a password change', () => {
+  it('says other devices were signed out (the brain ends every other session)', async () => {
+    const { PASSWORD_CHANGED } = await import('./member-password');
+    expect(PASSWORD_CHANGED).toBe('Password changed. Other devices were signed out.');
+  });
+});

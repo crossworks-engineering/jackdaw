@@ -16,6 +16,7 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   MIN_PASSWORD,
+  PASSWORD_CHANGED,
   passwordOutcome,
   validatePasswordForm,
   type PasswordErrors,
@@ -80,7 +81,7 @@ export function MemberPasswordDialog({
       const outcome = passwordOutcome(res.status, await res.json().catch(() => null));
       switch (outcome.kind) {
         case 'ok':
-          toast.success('Password changed');
+          toast.success(PASSWORD_CHANGED);
           close(false);
           break;
         case 'wrong-current':
@@ -131,7 +132,8 @@ export function MemberPasswordDialog({
         <DialogHeader>
           <DialogTitle>Change password</DialogTitle>
           <DialogDescription>
-            You stay signed in here. Use the new password the next time you sign in.
+            You stay signed in here; your other devices are signed out. Use the new password the
+            next time you sign in.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="space-y-3">

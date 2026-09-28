@@ -1,7 +1,9 @@
 /**
  * A member changes their own password (member logins, Phase 5 profile trim).
  * The brain's POST /api/auth/change-password serves every login, admin or
- * member, and changes the LOGIN's own credential; sessions stay signed in.
+ * member, and changes the LOGIN's own credential. This browser stays signed
+ * in; every OTHER session of the login (other browsers, the phone app, any
+ * connected client) is signed out (brains after v0.232.305).
  *
  * Its answers do not fit `apiFetch`: a wrong current password is a 401, and
  * `apiFetch` reads every 401 as a dead session and sends the browser to
@@ -28,6 +30,9 @@ export function validatePasswordForm(f: PasswordForm): PasswordErrors {
   if (!errors.next && f.confirm !== f.next) errors.confirm = 'The two new passwords differ.';
   return errors;
 }
+
+/** What a member reads once the password is changed. */
+export const PASSWORD_CHANGED = 'Password changed. Other devices were signed out.';
 
 /** The brain's error message text for a wrong current password. */
 const WRONG_CURRENT = 'Current password is incorrect.';

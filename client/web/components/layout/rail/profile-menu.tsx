@@ -8,6 +8,7 @@ import {
   Dices,
   KeyRound,
   LogOut,
+  MonitorOff,
   Map as MapIcon,
   Search as SearchIcon,
   SunMoon,
@@ -15,6 +16,17 @@ import {
 } from 'lucide-react';
 import { performSignOut } from '@mantle/web-ui/sign-out';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
+import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
   DropdownMenu,
@@ -41,6 +53,7 @@ import { setMemberHint } from '@/lib/member-destination';
 import { MemberPasswordDialog } from '@/components/member/member-password-dialog';
 import { useTour } from '@/components/tour/tour-provider';
 import { MEMBER_TOUR_ID } from '@/lib/tour/tours';
+import { EVERYWHERE_CONFIRM, signOutEverywhere } from '@/lib/sign-out-everywhere';
 
 export type ProfileIdentity = {
   /** The actor's display name, when they have set one. */
@@ -126,6 +139,8 @@ export function ProfileMenu({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [everywhereOpen, setEverywhereOpen] = useState(false);
+  const toast = useToast();
   const tour = useTour();
   const { primary, initials } = identityOf(identity);
   const { avatar, email, photoVersion } = identity;
@@ -138,6 +153,21 @@ export function ProfileMenu({
     await performSignOut();
     router.push('/login');
     router.refresh();
+  }
+
+  // Every session this login holds ends, this one too: then the ordinary
+  // sign-out clears what this tab kept. A 401 means this session had ended
+  // already, so the ordinary sign-out is all that is left to do.
+  async function signOutEverywhereNow() {
+    setBusy(true);
+    const outcome = await signOutEverywhere();
+    if (outcome.kind === 'error') {
+      setBusy(false);
+      setEverywhereOpen(false);
+      toast.error(outcome.message);
+      return;
+    }
+    await signOut();
   }
 
   // photo → generated seed → initials, with each rung falling to the next:
@@ -291,10 +321,41 @@ export function ProfileMenu({
         >
           <LogOut className="size-4" /> {busy ? 'Signing out…' : 'Sign out'}
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => setEverywhereOpen(true)}
+          disabled={busy}
+          className="cursor-pointer"
+        >
+          <MonitorOff className="size-4" /> Sign out everywhere
+        </DropdownMenuItem>
       </DropdownMenuContent>
       {/* Beside the menu content, not inside it: the dialog outlives the
           menu closing. The menu root renders no element of its own. */}
       {member ? <MemberPasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} /> : null}
+      <AlertDialog open={everywhereOpen} onOpenChange={(o) => !busy && setEverywhereOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out everywhere?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {EVERYWHERE_CONFIRM} Every browser, the phone app and any connected client must sign
+              in again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                void signOutEverywhereNow();
+              }}
+            >
+              {busy ? 'Signing out…' : 'Sign out everywhere'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DropdownMenu>
   );
 }

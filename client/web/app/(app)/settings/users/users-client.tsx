@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Anchor,
@@ -53,6 +53,12 @@ import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
+import { performSignOut } from '@mantle/web-ui/sign-out';
+import {
+  EVERYWHERE_CONFIRM,
+  signLoginOutEverywhere,
+  signOutEverywhere,
+} from '@/lib/sign-out-everywhere';
 import { PairPhoneCard } from './pair-phone-card';
 
 type UserRow = {
@@ -514,14 +520,17 @@ function DevicesCard({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
 
   return (
     <div className="space-y-3 rounded-md border border-border p-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <MonitorSmartphone className="size-4 text-muted-foreground" /> Devices
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <MonitorSmartphone className="size-4 text-muted-foreground" /> Devices
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Live sessions signed in as {isSelf ? 'you' : user.email}. Signing one out revokes its
+            token immediately — the next request from it fails.
+          </p>
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Live sessions signed in as {isSelf ? 'you' : user.email}. Signing one out revokes its
-          token immediately — the next request from it fails.
-        </p>
+        <SignOutEverywhereButton user={user} isSelf={isSelf} />
       </div>
 
       {devicesQuery.isPending ? (
@@ -596,6 +605,79 @@ function DevicesCard({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Sign a login out on every device: its cookies, asset tokens and bearers
+ * (the phone app, connected clients) all stop. Another login goes through
+ * PATCH /api/users/:id `{ signOut: true }`; your own through the same route
+ * the account menu uses, and then this browser signs out too.
+ */
+function SignOutEverywhereButton({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
+  const toast = useToast();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    const outcome = isSelf ? await signOutEverywhere() : await signLoginOutEverywhere(user.id);
+    if (outcome.kind === 'error') {
+      setBusy(false);
+      setOpen(false);
+      toast.error(outcome.message);
+      return;
+    }
+    if (isSelf || outcome.kind === 'signed-out') {
+      // This browser's session is gone too (or already was).
+      await performSignOut();
+      router.push('/login');
+      router.refresh();
+      return;
+    }
+    setBusy(false);
+    setOpen(false);
+    toast.success(`Signed ${user.displayName || user.email} out on every device.`);
+    void queryClient.invalidateQueries({ queryKey: ['users', user.id, 'devices'] });
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" className="shrink-0">
+          Sign out everywhere
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {isSelf
+              ? 'Sign out everywhere?'
+              : `Sign ${user.displayName || user.email} out everywhere?`}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {isSelf
+              ? EVERYWHERE_CONFIRM
+              : 'Every browser, the phone app and any connected client they use must sign in again. Nothing else about the login changes.'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={busy}
+            onClick={(e) => {
+              e.preventDefault();
+              void run();
+            }}
+          >
+            {busy ? 'Signing out…' : 'Sign out everywhere'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

@@ -63,6 +63,9 @@ const MEMBER_OK = [
   /^\/api\/version$/,
   /^\/api\/appearance(\/|$)/,
   /^\/api\/auth\/change-password$/,
+  /^\/api\/auth\/(mobile-)?logout$/,
+  // What /login asks before anyone signs in.
+  /^\/api\/auth\/bootstrap-state$/,
   /^\/api\/auth\/invite\//,
   /^\/api\/auth\/token$/,
 ];
@@ -112,6 +115,8 @@ export type MockMemberApi = {
   inviteAccepts: { code: string; password: string; status: number }[];
   /** Every token sign-in the page sent (the split client after an accept). */
   tokenSignIns: { email: string; password: string }[];
+  /** Every sign-out the page sent, in order: the route and its body. */
+  logouts: { path: string; body: unknown }[];
   /** What GET /api/version answers; set `contractVersion` to fake a brain
    *  on another wire contract. */
   version: { version: string; contractVersion?: number };
@@ -148,6 +153,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     passwordChanges: [],
     inviteAccepts: [],
     tokenSignIns: [],
+    logouts: [],
     version: { version: 'mock' },
     close: async () => undefined,
   };
@@ -265,6 +271,20 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       }
       password = body.password;
       return answer(200, { ok: true, email: INVITE_EMAIL });
+    }
+    // Sign-out (the brain's /api/auth/logout; `{ everywhere: true }` ends
+    // every session of the login) and the bearer revoke the split client
+    // sends first. Both answer ok, whatever the session.
+    if ((path === '/api/auth/logout' || path === '/api/auth/mobile-logout') && method === 'POST') {
+      const raw = await readBody(req);
+      let body: unknown = null;
+      try {
+        body = raw ? JSON.parse(raw) : null;
+      } catch {
+        body = raw;
+      }
+      state.logouts.push({ path, body });
+      return json(res, 200, { ok: true });
     }
     if (path === '/api/auth/token' && method === 'POST') {
       const body = JSON.parse(await readBody(req)) as { email: string; password: string };

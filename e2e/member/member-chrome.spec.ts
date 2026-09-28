@@ -148,11 +148,40 @@ test('a member changes their password; a wrong current one stays on the form', a
   await dialog.getByLabel('Current password').fill(MEMBER_PASSWORD);
   await dialog.getByRole('button', { name: 'Change password' }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByText('Password changed')).toBeVisible();
+  await expect(page.getByText('Password changed. Other devices were signed out.')).toBeVisible();
   expect(api.passwordChanges.at(-1)).toEqual({
     oldPassword: MEMBER_PASSWORD,
     newPassword: 'second-password-2',
   });
+  expect(api.adminCalls).toEqual([]);
+});
+
+test('a member signs out everywhere: confirmed first, then signed out here too', async ({
+  page,
+  context,
+}) => {
+  await skipTour(page);
+  await page.goto('/pages');
+  const account = page.getByRole('button', { name: /^Account/ }).first();
+  await account.click({ timeout: 60_000 });
+  await page.getByRole('menuitem', { name: 'Sign out everywhere' }).click();
+
+  const confirm = page.getByRole('alertdialog', { name: 'Sign out everywhere?' });
+  await expect(confirm).toContainText('This signs you out on every device, this one too.');
+  // Cancel sends nothing.
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toHaveCount(0);
+  expect(api.logouts).toEqual([]);
+
+  await account.click();
+  await page.getByRole('menuitem', { name: 'Sign out everywhere' }).click();
+  await confirm.getByRole('button', { name: 'Sign out everywhere' }).click();
+  await expect(page).toHaveURL(/\/login/, { timeout: 60_000 });
+  expect(api.logouts[0]).toEqual({ path: '/api/auth/logout', body: { everywhere: true } });
+  // Then the ordinary sign-out: this browser forgets the session.
+  expect(api.logouts.some((l, i) => i > 0 && l.path === '/api/auth/logout')).toBe(true);
+  const cookies = Object.fromEntries((await context.cookies()).map((c) => [c.name, c.value]));
+  expect(cookies.mantle_member ?? '').toBe('');
   expect(api.adminCalls).toEqual([]);
 });
 
