@@ -29,8 +29,8 @@ describe('buildRuntimeCsp', () => {
     // The exfiltration control: an injected script must not be able to post
     // the bearer anywhere but here.
     expect(directive(policy, 'connect-src')).toBe(`connect-src 'self' ${brainOrigin}`);
-    // Cross-origin SSO form post — 'self' alone would break it.
-    expect(directive(policy, 'form-action')).toBe(`form-action 'self' ${brainOrigin}`);
+    // No form targets the brain since the team portal's SSO post went.
+    expect(directive(policy, 'form-action')).toBe("form-action 'self'");
     expect(directive(policy, 'img-src')).toContain(brainOrigin);
     expect(directive(policy, 'media-src')).toContain(brainOrigin);
     // Three surfaces frame the brain cross-origin: the mini-app sandbox

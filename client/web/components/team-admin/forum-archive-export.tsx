@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * The Topics tab's banner (member logins, Phase 6): the forum is closed, and
+ * The Code holders tab's banner (member logins, Phase 6): the forum is closed, and
  * its topics become admin-level pages under one "Forum archive" page.
  * GET /api/team-admin/forum/export counts the topics with no page yet; the
- * button POSTs the export (idempotent, so a second press only picks up what
- * is left) and the banner keeps what the run did, with a link to the archive.
+ * button shows while that count is above 0 and POSTs the export (idempotent,
+ * so a second press only picks up what is left); the banner keeps what the
+ * run did, with a link to the archive.
  * A brain without the export route (GET fails) shows the closed line alone.
  */
 import { useState } from 'react';
@@ -67,16 +68,18 @@ export function ForumArchiveBanner() {
         {count.data && (
           <>
             <span className="text-muted-foreground">{unexportedText(count.data.unexported)}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-auto"
-              disabled={busy}
-              onClick={() => void run()}
-            >
-              {busy ? <Loader2 className="animate-spin" /> : <FileText />}
-              Export to Pages
-            </Button>
+            {count.data.unexported > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                disabled={busy}
+                onClick={() => void run()}
+              >
+                {busy ? <Loader2 className="animate-spin" /> : <FileText />}
+                Export to Pages
+              </Button>
+            )}
           </>
         )}
       </div>

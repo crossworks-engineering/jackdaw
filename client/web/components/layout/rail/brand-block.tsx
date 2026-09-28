@@ -67,9 +67,8 @@ export function BrandBlock({
   /** Optional dark-mode variant, shown while `.dark` is active; falls back to
    *  the base logo, then to the wordmark. */
   logoDarkVersion?: string | null;
-  /** Where the brand links. The owner shell's home is `/`; the /team member
-   *  workspace reuses this block and points it at `/team`, which is that
-   *  surface's home — a member has no route to `/`. */
+  /** Where the brand links; `/`, the home, by default. (The retired /team
+   *  member workspace pointed it at `/team`.) */
   href?: string;
   /** Rendered inside the mobile Sheet, which floats its own close button over
    *  the top-right corner. The identity lines reserve room for it there; in the

@@ -35,7 +35,7 @@ describe('isMemberLoginRefusal', () => {
 });
 
 describe('sendsMemberHome', () => {
-  const PUBLIC = ['/login', '/env.js', '/team', '/hub', '/pair'];
+  const PUBLIC = ['/login', '/env.js', '/pair', '/invite'];
   it('sends a hinted member off admin-only paths', () => {
     expect(sendsMemberHome('/models', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/team-admin', PUBLIC)).toBe(true);
@@ -45,6 +45,9 @@ describe('sendsMemberHome', () => {
     // The old member surface is gone: chat is the dock now.
     expect(sendsMemberHome('/m', PUBLIC)).toBe(true);
     expect(sendsMemberHome('/m/chat', PUBLIC)).toBe(true);
+    // So is the team-code portal (member logins Phase 6).
+    expect(sendsMemberHome('/team', PUBLIC)).toBe(true);
+    expect(sendsMemberHome('/hub', PUBLIC)).toBe(true);
   });
   it('leaves the member home, member screens and public surfaces alone', () => {
     expect(sendsMemberHome('/', PUBLIC)).toBe(false);
@@ -56,7 +59,7 @@ describe('sendsMemberHome', () => {
     expect(sendsMemberHome('/pages/abc', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/files', PUBLIC)).toBe(false);
     expect(sendsMemberHome('/login', PUBLIC)).toBe(false);
-    expect(sendsMemberHome('/team/x', PUBLIC)).toBe(false);
+    expect(sendsMemberHome('/invite', PUBLIC)).toBe(false);
   });
 });
 

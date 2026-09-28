@@ -169,9 +169,6 @@ await Promise.all([
     const path = href.startsWith('/') ? href : href ? `/${href}` : '';
     f.docHref = path.startsWith('/docs/') ? path : null;
   }),
-  // The forum lives behind the team cookie, which the demo edge injects — so
-  // this resolves only once a member exists and topics are seeded.
-  getJson('/api/team/forum/topics').then((d) => (f.forumTopic = pluck(d, 'topics'))),
 ]);
 f.node = f.note; // /n/[id] and /nodes/[id]/history take any node
 
@@ -192,7 +189,6 @@ const FIXTURES = [
   ['/n/[id]', () => f.node && `/n/${f.node}`],
   ['/nodes/[id]/history', () => f.node && `/nodes/${f.node}/history`],
   ['/debug/journey/[traceId]', () => f.trace && `/debug/journey/${f.trace}`],
-  ['/team/forum/[id]', () => f.forumTopic && `/team/forum/${f.forumTopic}`],
   ['/changelog/[version]', () => f.changelog && `/changelog/${f.changelog}`],
   ['/docs/[collection]/[...slug]', () => f.docHref],
   ['/settings/accounts/[id]/edit', () => f.account && `/settings/accounts/${f.account}/edit`],
@@ -335,12 +331,12 @@ async function visit({ route, url, skip }) {
     // shell, and measuring it is the whole point — the nav alone is ~103KB, so
     // measuring the body would pass a screen with nothing in it.
     //
-    // But not every route lives in that shell. The team portal (/team/**) and
-    // its hub render their own standalone layout with no <main> at all, and an
-    // earlier version of this gate called all eleven of them "no <main>
-    // element" — eleven confident failures against screens that were working
-    // perfectly, showing a token-entry gate exactly as designed. Those pages
-    // carry no nav, so their body IS their content and measuring it is safe.
+    // But not every route lives in that shell. A standalone page (the retired
+    // team portal's eleven screens were the case that taught this) renders
+    // with no <main> at all; an earlier version of this gate called each one
+    // "no <main> element", confident failures against screens that worked.
+    // Such pages carry no nav, so their body IS their content and measuring
+    // it is safe.
     const probe = await page.evaluate(() => {
       const m = document.querySelector('main');
       const el = m ?? document.body;
@@ -407,10 +403,10 @@ async function visit({ route, url, skip }) {
     }
   }
 
-  // A 401/403 is not automatically a defect. The team surfaces are token-gated
-  // by design: without a token they answer 401 and render an honest
-  // "enter your team token" screen, and the browser logs a resource error for
-  // it. Failing on that reported eleven working screens as broken. Those
+  // A 401/403 is not automatically a defect. A gated screen answers 401 by
+  // design and renders an honest sign-in or token screen, and the browser logs
+  // a resource error for it (the retired team portal's eleven screens were
+  // once reported broken exactly this way). Those
   // statuses are already surfaced in the AUTH section, so drop only the
   // resource-load noise that corresponds to them — a real JS exception
   // (pageerror) or a 5xx still fails, below.
@@ -440,8 +436,8 @@ async function visit({ route, url, skip }) {
   // /runners scored OK on 176 chars of text while GET /api/runners returned
   // 500 twice. Rendering something is not the same as rendering the data.
   // 5xx fails outright; 401/403 is surfaced rather than swallowed, because a
-  // read-only edge answers writes with 403 by design and the team surfaces
-  // 401 for reasons that need a human decision, not an automatic verdict.
+  // read-only edge answers writes with 403 by design, and a 401 needs a human
+  // decision, not an automatic verdict.
   const server5xx = badResponses.filter((b) => b.startsWith('5'));
   if (server5xx.length && state === 'OK') {
     state = 'FAIL';

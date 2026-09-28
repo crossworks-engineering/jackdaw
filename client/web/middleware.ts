@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { MEMBER_HINT_COOKIE, MEMBER_SURFACE_HEADER, sendsMemberHome } from './lib/member-surface';
+import { MEMBER_HINT_COOKIE, sendsMemberHome } from './lib/member-surface';
 
 /**
  * ZERO-SECRET client middleware. This app holds no SESSION_SECRET, so it can
@@ -14,31 +14,21 @@ import { MEMBER_HINT_COOKIE, MEMBER_SURFACE_HEADER, sendsMemberHome } from './li
  */
 const PRESENCE_COOKIE = 'mantle_authed';
 
-/** Paths that render without a session: login itself, the runtime env, the
- *  team-member surfaces (members are not brain users — they authenticate
- *  with a team token against /api/team/*, never the owner presence flow), and
- *  `/pair` — the static page a browser lands on when it scans the phone
- *  sign-in QR; it holds no data and never reads the code in the fragment.
- *  Also `/invite`, where a person redeems a member invite (member logins,
- *  Phase 6). Public paths pass before any cookie is read, so a signed-in
- *  browser (admin or member) is never sent away from them. */
-const PUBLIC_PREFIXES = ['/login', '/env.js', '/team', '/hub', '/pair', '/invite'];
-
-/** Member surfaces get the owner-brand LOCK rendered into the original HTML.
- *  The root layout can't see the pathname, so this is forwarded as a request
- *  header — always overwritten here (never trusted from the client; spoofing
- *  it only locks the spoofer's own theme, but determinism matters). NOTE:
- *  '/team-admin' is the OWNER's console, not a member surface — the prefix
- *  match below is exact-or-slash so it doesn't catch it. */
-const MEMBER_PREFIXES = ['/team', '/hub'];
+/** Paths that render without a session: login itself, the runtime env,
+ *  `/pair` (the static page a browser lands on when it scans the phone
+ *  sign-in QR; it holds no data and never reads the code in the fragment) and
+ *  `/invite`, where a person redeems a member invite (member logins, Phase 6).
+ *  Public paths pass before any cookie is read, so a signed-in browser (admin
+ *  or member) is never sent away from them.
+ *
+ *  `/team` and `/hub`, the team-code portal, are NOT here: the portal is
+ *  retired (member logins Phase 6), the brain redirects both to /login, and
+ *  on this origin they are ordinary unknown paths behind the presence gate. */
+const PUBLIC_PREFIXES: readonly string[] = ['/login', '/env.js', '/pair', '/invite'];
 
 export function middleware(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
-  const isMember = MEMBER_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  const requestHeaders = new Headers(req.headers);
-  requestHeaders.delete(MEMBER_SURFACE_HEADER);
-  if (isMember) requestHeaders.set(MEMBER_SURFACE_HEADER, '1');
-  const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
+  const pass = () => NextResponse.next();
 
   if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return pass();

@@ -29,22 +29,31 @@ test.describe('team admin (owner, client origin)', () => {
     // Requests tab: empty-state or queue — either way the pane rendered.
     await tabs.getByRole('link', { name: /^Requests/ }).click();
     await expect(
-      ownerPage.getByText(/No change requests or uploads yet|Uploads awaiting review/).first(),
+      ownerPage
+        .getByText(/No change requests yet/)
+        .or(ownerPage.getByRole('heading', { name: 'Change requests' }))
+        .first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    // Settings tab: the three surface-wide switches.
+    // Settings tab: the surface-wide switches, and no dashboard-tags card (its
+    // route went with the retired /hub).
     await tabs.getByRole('link', { name: 'Settings' }).click();
     await expect(ownerPage.getByRole('heading', { name: 'Read posture' })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(ownerPage.getByRole('heading', { name: 'Hub app' })).toBeVisible();
+    await expect(ownerPage.getByRole('heading', { name: 'Member home app' })).toBeVisible();
+    await expect(ownerPage.getByRole('heading', { name: 'Dashboard sections' })).toHaveCount(0);
+
+    // The forum's Topics tab is gone with the retired portal (member logins
+    // Phase 6); its export to Pages stays, on Code holders.
+    await expect(tabs.getByRole('link', { name: /^Topics/ })).toHaveCount(0);
   });
 
-  test('Members and Topics each remember their OWN width', async ({ ownerPage }) => {
+  test('Code holders and Member chats each remember their OWN width', async ({ ownerPage }) => {
     // Two grids in one file. They could have shared a `MasterDetail` id, and
-    // that is exactly what this rules out: a member roster and a forum topic
-    // list are different lengths, so a width dragged on one must not follow the
-    // reader to the other.
+    // that is exactly what this rules out: a code-holder roster and a member
+    // login list are different lengths, so a width dragged on one must not
+    // follow the reader to the other.
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
     await ownerPage.goto('/team-admin');
 
@@ -68,32 +77,32 @@ test.describe('team admin (owner, client origin)', () => {
     });
     await ownerPage.mouse.up();
     const widened = await widthOf();
-    expect(widened, 'the Members divider did not move').toBeGreaterThan(before + 60);
+    expect(widened, 'the Code holders divider did not move').toBeGreaterThan(before + 60);
 
     await ownerPage
       .getByRole('navigation', { name: 'Team admin' })
-      .getByRole('link', { name: /^Topics/ })
+      .getByRole('link', { name: 'Member chats' })
       .click();
-    await expect(ownerPage.getByRole('heading', { name: 'Forum topics' })).toBeVisible({
+    await expect(ownerPage.getByRole('heading', { name: 'Member chats' })).toBeVisible({
       timeout: 15_000,
     });
     expect(
       Math.abs((await widthOf()) - widened),
-      'Topics inherited the width dragged on Members — shared key?',
+      'Member chats inherited the width dragged on Code holders: shared key?',
     ).toBeGreaterThan(3);
 
-    // Drag Topics too, then look at what was written. A layout is only saved
-    // after a real interaction on that screen, so without this second drag the
-    // Topics key would be legitimately absent and the check below vacuous.
-    const topicsHandle = ownerPage
+    // Drag Member chats too, then look at what was written. A layout is only
+    // saved after a real interaction on that screen, so without this second
+    // drag its key would be legitimately absent and the check below vacuous.
+    const chatsHandle = ownerPage
       .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
       .last()
       .locator(':scope > [data-slot="resizable-handle"]')
       .first();
-    const topicsGrip = (await topicsHandle.boundingBox())!;
-    await ownerPage.mouse.move(topicsGrip.x + topicsGrip.width / 2, topicsGrip.y + 40);
+    const chatsGrip = (await chatsHandle.boundingBox())!;
+    await ownerPage.mouse.move(chatsGrip.x + chatsGrip.width / 2, chatsGrip.y + 40);
     await ownerPage.mouse.down();
-    await ownerPage.mouse.move(topicsGrip.x + topicsGrip.width / 2 + 60, topicsGrip.y + 40, {
+    await ownerPage.mouse.move(chatsGrip.x + chatsGrip.width / 2 + 60, chatsGrip.y + 40, {
       steps: 8,
     });
     await ownerPage.mouse.up();
@@ -104,6 +113,6 @@ test.describe('team admin (owner, client origin)', () => {
       Object.keys(window.localStorage).filter((k) => k.includes('master-detail')),
     );
     expect(keys.some((k) => k.includes('team-admin-members'))).toBe(true);
-    expect(keys.some((k) => k.includes('team-admin-topics'))).toBe(true);
+    expect(keys.some((k) => k.includes('team-admin-member-chats'))).toBe(true);
   });
 });

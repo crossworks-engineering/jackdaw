@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Owner switch on the Team admin header: whether the Team Chat responder may
+ * Owner switch on the Team admin Settings tab: whether the team agent may
  * read the owner's PRIVATE corpus (email + journal) for a team member. Default
  * OFF — team members always get brain-wide knowledge reads, but personal email
  * and journal stay off-limits until the owner opts in here.

@@ -62,8 +62,7 @@ export function apiUrl(path: string): string {
  *  same-origin session that authenticated in bearer mode — minted while the
  *  old `apiBase set ⇒ split` predicate misread the default one-domain
  *  deployment — keeps working alongside the cookie, because the server
- *  verifies both carriers with the same trust. Exact mirror of
- *  team-fetch's `withTeamAuth`. */
+ *  verifies both carriers with the same trust. */
 export function withAuth(init?: RequestInit): RequestInit {
   const headers = new Headers(init?.headers);
   const token = apiTokenValue();
@@ -135,8 +134,7 @@ export function resetCookieUpgrade(): void {
  * `fetch` silently follows (landing on the login HTML, 200). Without this, an
  * expired session would parse as `{}` and render an empty screen instead of
  * bouncing to login — a trap every converted screen would otherwise inherit.
- * (Exported for team-fetch, whose 401 policy differs but whose detection
- * doesn't.)
+ * Exported for the raw-`fetch()` callers (the assistant dock's turn POST).
  */
 export function isAuthFailure(res: Response): boolean {
   if (res.status === 401) return true;
@@ -250,12 +248,11 @@ export function apiEventStream(
 }
 
 /**
- * The transport-agnostic SSE reader behind `apiEventStream` (owner surface)
- * and `teamEventStream` (member surface). The two differ only in how a
- * request is made (base + credential) and what an auth failure does
- * (bounceToLogin vs surface the token gate) — everything else (frame parsing,
- * Last-Event-ID resume, backoff+jitter reconnect, 404-silent-fallback) is
- * this loop. Exported for team-fetch; app code uses the bound wrappers.
+ * The transport-agnostic SSE reader behind `apiEventStream`: how a request
+ * is made (base + credential) and what an auth failure does are parameters,
+ * everything else (frame parsing, Last-Event-ID resume, backoff+jitter
+ * reconnect, 404-silent-fallback) is this loop. It had a second caller, the
+ * retired team portal's stream; app code uses the bound wrapper.
  */
 export function eventStreamCore(
   makeRequest: (headers: Record<string, string>, signal: AbortSignal) => Promise<Response>,

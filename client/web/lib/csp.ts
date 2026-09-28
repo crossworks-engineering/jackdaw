@@ -72,8 +72,8 @@
  *    `target` inside the email iframe's srcdoc, which this does not govern.)
  *  - `object-src`: no `<object>`/`<embed>` in the app at all.
  *  - `frame-ancestors`: nothing is known to embed the owner UI, and the desktop
- *    shell loads it top-level. If a customer ever needs to frame the team
- *    portal, this is the line to widen. Header-only — meta ignores it.
+ *    shell loads it top-level. If a customer ever needs to frame a screen,
+ *    this is the line to widen. Header-only: meta ignores it.
  */
 export const CSP_ENFORCED_STATIC = [
   "base-uri 'self'",
@@ -109,8 +109,8 @@ export function buildRuntimeCsp({ brainOrigin, dev = false }: RuntimeCspOptions)
     // injection getting the token off the box.
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
-    // blob: for owner-generated previews — drawing exports, image attachments,
-    // team media. Every real asset of ours comes from the brain via assetUrl().
+    // blob: for owner-generated previews (drawing exports, image attachments).
+    // Every real asset of ours comes from the brain via assetUrl().
     //
     // `https:` is here for ONE surface: the email reading pane. Its body is a
     // srcdoc iframe, and a srcdoc iframe INHERITS this policy — measured, with
@@ -130,9 +130,10 @@ export function buildRuntimeCsp({ brainOrigin, dev = false }: RuntimeCspOptions)
     // THE control: the directive that makes the bearer-in-localStorage posture
     // defensible.
     `connect-src ${list("'self'", brain, dev ? 'ws: wss:' : '')}`,
-    // `'self'` ALONE WOULD BREAK SSO: components/team-workspace/open-on-server.tsx
-    // POSTs a real cross-origin form to <brain>/api/team/sso.
-    `form-action ${list("'self'", brain)}`,
+    // 'self' only. The brain was here for ONE form, the retired team portal's
+    // cross-origin POST to <brain>/api/team/sso (member logins Phase 6); no
+    // form in this app targets the brain now, so none may.
+    "form-action 'self'",
     // The brain is NOT optional here, and 'self' alone breaks three surfaces in
     // a split deployment — measured, not reasoned: the mini-app sandbox
     // NAVIGATES its opaque-origin iframe to `${apiBase}/frame`

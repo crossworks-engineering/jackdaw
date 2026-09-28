@@ -2,43 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   exportResultText,
   isExportBusy,
-  isForumClosed,
-  isForumClosedError,
   unexportedText,
   type ForumExportResult,
 } from './forum-closed';
-
-const closedBody = {
-  error: 'The team forum is closed. Team members use their own logins now.',
-  reason: 'forum-closed',
-  inviteHint: 'Ask the brain admin for an invite link.',
-};
-
-describe('isForumClosed', () => {
-  it('is the 410 with reason forum-closed', () => {
-    expect(isForumClosed(410, closedBody)).toBe(true);
-  });
-
-  it('is not any other status or reason', () => {
-    expect(isForumClosed(400, closedBody)).toBe(false);
-    expect(isForumClosed(403, closedBody)).toBe(false);
-    expect(isForumClosed(410, { error: 'gone' })).toBe(false);
-    expect(isForumClosed(410, { reason: 'busy' })).toBe(false);
-    expect(isForumClosed(410, null)).toBe(false);
-    expect(isForumClosed(410, 'forum-closed')).toBe(false);
-  });
-});
-
-describe('isForumClosedError', () => {
-  it('reads a thrown ApiError shape', () => {
-    expect(isForumClosedError({ status: 410, body: closedBody })).toBe(true);
-    expect(isForumClosedError({ status: 500, body: closedBody })).toBe(false);
-    expect(isForumClosedError({ body: closedBody })).toBe(false);
-    expect(isForumClosedError(new Error('network'))).toBe(false);
-    expect(isForumClosedError(null)).toBe(false);
-    expect(isForumClosedError('forum-closed')).toBe(false);
-  });
-});
 
 describe('isExportBusy', () => {
   it('is the 409 with reason busy only', () => {

@@ -30,7 +30,7 @@ import {
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
-import { timeAgo } from '@mantle/web-ui/forum-meta';
+import { timeAgo } from '@mantle/web-ui/lib/format-datetime';
 import { useListNav } from '@/lib/use-list-nav';
 import { cn } from '@mantle/web-ui/lib/utils';
 

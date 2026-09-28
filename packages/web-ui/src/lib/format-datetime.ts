@@ -24,3 +24,16 @@ export function updatedAgo(value: Date | string | number | null | undefined): st
   if (seconds < DAY) return unit(Math.floor(seconds / 3600), 'hour');
   return unit(Math.floor(seconds / DAY), 'day');
 }
+
+/** Compact relative time for list rows ("4m", "3h", "2d", else a date).
+ *  Reads the clock, so client-rendered surfaces only. */
+export function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return '';
+  const s = Math.max(0, (Date.now() - then) / 1000);
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
+  if (s < 7 * 86_400) return `${Math.floor(s / 86_400)}d`;
+  return new Date(iso).toLocaleDateString();
+}

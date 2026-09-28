@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
 import Script from 'next/script';
 import './globals.css';
 // KaTeX styles for math nodes (inlineMath/blockMath) — bundled locally from the
@@ -21,7 +20,6 @@ import {
 import { loadBrainAppearance } from '@/lib/appearance';
 import { brandTitle, readBrandFields } from '@/lib/brand';
 import { buildRuntimeCsp } from '@/lib/csp';
-import { MEMBER_SURFACE_HEADER } from '@/lib/member-surface';
 
 /**
  * ZERO-SECRET client root layout. No DB, no session read.
@@ -73,16 +71,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [appearance, hdrs] = await Promise.all([
-    loadBrainAppearance().then(resolveAppearanceAttrs),
-    headers(),
-  ]);
-  // Member surfaces (/team, /hub — flagged by the middleware) carry the
-  // owner-brand lock in the ORIGINAL HTML, so the providers see it at mount
-  // and never start visitor-local behavior (the random-theme toggle) over the
-  // brand. The attributes themselves are the same for every surface — the
-  // brain has ONE appearance.
-  const memberSurface = hdrs.get(MEMBER_SURFACE_HEADER) === '1';
+  const appearance = await loadBrainAppearance().then(resolveAppearanceAttrs);
   // The origin-dependent half of the CSP (lib/csp.ts). It has to be rendered
   // here, as meta, because a header cannot carry it: `process.env` resolves at
   // BUILD time in next.config.ts's headers() and in middleware on both
@@ -115,7 +104,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${fontSans.variable} h-full`}
       suppressHydrationWarning
       data-color-theme={appearance.colorTheme}
-      data-color-theme-owner={memberSurface ? '1' : undefined}
       {...appearanceFontAttrs(appearance)}
       data-avatar-style={appearance.avatarStyle}
       data-avatar-tint={appearance.avatarTint}

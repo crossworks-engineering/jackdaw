@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * Owner control on the Team admin sidebar: which mini-app (if any) renders as
- * the Team Hub. Designating requires a published build (enforced server-side);
- * clearing reverts members to the built-in hub. The share lifecycle note:
+ * Owner control on the Team admin Settings tab: which mini-app (if any) a
+ * member login sees as their home (PUT/DELETE /api/team-admin/hub-app; the
+ * route keeps its name from the retired team-code /hub, its first reader).
+ * Designating requires a published build (enforced server-side); clearing
+ * reverts members to the built-in home. The share lifecycle note:
  * designation ensures a TEAM-mode share for the app — undesignating leaves
  * that share alone (revoke it from the app's own share controls if wanted).
  */
@@ -44,21 +46,21 @@ export function HubAppPicker({
     try {
       if (next === BUILT_IN) {
         await apiSend('/api/team-admin/hub-app', 'DELETE');
-        toast.success('Members now see the built-in Team Hub.');
+        toast.success('Members now see the built-in home.');
       } else {
         const res = await apiSend<{ modeChanged: boolean }>('/api/team-admin/hub-app', 'PUT', {
           appId: next,
         });
         toast.success(
           res.modeChanged
-            ? 'Hub app set. It is now at Team level, and its share link is team-members-only.'
-            : 'Hub app set. Members see it as their home.',
+            ? 'Home app set. It is now at Team level, and its share link is team-members-only.'
+            : 'Home app set. Members see it as their home.',
         );
       }
       router.refresh();
     } catch (err) {
       setValue(prev); // revert
-      toast.error(err instanceof Error ? err.message : 'Could not update the hub app.');
+      toast.error(err instanceof Error ? err.message : 'Could not update the home app.');
     } finally {
       setPending(false);
     }
@@ -68,14 +70,14 @@ export function HubAppPicker({
     <div className="flex flex-col gap-1.5">
       <Label htmlFor="hubApp" className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <LayoutTemplate className="size-3.5" aria-hidden />
-        Hub app
+        Home app
       </Label>
       <Select value={value} onValueChange={(v) => void apply(v)} disabled={pending}>
         <SelectTrigger id="hubApp" size="xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={BUILT_IN}>Built-in hub</SelectItem>
+          <SelectItem value={BUILT_IN}>Built-in home</SelectItem>
           {apps.map((a) => (
             <SelectItem key={a.id} value={a.id}>
               {a.title}
@@ -84,9 +86,8 @@ export function HubAppPicker({
         </SelectContent>
       </Select>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        A published app shown as the members&rsquo; home (and the /team hub). Choosing one sets it
-        to Team level, so every member can run it. Falls back to the built-in home if the app
-        breaks.
+        A published app shown as the members&rsquo; home. Choosing one sets it to Team level, so
+        every member can run it. Falls back to the built-in home if the app breaks.
       </p>
     </div>
   );

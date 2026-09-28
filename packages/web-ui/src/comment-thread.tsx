@@ -28,17 +28,15 @@ import type { NodeComment } from '@mantle/client-types';
  * (`mine` computed server-side, name snapshot + role chip, own posts tinted).
  *
  * PRESENTATION ONLY. The owner surface reads `/api/nodes/:id/comments` with a
- * session/bearer and repaints over SSE; the member surface reads
- * `/api/team/comments` with a team token and polls, because that stream is
- * owner-gated. Neither transport belongs in here — the caller fetches, this
- * renders, and the two surfaces stop drifting.
+ * session/bearer and repaints over SSE. The transport does not belong in here:
+ * the caller fetches, this renders. (The retired team portal was its second
+ * caller, over its own team-token route; keeping the transport outside is what
+ * let the two share one anatomy.)
  *
- * They HAD drifted: the owner thread put the composer on top and ran
- * newest-first, the member thread did the opposite and centred itself
- * (`mx-auto max-w-2xl`, which §6c retired). This component is the owner
- * behaviour, which is the one the style guide calls the reference — on a long
- * thread the reply box is the control you always want, and at the foot it
- * drifts further away with every comment added.
+ * The composer sits on top and the thread runs newest-first, the behaviour
+ * the style guide calls the reference: on a long thread the reply box is the
+ * control you always want, and at the foot it drifts further away with every
+ * comment added.
  */
 export function CommentThread({
   comments,

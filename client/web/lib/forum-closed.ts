@@ -1,19 +1,13 @@
 /**
- * The team forum is closed (member logins, Phase 6). The brain answers every
- * forum write (a new topic, a reply, a staged upload, the admin's post) with
- * 410 { error, reason: 'forum-closed', inviteHint }, and the forum's content
- * lives on as the admin-level "Forum archive" pages
- * (POST /api/team-admin/forum/export). Reads stay open until the deletion
- * stage.
+ * The team forum is closed and its portal retired (member logins, Phase 6).
+ * Its tables stay until a later stage, and until then the brain still offers
+ * the export (POST /api/team-admin/forum/export) that turns every topic into
+ * an admin-level "Forum archive" page. The Team admin banner is the one
+ * caller.
  *
- * Pure helpers only, so the screens and the tests share one reading of the
+ * Pure helpers only, so the banner and the tests share one reading of the
  * wire shapes.
  */
-
-/** Always true: the brain has no switch to reopen the forum. A typed constant
- *  rather than a deleted composer, so the write code behind each check stays
- *  valid until the deletion stage removes it with the rest of the forum. */
-export const FORUM_CLOSED: boolean = true;
 
 export const FORUM_CLOSED_TEXT = 'The forum is closed. Members use their own logins now.';
 
@@ -21,19 +15,6 @@ function reasonOf(body: unknown): unknown {
   return typeof body === 'object' && body !== null
     ? (body as { reason?: unknown }).reason
     : undefined;
-}
-
-/** Is this response the brain's "forum closed" answer? */
-export function isForumClosed(status: number, body: unknown): boolean {
-  return status === 410 && reasonOf(body) === 'forum-closed';
-}
-
-/** The same test for a thrown ApiError (status + parsed body), duck-typed so
- *  this module stays free of the transport. */
-export function isForumClosedError(err: unknown): boolean {
-  if (typeof err !== 'object' || err === null) return false;
-  const e = err as { status?: unknown; body?: unknown };
-  return typeof e.status === 'number' && isForumClosed(e.status, e.body);
 }
 
 /** GET /api/team-admin/forum/export */

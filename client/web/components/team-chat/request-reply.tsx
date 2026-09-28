@@ -2,8 +2,8 @@
 
 /**
  * Reply box on a team change-request (the /team-admin Requests view). Posts the
- * owner's resolution into the member's Team Chat thread, optionally marking the
- * request done. Router-refreshes on success so the list reflects the new state.
+ * owner's resolution into the member's own chat thread (POST
+ * /api/team-admin/notify), optionally marking the request done. Router-refreshes on success so the list reflects the new state.
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
