@@ -31,6 +31,12 @@ export const PAGE_TITLE = 'Field notes';
 /** A Library page (a brain item at the team level), not in Mine. */
 export const LIBRARY_ID = '55555555-5555-4555-8555-555555555555';
 export const LIBRARY_TITLE = 'Team handbook';
+/** A page this member wrote and an admin accepted into the brain at the
+ *  ADMIN level: gone from Mine and from the Library, still readable by its
+ *  author through /api/member/accepted. */
+export const ACCEPTED_ID = '77777777-7777-4777-8777-777777777777';
+export const ACCEPTED_TITLE = 'Site survey';
+export const ACCEPTED_AT = '2026-09-20T10:00:00.000Z';
 
 /** A page that embeds what a member editor used to fetch from admin routes:
  *  an uploaded image, a sub-page card and a drawing. */
@@ -109,6 +115,16 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     submittedAt: null,
     returnedNote: null,
     authorLoginId: 'login-1',
+    updatedAt: now,
+  });
+
+  const acceptedRow = () => ({
+    id: ACCEPTED_ID,
+    type: 'page',
+    title: ACCEPTED_TITLE,
+    icon: null,
+    audience: 'admin',
+    acceptedAt: ACCEPTED_AT,
     updatedAt: now,
   });
 
@@ -199,6 +215,21 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
           doc: {
             type: 'doc',
             content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Read me.' }] }],
+          },
+        },
+      });
+    }
+    if (path === '/api/member/accepted' && method === 'GET') {
+      const items = url.searchParams.get('kind') === 'page' ? [acceptedRow()] : [];
+      return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
+    }
+    if (path === `/api/member/accepted/${ACCEPTED_ID}` && method === 'GET') {
+      return json(res, 200, {
+        item: {
+          ...acceptedRow(),
+          doc: {
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Saved survey.' }] }],
           },
         },
       });
