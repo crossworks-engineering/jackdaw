@@ -20,6 +20,10 @@ import type { BrowserContext } from '@playwright/test';
  * Admin routes a member must never call are answered the way the brain
  * answers a member (403 `member-login`) and recorded, so a spec can assert
  * that none was called.
+ *
+ * Started with `{ role: 'client' }` it answers a CLIENT login (client logins
+ * C0): every admin and member route refuses it with 403 `client-login`, as
+ * the brain does, and records the call (`clientCalls`).
  */
 
 type Doc = Record<string, unknown>;
@@ -102,6 +106,19 @@ const MEMBER_OK = [
 const isAdminOnly = (path: string) =>
   path.startsWith('/api/') && !MEMBER_OK.some((re) => re.test(path));
 
+/** What a client login may call before the client routes exist (C2): only
+ *  what the brain answers every login or nobody in particular. */
+const CLIENT_OK = [
+  /^\/api\/version$/,
+  /^\/api\/appearance(\/|$)/,
+  /^\/api\/auth\/(mobile-)?logout$/,
+  /^\/api\/auth\/bootstrap-state$/,
+];
+
+/** The admin's "What clients see" item (client logins C1). */
+export const CLIENT_ITEM_ID = '12121212-1212-4121-8121-121212121212';
+export const CLIENT_ITEM_TITLE = 'Project brief';
+
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
 
@@ -137,6 +154,8 @@ export type MockMemberApi = {
   frozen: boolean;
   /** Admin-only routes the page called (should stay empty). */
   adminCalls: string[];
+  /** Client role: every route the page called that refused the client. */
+  clientCalls: string[];
   /** Member asset routes the page called. */
   memberAssetCalls: string[];
   /** Every password change the page sent, in order. */
@@ -187,6 +206,8 @@ export type MockAdminState = {
   giveBacks: { id: string; note: string }[];
   accepts: { id: string; body: unknown }[];
   deletes: string[];
+  /** "What clients see": the ids of each acknowledgement sent. */
+  clientAcks: string[][];
 };
 
 /** Sign the browser in as a member, the way the client sees it: the
@@ -215,7 +236,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 export async function startMockMemberApi(
   clientOrigin: string,
-  opts: { role?: 'member' | 'admin' } = {},
+  opts: { role?: 'member' | 'admin' | 'client' } = {},
 ): Promise<MockMemberApi> {
   const role = opts.role ?? 'member';
   const state: MockMemberApi = {
@@ -225,6 +246,7 @@ export async function startMockMemberApi(
     failDrafts: null,
     frozen: false,
     adminCalls: [],
+    clientCalls: [],
     memberAssetCalls: [],
     passwordChanges: [],
     inviteAccepts: [],
@@ -247,6 +269,7 @@ export async function startMockMemberApi(
       giveBacks: [],
       accepts: [],
       deletes: [],
+      clientAcks: [],
     },
     close: async () => undefined,
   };
@@ -409,6 +432,45 @@ export async function startMockMemberApi(
       json(res, 404, { error: `not mocked: ${method} ${path}` });
       return true;
     }
+    // "What clients see" (client logins C1): one client item, until acked.
+    if (path === '/api/access/client-report' && method === 'GET') {
+      const last = A.clientAcks.at(-1);
+      json(res, 200, {
+        items: [
+          {
+            id: CLIENT_ITEM_ID,
+            type: 'page',
+            title: CLIENT_ITEM_TITLE,
+            updatedAt: now,
+            link: null,
+            emailedTo: ['pat@example.com'],
+            refsAbove: [
+              { id: ADMIN_OWN_ID, type: 'page', title: 'Internal pricing', audience: 'team' },
+            ],
+          },
+        ],
+        total: 1,
+        acknowledgement: last
+          ? { ackedAt: now, ackedBy: { id: 'admin-1', name: 'Ada Admin' }, itemCount: last.length }
+          : null,
+        acknowledged: last?.includes(CLIENT_ITEM_ID) ?? false,
+        newSinceAck: [],
+      });
+      return true;
+    }
+    if (path === '/api/access/client-report/ack' && method === 'POST') {
+      const body = JSON.parse(await readBody(req)) as { itemIds: string[] };
+      A.clientAcks.push(body.itemIds);
+      json(res, 200, {
+        acknowledgement: {
+          ackedAt: now,
+          ackedBy: { id: 'admin-1', name: 'Ada Admin' },
+          itemCount: body.itemIds.length,
+        },
+        acknowledged: true,
+      });
+      return true;
+    }
     if (path === '/api/admin/space' && method === 'GET') {
       const items = url.searchParams.get('kind') === 'page' ? A.privateIds.map(privateRow) : [];
       json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
@@ -503,7 +565,16 @@ export async function startMockMemberApi(
       res.end();
       return;
     }
-    if (role === 'admin') {
+    if (role === 'client') {
+      if (path.startsWith('/api/') && !CLIENT_OK.some((re) => re.test(path))) {
+        state.clientCalls.push(`${method} ${path}`);
+        return json(res, 403, {
+          error: 'forbidden',
+          reason: 'client-login',
+          message: 'Not available to client logins.',
+        });
+      }
+    } else if (role === 'admin') {
       if (await handleAdmin(req, res, url, path, method)) return;
     } else if (isAdminOnly(path)) {
       state.adminCalls.push(`${method} ${path}`);
