@@ -285,8 +285,8 @@ jobs:
 
       # CORS is not optional: MANTLE_API_CORS_ORIGINS must name the client origin
       # or every browser spec fails on CORS while the API-only ones pass — a
-      # split that reads like an auth bug. MANTLE_CLIENT_ORIGIN must name it too,
-      # or team.spec.ts waits 30s for a gate the server never redirects it to.
+      # split that reads like an auth bug. MANTLE_CLIENT_ORIGIN names it too:
+      # the brain forwards the /n/<id> links it builds to the client there.
       - name: Start the brain
         if: vars.E2E_SERVER_URL == ''
         run: |

@@ -1,5 +1,11 @@
 # Audit: /team — what drifted while the owner app was rebuilt (2026-08-19)
 
+> **Retired since.** The team-code portal (`/team`, `/hub`), its forum, team
+> chat and `teamFetch` are gone (member logins Phase 6, 2026-09): a team member
+> signs in with a member login and works in the member app. This file is the
+> record of what was true on its date, not a description of the app today;
+> see mantle `docs/member-logins.md` for the current design.
+
 **Scope.** The member-facing `/team` workspace, audited against
 [`ui-style-guide.md`](ui-style-guide.md) and against the owner app as it stands
 after the settings endgame, the resizable-columns roll and the card work.

@@ -791,9 +791,8 @@ intrinsic height) in a pane that was 400px tall.
   room is narrower than the measure the column simply fills it. The drag moves
   the width at 2× the pointer — both edges give way at once, which is what
   keeps the handle under the pointer — and double-click resets. A full-page
-  prose route (`/pages/[id]`, a forum topic) uses it directly; a list screen
-  whose detail is prose uses it INSIDE `detailFills` (`/pages`, the team
-  readers). Without it a prose route picks between 1400px line lengths, a
+  prose route (`/pages/[id]`) uses it directly; a list screen whose detail is
+  prose uses it INSIDE `detailFills` (`/pages`). Without it a prose route picks between 1400px line lengths, a
   hard-coded `max-w-*` the reader cannot touch, or — the first cut of this
   component — a left-pinned panel-plus-spacer that could never reach the
   middle of the window.
@@ -804,7 +803,7 @@ intrinsic height) in a pane that was 400px tall.
 
 > ⚠ **Compose a card from `ListCard`'s own parts**, not from remembered
 > classes: `ListCardTitle` (add `wrap` where finding a record by name is the
-> point — `/pages`, `/team/pages`), `ListCardSnippet`, `ListCardTags`,
+> point, as on `/pages`), `ListCardSnippet`, `ListCardTags`,
 > `ListCardMeta`. Every list screen does this now. It did not use to: thirty of
 > them passed `<ListCard>` and then wrote the inside out by hand, which is how
 > `truncate text-sm font-medium` came to lose its `truncate` on one screen and
@@ -819,8 +818,10 @@ intrinsic height) in a pane that was 400px tall.
 > token — `primary` | `info` | `warning` | `success` — and composes with
 > `selected`, whose ring and tint stay legible beside it. Status tokens only:
 > `chart-*` is DATA ink and a literal green/red ignores the theme (§2). One
-> marker per card, most urgent wins. The Forum is the reference: `primary` =
-> pinned announcement, `info` = unread, `warning` = open bug.
+> marker per card, most urgent wins: `primary` = pinned, `info` = unread,
+> `warning` = needs attention. (The team forum was the reference; it went
+> with the team portal in member logins Phase 6, and no screen passes
+> `accent` today.)
 
 **Every draggable edge shows a grip, at rest, without hovering it.** If a
 column can be resized, the user must be able to see that before they go
@@ -1002,8 +1003,8 @@ selection, the card, pagination — are the durable part; the grid vs
 
 ⚠ **Not for new work, and nothing uses it any more** — use `<MasterDetail>`
 above. The settings screens, `docs` and `team-admin` were ported during phase 2;
-`team-section` (the /team member workspace) was the last holdout and went over
-on 2026-08-19. It is kept here because the rules underneath it are the
+`team-section` (the old /team member workspace, since retired with the team
+portal) was the last holdout and went over on 2026-08-19. It is kept here because the rules underneath it are the
 scaffold's reasons, and reading them is how you know what `<MasterDetail>` is
 protecting you from.
 

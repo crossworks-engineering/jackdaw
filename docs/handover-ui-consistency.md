@@ -67,7 +67,8 @@ The specs exist to make that review cheap.
 - **`CommentThread` extracted** to `packages/web-ui/src/comment-thread.tsx`. The
   owner and member threads had already drifted (composer top vs bottom, newest
   vs oldest first). Presentation only — the owner keeps `apiFetch` + SSE, the
-  member keeps `teamFetch` + a 30s poll. `onDelete` is **omitted** on the member
+  member keeps `teamFetch` + a 30s poll (that member surface, the team portal,
+  is retired since: member logins Phase 6). `onDelete` is **omitted** on the member
   surface, so moderation is absent rather than disabled.
 - **The always-red delete idiom is retired** — 14 buttons across 13 files. Two
   non-delete, text-only buttons stay red on purpose; §8 records why so nobody

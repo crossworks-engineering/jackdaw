@@ -1,5 +1,11 @@
 # Handover: the team responder cannot show a picture (2026-08-19)
 
+> **Retired since.** The team-code portal (`/team`, `/hub`), its forum, team
+> chat and `teamFetch` are gone (member logins Phase 6, 2026-09): a team member
+> signs in with a member login and works in the member app. This file is the
+> record of what was true on its date, not a description of the app today;
+> see mantle `docs/member-logins.md` for the current design.
+
 > **STATUS — 2026-08-19, evening. DONE, VERIFIED LIVE.** §3 steps 1–3 shipped
 > in mantle v0.230.69 and jackdaw v0.4.1; step 4 completed the same day —
 > the customer brain rolled (server v0.230.70, client v0.4.2), the `files` group granted

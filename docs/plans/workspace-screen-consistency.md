@@ -41,7 +41,8 @@ doing before touching any individual screen.
   everywhere can still say so.
 - `<CommentThread>` is presentation only — comments in, `onSend`/`onDelete` out.
   Neither transport moved into it: the owner surface keeps its `apiFetch` + SSE
-  subscription, the member surface keeps `teamFetch` + a 30s poll. `onDelete` is
+  subscription, the member surface kept `teamFetch` + a 30s poll (that surface,
+  the team portal, is retired since: member logins Phase 6). `onDelete` is
   **omitted** on the member surface rather than disabled, so members have no
   moderation button at all. Both surfaces now run the reference behaviour
   (composer on top, newest first); the member thread keeps its `max-w-2xl`

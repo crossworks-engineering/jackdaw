@@ -1,5 +1,11 @@
 # Plan: the Forum becomes a card list on the scaffold (2026-08-19)
 
+> **Retired since.** The team-code portal (`/team`, `/hub`), its forum, team
+> chat and `teamFetch` are gone (member logins Phase 6, 2026-09): a team member
+> signs in with a member login and works in the member app. This file is the
+> record of what was true on its date, not a description of the app today;
+> see mantle `docs/member-logins.md` for the current design.
+
 **Asked for by Jason.** Four things, in his words:
 
 1. the owner pages' **cards list menu** and content-page style guide;

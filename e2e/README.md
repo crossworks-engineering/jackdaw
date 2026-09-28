@@ -6,12 +6,15 @@ One spec set, two topologies:
 
 | Project       | Meaning                                                                                            | When it runs                                                          |
 | ------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `same-origin` | client and server are one origin (the monolith, or the server app's own team/share/print surfaces) | CI on every PR + locally                                              |
+| `same-origin` | client and server are one origin (the monolith, or the server app's own share/print surfaces)      | CI on every PR + locally                                              |
 | `split`       | client (owner UI) on its own origin, server on the canonical origin                                | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
-team-token entry, PDF export, the brain's `/app-runtime` CORS, the editor header, `/tasks`
-behaviour, the resizable shell, and the shared field primitives. Fixtures make
+the Team admin tabs, a member login end to end (`member-smoke.spec.ts`: invite,
+sign in, upload into Mine, the image by `?at=`), PDF export, the brain's
+`/app-runtime` CORS, the editor header, `/tasks` behaviour, the resizable shell,
+and the shared field primitives. The team-code portal's specs went with the
+portal (member logins Phase 6). Fixtures make
 specs topology-blind — same-origin auth is the session cookie, split auth is the
 kind-`'m'` bearer (localStorage contract in `lib/contract.ts`).
 
@@ -31,7 +34,11 @@ against an in-memory member API the spec starts in its own process
 with `MANTLE_SERVER_ORIGIN` pointed at the mock on `:3912`; nothing else is
 needed. Stop a `next dev` running in `client/web` first (Next allows one per
 directory). `E2E_BROWSER_CHANNEL=chrome` drives the installed Chrome when
-Playwright's bundled browser is not downloaded.
+Playwright's bundled browser is not downloaded. `E2E_MEMBER_PORT` and
+`E2E_MEMBER_API_PORT` move the two ports when another run holds them.
+
+CI runs them on every push and pull request (the `e2e-member` job in
+`.github/workflows/verify.yml`), with no brain and nothing configured.
 
 The mock is a real HTTP server, not `page.route()`, on purpose: a write the
 browser starts while a tab unloads (the leave flush on a reload, sent
@@ -121,12 +128,10 @@ Three things that are easy to get wrong:
 - **`MANTLE_API_CORS_ORIGINS` must name the client origin** (`:3901`), or every
   browser test fails on CORS while the API-only ones pass — a confusing split
   that looks like an auth bug.
-- **`MANTLE_CLIENT_ORIGIN` must name it too**, for a different reason: the
-  server's redirect stub uses it to send a member who lands on the brain's
-  `/team` over to the client's token gate. Without it `team.spec.ts` waits
-  thirty seconds for a gate that was never going to render, and the failure
-  reads as a missing feature rather than as a brain that does not know where
-  its client lives.
+- **`MANTLE_CLIENT_ORIGIN` should name it too**: it is where the brain sends
+  the `/n/<id>` links it builds (they live in the client app). No spec depends
+  on it any more; the `/team` redirect spec that did went with the retired
+  team portal.
 
 Tear down with `DROP DATABASE mantle_e2e`, then delete the `mantle-e2e` bucket in
 the dev RustFS console (http://localhost:9001, `minio` / `minio12345`) or with
