@@ -71,9 +71,9 @@ type UserRow = {
   disabledAt: string | null;
 };
 
-/** Admin or Member. Member only while the brain has member logins on
- *  (MANTLE_MEMBERS=1). A member login IS the team member: users are the team,
- *  so no contact is picked (Jason, 2026-09-26). */
+/** Admin or Member. Member logins are always on (Phase 6 removed the
+ *  MANTLE_MEMBERS flag). A member login IS the team member: users are the
+ *  team, so no contact is picked (Jason, 2026-09-26). */
 function RoleFields({
   idPrefix,
   role,
@@ -139,10 +139,7 @@ export function UsersClient() {
   const queryClient = useQueryClient();
   const usersQuery = useQuery({
     queryKey: ['users'],
-    queryFn: () =>
-      apiFetch<{ users: UserRow[]; currentActorId: string; membersEnabled?: boolean }>(
-        '/api/users',
-      ),
+    queryFn: () => apiFetch<{ users: UserRow[]; currentActorId: string }>('/api/users'),
   });
 
   // Deep link: /settings/users?selected=<id-or-email> preselects that user
@@ -174,7 +171,6 @@ export function UsersClient() {
   }
 
   const { users, currentActorId } = usersQuery.data;
-  const membersEnabled = usersQuery.data.membersEnabled === true;
   const selected =
     users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null;
 
@@ -246,7 +242,6 @@ export function UsersClient() {
             <UserDetail
               key={selected.id}
               user={selected}
-              membersEnabled={membersEnabled}
               isSelf={selected.id === currentActorId}
               onChanged={invalidate}
               onRequestDelete={() => setDeleteOpen(true)}
@@ -261,7 +256,6 @@ export function UsersClient() {
       />
 
       <AddUserDialog
-        membersEnabled={membersEnabled}
         open={addOpen}
         onOpenChange={setAddOpen}
         onCreated={(id) => {
@@ -289,14 +283,12 @@ export function UsersClient() {
 
 function UserDetail({
   user,
-  membersEnabled,
   isSelf,
   onChanged,
   onRequestDelete,
   onRequestReset,
 }: {
   user: UserRow;
-  membersEnabled: boolean;
   isSelf: boolean;
   onChanged: () => void;
   onRequestDelete: () => void;
@@ -391,9 +383,7 @@ function UserDetail({
         <SubmitButton pending={saving}>Save user</SubmitButton>
       </form>
 
-      {!user.isOwner && !isSelf && (
-        <AccessCard user={user} membersEnabled={membersEnabled} onChanged={onChanged} />
-      )}
+      {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
 
       {user.role !== 'member' && <AssistantCard user={user} onChanged={onChanged} />}
 
@@ -425,15 +415,7 @@ function UserDetail({
  * login at once (sessions are re-checked every request; bearers are revoked).
  * Never shown for the anchor or your own login.
  */
-function AccessCard({
-  user,
-  membersEnabled,
-  onChanged,
-}: {
-  user: UserRow;
-  membersEnabled: boolean;
-  onChanged: () => void;
-}) {
+function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void }) {
   const toast = useToast();
   const [role, setRole] = useState<'admin' | 'member'>(user.role);
   const [saving, setSaving] = useState(false);
@@ -482,14 +464,12 @@ function AccessCard({
           aria-label="Disable this login"
         />
       </div>
-      {membersEnabled || user.role === 'member' ? (
-        <form onSubmit={save} noValidate className="space-y-3 border-t border-border pt-4">
-          <RoleFields idPrefix={`user-${user.id}`} role={role} onRoleChange={setRole} />
-          <SubmitButton pending={saving} disabled={!dirty}>
-            Save role
-          </SubmitButton>
-        </form>
-      ) : null}
+      <form onSubmit={save} noValidate className="space-y-3 border-t border-border pt-4">
+        <RoleFields idPrefix={`user-${user.id}`} role={role} onRoleChange={setRole} />
+        <SubmitButton pending={saving} disabled={!dirty}>
+          Save role
+        </SubmitButton>
+      </form>
     </div>
   );
 }
@@ -871,12 +851,10 @@ function AssistantFields({
 }
 
 function AddUserDialog({
-  membersEnabled,
   open,
   onOpenChange,
   onCreated,
 }: {
-  membersEnabled: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (id: string) => void;
@@ -1012,7 +990,7 @@ function AddUserDialog({
               Falls back to the email address when blank.
             </FieldHint>
           </Field>
-          {membersEnabled && <RoleFields idPrefix="new-user" role={role} onRoleChange={setRole} />}
+          <RoleFields idPrefix="new-user" role={role} onRoleChange={setRole} />
           {role === 'admin' && (
             <AssistantFields
               idPrefix="new-user"
