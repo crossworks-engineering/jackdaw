@@ -19,20 +19,30 @@ const PRESENCE_COOKIE = 'mantle_authed';
  *  sign-in QR; it holds no data and never reads the code in the fragment) and
  *  `/invite`, where a person redeems a member invite (member logins, Phase 6).
  *  Public paths pass before any cookie is read, so a signed-in browser (admin
- *  or member) is never sent away from them.
- *
- *  `/team` and `/hub`, the team-code portal, are NOT here: the portal is
- *  retired (member logins Phase 6), the brain redirects both to /login, and
- *  on this origin they are ordinary unknown paths behind the presence gate. */
+ *  or member) is never sent away from them. */
 const PUBLIC_PREFIXES: readonly string[] = ['/login', '/env.js', '/pair', '/invite'];
+
+/** The retired team-code portal (member logins Phase 6): `/team`, `/hub` and
+ *  anything under them. A team member signs in with a member login now, so
+ *  an old bookmark goes straight to /login, for everyone and before the
+ *  presence gate, the same as the brain's mountRetiredTeamPages: no `next`
+ *  (the page is gone) and no query carried over (an old link may hold a
+ *  team code). `/team-admin`, the owner console, is not under `/team`. */
+const RETIRED_PREFIXES: readonly string[] = ['/team', '/hub'];
+
+const under = (pathname: string, prefixes: readonly string[]) =>
+  prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 export function middleware(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
   const pass = () => NextResponse.next();
 
-  if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return pass();
+  if (under(pathname, RETIRED_PREFIXES)) {
+    // A fresh URL, not a clone: a clone of `/team/` keeps its trailing slash
+    // (`/login/`), and nothing of the old address may ride along.
+    return NextResponse.redirect(new URL('/login', req.nextUrl.origin), 307);
   }
+  if (under(pathname, PUBLIC_PREFIXES)) return pass();
   if (req.cookies.get(PRESENCE_COOKIE)?.value === '1') {
     // A member login's browser is sent off admin-only paths to the member
     // home before the page renders (UX only, see MEMBER_HINT_COOKIE).

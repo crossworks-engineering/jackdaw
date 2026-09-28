@@ -4,7 +4,7 @@ import { middleware } from './middleware';
 
 /** The client middleware's routing for /invite (member logins, Phase 6): a
  *  public page, reachable with no session AND with one. And for the retired
- *  team-code portal: /team and /hub are no longer public. */
+ *  team-code portal: /team and /hub go straight to /login. */
 function request(path: string, cookies: Record<string, string> = {}): NextRequest {
   const req = new NextRequest(new URL(path, 'http://client.test'));
   for (const [name, value] of Object.entries(cookies)) req.cookies.set(name, value);
@@ -43,29 +43,58 @@ describe('middleware: /invite', () => {
 });
 
 describe('middleware: the retired team portal', () => {
-  // /team and /hub were public (a team-code holder had no session). The
-  // portal is gone (member logins Phase 6), so they are ordinary paths now:
-  // no session bounces to /login like any owner path.
-  for (const path of ['/team', '/team/forum', '/team/pages?s=abc', '/hub']) {
-    it(`bounces ${path} with no session`, () => {
-      const res = middleware(request(path));
-      expect(location(res)).toMatch(/\/login\?next=/);
-    });
+  // /team and /hub were the team-code portal. It is gone (member logins
+  // Phase 6), so every visit goes straight to /login, the same as the brain
+  // (mountRetiredTeamPages): a 307, no `next`, no query (an old link may hold
+  // a team code), whoever is asking.
+  const RETIRED = [
+    '/team',
+    '/team/',
+    '/team/forum',
+    '/team/forum/abc',
+    '/team/pages?s=abc',
+    '/team?code=Xy7kPq2M',
+    '/team/forum?code=Xy7kPq2M&x=1',
+    '/hub',
+    '/hub/',
+    '/hub/briefing?code=Xy7kPq2M',
+  ];
+  const SESSIONS: Record<string, Record<string, string>> = {
+    'no session': {},
+    'an admin': { mantle_authed: '1' },
+    'a hinted member': { mantle_authed: '1', mantle_member: '1' },
+  };
+
+  for (const [who, cookies] of Object.entries(SESSIONS)) {
+    for (const path of RETIRED) {
+      it(`sends ${who} on ${path} to /login with no next and no query`, () => {
+        const res = middleware(request(path, cookies));
+        expect(res.status).toBe(307);
+        const to = new URL(location(res)!);
+        expect(to.pathname).toBe('/login');
+        expect(to.search).toBe('');
+        expect(to.searchParams.has('next')).toBe(false);
+        expect(location(res)).not.toMatch(/code|Xy7kPq2M|team|hub/);
+      });
+    }
   }
 
-  it('sends a hinted member off /team and /hub to the member home', () => {
-    for (const path of ['/team', '/hub']) {
-      const res = middleware(request(path, { mantle_authed: '1', mantle_member: '1' }));
-      expect(new URL(location(res)!).pathname, path).toBe('/');
+  it('leaves /team-admin (the owner console) to the presence gate', () => {
+    expect(location(middleware(request('/team-admin', { mantle_authed: '1' })))).toBeNull();
+    expect(location(middleware(request('/team-admin?view=shares')))).toMatch(
+      /\/login\?next=%2Fteam-admin/,
+    );
+  });
+
+  it('leaves a path that only starts with the letters (/teams, /hubs) to the gate', () => {
+    for (const path of ['/teams', '/hubs', '/hub-app']) {
+      expect(location(middleware(request(path, { mantle_authed: '1' }))), path).toBeNull();
+      expect(location(middleware(request(path))), path).toMatch(/\/login\?next=/);
     }
   });
 
   it('no longer flags any path as a member surface', () => {
     const res = middleware(request('/team', { mantle_authed: '1' }));
     expect(res.headers.get('x-middleware-request-x-mantle-member-surface')).toBeNull();
-  });
-
-  it('leaves /team-admin (the owner console) to the presence gate', () => {
-    expect(location(middleware(request('/team-admin', { mantle_authed: '1' })))).toBeNull();
   });
 });
