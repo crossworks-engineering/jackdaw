@@ -5,9 +5,10 @@
  * member login sees as their home (PUT/DELETE /api/team-admin/hub-app; the
  * route keeps its name from the retired team-code /hub, its first reader).
  * Designating requires a published build (enforced server-side); clearing
- * reverts members to the built-in home. The share lifecycle note:
- * designation ensures a TEAM-mode share for the app — undesignating leaves
- * that share alone (revoke it from the app's own share controls if wanted).
+ * reverts members to the built-in home. Designating puts an app still at
+ * admin at team, so every member can run it (members run apps by level; no
+ * link is made, team links are retired). Undesignating leaves the level
+ * alone (change it from the app's own Access control if wanted).
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -22,6 +23,7 @@ import {
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
+import { hubAppSetMessage, type HubAppSetResponse } from '@/lib/hub-app';
 
 const BUILT_IN = '__built_in__';
 
@@ -48,14 +50,10 @@ export function HubAppPicker({
         await apiSend('/api/team-admin/hub-app', 'DELETE');
         toast.success('Members now see the built-in home.');
       } else {
-        const res = await apiSend<{ modeChanged: boolean }>('/api/team-admin/hub-app', 'PUT', {
+        const res = await apiSend<HubAppSetResponse>('/api/team-admin/hub-app', 'PUT', {
           appId: next,
         });
-        toast.success(
-          res.modeChanged
-            ? 'Home app set. It is now at Team level, and its share link is team-members-only.'
-            : 'Home app set. Members see it as their home.',
-        );
+        toast.success(hubAppSetMessage(res));
       }
       router.refresh();
     } catch (err) {
