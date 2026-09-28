@@ -234,11 +234,11 @@ function Wizard({
   const [azureKey, setAzureKey] = useState('');
   const [modelsSaved, setModelsSaved] = useState(false);
 
-  // Memory step — model + route choices. OpenRouter is pre-selected when its
-  // key was saved a step earlier (it gets reused — no second signup).
-  const [embProvider, setEmbProvider] = useState<'openrouter' | 'openai'>(
-    savedServices.includes('openrouter') ? 'openrouter' : 'openai',
-  );
+  // Memory step — model + route choices. OpenRouter is always the default:
+  // it is the one-key path the Models step already runs on. This used to key
+  // off `savedServices`, but that is the page-load snapshot, so a key saved a
+  // step earlier in THIS session never counted and the step fell to OpenAI.
+  const [embProvider, setEmbProvider] = useState<'openrouter' | 'openai'>('openrouter');
   const [embModel, setEmbModel] = useState<'text-embedding-3-large' | 'text-embedding-3-small'>(
     'text-embedding-3-large',
   );
@@ -1196,8 +1196,10 @@ function ModelChoiceCards({
               <RadioGroupItem value={m.id} className="mt-0.5" disabled={blocked} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium">{m.name}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{m.price}</span>
+                  <span className="min-w-0 text-sm font-medium">{m.name}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+                    {m.price}
+                  </span>
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">{m.blurb}</span>
                 <span className="mt-1.5 flex flex-wrap gap-1.5">

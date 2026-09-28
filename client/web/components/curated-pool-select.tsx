@@ -44,7 +44,9 @@ type Bundle = { entries: CuratedEntry[] };
 function priceLabel(p: CuratedEntry['pricing']): string {
   if (!p || (p.inputPerM == null && p.outputPerM == null)) return '';
   if (p.inputPerM === 0 && p.outputPerM === 0) return ' · Free';
-  const f = (v: number | null) => (v == null ? '?' : `$${v}`);
+  // Snapshot prices are per-token × 1e6 floats (0.13199999999999998): round.
+  const f = (v: number | null) =>
+    v == null ? '?' : `$${v >= 1 ? v.toFixed(2) : Number(v.toPrecision(2))}`;
   return ` · ${f(p.inputPerM)}/${f(p.outputPerM)} per M`;
 }
 
