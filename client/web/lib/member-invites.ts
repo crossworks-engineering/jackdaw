@@ -24,9 +24,11 @@ export function inviteLink(origin: string, linkPath: string): string {
 }
 
 /**
- * The code in what a person typed or pasted: a bare code (an invite code or
- * an old 8-character team code), or the whole invite link. Codes are case
- * sensitive and never contain spaces, so only whitespace is dropped.
+ * The code in what a person typed or pasted: a bare invite code, or the whole
+ * invite link. Codes are case sensitive and never contain spaces, so only
+ * whitespace is dropped. Nothing else is judged here: whether a code redeems
+ * is the brain's answer (an old 8-character team code gets its 404, the same
+ * "not valid" as any other).
  */
 export function readInviteCode(input: string): string {
   const raw = input.trim();

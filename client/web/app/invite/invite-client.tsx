@@ -295,8 +295,7 @@ export function InviteClient({
                   }
                 />
                 <FieldDescription id="invite-code-hint">
-                  The code from your invite link. A team code works too, once your admin has invited
-                  you.
+                  The 16-character code from your invite link.
                 </FieldDescription>
                 <FieldError id="invite-code-error">{codeError}</FieldError>
               </Field>

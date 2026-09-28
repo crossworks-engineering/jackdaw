@@ -69,12 +69,14 @@ const isAdminOnly = (path: string) =>
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
 
-/** Member invites (Phase 6). GOOD previews and redeems; TEAM is an old
- *  8-character team code whose contact has an open invite (previews and
- *  redeems); STALE previews but was used meanwhile, so accept refuses it (the
- *  uniform 401). Any other code previews as the uniform 404. */
+/** Member invites (Phase 6). GOOD previews and redeems; STALE previews but
+ *  was used meanwhile, so accept refuses it (the uniform 401). Any other code
+ *  previews as the uniform 404, OLD_TEAM_CODE included: the brain dropped
+ *  team codes (migration 0178), so an old one redeems nothing. */
 export const INVITE_GOOD_CODE = 'GoodCode2345abcd';
-export const INVITE_TEAM_CODE = 'Xy7kPq2M';
+/** An old 8-character team code, as an old /team link or a person might
+ *  still carry one. */
+export const OLD_TEAM_CODE = 'Xy7kPq2M';
 export const INVITE_STALE_CODE = 'StaleCode234abcd';
 export const INVITE_EMAIL = 'sam@example.com';
 export const INVITE_NAME = 'Sam Botha';
@@ -229,7 +231,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     // The public invite routes (server/web/app/api/auth/invite in mantle).
     if (path.startsWith('/api/auth/invite/') && path !== '/api/auth/invite/accept') {
       const code = decodeURIComponent(path.slice('/api/auth/invite/'.length));
-      if ([INVITE_GOOD_CODE, INVITE_TEAM_CODE, INVITE_STALE_CODE].includes(code)) {
+      if ([INVITE_GOOD_CODE, INVITE_STALE_CODE].includes(code)) {
         return json(res, 200, {
           email: INVITE_EMAIL,
           displayName: INVITE_NAME,
@@ -247,7 +249,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       if (typeof body.password !== 'string' || body.password.length < 8) {
         return answer(400, { error: 'Choose a password of at least 8 characters.' });
       }
-      if (body.code !== INVITE_GOOD_CODE && body.code !== INVITE_TEAM_CODE) {
+      if (body.code !== INVITE_GOOD_CODE) {
         return answer(401, { error: 'This invite is not valid. Ask for a new one.' });
       }
       password = body.password;
