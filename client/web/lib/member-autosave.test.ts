@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   CONFLICT_MESSAGE,
+  SERVER_MESSAGE,
   SaveRefused,
   classifySaveError,
   createAutosaveQueue,
+  leaveNeedsWarning,
+  versionFailureText,
   memberSavesSettled,
   trackMemberSaves,
   type AutosaveOptions,
@@ -330,6 +333,59 @@ describe('member autosave: 409 and network failures', () => {
     expect(q.state().status).toBe('failed');
   });
 
+  it('a brain 500 retries once, then says the server could not save it, not the network', async () => {
+    const send = vi.fn<AutosaveSend<Doc>>().mockRejectedValue(new ApiError('Internal error', 500));
+    const { q, type } = setup(send, {});
+    type('words the brain refuses');
+    await expect(q.flush()).resolves.toBe(false);
+    expect(q.state()).toEqual({ status: 'retrying', attempt: 1 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(q.state()).toEqual({ status: 'failed', message: SERVER_MESSAGE });
+    expect(SERVER_MESSAGE).not.toMatch(/connection/i);
+    // No retry loop behind it, and the typing is still there to copy.
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(q.isDirty()).toBe(true);
+    // The next edit tries once more and says the same at once (still refused).
+    type('words the brain refuses, and more');
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(q.state()).toEqual({ status: 'failed', message: SERVER_MESSAGE });
+  });
+
+  it('a brain 500 then a success clears the count', async () => {
+    const send = vi
+      .fn<AutosaveSend<Doc>>()
+      .mockRejectedValueOnce(new ApiError('Internal error', 500))
+      .mockResolvedValueOnce({ rev: 2 })
+      .mockRejectedValueOnce(new ApiError('Internal error', 500));
+    const { q, type } = setup(send, {});
+    type('one');
+    await q.flush();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(q.state()).toEqual({ status: 'saved' });
+    type('two');
+    await q.flush();
+    // One 500 after a success is a blip again: retry, not the server message.
+    expect(q.state()).toEqual({ status: 'retrying', attempt: 1 });
+  });
+
+  it('the proxy 5xxs of a restarting brain stay network failures', () => {
+    for (const status of [502, 503, 504]) {
+      expect(classifySaveError(new ApiError('down', status)), String(status)).toEqual({
+        kind: 'network',
+      });
+    }
+    expect(classifySaveError(new ApiError('boom', 500))).toEqual({ kind: 'server', status: 500 });
+  });
+
+  it('Save version names a server failure as the server', () => {
+    expect(versionFailureText({ kind: 'server', status: 500 })).toMatch(/^The server could not/);
+    expect(versionFailureText({ kind: 'network' })).toMatch(/connection/);
+    expect(versionFailureText({ kind: 'conflict' })).toBeNull();
+  });
+
   it('a refusal the editor raises itself shows its message', () => {
     expect(classifySaveError(new SaveRefused('Not here.'))).toEqual({
       kind: 'invalid',
@@ -397,5 +453,34 @@ describe('member autosave: flush before submit', () => {
     calls[0]!.resolve(2);
     await tick();
     expect(settled).toBe(true);
+  });
+});
+
+describe('member autosave: asking before leaving', () => {
+  it('asks only while unsaved typing has nowhere to go', () => {
+    expect(leaveNeedsWarning({ status: 'failed', message: SERVER_MESSAGE }, true)).toBe(true);
+    expect(leaveNeedsWarning({ status: 'retrying', attempt: 2 }, true)).toBe(true);
+    expect(
+      leaveNeedsWarning({ status: 'stopped', reason: 'frozen', message: 'Frozen.' }, true),
+    ).toBe(true);
+  });
+
+  it('does not nag when the leave flush will send it, or nothing is unsaved', () => {
+    expect(leaveNeedsWarning({ status: 'pending' }, true)).toBe(false);
+    expect(leaveNeedsWarning({ status: 'saving' }, true)).toBe(false);
+    expect(leaveNeedsWarning({ status: 'saved' }, false)).toBe(false);
+    expect(leaveNeedsWarning({ status: 'failed', message: SERVER_MESSAGE }, false)).toBe(false);
+  });
+
+  it('the editor hook asks it from beforeunload', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const hook = readFileSync(
+      fileURLToPath(new URL('../components/member/use-member-autosave.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(hook).toContain("window.addEventListener('beforeunload', onBeforeUnload)");
+    expect(hook).toMatch(/if \(!leaveNeedsWarning\(queue\.state\(\), queue\.isDirty\(\)\)\) return;/);
+    expect(hook).toContain('e.preventDefault();');
   });
 });

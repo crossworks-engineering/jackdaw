@@ -23,7 +23,13 @@
  *  - A state refusal that freezes the item (409 `frozen` or `not-draft`)
  *    stops autosave with the brain's own sentence: retrying cannot help. Any
  *    other refusal (`embed` on Save version, `quota`) fails that write only.
- *  - A network failure (or a 5xx) retries with backoff, bounded.
+ *  - A network failure (or a 502, 503 or 504 from the proxy in front of a
+ *    restarting brain) retries with backoff, bounded.
+ *  - Any other 5xx is the brain failing on this write. The first one retries
+ *    like a network failure; a second in a row stops retrying and says the
+ *    server could not save it (not "check your connection", which sent
+ *    members hunting for a network fault for a minute). The typing stays in
+ *    the editor and the next edit tries again.
  *  - `flush()` resolves true only once everything read at call time is on the
  *    server, which is what Submit and the leave hook await.
  */
@@ -51,6 +57,7 @@ export type SaveFailure =
   | { kind: 'state'; reason: string; message: string }
   | { kind: 'auth' }
   | { kind: 'network' }
+  | { kind: 'server'; status: number }
   | { kind: 'invalid'; status: number; message: string };
 
 /** Sends `doc` on top of the etag `rev`; `base` is the document the server
@@ -91,6 +98,12 @@ export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 2000, 4000, 800
 export const CONFLICT_MESSAGE =
   'This item changed in another tab or window. Reload it to keep working.';
 const OFFLINE_MESSAGE = 'Could not save your changes. Check your connection.';
+export const SERVER_MESSAGE =
+  'The server could not save this. Copy your text somewhere safe, and tell your admin if it keeps happening.';
+
+/** A 5xx that says the brain is out of reach (the proxy answered for it),
+ *  not that the brain failed on this write. */
+const UNREACHABLE: ReadonlySet<number> = new Set([502, 503, 504]);
 
 /** State refusals that mean the item cannot change at all right now (it was
  *  submitted, or left draft, elsewhere). Anything else refuses one write. */
@@ -118,6 +131,9 @@ export function classifySaveError(err: unknown): SaveFailure {
       return typeof body.current_rev === 'number'
         ? { kind: 'conflict', currentRev: body.current_rev }
         : { kind: 'conflict' };
+    }
+    if (err.status >= 500 && !UNREACHABLE.has(err.status)) {
+      return { kind: 'server', status: err.status };
     }
     if (err.status >= 500 || err.status === 408 || err.status === 429) return { kind: 'network' };
     return { kind: 'invalid', status: err.status, message: refusalMessage(err) ?? err.message };
@@ -155,6 +171,8 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
   let stopped: { reason: string; message: string } | null = null;
   let failed: string | null = null;
   let retryAttempt = 0;
+  /** Brain failures (a non-proxy 5xx) in a row, across writes. */
+  let serverFailures = 0;
   let debounce: ReturnType<typeof setTimeout> | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let pendingSince: number | null = null;
@@ -232,10 +250,12 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
         savedKey = key;
         failed = null;
         retryAttempt = 0;
+        serverFailures = 0;
         clearRetry();
         return { ok: true };
       } catch (err) {
         const failure = classifySaveError(err);
+        serverFailures = failure.kind === 'server' ? serverFailures + 1 : 0;
         if (
           failure.kind === 'conflict' &&
           !adopted &&
@@ -256,6 +276,16 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
           failed = failure.message;
         } else if (failure.kind === 'network') {
           scheduleRetry();
+        } else if (failure.kind === 'server') {
+          // Once may be a blip; twice in a row the brain refuses this write,
+          // and retrying for a minute only hides that.
+          if (serverFailures >= 2) {
+            clearRetry();
+            retryAttempt = 0;
+            failed = SERVER_MESSAGE;
+          } else {
+            scheduleRetry();
+          }
         } else if (failure.kind === 'invalid') {
           failed = failure.message;
         }
@@ -341,6 +371,7 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
       stopped = null;
       failed = null;
       retryAttempt = 0;
+      serverFailures = 0;
       pendingSince = null;
       emit();
     },
@@ -349,6 +380,26 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
     state: current,
     settled: () => chain,
   };
+}
+
+/** What Save version says for a failure the queue's state does not already
+ *  say (a refusal does, through the state): null for those. */
+export function versionFailureText(failure: SaveFailure): string | null {
+  if (failure.kind === 'network') return 'Could not save the version. Check your connection.';
+  if (failure.kind === 'server') return 'The server could not save the version. Try again.';
+  return null;
+}
+
+/**
+ * Should leaving the page ask first? Only while the editor holds typing the
+ * brain has not got AND saving is in trouble (failing, retrying or stopped):
+ * the leave flush sends ordinary pending typing on the way out, so a prompt
+ * then would only nag. Pure, so the rule is unit-tested; the editor hook
+ * asks it from `beforeunload`.
+ */
+export function leaveNeedsWarning(state: AutosaveState, dirty: boolean): boolean {
+  if (!dirty) return false;
+  return state.status === 'failed' || state.status === 'retrying' || state.status === 'stopped';
 }
 
 /**

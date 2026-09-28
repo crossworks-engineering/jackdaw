@@ -96,6 +96,9 @@ export type MockMemberApi = {
   draftRev: number;
   /** Every draft PUT body, in order, with when it arrived (Date.now()). */
   puts: { doc: Doc; if_rev?: number; at: number }[];
+  /** Set to a status to have every draft PUT fail with it (a brain that
+   *  refuses the write, e.g. Postgres on a NUL character: 500). */
+  failDrafts: number | null;
   /** Admin-only routes the page called (should stay empty). */
   adminCalls: string[];
   /** Member asset routes the page called. */
@@ -135,6 +138,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     draft: null,
     draftRev: 0,
     puts: [],
+    failDrafts: null,
     adminCalls: [],
     memberAssetCalls: [],
     passwordChanges: [],
@@ -282,6 +286,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     if (path === `/api/member/space/${PAGE_ID}/draft` && method === 'PUT') {
       const body = JSON.parse(await readBody(req)) as { doc: Doc; if_rev?: number };
       state.puts.push({ ...body, at: Date.now() });
+      if (state.failDrafts) return json(res, state.failDrafts, { error: 'Internal error' });
       if (body.if_rev !== undefined && body.if_rev !== state.draftRev) {
         return json(res, 409, { error: 'The draft changed.', current_rev: state.draftRev });
       }

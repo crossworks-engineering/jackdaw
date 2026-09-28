@@ -123,3 +123,29 @@ describe('spaceClient: one client, two bases (member logins Phase 7)', () => {
     ]);
   });
 });
+
+describe('a member write never carries a NUL character', () => {
+  const NUL = String.fromCharCode(0);
+
+  it('drops NUL from every string of a note, a page draft and a saved version', async () => {
+    const client = spaceClient();
+    await client.patch('i1', { title: `A${NUL}B`, content: `one${NUL}two` });
+    await client.draft('i1', {
+      doc: { type: 'doc', content: [{ type: 'text', text: `x${NUL}y` }] },
+      if_rev: 1,
+    });
+    await client.save('i1', { doc: { type: 'doc', content: [{ text: `p${NUL}q` }] }, if_rev: 2 });
+    expect(calls.map((c) => c.body)).toEqual([
+      { title: 'AB', content: 'onetwo' },
+      { doc: { type: 'doc', content: [{ type: 'text', text: 'xy' }] }, if_rev: 1 },
+      { doc: { type: 'doc', content: [{ text: 'pq' }] }, if_rev: 2 },
+    ]);
+    // The save is still a JSON POST.
+    expect(calls[2]!.method).toBe('POST');
+  });
+
+  it('keeps text that only spells a NUL escape', async () => {
+    await spaceClient().patch('i1', { content: 'a \\u0000 b' });
+    expect(calls[0]!.body).toEqual({ content: 'a \\u0000 b' });
+  });
+});

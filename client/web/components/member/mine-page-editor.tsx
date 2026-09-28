@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { PageEditor } from '@/components/page-editor/page-editor';
+import { versionFailureText } from '@/lib/member-autosave';
 import { isAdminSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
 import { useSpaceApi } from './space-api';
@@ -66,9 +67,8 @@ export function MinePageEditor({
     });
     if (!res.ok) {
       // A refusal already said its piece through the queue's state.
-      if (res.failure.kind === 'network') {
-        toast.error('Could not save the version. Check your connection.');
-      }
+      const text = versionFailureText(res.failure);
+      if (text) toast.error(text);
       return false;
     }
     hasDraftRef.current = false;

@@ -57,3 +57,39 @@ test('typing in a Mine page, then leaving within the debounce, is kept', async (
   expect(api.adminCalls).toEqual([]);
   expect(api.memberAssetCalls).toContain(`/api/member/files/${FILE_ID}`);
 });
+
+test('a write the brain keeps refusing says so, keeps the typing and asks before leaving', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAsMember(context, baseURL!);
+  api.failDrafts = 500;
+
+  await page.goto(`/pages?id=${PAGE_ID}`);
+  const editor = page.locator('.ProseMirror');
+  await expect(editor).toContainText('Start.', { timeout: 60_000 });
+  await editor.locator('p').first().click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Refused words.');
+
+  // Two 500s in a row (the debounce, then one retry): the server, not the
+  // network, and no minute of retrying first.
+  await expect(page.getByText('The server could not save this.').first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText('Check your connection')).toHaveCount(0);
+  expect(api.puts.length).toBe(2);
+  await expect(editor).toContainText('Start. Refused words.');
+
+  // Leaving now would lose the typing: the browser asks first.
+  const asked = new Promise<string>((resolve) => {
+    page.once('dialog', (d) => {
+      resolve(d.type());
+      void d.dismiss();
+    });
+  });
+  await page.close({ runBeforeUnload: true });
+  expect(await asked).toBe('beforeunload');
+  expect(api.adminCalls).toEqual([]);
+});

@@ -154,6 +154,19 @@ export function splitByReview<T extends Pick<SpaceItemRow, 'reviewState'>>(
   };
 }
 
+/**
+ * The JSON body of a member write, with every NUL character dropped from its
+ * strings. Postgres refuses NUL in text, so one pasted NUL made every later
+ * save of the item fail as a 500 (the brain strips it too, from the release
+ * after v0.232.305; this keeps older brains saving). Nothing a person reads
+ * is lost: NUL renders as nothing.
+ */
+export function memberWriteJson(body: unknown): string {
+  return JSON.stringify(body, (_key, value: unknown) =>
+    typeof value === 'string' && value.includes('\u0000') ? value.split('\u0000').join('') : value,
+  );
+}
+
 /** The browser's cap on keepalive request bodies is 64 KB (shared by all of
  *  a page's keepalive requests in flight); stay under it. */
 const KEEPALIVE_MAX_BYTES = 60_000;
@@ -165,7 +178,7 @@ const KEEPALIVE_MAX_BYTES = 60_000;
  * page. Bigger bodies go without it, as every write did before.
  */
 async function sendAutosave<T>(path: string, method: 'PUT' | 'PATCH', body: unknown): Promise<T> {
-  const text = JSON.stringify(body);
+  const text = memberWriteJson(body);
   const keepalive = new TextEncoder().encode(text).length < KEEPALIVE_MAX_BYTES;
   // Too big to outlive the page: keep a copy until the brain answers, so a
   // reload that cuts it off is sent on the next open (lib/member-rescue.ts).
@@ -213,7 +226,11 @@ export function spaceClient(base: SpaceApiBase = MEMBER_API_BASE) {
         body,
       ),
     save: (id: string, body: { doc?: Doc; scene?: Doc; svg?: string; if_rev?: number }) =>
-      apiSend<SpaceItem>(`${own(id)}/save`, 'POST', body),
+      apiFetch<SpaceItem>(`${own(id)}/save`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: memberWriteJson(body),
+      }),
     /** A file into the space (multipart). */
     upload: (file: File) => {
       const fd = new FormData();

@@ -11,7 +11,11 @@ import {
   type TableDoc,
 } from '@mantle/content-core/table-model';
 import { TableGrid } from '@/components/table-grid/table-grid';
-import { SaveRefused, type SaveFailure } from '@/lib/member-autosave';
+import {
+  SaveRefused,
+  type SaveFailure,
+  versionFailureText,
+} from '@/lib/member-autosave';
 import type { MemberEditorProps } from './member-editor';
 import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
@@ -153,9 +157,8 @@ export function MemberTableEditor({
     });
     if (!res.ok) {
       // A refusal already said its piece through the queue's state.
-      if (res.failure.kind === 'network') {
-        toast.error('Could not save the version. Check your connection.');
-      }
+      const text = versionFailureText(res.failure);
+      if (text) toast.error(text);
       return false;
     }
     hasDraftRef.current = false;

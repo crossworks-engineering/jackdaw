@@ -5,6 +5,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { useFlushOnLeave } from '@mantle/web-ui/use-flush-on-leave';
 import {
   createAutosaveQueue,
+  leaveNeedsWarning,
   trackMemberSaves,
   type AutosaveQueue,
   type AutosaveSend,
@@ -23,6 +24,8 @@ import {
  *    that leave flush before reading it back.
  *  - Says a failure once, as a toast, when the state first turns to it. The
  *    editor also gets every state for its inline line.
+ *  - Asks before the tab closes or reloads while it holds typing it could
+ *    not save (leaveNeedsWarning): the member's chance to copy it out.
  *
  * `send` is read through a ref, so a new closure each render is fine.
  */
@@ -95,6 +98,17 @@ export function useMemberAutosave<T>({
   const queue = queueRef.current;
 
   useFlushOnLeave(() => void queue.flush());
+
+  // The browser's own "Leave site?" prompt; it shows no text of ours.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!leaveNeedsWarning(queue.state(), queue.isDirty())) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [queue]);
 
   return queue;
 }

@@ -9,6 +9,7 @@ import type {
 import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ExcalidrawCanvas, type SceneChange } from '@/components/draw/excalidraw-canvas';
+import { versionFailureText } from '@/lib/member-autosave';
 import type { MemberEditorProps } from './member-editor';
 import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
@@ -195,9 +196,8 @@ export function MemberDrawEditor({
     });
     if (!res.ok) {
       // A refusal already said its piece through the queue's state.
-      if (res.failure.kind === 'network') {
-        toast.error('Could not save the version. Check your connection.');
-      }
+      const text = versionFailureText(res.failure);
+      if (text) toast.error(text);
       return false;
     }
     hasDraftRef.current = false;
