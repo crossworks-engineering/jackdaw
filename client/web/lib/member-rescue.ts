@@ -72,10 +72,11 @@ export function takeRescue(
   }
 }
 
-/** The paths an item's autosave writes to (see memberSpace in member-space.ts). */
-export const rescuePaths = (id: string) => [
-  `/api/member/space/${id}/draft`,
-  `/api/member/space/${id}`,
+/** The paths an item's autosave writes to (see spaceClient in
+ *  member-space.ts): a member's space, or an admin's private one. */
+export const rescuePaths = (id: string, base: '/api/member' | '/api/admin' = '/api/member') => [
+  `${base}/space/${id}/draft`,
+  `${base}/space/${id}`,
 ];
 
 /**
@@ -83,8 +84,12 @@ export const rescuePaths = (id: string) => [
  * throws and never sends the browser to sign in: whatever the brain answers,
  * the kept copy is gone after this.
  */
-export async function replayRescue(id: string, now = Date.now()): Promise<void> {
-  for (const path of rescuePaths(id)) {
+export async function replayRescue(
+  id: string,
+  now = Date.now(),
+  base: '/api/member' | '/api/admin' = '/api/member',
+): Promise<void> {
+  for (const path of rescuePaths(id, base)) {
     const e = takeRescue(path, now);
     if (!e) continue;
     try {

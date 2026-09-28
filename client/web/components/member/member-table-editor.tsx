@@ -12,8 +12,8 @@ import {
 } from '@mantle/content-core/table-model';
 import { TableGrid } from '@/components/table-grid/table-grid';
 import { SaveRefused, type SaveFailure } from '@/lib/member-autosave';
-import { memberSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
+import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
 
 const DRAFT_DEBOUNCE_MS = 800;
@@ -36,6 +36,7 @@ export function MemberTableEditor({
   onStatus,
 }: MemberEditorProps & { table: TableDetail }) {
   const toast = useToast();
+  const api = useSpaceApi();
   const [table, setTable] = useState(initial);
   const [doc, setDoc] = useState<TableDoc>(() => ensureTableDoc(initial.draft ?? initial.data));
   const [switching, setSwitching] = useState(false);
@@ -61,7 +62,7 @@ export function MemberTableEditor({
     if (ops !== null) {
       if (ops.length === 0) return { rev };
       const tabId = tabRef.current;
-      const res = await memberSpace.draft(id, {
+      const res = await api.draft(id, {
         ops: tabId ? ops.map((o) => ({ ...o, tabId })) : ops,
         if_rev: rev,
       });
@@ -71,7 +72,7 @@ export function MemberTableEditor({
     if (tabCountRef.current > 1) {
       throw new SaveRefused('Reordering is not supported on a table with several tabs yet.');
     }
-    const res = await memberSpace.draft(id, {
+    const res = await api.draft(id, {
       table: snapshot as unknown as Record<string, unknown>,
       if_rev: rev,
     });
@@ -125,10 +126,10 @@ export function MemberTableEditor({
 
   const reload = useCallback(
     async (tabId?: string) => {
-      const item = await memberSpace.get('mine', id, tabId ?? tabRef.current);
+      const item = await api.item(id, tabId ?? tabRef.current);
       if (item.body.type === 'table') adopt(item.body.table);
     },
-    [adopt, id],
+    [adopt, api, id],
   );
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
@@ -141,7 +142,7 @@ export function MemberTableEditor({
         JSON.stringify(snapshot) === JSON.stringify(base)
           ? { rev }
           : await sendDraft(snapshot, rev, base);
-      const saved = await memberSpace.save(id, {});
+      const saved = await api.save(id, {});
       if (saved.body.type !== 'table') return drafted;
       const t = saved.body.table;
       // The version is saved; the grid keeps what is on screen (typing that
@@ -164,7 +165,7 @@ export function MemberTableEditor({
     return true;
     // sendDraft reads refs only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, onSaved, queue, report, toast]);
+  }, [api, id, onSaved, queue, report, toast]);
 
   useEffect(() => {
     handleRef.current = { flush: () => queue.flush(), saveVersion };

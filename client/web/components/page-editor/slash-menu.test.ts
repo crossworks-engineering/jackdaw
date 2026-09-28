@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MEMBER_HIDDEN, getSlashItems } from './slash-menu';
+import { MEMBER_HIDDEN, PRIVATE_HIDDEN, getSlashItems } from './slash-menu';
 
 describe('getSlashItems for a member', () => {
   it('hides the items that create or upload into the brain, by id', () => {
@@ -32,5 +32,20 @@ describe('getSlashItems for a member', () => {
     const ids = getSlashItems('').map((i) => i.id);
     for (const id of MEMBER_HIDDEN) expect(ids).toContain(id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("getSlashItems for an admin's private item (Phase 7)", () => {
+  it('hides only the sub-page: embeds of brain items stay', () => {
+    const ids = getSlashItems('', { privateItem: true }).map((i) => i.id);
+    for (const id of PRIVATE_HIDDEN) expect(ids).not.toContain(id);
+    expect([...PRIVATE_HIDDEN]).toEqual(['sub-page']);
+    for (const id of ['image', 'drawing', 'file', 'text']) expect(ids).toContain(id);
+    expect(getSlashItems('page', { privateItem: true }).map((i) => i.id)).not.toContain('sub-page');
+  });
+
+  it('a member stays on the member list either way', () => {
+    const both = getSlashItems('', { member: true, privateItem: true }).map((i) => i.id);
+    for (const id of MEMBER_HIDDEN) expect(both).not.toContain(id);
   });
 });

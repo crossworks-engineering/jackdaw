@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { AccessLevel } from '@mantle/client-types';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -9,6 +10,8 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { TagInput } from '@/components/tag-input';
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { KeepPrivateField } from '@/components/member/keep-private-field';
+import { createPrivateItem } from '@/lib/admin-private';
 
 export type NoteRow = {
   id: string;
@@ -27,6 +30,8 @@ export type NoteRow = {
  * `max-w-3xl` frame, no fixed editor height). Handles both create (`note=null`
  * → POST) and edit (PATCH). ⌘/Ctrl+S saves, Esc cancels. Reports `dirty` up so
  * the host can guard against discarding unsaved changes when switching notes.
+ * A new note can be kept private (member logins Phase 7): it then goes into
+ * this admin's own private space instead of the brain, and opens there.
  */
 export function NoteEditor({
   note,
@@ -48,7 +53,9 @@ export function NoteEditor({
   const [title, setTitle] = useState(note?.title ?? '');
   const [content, setContent] = useState(note?.content ?? '');
   const [tags, setTags] = useState<string[]>(note?.tags ?? []);
+  const [keepPrivate, setKeepPrivate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   // Re-seed when the target note changes (e.g. switching which note is edited).
   useEffect(() => {
@@ -75,6 +82,20 @@ export function NoteEditor({
     }
     setSaving(true);
     try {
+      if (creating && keepPrivate) {
+        let href: string;
+        try {
+          href = await createPrivateItem('note', { title, content });
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Save failed');
+          return;
+        }
+        toast.success('Private note created');
+        // Nothing unsaved is left here: the note is in the private space.
+        onDirtyChange?.(false);
+        router.push(href);
+        return;
+      }
       const res = await fetch(creating ? '/api/notes' : `/api/notes/${note!.id}`, {
         method: creating ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -106,7 +127,7 @@ export function NoteEditor({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, tags, creating]);
+  }, [title, content, tags, creating, keepPrivate]);
 
   return (
     <form
@@ -145,7 +166,13 @@ export function NoteEditor({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3">
-        <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
+        {creating ? (
+          <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+        ) : null}
+        {/* A private note carries no tags until it is in the brain. */}
+        {creating && keepPrivate ? null : (
+          <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
+        )}
         <MarkdownEditor
           value={content}
           onChange={setContent}

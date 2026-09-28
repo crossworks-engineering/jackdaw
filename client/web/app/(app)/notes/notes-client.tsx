@@ -46,6 +46,7 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { SpaceSwitch } from '@/components/member/admin-private-workspace';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
@@ -309,6 +310,7 @@ export function NotesClient() {
         list={
           <>
             <div className="space-y-3 border-b border-border p-4">
+              <SpaceSwitch kind="note" value="brain" />
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

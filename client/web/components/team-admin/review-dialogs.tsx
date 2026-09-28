@@ -3,9 +3,10 @@
 /**
  * The review actions (member logins Phase 4): Accept into the brain (the
  * admin picks the level, and for a page or files where they land), Return
- * with a note, and Discard for an item a deactivated login left behind.
+ * with a note, and Discard for an item a deactivated login left behind. The
+ * accept dialog also serves an admin's own private items (Phase 7).
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, Trash2, Undo2 } from 'lucide-react';
@@ -49,8 +50,12 @@ import {
   bundleSummary,
   memberReview,
   reviewErrorMessage,
+  type AcceptInput,
+  type AcceptResult,
+  type Bundle,
   type ReviewItemRow,
 } from '@/lib/member-review';
+import type { SpaceKind } from '@/lib/member-space';
 
 const TOP = '__top__';
 
@@ -67,8 +72,61 @@ function useBackToQueue(onDone: () => void) {
 }
 
 export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () => void }) {
-  const toast = useToast();
   const back = useBackToQueue(onDone);
+  return (
+    <AcceptIntoBrainDialog
+      item={row}
+      description={
+        <>
+          “{row.title || 'Untitled'}” moves out of {row.author.name}&rsquo;s space and becomes a
+          brain item you can edit. Links to it keep working.
+        </>
+      }
+      bundle={{
+        key: ['team-admin', 'submissions', row.id, 'bundle'],
+        load: () => memberReview.bundle(row.id),
+      }}
+      accept={(input) => memberReview.accept(row.id, input)}
+      onAccepted={back}
+      onFailed={onDone}
+      errorMessage={reviewErrorMessage}
+    />
+  );
+}
+
+/** What an accept moves: its id, kind and title. */
+export type AcceptTarget = { id: string; type: SpaceKind; title: string };
+
+/**
+ * Accept into the brain: the admin picks who can see it, and for a page or
+ * files where they land. A member's submission (AcceptDialog) and an admin's
+ * own private item (member logins Phase 7) both come through here; only the
+ * route differs. `bundle` lists what moves along when the route can say so;
+ * without it only a file item asks for a folder.
+ */
+export function AcceptIntoBrainDialog({
+  item,
+  description,
+  bundle: bundleSource,
+  accept: send,
+  beforeAccept,
+  onAccepted,
+  onFailed,
+  errorMessage,
+  triggerLabel = 'Accept',
+}: {
+  item: AcceptTarget;
+  description: ReactNode;
+  bundle?: { key: readonly unknown[]; load: () => Promise<Bundle> };
+  accept: (input: AcceptInput) => Promise<AcceptResult>;
+  /** Runs first (an editor saving what was typed); false stops the accept. */
+  beforeAccept?: () => Promise<boolean>;
+  onAccepted: (res: AcceptResult, input: AcceptInput) => void;
+  onFailed?: () => void;
+  errorMessage: (err: unknown, fallback: string) => string;
+  triggerLabel?: string;
+}) {
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [level, setLevel] = useState<AccessLevel>('admin');
   const [folder, setFolder] = useState('files');
@@ -77,11 +135,13 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
   const [busy, setBusy] = useState(false);
 
   const bundle = useQuery({
-    queryKey: ['team-admin', 'submissions', row.id, 'bundle'],
-    queryFn: () => memberReview.bundle(row.id),
-    enabled: open,
+    queryKey: bundleSource?.key ?? ['accept-bundle', 'none'],
+    queryFn: () => bundleSource!.load(),
+    enabled: open && !!bundleSource,
   });
-  const hasFiles = bundle.data?.items.some((i) => i.type === 'file') ?? false;
+  const hasFiles = bundleSource
+    ? (bundle.data?.items.some((i) => i.type === 'file') ?? false)
+    : item.type === 'file';
   const folders = useQuery({
     queryKey: ['files', 'tree'],
     queryFn: () => apiFetch<{ folders: FolderRow[] }>('/api/files/folders?tree=true'),
@@ -91,26 +151,28 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
   const pages = useQuery({
     queryKey: ['pages', { q, review: true }],
     queryFn: () => apiFetch<{ pages: PageRow[] }>(`/api/pages?q=${encodeURIComponent(q)}`),
-    enabled: open && row.type === 'page' && q.length > 1,
+    enabled: open && item.type === 'page' && q.length > 1,
   });
 
   const accept = async () => {
     setBusy(true);
     try {
-      const res = await memberReview.accept(row.id, {
+      if (beforeAccept && !(await beforeAccept())) return;
+      const input: AcceptInput = {
         audience: level,
-        parentPageId: row.type === 'page' && parent !== TOP ? parent : null,
+        parentPageId: item.type === 'page' && parent !== TOP ? parent : null,
         folderPath: hasFiles ? folder : null,
-      });
+      };
+      const res = await send(input);
       toast.success(
-        `Accepted “${row.title || 'Untitled'}” into the brain at ${LEVEL_LABEL[res.audience]}.`,
+        `Accepted “${item.title || 'Untitled'}” into the brain at ${LEVEL_LABEL[res.audience]}.`,
       );
       if (res.levelWarning) toast.error(`Level set, link not made: ${res.levelWarning}`);
       setOpen(false);
-      back();
+      onAccepted(res, input);
     } catch (err) {
-      toast.error(reviewErrorMessage(err, 'Could not accept this item.'));
-      onDone();
+      toast.error(errorMessage(err, 'Could not accept this item.'));
+      onFailed?.();
     } finally {
       setBusy(false);
     }
@@ -123,7 +185,7 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
       .sort((a, b) => a.path.localeCompare(b.path))
       .map((f) => ({
         path: f.path,
-        label: `${'  '.repeat(f.path.split('.').length - 2)}${f.title || f.slug}`,
+        label: `${'  '.repeat(f.path.split('.').length - 2)}${f.title || f.slug}`,
       })),
   ];
 
@@ -131,16 +193,13 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <CheckCircle2 /> Accept
+          <CheckCircle2 /> {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Accept into the brain</DialogTitle>
-          <DialogDescription>
-            “{row.title || 'Untitled'}” moves out of {row.author.name}&rsquo;s space and becomes a
-            brain item you can edit. Links to it keep working.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -166,7 +225,7 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
             <p className="text-xs text-muted-foreground">{LEVEL_MEANING[level]}</p>
           </div>
 
-          {row.type === 'page' ? (
+          {item.type === 'page' ? (
             <div className="space-y-2">
               <Label htmlFor="review-parent">Where the page goes</Label>
               <Input
@@ -215,42 +274,47 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
             </div>
           ) : null}
 
-          <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
-            {bundle.isError ? (
-              <p>{reviewErrorMessage(bundle.error, 'Could not work out what moves with it.')}</p>
-            ) : !bundle.data ? (
-              <p className="text-muted-foreground">Working out what moves with it…</p>
-            ) : (
-              <>
-                <p>{bundleSummary(bundle.data.items)}</p>
-                {bundle.data.items.length > 1 ? (
-                  <ul className="list-disc pl-5 text-xs text-muted-foreground">
-                    {bundle.data.items.slice(1, 11).map((i) => (
-                      <li key={i.id} className="truncate">
-                        {i.title || 'Untitled'}
-                      </li>
-                    ))}
-                    {bundle.data.items.length > 11 ? (
-                      <li>and {bundle.data.items.length - 11} more</li>
-                    ) : null}
-                  </ul>
-                ) : null}
-                {bundle.data.linksStayingBehind > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {bundle.data.linksStayingBehind === 1
-                      ? '1 link points at an item that stays in a personal space; it will not open for readers.'
-                      : `${bundle.data.linksStayingBehind} links point at items that stay in a personal space; they will not open for readers.`}
-                  </p>
-                ) : null}
-              </>
-            )}
-          </div>
+          {bundleSource ? (
+            <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
+              {bundle.isError ? (
+                <p>{errorMessage(bundle.error, 'Could not work out what moves with it.')}</p>
+              ) : !bundle.data ? (
+                <p className="text-muted-foreground">Working out what moves with it…</p>
+              ) : (
+                <>
+                  <p>{bundleSummary(bundle.data.items)}</p>
+                  {bundle.data.items.length > 1 ? (
+                    <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                      {bundle.data.items.slice(1, 11).map((i) => (
+                        <li key={i.id} className="truncate">
+                          {i.title || 'Untitled'}
+                        </li>
+                      ))}
+                      {bundle.data.items.length > 11 ? (
+                        <li>and {bundle.data.items.length - 11} more</li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                  {bundle.data.linksStayingBehind > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {bundle.data.linksStayingBehind === 1
+                        ? '1 link points at an item that stays in a personal space; it will not open for readers.'
+                        : `${bundle.data.linksStayingBehind} links point at items that stay in a personal space; they will not open for readers.`}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={busy || !bundle.data} onClick={() => void accept()}>
+            <Button
+              disabled={busy || (!!bundleSource && !bundle.data)}
+              onClick={() => void accept()}
+            >
               {busy ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
               Accept into the brain
             </Button>

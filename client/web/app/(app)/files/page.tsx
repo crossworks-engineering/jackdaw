@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
 import { MemberWorkspace } from '@/components/member/member-workspace';
+import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { FilesClient } from './files-client';
 
@@ -21,7 +22,9 @@ export default async function FilesPage() {
       }
     >
       <RoleSwitch member={<MemberWorkspace kind="file" />}>
-        <FilesClient />
+        <AdminSpaces kind="file">
+          <FilesClient />
+        </AdminSpaces>
       </RoleSwitch>
     </Suspense>
   );

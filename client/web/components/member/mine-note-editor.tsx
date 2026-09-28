@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
-import { memberSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
+import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
 
 const AUTOSAVE_MS = 800;
@@ -22,6 +22,7 @@ export function MineNoteEditor({
   onSaved,
   onStatus,
 }: MemberEditorProps & { content: string }) {
+  const api = useSpaceApi();
   const [text, setText] = useState(content);
   const textRef = useRef(content);
 
@@ -31,7 +32,7 @@ export function MineNoteEditor({
     saved: content,
     rev: 0,
     send: async (next) => {
-      await memberSpace.patch(id, { content: next });
+      await api.patch(id, { content: next });
       return { rev: 0 };
     },
     debounceMs: AUTOSAVE_MS,

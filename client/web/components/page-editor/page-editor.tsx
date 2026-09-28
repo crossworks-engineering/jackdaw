@@ -72,12 +72,18 @@ export function PageEditor({
   onEditorReady,
   editable = true,
   member = false,
+  privateItem = false,
 }: {
   /** A member login (member logins): the editor keeps to the page itself. No
    *  file drop/paste uploads, no sub-page / image / drawing / file commands, no
    *  drawing picker and no drag handle (its "turn into page" creates in the
    *  brain). Every one of those calls a route that refuses a member. */
   member?: boolean;
+  /** An admin's private item (member logins Phase 7): the owner editor, which
+   *  may embed any brain item the admin can see, less what hangs a brain page
+   *  under it (the `/page` sub-page and the drag handle's turn-into-page):
+   *  a private item is not a brain page. */
+  privateItem?: boolean;
   content: JSONContent;
   /** Id of the page being edited — handed to the `/page` slash command so the
    *  sub-pages it creates get `parent_id` set to this page (Phase 4a). */
@@ -213,7 +219,7 @@ export function PageEditor({
     // parents sub-pages here.
     extensions: [
       ...(member ? memberPageExtensions : pageExtensions),
-      SlashCommand.configure({ pageId: pageId ?? null, member }),
+      SlashCommand.configure({ pageId: pageId ?? null, member, privateItem }),
       FocusMarks,
       DiffReview,
       // No @ menu for a member (see MemberMode).
@@ -282,7 +288,7 @@ export function PageEditor({
       <EditorBubbleMenu editor={editor} />
       {/* Marker mode swaps the gutter's job: the drag handle steps aside so the
           focus strip owns the left band. Marks stay highlighted either way. */}
-      {markerMode || member ? null : <EditorDragHandle editor={editor} />}
+      {markerMode || member || privateItem ? null : <EditorDragHandle editor={editor} />}
       <TableControls editor={editor} />
       {member ? null : <DrawPicker editor={editor} />}
       <div className="relative">
