@@ -250,6 +250,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
               setParams({ src: v as SpaceSource, id: null });
             }}
             aria-label="Whose items"
+            data-tour="member-sources"
             className="grid flex-1 grid-cols-2"
           >
             {SOURCES.map((s) => (

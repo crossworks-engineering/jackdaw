@@ -18,12 +18,14 @@ import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { CONTRACT_VERSION } from '@mantle/web-ui/version';
+import { useIsMember } from '@/components/member/viewer-role';
 
 // A mismatch cannot fix itself without a roll on one side, and a roll reloads
 // the tab — so one check per hour is plenty and keeps the rail quiet.
 const RECHECK_MS = 60 * 60 * 1000;
 
 export function ContractBanner({ onNavigate }: { onNavigate?: () => void }) {
+  const member = useIsMember();
   const versionQuery = useQuery({
     queryKey: ['server-version'],
     queryFn: () => apiFetch<{ version?: string; contractVersion?: number }>('/api/version'),
@@ -36,6 +38,26 @@ export function ContractBanner({ onNavigate }: { onNavigate?: () => void }) {
   if (server.contractVersion === CONTRACT_VERSION) return null;
 
   const older = server.contractVersion < CONTRACT_VERSION;
+  const tone =
+    'flex items-center gap-2 rounded-md bg-destructive px-3 py-2 text-xs font-medium text-destructive-foreground group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:px-0 group-data-[nav-collapsed=true]/shell:py-2';
+  if (member) {
+    // A member cannot update anything, and /settings/updates is admin-only:
+    // say it, with no link.
+    return (
+      <div className="px-3 pt-3 group-data-[nav-collapsed=true]/shell:px-2">
+        <div
+          role="status"
+          className={tone}
+          title="This app and the brain are on versions that do not work together. An admin must update one of them."
+        >
+          <AlertTriangle className="size-4 shrink-0" />
+          <span className="truncate group-data-[nav-collapsed=true]/shell:hidden">
+            Needs an update: tell an admin
+          </span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="px-3 pt-3 group-data-[nav-collapsed=true]/shell:px-2">
       <Link

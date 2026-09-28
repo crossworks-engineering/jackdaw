@@ -192,7 +192,8 @@ function ShellFrame({
   // A MEMBER login runs in this same shell (member logins, the real app
   // shell) with the admin-only chrome switched off: no usage card, update
   // banner, activity column, search palette, event stream, approvals,
-  // assistant launchers or tour. Each of those would only collect 403s.
+  // assistant launchers. Each of those would only collect 403s. The tour
+  // stays: a member gets their own (lib/tour/tours.ts).
   const isMember = role === 'member';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -704,15 +705,16 @@ function ShellFrame({
             panel renders the member's own thread. Everything else here is
             admin-only. */}
         {isMember ? <AssistantPanel member /> : null}
+
+        {/* The guided tour — a spotlight and a card above everything, only
+            when a tour is running (MANTLE_TOUR once per browser, or ?tour=;
+            a member gets the member tour once instead). See components/tour. */}
+        <TourOverlay />
+
         {isMember ? null : (
           <>
             <AssistantPanel />
             <HelpRail />
-
-            {/* The guided tour — a spotlight and a card above everything, only
-            when a tour is running (MANTLE_TOUR once per browser, or ?tour=).
-            See components/tour. */}
-            <TourOverlay />
 
             {/* Marker pick mode — highlights markable rows + intercepts their clicks
             while picking; renders nothing otherwise. */}

@@ -13,7 +13,8 @@ import {
   type TourMemory,
   type TourStep,
 } from '@/lib/tour/model';
-import { tourById as builtIn } from '@/lib/tour/tours';
+import { toursFor } from '@/lib/tour/tours';
+import { useViewerRole } from '@/components/member/viewer-role';
 
 /**
  * The guided tour's state: which tour, which step, and where its target is on
@@ -111,9 +112,12 @@ export function TourProvider({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  // A member knows only the member tour; an admin, the deployment's tours.
+  const role = useViewerRole();
+  const known = React.useMemo(() => toursFor(role, runtimeTour()), [role]);
   const tourById = React.useCallback(
-    (id: string): Tour | null => (tours ? (tours[id] ?? null) : builtIn(id)),
-    [tours],
+    (id: string): Tour | null => (tours ? (tours[id] ?? null) : known.byId(id)),
+    [tours, known],
   );
   const [state, setState] = React.useState<{ tour: Tour; index: number } | null>(null);
   const [rect, setRect] = React.useState<Rect | null>(null);
@@ -141,7 +145,7 @@ export function TourProvider({
     })();
     const id = decideAutoStart({
       urlTour,
-      envTour: runtimeTour(),
+      envTour: known.autoTour,
       pathname,
       known: (candidate) => tourById(candidate) !== null,
       firstRoute: (candidate) => tourById(candidate)?.steps[0]?.route ?? null,
@@ -151,7 +155,7 @@ export function TourProvider({
     // Re-decided on every route change on purpose: the deployment tour waits
     // for its first screen, and a visitor who deep-linked elsewhere reaches
     // it by navigating. Once started, `start` is idempotent for that tour.
-  }, [start, tourById, pathname]);
+  }, [start, tourById, known, pathname]);
 
   const active = React.useMemo<TourActive | null>(
     () => (state ? { ...state, step: state.tour.steps[state.index]! } : null),

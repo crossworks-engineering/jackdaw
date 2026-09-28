@@ -72,6 +72,7 @@ export function MemberSidebarNav({
                   aria-pressed={active}
                   // The collapsed rail hides the text: keep the name.
                   aria-label={item.name}
+                  data-tour={`nav:${item.href}`}
                   className={cn(cls, 'h-auto w-full justify-start')}
                 >
                   {inner}
@@ -84,6 +85,7 @@ export function MemberSidebarNav({
                   aria-current={active ? 'page' : undefined}
                   // The collapsed rail hides the text: keep the name.
                   aria-label={item.name}
+                  data-tour={`nav:${item.href}`}
                   className={cls}
                 >
                   {inner}

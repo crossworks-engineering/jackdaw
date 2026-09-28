@@ -109,6 +109,98 @@ const demo: Tour = {
   ],
 };
 
+/**
+ * A member login's first look (member logins, Phase 5). It opens once per
+ * browser on the member home, and `?tour=member` opens it again. Every claim
+ * has to hold on any brain a member signs in to, so it names what a member
+ * can do, never what this brain contains. Targets: the member rail
+ * (`nav:<href>`, `nav:#chat` for the chat item), the source picker on a
+ * workspace list (`member-sources`), and the shell's `brand`, `main` and
+ * `profile`.
+ */
+const member: Tour = {
+  id: 'member',
+  title: 'Your first look',
+  steps: [
+    {
+      route: '/',
+      target: 'brand',
+      title: 'Welcome',
+      body: "This is your team's brain, and part of it is yours alone. What you write stays private until you share it with the team or send it to an admin.",
+    },
+    {
+      route: '/',
+      target: 'main',
+      title: 'Your home',
+      body: 'Home shows what came back from review, what is waiting for review, and what is new in the team. If an admin set a team app as home, it opens here, and My work switches to this view.',
+      side: 'left',
+    },
+    {
+      route: '/pages',
+      target: 'nav:/pages',
+      title: 'Pages, notes, drawings, tables and files',
+      body: 'Each works the same way. Start in Mine: anything new you make is private to you.',
+    },
+    {
+      route: '/pages',
+      target: 'member-sources',
+      title: 'Whose items',
+      body: 'Team drafts are what teammates shared with the team, and the Library is what the brain holds for the team. Accepted is your own work that an admin moved into the brain; you can still read it there.',
+    },
+    {
+      route: '/pages',
+      title: 'Share, or send for review',
+      body: 'Open one of your own items to set it Private or Team, or to Submit it to an admin. The admin accepts it into the brain or returns it to you with a note.',
+    },
+    {
+      route: '/apps',
+      target: 'nav:/apps',
+      title: 'Apps',
+      body: 'Apps an admin published for the team run here. What you enter in one is shared with the team, not kept in your private space.',
+    },
+    {
+      route: '/',
+      target: 'nav:#chat',
+      title: 'Chat',
+      body: 'Ask the team assistant about anything shared with the team; it can also open your own items when you ask. Admins never read a reply that used your private items.',
+    },
+    {
+      route: '/',
+      target: 'profile',
+      title: 'Your account',
+      body: 'Change your password and the look of the app here, and sign out when you are done on a shared computer. Take this tour again from the same menu.',
+      side: 'top',
+    },
+  ],
+};
+
+/** The id of the member tour: the one tour a member login is shown. */
+export const MEMBER_TOUR_ID = member.id;
+
 export const TOURS: Readonly<Record<string, Tour>> = { demo };
 
+/** The tours an admin (owner UI) knows. Never the member tour: it walks the
+ *  member rail, which an admin does not have. */
 export const tourById = (id: string): Tour | null => TOURS[id] ?? null;
+
+/** The tours a member knows: only their own. The demo and any deployment tour
+ *  walk admin screens a member is kept off, so for a member they name no
+ *  tour and start nothing. */
+export const memberTourById = (id: string): Tour | null => (id === member.id ? member : null);
+
+/**
+ * Which tours a viewer knows, and which one opens by itself (once per
+ * browser, on its first screen). An admin gets the deployment's MANTLE_TOUR;
+ * a member gets the member tour and never the deployment's, whose stops are
+ * admin screens. Without this split a member on a `?tour=demo` link got a
+ * tour with no card (the overlay was admin-only) that kept pushing them back
+ * to its first screen.
+ */
+export function toursFor(
+  role: 'admin' | 'member',
+  deploymentTour: string | null,
+): { byId: (id: string) => Tour | null; autoTour: string | null } {
+  return role === 'member'
+    ? { byId: memberTourById, autoTour: MEMBER_TOUR_ID }
+    : { byId: tourById, autoTour: deploymentTour };
+}

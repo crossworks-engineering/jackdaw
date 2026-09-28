@@ -50,14 +50,21 @@ export const PAGE_DOC: Doc = {
   ],
 };
 
-/** Admin routes the member surface must not call (the brain refuses them). */
-const ADMIN_ONLY = [
-  /^\/api\/pages(\/|$)/,
-  /^\/api\/files\//,
-  /^\/api\/draws\//,
-  /^\/api\/profile\/photo/,
-  /^\/api\/shell$/,
+/** What a member may call: its own routes, and the few the brain answers
+ *  for every login or for nobody in particular. Everything else under /api/
+ *  is an admin route (the brain refuses a member there), recorded so a spec
+ *  can assert none was called. */
+const MEMBER_OK = [
+  /^\/api\/member\//,
+  /^\/api\/version$/,
+  /^\/api\/appearance(\/|$)/,
+  /^\/api\/auth\/change-password$/,
 ];
+const isAdminOnly = (path: string) =>
+  path.startsWith('/api/') && !MEMBER_OK.some((re) => re.test(path));
+
+/** The member's password in the mock; a change replaces it. */
+export const MEMBER_PASSWORD = 'first-password-1';
 
 const PNG_1PX = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -74,6 +81,11 @@ export type MockMemberApi = {
   adminCalls: string[];
   /** Member asset routes the page called. */
   memberAssetCalls: string[];
+  /** Every password change the page sent, in order. */
+  passwordChanges: { oldPassword: string; newPassword: string }[];
+  /** What GET /api/version answers; set `contractVersion` to fake a brain
+   *  on another wire contract. */
+  version: { version: string; contractVersion?: number };
   close: () => Promise<void>;
 };
 
@@ -102,9 +114,12 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     puts: [],
     adminCalls: [],
     memberAssetCalls: [],
+    passwordChanges: [],
+    version: { version: 'mock' },
     close: async () => undefined,
   };
   const now = new Date().toISOString();
+  let password = MEMBER_PASSWORD;
   const row = () => ({
     id: PAGE_ID,
     type: 'page',
@@ -150,7 +165,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       res.end();
       return;
     }
-    if (ADMIN_ONLY.some((re) => re.test(path))) {
+    if (isAdminOnly(path)) {
       state.adminCalls.push(`${method} ${path}`);
       return json(res, 403, { error: 'forbidden', reason: 'member-login' });
     }
@@ -179,6 +194,18 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       });
     }
     if (path === '/api/member/realtime') return send(res, 200, 'text/event-stream', ':\n\n');
+    if (path === '/api/member/home') return json(res, 200, { homeApp: null, hub: null });
+    if (path === '/api/member/apps') return json(res, 200, { apps: [], homeAppId: null });
+    if (path === '/api/auth/change-password' && method === 'POST') {
+      // The brain's own answers (server/web/app/api/auth/change-password).
+      const body = JSON.parse(await readBody(req)) as { oldPassword: string; newPassword: string };
+      state.passwordChanges.push(body);
+      if (body.oldPassword !== password) {
+        return json(res, 401, { error: 'Current password is incorrect.' });
+      }
+      password = body.newPassword;
+      return json(res, 200, { ok: true });
+    }
     if (path === '/api/member/space' && method === 'GET') {
       const items = url.searchParams.get('kind') === 'page' ? [row()] : [];
       return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
@@ -250,7 +277,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
         '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>',
       );
     }
-    if (path === '/api/version') return json(res, 200, { version: 'mock' });
+    if (path === '/api/version') return json(res, 200, state.version);
     // Anything else: a plain 404, never a 401 (that would bounce to /login).
     return json(res, 404, { error: `not mocked: ${method} ${path}` });
   };

@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import {
   ChevronsUpDown,
   Dices,
+  KeyRound,
   LogOut,
+  Map as MapIcon,
   Search as SearchIcon,
   SunMoon,
   User as UserIcon,
@@ -36,6 +38,9 @@ import { themeLabel } from '@mantle/web-ui/lib/themes';
 import { RandomThemeItems } from '@/components/random-theme-toggle';
 import { agentInitials } from '@/lib/agent-color';
 import { setMemberHint } from '@/lib/member-destination';
+import { MemberPasswordDialog } from '@/components/member/member-password-dialog';
+import { useTour } from '@/components/tour/tour-provider';
+import { MEMBER_TOUR_ID } from '@/lib/tour/tours';
 
 export type ProfileIdentity = {
   /** The actor's display name, when they have set one. */
@@ -120,6 +125,8 @@ export function ProfileMenu({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const tour = useTour();
   const { primary, initials } = identityOf(identity);
   const { avatar, email, photoVersion } = identity;
   const { colorTheme } = useColorTheme();
@@ -217,7 +224,24 @@ export function ProfileMenu({
           </DropdownMenuItem>
         )}
 
-        {member ? null : (
+        {member ? (
+          // A member's account is their password: the Profile screen and its
+          // routes are admin-only, and an admin sets a member's name.
+          <>
+            <DropdownMenuItem onSelect={() => setPasswordOpen(true)} className="cursor-pointer">
+              <KeyRound className="size-4" /> Change password
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                onNavigate?.();
+                tour.start(MEMBER_TOUR_ID);
+              }}
+              className="cursor-pointer"
+            >
+              <MapIcon className="size-4" /> Take the tour
+            </DropdownMenuItem>
+          </>
+        ) : (
           <DropdownMenuItem asChild>
             <Link href="/settings/profile" onClick={onNavigate} className="cursor-pointer">
               <UserIcon className="size-4" /> Profile
@@ -268,6 +292,9 @@ export function ProfileMenu({
           <LogOut className="size-4" /> {busy ? 'Signing out…' : 'Sign out'}
         </DropdownMenuItem>
       </DropdownMenuContent>
+      {/* Beside the menu content, not inside it: the dialog outlives the
+          menu closing. The menu root renders no element of its own. */}
+      {member ? <MemberPasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} /> : null}
     </DropdownMenu>
   );
 }
