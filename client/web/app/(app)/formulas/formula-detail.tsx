@@ -302,17 +302,16 @@ export function FormulaDetail({
           {cite ? <p className="mt-1 text-xs text-muted-foreground">{cite}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* The shared page is a live calculator, so team mode is offered:
-              a colleague can put their own numbers in without an account.
-              The hint is kind-specific because the DEFAULT one promises the
-              item "lists in the team workspace either way" — and formulas are
-              not in TEAM_WORKSPACE_TYPES (a deliberate whitelist), so that
-              would be false here. Listing formulas in the hub is deferred
-              work; until then the link must be passed along directly. */}
+          {/* The shared page is a live calculator: at Client or Public,
+              anyone with the link can put their own numbers in without an
+              account. There is no team link (member logins Phase 6 stage 6),
+              and a formula is not a member kind (MEMBER_KIND), so no member
+              screen lists one at Team. Until one does, the link must be
+              passed along directly. */}
           <AccessControl
             nodeId={formula.id}
             iconOnly
-            hint="Formulas don’t appear in the team workspace yet: at Client or Public, send the link directly."
+            hint="Members don’t see formulas in their screens yet: at Client or Public, send the link directly."
           />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil />
