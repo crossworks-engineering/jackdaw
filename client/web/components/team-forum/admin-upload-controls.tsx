@@ -25,6 +25,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend, ApiError, apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
+import { FORUM_CLOSED } from '@/lib/forum-closed';
 
 /**
  * Owner download link for a byte-serving /api/team-admin route. Same-origin:
@@ -122,37 +123,41 @@ export function UploadReviewActions({
         {busy === 'file' ? <Loader2 className="animate-spin" /> : <FolderInput />}
         Move to files
       </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive-ink"
-            disabled={busy !== null}
-          >
-            {busy === 'dismiss' ? <Loader2 className="animate-spin" /> : <Trash2 />}
-            Dismiss
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Dismiss this upload?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The uploaded bytes of “{filename}” are deleted and it never enters the brain. The
-              member&rsquo;s post keeps a “removed” chip. This can&rsquo;t be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => void act('dismiss')}
+      {/* The forum is closed (lib/forum-closed.ts): the Forum archive export
+          files what nobody reviewed, so nothing is deleted from here now. */}
+      {!FORUM_CLOSED && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive-ink"
+              disabled={busy !== null}
             >
-              Dismiss upload
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {busy === 'dismiss' ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              Dismiss
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Dismiss this upload?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The uploaded bytes of “{filename}” are deleted and it never enters the brain. The
+                member&rsquo;s post keeps a “removed” chip. This can&rsquo;t be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void act('dismiss')}
+              >
+                Dismiss upload
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { FileText, Film, Image as ImageIcon, Loader2, Music, Paperclip, X } from
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { teamFetch, teamUrl } from '@mantle/web-ui/team-fetch';
+import { FORUM_CLOSED_TEXT, isForumClosed } from '@/lib/forum-closed';
 
 export type PostAttachment = {
   kind?: string;
@@ -241,7 +242,11 @@ export function ComposerAttachments({
         error?: string;
       };
       if (!r.ok || !data.uploads) {
-        setError(data.error ?? 'Upload failed — try again.');
+        setError(
+          isForumClosed(r.status, data)
+            ? FORUM_CLOSED_TEXT
+            : (data.error ?? 'Upload failed — try again.'),
+        );
         return;
       }
       onStagedChange([...staged, ...data.uploads]);

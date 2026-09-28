@@ -18,6 +18,7 @@ import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { FORUM_CLOSED_TEXT, isForumClosedError } from '@/lib/forum-closed';
 
 /** Owner topic-list search box (title OR post body). Debounced; pushes `?q=`
  *  and drops `page`/`topic` so results start on page 1 with the first match.
@@ -159,7 +160,13 @@ export function TopicReplyForm({
       setText('');
       toast.success('Posted to the topic');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not post the reply');
+      toast.error(
+        isForumClosedError(err)
+          ? FORUM_CLOSED_TEXT
+          : err instanceof ApiError
+            ? err.message
+            : 'Could not post the reply',
+      );
     } finally {
       router.refresh();
       onDone?.();

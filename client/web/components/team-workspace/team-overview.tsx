@@ -10,6 +10,8 @@
  */
 import Link from 'next/link';
 import { StartTopicComposer } from '@/components/team-forum/start-topic-composer';
+import { ForumClosedNotice } from '@/components/team-forum/forum-closed-notice';
+import { FORUM_CLOSED } from '@/lib/forum-closed';
 import { CuratedSections } from './curated-sections';
 import { useWorkspace, WORKSPACE_NAV } from './team-workspace-shell';
 
@@ -30,13 +32,13 @@ export function TeamOverview() {
           {firstName ? `Welcome, ${firstName}.` : 'Welcome.'}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Everything {data.siteName || 'this brain'} shares with the team, always current. Ask
-          something below to start a forum topic, or browse a section.
+          Everything {data.siteName || 'this brain'} shares with the team, always current.
+          {FORUM_CLOSED
+            ? ' Browse a section.'
+            : ' Ask something below to start a forum topic, or browse a section.'}
         </p>
 
-        <div className="mt-6">
-          <StartTopicComposer />
-        </div>
+        <div className="mt-6">{FORUM_CLOSED ? <ForumClosedNotice /> : <StartTopicComposer />}</div>
 
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {/* Sections only — the Dashboard nav entry IS this screen. */}

@@ -69,6 +69,8 @@ import { MemberActivityPager } from '@/components/team-admin/member-activity-pag
 import { RevokeCodeButton } from '@/components/team-admin/revoke-code-button';
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
+import { ForumArchiveBanner } from '@/components/team-admin/forum-archive-export';
+import { FORUM_CLOSED } from '@/lib/forum-closed';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
@@ -887,6 +889,7 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
   const ctxQuery = query?.trim() || undefined;
   return (
     <Tab active="topics" badges={data.badges}>
+      <ForumArchiveBanner />
       <MasterDetail
         // Its own key — see the Members tab above.
         id="team-admin-topics"
@@ -907,7 +910,9 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
                 <div className="p-4 text-sm text-muted-foreground">
                   {ctxQuery
                     ? `No topics or posts match “${ctxQuery}”.`
-                    : 'No forum topics yet. Members start them at /team/forum — pinned topics float to the top of everyone’s list.'}
+                    : FORUM_CLOSED
+                      ? 'No forum topics.'
+                      : 'No forum topics yet. Members start them at /team/forum — pinned topics float to the top of everyone’s list.'}
                 </div>
               ) : (
                 <ul className="flex flex-col gap-2 p-3">
@@ -975,11 +980,14 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
                       </span>
                     </p>
                   </div>
-                  <TopicPinToggle
-                    topicId={selected.topic.id}
-                    pinned={selected.topic.pinned}
-                    onDone={() => void refetch()}
-                  />
+                  {/* The forum is closed (lib/forum-closed.ts): read only. */}
+                  {!FORUM_CLOSED && (
+                    <TopicPinToggle
+                      topicId={selected.topic.id}
+                      pinned={selected.topic.pinned}
+                      onDone={() => void refetch()}
+                    />
+                  )}
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
                   <div className="flex w-full flex-col gap-3">
@@ -1058,13 +1066,15 @@ function TopicsTab({ topic, q: query, page }: { topic?: string; q?: string; page
                     ))}
                   </div>
                 </div>
-                <div className="border-t border-border px-4 py-3">
-                  <TopicReplyForm
-                    topicId={selected.topic.id}
-                    status={selected.topic.status}
-                    onDone={() => void refetch()}
-                  />
-                </div>
+                {!FORUM_CLOSED && (
+                  <div className="border-t border-border px-4 py-3">
+                    <TopicReplyForm
+                      topicId={selected.topic.id}
+                      status={selected.topic.status}
+                      onDone={() => void refetch()}
+                    />
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex flex-1 items-center justify-center">

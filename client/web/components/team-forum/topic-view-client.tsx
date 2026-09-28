@@ -43,6 +43,8 @@ import {
   type StagedUpload,
   type UploadState,
 } from './attachment-ui';
+import { FORUM_CLOSED, isForumClosed } from '@/lib/forum-closed';
+import { ForumClosedNotice } from './forum-closed-notice';
 
 type TopicDetail = {
   id: string;
@@ -239,6 +241,9 @@ export function TopicViewClient({
   const [noReply, setNoReply] = useState<boolean | null>(null); // null = follow kind default
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // The forum takes no new posts (lib/forum-closed.ts); a 410 from the brain
+  // flips this too, so a stale view shows the same notice, not an error.
+  const [closed, setClosed] = useState(FORUM_CLOSED);
   const [staged, setStaged] = useState<StagedUpload[]>([]);
   const [attachBusy, setAttachBusy] = useState(false);
   // Blob review states (id → status/size) for the attachment chips.
@@ -667,7 +672,8 @@ export function TopicViewClient({
       }
       if (!r.ok) {
         const data = (await r.json().catch(() => ({}))) as { error?: string };
-        setSendError(data.error ?? 'Posting failed — try again.');
+        if (isForumClosed(r.status, data)) setClosed(true);
+        else setSendError(data.error ?? 'Posting failed — try again.');
         rollbackOptimistic();
         finishTurn();
         return;
@@ -863,7 +869,9 @@ export function TopicViewClient({
       <div className={`border-t border-border/60 ${COMPOSER_BAND_GRADIENT} px-6 py-4`}>
         <div className="w-full">
           {sendError ? <p className="mb-2 text-sm text-destructive-ink">{sendError}</p> : null}
-          {topic.status === 'closed' ? (
+          {closed ? (
+            <ForumClosedNotice />
+          ) : topic.status === 'closed' ? (
             <p className="py-2 text-center text-sm text-muted-foreground">This topic is closed.</p>
           ) : (
             <>

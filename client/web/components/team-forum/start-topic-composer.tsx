@@ -15,6 +15,8 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
+import { isForumClosed } from '@/lib/forum-closed';
+import { ForumClosedNotice } from './forum-closed-notice';
 
 export function StartTopicComposer() {
   const router = useRouter();
@@ -22,6 +24,7 @@ export function StartTopicComposer() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closed, setClosed] = useState(false);
 
   const start = async () => {
     const body = text.trim();
@@ -42,6 +45,11 @@ export function StartTopicComposer() {
         turnId?: string;
         error?: string;
       };
+      if (isForumClosed(r.status, data)) {
+        setClosed(true);
+        setSubmitting(false);
+        return;
+      }
       if (!r.ok || !data.topicId) {
         setError(data.error ?? 'Could not start the topic — try again.');
         setSubmitting(false);
@@ -54,6 +62,8 @@ export function StartTopicComposer() {
       setSubmitting(false);
     }
   };
+
+  if (closed) return <ForumClosedNotice />;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">

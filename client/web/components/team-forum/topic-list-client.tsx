@@ -70,6 +70,8 @@ import {
 } from '@mantle/web-ui/forum-meta';
 import { ComposerAttachments, type StagedUpload } from './attachment-ui';
 import { teamFetch } from '@mantle/web-ui/team-fetch';
+import { FORUM_CLOSED, isForumClosed } from '@/lib/forum-closed';
+import { ForumClosedNotice } from './forum-closed-notice';
 
 export type ForumTopicItem = {
   id: string;
@@ -104,6 +106,7 @@ function NewTopicComposer({ onCancel }: { onCancel: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [staged, setStaged] = useState<StagedUpload[]>([]);
   const [attachBusy, setAttachBusy] = useState(false);
+  const [closed, setClosed] = useState(false);
 
   const effectiveNoReply = noReplyTouched ? noReply : kind === 'discussion';
 
@@ -133,6 +136,11 @@ function NewTopicComposer({ onCancel }: { onCancel: () => void }) {
         turnId?: string;
         error?: string;
       };
+      if (isForumClosed(r.status, data)) {
+        setClosed(true);
+        setSubmitting(false);
+        return;
+      }
       if (!r.ok || !data.topicId) {
         setError(data.error ?? 'Could not create the topic — try again.');
         setSubmitting(false);
@@ -230,7 +238,11 @@ function NewTopicComposer({ onCancel }: { onCancel: () => void }) {
                 the brain&rsquo;s shared knowledge.
               </p>
             )}
-            {error && <p className="text-sm text-destructive-ink">{error}</p>}
+            {closed ? (
+              <ForumClosedNotice />
+            ) : (
+              error && <p className="text-sm text-destructive-ink">{error}</p>
+            )}
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" onClick={onCancel} disabled={submitting}>
                 Cancel
@@ -380,13 +392,18 @@ export function TopicListClient() {
           <div className="min-w-0">
             <h1 className="text-sm font-semibold">Forum</h1>
             <p className="truncate text-xs text-muted-foreground">
-              Shared with the whole team · the brain answers
+              {FORUM_CLOSED
+                ? 'Closed · read only'
+                : 'Shared with the whole team · the brain answers'}
             </p>
           </div>
-          <Button size="sm" onClick={openComposer}>
-            <MessageSquarePlus /> New topic
-          </Button>
+          {!FORUM_CLOSED && (
+            <Button size="sm" onClick={openComposer}>
+              <MessageSquarePlus /> New topic
+            </Button>
+          )}
         </div>
+        {FORUM_CLOSED && <ForumClosedNotice className="text-xs" />}
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -441,13 +458,19 @@ export function TopicListClient() {
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border bg-muted/30 px-4 py-12 text-center">
               <MessagesSquare className="size-6 text-muted-foreground" aria-hidden />
-              <p className="max-w-sm text-sm text-muted-foreground">
-                No topics yet. Start one — questions, ideas, reviews, bugs. The whole team sees the
-                thread, and the brain answers.
-              </p>
-              <Button size="sm" onClick={openComposer}>
-                <MessageSquarePlus /> New topic
-              </Button>
+              {FORUM_CLOSED ? (
+                <p className="max-w-sm text-sm text-muted-foreground">No topics.</p>
+              ) : (
+                <>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    No topics yet. Start one — questions, ideas, reviews, bugs. The whole team sees
+                    the thread, and the brain answers.
+                  </p>
+                  <Button size="sm" onClick={openComposer}>
+                    <MessageSquarePlus /> New topic
+                  </Button>
+                </>
+              )}
             </div>
           )
         ) : (
@@ -504,7 +527,11 @@ export function TopicListClient() {
 
   const detailPane = (
     <div className={cn('h-full min-h-0', !urlSelectedId && !newMode && 'max-md:hidden')}>
-      {newMode ? (
+      {newMode && FORUM_CLOSED ? (
+        <div className="p-6">
+          <ForumClosedNotice />
+        </div>
+      ) : newMode ? (
         <NewTopicComposer onCancel={() => go({ new: null })} />
       ) : selectedId ? (
         // `key` remounts the view per topic, so thread state (scroll, search,
