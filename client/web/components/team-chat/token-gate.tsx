@@ -19,6 +19,7 @@ import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { teamFetch, teamTokenStore } from '@mantle/web-ui/team-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
+import { MemberLoginsNotice } from './member-logins-notice';
 
 export function TokenGate({
   onAuthed,
@@ -74,6 +75,7 @@ export function TokenGate({
           <KeyRound className="size-4 text-muted-foreground" />
           <h1 className="text-base font-semibold">{heading}</h1>
         </div>
+        <MemberLoginsNotice className="mb-4" />
         <p className="mb-4 text-sm text-muted-foreground">
           Enter your team token to continue. Your conversations with the brain are visible to its
           admin.

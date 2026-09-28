@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { MEMBER_HINT_COOKIE, MEMBER_SURFACE_HEADER, sendsMemberHome } from '@/lib/member-surface';
+import { MEMBER_HINT_COOKIE, MEMBER_SURFACE_HEADER, sendsMemberHome } from './lib/member-surface';
 
 /**
  * ZERO-SECRET client middleware. This app holds no SESSION_SECRET, so it can
@@ -18,8 +18,11 @@ const PRESENCE_COOKIE = 'mantle_authed';
  *  team-member surfaces (members are not brain users — they authenticate
  *  with a team token against /api/team/*, never the owner presence flow), and
  *  `/pair` — the static page a browser lands on when it scans the phone
- *  sign-in QR; it holds no data and never reads the code in the fragment. */
-const PUBLIC_PREFIXES = ['/login', '/env.js', '/team', '/hub', '/pair'];
+ *  sign-in QR; it holds no data and never reads the code in the fragment.
+ *  Also `/invite`, where a person redeems a member invite (member logins,
+ *  Phase 6). Public paths pass before any cookie is read, so a signed-in
+ *  browser (admin or member) is never sent away from them. */
+const PUBLIC_PREFIXES = ['/login', '/env.js', '/team', '/hub', '/pair', '/invite'];
 
 /** Member surfaces get the owner-brand LOCK rendered into the original HTML.
  *  The root layout can't see the pathname, so this is forwarded as a request

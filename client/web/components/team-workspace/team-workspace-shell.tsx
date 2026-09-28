@@ -68,6 +68,7 @@ import {
 import { BrandBlock } from '@/components/layout/rail/brand-block';
 import { BrandLogo } from '@/components/layout/rail/brand-logo';
 import { TokenGate } from '@/components/team-chat/token-gate';
+import { MemberLoginsNotice } from '@/components/team-chat/member-logins-notice';
 import { NeatSurface } from '@/components/neat-surface';
 import { teamFetch, upgradeTeamCookie } from '@mantle/web-ui/team-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -572,7 +573,10 @@ export function TeamWorkspaceShell({ children }: { children: ReactNode }) {
             >
               <NeatSurface shared />
             </div>
-            <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
+            <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+              <MemberLoginsNotice className="m-3 mb-0 shrink-0" />
+              {children}
+            </main>
           </div>
         </div>
       </TooltipProvider>
