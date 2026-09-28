@@ -12,6 +12,13 @@
  * already holds (or that newer edits overtook) answers 409 and is dropped. A
  * note PATCH has no etag, so a kept write older than RESCUE_MAX_AGE_MS is
  * dropped unsent rather than laid over edits made since on another device.
+ *
+ * A kept write is a private draft at rest in a shared browser, so it belongs
+ * to the login that wrote it: its key names that login (the OWNER, set by the
+ * app shell once it knows who is signed in), only that login's writes are
+ * ever sent, every kept write goes at sign-out (the sign-out registry), and
+ * the app's boot sweeps out any that expired. Until the shell has said who is
+ * signed in, nothing is kept and nothing is sent.
  */
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 
@@ -20,7 +27,64 @@ const PREFIX = 'mantle_member_rescue:';
 
 export type RescueEntry = { method: 'PUT' | 'PATCH'; body: string; at: number };
 
-type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>;
+
+/** Who this tab is signed in as (a member's login id, an admin's own name
+ *  for their login), or null until the shell has said. */
+let owner: string | null = null;
+let ownerWaiters: ((who: string) => void)[] = [];
+
+/** Set by the app shell from the shell it loaded; null at sign-out. */
+export function setRescueOwner(who: string | null): void {
+  owner = who || null;
+  if (!owner) return;
+  const waiters = ownerWaiters;
+  ownerWaiters = [];
+  for (const w of waiters) w(owner);
+}
+
+export function rescueOwner(): string | null {
+  return owner;
+}
+
+/** The owner a loaded shell names: a member's login id, or an admin's own
+ *  login (the actor's email; admins have no private space rescue across
+ *  logins otherwise). Null until the shell has loaded. */
+export function rescueOwnerFor(
+  isMember: boolean,
+  memberShell: { loginId?: string | null } | undefined,
+  adminShell: { email?: string | null } | undefined,
+): string | null {
+  if (isMember) return memberShell?.loginId ? `member:${memberShell.loginId}` : null;
+  if (!adminShell) return null;
+  return `admin:${adminShell.email ?? ''}`;
+}
+
+/** The owner, once known, or null after `timeoutMs`. */
+function ownerSoon(timeoutMs: number): Promise<string | null> {
+  if (owner) return Promise.resolve(owner);
+  return new Promise((resolve) => {
+    const done = (who: string | null) => {
+      clearTimeout(timer);
+      ownerWaiters = ownerWaiters.filter((w) => w !== done);
+      resolve(who);
+    };
+    const timer = setTimeout(() => done(null), timeoutMs);
+    ownerWaiters.push(done);
+  });
+}
+
+const keyFor = (who: string, path: string) => `${PREFIX}${encodeURIComponent(who)}:${path}`;
+
+/** Every kept-write key in the store (any owner, any format). */
+function rescueKeys(s: Store): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const k = s.key(i);
+    if (k?.startsWith(PREFIX)) keys.push(k);
+  }
+  return keys;
+}
 
 function store(): Store | null {
   try {
@@ -30,38 +94,37 @@ function store(): Store | null {
   }
 }
 
-/** Keep a write until the brain answers it. Storage full or blocked: skip. */
-export function keepRescue(path: string, entry: RescueEntry, s: Store | null = store()): void {
+/** Keep a write until the brain answers it. Storage full or blocked, or no
+ *  owner known yet: skip. */
+export function keepRescue(
+  path: string,
+  entry: RescueEntry,
+  s: Store | null = store(),
+  who: string | null = owner,
+): void {
+  if (!who) return;
   try {
-    s?.setItem(PREFIX + path, JSON.stringify(entry));
+    s?.setItem(keyFor(who, path), JSON.stringify(entry));
   } catch {
     // Quota or blocked storage: the write simply has no rescue copy.
   }
 }
 
-export function dropRescue(path: string, s: Store | null = store()): void {
+export function dropRescue(
+  path: string,
+  s: Store | null = store(),
+  who: string | null = owner,
+): void {
+  if (!who) return;
   try {
-    s?.removeItem(PREFIX + path);
+    s?.removeItem(keyFor(who, path));
   } catch {
     // Nothing to do.
   }
 }
 
-/** The kept write for `path` when it is still worth sending, else null (an
- *  unreadable or too old one is dropped). */
-export function takeRescue(
-  path: string,
-  now: number,
-  s: Store | null = store(),
-): RescueEntry | null {
-  let raw: string | null;
-  try {
-    raw = s?.getItem(PREFIX + path) ?? null;
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-  dropRescue(path, s);
+/** A kept write worth sending at `now`, else null. */
+function readEntry(raw: string, now: number): RescueEntry | null {
   try {
     const e = JSON.parse(raw) as RescueEntry;
     if ((e.method !== 'PUT' && e.method !== 'PATCH') || typeof e.body !== 'string') return null;
@@ -69,6 +132,62 @@ export function takeRescue(
     return e;
   } catch {
     return null;
+  }
+}
+
+/** The owner's kept write for `path` when it is still worth sending, else
+ *  null (an unreadable or too old one is dropped). */
+export function takeRescue(
+  path: string,
+  now: number,
+  s: Store | null = store(),
+  who: string | null = owner,
+): RescueEntry | null {
+  if (!who) return null;
+  let raw: string | null;
+  try {
+    raw = s?.getItem(keyFor(who, path)) ?? null;
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  dropRescue(path, s, who);
+  return readEntry(raw, now);
+}
+
+/** Is any login's write for one of `paths` kept here? (Cheap: no parsing.) */
+function anyKeptFor(paths: readonly string[], s: Store | null): boolean {
+  if (!s) return false;
+  try {
+    return rescueKeys(s).some((k) => paths.some((p) => k.endsWith(`:${p}`)));
+  } catch {
+    return false;
+  }
+}
+
+/** At boot: drop every kept write that expired, is unreadable, or predates
+ *  the owner in the key (anyone's; none of it can be sent any more). */
+export function sweepRescues(now: number, s: Store | null = store()): void {
+  if (!s) return;
+  try {
+    for (const k of rescueKeys(s)) {
+      const rest = k.slice(PREFIX.length);
+      const raw = s.getItem(k);
+      // The owner-less format (`<prefix>/api/...`) has no owner to send it as.
+      if (rest.startsWith('/') || !raw || !readEntry(raw, now)) s.removeItem(k);
+    }
+  } catch {
+    // Blocked storage: nothing kept, nothing to sweep.
+  }
+}
+
+/** At sign-out: every kept write, whoever wrote it. */
+export function clearRescues(s: Store | null = store()): void {
+  if (!s) return;
+  try {
+    for (const k of rescueKeys(s)) s.removeItem(k);
+  } catch {
+    // Nothing to do.
   }
 }
 
@@ -89,8 +208,15 @@ export async function replayRescue(
   now = Date.now(),
   base: '/api/member' | '/api/admin' = '/api/member',
 ): Promise<void> {
-  for (const path of rescuePaths(id, base)) {
-    const e = takeRescue(path, now);
+  const paths = rescuePaths(id, base);
+  // Nearly always nothing is kept: open the item at once.
+  if (!anyKeptFor(paths, store())) return;
+  // Something is: send it only as the login that wrote it, once the shell
+  // has said who that is (a deep link can open an item before it has).
+  const who = await ownerSoon(5000);
+  if (!who) return;
+  for (const path of paths) {
+    const e = takeRescue(path, now, store(), who);
     if (!e) continue;
     try {
       await fetch(

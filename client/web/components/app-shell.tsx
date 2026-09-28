@@ -55,6 +55,13 @@ import { SearchPalette } from '@/components/search/search-palette';
 import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
 import { ViewerRoleProvider, type ViewerRole } from '@/components/member/viewer-role';
 import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
+import {
+  clearRescues,
+  rescueOwnerFor,
+  setRescueOwner,
+  sweepRescues,
+} from '@/lib/member-rescue';
+import { onSignOut } from '@mantle/web-ui/sign-out';
 
 /**
  * App shell — TWO fixed regions, the left rail and the right live column,
@@ -317,6 +324,20 @@ function ShellFrame({
   useEffect(() => {
     if (memberLoaded) setMemberHint(true);
   }, [memberLoaded]);
+  // Big-save rescue copies (lib/member-rescue.ts) are a login's private
+  // drafts at rest: expired ones go at boot, the rest are kept under the
+  // login the shell names and all go at sign-out.
+  useEffect(() => {
+    sweepRescues(Date.now());
+    return onSignOut(() => {
+      setRescueOwner(null);
+      clearRescues();
+    });
+  }, []);
+  const rescueWho = rescueOwnerFor(isMember, memberShellQuery.data, shellQuery.data);
+  useEffect(() => {
+    setRescueOwner(rescueWho);
+  }, [rescueWho]);
   // What the chrome shows (brand, identity, theme, fonts, asset token) comes
   // from whichever shell answered; the two share those fields.
   const brand = isMember ? memberShellQuery.data : shellQuery.data;
