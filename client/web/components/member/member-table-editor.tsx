@@ -38,6 +38,7 @@ export function MemberTableEditor({
   onUnsavedChange,
   onSaved,
   onStatus,
+  readOnly = false,
 }: MemberEditorProps & { table: TableDetail }) {
   const toast = useToast();
   const api = useSpaceApi();
@@ -182,6 +183,8 @@ export function MemberTableEditor({
   }, [report]);
 
   const onGridChange = (next: TableDoc) => {
+    // The grid has no read-only mode: a held (stopped) table keeps its doc.
+    if (readOnly) return;
     setDoc(next);
     docRef.current = next;
     report();

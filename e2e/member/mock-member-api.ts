@@ -99,6 +99,9 @@ export type MockMemberApi = {
   /** Set to a status to have every draft PUT fail with it (a brain that
    *  refuses the write, e.g. Postgres on a NUL character: 500). */
   failDrafts: number | null;
+  /** Set to have the page submitted from "another tab": its row reads
+   *  submitted and every draft PUT is refused 409 `frozen`. */
+  frozen: boolean;
   /** Admin-only routes the page called (should stay empty). */
   adminCalls: string[];
   /** Member asset routes the page called. */
@@ -139,6 +142,7 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     draftRev: 0,
     puts: [],
     failDrafts: null,
+    frozen: false,
     adminCalls: [],
     memberAssetCalls: [],
     passwordChanges: [],
@@ -155,8 +159,8 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
     title: PAGE_TITLE,
     icon: null,
     sharing: 'private',
-    reviewState: 'draft',
-    submittedAt: null,
+    reviewState: state.frozen ? 'submitted' : 'draft',
+    submittedAt: state.frozen ? now : null,
     returnedNote: null,
     authorLoginId: 'login-1',
     updatedAt: now,
@@ -287,6 +291,12 @@ export async function startMockMemberApi(clientOrigin: string): Promise<MockMemb
       const body = JSON.parse(await readBody(req)) as { doc: Doc; if_rev?: number };
       state.puts.push({ ...body, at: Date.now() });
       if (state.failDrafts) return json(res, state.failDrafts, { error: 'Internal error' });
+      if (state.frozen) {
+        return json(res, 409, {
+          error: 'Submitted for review: nobody can change it now. Recall it to make a correction.',
+          reason: 'frozen',
+        });
+      }
       if (body.if_rev !== undefined && body.if_rev !== state.draftRev) {
         return json(res, 409, { error: 'The draft changed.', current_rev: state.draftRev });
       }

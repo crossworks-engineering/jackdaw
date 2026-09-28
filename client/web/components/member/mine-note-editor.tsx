@@ -21,6 +21,7 @@ export function MineNoteEditor({
   onUnsavedChange,
   onSaved,
   onStatus,
+  readOnly = false,
 }: MemberEditorProps & { content: string }) {
   const api = useSpaceApi();
   const [text, setText] = useState(content);
@@ -60,6 +61,7 @@ export function MineNoteEditor({
         queue.changed();
       }}
       onBlur={() => void queue.flush()}
+      readOnly={readOnly}
       rows={16}
       aria-label="Note text"
       className="font-[family-name:var(--font-prose)]"

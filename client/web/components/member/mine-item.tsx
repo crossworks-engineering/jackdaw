@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
+import { holdsEditor, memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
 import { acceptedBrainHref } from '@/lib/admin-private';
 import {
@@ -171,14 +171,18 @@ function MineItemLoaded({
   }, []);
   const [editorSaving, setEditorSaving] = useState(false);
   const [autosave, setAutosave] = useState<AutosaveState>({ status: 'saved' });
-  const onStatus = useCallback(
-    (state: AutosaveState) => {
-      setAutosave(state);
-      // Frozen or out of draft elsewhere: show the item as it now stands.
-      if (state.status === 'stopped' && state.reason !== 'conflict') refreshItem();
-    },
-    [refreshItem],
-  );
+  const onStatus = useCallback((state: AutosaveState) => setAutosave(state), []);
+  // Frozen or out of draft elsewhere: the editor stays, read-only, with what
+  // was typed, until the member lets it go (then the item shows as it now
+  // stands). Once per open item: after that the row decides.
+  const [held, setHeld] = useState(false);
+  const [released, setReleased] = useState(false);
+  if (!held && !released && holdsEditor(autosave, editable)) setHeld(true);
+  const release = () => {
+    setHeld(false);
+    setReleased(true);
+    refreshItem();
+  };
   const saveEditorVersion = async (): Promise<boolean> => {
     const h = editorHandle.current;
     if (!h) return false;
@@ -190,16 +194,27 @@ function MineItemLoaded({
     }
   };
 
-  const saveTitle = () => {
+  // The rename in flight (or done), so Submit can wait for it and a blur and
+  // a Submit do not send the same title twice.
+  const titleSave = useRef<{ title: string; done: Promise<boolean> } | null>(null);
+  const saveTitle = (): Promise<boolean> => {
     const t = title.trim();
-    if (t === row.title) return;
-    api
-      .patch(row.id, { title: t })
-      .then(() => {
+    const last = titleSave.current;
+    if (last ? last.title === t : t === row.title) return last?.done ?? Promise.resolve(true);
+    const done = api.patch(row.id, { title: t }).then(
+      () => {
         refreshLists();
         refreshItem();
-      })
-      .catch((err) => toast.error(spaceErrorMessage(err, 'Could not rename it.')));
+        return true;
+      },
+      (err: unknown) => {
+        toast.error(spaceErrorMessage(err, 'Could not rename it.'));
+        titleSave.current = null;
+        return false;
+      },
+    );
+    titleSave.current = { title: t, done };
+    return done;
   };
 
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -214,10 +229,12 @@ function MineItemLoaded({
     }
   };
 
-  // Submit takes the SAVED version: everything typed goes to the brain first
-  // (awaited, for notes too), then a Save version when the saved version is
-  // behind. A refusal on the way stops the submit.
+  // Submit takes the SAVED version: the title and everything typed go to the
+  // brain first (awaited, for notes too), then a Save version when the saved
+  // version is behind. A refusal on the way stops the submit. (The title
+  // saved on blur, unawaited, and could race the freeze.)
   const beforeSubmit = async () => {
+    if (!(await saveTitle())) return false;
     const h = editorHandle.current;
     if (!h) return true;
     if (!(await h.flush())) return false;
@@ -230,9 +247,10 @@ function MineItemLoaded({
     onUnsavedChange,
     onSaved: refreshLists,
     onStatus,
+    readOnly: held,
   };
   let editor: React.ReactNode;
-  if (!editable) {
+  if (!editable && !held) {
     editor = <SpaceItemView source="mine" item={item} />;
   } else if (body.type === 'page') {
     editor = <MinePageEditor {...editorProps} page={body.page} />;
@@ -253,9 +271,9 @@ function MineItemLoaded({
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={saveTitle}
+            onBlur={() => void saveTitle()}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            disabled={!editable}
+            disabled={!editable || held}
             placeholder="Untitled"
             aria-label="Title"
             // The owner page title's look: no box, an underline while editing.
@@ -270,7 +288,9 @@ function MineItemLoaded({
           <StatusChip row={row} />
           <span className="flex-1" />
           {admin ? null : <SharingControl row={row} />}
-          {(body.type === 'page' || body.type === 'draw' || body.type === 'table') && editable ? (
+          {(body.type === 'page' || body.type === 'draw' || body.type === 'table') &&
+          editable &&
+          !held ? (
             <Button
               size="sm"
               variant="outline"
@@ -307,7 +327,7 @@ function MineItemLoaded({
           ) : (
             <ReviewActions row={row} beforeSubmit={beforeSubmit} />
           )}
-          {editable ? (
+          {editable && !held ? (
             <Button
               size="icon-sm"
               variant="ghost"
@@ -332,7 +352,24 @@ function MineItemLoaded({
           </p>
         ) : null}
 
-        {editable ? <AutosaveNote state={autosave} onReload={onReload} /> : null}
+        {held ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+          >
+            <span className="min-w-0 flex-1">
+              {autosave.status === 'stopped'
+                ? autosave.message
+                : 'This item cannot be changed here any more.'}{' '}
+              What you typed stays below, read-only, so you can copy it.
+            </span>
+            <Button size="sm" variant="outline" onClick={release}>
+              Show it as it is now
+            </Button>
+          </div>
+        ) : editable ? (
+          <AutosaveNote state={autosave} onReload={onReload} />
+        ) : null}
 
         {editor}
 

@@ -6,6 +6,7 @@ import {
   SaveRefused,
   classifySaveError,
   createAutosaveQueue,
+  holdsEditor,
   leaveNeedsWarning,
   versionFailureText,
   memberSavesSettled,
@@ -482,5 +483,23 @@ describe('member autosave: asking before leaving', () => {
     expect(hook).toContain("window.addEventListener('beforeunload', onBeforeUnload)");
     expect(hook).toMatch(/if \(!leaveNeedsWarning\(queue\.state\(\), queue\.isDirty\(\)\)\) return;/);
     expect(hook).toContain('e.preventDefault();');
+  });
+});
+
+describe('member autosave: holding a stopped editor', () => {
+  it('holds when the item stopped being editable elsewhere', () => {
+    expect(holdsEditor({ status: 'stopped', reason: 'frozen', message: 'x' }, true)).toBe(true);
+    expect(holdsEditor({ status: 'stopped', reason: 'not-draft', message: 'x' }, false)).toBe(true);
+  });
+
+  it('holds when the row turned read-only with typing not on the brain yet', () => {
+    expect(holdsEditor({ status: 'pending' }, false)).toBe(true);
+    expect(holdsEditor({ status: 'saving' }, false)).toBe(true);
+  });
+
+  it('does not hold a conflict (it has Reload), a saved editor, or an editable row', () => {
+    expect(holdsEditor({ status: 'stopped', reason: 'conflict', message: 'x' }, true)).toBe(false);
+    expect(holdsEditor({ status: 'saved' }, false)).toBe(false);
+    expect(holdsEditor({ status: 'pending' }, true)).toBe(false);
   });
 });

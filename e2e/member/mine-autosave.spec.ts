@@ -93,3 +93,34 @@ test('a write the brain keeps refusing says so, keeps the typing and asks before
   expect(await asked).toBe('beforeunload');
   expect(api.adminCalls).toEqual([]);
 });
+
+test('an item submitted from another tab keeps the typing on screen, read-only, until let go', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAsMember(context, baseURL!);
+  await page.goto(`/pages?id=${PAGE_ID}`);
+  const editor = page.locator('.ProseMirror');
+  await expect(editor).toContainText('Start.', { timeout: 60_000 });
+
+  // Another tab submits it; this tab types on and its save is refused.
+  api.frozen = true;
+  await editor.locator('p').first().click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Typed after the submit.');
+
+  const held = page.getByRole('status').filter({ hasText: 'What you typed stays below' });
+  await expect(held).toBeVisible({ timeout: 15_000 });
+  await expect(held).toContainText('Submitted for review');
+  // Still the editor, with the typing, and it takes no more.
+  await expect(editor).toContainText('Start. Typed after the submit.');
+  await expect(editor).toHaveAttribute('contenteditable', 'false');
+
+  // Let go: the item as the brain has it now (submitted, without the typing).
+  await held.getByRole('button', { name: 'Show it as it is now' }).click();
+  await expect(held).toHaveCount(0);
+  await expect(page.getByText('Typed after the submit.')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText('Start.').first()).toBeVisible();
+  expect(api.adminCalls).toEqual([]);
+});

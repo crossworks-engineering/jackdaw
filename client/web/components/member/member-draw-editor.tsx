@@ -61,6 +61,7 @@ export function MemberDrawEditor({
   onUnsavedChange,
   onSaved,
   onStatus,
+  readOnly = false,
 }: MemberEditorProps & {
   draw: {
     scene: Record<string, unknown>;
@@ -242,7 +243,12 @@ export function MemberDrawEditor({
   return (
     <div className="h-[70vh] min-h-[420px] overflow-hidden rounded-md border border-border">
       {initialData ? (
-        <ExcalidrawCanvas initialData={initialData} onChange={onChange} imageTool={false} />
+        <ExcalidrawCanvas
+          initialData={initialData}
+          onChange={onChange}
+          imageTool={false}
+          viewMode={readOnly}
+        />
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Loading canvas…

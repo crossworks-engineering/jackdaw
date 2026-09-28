@@ -21,4 +21,8 @@ export type MemberEditorProps = {
   onSaved: () => void;
   /** The autosave state, for MineItem's inline line (retrying, stopped). */
   onStatus?: (state: AutosaveState) => void;
+  /** The item stopped being editable under the editor (submitted from
+   *  another tab): it stays, showing what was typed, and takes no more
+   *  changes until the member closes it (MineItem). */
+  readOnly?: boolean;
 };

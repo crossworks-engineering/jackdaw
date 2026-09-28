@@ -28,6 +28,7 @@ export function MinePageEditor({
   onUnsavedChange,
   onSaved,
   onStatus,
+  readOnly = false,
 }: MemberEditorProps & {
   page: { doc: Doc; draft: Doc | null; draftRev?: number };
 }) {
@@ -96,6 +97,7 @@ export function MinePageEditor({
       member={!admin}
       privateItem={admin}
       pageId={id}
+      editable={!readOnly}
       content={initial as JSONContent}
       onChange={(doc) => {
         docRef.current = doc as Doc;

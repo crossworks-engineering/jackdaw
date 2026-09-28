@@ -391,6 +391,19 @@ export function versionFailureText(failure: SaveFailure): string | null {
 }
 
 /**
+ * Should MineItem keep the editor on screen, read-only, instead of swapping
+ * it for the item as the brain now has it? Yes when the item stopped being
+ * editable elsewhere (a state stop such as `frozen`: submitted from another
+ * tab; not a conflict, which has Reload), and when its row turned read-only
+ * (a refetch over realtime) while typing was not on the brain yet. The swap
+ * used to drop that typing with only a toast to say so.
+ */
+export function holdsEditor(state: AutosaveState, rowEditable: boolean): boolean {
+  if (state.status === 'stopped') return state.reason !== 'conflict';
+  return !rowEditable && state.status !== 'saved';
+}
+
+/**
  * Should leaving the page ask first? Only while the editor holds typing the
  * brain has not got AND saving is in trouble (failing, retrying or stopped):
  * the leave flush sends ordinary pending typing on the way out, so a prompt
