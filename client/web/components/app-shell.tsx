@@ -3,12 +3,15 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isAdminLoginRefusal,
+  isClientLoginRefusal,
+  isLoginRefusal,
   isMemberLoginRefusal,
   memberHome,
   setMemberHint,
 } from '@/lib/member-destination';
+import { resolveShellRole, shellProbeFailed, type ViewerRole } from '@/lib/shell-role';
 import { usePathname, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import type { MemberShell as MemberShellData } from '@mantle/client-types';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
@@ -55,7 +58,7 @@ import { PickMode } from '@/components/assistant/pick-mode';
 import { ZenModeContext } from '@/components/layout/zen-mode';
 import { SearchPalette } from '@/components/search/search-palette';
 import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
-import { ViewerRoleProvider, type ViewerRole } from '@/components/member/viewer-role';
+import { ShellRoleGate, ViewerRoleProvider } from '@/components/member/viewer-role';
 import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
 import { clearRescues, rescueOwnerFor, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
 import { onSignOut } from '@mantle/web-ui/sign-out';
@@ -143,10 +146,113 @@ type ShellData = {
   assetToken?: string;
 };
 
+/** The two shell probes, run once above the providers (the role decides
+ *  whether the shell renders at all) and handed to the frame. */
+type ShellProbes = {
+  shell: UseQueryResult<ShellData>;
+  member: UseQueryResult<MemberShellData>;
+};
+
+/**
+ * Who this shell is for, asked of the brain (client logins C0). The seed is
+ * the member hint or nothing: an admin is NEVER assumed. Seeded as a member,
+ * the member shell answers (and a member-route `admin-login` reloads without
+ * the hint); otherwise /api/shell answers, and only its 200 makes an admin.
+ * Its `member-login` refusal reloads as the member; its `client-login`
+ * refusal is the client screen, with no navigation at all, so a client can
+ * never loop between /login and here.
+ */
+function useShellRole(seed: 'member' | null) {
+  const isMemberSeed = seed === 'member';
+  const shell = useQuery({
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<ShellData>('/api/shell'),
+    enabled: !isMemberSeed,
+    // This payload carries the asset token, and that token EXPIRES — it rides
+    // in the URL, so the brain keeps its life short (two hours, "one working
+    // session"). Nothing refreshed it: this query ran once per mount, so a tab
+    // left open past lunch got a 401 on every image, iframe and download until
+    // someone reloaded.
+    //
+    // The delay is read from the token's own `exp` rather than copied from the
+    // brain's constant, so the two cannot drift; `false` when there is no token
+    // (the ordinary same-origin box, where the session cookie does this job and
+    // there is nothing to poll for).
+    refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
+    // Deliberately overriding the global `refetchOnWindowFocus: false`, for this
+    // query only. An interval is not enough on its own: TanStack pauses it
+    // while the tab is in the background, which is precisely the tab this bug
+    // is about. Focus covers the one you came back to; the interval covers the
+    // one that has been open in front of you for hours. It is one small
+    // request, and it is the one carrying a credential with a hard expiry.
+    refetchOnWindowFocus: true,
+    // A member or client login is refused here for good (403): retrying only
+    // delays what the shell does about it.
+    retry: (count, err) => !isLoginRefusal(err) && count < 1,
+  });
+  // The member's shell: brand, identity and the asset token, from the member
+  // route (every admin route refuses a member).
+  const member = useQuery({
+    queryKey: ['member-shell'],
+    queryFn: () => apiFetch<MemberShellData>('/api/member/shell'),
+    enabled: isMemberSeed,
+    refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
+    refetchOnWindowFocus: true,
+    retry: (count, err) => !isLoginRefusal(err) && count < 1,
+  });
+  // A wrong hint either way reloads as what the brain says this login is: a
+  // full reload, so the layout renders the right shell from the first paint.
+  // The hint cookie also lets the middleware keep a member off admin paths.
+  // Only the brain's own refusal counts (a proxy 403 names nobody, and
+  // reacting to one flipped the hint back and forth in a reload loop), and
+  // the reload keeps the deep link wherever a member may open it.
+  useEffect(() => {
+    if (isMemberLoginRefusal(shell.error)) {
+      setMemberHint(true);
+      window.location.replace(memberHome(window.location.pathname + window.location.search));
+    }
+  }, [shell.error]);
+  useEffect(() => {
+    if (isAdminLoginRefusal(member.error)) {
+      setMemberHint(false);
+      window.location.reload();
+    }
+  }, [member.error]);
+  // A client login is not a member: drop a stale member hint so the
+  // middleware stops routing it as one. No reload and no redirect: the gate
+  // below shows the client screen on whatever path this is.
+  const isClient = isClientLoginRefusal(shell.error) || isClientLoginRefusal(member.error);
+  useEffect(() => {
+    if (isClient) setMemberHint(false);
+  }, [isClient]);
+  const shellLoaded = shell.isSuccess;
+  useEffect(() => {
+    if (shellLoaded) setMemberHint(false);
+  }, [shellLoaded]);
+  const memberLoaded = member.isSuccess;
+  useEffect(() => {
+    if (memberLoaded) setMemberHint(true);
+  }, [memberLoaded]);
+
+  const input = {
+    seed,
+    shell: { hasData: shell.data !== undefined, error: shell.error },
+    member: { hasData: member.data !== undefined, error: member.error },
+  };
+  const role = resolveShellRole(input);
+  return {
+    role,
+    probeFailed: shellProbeFailed(input, role),
+    retry: () => void shell.refetch(),
+    probes: { shell, member } satisfies ShellProbes,
+  };
+}
+
 export function AppShell(props: {
   contextCard: React.ReactNode;
-  /** Seeded from the member hint cookie by the layout; confirmed here. */
-  role?: ViewerRole;
+  /** Seeded from the member hint cookie by the layout ('member', or null to
+   *  ask the brain); confirmed here. Never admin. */
+  role: 'member' | null;
   initialNavCollapsed?: boolean;
   /** Rail widths in px, seeded from cookies for the same no-flash reason. */
   initialNavWidth?: number;
@@ -154,31 +260,38 @@ export function AppShell(props: {
   initialActivityCollapsed?: boolean;
   children: React.ReactNode;
 }) {
+  const { role, probeFailed, retry, probes } = useShellRole(props.role);
   // Providers only — the frame itself lives in <ShellFrame/>, which sits INSIDE
   // AssistantDockProvider and HelpRailProvider so it can read both dock states
-  // (each open column publishes its width to the frame's CSS vars).
+  // (each open column publishes its width to the frame's CSS vars). None of it
+  // mounts until the brain has confirmed an admin or a member.
   return (
-    <ViewerRoleProvider role={props.role ?? 'admin'}>
-      <ToastProvider>
-        <PageTitleProvider>
-          <UploadProvider>
-            <AssistantDockProvider>
-              <HelpRailProvider>
-                <TourProvider>
-                  <ShellFrame {...props} />
-                </TourProvider>
-              </HelpRailProvider>
-            </AssistantDockProvider>
-          </UploadProvider>
-        </PageTitleProvider>
-      </ToastProvider>
+    <ViewerRoleProvider role={role}>
+      <ShellRoleGate role={role} probeFailed={probeFailed} onRetry={retry}>
+        {(confirmed) => (
+          <ToastProvider>
+            <PageTitleProvider>
+              <UploadProvider>
+                <AssistantDockProvider>
+                  <HelpRailProvider>
+                    <TourProvider>
+                      <ShellFrame {...props} role={confirmed} probes={probes} />
+                    </TourProvider>
+                  </HelpRailProvider>
+                </AssistantDockProvider>
+              </UploadProvider>
+            </PageTitleProvider>
+          </ToastProvider>
+        )}
+      </ShellRoleGate>
     </ViewerRoleProvider>
   );
 }
 
 function ShellFrame({
   contextCard,
-  role = 'admin',
+  role,
+  probes,
   initialNavCollapsed = false,
   initialNavWidth = NAV_W_DEFAULT,
   initialActivityWidth = ACTIVITY_W_DEFAULT,
@@ -186,7 +299,9 @@ function ShellFrame({
   children,
 }: {
   contextCard: React.ReactNode;
-  role?: ViewerRole;
+  /** Confirmed by the brain: the gate renders the frame for nothing else. */
+  role: Extract<ViewerRole, 'admin' | 'member'>;
+  probes: ShellProbes;
   initialNavCollapsed?: boolean;
   initialNavWidth?: number;
   initialActivityWidth?: number;
@@ -254,73 +369,14 @@ function ShellFrame({
   const { open: helpOpen } = useHelpRail();
   const helpW = helpOpen ? '22rem' : '0rem';
 
-  // Shell chrome — avatar, pending-approvals badge, onboarding gate — fetched
-  // client-side so the layout stays data-free. Until it lands the avatar falls
-  // back to a placeholder and the badge to 0 (the chrome renders immediately).
-  const shellQuery = useQuery({
-    queryKey: ['shell'],
-    queryFn: () => apiFetch<ShellData>('/api/shell'),
-    enabled: !isMember,
-    // This payload carries the asset token, and that token EXPIRES — it rides
-    // in the URL, so the brain keeps its life short (two hours, "one working
-    // session"). Nothing refreshed it: this query ran once per mount, so a tab
-    // left open past lunch got a 401 on every image, iframe and download until
-    // someone reloaded.
-    //
-    // The delay is read from the token's own `exp` rather than copied from the
-    // brain's constant, so the two cannot drift; `false` when there is no token
-    // (the ordinary same-origin box, where the session cookie does this job and
-    // there is nothing to poll for).
-    refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
-    // Deliberately overriding the global `refetchOnWindowFocus: false`, for this
-    // query only. An interval is not enough on its own: TanStack pauses it
-    // while the tab is in the background, which is precisely the tab this bug
-    // is about. Focus covers the one you came back to; the interval covers the
-    // one that has been open in front of you for hours. It is one small
-    // request, and it is the one carrying a credential with a hard expiry.
-    refetchOnWindowFocus: true,
-    // A member login is refused here for good (403): retrying only delays the
-    // redirect below.
-    retry: (count, err) => !isMemberLoginRefusal(err) && count < 1,
-  });
-  // The member's shell: brand, identity and the asset token, from the member
-  // route (every admin route refuses a member).
-  const memberShellQuery = useQuery({
-    queryKey: ['member-shell'],
-    queryFn: () => apiFetch<MemberShellData>('/api/member/shell'),
-    enabled: isMember,
-    refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
-    refetchOnWindowFocus: true,
-    retry: (count, err) => !isAdminLoginRefusal(err) && count < 1,
-  });
-  // A wrong hint either way reloads as what the brain says this login is: a
-  // full reload, so the layout renders the right shell from the first paint.
-  // The hint cookie also lets the middleware keep a member off admin paths.
-  // Only the brain's own refusal counts (a proxy 403 names nobody, and
-  // reacting to one flipped the hint back and forth in a reload loop), and
-  // the reload keeps the deep link wherever a member may open it.
-  useEffect(() => {
-    if (isMemberLoginRefusal(shellQuery.error)) {
-      setMemberHint(true);
-      window.location.replace(memberHome(window.location.pathname + window.location.search));
-    }
-  }, [shellQuery.error]);
-  useEffect(() => {
-    if (isAdminLoginRefusal(memberShellQuery.error)) {
-      setMemberHint(false);
-      window.location.reload();
-    }
-  }, [memberShellQuery.error]);
-  const shellLoaded = shellQuery.isSuccess;
-  const shellSettledAsAdmin =
-    shellLoaded || (shellQuery.isError && !isMemberLoginRefusal(shellQuery.error));
-  useEffect(() => {
-    if (shellLoaded) setMemberHint(false);
-  }, [shellLoaded]);
-  const memberLoaded = memberShellQuery.isSuccess;
-  useEffect(() => {
-    if (memberLoaded) setMemberHint(true);
-  }, [memberLoaded]);
+  // Shell chrome — avatar, pending-approvals badge, onboarding gate — from
+  // the probes the role came from (useShellRole above the providers): the
+  // same queries, so the chrome and the gate read one answer.
+  const shellQuery = probes.shell;
+  const memberShellQuery = probes.member;
+  // The frame renders for a confirmed admin only when /api/shell answered,
+  // so the owner-only banners below have their answer already.
+  const shellSettledAsAdmin = !isMember && shellQuery.data !== undefined;
   // Big-save rescue copies (lib/member-rescue.ts) are a login's private
   // drafts at rest: expired ones go at boot, the rest are kept under the
   // login the shell names and all go at sign-out.

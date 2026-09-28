@@ -48,12 +48,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const spendRange = readSpendRange(cookieStore.get('mantle_spend_range')?.value);
   // Member logins: the hint seeds the member shell for the first paint (no
   // flash of owner chrome); the shell confirms it and reloads if wrong.
-  const role = cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : 'admin';
+  // Without it the role is NOT known (client logins C0): never assumed to be
+  // an admin. The shell shows a neutral screen until the brain confirms one,
+  // and the usage card (like all owner chrome) mounts only for that admin.
+  const role = cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : null;
 
   return (
     <AppShell
       role={role}
-      contextCard={role === 'member' ? null : <UsageCard initialRange={spendRange} />}
+      contextCard={<UsageCard initialRange={spendRange} />}
       initialNavCollapsed={navCollapsed}
       initialNavWidth={navWidth}
       initialActivityWidth={activityWidth}

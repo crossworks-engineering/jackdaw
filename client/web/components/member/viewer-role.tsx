@@ -1,24 +1,42 @@
 'use client';
 
 import { createContext, useContext, type ReactNode } from 'react';
+// Relative, not '@/': the node test runner renders this (viewer-role.test.ts).
+import type { ViewerRole } from '../../lib/shell-role';
+import {
+  ClientLoginScreen,
+  RoleLoadingScreen,
+  RoleProbeFailedScreen,
+  UnknownRoleScreen,
+} from './role-screens';
+
+export type { ViewerRole };
 
 /**
- * Who this app shell is rendering for (member logins, the real app shell).
- * Seeded by the (app) layout from the UX-only member hint cookie, so the
- * first paint already has the right chrome; the shell then confirms it
- * against the brain (/api/shell for an admin, /api/member/shell for a member)
- * and reloads when the hint was wrong. It gates what the CLIENT renders and
- * requests; the brain's 403s stay the real lock.
+ * Who this app shell is rendering for (member logins, the real app shell;
+ * three roles since client logins C0). Null until the brain has said: the
+ * context has NO default role, least of all admin. The (app) layout seeds a
+ * member from the UX-only member hint cookie so a member's first paint is
+ * already the member shell; anything else starts unknown, and the shell
+ * confirms it against the brain (/api/shell answers only an admin,
+ * /api/member/shell only a member, and both refuse a client with 403
+ * `client-login`). It gates what the CLIENT renders and requests; the
+ * brain's 403s stay the real lock.
  */
-export type ViewerRole = 'admin' | 'member';
+const ViewerRoleContext = createContext<ViewerRole | null>(null);
 
-const ViewerRoleContext = createContext<ViewerRole>('admin');
-
-export function ViewerRoleProvider({ role, children }: { role: ViewerRole; children: ReactNode }) {
+export function ViewerRoleProvider({
+  role,
+  children,
+}: {
+  role: ViewerRole | null;
+  children: ReactNode;
+}) {
   return <ViewerRoleContext.Provider value={role}>{children}</ViewerRoleContext.Provider>;
 }
 
-export function useViewerRole(): ViewerRole {
+/** The role, or null while it is not known (or outside a provider). */
+export function useViewerRole(): ViewerRole | null {
   return useContext(ViewerRoleContext);
 }
 
@@ -26,8 +44,66 @@ export function useIsMember(): boolean {
   return useContext(ViewerRoleContext) === 'member';
 }
 
-/** Render `member` for a member login and `children` for an admin. The owner
- *  screen never mounts for a member, so none of its admin requests fire. */
+/** True only for a confirmed admin: never while the role is unknown. */
+export function useIsAdmin(): boolean {
+  return useContext(ViewerRoleContext) === 'admin';
+}
+
+/**
+ * Render `children` (the owner screen) for an admin and `member` for a
+ * member. Each branch is explicit: a client login gets the neutral client
+ * screen, an unknown role the neutral "not available" screen, and no role
+ * yet the neutral loading screen. The owner screen mounts for `admin` and
+ * nothing else, so none of its admin requests fire for anyone else.
+ */
 export function RoleSwitch({ member, children }: { member: ReactNode; children: ReactNode }) {
-  return useIsMember() ? <>{member}</> : <>{children}</>;
+  const role = useViewerRole();
+  switch (role) {
+    case 'admin':
+      return <>{children}</>;
+    case 'member':
+      return <>{member}</>;
+    case 'client':
+      return <ClientLoginScreen />;
+    case null:
+      return <RoleLoadingScreen />;
+    default:
+      return <UnknownRoleScreen />;
+  }
+}
+
+/**
+ * The shell's own gate (client logins C0): the whole shell, chrome and page,
+ * renders only for a confirmed admin or member. Anything else gets a neutral
+ * full-window screen instead, with no rail, no nav and no request of its own:
+ * loading while the brain has not answered (or Try again when it could not be
+ * asked), the client screen for a client login, "not available" for a role
+ * this app does not know.
+ */
+export function ShellRoleGate({
+  role,
+  probeFailed = false,
+  onRetry,
+  children,
+}: {
+  role: ViewerRole | null;
+  probeFailed?: boolean;
+  onRetry: () => void;
+  children: (role: 'admin' | 'member') => ReactNode;
+}) {
+  switch (role) {
+    case 'admin':
+    case 'member':
+      return <>{children(role)}</>;
+    case 'client':
+      return <ClientLoginScreen fullScreen />;
+    case null:
+      return probeFailed ? (
+        <RoleProbeFailedScreen fullScreen onRetry={onRetry} />
+      ) : (
+        <RoleLoadingScreen fullScreen />
+      );
+    default:
+      return <UnknownRoleScreen fullScreen />;
+  }
 }

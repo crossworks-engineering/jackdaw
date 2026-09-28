@@ -26,7 +26,7 @@ import { adminSpace, type AdminSpaceList, type SpaceKind } from '@/lib/member-sp
 import { MineItem } from './mine-item';
 import { SpaceApiProvider } from './space-api';
 import { spaceErrorMessage } from './space-status';
-import { useIsMember } from './viewer-role';
+import { useIsAdmin } from './viewer-role';
 
 export const ADMIN_SPACE_LIST_KEY = 'admin-space-list';
 
@@ -37,8 +37,9 @@ export const ADMIN_SPACE_LIST_KEY = 'admin-space-list';
  */
 export function SpaceSwitch({ kind, value }: { kind: SpaceKind; value: 'brain' | 'private' }) {
   const router = useRouter();
-  // Only an admin has a private space; a member never sees the switch.
-  if (useIsMember()) return null;
+  // Only an admin has a private space: nobody else (a member, a client, a
+  // role not known yet) sees the switch.
+  if (!useIsAdmin()) return null;
   return (
     <ToggleGroup
       type="single"

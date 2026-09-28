@@ -21,6 +21,15 @@ describe('toursFor', () => {
     expect(t.byId(MEMBER_TOUR_ID)).toBeNull();
     expect(toursFor('admin', '').autoTour).toBe('');
   });
+
+  it('a client login, or a role not known yet, knows no tour, least of all the admin one', () => {
+    for (const role of ['client', null] as const) {
+      const t = toursFor(role, 'demo');
+      expect(t.autoTour, String(role)).toBeNull();
+      expect(t.byId('demo'), String(role)).toBeNull();
+      expect(t.byId(MEMBER_TOUR_ID), String(role)).toBeNull();
+    }
+  });
 });
 
 describe('the member tour', () => {

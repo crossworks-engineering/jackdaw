@@ -30,4 +30,9 @@ export default defineConfig({
     // Workspace packages export raw TS — vitest's esbuild handles them.
     server: { deps: { inline: [/^@mantle\//] } },
   },
+  // The app's tsconfig says `jsx: preserve` (Next compiles it), which leaves
+  // esbuild on the classic runtime, where a component file needs `React` in
+  // scope. Tests that render an app component (renderToStaticMarkup) need
+  // the automatic runtime the kit's own tsconfig already asks for.
+  esbuild: { jsx: 'automatic' },
 });

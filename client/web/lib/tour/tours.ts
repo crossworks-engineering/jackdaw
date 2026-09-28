@@ -192,15 +192,18 @@ export const memberTourById = (id: string): Tour | null => (id === member.id ? m
  * Which tours a viewer knows, and which one opens by itself (once per
  * browser, on its first screen). An admin gets the deployment's MANTLE_TOUR;
  * a member gets the member tour and never the deployment's, whose stops are
- * admin screens. Without this split a member on a `?tour=demo` link got a
+ * admin screens; a client login, or a viewer whose role is not known yet,
+ * gets none. Without this split a member on a `?tour=demo` link got a
  * tour with no card (the overlay was admin-only) that kept pushing them back
  * to its first screen.
  */
 export function toursFor(
-  role: 'admin' | 'member',
+  role: 'admin' | 'member' | 'client' | null,
   deploymentTour: string | null,
 ): { byId: (id: string) => Tour | null; autoTour: string | null } {
-  return role === 'member'
-    ? { byId: memberTourById, autoTour: MEMBER_TOUR_ID }
-    : { byId: tourById, autoTour: deploymentTour };
+  // Each role by name: anyone else (a client login, or no role yet) knows
+  // no tour at all, and never the admin's.
+  if (role === 'admin') return { byId: tourById, autoTour: deploymentTour };
+  if (role === 'member') return { byId: memberTourById, autoTour: MEMBER_TOUR_ID };
+  return { byId: () => null, autoTour: null };
 }
