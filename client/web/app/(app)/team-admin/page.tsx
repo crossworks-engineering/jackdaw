@@ -4,7 +4,9 @@
  * /team-admin — the owner's window into the external team surface.
  *
  * Tabs: Chat archive · Invites · Member chats · Review · Requests ·
- * Shared links · Settings. Invites = member invites (member logins Phase 6):
+ * Shared links · What clients see · Settings. What clients see = every item
+ * at client level, which every client login will read, and the admin's
+ * "I have checked this list" (client logins C1). Invites = member invites (member logins Phase 6):
  * an invite link makes a member login, for a contact or anyone by email.
  * Review = member items submitted for review, and what deactivated logins
  * left shared (member logins Phase 4). Chat archive = every contact with old
@@ -62,6 +64,8 @@ import {
 } from 'lucide-react';
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
+import { ClientReportPanel } from '@/components/team-admin/client-report';
+import { CLIENT_REPORT_KEY, fetchClientReport } from '@/lib/client-report';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
 import { canReplyToRequest, requestChatHref } from '@/lib/team-requests';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -167,7 +171,8 @@ function TeamTabs({
   active,
   openRequestCount,
 }: {
-  active: 'members' | 'invites' | 'chats' | 'review' | 'requests' | 'shares' | 'settings';
+  active:
+    'members' | 'invites' | 'chats' | 'review' | 'requests' | 'shares' | 'clients' | 'settings';
   openRequestCount: number;
 }) {
   // The brain's live counts (the same numbers as the rail notice), so every
@@ -200,7 +205,7 @@ function TeamTabs({
     // A labelled `nav`, not a bare div: these tabs are navigation, and the name
     // is what tells "Settings the tab" apart from "Settings the sidebar row"
     // now that the sidebar has one. Screen readers get the same benefit.
-    // Seven tabs are wider than a phone: the strip scrolls sideways (thin
+    // Eight tabs are wider than a phone: the strip scrolls sideways (thin
     // scrollbar, like every scroller) instead of pushing the page wider.
     <nav
       aria-label="Team admin"
@@ -212,6 +217,7 @@ function TeamTabs({
       {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
+      {tab('What clients see', '/team-admin?view=clients', active === 'clients')}
       {tab('Settings', '/team-admin?view=settings', active === 'settings')}
     </nav>
   );
@@ -854,6 +860,21 @@ function SharesTab() {
   );
 }
 
+/** What clients see (client logins C1): one measured column, like Settings. */
+function ClientsTab() {
+  const q = useQuery({ queryKey: CLIENT_REPORT_KEY, queryFn: fetchClientReport });
+  if (!q.data) return <TabPending active="clients" query={q} what="the client list" />;
+  return (
+    <Tab active="clients">
+      <div className="min-h-0 flex-1">
+        <MeasuredPane id="team-admin-clients">
+          <ClientReportPanel report={q.data} />
+        </MeasuredPane>
+      </div>
+    </Tab>
+  );
+}
+
 function SettingsTab() {
   const q = useQuery({
     queryKey: ['team-admin', 'settings'],
@@ -932,6 +953,7 @@ export default function TeamAdminPage({
     );
   if (view === 'settings') return <SettingsTab />;
   if (view === 'shares') return <SharesTab />;
+  if (view === 'clients') return <ClientsTab />;
   if (view === 'requests') return <RequestsTab />;
   return <MembersTab contact={contact} />;
 }
