@@ -44,6 +44,12 @@ The mock is a real HTTP server, not `page.route()`, on purpose: a write the
 browser starts while a tab unloads (the leave flush on a reload, sent
 keepalive) outlives the page, and route interception never sees it.
 
+Started with `{ role: 'admin' }` (and `signInAsAdmin`), the same mock answers
+an ADMIN instead: the shell, the Team admin Review queue and the admin's
+private space, with Take over, Give back, Accept and Delete and the brain's
+refusals of each (`admin-takeover.spec.ts`, audit F07). Any other route an
+admin screen asks for is a plain 404.
+
 ## The route coverage gate (`pnpm e2e:routes`)
 
 A different instrument from the suite: `e2e/check-routes.mjs` derives every
