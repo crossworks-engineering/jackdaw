@@ -47,9 +47,11 @@ import {
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { LEVEL_LABEL, LEVEL_MEANING, LEVEL_ORDER, isAccessLevel } from '@/lib/access-levels';
 import {
+  TOP_OF_PAGES,
   bundleSummary,
   memberReview,
   reviewErrorMessage,
+  shownParent,
   type AcceptInput,
   type AcceptResult,
   type Bundle,
@@ -57,7 +59,7 @@ import {
 } from '@/lib/member-review';
 import type { SpaceKind } from '@/lib/member-space';
 
-const TOP = '__top__';
+const TOP = TOP_OF_PAGES;
 
 type FolderRow = { path: string; title: string; slug: string };
 type PageRow = { id: string; title: string };
@@ -153,6 +155,12 @@ export function AcceptIntoBrainDialog({
     queryFn: () => apiFetch<{ pages: PageRow[] }>(`/api/pages?q=${encodeURIComponent(q)}`),
     enabled: open && item.type === 'page' && q.length > 1,
   });
+  const parentChoices = [{ id: TOP, title: 'Top of Pages' }, ...(pages.data?.pages ?? []).slice(0, 8)];
+  // What is shown is what is sent: a parent a new search hid is dropped.
+  const parentId = shownParent(
+    parent,
+    parentChoices.map((p) => p.id),
+  );
 
   const accept = async () => {
     setBusy(true);
@@ -160,7 +168,7 @@ export function AcceptIntoBrainDialog({
       if (beforeAccept && !(await beforeAccept())) return;
       const input: AcceptInput = {
         audience: level,
-        parentPageId: item.type === 'page' && parent !== TOP ? parent : null,
+        parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,
         folderPath: hasFiles ? folder : null,
       };
       const res = await send(input);
@@ -204,10 +212,13 @@ export function AcceptIntoBrainDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Who can see it</Label>
+            {/* A label for a group of buttons names it through aria-labelledby
+                (htmlFor reaches only one form control). */}
+            <Label id="review-level-label">Who can see it</Label>
             <ToggleGroup
               type="single"
               variant="outline"
+              aria-labelledby="review-level-label"
               className="w-full"
               loop={false}
               value={level}
@@ -238,20 +249,18 @@ export function AcceptIntoBrainDialog({
               <RadioGroup
                 aria-label="Parent page"
                 className="gap-1 text-sm"
-                value={parent}
+                value={parentId}
                 disabled={busy}
                 onValueChange={setParent}
               >
-                {[{ id: TOP, title: 'Top of Pages' }, ...(pages.data?.pages ?? []).slice(0, 8)].map(
-                  (p) => (
-                    <div key={p.id} className="flex items-center gap-2">
-                      <RadioGroupItem value={p.id} id={`review-parent-${p.id}`} />
-                      <Label htmlFor={`review-parent-${p.id}`} className="truncate font-normal">
-                        {p.title || 'Untitled page'}
-                      </Label>
-                    </div>
-                  ),
-                )}
+                {parentChoices.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <RadioGroupItem value={p.id} id={`review-parent-${p.id}`} />
+                    <Label htmlFor={`review-parent-${p.id}`} className="truncate font-normal">
+                      {p.title || 'Untitled page'}
+                    </Label>
+                  </div>
+                ))}
               </RadioGroup>
             </div>
           ) : null}
@@ -277,7 +286,18 @@ export function AcceptIntoBrainDialog({
           {bundleSource ? (
             <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
               {bundle.isError ? (
-                <p>{errorMessage(bundle.error, 'Could not work out what moves with it.')}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p>{errorMessage(bundle.error, 'Could not work out what moves with it.')}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={bundle.isFetching}
+                    onClick={() => void bundle.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </div>
               ) : !bundle.data ? (
                 <p className="text-muted-foreground">Working out what moves with it…</p>
               ) : (

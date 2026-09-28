@@ -156,3 +156,16 @@ export function reviewErrorMessage(err: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/** The accept dialog's top-level choice for a page's parent. */
+export const TOP_OF_PAGES = '__top__';
+
+/**
+ * The parent page an accept actually uses: the one picked while it is still
+ * among the pages shown, else the top of Pages. A new search that hides the
+ * picked page drops it, so the page never nests under a parent the admin can
+ * no longer see.
+ */
+export function shownParent(picked: string, shownIds: readonly string[]): string {
+  return picked !== TOP_OF_PAGES && shownIds.includes(picked) ? picked : TOP_OF_PAGES;
+}

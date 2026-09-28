@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  TOP_OF_PAGES,
   bundleSummary,
   reviewAssetPath,
   reviewErrorMessage,
+  shownParent,
   splitQueue,
   type ReviewItemRow,
 } from './member-review';
@@ -65,5 +67,33 @@ describe('reviewErrorMessage', () => {
     expect(msg).toMatch(/not waiting for review/);
     expect(reviewErrorMessage(new ApiError('Pick a level.', 400, {}), 'x')).toBe('Pick a level.');
     expect(reviewErrorMessage(new Error('boom'), 'fallback')).toBe('fallback');
+  });
+});
+
+describe('the accept dialog: the parent page', () => {
+  const shown = [TOP_OF_PAGES, 'p1', 'p2'];
+
+  it('keeps a picked parent while it is shown', () => {
+    expect(shownParent('p2', shown)).toBe('p2');
+    expect(shownParent(TOP_OF_PAGES, shown)).toBe(TOP_OF_PAGES);
+  });
+
+  it('drops a picked parent a new search hid, to the top of Pages', () => {
+    expect(shownParent('p1', [TOP_OF_PAGES, 'p3'])).toBe(TOP_OF_PAGES);
+    expect(shownParent('p1', [TOP_OF_PAGES])).toBe(TOP_OF_PAGES);
+  });
+
+  it('the dialog sends and shows that parent, retries a failed bundle, and names the level group', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const ui = readFileSync(
+      fileURLToPath(new URL('../components/team-admin/review-dialogs.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(ui).toContain("parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,");
+    expect(ui).toMatch(/value=\{parentId\}/);
+    expect(ui).toMatch(/onClick=\{\(\) => void bundle\.refetch\(\)\}\s*>\s*Retry/);
+    expect(ui).toContain('<Label id="review-level-label">Who can see it</Label>');
+    expect(ui).toContain('aria-labelledby="review-level-label"');
   });
 });
