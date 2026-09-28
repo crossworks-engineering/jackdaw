@@ -22,6 +22,7 @@ import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { SetPageTitle } from '@/components/layout/page-title';
 import {
   acceptedPlace,
+  isWithAdmin,
   listPath,
   memberSpace,
   memberUploadRefusal,
@@ -385,9 +386,14 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
       setParams({ id: null });
     }
   };
+  // An own item an admin took over (audit F07): the list row says so, and
+  // the item view opens nothing of it.
+  const selectedWithAdmin =
+    source === 'mine' &&
+    !!data?.rows.some((r) => r.id === selectedId && r.space && isWithAdmin(r.space));
   const detailPane = selectedId ? (
     source === 'mine' ? (
-      <MineItem id={selectedId} onClose={close} />
+      <MineItem id={selectedId} onClose={close} withAdmin={selectedWithAdmin} />
     ) : source === 'team' ? (
       <TeamDraftItem id={selectedId} onClose={close} />
     ) : (

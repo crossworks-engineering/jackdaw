@@ -22,7 +22,7 @@ import {
   uploadPrivateFile,
 } from '@/lib/admin-private';
 import { MEMBER_KIND } from '@/lib/member-kinds';
-import { adminSpace, type SpaceKind, type SpaceList } from '@/lib/member-space';
+import { adminSpace, type AdminSpaceList, type SpaceKind } from '@/lib/member-space';
 import { MineItem } from './mine-item';
 import { SpaceApiProvider } from './space-api';
 import { spaceErrorMessage } from './space-status';
@@ -77,7 +77,9 @@ export function AdminSpaces({ kind, children }: { kind: SpaceKind; children: Rea
  * The admin's own private items of one kind (member logins Phase 7): the
  * member workspace's Mine, on the admin routes. Seen by this admin only, so
  * there is no sharing, review, discussion or live stream here; an item goes
- * into the brain by "Accept into brain" in its view.
+ * into the brain by "Accept into brain" in its view. Items the admin took
+ * over from the Review queue (audit F07) list here too, "From <member>",
+ * and can also be given back.
  */
 export function AdminPrivateWorkspace({ kind }: { kind: SpaceKind }) {
   const router = useRouter();
@@ -114,7 +116,7 @@ export function AdminPrivateWorkspace({ kind }: { kind: SpaceKind }) {
 
   const list = useQuery({
     queryKey: [ADMIN_SPACE_LIST_KEY, kind, { q, page }],
-    queryFn: () => apiFetch<SpaceList>(adminSpace.listPath({ kind, q, page })),
+    queryFn: () => apiFetch<AdminSpaceList>(adminSpace.listPath({ kind, q, page })),
     placeholderData: (prev) => prev,
   });
 
@@ -237,6 +239,7 @@ export function AdminPrivateWorkspace({ kind }: { kind: SpaceKind }) {
                     <div className="min-w-0 flex-1">
                       <ListCardTitle className="min-w-0">{row.title || 'Untitled'}</ListCardTitle>
                       <ListCardMeta>
+                        {row.takenFrom ? `From ${row.takenFrom.name} · ` : null}
                         Updated {new Date(row.updatedAt).toLocaleDateString()}
                       </ListCardMeta>
                     </div>

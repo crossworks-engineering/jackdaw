@@ -29,6 +29,7 @@ describe('the admin private screens never reach a member-only route', () => {
   it.each([
     './admin-private-workspace.tsx',
     './keep-private-field.tsx',
+    './give-back-dialog.tsx',
     '../../lib/admin-private.ts',
   ])('%s names none of them', (file) => {
     const text = src(file);
@@ -46,7 +47,13 @@ describe('the admin private screens never reach a member-only route', () => {
     // Each member-only control sits behind the admin check, on its own line.
     expect(text).toMatch(/\{admin \? null : <SharingControl row=\{row\} \/>\}/);
     expect(text).toMatch(/\{!admin && commentsOpen\(row\) \? <SpaceComments/);
-    expect(text).toMatch(/\) : \(\s*<ReviewActions row=\{row\} beforeSubmit=\{beforeSubmit\} \/>/);
+    expect(text).toMatch(/\) : \(\s*<ReviewActions\s+row=\{row\}\s+beforeSubmit=\{beforeSubmit\}/);
+    // Give back is for an item an admin took over: `takenFrom` is null for
+    // a member (audit F07).
+    expect(text).toContain('const takenFrom = admin ? takenFromOf(');
+    expect(text).toMatch(
+      /\{takenFrom && canGiveBack\(row as AdminSpaceItemRow\) \? \(\s*<GiveBackDialog/,
+    );
     // and the item is read and written through the provided client.
     expect(text).toContain('replayRescue(id, Date.now(), api.base)');
     expect(text).not.toContain('memberSpace');

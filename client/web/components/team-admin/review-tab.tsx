@@ -5,7 +5,8 @@
  * members submitted for review, oldest first, and what deactivated logins
  * left shared with the team. The detail pane shows the item's SAVED version
  * read-only (a submitted item is frozen), its thread, and the actions:
- * Accept into the brain, Return with a note, or (left behind only) Discard.
+ * Accept into the brain, Return with a note, Take over (into the admin's own
+ * private items, audit F07), or (left behind only) Discard.
  *
  * Owner-only screen over /api/team-admin/submissions. A private item never
  * reaches it: the brain answers one with a plain 404.
@@ -14,7 +15,7 @@ import Link from 'next/link';
 import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/core';
-import { ClipboardCheck, Trash2, UserX } from 'lucide-react';
+import { ClipboardCheck, Trash2, Unlock, UserX } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -28,8 +29,11 @@ import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageView } from '@/components/page-editor/page-view';
 import {
   QUEUE_KEY,
+  canTakeOver,
+  isReleased,
   itemKey,
   memberReview,
+  reviewCommentsOpen,
   reviewAssetPath,
   reviewBytesPath,
   reviewErrorMessage,
@@ -38,7 +42,7 @@ import {
   type ReviewItem,
   type ReviewItemRow,
 } from '@/lib/member-review';
-import { AcceptDialog, DiscardDialog, ReturnDialog } from './review-dialogs';
+import { AcceptDialog, DiscardDialog, ReturnDialog, TakeOverDialog } from './review-dialogs';
 
 const KIND_LABEL: Record<ReviewItemRow['type'], string> = {
   page: 'Page',
@@ -100,6 +104,7 @@ function QueueSection({
                 <ListCardMeta>
                   {KIND_LABEL[r.type]} · {r.author.name}
                   {r.author.inactive ? ' · deactivated' : ''}
+                  {isReleased(r) ? ' · released' : ''}
                 </ListCardMeta>
               </Link>
             </ListCard>
@@ -197,10 +202,17 @@ function ReviewDetail({ row }: { row: ReviewItemRow }) {
               <UserX className="size-3.5" /> This login is deactivated.
             </p>
           ) : null}
+          {isReleased(row) ? (
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Unlock className="size-3.5 shrink-0" aria-hidden /> Released: the admin who took this
+              over is no longer an admin, so it is back here with what was taken with it.
+            </p>
+          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <AcceptDialog row={row} onDone={done} />
           {waiting ? <ReturnDialog row={row} onDone={done} /> : null}
+          {canTakeOver(row) ? <TakeOverDialog row={row} onDone={done} /> : null}
           {row.author.inactive ? <DiscardDialog row={row} onDone={done} /> : null}
         </div>
       </div>
@@ -215,7 +227,7 @@ function ReviewDetail({ row }: { row: ReviewItemRow }) {
           ) : (
             <>
               <ReviewItemView item={q.data} />
-              <ReviewThread id={row.id} item={q.data} canWrite={waiting} />
+              <ReviewThread id={row.id} item={q.data} canWrite={reviewCommentsOpen(row)} />
             </>
           )}
         </div>

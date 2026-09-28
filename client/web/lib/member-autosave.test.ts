@@ -257,6 +257,41 @@ describe('member autosave: 409 and network failures', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it('a frozen bundle item keeps the ids naming the submitted item it is part of', async () => {
+    const send = vi.fn<AutosaveSend<Doc>>().mockRejectedValue(
+      new ApiError('Part of a submitted item.', 409, {
+        error: 'This item is part of "Weekly", which is submitted for review.',
+        reason: 'frozen',
+        ids: ['holder-1'],
+      }),
+    );
+    const { q, type } = setup(send);
+    type('late words');
+    await expect(q.flush()).resolves.toBe(false);
+    expect(q.state()).toEqual({
+      status: 'stopped',
+      reason: 'frozen',
+      message: 'This item is part of "Weekly", which is submitted for review.',
+      ids: ['holder-1'],
+    });
+  });
+
+  it('an item an admin took over (409 with-admin) stops at once, no retry', async () => {
+    const send = vi.fn<AutosaveSend<Doc>>().mockRejectedValue(
+      new ApiError('An admin is working on this item.', 409, {
+        error: 'An admin is working on this item.',
+        reason: 'with-admin',
+      }),
+    );
+    const { q, type } = setup(send);
+    type('late words');
+    await expect(q.flush()).resolves.toBe(false);
+    expect(q.state()).toMatchObject({ status: 'stopped', reason: 'with-admin' });
+    type('more words');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('a refusal of one write (embed on Save version) leaves autosave on', async () => {
     const send = vi.fn<AutosaveSend<Doc>>().mockResolvedValue({ rev: 2 });
     const { q, type } = setup(send);

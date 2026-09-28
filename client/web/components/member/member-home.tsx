@@ -9,6 +9,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import {
+  isWithAdmin,
   reviewListPath,
   splitByReview,
   type SpaceItemRow,
@@ -40,16 +41,19 @@ function Section({
   entries,
   src,
   empty,
+  hint,
 }: {
   title: string;
   entries: Entry[];
   src: SpaceSource;
   empty?: string;
+  hint?: string;
 }) {
   if (entries.length === 0 && !empty) return null;
   return (
-    <section className="space-y-2">
+    <section className="space-y-2" aria-label={title}>
       <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+      {hint && entries.length ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
@@ -92,6 +96,14 @@ export function MemberHome() {
     queryKey: ['member-home', 'review'],
     queryFn: () => apiFetch<SpaceList>(reviewListPath(['returned', 'submitted'])),
   });
+  // What an admin took over to work on (audit F07). Its own read: a brain
+  // before Take over refuses the state by name (400), and then there is
+  // simply nothing with an admin.
+  const withAdmin = useQuery({
+    queryKey: ['member-home', 'with-admin'],
+    queryFn: () => apiFetch<SpaceList>(reviewListPath(['with-admin'])),
+    retry: false,
+  });
   const team = useQuery({
     queryKey: ['member-home', 'team'],
     queryFn: () => apiFetch<SpaceList>('/api/member/team-drafts?page=1'),
@@ -112,8 +124,9 @@ export function MemberHome() {
   const inReview = splitByReview(review.data?.items ?? []);
   const returned = inReview.returned.map(ownEntry);
   const submitted = inReview.submitted.map(ownEntry);
+  const heldByAdmin = splitByReview(withAdmin.data?.items ?? []).withAdmin.map(ownEntry);
   const recent = (mine.data?.items ?? [])
-    .filter((r) => r.reviewState !== 'returned' && r.reviewState !== 'submitted')
+    .filter((r) => r.reviewState !== 'returned' && r.reviewState !== 'submitted' && !isWithAdmin(r))
     .slice(0, 8)
     .map(ownEntry);
   const shared: Entry[] = (team.data?.items ?? []).slice(0, 8).map((r) => ({
@@ -142,6 +155,12 @@ export function MemberHome() {
       </header>
       <Section title="Returned to you" entries={returned} src="mine" />
       <Section title="Waiting for review" entries={submitted} src="mine" />
+      <Section
+        title="With an admin"
+        entries={heldByAdmin}
+        src="mine"
+        hint="An admin is working on these. You will see each again when it is accepted or given back."
+      />
       <Section
         title="Your recent work"
         entries={recent}

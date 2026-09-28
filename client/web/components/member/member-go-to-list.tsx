@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@mantle/web-ui/ui/button';
-import { memberItemHref, probeMemberItem, resolveMemberItem } from '@/lib/member-space';
+import {
+  WITH_ADMIN_TEXT,
+  memberItemHref,
+  probeMemberItem,
+  resolveMemberItem,
+} from '@/lib/member-space';
 
 const LIST_NAME: Record<string, string> = {
   '/pages': 'Pages',
@@ -26,13 +31,18 @@ const LIST_NAME: Record<string, string> = {
 export function MemberGoToList({ path, id }: { path?: string; id: string }) {
   const router = useRouter();
   // What became of which id (a new id, or Try again, starts over).
-  const [outcome, setOutcome] = useState<{ id: string; state: 'missing' | 'failed' } | null>(null);
+  const [outcome, setOutcome] = useState<{
+    id: string;
+    state: 'missing' | 'failed' | 'with-admin';
+  } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const state = outcome?.id === id ? outcome.state : null;
   useEffect(() => {
     let live = true;
     void resolveMemberItem(probeMemberItem(id)).then((found) => {
       if (!live) return;
+      // An own item an admin took over: nothing of it opens (audit F07).
+      if (found?.withAdmin) return setOutcome({ id, state: 'with-admin' });
       const href = found ? memberItemHref(found, id, path) : null;
       if (href) router.replace(href);
       else setOutcome({ id, state: found ? 'failed' : 'missing' });
@@ -45,7 +55,16 @@ export function MemberGoToList({ path, id }: { path?: string; id: string }) {
   const backName = path ? `Back to ${LIST_NAME[path] ?? 'the list'}` : 'Back to your home';
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-      {state === 'missing' ? (
+      {state === 'with-admin' ? (
+        <>
+          <p className="text-sm text-muted-foreground" role="status">
+            {WITH_ADMIN_TEXT}
+          </p>
+          <Link href={back} className="text-sm underline underline-offset-4">
+            {backName}
+          </Link>
+        </>
+      ) : state === 'missing' ? (
         <>
           <p className="text-sm text-muted-foreground" role="status">
             This item is gone, or it is not shared with you.

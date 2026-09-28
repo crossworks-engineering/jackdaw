@@ -8,8 +8,8 @@
  */
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, Loader2, Trash2, Undo2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckCircle2, Hand, Loader2, Trash2, Undo2 } from 'lucide-react';
 import type { AccessLevel } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -46,12 +46,14 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { LEVEL_LABEL, LEVEL_MEANING, LEVEL_ORDER, isAccessLevel } from '@/lib/access-levels';
+import { privateViewHref } from '@/lib/admin-private';
 import {
   TOP_OF_PAGES,
   bundleSummary,
   memberReview,
   reviewErrorMessage,
   shownParent,
+  takeOverErrorMessage,
   type AcceptInput,
   type AcceptResult,
   type Bundle,
@@ -455,6 +457,94 @@ export function DiscardDialog({ row, onDone }: { row: ReviewItemRow; onDone: () 
           >
             Discard
           </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/**
+ * Take over (audit F07): the item, and what it shows, moves into this
+ * admin's own private items, out of its author's reach, until the admin
+ * accepts it into the brain or gives it back. Nothing is indexed or learned
+ * on the way; the admin works on it in the Private view, which opens next.
+ */
+export function TakeOverDialog({ row, onDone }: { row: ReviewItemRow; onDone: () => void }) {
+  const toast = useToast();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // What moves with it: the bundle Accept would move is the one recorded at
+  // Submit, and that is what Take over moves too.
+  const bundle = useQuery({
+    queryKey: ['team-admin', 'submissions', row.id, 'bundle'],
+    queryFn: () => memberReview.bundle(row.id),
+    enabled: open,
+  });
+  const rest = bundle.data?.items.slice(1) ?? [];
+  const take = async () => {
+    setBusy(true);
+    try {
+      const res = await memberReview.takeOver(row.id);
+      const also = res.moved.length > 1 ? ` with ${res.moved.length - 1} more` : '';
+      toast.success(`Took over “${row.title || 'Untitled'}”${also}. Only you can see it now.`);
+      setOpen(false);
+      onDone();
+      void qc.invalidateQueries({ queryKey: ['admin-space-list'] });
+      router.push(privateViewHref(row.type, res.id));
+    } catch (err) {
+      toast.error(takeOverErrorMessage(err));
+      setOpen(false);
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Hand /> Take over
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Take this over?</AlertDialogTitle>
+          <AlertDialogDescription>
+            “{row.title || 'Untitled'}” moves into your private items, out of {row.author.name}
+            &rsquo;s reach, until you accept it into the brain or give it back.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
+          {bundle.isError ? (
+            <p className="text-muted-foreground">
+              Could not work out what moves with it. Everything it shows moves along.
+            </p>
+          ) : !bundle.data ? (
+            <p className="text-muted-foreground">Working out what moves with it…</p>
+          ) : (
+            <>
+              <p>{bundleSummary(bundle.data.items)}</p>
+              {rest.length ? (
+                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                  {rest.slice(0, 10).map((i) => (
+                    <li key={i.id} className="truncate">
+                      {i.title || 'Untitled'}
+                    </li>
+                  ))}
+                  {rest.length > 10 ? <li>and {rest.length - 10} more</li> : null}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <Button disabled={busy} onClick={() => void take()}>
+            {busy ? <Loader2 className="animate-spin" /> : <Hand />}
+            Take over
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

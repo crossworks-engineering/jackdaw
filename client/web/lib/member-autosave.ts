@@ -34,7 +34,7 @@
  *    server, which is what Submit and the leave hook await.
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import { refusalMessage } from './member-space';
+import { refusalIds, refusalMessage } from './member-space';
 
 export type AutosaveState =
   /** The server holds what the editor shows. */
@@ -49,12 +49,12 @@ export type AutosaveState =
   | { status: 'failed'; message: string }
   /** Autosave is off until the item is reloaded (a state refusal, or a
    *  conflict that adopting the brain's etag did not resolve). */
-  | { status: 'stopped'; reason: string; message: string };
+  | { status: 'stopped'; reason: string; message: string; ids?: string[] };
 
 /** How a failed write is handled (see classifySaveError). */
 export type SaveFailure =
   | { kind: 'conflict'; currentRev?: number }
-  | { kind: 'state'; reason: string; message: string }
+  | { kind: 'state'; reason: string; message: string; ids?: string[] }
   | { kind: 'auth' }
   | { kind: 'network' }
   | { kind: 'server'; status: number }
@@ -106,8 +106,9 @@ export const SERVER_MESSAGE =
 const UNREACHABLE: ReadonlySet<number> = new Set([502, 503, 504]);
 
 /** State refusals that mean the item cannot change at all right now (it was
- *  submitted, or left draft, elsewhere). Anything else refuses one write. */
-const STOP_REASONS: ReadonlySet<string> = new Set(['frozen', 'not-draft']);
+ *  submitted, or left draft, elsewhere, or an admin took it over). Anything
+ *  else refuses one write. */
+const STOP_REASONS: ReadonlySet<string> = new Set(['frozen', 'not-draft', 'with-admin']);
 
 /** A write the editor refuses to send (not a brain answer): shown to the
  *  member as it is, and the next edit tries again. */
@@ -126,7 +127,15 @@ export function classifySaveError(err: unknown): SaveFailure {
     if (err.status === 401) return { kind: 'auth' };
     if (err.status === 409) {
       if (typeof body.reason === 'string' && body.reason) {
-        return { kind: 'state', reason: body.reason, message: refusalMessage(err) ?? err.message };
+        // `ids` name what the refusal is about: for `frozen`, the submitted
+        // item this one renders inside (audit F04).
+        const ids = refusalIds(err);
+        return {
+          kind: 'state',
+          reason: body.reason,
+          message: refusalMessage(err) ?? err.message,
+          ...(ids.length ? { ids } : {}),
+        };
       }
       return typeof body.current_rev === 'number'
         ? { kind: 'conflict', currentRev: body.current_rev }
@@ -168,7 +177,7 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
   let savedDoc = opts.saved;
   let savedKey = keyOf(opts.saved);
   let rev = opts.rev;
-  let stopped: { reason: string; message: string } | null = null;
+  let stopped: { reason: string; message: string; ids?: string[] } | null = null;
   let failed: string | null = null;
   let retryAttempt = 0;
   /** Brain failures (a non-proxy 5xx) in a row, across writes. */
@@ -269,7 +278,11 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
         if (failure.kind === 'conflict') {
           stopped = { reason: 'conflict', message: CONFLICT_MESSAGE };
         } else if (failure.kind === 'state' && STOP_REASONS.has(failure.reason)) {
-          stopped = { reason: failure.reason, message: failure.message };
+          stopped = {
+            reason: failure.reason,
+            message: failure.message,
+            ...(failure.ids ? { ids: failure.ids } : {}),
+          };
         } else if (failure.kind === 'state') {
           // A refusal of THIS write (embed on Save version, quota): the draft
           // itself can still change, so autosave stays on.

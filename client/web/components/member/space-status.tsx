@@ -2,31 +2,34 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Lock, Send, Undo2, Users } from 'lucide-react';
+import { Lock, Send, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
+  isWithAdmin,
   memberSpace,
   refusalMessage,
+  statusLabels,
   type SpaceItemRow,
   type SpaceSharing,
 } from '@/lib/member-space';
 
-const REVIEW_LABEL: Record<SpaceItemRow['reviewState'], string | null> = {
-  draft: null,
-  submitted: 'Submitted',
-  returned: 'Returned',
-  accepted: 'Accepted',
-};
-
 /**
  * Where an own item stands (plan section 7, StatusChip): who can see it
  * (Private / Shared with team) and, once it has left draft, its review state.
+ * An item an admin took over says only that (audit F07; `statusLabels`).
  */
 export function StatusChip({ row }: { row: Pick<SpaceItemRow, 'sharing' | 'reviewState'> }) {
-  const review = REVIEW_LABEL[row.reviewState];
+  const { sharing, review } = statusLabels(row);
+  if (!sharing) {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <ShieldCheck className="size-3" aria-hidden /> {review}
+      </Badge>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1">
       <Badge variant="outline" className="gap-1 font-normal">
@@ -35,7 +38,7 @@ export function StatusChip({ row }: { row: Pick<SpaceItemRow, 'sharing' | 'revie
         ) : (
           <Lock className="size-3" aria-hidden />
         )}
-        {row.sharing === 'team' ? 'Shared with team' : 'Private'}
+        {sharing}
       </Badge>
       {review ? (
         <Badge variant={row.reviewState === 'returned' ? 'destructive' : 'secondary'}>
@@ -99,9 +102,13 @@ export function SharingControl({ row }: { row: SpaceItemRow }) {
 export function ReviewActions({
   row,
   beforeSubmit,
+  onRefused,
 }: {
   row: SpaceItemRow;
   beforeSubmit?: () => Promise<boolean>;
+  /** A refusal the item view shows itself (the bundle items Submit wants
+   *  saved first): true when it did, so no toast repeats it. */
+  onRefused?: (err: unknown) => boolean;
 }) {
   const toast = useToast();
   const refresh = useRefreshItem();
@@ -113,12 +120,15 @@ export function ReviewActions({
       toast.success(ok);
       refresh();
     } catch (err) {
-      toast.error(messageOf(err, fail));
+      if (!onRefused?.(err)) toast.error(messageOf(err, fail));
     } finally {
       setBusy(false);
     }
   };
-  if (row.reviewState === 'accepted') return null;
+  // Accepted, or with an admin: nothing of the review is the member's to do.
+  if (row.reviewState === 'accepted' || isWithAdmin(row) || row.reviewState === 'taken') {
+    return null;
+  }
   if (row.reviewState === 'submitted') {
     return (
       <Button

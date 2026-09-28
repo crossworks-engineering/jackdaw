@@ -12,12 +12,14 @@
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { AccessLevel } from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
-import type {
-  SpaceComment,
-  SpaceItemBody,
-  SpaceKind,
-  SpaceSharing,
-  ReviewState,
+import {
+  refusalReason,
+  type MovedSpaceItem,
+  type SpaceComment,
+  type SpaceItemBody,
+  type SpaceKind,
+  type SpaceSharing,
+  type ReviewState,
 } from './member-space';
 
 export type ReviewReason = 'submitted' | 'left-behind';
@@ -36,6 +38,8 @@ export type ReviewItemRow = {
   title: string;
   icon: string | null;
   sharing: SpaceSharing;
+  /** `taken`: an admin took it over and was deactivated since, so it is
+   *  back in the queue ("released", audit F07). */
   reviewState: ReviewState;
   submittedAt: string | null;
   updatedAt: string;
@@ -71,6 +75,15 @@ export type AcceptResult = {
   levelWarning?: string;
 };
 
+/** POST /api/team-admin/submissions/:id/take-over. TODO(contract after
+ *  mantle v0.232.305): the contract's TakeOverResult. */
+export type TakeOverResult = {
+  /** The taken item: now in the acting admin's private space, same id. */
+  id: string;
+  /** It and its bundle, in bundle order. */
+  moved: MovedSpaceItem[];
+};
+
 const base = (id: string) => `/api/team-admin/submissions/${id}`;
 
 export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
@@ -88,7 +101,43 @@ export const memberReview = {
     apiSend<AcceptResult>(`${base(id)}/accept`, 'POST', input),
   giveBack: (id: string, note: string) => apiSend(`${base(id)}/return`, 'POST', { note }),
   discard: (id: string) => apiSend(`${base(id)}/discard`, 'POST'),
+  /** Into the acting admin's own private space, with its bundle (audit F07). */
+  takeOver: (id: string) => apiSend<TakeOverResult>(`${base(id)}/take-over`, 'POST'),
 };
+
+/**
+ * Can an admin take this queue item over? A submitted item can, and so can
+ * one released back to the queue (its taker was deactivated). A left-behind
+ * item its author never submitted cannot (the brain answers 409
+ * `not-submitted`): accept it or discard it.
+ */
+export function canTakeOver(row: Pick<ReviewItemRow, 'reviewState'>): boolean {
+  return row.reviewState === 'submitted' || row.reviewState === 'taken';
+}
+
+/** Released: an admin took it over and was deactivated since, so it came
+ *  back to the queue with what was taken with it. */
+export function isReleased(row: Pick<ReviewItemRow, 'reviewState'>): boolean {
+  return row.reviewState === 'taken';
+}
+
+/** Review comments are open while the item waits as submitted; not on a
+ *  released item (the brain answers 409 `not-submitted`). */
+export function reviewCommentsOpen(row: Pick<ReviewItemRow, 'reason' | 'reviewState'>): boolean {
+  return row.reason === 'submitted' && row.reviewState === 'submitted';
+}
+
+/** The sentence for a refused Take over. */
+export function takeOverErrorMessage(err: unknown): string {
+  const reason = refusalReason(err);
+  if (reason === 'not-submitted') {
+    return 'Only an item that was submitted for review can be taken over. Accept it or discard it instead.';
+  }
+  if (reason === 'too-large') {
+    return 'This item shows too many others to take over at once (more than 200). Accept it or return it instead.';
+  }
+  return reviewErrorMessage(err, 'Could not take this item over.');
+}
 
 /** The item's own bytes, or a file in its bundle (an image a page shows). */
 export const reviewBytesPath = (id: string, node = id) =>

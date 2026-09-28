@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Save, Trash2, X } from 'lucide-react';
+import { Save, ShieldCheck, Trash2, UserRound, X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -20,12 +22,23 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { holdsEditor, memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
-import { acceptedBrainHref } from '@/lib/admin-private';
 import {
+  acceptedBrainHref,
+  canDeletePrivate,
+  canGiveBack,
+  privateDeleteMessage,
+  takenFromOf,
+} from '@/lib/admin-private';
+import {
+  WITH_ADMIN_TEXT,
   adminSpace,
   commentsOpen,
+  frozenByOther,
   isAdminSpace,
   isEditable,
+  isWithAdminRefusal,
+  unsavedBundleIds,
+  type AdminSpaceItemRow,
   type SpaceItem,
 } from '@/lib/member-space';
 import { AcceptIntoBrainDialog } from '@/components/team-admin/review-dialogs';
@@ -37,6 +50,8 @@ import { MemberDrawEditor } from './member-draw-editor';
 import { MemberTableEditor } from './member-table-editor';
 import { MineNoteEditor } from './mine-note-editor';
 import { MinePageEditor } from './mine-page-editor';
+import { GiveBackDialog } from './give-back-dialog';
+import { ItemLinksNotice, ownItemResolver } from './item-links-notice';
 import type { MemberEditorHandle } from './member-editor';
 
 /**
@@ -51,10 +66,20 @@ import type { MemberEditorHandle } from './member-editor';
  * "Accept into brain" in place of sharing, review and the discussion, none
  * of which an item only its admin sees has.
  */
-export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
+export function MineItem({
+  id,
+  onClose,
+  withAdmin = false,
+}: {
+  id: string;
+  onClose: () => void;
+  /** The list already says an admin holds it: nothing to read (audit F07). */
+  withAdmin?: boolean;
+}) {
   const api = useSpaceApi();
   const admin = isAdminSpace(api);
   const q = useQuery({
+    enabled: !withAdmin,
     queryKey: admin ? ['admin-space-item', id] : ['member-space-item', 'mine', id],
     // An editor that just closed on this item may still be saving what was
     // typed before it left: read after that save, not before it.
@@ -64,7 +89,8 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
       await replayRescue(id, Date.now(), api.base);
       return api.item(id);
     },
-    retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
+    retry: (count, err) =>
+      !(err instanceof ApiError && (err.status === 404 || err.status === 409)) && count < 1,
     // Always read on open, whatever the app's staleTime: the editor seeds
     // from this read (see the wait below).
     refetchOnMount: 'always',
@@ -75,6 +101,12 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
     await q.refetch();
     setGeneration((g) => g + 1);
   }, [q]);
+  // An admin took it over (the list said so, or the brain answered 409
+  // `with-admin`, also on a refetch after the take-over): no content, no
+  // editor, whatever this view showed before.
+  if (withAdmin || isWithAdminRefusal(q.error)) {
+    return <WithAdminNotice onClose={onClose} />;
+  }
   // A failed background refetch keeps the data it had (react-query v5): only
   // an item that never loaded is an error screen.
   if (q.isError && !q.data) {
@@ -105,6 +137,64 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
       onClose={onClose}
       onReload={() => void reload()}
     />
+  );
+}
+
+/** An own item an admin has taken over (audit F07): the member reads none
+ *  of it until it is accepted (it shows under Accepted) or given back. */
+export function WithAdminNotice({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="space-y-4 p-6">
+      <div className="flex items-start gap-2">
+        <Badge variant="secondary" className="gap-1">
+          <ShieldCheck className="size-3" aria-hidden /> With admin
+        </Badge>
+        <span className="flex-1" />
+        <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
+          <X />
+        </Button>
+      </div>
+      <p role="status" className="text-sm text-muted-foreground">
+        {WITH_ADMIN_TEXT}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The editor is held because the item renders inside another one the member
+ * submitted (audit F04): name that item and link to it, where Recall is.
+ */
+function FrozenByNotice({ holderId, onRelease }: { holderId: string; onRelease: () => void }) {
+  const api = useSpaceApi();
+  const holder = useQuery({
+    queryKey: ['named-item', holderId],
+    queryFn: () => ownItemResolver(api)(holderId),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const title = holder.data ? `“${holder.data.title || 'Untitled'}”` : 'an item';
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+    >
+      <span className="min-w-0 flex-1">
+        This is part of{' '}
+        {holder.data?.href ? (
+          <Link href={holder.data.href} className="font-medium underline underline-offset-4">
+            {title}
+          </Link>
+        ) : (
+          title
+        )}
+        , which you submitted. Recall it to edit. What you typed stays below, read-only, so you can
+        copy it.
+      </span>
+      <Button size="sm" variant="outline" onClick={onRelease}>
+        Show it as it is now
+      </Button>
+    </div>
   );
 }
 
@@ -145,6 +235,17 @@ function MineItemLoaded({
   const api = useSpaceApi();
   const admin = isAdminSpace(api);
   const editable = isEditable(row);
+  // An item this admin took over from the Review queue (audit F07): who
+  // wrote it, and whether it can still go back to them.
+  const takenFrom = admin ? takenFromOf(row as AdminSpaceItemRow) : null;
+  const deletable = !admin || canDeletePrivate(row as AdminSpaceItemRow);
+  // Items shown inside this one that Submit wants saved first (audit F04).
+  const [mustSave, setMustSave] = useState<string[]>([]);
+  const onSubmitRefused = (err: unknown) => {
+    const ids = unsavedBundleIds(err, row.id);
+    setMustSave(ids);
+    return ids.length > 0;
+  };
   const [title, setTitle] = useState(row.title);
   const refreshLists = useCallback(() => {
     if (admin) {
@@ -183,6 +284,11 @@ function MineItemLoaded({
     setReleased(true);
     refreshItem();
   };
+  // Held because the item renders inside another submitted one (audit F04).
+  const holderId =
+    autosave.status === 'stopped'
+      ? frozenByOther(autosave.reason, autosave.ids ?? [], row.id)
+      : null;
   const saveEditorVersion = async (): Promise<boolean> => {
     const h = editorHandle.current;
     if (!h) return false;
@@ -225,7 +331,8 @@ function MineItemLoaded({
       refreshLists();
       onClose();
     } catch (err) {
-      toast.error(spaceErrorMessage(err, 'Could not delete it.'));
+      toast.error(privateDeleteMessage(err) ?? spaceErrorMessage(err, 'Could not delete it.'));
+      refreshItem();
     }
   };
 
@@ -286,6 +393,11 @@ function MineItemLoaded({
 
         <div className="flex flex-wrap items-center gap-2">
           <StatusChip row={row} />
+          {takenFrom ? (
+            <Badge variant="secondary" className="gap-1" title="Taken over from the Review queue">
+              <UserRound className="size-3" aria-hidden /> From {takenFrom.name}
+            </Badge>
+          ) : null}
           <span className="flex-1" />
           {admin ? null : <SharingControl row={row} />}
           {(body.type === 'page' || body.type === 'draw' || body.type === 'table') &&
@@ -310,10 +422,18 @@ function MineItemLoaded({
               item={row}
               triggerLabel="Accept into brain"
               description={
-                <>
-                  “{row.title || 'Untitled'}” leaves your private space and becomes a brain item at
-                  the level you pick. Its saved version goes in.
-                </>
+                takenFrom ? (
+                  <>
+                    “{row.title || 'Untitled'}” by {takenFrom.name} leaves your private space and
+                    becomes a brain item at the level you pick, with everything you took over with
+                    it. Its saved version goes in, and {takenFrom.name} sees it under Accepted.
+                  </>
+                ) : (
+                  <>
+                    “{row.title || 'Untitled'}” leaves your private space and becomes a brain item
+                    at the level you pick. Its saved version goes in.
+                  </>
+                )
               }
               // The saved version goes in: what was typed is saved first.
               beforeAccept={beforeSubmit}
@@ -325,9 +445,25 @@ function MineItemLoaded({
               errorMessage={spaceErrorMessage}
             />
           ) : (
-            <ReviewActions row={row} beforeSubmit={beforeSubmit} />
+            <ReviewActions row={row} beforeSubmit={beforeSubmit} onRefused={onSubmitRefused} />
           )}
-          {editable && !held ? (
+          {takenFrom && canGiveBack(row as AdminSpaceItemRow) ? (
+            <GiveBackDialog
+              row={row}
+              from={takenFrom}
+              // What was typed goes with it: the brain refuses unsaved edits.
+              beforeGiveBack={beforeSubmit}
+              onGivenBack={() => {
+                refreshLists();
+                onClose();
+              }}
+              onRefused={() => {
+                refreshLists();
+                refreshItem();
+              }}
+            />
+          ) : null}
+          {editable && !held && deletable ? (
             <Button
               size="icon-sm"
               variant="ghost"
@@ -352,7 +488,23 @@ function MineItemLoaded({
           </p>
         ) : null}
 
-        {held ? (
+        {takenFrom && !takenFrom.canGiveBack ? (
+          <p className="text-sm text-muted-foreground">
+            {takenFrom.name} cannot take this back any more. Accept it into the brain, or delete it.
+          </p>
+        ) : null}
+
+        {mustSave.length ? (
+          <ItemLinksNotice
+            message="These are shown in this item and have unsaved changes. Save a version of each, then submit:"
+            ids={mustSave}
+            resolve={ownItemResolver(api)}
+          />
+        ) : null}
+
+        {held && holderId ? (
+          <FrozenByNotice holderId={holderId} onRelease={release} />
+        ) : held ? (
           <div
             role="status"
             className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"

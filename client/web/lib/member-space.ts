@@ -30,22 +30,66 @@ import type { AcceptInput, AcceptResult } from './member-review';
 
 export type SpaceKind = MemberItemKind;
 export type SpaceSharing = MemberSpaceSharing;
-export type ReviewState = MemberReviewState;
+
+// TODO(contract after mantle v0.232.305): the audit fix release (Take over,
+// audit F07) adds `taken` to MemberReviewState, MemberSpaceItemState (with
+// `with-admin`) as the row's state, AdminSpaceItemRow, AdminTakenFrom,
+// MovedSpaceItem, TakeOverResult, GiveBackResult and `changedByAdmin` on
+// MemberAcceptedItem. Swap these local types for the contract's at that
+// @crossworks pin bump.
+
+/** A personal item's stored review state. `taken`: an admin took the
+ *  submitted item into their own private space (admin rows and the Review
+ *  queue only; a member's list says `with-admin` instead). */
+export type ReviewState = MemberReviewState | 'taken';
+
+/** A row's state in a list: the stored state, or `with-admin` on the
+ *  member's own list for an item an admin took over (title and kind only;
+ *  every route of it answers 409 `with-admin`). */
+export type SpaceItemState = ReviewState | 'with-admin';
 
 /** Where a member's list reads from: their own items, teammates' shared
  *  items, the Library (brain items at the team level), or what they wrote
  *  and an admin accepted into the brain (any level; brains from 0.232.285). */
 export type SpaceSource = 'mine' | 'team' | 'library' | 'accepted';
 
-export type SpaceItemRow = MemberSpaceItemRow;
+export type SpaceItemRow = Omit<MemberSpaceItemRow, 'reviewState'> & {
+  reviewState: SpaceItemState;
+};
 export type SpaceFile = MemberSpaceFile;
 
 type Doc = Record<string, unknown>;
 
 export type SpaceItemBody = MemberSpaceItemBody<Doc, TableDetail>;
-export type SpaceItem = MemberSpaceItem<Doc, TableDetail>;
-export type SpaceList = MemberSpaceList;
+export type SpaceItem = Omit<MemberSpaceItem<Doc, TableDetail>, 'row'> & { row: SpaceItemRow };
+export type SpaceList = Omit<MemberSpaceList, 'items'> & { items: SpaceItemRow[] };
 export type SpaceComment = NodeComment;
+
+/** Who wrote an item an admin took over from the Review queue. */
+export type AdminTakenFrom = {
+  /** The member login; null once that login is deleted. */
+  loginId: string | null;
+  /** Display name, else the email's local part; "Removed member" once the
+   *  login is deleted. */
+  name: string;
+  /** False when the member is deactivated, deleted or no longer a member:
+   *  Give back is refused (409 `author-inactive`); accept it or delete it. */
+  canGiveBack: boolean;
+  takenAt: string | null;
+};
+
+/** A row of the admin's private space: `takenFrom` names the member when
+ *  the admin took it over, else null (absent on brains before Take over). */
+export type AdminSpaceItemRow = SpaceItemRow & { takenFrom?: AdminTakenFrom | null };
+
+/** GET /api/admin/space: the admin's private items, taken ones included. */
+export type AdminSpaceList = Omit<SpaceList, 'items'> & { items: AdminSpaceItemRow[] };
+
+/** An item that moved with a Take over or a Give back. */
+export type MovedSpaceItem = { id: string; type: SpaceKind; title: string };
+
+/** POST /api/admin/space/:id/give-back { note } */
+export type GiveBackResult = { id: string; returned: MovedSpaceItem[] };
 
 /** What a member reads for a refusal the brain answered without a sentence
  *  of its own (it normally sends one in `error`). */
@@ -55,7 +99,54 @@ const REFUSAL_TEXT: Record<string, string> = {
     'This uses items you cannot share: only your own items and Library items. Remove them, then save.',
   'rate-limit': 'Too many requests just now. Wait a moment, then try again.',
   frozen: 'Submitted for review: nobody can change it now. Recall it to make a correction.',
+  'with-admin':
+    'An admin is working on this. You will see it again when it is accepted or given back.',
+  'too-large': 'This holds too many items to move at once (more than 200).',
 };
+
+/** What a member reads for an item an admin has taken over (audit F07). */
+export const WITH_ADMIN_TEXT = REFUSAL_TEXT['with-admin']!;
+
+/** The `reason` of a 409 state refusal, else null. */
+export function refusalReason(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const reason = (err.body as { reason?: unknown } | null | undefined)?.reason;
+  return typeof reason === 'string' && reason ? reason : null;
+}
+
+/** The ids a state refusal names (`frozen`, `unsaved-draft`, `embed`, …). */
+export function refusalIds(err: unknown): string[] {
+  if (!(err instanceof ApiError)) return [];
+  const ids = (err.body as { ids?: unknown } | null | undefined)?.ids;
+  return Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : [];
+}
+
+/** An own item an admin took over: every member route of it answers 409
+ *  `with-admin`. */
+export function isWithAdminRefusal(err: unknown): boolean {
+  return refusalReason(err) === 'with-admin';
+}
+
+/**
+ * The submitted item that freezes this one (audit F04): a 409 `frozen` whose
+ * `ids` name ANOTHER item, because this one renders inside it (a bundle
+ * item). Null for the item's own freeze, or any other answer.
+ */
+export function frozenByOther(reason: string | null, ids: readonly string[], ownId: string) {
+  if (reason !== 'frozen') return null;
+  return ids.find((i) => i !== ownId) ?? null;
+}
+
+/**
+ * The items shown inside this one that must be saved first: a 409
+ * `unsaved-draft` from Submit naming items of its bundle. Empty when it
+ * names only the item itself (the editor's own Save version handles that),
+ * or for any other answer.
+ */
+export function unsavedBundleIds(err: unknown, ownId: string): string[] {
+  if (refusalReason(err) !== 'unsaved-draft') return [];
+  return refusalIds(err).filter((i) => i !== ownId);
+}
 
 /**
  * The sentence for a member-route refusal: the brain's own `error` when it
@@ -139,19 +230,51 @@ export function listPath(
  * space, not picked out of the newest page. A brain older than the filter
  * ignores it and answers the newest page, which `splitByReview` still sorts.
  */
-export function reviewListPath(states: readonly ReviewState[], page = 1): string {
+export function reviewListPath(states: readonly SpaceItemState[], page = 1): string {
   const sp = new URLSearchParams({ review: states.join(','), page: String(page) });
   return `/api/member/space?${sp.toString()}`;
 }
 
-/** The returned and the submitted rows of a list, each in list order. */
+/** The returned, the submitted and the with-admin rows of a list, each in
+ *  list order. */
 export function splitByReview<T extends Pick<SpaceItemRow, 'reviewState'>>(
   rows: readonly T[],
-): { returned: T[]; submitted: T[] } {
+): { returned: T[]; submitted: T[]; withAdmin: T[] } {
   return {
     returned: rows.filter((r) => r.reviewState === 'returned'),
     submitted: rows.filter((r) => r.reviewState === 'submitted'),
+    withAdmin: rows.filter((r) => r.reviewState === 'with-admin'),
   };
+}
+
+const REVIEW_LABEL: Record<SpaceItemState, string | null> = {
+  draft: null,
+  submitted: 'Submitted',
+  returned: 'Returned',
+  accepted: 'Accepted',
+  // An admin's row for an item taken over: its "From <member>" badge says it.
+  taken: null,
+  'with-admin': 'With admin',
+};
+
+/**
+ * What an own item's StatusChip says: who can see it and, once it has left
+ * draft, its review state. An item an admin took over (audit F07) says only
+ * "With admin": who can see it is the admin's business until it comes back.
+ */
+export function statusLabels(row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>): {
+  sharing: 'Private' | 'Shared with team' | null;
+  review: string | null;
+} {
+  const review = REVIEW_LABEL[row.reviewState] ?? null;
+  if (row.reviewState === 'with-admin') return { sharing: null, review };
+  return { sharing: row.sharing === 'team' ? 'Shared with team' : 'Private', review };
+}
+
+/** A row the member's list shows for an item an admin took over: no editor,
+ *  no content, no actions (audit F07). */
+export function isWithAdmin(row: Pick<SpaceItemRow, 'reviewState'>): boolean {
+  return row.reviewState === 'with-admin';
 }
 
 /**
@@ -277,6 +400,10 @@ export const adminSpace = {
   ...spaceClient(ADMIN_API_BASE),
   accept: (id: string, input: AcceptInput) =>
     apiSend<AcceptResult>(`${ownItemPath(id, ADMIN_API_BASE)}/accept`, 'POST', input),
+  /** An item taken over from the Review queue goes back to its member with
+   *  the note, with everything taken with it (audit F07). */
+  giveBack: (id: string, note: string) =>
+    apiSend<GiveBackResult>(`${ownItemPath(id, ADMIN_API_BASE)}/give-back`, 'POST', { note }),
 };
 
 export type AdminSpaceClient = typeof adminSpace;
@@ -340,12 +467,17 @@ export function workspaceNavMode(
  */
 export async function resolveMemberItem(
   probe: (source: SpaceSource) => Promise<unknown>,
-): Promise<{ source: SpaceSource; kind: SpaceKind | null } | null> {
+): Promise<{ source: SpaceSource; kind: SpaceKind | null; withAdmin?: true } | null> {
   for (const source of ['mine', 'team', 'library', 'accepted'] as const) {
     try {
       return { source, kind: memberItemKind(await probe(source)) };
     } catch (err) {
       if (err instanceof ApiError && (err.status === 404 || err.status === 400)) continue;
+      // An own item an admin took over: it is the member's, but nothing of it
+      // can be opened until it is accepted or given back (audit F07).
+      if (source === 'mine' && isWithAdminRefusal(err)) {
+        return { source: 'mine', kind: null, withAdmin: true };
+      }
       return { source: 'mine', kind: null };
     }
   }
@@ -405,12 +537,33 @@ export function bytesPath(source: 'mine' | 'team', id: string): string {
 }
 
 /** Is the member allowed to edit this own item right now? Submitted (frozen)
- *  and accepted items are read-only until Recall or Return. */
+ *  and accepted items are read-only until Recall or Return; one an admin
+ *  holds (`with-admin`) is not the member's to open at all. `taken` is an
+ *  ADMIN's row for an item they took over: theirs to edit (audit F07). */
 export function isEditable(row: Pick<SpaceItemRow, 'reviewState'>): boolean {
-  return row.reviewState === 'draft' || row.reviewState === 'returned';
+  return (
+    row.reviewState === 'draft' || row.reviewState === 'returned' || row.reviewState === 'taken'
+  );
 }
 
 /** Commenting is open on an own item while it is shared or submitted. */
 export function commentsOpen(row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>): boolean {
   return row.sharing === 'team' || row.reviewState === 'submitted';
+}
+
+/**
+ * An accepted file or drawing an admin changed after Accept (audit F07): the
+ * brain keeps the author's snapshot but no longer serves the bytes, so the
+ * reader says so instead of a broken image. TODO(contract after mantle
+ * v0.232.305): `changedByAdmin` is on the contract's MemberAcceptedItem.
+ */
+export function acceptedBytesChanged(item: { type: string; changedByAdmin?: unknown }): boolean {
+  return (item.type === 'file' || item.type === 'draw') && item.changedByAdmin === true;
+}
+
+/** What the reader shows in place of a changed file or drawing. */
+export function acceptedChangedText(type: SpaceKind): string {
+  return type === 'draw'
+    ? 'An admin changed this drawing after accepting it, so the picture you submitted is not shown any more.'
+    : 'An admin changed this file after accepting it, so the file you submitted is not served any more.';
 }

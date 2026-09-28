@@ -18,7 +18,8 @@ import { PageView } from '@/components/page-editor/page-view';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { memberAssetPath, memberDrawUrlPath, memberFileUrlPath } from '@/lib/member-assets';
 import { MEMBER_KIND } from '@/lib/member-kinds';
-import { acceptedPlace } from '@/lib/member-space';
+import { formatBytes } from '@/lib/upload-progress';
+import { acceptedBytesChanged, acceptedChangedText, acceptedPlace } from '@/lib/member-space';
 
 type ReaderItem = MemberLibraryItem | MemberAcceptedItem;
 
@@ -77,78 +78,99 @@ export function MemberReader({
   }
 
   let body: React.ReactNode;
-  switch (item.type) {
-    case 'page':
-      body = <PageView content={item.doc as JSONContent} mapAssetPath={memberAssetPath} />;
-      break;
-    case 'note':
-      body = (
-        <NotePresenter view={{ title: item.title, content: item.content }} chrome="embedded" />
-      );
-      break;
-    case 'draw':
-      body = (
-        <DrawPresenter
-          view={{ title: item.title, hasSvg: true }}
-          src={asset(memberDrawUrlPath(item.id))}
-          chrome="embedded"
-        />
-      );
-      break;
-    case 'table': {
-      const table = item.table as TableDetail;
-      const tabs = table.tabs ?? [];
-      const current = table.tabId ?? tabs[0]?.id ?? null;
-      // A tab past the server's materialize window arrives as a leading window.
-      const totalRows = tabs.find((t) => t.id === current)?.rows ?? table.data.rows.length;
-      body = (
-        <div className="space-y-2">
-          {tabs.length > 1 ? (
-            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Table tabs">
-              {tabs.map((t) => (
-                <Button
-                  key={t.id}
-                  size="sm"
-                  variant={t.id === current ? 'default' : 'ghost'}
-                  role="tab"
-                  aria-selected={t.id === current}
-                  onClick={() => setPicked({ itemId: id, tabId: t.id })}
-                >
-                  {t.name}
-                  <span className="text-xs opacity-70">{t.rows.toLocaleString()}</span>
-                </Button>
-              ))}
-            </div>
-          ) : null}
-          <TablePresenter
-            view={{ title: item.title, icon: item.icon, tabs: null, legacyDoc: table.data }}
-            token=""
+  // An accepted file or drawing an admin changed since (audit F07): the
+  // brain keeps what was accepted but serves none of its bytes, so say so
+  // instead of showing a broken picture or a download that 404s.
+  const changed = source === 'accepted' && acceptedBytesChanged(item);
+  if (changed) {
+    body = (
+      <div
+        role="status"
+        className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+      >
+        <p>{acceptedChangedText(item.type)}</p>
+        {item.type === 'file' ? (
+          <p className="text-xs text-muted-foreground">
+            {item.filename}
+            {item.sizeBytes ? ` · ${formatBytes(item.sizeBytes)}` : ''}
+          </p>
+        ) : null}
+      </div>
+    );
+  } else {
+    switch (item.type) {
+      case 'page':
+        body = <PageView content={item.doc as JSONContent} mapAssetPath={memberAssetPath} />;
+        break;
+      case 'note':
+        body = (
+          <NotePresenter view={{ title: item.title, content: item.content }} chrome="embedded" />
+        );
+        break;
+      case 'draw':
+        body = (
+          <DrawPresenter
+            view={{ title: item.title, hasSvg: true }}
+            src={asset(memberDrawUrlPath(item.id))}
             chrome="embedded"
           />
-          {table.docClipped ? (
-            <p className="text-xs text-muted-foreground">
-              Showing the first {table.data.rows.length.toLocaleString()} of{' '}
-              {totalRows.toLocaleString()} rows.
-            </p>
-          ) : null}
-        </div>
-      );
-      break;
+        );
+        break;
+      case 'table': {
+        const table = item.table as TableDetail;
+        const tabs = table.tabs ?? [];
+        const current = table.tabId ?? tabs[0]?.id ?? null;
+        // A tab past the server's materialize window arrives as a leading window.
+        const totalRows = tabs.find((t) => t.id === current)?.rows ?? table.data.rows.length;
+        body = (
+          <div className="space-y-2">
+            {tabs.length > 1 ? (
+              <div className="flex flex-wrap gap-1" role="tablist" aria-label="Table tabs">
+                {tabs.map((t) => (
+                  <Button
+                    key={t.id}
+                    size="sm"
+                    variant={t.id === current ? 'default' : 'ghost'}
+                    role="tab"
+                    aria-selected={t.id === current}
+                    onClick={() => setPicked({ itemId: id, tabId: t.id })}
+                  >
+                    {t.name}
+                    <span className="text-xs opacity-70">{t.rows.toLocaleString()}</span>
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <TablePresenter
+              view={{ title: item.title, icon: item.icon, tabs: null, legacyDoc: table.data }}
+              token=""
+              chrome="embedded"
+            />
+            {table.docClipped ? (
+              <p className="text-xs text-muted-foreground">
+                Showing the first {table.data.rows.length.toLocaleString()} of{' '}
+                {totalRows.toLocaleString()} rows.
+              </p>
+            ) : null}
+          </div>
+        );
+        break;
+      }
+      case 'file':
+        body = (
+          <FilePresenter
+            view={{
+              fileId: item.id,
+              filename: item.filename,
+              mimeType: item.mimeType ?? 'application/octet-stream',
+              size: item.sizeBytes ?? 0,
+            }}
+            assetUrl={(fileId) => asset(memberFileUrlPath(fileId))}
+            chrome="embedded"
+          />
+        );
+        break;
     }
-    case 'file':
-      body = (
-        <FilePresenter
-          view={{
-            fileId: item.id,
-            filename: item.filename,
-            mimeType: item.mimeType ?? 'application/octet-stream',
-            size: item.sizeBytes ?? 0,
-          }}
-          assetUrl={(fileId) => asset(memberFileUrlPath(fileId))}
-          chrome="embedded"
-        />
-      );
-      break;
   }
 
   return (
@@ -184,7 +206,7 @@ function Byline({ item }: { item: ReaderItem }) {
     return (
       <p className="text-xs text-muted-foreground">
         You wrote this. An admin accepted it into the brain{when ? ` on ${when}` : ''} ·{' '}
-        {acceptedPlace(item.audience)}. You read the saved version.
+        {acceptedPlace(item.audience)}. You read the version that was accepted.
       </p>
     );
   }
