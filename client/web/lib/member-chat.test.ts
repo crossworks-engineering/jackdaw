@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MemberChatMessage } from '@mantle/client-types';
-import { replyLanded } from './member-chat';
+import { PENDING_POLL_MS, pollForPending, replyLanded, sendKey } from './member-chat';
 
 const msg = (
   id: string,
@@ -41,5 +41,36 @@ describe('replyLanded', () => {
 
   it('never counts an old outbound as the reply', () => {
     expect(replyLanded([msg('c', 'inbound'), ...before], known)).toBe(false);
+  });
+});
+
+describe('pollForPending', () => {
+  it('polls while a pending row is new, then stops for good', () => {
+    const seen = new Map<string, number>();
+    const rows = [msg('a', 'inbound'), msg('b', 'outbound', 'pending')];
+    expect(pollForPending(rows, seen, 1_000)).toBe(true);
+    expect(pollForPending(rows, seen, 1_000 + PENDING_POLL_MS - 1)).toBe(true);
+    expect(pollForPending(rows, seen, 1_000 + PENDING_POLL_MS)).toBe(false);
+  });
+
+  it('a new pending row polls again; a finished one is forgotten', () => {
+    const seen = new Map<string, number>([['b', 0]]);
+    const rows = [msg('b', 'outbound'), msg('c', 'outbound', 'pending')];
+    expect(pollForPending(rows, seen, PENDING_POLL_MS * 5)).toBe(true);
+    expect(seen.has('b')).toBe(false);
+  });
+
+  it('nothing pending: no polling', () => {
+    expect(pollForPending([msg('a', 'inbound')], new Map(), 0)).toBe(false);
+  });
+});
+
+describe('sendKey', () => {
+  let n = 0;
+  const fresh = () => `k${++n}`;
+  it('reuses the key for the same text, a new one for new text', () => {
+    const first = sendKey('hi', null, fresh);
+    expect(sendKey('hi', { text: 'hi', key: first }, fresh)).toBe(first);
+    expect(sendKey('hello', { text: 'hi', key: first }, fresh)).not.toBe(first);
   });
 });

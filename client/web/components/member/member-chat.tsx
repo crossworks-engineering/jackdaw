@@ -6,12 +6,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Loader2, SendHorizontal } from 'lucide-react';
 import type { MemberChatThread } from '@mantle/client-types';
-import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { replyLanded } from '@/lib/member-chat';
+import { pollForPending, replyLanded, sendKey } from '@/lib/member-chat';
 
 export const MEMBER_CHAT_KEY = ['member-chat'];
 const GIVE_UP_MS = 120_000;
@@ -32,12 +32,17 @@ export function MemberChat() {
   // after the POST returns, so "anything pending?" alone would stop polling.
   const [awaiting, setAwaiting] = useState<{ known: Set<string>; at: number } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  // When this browser first saw each pending row (pollForPending), and the
+  // last send's text and Idempotency-Key (a retry of the same text reuses it).
+  const pendingSeen = useRef(new Map<string, number>());
+  const lastSend = useRef<{ text: string; key: string } | null>(null);
 
   const thread = useQuery({
     queryKey: MEMBER_CHAT_KEY,
     queryFn: () => apiFetch<MemberChatThread>('/api/member/chat'),
     refetchInterval: (q) =>
-      awaiting !== null || q.state.data?.messages.some((m) => m.status === 'pending')
+      awaiting !== null ||
+      pollForPending(q.state.data?.messages ?? [], pendingSeen.current, Date.now())
         ? 1500
         : false,
   });
@@ -73,7 +78,14 @@ export function MemberChat() {
     setGaveUp(false);
     try {
       const known = new Set(messages.map((m) => m.id));
-      await apiSend('/api/member/chat', 'POST', { text: body });
+      const key = sendKey(body, lastSend.current, () => crypto.randomUUID());
+      lastSend.current = { text: body, key };
+      await apiFetch('/api/member/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ text: body }),
+      });
+      lastSend.current = null;
       setText('');
       setAwaiting({ known, at: Date.now() });
       await qc.invalidateQueries({ queryKey: MEMBER_CHAT_KEY });
