@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { TeamRequest } from '@mantle/client-types';
 import { canReplyToRequest, requestChatHref } from './team-requests';
 
 const LOGIN = '0b8f3c2e-1111-4111-8111-111111111111';
@@ -28,8 +29,10 @@ describe('a request from the old team portal (a contact)', () => {
   });
 
   it('works on a brain that sends no loginId at all', () => {
-    expect(canReplyToRequest({ contactId: CONTACT })).toBe(true);
-    expect(requestChatHref({ contactId: CONTACT })).toBe(`/team-admin?contact=${CONTACT}`);
+    // A brain before the audit fix release omits the field the contract now requires.
+    const older = { contactId: CONTACT } as Pick<TeamRequest, 'contactId' | 'loginId'>;
+    expect(canReplyToRequest(older)).toBe(true);
+    expect(requestChatHref(older)).toBe(`/team-admin?contact=${CONTACT}`);
   });
 });
 
