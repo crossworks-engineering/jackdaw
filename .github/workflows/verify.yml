@@ -14,6 +14,9 @@
 # branch in this repo runs once, not twice, because feature-branch pushes are
 # not themselves a trigger.
 #
+# The member specs are a job of their own below (e2e-member): they bring their
+# own mock API, so they need nothing configured and always run.
+#
 # Playwright is a SECOND job below, deliberately conditional. The suite needs a
 # live brain, and this repo cannot start one — the server workspace left in the
 # split. So the job runs only where a brain has been configured, and is inert
@@ -74,6 +77,41 @@ jobs:
       # grows to mean stays what CI enforces.
       - name: Verify
         run: pnpm verify
+
+  # The member specs (e2e/member): the member screens against an in-memory
+  # member API the specs start themselves, so NO brain, no database and no
+  # secrets. Its own job, not a step of `e2e`: that job's owner UI already
+  # holds a `next dev` on client/web, and Next allows one per directory.
+  e2e-member:
+    runs-on: ubuntu-24.04
+    # ~40 s of specs locally, plus the first `next dev` compile of each route.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Playwright's bundled Chromium, like the e2e job (no E2E_BROWSER_CHANNEL).
+      - name: Install Playwright Chromium
+        run: pnpm -C e2e exec playwright install --with-deps chromium
+
+      - name: e2e (member, mock API)
+        run: pnpm e2e:member
+
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-member-traces
+          path: e2e/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   # The suite runs against a brain THIS JOB BUILDS, fresh, per run.
   #
