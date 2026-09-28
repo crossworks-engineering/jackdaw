@@ -30,7 +30,7 @@ describe('readInviteCode', () => {
     expect(readInviteCode('  AbCd2345efGH6789 ')).toBe('AbCd2345efGH6789');
   });
 
-  it('takes an old 8-character team code', () => {
+  it('treats an old 8-character team code like any other code: the brain refuses it', () => {
     expect(readInviteCode('Xy7kPq2M')).toBe('Xy7kPq2M');
   });
 

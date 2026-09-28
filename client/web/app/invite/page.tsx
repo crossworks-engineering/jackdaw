@@ -8,9 +8,10 @@ import { InviteClient } from './invite-client';
 
 /**
  * /invite: a person redeems a member invite (member logins, Phase 6). They
- * open the link an admin handed them (`/invite?code=…`) or type a code (an
- * invite code, or an old 8-character team code while the admin has an open
- * invite for them), set a password, and are signed in as a member.
+ * open the link an admin handed them (`/invite?code=…`) or type its
+ * 16-character invite code, set a password, and are signed in as a member.
+ * Old team codes redeem nothing (the brain dropped them in migration 0178),
+ * so one typed here is refused like any other code that is not valid.
  *
  * Public (PUBLIC_PREFIXES in middleware.ts), and never bounced away by a
  * session cookie: someone signed in on this browser can still accept. Wears

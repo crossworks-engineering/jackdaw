@@ -3,29 +3,32 @@
 /**
  * /team-admin — the owner's window into the external team surface.
  *
- * Tabs: Code holders · Invites · Member chats · Review · Requests ·
+ * Tabs: Chat archive · Invites · Member chats · Review · Requests ·
  * Shared links · Settings. Invites = member invites (member logins Phase 6):
- * an invite link makes a member login, for a code holder or anyone by email.
+ * an invite link makes a member login, for a contact or anyone by email.
  * Review = member items submitted for review, and what deactivated logins
- * left shared (member logins Phase 4). Code holders = contacts holding an old
- * team code (it only redeems an invite now: team links and revoking a code
- * are retired, member logins Phase 6 stage 6);
- * Member chats = member LOGINS' chats with the team agent (users are the
- * team). The 1:1 team-code chat was removed 2026-09-26; its old transcripts
- * stay as each code holder's Chat archive.
+ * left shared (member logins Phase 4). Chat archive = every contact with old
+ * team portal chat, newest first, read only, each with "Invite as member".
+ * Team codes are gone (brain migration 0178 dropped them; only an invite code
+ * redeems now), so a row's "first message" is its first portal message and
+ * there is no "code last used" (`tokenLastUsedAt` is always null, one
+ * contract cycle). Member chats = member LOGINS' chats with the team agent
+ * (users are the team).
  *
- * The team-code portal (/team, /hub) and its forum are retired (member logins
+ * The team portal (/team, /hub) and its forum are retired (member logins
  * Phase 6): the Topics tab, the forum columns and the upload queue went with
- * them. The forum's tables are dropped (brain migration 0177); its content
- * lives on as the admin-level Forum archive pages. The brain still answers
- * `forum`, `posts`, `authored` and `uploads` on these routes, always empty,
- * for one contract cycle; this page no longer reads them.
+ * them. The forum's tables are dropped (brain migration 0177) and nothing on
+ * this page offers an export any more; the forum's content lives on as the
+ * admin-level Forum archive pages. The brain still answers `forum`, `posts`,
+ * `authored` and `uploads` on these routes, always empty, for one contract
+ * cycle; this page no longer reads them.
  *
  * Data arrives per tab from GET /api/team-admin/{members,member-chats,
  * requests,shares,settings} via apiFetch (owner bearer cross-origin, cookie
  * same-origin); this app is zero-secret and reads no DB. URL-driven
- * (?view/contact/login/item), so deep links keep working; an old
- * ?view=topics link lands on Code holders.
+ * (?view/contact/login/item), so deep links keep working. Chat archive keeps
+ * the old Code holders URL (/team-admin, ?contact=), and an old ?view=topics
+ * link lands on it too.
  */
 import Link from 'next/link';
 import { use, useState, type ReactNode } from 'react';
@@ -155,7 +158,7 @@ function TeamTabs({
     // is what tells "Settings the tab" apart from "Settings the sidebar row"
     // now that the sidebar has one. Screen readers get the same benefit.
     <nav aria-label="Team admin" className="flex items-center gap-1 border-b border-border px-3">
-      {tab('Code holders', '/team-admin', active === 'members')}
+      {tab('Chat archive', '/team-admin', active === 'members')}
       {tab('Invites', '/team-admin?view=invites', active === 'invites')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
       {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
@@ -170,7 +173,7 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
   if (members.length === 0) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        No one holds a team code. Invite new people from{' '}
+        No contact has old portal chat. Invite new people from{' '}
         <Link href="/team-admin?view=invites" className="underline">
           Invites
         </Link>
@@ -186,12 +189,14 @@ function MemberList({ members, selectedId }: { members: MemberRow[]; selectedId:
             <Link href={`/team-admin?contact=${m.contactId}`}>
               <div className="flex items-baseline justify-between gap-2">
                 <ListCardTitle>{m.contactName}</ListCardTitle>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {fmtWhen(m.tokenLastUsedAt)}
-                </span>
+                {m.lastMessageAt ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {fmtWhen(m.lastMessageAt)}
+                  </span>
+                ) : null}
               </div>
               <ListCardMeta>
-                {m.lastMessageText ?? `member since ${fmtWhen(m.memberSince)} · no chat archive`}
+                {m.lastMessageText ?? `first message ${fmtWhen(m.memberSince)}`}
               </ListCardMeta>
             </Link>
           </ListCard>
@@ -296,7 +301,7 @@ function ChatArchive({ thread, count }: { thread: ArchiveMessage[]; count: numbe
       <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">
         <Archive className="size-3.5" aria-hidden />
         Chat archive ({count} {count === 1 ? 'message' : 'messages'})
-        <span className="font-normal">— the old 1:1 team-code chat</span>
+        <span className="font-normal">· the old 1:1 team portal chat</span>
       </summary>
       <div className="flex flex-col gap-3 border-t border-border/60 px-3 py-3">
         {thread.length < count && (
@@ -312,7 +317,7 @@ function ChatArchive({ thread, count }: { thread: ArchiveMessage[]; count: numbe
 
 /**
  * A member login's OLD team portal chat (member logins Phase 6): the thread
- * its contact had on the team code before the invite. History for the admin
+ * its contact had on the team portal before the invite. History for the admin
  * only, so it sits in its own labelled, collapsed, read-only section and is
  * never merged into the member's thread. "Load older" pages it with
  * ?portalBefore=; a short window is the start.
@@ -350,7 +355,7 @@ function PortalThread({ loginId, portal }: { loginId: string; portal: MemberChat
       </summary>
       <div className="flex flex-col gap-3 border-t border-border/60 px-3 py-3">
         <p className="text-xs text-muted-foreground">
-          Their chat on the old team code. The member does not see it here, and the agent does not
+          Their chat on the old team portal. The member does not see it here, and the agent does not
           read it.
         </p>
         {!atStart && (
@@ -434,7 +439,7 @@ function MembersTab({ contact }: { contact?: string }) {
         list={
           <>
             <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">Team-code holders</h2>
+              <h2 className="text-sm font-semibold">Chat archive</h2>
               {data.members.length > 0 && (
                 <span className="text-xs text-muted-foreground">{data.members.length}</span>
               )}
@@ -452,8 +457,7 @@ function MembersTab({ contact }: { contact?: string }) {
                   <div>
                     <h2 className="text-sm font-semibold">{selectedMember.contactName}</h2>
                     <p className="text-xs text-muted-foreground">
-                      member since {fmtWhen(selectedMember.memberSince)} · code last used{' '}
-                      {fmtWhen(selectedMember.tokenLastUsedAt)}
+                      first message {fmtWhen(selectedMember.memberSince)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
@@ -516,8 +520,14 @@ function MembersTab({ contact }: { contact?: string }) {
               <div className="flex flex-1 items-center justify-center">
                 <div className="text-center text-sm text-muted-foreground">
                   <Users className="mx-auto mb-2 size-6" />
-                  <p>No one holds a team code.</p>
-                  <p className="mt-1 text-xs">Invite new people from the Invites tab.</p>
+                  {data.members.length === 0 ? (
+                    <>
+                      <p>No contact has old portal chat.</p>
+                      <p className="mt-1 text-xs">Invite new people from the Invites tab.</p>
+                    </>
+                  ) : (
+                    <p>Select a contact to read their old portal chat.</p>
+                  )}
                 </div>
               </div>
             )}

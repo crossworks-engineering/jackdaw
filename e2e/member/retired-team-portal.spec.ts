@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
-  INVITE_TEAM_CODE,
+  OLD_TEAM_CODE,
   signInAsMember,
   startMockMemberApi,
   type MockMemberApi,
@@ -22,17 +22,13 @@ test.afterEach(async () => {
   await api.close();
 });
 
-const OLD_LINKS = [
-  `/team?code=${INVITE_TEAM_CODE}`,
-  `/team/forum?code=${INVITE_TEAM_CODE}`,
-  '/hub',
-];
+const OLD_LINKS = [`/team?code=${OLD_TEAM_CODE}`, `/team/forum?code=${OLD_TEAM_CODE}`, '/hub'];
 
 test('an old team link with no session lands on a bare /login', async ({ page }) => {
   for (const path of OLD_LINKS) {
     await page.goto(path);
     await expect(page, path).toHaveURL(/\/login$/, { timeout: 60_000 });
-    expect(page.url(), path).not.toContain(INVITE_TEAM_CODE);
+    expect(page.url(), path).not.toContain(OLD_TEAM_CODE);
   }
 });
 

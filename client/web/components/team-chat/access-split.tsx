@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Resizable + collapsible split for the /team-admin Members detail pane: the
- * code holder's activity (requests, chat archive) on top, the Recent-access
+ * Resizable + collapsible split for the /team-admin Chat archive detail pane:
+ * the contact's activity (requests, chat archive) on top, the Recent-access
  * inspector below, separated by a drag handle. The access panel collapses to
  * just its header bar (chevron
  * click, or dragging it below its minimum), and both the layout and the

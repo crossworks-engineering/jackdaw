@@ -5,7 +5,7 @@ import {
   INVITE_NAME,
   INVITE_SITE,
   INVITE_STALE_CODE,
-  INVITE_TEAM_CODE,
+  OLD_TEAM_CODE,
   signInAsMember,
   startMockMemberApi,
   type MockMemberApi,
@@ -41,17 +41,26 @@ test('the link shows who the invite is for', async ({ page }) => {
   expect(api.adminCalls).toEqual([]);
 });
 
-test('a code that is not valid says so and stays; a team code can be typed', async ({ page }) => {
+test('a code that is not valid says so and stays; an old team code is one', async ({ page }) => {
   await page.goto('/invite?code=NotARealCode123');
   await expect(page.getByText('This invite is not valid or has expired.')).toBeVisible({
     timeout: 60_000,
   });
   await expect(page).toHaveURL(/\/invite\?code=NotARealCode123$/);
+  // The hint asks for the invite code only: team codes are gone (brain 0178).
+  await expect(page.getByText('The 16-character code from your invite link.')).toBeVisible();
+  await expect(page.getByText(/team code/i)).toHaveCount(0);
 
-  // An old 8-character team code works while the admin has an open invite.
-  await page.getByLabel('Invite code').fill(INVITE_TEAM_CODE);
+  // An old 8-character team code redeems nothing now: the same "not valid",
+  // and the password step never shows.
+  await page.getByLabel('Invite code').fill(OLD_TEAM_CODE);
+  const checked = page.waitForResponse((r) =>
+    r.url().endsWith(`/api/auth/invite/${OLD_TEAM_CODE}`),
+  );
   await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(emailField(page)).toHaveValue(INVITE_EMAIL);
+  expect((await checked).status()).toBe(404);
+  await expect(page.getByText('This invite is not valid or has expired.')).toBeVisible();
+  await expect(emailField(page)).toHaveCount(0);
   expect(api.inviteAccepts).toEqual([]);
   expect(api.adminCalls).toEqual([]);
 });

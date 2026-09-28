@@ -2,9 +2,9 @@
 
 /**
  * Member invites on /team-admin (member logins, Phase 6). The admin invites a
- * code holder (or anyone, by email), copies the link the brain answers with
- * and hands it over; the person opens /invite, sets a password and is a
- * member login. Nobody hands a password around.
+ * contact from Chat archive (or anyone, by email), copies the link the brain
+ * answers with and hands it over; the person opens /invite, sets a password
+ * and is a member login. Nobody hands a password around.
  *
  * The code and link are in the create answer ONCE (the brain keeps only the
  * hash), so the dialog shows them there and then. A new invite for the same
@@ -283,7 +283,7 @@ export function InviteDialog({
   );
 }
 
-/** "Invite as member" for one code holder, in the Code holders detail header. */
+/** "Invite as member" for one contact, in the Chat archive detail header. */
 export function InviteMemberButton({ contactId, name }: { contactId: string; name: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -364,8 +364,8 @@ export function InvitesPanel() {
           <div className="min-w-0">
             <h2 className="text-sm font-semibold">Member invites</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              An invite link makes a member login: the person sets their own password. Invite a code
-              holder from Code holders, or anyone by email.
+              An invite link makes a member login: the person sets their own password. Invite
+              someone from Chat archive, or anyone by email.
             </p>
           </div>
           <Button size="sm" className="shrink-0" onClick={() => setInviteOpen(true)}>
