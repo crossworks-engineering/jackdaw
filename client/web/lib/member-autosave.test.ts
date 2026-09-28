@@ -8,6 +8,7 @@ import {
   createAutosaveQueue,
   holdsEditor,
   leaveNeedsWarning,
+  tableFailurePlan,
   versionFailureText,
   memberSavesSettled,
   trackMemberSaves,
@@ -501,5 +502,66 @@ describe('member autosave: holding a stopped editor', () => {
     expect(holdsEditor({ status: 'stopped', reason: 'conflict', message: 'x' }, true)).toBe(false);
     expect(holdsEditor({ status: 'saved' }, false)).toBe(false);
     expect(holdsEditor({ status: 'pending' }, true)).toBe(false);
+  });
+});
+
+describe('member autosave: a table after a lost batch', () => {
+  it('reloads on a refused op, rebases on a conflict, and otherwise lets the queue decide', () => {
+    expect(tableFailurePlan({ kind: 'invalid', status: 400, message: 'bad op' })).toBe('reload');
+    expect(tableFailurePlan({ kind: 'conflict', currentRev: 5 })).toBe('rebase');
+    expect(tableFailurePlan({ kind: 'network' })).toBeNull();
+    expect(tableFailurePlan({ kind: 'invalid', status: 413, message: 'big' })).toBeNull();
+  });
+
+  it('a rebase keeps what was typed during the retry backoff and sends only that next', async () => {
+    const send = vi
+      .fn<AutosaveSend<Doc>>()
+      // The first batch reaches the brain, its answer is lost.
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      // The retry finds the etag moved on: the batch is in.
+      .mockRejectedValueOnce(new ApiError('The draft changed.', 409, { current_rev: 5 }))
+      .mockResolvedValueOnce({ rev: 6 });
+    let doc: Doc = { text: 'a' };
+    const q = createAutosaveQueue<Doc>({
+      read: () => doc,
+      saved: { text: 'a' },
+      rev: 4,
+      send,
+      debounceMs: 800,
+      adoptConflicts: false,
+      // What the table editor does for 'rebase': the brain's copy is the
+      // base, the working copy stays, and the difference goes out.
+      onFailure: (f) => {
+        if (tableFailurePlan(f) !== 'rebase') return;
+        queueMicrotask(() => {
+          q.reset({ text: 'b' }, 5);
+          if (q.isDirty()) q.changed();
+        });
+      },
+    });
+    doc = { text: 'b' };
+    await q.flush();
+    doc = { text: 'bc' }; // typed during the backoff
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(send).toHaveBeenCalledTimes(2);
+    await tick();
+    expect(doc).toEqual({ text: 'bc' });
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(send.mock.calls[2]!.slice(0, 3)).toEqual([{ text: 'bc' }, 5, { text: 'b' }]);
+    expect(q.state()).toEqual({ status: 'saved' });
+  });
+
+  it('the table editor rebases through reload with keepWorking', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const ui = readFileSync(
+      fileURLToPath(new URL('../components/member/member-table-editor.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(ui).toContain('const plan = tableFailurePlan(failure);');
+    expect(ui).toMatch(/plan === 'rebase'\) \{\s*void reloadRef\.current\(undefined, \{ keepWorking: true \}\)/);
+    expect(ui).toMatch(/if \(!keep\) \{\s*setDoc\(fresh\);\s*docRef\.current = fresh;/);
+    expect(ui).toContain('if (keep && queue.isDirty()) queue.changed();');
   });
 });

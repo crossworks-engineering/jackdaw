@@ -13,6 +13,7 @@ import {
 import { TableGrid } from '@/components/table-grid/table-grid';
 import {
   SaveRefused,
+  tableFailurePlan,
   type SaveFailure,
   versionFailureText,
 } from '@/lib/member-autosave';
@@ -84,14 +85,18 @@ export function MemberTableEditor({
     return { rev: res.draft_rev };
   };
 
-  /** A refused op (400) would fail every later diff from the same base, and
-   *  a conflict may mean the last batch is already in (a lost response):
-   *  take the brain's copy of the tab as the base again rather than send the
-   *  same ops twice. */
+  /** A refused op (400) would fail every later diff from the same base:
+   *  take the brain's copy of the tab. A conflict may mean the last batch is
+   *  already in (a lost response): take the brain's copy as the BASE, never
+   *  send the same ops twice, and keep the working copy, so typing done during
+   *  the retry backoff is saved next (lib/member-autosave.ts tableFailurePlan). */
   const onFailure = (failure: SaveFailure) => {
-    if ((failure.kind === 'invalid' && failure.status === 400) || failure.kind === 'conflict') {
+    const plan = tableFailurePlan(failure);
+    if (plan === 'reload') {
       toast.error('Reloaded the latest copy of this table.');
       void reloadRef.current().catch(() => undefined);
+    } else if (plan === 'rebase') {
+      void reloadRef.current(undefined, { keepWorking: true }).catch(() => undefined);
     }
   };
 
@@ -112,27 +117,33 @@ export function MemberTableEditor({
     onState: onStatus,
   });
 
-  /** Take the brain's copy of a tab as the new base. */
+  /** Take the brain's copy of a tab as the new base, and as the working copy
+   *  too unless `keepWorking` (the same tab, rebased after a conflict). */
   const adopt = useCallback(
-    (t: TableDetail) => {
+    (t: TableDetail, opts: { keepWorking?: boolean } = {}) => {
       const fresh = ensureTableDoc(t.draft ?? t.data);
+      const keep = opts.keepWorking === true && t.tabId === tabRef.current;
       setTable(t);
-      setDoc(fresh);
-      docRef.current = fresh;
+      if (!keep) {
+        setDoc(fresh);
+        docRef.current = fresh;
+      }
       committedKeyRef.current = JSON.stringify(ensureTableDoc(t.data));
       hasDraftRef.current = t.draft != null;
       tabRef.current = t.tabId;
       tabCountRef.current = t.tabs?.length ?? 1;
       queue.reset(fresh, t.draftRev ?? 0);
+      // What the brain lacks of the kept working copy goes out next.
+      if (keep && queue.isDirty()) queue.changed();
       report();
     },
     [queue, report],
   );
 
   const reload = useCallback(
-    async (tabId?: string) => {
+    async (tabId?: string, opts?: { keepWorking?: boolean }) => {
       const item = await api.item(id, tabId ?? tabRef.current);
-      if (item.body.type === 'table') adopt(item.body.table);
+      if (item.body.type === 'table') adopt(item.body.table, opts);
     },
     [adopt, api, id],
   );

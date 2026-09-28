@@ -391,6 +391,22 @@ export function versionFailureText(failure: SaveFailure): string | null {
 }
 
 /**
+ * What a table editor does after a failed ops batch (it writes diffs, so it
+ * never re-sends on a new etag, see `adoptConflicts`):
+ *  - `reload`: a refused op (400) would fail every later diff from the same
+ *    base; the brain's copy replaces the working one.
+ *  - `rebase`: a conflict, usually the last batch already in behind a lost
+ *    response. The brain's copy becomes the base and the working copy stays,
+ *    so the next save sends only what the brain lacks: typing done during the
+ *    retry backoff is kept instead of dropped with a toast.
+ */
+export function tableFailurePlan(failure: SaveFailure): 'reload' | 'rebase' | null {
+  if (failure.kind === 'invalid' && failure.status === 400) return 'reload';
+  if (failure.kind === 'conflict') return 'rebase';
+  return null;
+}
+
+/**
  * Should MineItem keep the editor on screen, read-only, instead of swapping
  * it for the item as the brain now has it? Yes when the item stopped being
  * editable elsewhere (a state stop such as `frozen`: submitted from another
