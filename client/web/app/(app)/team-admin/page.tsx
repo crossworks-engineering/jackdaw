@@ -57,6 +57,11 @@ import {
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
+import {
+  canReplyToRequest,
+  requestChatHref,
+  type TeamRequestWithLogin,
+} from '@/lib/team-requests';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -103,7 +108,7 @@ type MembersResponse = {
   } | null;
 };
 
-type RequestsResponse = { badges: Badges; requests: TeamRequest[] };
+type RequestsResponse = { badges: Badges; requests: TeamRequestWithLogin[] };
 
 type SharesResponse = { badges: Badges; shares: SharedLinkRow[] };
 
@@ -124,6 +129,42 @@ function Loading() {
   );
 }
 
+/** A tab whose first load failed: says so, with Retry (the Invites and
+ *  Review tabs' block). Without it a 403, a 500 or a dropped network left
+ *  "Loading…" up for ever: these queries retry once and never refetch on
+ *  focus. */
+function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-sm">
+      <p className="text-muted-foreground">Could not load {what}.</p>
+      <Button size="sm" variant="outline" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+/** What a tab shows before its data: Loading, or the error with Retry. */
+function TabPending({
+  active,
+  query,
+  what,
+}: {
+  active: Parameters<typeof TeamTabs>[0]['active'];
+  query: { isError: boolean; refetch: () => unknown };
+  what: string;
+}) {
+  return (
+    <Tab active={active}>
+      {query.isError ? (
+        <LoadError what={what} onRetry={() => void query.refetch()} />
+      ) : (
+        <Loading />
+      )}
+    </Tab>
+  );
+}
+
 function TeamTabs({
   active,
   openRequestCount,
@@ -137,7 +178,7 @@ function TeamTabs({
     <Link
       href={href}
       className={cn(
-        'inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors',
+        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors',
         isActive
           ? 'border-primary font-medium text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -155,7 +196,12 @@ function TeamTabs({
     // A labelled `nav`, not a bare div: these tabs are navigation, and the name
     // is what tells "Settings the tab" apart from "Settings the sidebar row"
     // now that the sidebar has one. Screen readers get the same benefit.
-    <nav aria-label="Team admin" className="flex items-center gap-1 border-b border-border px-3">
+    // Seven tabs are wider than a phone: the strip scrolls sideways (thin
+    // scrollbar, like every scroller) instead of pushing the page wider.
+    <nav
+      aria-label="Team admin"
+      className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-3 scrollbar-thin"
+    >
       {tab('Chat archive', '/team-admin', active === 'members')}
       {tab('Invites', '/team-admin?view=invites', active === 'invites')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
@@ -410,12 +456,7 @@ function MembersTab({ contact }: { contact?: string }) {
     ? (data?.members.find((m) => m.contactId === selected.contactId) ?? null)
     : null;
 
-  if (!data)
-    return (
-      <Tab active="members">
-        <Loading />
-      </Tab>
-    );
+  if (!data) return <TabPending active="members" query={q} what="the chat archive" />;
 
   return (
     <Tab active="members" badges={data.badges}>
@@ -544,12 +585,7 @@ function MemberChatsTab({ login }: { login?: string }) {
     queryFn: () => apiFetch<MemberChatsResponse>(`/api/team-admin/member-chats?${qs.toString()}`),
   });
   const data = q.data;
-  if (!data)
-    return (
-      <Tab active="chats">
-        <Loading />
-      </Tab>
-    );
+  if (!data) return <TabPending active="chats" query={q} what="member chats" />;
   const selected = data.selected;
   const member = selected
     ? (data.members.find((m) => m.loginId === selected.loginId) ?? null)
@@ -669,12 +705,7 @@ function RequestsTab() {
   // that leaves the list never leaves a ghost in the detail pane.
   const [selId, setSelId] = useState<string | null>(null);
 
-  if (!data)
-    return (
-      <Tab active="requests">
-        <Loading />
-      </Tab>
-    );
+  if (!data) return <TabPending active="requests" query={q} what="the requests" />;
   const refetch = () => void q.refetch();
 
   if (data.requests.length === 0) {
@@ -692,6 +723,9 @@ function RequestsTab() {
   }
 
   const selRequest = data.requests.find((r) => r.taskId === selId) ?? data.requests[0] ?? null;
+  // A member login's request has no contact: its chat and the reply are the
+  // login's (lib/team-requests.ts).
+  const chatHref = selRequest ? requestChatHref(selRequest) : null;
 
   return (
     <Tab active="requests" badges={data.badges}>
@@ -755,9 +789,9 @@ function RequestsTab() {
                     >
                       Open task →
                     </Link>
-                    {selRequest.contactId ? (
+                    {chatHref ? (
                       <Link
-                        href={`/team-admin?contact=${selRequest.contactId}`}
+                        href={chatHref}
                         className="text-muted-foreground underline-offset-2 hover:underline"
                       >
                         View their chat →
@@ -776,7 +810,7 @@ function RequestsTab() {
                         No further detail — the title is the whole request.
                       </p>
                     )}
-                    {selRequest.contactId ? (
+                    {canReplyToRequest(selRequest) ? (
                       <RequestReply
                         key={selRequest.taskId}
                         taskId={selRequest.taskId}
@@ -808,12 +842,7 @@ function SharesTab() {
     queryKey: ['team-admin', 'shares'],
     queryFn: () => apiFetch<SharesResponse>('/api/team-admin/shares'),
   });
-  if (!q.data)
-    return (
-      <Tab active="shares">
-        <Loading />
-      </Tab>
-    );
+  if (!q.data) return <TabPending active="shares" query={q} what="shared links" />;
   return (
     <Tab active="shares" badges={q.data.badges}>
       <SharedLinksPanel initial={q.data.shares} />
@@ -827,12 +856,7 @@ function SettingsTab() {
     queryFn: () => apiFetch<SettingsResponse>('/api/team-admin/settings'),
   });
   const data = q.data;
-  if (!data)
-    return (
-      <Tab active="settings">
-        <Loading />
-      </Tab>
-    );
+  if (!data) return <TabPending active="settings" query={q} what="the settings" />;
   return (
     <Tab active="settings" badges={data.badges}>
       {/* No list behind these cards, so no MasterDetail: the settings-hub
