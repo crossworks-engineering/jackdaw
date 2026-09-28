@@ -7,6 +7,7 @@
  * already standalone, just living in the wrong file. No signatures changed.
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -22,6 +23,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
+import { KeepPrivateField } from '@/components/member/keep-private-field';
+import { privateTextFile, uploadPrivateFile } from '@/lib/admin-private';
+import { refusalMessage } from '@/lib/member-space';
 import { defaultBodyFor, slugify } from './files-shared';
 import type { FileRow, RenameTarget, TextExt } from './files-shared';
 
@@ -234,12 +238,16 @@ export function CreateFileDialog({
   const open = ext !== null;
   const [stem, setStem] = useState('');
   const [type, setType] = useState<TextExt>('md');
+  // "Keep private": the file goes into this admin's private space, not the brain.
+  const [keepPrivate, setKeepPrivate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (ext) {
       setStem('');
       setType(ext);
+      setKeepPrivate(false);
       setBusy(false);
     }
   }, [ext]);
@@ -251,6 +259,23 @@ export function CreateFileDialog({
     e.preventDefault();
     if (!valid || busy) return;
     setBusy(true);
+    if (keepPrivate) {
+      const filename = `${cleanStem}.${type}`;
+      let href: string;
+      try {
+        href = await uploadPrivateFile(privateTextFile(filename, type, defaultBodyFor(type)));
+      } catch (err) {
+        toast.error(
+          refusalMessage(err) ?? (err instanceof Error ? err.message : 'Could not create file'),
+        );
+        setBusy(false);
+        return;
+      }
+      toast.success(`Created ${filename} in your private files`);
+      onOpenChange(false);
+      router.push(href);
+      return;
+    }
     let file: FileRow;
     try {
       ({ file } = await apiSend<{ file: FileRow }>('/api/files/files', 'POST', {
@@ -305,6 +330,7 @@ export function CreateFileDialog({
               <span className="shrink-0 text-sm text-muted-foreground">.{type}</span>
             </div>
           </div>
+          <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

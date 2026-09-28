@@ -89,6 +89,9 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { TagInput } from '@/components/tag-input';
+import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import { KeepPrivateField } from '@/components/member/keep-private-field';
+import { createPrivateItem } from '@/lib/admin-private';
 import { PageView } from '@/components/page-editor/page-view';
 import { AccessControl } from '@/components/share/access-control';
 import { PageOutline } from '@mantle/web-ui/page-outline';
@@ -202,6 +205,8 @@ export function PagesClient() {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<{ title: string; tags: string[] }>({ title: '', tags: [] });
+  // "Keep private": the new page goes into this admin's private space, not the brain.
+  const [keepPrivate, setKeepPrivate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PageRow | null>(null);
   // Authoritative descendant count for the delete warning — fetched on open so
@@ -429,6 +434,22 @@ export function PagesClient() {
     }
     setSaving(true);
     try {
+      if (keepPrivate) {
+        let href: string;
+        try {
+          href = await createPrivateItem('page', { title: form.title });
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 401) return;
+          toast.error(e instanceof Error ? e.message : 'request failed');
+          return;
+        }
+        setForm({ title: '', tags: [] });
+        setKeepPrivate(false);
+        setOpen(false);
+        toast.success('Private page created');
+        router.push(href);
+        return;
+      }
       let created: PageRow;
       try {
         ({ page: created } = await apiSend<{ page: PageRow }>('/api/pages', 'POST', {
@@ -600,6 +621,7 @@ export function PagesClient() {
         list={
           <>
             <div className="space-y-3 border-b border-border p-4">
+              <SpaceSwitch kind="page" value="brain" />
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -798,15 +820,19 @@ export function PagesClient() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tags">Tags</Label>
-              <TagInput
-                id="tags"
-                value={form.tags}
-                onChange={(t) => setForm({ ...form, tags: t })}
-                placeholder="Type and press comma or Enter…"
-              />
-            </div>
+            {/* A private item carries no tags until it is in the brain. */}
+            {keepPrivate ? null : (
+              <div className="space-y-1.5">
+                <Label htmlFor="tags">Tags</Label>
+                <TagInput
+                  id="tags"
+                  value={form.tags}
+                  onChange={(t) => setForm({ ...form, tags: t })}
+                  placeholder="Type and press comma or Enter…"
+                />
+              </div>
+            )}
+            <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel

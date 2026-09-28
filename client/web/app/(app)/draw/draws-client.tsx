@@ -38,6 +38,16 @@ import { DrawViewer } from '@/components/draw/draw-viewer';
 import { Move } from 'lucide-react';
 import { useZenMode } from '@/components/layout/zen-mode';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@mantle/web-ui/ui/dialog';
+import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import { KeepPrivateField } from '@/components/member/keep-private-field';
+import { createPrivateItem } from '@/lib/admin-private';
 
 type DrawRow = {
   id: string;
@@ -70,6 +80,16 @@ export function DrawsClient() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [creating, setCreating] = useState(false);
+  // New asks for a title and whether to keep it private (this admin's own
+  // space, not the brain); Enter in the title creates it.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [keepPrivate, setKeepPrivate] = useState(false);
+  const openCreate = () => {
+    setNewTitle('');
+    setKeepPrivate(false);
+    setCreateOpen(true);
+  };
 
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
@@ -142,9 +162,17 @@ export function DrawsClient() {
   async function createDraw() {
     if (creating) return;
     setCreating(true);
+    const title = newTitle.trim() || 'Untitled drawing';
     try {
+      if (keepPrivate) {
+        const href = await createPrivateItem('draw', { title });
+        setCreateOpen(false);
+        router.push(href);
+        setCreating(false);
+        return;
+      }
       const { draw } = await apiSend<{ draw: { id: string } }>('/api/draws', 'POST', {
-        title: 'Untitled drawing',
+        title,
       });
       await queryClient.invalidateQueries({ queryKey: ['draws'] });
       router.push(`/draw/${draw.id}`);
@@ -189,6 +217,7 @@ export function DrawsClient() {
         list={
           <>
             <div className="space-y-2 border-b border-border p-4">
+              <SpaceSwitch kind="draw" value="brain" />
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -200,7 +229,7 @@ export function DrawsClient() {
                     className="pl-8"
                   />
                 </div>
-                <Button size="sm" onClick={() => void createDraw()} disabled={creating}>
+                <Button size="sm" onClick={openCreate} disabled={creating}>
                   {creating ? <Spinner /> : <Plus />}
                   New
                 </Button>
@@ -236,12 +265,7 @@ export function DrawsClient() {
                     No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
                     brain like every other content type.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void createDraw()}
-                    disabled={creating}
-                  >
+                  <Button variant="outline" size="sm" onClick={openCreate} disabled={creating}>
                     {creating ? <Spinner /> : <Plus />}
                     New drawing
                   </Button>
@@ -334,6 +358,45 @@ export function DrawsClient() {
           )
         }
       />
+
+      <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New drawing</DialogTitle>
+            <DialogDescription>Give it a name, or leave it Untitled.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void createDraw();
+            }}
+          >
+            <Input
+              autoFocus
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Untitled drawing"
+              aria-label="Drawing title"
+            />
+            <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creating}
+                onClick={() => setCreateOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creating}>
+                {creating ? <Spinner /> : <Plus />}
+                Create drawing
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>

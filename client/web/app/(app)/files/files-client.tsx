@@ -22,6 +22,7 @@ import {
   FolderPlus,
   LayoutGrid,
   List,
+  Lock,
   Pencil,
   Plus,
   Search,
@@ -56,6 +57,9 @@ import type {
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
 import { SetPageTitle } from '@/components/layout/page-title';
+import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import { KEEP_PRIVATE_HELP, uploadPrivateFile } from '@/lib/admin-private';
+import { refusalMessage } from '@/lib/member-space';
 import { AccessControl } from '@/components/share/access-control';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
@@ -309,6 +313,24 @@ function FilesView({
     e.target.value = '';
   };
 
+  // "Private upload": one file into this admin's own private space (member
+  // logins Phase 7) instead of the brain; it opens in the Private view.
+  const privateInputRef = useRef<HTMLInputElement>(null);
+  const onPrivateFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const href = await uploadPrivateFile(f);
+      toast.success(`Uploaded ${f.name} to your private files`);
+      router.push(href);
+    } catch (err) {
+      toast.error(
+        refusalMessage(err) ?? (err instanceof Error ? err.message : 'Could not upload the file'),
+      );
+    }
+  };
+
   // ─── Drag-drop ───────────────────────────────────────────────────
   const [dragOver, setDragOver] = useState(false);
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -464,7 +486,8 @@ function FilesView({
              does not — without it the tinted background stops wherever the
              tree happens to end. */
           <aside className="flex h-full flex-col bg-muted/20">
-            <div className="border-b border-border p-2">
+            <div className="space-y-2 border-b border-border p-2">
+              <SpaceSwitch kind="file" value="brain" />
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -862,6 +885,13 @@ function FilesView({
                       >
                         <FileJson /> JSON file
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => privateInputRef.current?.click()}
+                        title={KEEP_PRIVATE_HELP}
+                      >
+                        <Lock /> Private upload
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
 
@@ -869,6 +899,12 @@ function FilesView({
                     <Upload /> Upload
                   </Button>
                   <input ref={fileInputRef} type="file" multiple hidden onChange={onFileInput} />
+                  <input
+                    ref={privateInputRef}
+                    type="file"
+                    hidden
+                    onChange={(e) => void onPrivateFileInput(e)}
+                  />
 
                   <div className="ml-auto flex items-center gap-1">
                     <Button

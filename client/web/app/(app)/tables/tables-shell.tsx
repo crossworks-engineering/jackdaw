@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -46,6 +46,9 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import { KeepPrivateField } from '@/components/member/keep-private-field';
+import { createPrivateItem } from '@/lib/admin-private';
 import { TableDetailClient } from './[id]/table-detail-client';
 import type { TableDetail, TableRow, TableSort } from '@mantle/content-core/table-model';
 
@@ -124,7 +127,10 @@ export function TablesShell() {
   const [searchInput, setSearchInput] = useState(query);
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  // "Keep private": the new table goes into this admin's private space, not the brain.
+  const [keepPrivate, setKeepPrivate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<TableRow | null>(null);
 
   // The list's collapse, restored after hydration. The effect below already
@@ -171,6 +177,7 @@ export function TablesShell() {
 
   const openCreate = () => {
     setNewTitle('');
+    setKeepPrivate(false);
     setCreateOpen(true);
   };
 
@@ -179,6 +186,12 @@ export function TablesShell() {
     if (!title) return;
     setCreating(true);
     try {
+      if (keepPrivate) {
+        const href = await createPrivateItem('table', { title });
+        setCreateOpen(false);
+        router.push(href);
+        return;
+      }
       const { table } = await apiSend<{ table: TableDetail }>('/api/tables', 'POST', { title });
       setCreateOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['tables'] });
@@ -276,6 +289,7 @@ export function TablesShell() {
         list={
           <>
             <div className="space-y-3 border-b border-border p-3">
+              <SpaceSwitch kind="table" value="brain" />
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <Search
@@ -488,6 +502,7 @@ export function TablesShell() {
               if (e.key === 'Enter') void createTable();
             }}
           />
+          <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
