@@ -563,5 +563,6 @@ describe('member autosave: a table after a lost batch', () => {
     expect(ui).toMatch(/plan === 'rebase'\) \{\s*void reloadRef\.current\(undefined, \{ keepWorking: true \}\)/);
     expect(ui).toMatch(/if \(!keep\) \{\s*setDoc\(fresh\);\s*docRef\.current = fresh;/);
     expect(ui).toContain('if (keep && queue.isDirty()) queue.changed();');
+    expect(ui).toContain('const keep = opts.keepWorking === true && t.tabId === tabRef.current;');
   });
 });
