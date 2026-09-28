@@ -33,13 +33,15 @@ describe('every tab says when its load failed', () => {
 
   it('shows the bare Loading only inside TabPending', () => {
     expect(page.match(/<Loading \/>/g)).toHaveLength(1);
-    expect(page).toMatch(/query\.isError \? \(\s*<LoadError/);
+    expect(page).toMatch(/query\.isError \? \(?\s*<LoadError/);
   });
 });
 
 describe('the tab strip at phone width', () => {
   it('scrolls sideways with a thin scrollbar', () => {
-    expect(page).toMatch(/aria-label="Team admin"\s+className="[^"]*overflow-x-auto[^"]*scrollbar-thin/);
+    expect(page).toMatch(
+      /aria-label="Team admin"\s+className="[^"]*overflow-x-auto[^"]*scrollbar-thin/,
+    );
   });
 });
 

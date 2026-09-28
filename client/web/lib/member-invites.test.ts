@@ -177,7 +177,13 @@ describe('acceptOutcome', () => {
 });
 
 describe('contactLoginId', () => {
-  const row = (over: Partial<{ contactId: string | null; state: 'open' | 'redeemed' | 'expired'; redeemedLoginId: string | null }>) => ({
+  const row = (
+    over: Partial<{
+      contactId: string | null;
+      state: 'open' | 'redeemed' | 'expired';
+      redeemedLoginId: string | null;
+    }>,
+  ) => ({
     contactId: 'c1',
     state: 'open' as const,
     redeemedLoginId: null,
@@ -201,7 +207,9 @@ describe('contactLoginId', () => {
       fileURLToPath(new URL('../components/team-admin/member-invites.tsx', import.meta.url)),
       'utf8',
     );
-    expect(ui).toContain('const loginId = contactLoginId(useMemberInvites().data?.invites, contactId);');
+    expect(ui).toContain(
+      'const loginId = contactLoginId(useMemberInvites().data?.invites, contactId);',
+    );
     expect(ui).toMatch(/if \(loginId\) \{\s*return \(\s*<Link/);
     expect(ui).toContain('ariaLabel="Copy the invite link"');
     expect(ui).toContain('ariaLabel="Copy the code"');

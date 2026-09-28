@@ -482,7 +482,9 @@ describe('member autosave: asking before leaving', () => {
       'utf8',
     );
     expect(hook).toContain("window.addEventListener('beforeunload', onBeforeUnload)");
-    expect(hook).toMatch(/if \(!leaveNeedsWarning\(queue\.state\(\), queue\.isDirty\(\)\)\) return;/);
+    expect(hook).toMatch(
+      /if \(!leaveNeedsWarning\(queue\.state\(\), queue\.isDirty\(\)\)\) return;/,
+    );
     expect(hook).toContain('e.preventDefault();');
   });
 });
@@ -560,7 +562,9 @@ describe('member autosave: a table after a lost batch', () => {
       'utf8',
     );
     expect(ui).toContain('const plan = tableFailurePlan(failure);');
-    expect(ui).toMatch(/plan === 'rebase'\) \{\s*void reloadRef\.current\(undefined, \{ keepWorking: true \}\)/);
+    expect(ui).toMatch(
+      /plan === 'rebase'\) \{\s*void reloadRef\.current\(undefined, \{ keepWorking: true \}\)/,
+    );
     expect(ui).toMatch(/if \(!keep\) \{\s*setDoc\(fresh\);\s*docRef\.current = fresh;/);
     expect(ui).toContain('if (keep && queue.isDirty()) queue.changed();');
     expect(ui).toContain('const keep = opts.keepWorking === true && t.tabId === tabRef.current;');

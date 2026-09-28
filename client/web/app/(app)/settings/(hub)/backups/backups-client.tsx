@@ -194,10 +194,10 @@ function BackupsView({ data }: { data: BackupsData }) {
               />
               <p className="text-xs text-muted-foreground">
                 Leave empty for the default shown above. Your files and attachments (
-                <code>data/files</code> and <code>data/rustfs</code> (<code>data/minio</code> on older
-                installs); <code>data/forum-uploads</code> only on a brain that ran the retired team
-                forum, and nothing reads it now) already live on disk beside it. Include them in
-                your offsite copy.
+                <code>data/files</code> and <code>data/rustfs</code> (<code>data/minio</code> on
+                older installs); <code>data/forum-uploads</code> only on a brain that ran the
+                retired team forum, and nothing reads it now) already live on disk beside it.
+                Include them in your offsite copy.
               </p>
             </div>
             <div className="flex items-center gap-3">

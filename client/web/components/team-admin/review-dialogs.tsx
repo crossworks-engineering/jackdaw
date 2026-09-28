@@ -155,7 +155,10 @@ export function AcceptIntoBrainDialog({
     queryFn: () => apiFetch<{ pages: PageRow[] }>(`/api/pages?q=${encodeURIComponent(q)}`),
     enabled: open && item.type === 'page' && q.length > 1,
   });
-  const parentChoices = [{ id: TOP, title: 'Top of Pages' }, ...(pages.data?.pages ?? []).slice(0, 8)];
+  const parentChoices = [
+    { id: TOP, title: 'Top of Pages' },
+    ...(pages.data?.pages ?? []).slice(0, 8),
+  ];
   // What is shown is what is sent: a parent a new search hid is dropped.
   const parentId = shownParent(
     parent,

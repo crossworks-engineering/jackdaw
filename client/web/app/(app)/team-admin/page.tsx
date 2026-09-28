@@ -61,11 +61,7 @@ import {
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
-import {
-  canReplyToRequest,
-  requestChatHref,
-  type TeamRequestWithLogin,
-} from '@/lib/team-requests';
+import { canReplyToRequest, requestChatHref, type TeamRequestWithLogin } from '@/lib/team-requests';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -160,11 +156,7 @@ function TabPending({
 }) {
   return (
     <Tab active={active}>
-      {query.isError ? (
-        <LoadError what={what} onRetry={() => void query.refetch()} />
-      ) : (
-        <Loading />
-      )}
+      {query.isError ? <LoadError what={what} onRetry={() => void query.refetch()} /> : <Loading />}
     </Tab>
   );
 }

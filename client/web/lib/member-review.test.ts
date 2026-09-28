@@ -90,7 +90,9 @@ describe('the accept dialog: the parent page', () => {
       fileURLToPath(new URL('../components/team-admin/review-dialogs.tsx', import.meta.url)),
       'utf8',
     );
-    expect(ui).toContain("parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,");
+    expect(ui).toContain(
+      "parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,",
+    );
     expect(ui).toMatch(/value=\{parentId\}/);
     expect(ui).toMatch(/onClick=\{\(\) => void bundle\.refetch\(\)\}\s*>\s*Retry/);
     expect(ui).toContain('<Label id="review-level-label">Who can see it</Label>');

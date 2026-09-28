@@ -55,12 +55,7 @@ import { SearchPalette } from '@/components/search/search-palette';
 import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
 import { ViewerRoleProvider, type ViewerRole } from '@/components/member/viewer-role';
 import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
-import {
-  clearRescues,
-  rescueOwnerFor,
-  setRescueOwner,
-  sweepRescues,
-} from '@/lib/member-rescue';
+import { clearRescues, rescueOwnerFor, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
 import { onSignOut } from '@mantle/web-ui/sign-out';
 
 /**

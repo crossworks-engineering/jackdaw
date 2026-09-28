@@ -26,9 +26,7 @@ const LIST_NAME: Record<string, string> = {
 export function MemberGoToList({ path, id }: { path?: string; id: string }) {
   const router = useRouter();
   // What became of which id (a new id, or Try again, starts over).
-  const [outcome, setOutcome] = useState<{ id: string; state: 'missing' | 'failed' } | null>(
-    null,
-  );
+  const [outcome, setOutcome] = useState<{ id: string; state: 'missing' | 'failed' } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const state = outcome?.id === id ? outcome.state : null;
   useEffect(() => {
