@@ -19,6 +19,7 @@ import type {
   NodeComment,
 } from '@mantle/client-types';
 import { formatBytes } from './upload-progress';
+import { dropRescue, keepRescue } from './member-rescue';
 
 export type SpaceKind = MemberItemKind;
 export type SpaceSharing = MemberSpaceSharing;
@@ -137,14 +138,23 @@ const KEEPALIVE_MAX_BYTES = 60_000;
  * visibilitychange) reach the brain instead of being cancelled with the
  * page. Bigger bodies go without it, as every write did before.
  */
-function sendAutosave<T>(path: string, method: 'PUT' | 'PATCH', body: unknown): Promise<T> {
+async function sendAutosave<T>(path: string, method: 'PUT' | 'PATCH', body: unknown): Promise<T> {
   const text = JSON.stringify(body);
-  return apiFetch<T>(path, {
-    method,
-    headers: { 'content-type': 'application/json' },
-    body: text,
-    keepalive: new TextEncoder().encode(text).length < KEEPALIVE_MAX_BYTES,
-  });
+  const keepalive = new TextEncoder().encode(text).length < KEEPALIVE_MAX_BYTES;
+  // Too big to outlive the page: keep a copy until the brain answers, so a
+  // reload that cuts it off is sent on the next open (lib/member-rescue.ts).
+  if (!keepalive) keepRescue(path, { method, body: text, at: Date.now() });
+  try {
+    return await apiFetch<T>(path, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: text,
+      keepalive,
+    });
+  } finally {
+    // Answered (either way): the queue owns what happens next.
+    if (!keepalive) dropRescue(path);
+  }
 }
 
 export const memberSpace = {

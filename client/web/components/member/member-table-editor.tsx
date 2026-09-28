@@ -78,10 +78,12 @@ export function MemberTableEditor({
     return { rev: res.draft_rev };
   };
 
-  /** A refused op (400) would fail every later diff from the same base:
-   *  take the brain's copy of the tab as the base again. */
+  /** A refused op (400) would fail every later diff from the same base, and
+   *  a conflict may mean the last batch is already in (a lost response):
+   *  take the brain's copy of the tab as the base again rather than send the
+   *  same ops twice. */
   const onFailure = (failure: SaveFailure) => {
-    if (failure.kind === 'invalid' && failure.status === 400) {
+    if ((failure.kind === 'invalid' && failure.status === 400) || failure.kind === 'conflict') {
       toast.error('Reloaded the latest copy of this table.');
       void reloadRef.current().catch(() => undefined);
     }
@@ -94,6 +96,8 @@ export function MemberTableEditor({
     rev: initial.draftRev ?? 0,
     send: sendDraft,
     debounceMs: DRAFT_DEBOUNCE_MS,
+    // Ops are a diff from the base: never re-send them on a new etag.
+    adoptConflicts: false,
     onFailure,
     onSaved: () => {
       hasDraftRef.current = true;

@@ -7,6 +7,7 @@ import {
   createAutosaveQueue,
   memberSavesSettled,
   trackMemberSaves,
+  type AutosaveOptions,
   type AutosaveSend,
   type AutosaveState,
 } from './member-autosave';
@@ -34,7 +35,10 @@ const tick = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
-function setup(send: AutosaveSend<Doc>, extra: { maxWaitMs?: number } = {}) {
+function setup(
+  send: AutosaveSend<Doc>,
+  extra: Partial<Pick<AutosaveOptions<Doc>, 'maxWaitMs' | 'adoptConflicts' | 'onFailure'>> = {},
+) {
   let doc: Doc = { text: 'a' };
   const states: AutosaveState[] = [];
   const q = createAutosaveQueue<Doc>({
@@ -210,6 +214,23 @@ describe('member autosave: 409 and network failures', () => {
     expect(send).toHaveBeenCalledTimes(2); // stopped: no more writes
     q.reset({ text: 'server' }, 11);
     expect(q.state()).toEqual({ status: 'pending' });
+  });
+
+  it('a diffing sender (adoptConflicts: false) never re-sends on a new etag', async () => {
+    // A lost response then a 409: the first batch may already be in, so the
+    // same ops again would apply twice. The conflict goes to the editor.
+    const send = vi
+      .fn<AutosaveSend<Doc>>()
+      .mockRejectedValueOnce(new ApiError('changed', 409, { current_rev: 7 }));
+    const failures: unknown[] = [];
+    const { q, type } = setup(send, { adoptConflicts: false, onFailure: (f) => failures.push(f) });
+    type('mine');
+    await expect(q.flush()).resolves.toBe(false);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(failures).toEqual([{ kind: 'conflict', currentRev: 7 }]);
+    expect(q.state().status).toBe('stopped');
+    q.reset({ text: 'server' }, 7);
+    expect(q.state().status).not.toBe('stopped');
   });
 
   it('a state refusal (409 frozen) stops at once, no retry', async () => {

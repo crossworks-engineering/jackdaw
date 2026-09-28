@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
+import { replayRescue } from '@/lib/member-rescue';
 import { commentsOpen, isEditable, memberSpace, type SpaceItem } from '@/lib/member-space';
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
 import { SpaceComments } from './space-comments';
@@ -42,6 +43,8 @@ export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
     // typed before it left: read after that save, not before it.
     queryFn: async () => {
       await memberSavesSettled(id);
+      // A big save a reload cut off last time goes first (member-rescue.ts).
+      await replayRescue(id);
       return memberSpace.get('mine', id);
     },
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,

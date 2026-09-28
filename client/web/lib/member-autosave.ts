@@ -78,6 +78,12 @@ export type AutosaveOptions<T> = {
   onFailure?: (failure: SaveFailure) => void;
   /** After every successful write of the draft. */
   onSaved?: () => void;
+  /** Re-send on top of the brain's etag after a stale-etag 409 (default
+   *  true). A sender that writes a DIFF from `base` (the table's ops) passes
+   *  false: after a lost response the first batch may already be in, and the
+   *  same ops again would add a row twice. The conflict then goes to
+   *  onFailure, and the editor reloads the brain's copy (reset). */
+  adoptConflicts?: boolean;
 };
 
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 2000, 4000, 8000, 15000, 30000];
@@ -230,7 +236,12 @@ export function createAutosaveQueue<T>(opts: AutosaveOptions<T>): AutosaveQueue<
         return { ok: true };
       } catch (err) {
         const failure = classifySaveError(err);
-        if (failure.kind === 'conflict' && !adopted && failure.currentRev !== undefined) {
+        if (
+          failure.kind === 'conflict' &&
+          !adopted &&
+          failure.currentRev !== undefined &&
+          opts.adoptConflicts !== false
+        ) {
           rev = failure.currentRev;
           adopted = true;
           continue;

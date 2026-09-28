@@ -38,6 +38,7 @@ export function useMemberAutosave<T>({
   onState,
   onFailure,
   onSaved,
+  adoptConflicts,
 }: {
   id: string;
   read: () => T;
@@ -50,6 +51,7 @@ export function useMemberAutosave<T>({
   onState?: (state: AutosaveState) => void;
   onFailure?: (failure: SaveFailure) => void;
   onSaved?: () => void;
+  adoptConflicts?: boolean;
 }): AutosaveQueue<T> {
   const toast = useToast();
   const latest = useRef({ read, send, keyOf, onState, onFailure, onSaved, toast });
@@ -86,6 +88,7 @@ export function useMemberAutosave<T>({
       },
       onFailure: (f) => latest.current.onFailure?.(f),
       onSaved: () => latest.current.onSaved?.(),
+      adoptConflicts,
     });
     trackMemberSaves(id, queueRef.current as AutosaveQueue<unknown>);
   }
