@@ -283,6 +283,11 @@ jobs:
             titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }} \
             sh -c "pnpm -C packages/db migrate && pnpm -C server/web pgboss:init && pnpm -C server/api provision && pnpm -C packages/storage objectstore:ensure"
 
+      # MANTLE_SPACES_ROOT: a production brain refuses personal-space file
+      # writes without it (503, so the bytes never land in the container
+      # layer); member-smoke.spec.ts uploads into a member's Mine. The runner
+      # dies with the brain, so a path inside the container is durable enough.
+      #
       # CORS is not optional: MANTLE_API_CORS_ORIGINS must name the client origin
       # or every browser spec fails on CORS while the API-only ones pass — a
       # split that reads like an auth bug. MANTLE_CLIENT_ORIGIN names it too:
@@ -303,6 +308,7 @@ jobs:
             -e MANTLE_CLIENT_ORIGIN='http://localhost:3901' \
             -e BROWSER_WS_ENDPOINT='ws://localhost:3000?token=mantle' \
             -e MANTLE_PRINT_ORIGIN='http://localhost:3900' \
+            -e MANTLE_SPACES_ROOT=/tmp/mantle-spaces \
             titanwest/mantle-server:${{ vars.E2E_SERVER_IMAGE_TAG || 'latest' }}
           for i in $(seq 1 60); do
             curl -sf -o /dev/null http://localhost:3900/api/version && break
