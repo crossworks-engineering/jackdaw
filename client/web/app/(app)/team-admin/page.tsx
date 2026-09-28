@@ -31,6 +31,7 @@ import type {
   ForumMemberActivity,
   ForumMemberPost,
   ForumAuthoredTopic,
+  MemberChatsResponse,
 } from '@mantle/client-types';
 import { SharedLinksPanel, type SharedLinkRow } from '@/components/share/shared-links-panel';
 import { HubAppPicker } from '@/components/team-chat/hub-app-picker';
@@ -96,23 +97,6 @@ type ArchiveMessage = {
 };
 
 type AccessRow = { id: string; kind: string; detail: unknown; createdAt: string };
-
-/** GET /api/team-admin/member-chats: one member login and its chat. */
-type MemberChatRow = {
-  loginId: string;
-  name: string;
-  email: string;
-  active: boolean;
-  lastMessageAt: string | null;
-  lastMessageText: string | null;
-  lastMessageDirection: 'inbound' | 'outbound' | null;
-  messageCount: number;
-};
-
-type MemberChatsResponse = {
-  members: MemberChatRow[];
-  selected: { loginId: string; thread: ArchiveMessage[]; windowSize: number } | null;
-};
 
 type MembersResponse = {
   badges: Badges;

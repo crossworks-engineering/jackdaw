@@ -1,5 +1,9 @@
 import type { HubData, HubNavTarget } from '@mantle/share-ui/app-bridge-protocol';
-import type { AppTint } from '@mantle/client-types/app-nav';
+import type {
+  MemberAppCard,
+  MemberAppList,
+  MemberHomeData as ContractHomeData,
+} from '@mantle/client-types';
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 
 /**
@@ -8,32 +12,14 @@ import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
  * run-only tool and db brokers. Members never create, edit or share an app,
  * so nothing here reaches an owner /api/apps route.
  *
- * Types hand-copied from mantle @mantle/content member-apps.ts and
- * app/api/member/{apps,home}/route.ts (like lib/member-space.ts).
+ * The wire types come from the contract (@mantle/client-types, brains from
+ * 0.232.289); the hub payload is share-ui's HubData.
  */
 
-/** One launcher card (GET /api/member/apps). */
-export type MemberAppCard = {
-  id: string;
-  title: string;
-  icon: string | null;
-  color: AppTint | null;
-  description: string | null;
-  audience: 'team' | 'client' | 'public';
-  updatedAt: string;
-};
+export type { MemberAppCard, MemberAppList };
 
-export type MemberAppList = { apps: MemberAppCard[]; homeAppId: string | null };
-
-/** GET /api/member/home: the pinned home app (null = the built-in home, and
- *  then `hub` is null too) and what its `host.hub.get()` answers. A section's
- *  token is a page id; an app card's token is an app id. */
-export type MemberHomeData =
-  | {
-      homeApp: { appId: string; title: string; icon: string | null; color: AppTint | null };
-      hub: HubData;
-    }
-  | { homeApp: null; hub: null };
+/** GET /api/member/home with the hub typed as the app bridge's HubData. */
+export type MemberHomeData = ContractHomeData<HubData>;
 
 /** The `apiBase` + `fetcher` a member's AppSandbox needs: the member routes,
  *  on the brain's origin, with the member's credential (`withAuth`: the
