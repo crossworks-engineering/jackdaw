@@ -16,8 +16,8 @@
  *
  * The team-code portal (/team, /hub) and its forum are retired (member logins
  * Phase 6): the Topics tab, the forum columns and the upload queue went with
- * them. The forum's tables stay until a later stage, so the Code holders tab
- * carries the Export to Pages banner until then. The brain still answers
+ * them. The forum's tables are dropped (brain migration 0177); its content
+ * lives on as the admin-level Forum archive pages. The brain still answers
  * `forum`, `posts`, `authored` and `uploads` on these routes, always empty,
  * for one contract cycle; this page no longer reads them.
  *
@@ -55,7 +55,6 @@ import {
 } from 'lucide-react';
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
-import { ForumArchiveBanner } from '@/components/team-admin/forum-archive-export';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
@@ -417,9 +416,6 @@ function MembersTab({ contact }: { contact?: string }) {
 
   return (
     <Tab active="members" badges={data.badges}>
-      {/* The forum is closed and its tables stay until a later stage: the
-          export to Pages lives here, over the people who wrote it, until then. */}
-      <ForumArchiveBanner />
       <MasterDetail
         // Its OWN key, not one shared with Member chats: the two tabs list
         // different things at different lengths, so a width dragged for one
