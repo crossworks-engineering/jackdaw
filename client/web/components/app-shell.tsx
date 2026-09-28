@@ -49,6 +49,8 @@ import { TourProvider } from '@/components/tour/tour-provider';
 import { TourOverlay } from '@/components/tour/tour-overlay';
 import { PendingQuestionWatcher } from '@/components/pending/question-watcher';
 import { DesktopBridge } from '@/components/desktop/desktop-bridge';
+import { NeedsYouBanner } from '@/components/needs-you/needs-you-banner';
+import { NeedsYouWatcher } from '@/components/needs-you/needs-you-watcher';
 import { PickMode } from '@/components/assistant/pick-mode';
 import { ZenModeContext } from '@/components/layout/zen-mode';
 import { SearchPalette } from '@/components/search/search-palette';
@@ -557,6 +559,9 @@ function ShellFrame({
                 view (a member whose hint cookie is gone). An admin whose
                 shell failed for any other reason still sees it. */}
             {shellSettledAsAdmin ? <UpdateBanner onNavigate={onNavigate} /> : null}
+            {/* What waits for an admin (Review, Requests), live. Same gate:
+                the count route refuses a member. */}
+            {shellSettledAsAdmin ? <NeedsYouBanner onNavigate={onNavigate} /> : null}
             <SidebarNav
               pendingApprovals={pendingApprovals}
               onNavigate={onNavigate}
@@ -740,6 +745,9 @@ function ShellFrame({
             an "Answer" action that opens the assistant. Renders nothing. */}
             <PendingQuestionWatcher />
             <DesktopBridge />
+            {/* Headless: never blind to work waiting (toast, tab title and
+            favicon, browser notification opt-in, desktop dock). */}
+            {shellSettledAsAdmin ? <NeedsYouWatcher /> : null}
           </>
         )}
 

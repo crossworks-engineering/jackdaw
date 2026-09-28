@@ -67,7 +67,8 @@ export function useReviewQueue() {
   return useQuery({
     queryKey: QUEUE_KEY,
     queryFn: memberReview.queue,
-    // No realtime event reaches an admin for a member's submit: poll gently.
+    // The needs-you live event refreshes this (use-needs-you.ts); the poll
+    // is the safety net for a change missed during a reconnect.
     refetchInterval: 60_000,
   });
 }

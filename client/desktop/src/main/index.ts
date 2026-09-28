@@ -19,6 +19,7 @@ import {
   utilityProcess,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { attentionMode, safeInAppPath } from './attention';
 
 /**
  * Jackdaw desktop — shell around the owner UI.
@@ -492,14 +493,42 @@ type AddResult = { ok: true; profile: Profile } | { ok: false; error: string };
 function registerIpc(): void {
   ipcMain.handle('shell:info', () => ({ version: app.getVersion() }));
 
-  // Fired by the UI's DesktopBridge (client/web/components/desktop) — only
-  // while its window is hidden, so a notification is a "come back" signal.
-  ipcMain.on('desktop:notify', (_event, payload: { title?: unknown; body?: unknown }) => {
-    const title = typeof payload?.title === 'string' ? payload.title.slice(0, 120) : 'Mantle';
-    const body = typeof payload?.body === 'string' ? payload.body.slice(0, 300) : undefined;
-    const notification = new Notification({ title, body, icon: ICON_PATH });
-    notification.on('click', focusOrOpen);
-    notification.show();
+  // Fired by the UI's DesktopBridge and NeedsYouWatcher — only while its
+  // window is not in front, so a notification is a "come back" signal. A
+  // `path` (an in-app path) opens in the window that sent it on click.
+  ipcMain.on(
+    'desktop:notify',
+    (event, payload: { title?: unknown; body?: unknown; path?: unknown }) => {
+      const title = typeof payload?.title === 'string' ? payload.title.slice(0, 120) : 'Mantle';
+      const body = typeof payload?.body === 'string' ? payload.body.slice(0, 300) : undefined;
+      const path = safeInAppPath(payload?.path);
+      const sender = BrowserWindow.fromWebContents(event.sender);
+      const notification = new Notification({ title, body, icon: ICON_PATH });
+      notification.on('click', () => {
+        if (!sender || sender.isDestroyed()) return focusOrOpen();
+        if (sender.isMinimized()) sender.restore();
+        sender.show();
+        sender.focus();
+        if (path) sender.webContents.send('desktop:navigate', path);
+      });
+      notification.show();
+    },
+  );
+
+  // "Needs you" (NeedsYouWatcher): ask for attention until the window that
+  // asked is focused. macOS: a critical dock bounce (it bounces until the app
+  // is activated). Linux: the taskbar entry flashes until focused.
+  ipcMain.on('desktop:attention', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    const mode = attentionMode(process.platform, win.isFocused());
+    if (mode === 'bounce') {
+      const id = app.dock?.bounce('critical');
+      if (id !== undefined) win.once('focus', () => app.dock?.cancelBounce(id));
+    } else if (mode === 'flash') {
+      win.flashFrame(true);
+      win.once('focus', () => win.flashFrame(false));
+    }
   });
 
   ipcMain.on('desktop:badge', (_event, count: unknown) => {

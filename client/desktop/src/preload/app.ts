@@ -9,8 +9,9 @@ import { contextBridge, ipcRenderer } from 'electron';
  *    are read-only in the main world, and the shell additionally neutralizes
  *    the served /env.js, so this value is authoritative.
  * 2. Exposes window.mantleDesktop — the small desktop API the UI's
- *    DesktopBridge component (client/web/components/desktop) feature-detects:
- *    OS notifications and a dock/taskbar badge.
+ *    DesktopBridge and NeedsYouWatcher components feature-detect: OS
+ *    notifications (a click can open an in-app path), a dock/taskbar badge,
+ *    and asking for attention (dock bounce, taskbar flash).
  */
 const flag = '--mantle-env=';
 const arg = process.argv.find((a) => a.startsWith(flag));
@@ -25,9 +26,21 @@ if (arg) {
 
 contextBridge.exposeInMainWorld('mantleDesktop', {
   platform: process.platform,
-  notify: (payload: { title: string; body?: string }) =>
+  notify: (payload: { title: string; body?: string; path?: string }) =>
     ipcRenderer.send('desktop:notify', payload),
   setBadge: (count: number) => ipcRenderer.send('desktop:badge', count),
+  // Bounce the dock (macOS) or flash the taskbar (Linux) until focused.
+  attention: () => ipcRenderer.send('desktop:attention'),
+  // A notification click asks the UI to open an in-app path.
+  onNavigate: (cb: (path: string) => void) => {
+    const handler = (_event: unknown, path: unknown) => {
+      if (typeof path === 'string') cb(path);
+    };
+    ipcRenderer.on('desktop:navigate', handler);
+    return () => {
+      ipcRenderer.removeListener('desktop:navigate', handler);
+    };
+  },
   // OS-keychain-backed bearer storage (packages/web-ui token-store detects
   // this and stops using localStorage). get() is a sync round-trip to main —
   // sub-millisecond, and always fresh across windows.

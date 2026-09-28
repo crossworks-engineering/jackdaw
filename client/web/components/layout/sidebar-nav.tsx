@@ -1,8 +1,9 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Search, Star, X } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -42,12 +43,16 @@ export function SidebarNav({
   collapsed?: boolean;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [query, setQuery] = useState('');
   // Live pending-approval badge: when a tool call is queued/approved/rejected
   // anywhere (a chat turn, a heartbeat fire, a Telegram tap), the realtime
   // bridge pings us and we refetch the server-computed count. No polling.
-  useRealtime(['pending_tool_call'], () => router.refresh());
+  // The count lives in the ['shell'] query (app-shell.tsx), which a
+  // router.refresh() never refetched: invalidate the query itself.
+  const queryClient = useQueryClient();
+  useRealtime(['pending_tool_call'], () => {
+    void queryClient.invalidateQueries({ queryKey: ['shell'] });
+  });
 
   const { favorites, isFavorite, toggleFavorite } = useNavFavorites();
   const { scope, setScope } = useNavScope();

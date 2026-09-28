@@ -7,8 +7,17 @@
  */
 export type DesktopShellApi = {
   platform: string;
-  notify(payload: { title: string; body?: string }): void;
+  /** A native notification. `path` (an in-app path, newer shells) is opened
+   *  in this window when the notification is clicked. */
+  notify(payload: { title: string; body?: string; path?: string }): void;
   setBadge(count: number): void;
+  /** Ask for attention until the window is focused: the dock bounces
+   *  (macOS, critical) or the taskbar flashes (Linux). Optional: older shells
+   *  predate it. */
+  attention?(): void;
+  /** Register the in-app navigation a notification click asks for; returns
+   *  the unsubscribe. Optional: older shells predate it. */
+  onNavigate?(cb: (path: string) => void): () => void;
   /** OS-keychain-backed bearer storage (Electron safeStorage). Optional:
    *  older shells predate it, and callers must fall back to localStorage. */
   tokenVault?: {

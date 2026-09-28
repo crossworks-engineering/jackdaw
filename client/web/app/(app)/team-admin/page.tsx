@@ -28,6 +28,8 @@
  * the old Code holders URL (/team-admin, ?contact=), and an old ?view=topics
  * link lands on it too.
  */
+import { useNeedsYou } from '@/components/needs-you/use-needs-you';
+import { requestsOpen, reviewWaiting } from '@/lib/needs-you';
 import Link from 'next/link';
 import { use, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -168,8 +170,14 @@ function TeamTabs({
   active: 'members' | 'invites' | 'chats' | 'review' | 'requests' | 'shares' | 'settings';
   openRequestCount: number;
 }) {
+  // The brain's live counts (the same numbers as the rail notice), so every
+  // tab shows both badges; the queue and this tab's own answer stand in
+  // until they load, or on a brain that predates the count.
   // Waiting items only: what deactivated logins left behind is not urgent.
-  const reviewCount = useReviewQueue().data?.counts.submitted ?? 0;
+  const needsYou = useNeedsYou();
+  const queued = useReviewQueue().data?.counts.submitted ?? 0;
+  const reviewCount = needsYou ? reviewWaiting(needsYou) : queued;
+  const requestCount = needsYou ? requestsOpen(needsYou) : openRequestCount;
   const tab = (label: string, href: string, isActive: boolean, badge?: number) => (
     <Link
       href={href}
@@ -202,7 +210,7 @@ function TeamTabs({
       {tab('Invites', '/team-admin?view=invites', active === 'invites')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
       {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
-      {tab('Requests', '/team-admin?view=requests', active === 'requests', openRequestCount)}
+      {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Settings', '/team-admin?view=settings', active === 'settings')}
     </nav>

@@ -54,6 +54,7 @@ import { MemberPasswordDialog } from '@/components/member/member-password-dialog
 import { useTour } from '@/components/tour/tour-provider';
 import { MEMBER_TOUR_ID } from '@/lib/tour/tours';
 import { EVERYWHERE_CONFIRM, signOutEverywhere } from '@/lib/sign-out-everywhere';
+import { BrowserNotifyItem } from '@/components/needs-you/browser-notify-item';
 
 export type ProfileIdentity = {
   /** The actor's display name, when they have set one. */
@@ -312,6 +313,9 @@ export function ProfileMenu({
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
         </DropdownMenuSub>
+        {/* Admins: an OS notice when a member submits or files a request
+            while this tab is in the background. Opt-in, per browser. */}
+        {member ? null : <BrowserNotifyItem />}
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
