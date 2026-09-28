@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AccessItemView } from '@mantle/client-types';
 import {
+  AUDIENCE_TITLE,
+  LEVEL_MEANING,
   LEVEL_ORDER,
   closureAbove,
   closureBelow,
@@ -35,6 +37,16 @@ describe('access levels', () => {
 
   it('shows a link only at client and public', () => {
     expect(LEVEL_ORDER.filter(showsLink)).toEqual(['client', 'public']);
+  });
+
+  it('says a team item reaches members by their logins, not a link or the old workspace', () => {
+    // Team links and the team-code workspace are retired (member logins
+    // Phase 6 stage 6): members read a team item by level.
+    for (const text of [LEVEL_MEANING.team, AUDIENCE_TITLE.team]) {
+      expect(text).toMatch(/members/i);
+      expect(text).toMatch(/logins/);
+      expect(text).not.toMatch(/workspace|team-only|anyone with the link/i);
+    }
   });
 
   it('lists the closure items above a level', () => {

@@ -1,17 +1,12 @@
 import type { AccessLevel } from '@mantle/client-types';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { cn } from '@mantle/web-ui/lib/utils';
-
-const TITLE: Record<Exclude<AccessLevel, 'admin'>, string> = {
-  team: 'Team: members see it in the team workspace',
-  client: 'Client: anyone with the link can view it',
-  public: 'Public: anyone with the link can view it',
-};
+import { AUDIENCE_TITLE } from '@/lib/access-levels';
 
 /**
  * An item's access level on a card or a detail title. No badge at admin:
  * unlabelled means private, the quiet default. `hub` (apps only) wins: the
- * designated team hub renders full-screen at /team for members. Generalised
+ * designated home app, which a member login sees as its home. Generalised
  * from the apps screen's old ExposureBadge.
  */
 export function AudienceBadge({
@@ -27,7 +22,7 @@ export function AudienceBadge({
     return (
       <Badge
         className={cn('shrink-0', className)}
-        title="Designated Team Hub: renders full-screen at /team for members"
+        title="Home app: members see it as their home"
       >
         hub
       </Badge>
@@ -38,7 +33,7 @@ export function AudienceBadge({
     <Badge
       variant={level === 'team' ? 'secondary' : 'outline'}
       className={cn('shrink-0', className)}
-      title={TITLE[level]}
+      title={AUDIENCE_TITLE[level]}
     >
       {level}
     </Badge>

@@ -32,10 +32,11 @@ import {
 /**
  * The owner's Access control for one item: who can see it, as one level
  * (Admin / Team / Client / Public). The level is the truth and the server
- * keeps the item's share link in step: none at admin, a team-only link at
- * team (members open it from the team workspace), an open link at client and
- * public, which is the only time the link shows here. Replaces the old
- * ShareControl and its "Team members only" switch.
+ * keeps the item's share link in step: none at admin or team (members read a
+ * team item by level, signed in with their own logins), an open link at
+ * client and public, which is the only time the link shows here. Replaces the
+ * old ShareControl. There is no team link to make (member logins Phase 6
+ * stage 6): setting an item to Team is how it reaches members.
  *
  * Lowering an item does not lower what it embeds (a page's files and
  * drawings, a folder's contents). Those show as "still above" with one
