@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import { isAdminLoginRefusal, isMemberLoginRefusal, memberHome } from './member-destination';
+import {
+  isAdminLoginRefusal,
+  isClientLoginRefusal,
+  isLoginRefusal,
+  isMemberLoginRefusal,
+  loginRefusalReason,
+  memberHome,
+} from './member-destination';
 import { sendsMemberHome } from './member-surface';
 
 describe('memberHome', () => {
@@ -86,5 +93,46 @@ describe('the member nav', () => {
       if (item.chat) continue;
       expect(sendsMemberHome(item.href, []), item.href).toBe(false);
     }
+  });
+});
+
+describe('the client-login refusal (client logins C0)', () => {
+  const refused = (reason: string) =>
+    new ApiError('forbidden', 403, { error: 'forbidden', reason, message: 'x' });
+
+  it('names the caller for each of the three reasons, and nothing else', () => {
+    expect(loginRefusalReason(refused('member-login'))).toBe('member-login');
+    expect(loginRefusalReason(refused('admin-login'))).toBe('admin-login');
+    expect(loginRefusalReason(refused('client-login'))).toBe('client-login');
+    // A reason this app does not know, a bare proxy 403, the same reason on
+    // another status, or no ApiError at all: nobody is named.
+    expect(loginRefusalReason(refused('guest-login'))).toBeNull();
+    expect(loginRefusalReason(new ApiError('Forbidden', 403))).toBeNull();
+    expect(
+      loginRefusalReason(new ApiError('x', 400, { reason: 'client-links-retired' })),
+    ).toBeNull();
+    expect(loginRefusalReason(new ApiError('x', 401, { reason: 'client-login' }))).toBeNull();
+    expect(loginRefusalReason(new Error('client-login'))).toBeNull();
+    expect(loginRefusalReason(undefined)).toBeNull();
+  });
+
+  it('isClientLoginRefusal matches the client refusal only', () => {
+    expect(isClientLoginRefusal(refused('client-login'))).toBe(true);
+    expect(isClientLoginRefusal(refused('member-login'))).toBe(false);
+    expect(isClientLoginRefusal(refused('admin-login'))).toBe(false);
+    expect(isClientLoginRefusal(new ApiError('Forbidden', 403))).toBe(false);
+  });
+
+  it('a client refusal is never read as a member or an admin one', () => {
+    expect(isMemberLoginRefusal(refused('client-login'))).toBe(false);
+    expect(isAdminLoginRefusal(refused('client-login'))).toBe(false);
+  });
+
+  it('isLoginRefusal covers all three (no retry on any of them)', () => {
+    for (const r of ['member-login', 'admin-login', 'client-login']) {
+      expect(isLoginRefusal(refused(r)), r).toBe(true);
+    }
+    expect(isLoginRefusal(new ApiError('boom', 500))).toBe(false);
+    expect(isLoginRefusal(new ApiError('Forbidden', 403))).toBe(false);
   });
 });
