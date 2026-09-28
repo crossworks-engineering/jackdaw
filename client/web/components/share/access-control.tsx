@@ -95,7 +95,15 @@ export function AccessControl({
       });
     } catch (e) {
       if (current.current === id && !(e instanceof ApiError && e.status === 401)) {
-        toast.error(e instanceof Error ? e.message : 'Could not load who can see this');
+        // A brain older than 0.232.257 has no /api/access route at all: say
+        // what to do rather than a bare "not found" (audit MED 19).
+        toast.error(
+          e instanceof ApiError && e.status === 404
+            ? 'Levels need brain v0.232.257 or later, or this item is gone. Update the brain in Settings > Updates.'
+            : e instanceof Error
+              ? e.message
+              : 'Could not load who can see this',
+        );
       }
     }
     if (current.current === id) setState({ nodeId: id, view: next });
