@@ -22,6 +22,7 @@ import {
   MIN_PASSWORD,
   acceptOutcome,
   readInviteCode,
+  urlWithoutInviteCode,
   validateInviteForm,
   type InviteFormErrors,
 } from '@/lib/member-invites';
@@ -89,6 +90,11 @@ export function InviteClient({
   const [errors, setErrors] = useState<InviteFormErrors>({});
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
+  // Read once, the code leaves the address bar (and so the history).
+  useEffect(() => {
+    const clean = urlWithoutInviteCode(window.location.href);
+    if (clean !== null) window.history.replaceState(window.history.state, '', clean);
+  }, []);
   // The link's code is checked on arrival.
   useEffect(() => {
     const code = readInviteCode(initialCode);

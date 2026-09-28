@@ -12,10 +12,13 @@ export function CopyButton({
   value,
   label,
   className,
+  ariaLabel,
 }: {
   value: string;
   label?: string;
   className?: string;
+  /** What a screen reader hears, when a screen has more than one "Copy". */
+  ariaLabel?: string;
 }) {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
@@ -25,6 +28,7 @@ export function CopyButton({
       variant="ghost"
       size="sm"
       className={className ?? 'h-7 gap-1.5 px-2 text-xs'}
+      aria-label={ariaLabel}
       onClick={async () => {
         if (await copyText(value)) {
           setCopied(true);

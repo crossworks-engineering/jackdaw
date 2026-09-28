@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   CODE_NOT_VALID,
   acceptOutcome,
+  contactLoginId,
   inviteCreateErrorText,
   inviteLink,
   readInviteCode,
+  urlWithoutInviteCode,
   validateInviteForm,
 } from './member-invites';
 
@@ -100,6 +102,42 @@ describe('validateInviteForm', () => {
   it('needs the repeat to match', () => {
     expect(validateInviteForm({ ...ok, confirm: 'something-else' }).confirm).toMatch(/differ/);
   });
+
+  it('refuses over 1024 characters as too long, as the brain does (not as a bad code)', () => {
+    const long = 'x'.repeat(1025);
+    expect(validateInviteForm({ ...ok, password: long, confirm: long }).password).toBe(
+      'That password is too long.',
+    );
+    const max = 'x'.repeat(1024);
+    expect(validateInviteForm({ ...ok, password: max, confirm: max })).toEqual({});
+  });
+});
+
+describe('urlWithoutInviteCode', () => {
+  it('drops the code and keeps the rest of the address', () => {
+    expect(urlWithoutInviteCode('https://app.example.com/invite?code=AbCd2345efGH6789')).toBe(
+      '/invite',
+    );
+    expect(urlWithoutInviteCode('https://app.example.com/invite?code=a&x=1#top')).toBe(
+      '/invite?x=1#top',
+    );
+  });
+
+  it('leaves an address with no code alone', () => {
+    expect(urlWithoutInviteCode('https://app.example.com/invite')).toBeNull();
+  });
+
+  it('the invite page replaces the address with it on arrival', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const page = readFileSync(
+      fileURLToPath(new URL('../app/invite/invite-client.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(page).toMatch(
+      /const clean = urlWithoutInviteCode\(window\.location\.href\);\s*if \(clean !== null\) window\.history\.replaceState\(/,
+    );
+  });
 });
 
 describe('acceptOutcome', () => {
@@ -135,5 +173,38 @@ describe('acceptOutcome', () => {
       kind: 'error',
       message: 'Could not accept the invite. Try again.',
     });
+  });
+});
+
+describe('contactLoginId', () => {
+  const row = (over: Partial<{ contactId: string | null; state: 'open' | 'redeemed' | 'expired'; redeemedLoginId: string | null }>) => ({
+    contactId: 'c1',
+    state: 'open' as const,
+    redeemedLoginId: null,
+    ...over,
+  });
+
+  it("names the login a contact's accepted invite made", () => {
+    expect(contactLoginId([row({ state: 'redeemed', redeemedLoginId: 'L1' })], 'c1')).toBe('L1');
+  });
+
+  it('is null for an open or expired invite, another contact, or no list yet', () => {
+    expect(contactLoginId([row({}), row({ state: 'expired' })], 'c1')).toBeNull();
+    expect(contactLoginId([row({ state: 'redeemed', redeemedLoginId: 'L1' })], 'c2')).toBeNull();
+    expect(contactLoginId(undefined, 'c1')).toBeNull();
+  });
+
+  it('the Chat archive shows the login instead of Invite as member, and labels each button', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const ui = readFileSync(
+      fileURLToPath(new URL('../components/team-admin/member-invites.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(ui).toContain('const loginId = contactLoginId(useMemberInvites().data?.invites, contactId);');
+    expect(ui).toMatch(/if \(loginId\) \{\s*return \(\s*<Link/);
+    expect(ui).toContain('ariaLabel="Copy the invite link"');
+    expect(ui).toContain('ariaLabel="Copy the code"');
+    expect(ui).toContain('aria-label={`Revoke the invite for ${i.email}`}');
   });
 });

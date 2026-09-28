@@ -9,9 +9,10 @@
  * So /invite reads the raw answers and this module says what they mean. Pure,
  * so each wording and each split is pinned by a test.
  */
-import { MIN_PASSWORD } from './member-password';
+import type { MemberInviteRow } from '@mantle/client-types';
+import { MAX_PASSWORD, MIN_PASSWORD } from './member-password';
 
-export { MIN_PASSWORD };
+export { MAX_PASSWORD, MIN_PASSWORD };
 
 /** How long an invite lives, as the brain sets it (docs/member-logins.md §9). */
 export const INVITE_LIFETIME_HOURS = 72;
@@ -64,6 +65,22 @@ export function inviteCreateErrorText(
   return 'Could not create the invite. Try again.';
 }
 
+/**
+ * The member login a contact already has, as far as the invites show it (an
+ * accepted invite made for that contact), else null. A contact with one gets
+ * no "Invite as member": the brain would only refuse it (409). A login made
+ * another way is not in the list; the brain's refusal still says so then.
+ */
+export function contactLoginId(
+  invites: readonly Pick<MemberInviteRow, 'contactId' | 'state' | 'redeemedLoginId'>[] | undefined,
+  contactId: string,
+): string | null {
+  const hit = invites?.find(
+    (i) => i.contactId === contactId && i.state === 'redeemed' && i.redeemedLoginId,
+  );
+  return hit?.redeemedLoginId ?? null;
+}
+
 /** Shown when the preview answers 404: the code redeems nothing. */
 export const INVITE_NOT_VALID =
   'This invite is not valid or has expired. Ask your admin for a new one.';
@@ -71,6 +88,19 @@ export const INVITE_NOT_VALID =
 /** Shown when accept answers 401: the same words for every reason, as the
  *  brain gives the same answer for every reason. */
 export const CODE_NOT_VALID = 'That code is not valid. Ask your admin for a new invite.';
+
+/**
+ * The address to show once the link's code is read: the same, without
+ * `code`. A live invite code left in the address bar sits in the browser's
+ * history (and its sync) for the invite's 72 hours. Null when there is no
+ * code to drop.
+ */
+export function urlWithoutInviteCode(href: string): string | null {
+  const url = new URL(href);
+  if (!url.searchParams.has('code')) return null;
+  url.searchParams.delete('code');
+  return url.pathname + url.search + url.hash;
+}
 
 export type InviteForm = { code: string; password: string; confirm: string };
 export type InviteFormErrors = Partial<Record<keyof InviteForm, string>>;
@@ -82,6 +112,9 @@ export function validateInviteForm(f: InviteForm): InviteFormErrors {
   if (!f.password) errors.password = 'Choose a password.';
   else if (f.password.length < MIN_PASSWORD)
     errors.password = `Use at least ${MIN_PASSWORD} characters.`;
+  // The brain's own cap: above it the accept is refused as a bad request,
+  // which read as "That code is not valid".
+  else if (f.password.length > MAX_PASSWORD) errors.password = 'That password is too long.';
   if (!errors.password && f.confirm !== f.password) errors.confirm = 'The two passwords differ.';
   return errors;
 }

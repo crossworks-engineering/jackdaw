@@ -11,6 +11,7 @@
  * contact or email replaces the old one. Server: /api/team-admin/invites
  * (docs/member-logins.md §9 in the mantle repo).
  */
+import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MailPlus, UserPlus } from 'lucide-react';
@@ -52,7 +53,12 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { INVITE_LIFETIME_HOURS, inviteCreateErrorText, inviteLink } from '@/lib/member-invites';
+import {
+  INVITE_LIFETIME_HOURS,
+  contactLoginId,
+  inviteCreateErrorText,
+  inviteLink,
+} from '@/lib/member-invites';
 
 const INVITES_KEY = ['team-admin', 'invites'] as const;
 
@@ -180,6 +186,7 @@ export function InviteDialog({
                   <CopyButton
                     value={inviteLink(window.location.origin, created.linkPath)}
                     className="h-9 shrink-0 gap-1.5 px-3 text-sm"
+                    ariaLabel="Copy the invite link"
                   />
                 </div>
                 <FieldDescription id="invite-link-hint">
@@ -198,7 +205,11 @@ export function InviteDialog({
                     onFocus={(e) => e.currentTarget.select()}
                     aria-describedby="invite-code-hint"
                   />
-                  <CopyButton value={created.code} className="h-9 shrink-0 gap-1.5 px-3 text-sm" />
+                  <CopyButton
+                    value={created.code}
+                    className="h-9 shrink-0 gap-1.5 px-3 text-sm"
+                    ariaLabel="Copy the code"
+                  />
                 </div>
                 <FieldDescription id="invite-code-hint">
                   They can type it at /invite instead of opening the link. This is the only time the
@@ -283,9 +294,22 @@ export function InviteDialog({
   );
 }
 
-/** "Invite as member" for one contact, in the Chat archive detail header. */
+/** "Invite as member" for one contact, in the Chat archive detail header.
+ *  A contact whose invite was accepted has a login already: a link to its
+ *  Member chat instead. */
 export function InviteMemberButton({ contactId, name }: { contactId: string; name: string }) {
   const [open, setOpen] = useState(false);
+  const loginId = contactLoginId(useMemberInvites().data?.invites, contactId);
+  if (loginId) {
+    return (
+      <Link
+        href={`/team-admin?view=chats&login=${encodeURIComponent(loginId)}`}
+        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+      >
+        Has a member login →
+      </Link>
+    );
+  }
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
@@ -404,6 +428,7 @@ export function InvitesPanel() {
                     variant="outline"
                     size="sm"
                     className="shrink-0"
+                    aria-label={`Revoke the invite for ${i.email}`}
                     onClick={() => setRevoking(i)}
                   >
                     Revoke

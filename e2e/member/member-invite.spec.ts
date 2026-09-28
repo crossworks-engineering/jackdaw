@@ -46,7 +46,8 @@ test('a code that is not valid says so and stays; an old team code is one', asyn
   await expect(page.getByText('This invite is not valid or has expired.')).toBeVisible({
     timeout: 60_000,
   });
-  await expect(page).toHaveURL(/\/invite\?code=NotARealCode123$/);
+  // Read, the code leaves the address bar (and the history): stays on /invite.
+  await expect(page).toHaveURL(/\/invite$/);
   // The hint asks for the invite code only: team codes are gone (brain 0178).
   await expect(page.getByText('The 16-character code from your invite link.')).toBeVisible();
   await expect(page.getByText(/team code/i)).toHaveCount(0);
@@ -77,7 +78,7 @@ test('a code the brain refuses on accept shows the error and stays on the page',
   expect(api.inviteAccepts.map((a) => a.status)).toEqual([401]);
   // The 401 is the code's, not a dead session's: no trip to /login.
   await page.waitForTimeout(500);
-  await expect(page).toHaveURL(new RegExp(`/invite\\?code=${INVITE_STALE_CODE}$`));
+  await expect(page).toHaveURL(/\/invite$/);
   expect(api.tokenSignIns).toEqual([]);
   expect(api.adminCalls).toEqual([]);
 });
@@ -100,6 +101,10 @@ test('a good code with a password lands on the member home, signed in', async ({
   await setPasswords(page, 'short');
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
+  // Over the brain's 1024-character cap: said as such, not as a bad code.
+  await setPasswords(page, 'x'.repeat(1025));
+  await page.getByRole('button', { name: 'Join' }).click();
+  await expect(page.getByText('That password is too long.')).toBeVisible();
   await setPasswords(page, 'a-good-password', 'a-different-one');
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText('The two passwords differ.')).toBeVisible();
@@ -126,6 +131,6 @@ test('a signed-in browser is not sent away from /invite', async ({ page, context
   await signInAsMember(context, baseURL!);
   await page.goto(`/invite?code=${INVITE_GOOD_CODE}`);
   await expect(emailField(page)).toHaveValue(INVITE_EMAIL, { timeout: 60_000 });
-  await expect(page).toHaveURL(new RegExp(`/invite\\?code=${INVITE_GOOD_CODE}$`));
+  await expect(page).toHaveURL(/\/invite$/);
   expect(api.adminCalls).toEqual([]);
 });
