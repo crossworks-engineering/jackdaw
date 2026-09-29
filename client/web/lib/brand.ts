@@ -125,3 +125,19 @@ export function resolveLoginBrand(fields: BrandFields): LoginBrand {
 export function brandTitle(fields: BrandFields): string {
   return fields.siteName ?? fields.peerName ?? FALLBACK_NAME;
 }
+
+/**
+ * What a CLIENT surface calls this brain (the client sign-in page, the
+ * client portal's tab): the site name, else the product's. Never the peer
+ * name: that names a box, which is staff knowledge (client logins audit
+ * B27).
+ */
+export function clientTabTitle(fields: Pick<BrandFields, 'siteName'>): string {
+  return fields.siteName?.trim() || FALLBACK_NAME;
+}
+
+/** The sign-in screen's brand for a client: the same ladder, with no peer
+ *  name under the mark. */
+export function clientLoginBrand(fields: BrandFields): LoginBrand {
+  return resolveLoginBrand({ ...fields, peerName: null });
+}

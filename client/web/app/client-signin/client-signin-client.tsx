@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { apiUrl } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
@@ -17,8 +17,13 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 // Relative, not '@/': the node test runner renders this
 // (client-signin-client.test.ts) and does not resolve the app's path alias.
 import { setClientHint, setMemberHint } from '../../lib/member-destination';
-import { urlWithoutInviteCode } from '../../lib/member-invites';
-import { clientEmailError, clientSignInOutcome, readClientCode } from '../../lib/client-portal';
+import { takeLinkCode } from '../../lib/link-code';
+import {
+  CLIENT_SIGNIN_UNAVAILABLE,
+  clientEmailError,
+  clientSignInOutcome,
+  readClientCode,
+} from '../../lib/client-portal';
 import { CLIENT_LINK_LIFETIME_HOURS } from '../../lib/client-logins';
 import { signInErrorMessage } from '../../lib/sign-in-error';
 import { ClientCodeForm } from './client-code-form';
@@ -46,8 +51,11 @@ const STRAPLINE: Record<ClientSigninMode, string> = {
  * and Sign in; without one, sign-in by an emailed code when this brain
  * sends codes (`codesEnabled`, asked on the server), else how a client gets
  * in (their link). Staff sign-in is offered whenever there is no link. The
- * code is read once and leaves the address bar (and so the history); the
- * email is a check the brain makes, not a choice.
+ * code comes in the link's fragment (`#code=`), or its query for links
+ * issued before; it is read once and leaves the address bar (and so the
+ * history) at once (lib/link-code.ts); the email is a check the brain
+ * makes, not a choice. On a split-origin setup no form shows and nothing is
+ * posted (CLIENT_SIGNIN_UNAVAILABLE).
  *
  * Signing in (by link or by code) sets the 30-day session cookie on the
  * answer (same origin: a client never holds a bearer), the presence cookie
@@ -58,20 +66,31 @@ export function ClientSigninClient({
   mark,
   initialCode,
   codesEnabled,
+  initialSplit = false,
 }: {
   mark: React.ReactNode;
+  /** A link's code from the query (links issued before the fragment). */
   initialCode: string;
   codesEnabled: boolean;
+  /** Tests only: render as a split-origin setup. The page finds out itself. */
+  initialSplit?: boolean;
 }) {
-  const [code] = useState(() => readClientCode(initialCode));
+  const [code, setCode] = useState(() => readClientCode(initialCode));
   const [mode, setMode] = useState(() => clientSigninMode(code, codesEnabled));
+  const [split, setSplit] = useState(initialSplit);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string>();
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
-  useEffect(() => {
-    const clean = urlWithoutInviteCode(window.location.href);
-    if (clean !== null) window.history.replaceState(window.history.state, '', clean);
+  // Before the first paint: the link's code (the inline script took it out
+  // of the address already), and whether this is a split-origin setup.
+  useLayoutEffect(() => {
+    const taken = readClientCode(takeLinkCode(window, document.documentElement));
+    if (taken) {
+      setCode(taken);
+      setMode('link');
+    }
+    if (isCrossOrigin()) setSplit(true);
   }, []);
 
   const signedIn = () => {
@@ -93,6 +112,11 @@ export function ClientSigninClient({
       document.getElementById('client-email')?.focus();
       return;
     }
+    // Never posted from another origin: it would spend the link for nothing.
+    if (isCrossOrigin()) {
+      setSplit(true);
+      return;
+    }
     setPending(true);
     try {
       // RAW fetch, never apiFetch: a link that signs nobody in is a 401
@@ -101,7 +125,7 @@ export function ClientSigninClient({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code, email: email.trim() }),
-        credentials: isCrossOrigin() ? 'omit' : 'include',
+        credentials: 'include',
       });
       const outcome = clientSignInOutcome(res.status, await res.json().catch(() => null));
       if (outcome.kind !== 'ok') {
@@ -127,10 +151,26 @@ export function ClientSigninClient({
     <section className="rounded-xl border border-border bg-card">
       <div className="space-y-2 border-b border-border p-4 text-center md:p-5">
         {mark}
-        <p className="text-sm text-muted-foreground">{STRAPLINE[mode]}</p>
+        {split ? null : <p className="text-sm text-muted-foreground">{STRAPLINE[mode]}</p>}
       </div>
-      <div className="p-4 md:p-5">
-        {mode === 'link' ? (
+      <div
+        className="p-4 md:p-5"
+        // Hidden while the inline script holds a link's code this render has
+        // not read yet: no flash of "ask for a link" before the link's form.
+        data-link-code-wait={mode === 'link' ? undefined : ''}
+      >
+        {split ? (
+          <div className="space-y-4 text-sm">
+            <p role="status" className="text-muted-foreground" data-testid="client-signin-split">
+              {CLIENT_SIGNIN_UNAVAILABLE}
+            </p>
+            <div className="text-center">
+              <Button type="button" variant="link" size="sm" onClick={staffSignIn}>
+                Staff sign in
+              </Button>
+            </div>
+          </div>
+        ) : mode === 'link' ? (
           <div className="space-y-4">
             <form onSubmit={signIn} noValidate>
               <FieldGroup>

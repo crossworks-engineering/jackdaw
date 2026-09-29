@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CSP_ENFORCED_STATIC } from './lib/csp';
+import { LINK_CODE_PAGES } from './lib/link-code';
 
 /**
  * The ZERO-SECRET owner-UI app. No DB, no server packages, no SESSION_SECRET —
@@ -71,6 +72,13 @@ const nextConfig: NextConfig = {
         source: '/:path*',
         headers: [{ key: 'Content-Security-Policy', value: CSP_ENFORCED_STATIC }],
       },
+      // The pages a sign-in or invite link opens (lib/link-code.ts): a link
+      // issued before the fragment carries its code in the query, and no
+      // request from these pages may name it in a Referer.
+      ...LINK_CODE_PAGES.map((source) => ({
+        source,
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      })),
     ];
   },
   // Renamed screens — old bookmarks/deep-links keep working (moved from the

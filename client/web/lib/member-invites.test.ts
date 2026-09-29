@@ -6,7 +6,6 @@ import {
   inviteCreateErrorText,
   inviteLink,
   readInviteCode,
-  urlWithoutInviteCode,
   validateInviteForm,
 } from './member-invites';
 
@@ -43,6 +42,9 @@ describe('readInviteCode', () => {
   it('pulls the code out of a pasted link', () => {
     expect(readInviteCode('https://app.example.com/invite?code=AbC23xyz')).toBe('AbC23xyz');
     expect(readInviteCode('/invite?code=AbC23xyz')).toBe('AbC23xyz');
+    // Links from brains with the audit fixes carry it in the fragment.
+    expect(readInviteCode('https://app.example.com/invite#code=AbC23xyz')).toBe('AbC23xyz');
+    expect(readInviteCode('/invite#code=AbC23xyz')).toBe('AbC23xyz');
   });
 });
 
@@ -113,30 +115,30 @@ describe('validateInviteForm', () => {
   });
 });
 
-describe('urlWithoutInviteCode', () => {
-  it('drops the code and keeps the rest of the address', () => {
-    expect(urlWithoutInviteCode('https://app.example.com/invite?code=AbCd2345efGH6789')).toBe(
-      '/invite',
-    );
-    expect(urlWithoutInviteCode('https://app.example.com/invite?code=a&x=1#top')).toBe(
-      '/invite?x=1#top',
-    );
-  });
-
-  it('leaves an address with no code alone', () => {
-    expect(urlWithoutInviteCode('https://app.example.com/invite')).toBeNull();
-  });
-
-  it('the invite page replaces the address with it on arrival', async () => {
+describe('the link code leaves the address at once (B12)', () => {
+  const read = async (rel: string) => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
-    const page = readFileSync(
-      fileURLToPath(new URL('../app/invite/invite-client.tsx', import.meta.url)),
-      'utf8',
-    );
-    expect(page).toMatch(
-      /const clean = urlWithoutInviteCode\(window\.location\.href\);\s*if \(clean !== null\) window\.history\.replaceState\(/,
-    );
+    return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+  };
+
+  it('both pages render the inline script first, before the brand image', async () => {
+    for (const rel of ['../app/invite/page.tsx', '../app/client-signin/page.tsx']) {
+      const page = await read(rel);
+      expect(page, rel).toMatch(/<main[^>]*>\s*<LinkCodeScript \/>/);
+    }
+  });
+
+  it('both clients take the code in a layout effect (before the first paint)', async () => {
+    for (const rel of [
+      '../app/invite/invite-client.tsx',
+      '../app/client-signin/client-signin-client.tsx',
+    ]) {
+      const client = await read(rel);
+      expect(client, rel).toMatch(
+        /useLayoutEffect\(\(\) => \{\s*const (code|taken) = read\w+Code\(takeLinkCode\(window, document\.documentElement\)\);/,
+      );
+    }
   });
 });
 

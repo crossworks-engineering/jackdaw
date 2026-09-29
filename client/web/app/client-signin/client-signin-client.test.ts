@@ -12,9 +12,9 @@ import { ClientSigninClient, clientSigninMode } from './client-signin-client';
  * sign-in whenever there is no link. No app chrome in any.
  */
 const MARK = createElement('p', null, 'BRAND-MARK');
-const render = (initialCode: string, codesEnabled = false) =>
+const render = (initialCode: string, codesEnabled = false, initialSplit = false) =>
   renderToStaticMarkup(
-    createElement(ClientSigninClient, { mark: MARK, initialCode, codesEnabled }),
+    createElement(ClientSigninClient, { mark: MARK, initialCode, codesEnabled, initialSplit }),
   );
 
 const FORM_PARTS = ['<form', 'id="client-email"', 'type="email"', 'Sign in</'];
@@ -88,5 +88,31 @@ describe('ClientSigninClient', () => {
       expect(html).not.toContain('<nav');
       expect(html).not.toContain('aria-label="Primary"');
     }
+  });
+
+  it('split origin (the API elsewhere): no form, no field, one plain line (B27)', () => {
+    for (const [code, on] of [
+      ['', false],
+      ['', true],
+      ['AbCd1234efGH', false],
+      ['AbCd1234efGH', true],
+    ] as const) {
+      const html = render(code, on, true);
+      expect(html).toContain('Client sign-in is not available on this address.');
+      expect(html).not.toContain('<form');
+      expect(html).not.toContain('<input');
+      expect(html).not.toContain(CODE_INSTEAD);
+      expect(html).toContain('Staff sign in');
+      expect(html).toContain('BRAND-MARK');
+    }
+  });
+
+  it('the no-link states wait while the inline script holds a fragment code (B12)', () => {
+    // A #code= link: the server renders the no-link state, which stays
+    // hidden (globals.css) until the page reads the code.
+    expect(render('')).toContain('data-link-code-wait=""');
+    expect(render('', true)).toContain('data-link-code-wait=""');
+    // The link's own form never waits.
+    expect(render('AbCd1234efGH')).not.toContain('data-link-code-wait');
   });
 });

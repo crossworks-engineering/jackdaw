@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import type { MemberInvitePreview } from '@mantle/client-types';
 import { apiUrl } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
@@ -22,10 +22,10 @@ import {
   MIN_PASSWORD,
   acceptOutcome,
   readInviteCode,
-  urlWithoutInviteCode,
   validateInviteForm,
   type InviteFormErrors,
 } from '@/lib/member-invites';
+import { takeLinkCode } from '@/lib/link-code';
 import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
 
 type Preview =
@@ -78,8 +78,12 @@ export function InviteClient({
   initialCode,
 }: {
   mark: React.ReactNode;
+  /** A link's code from the query (links issued before the fragment). */
   initialCode: string;
 }) {
+  // The link's code: the query's, as the server saw it, until the first
+  // layout effect reads the fragment's (which wins).
+  const [linkCode, setLinkCode] = useState(() => readInviteCode(initialCode));
   const [codeInput, setCodeInput] = useState(initialCode);
   const [preview, setPreview] = useState<Preview>(() => {
     const code = readInviteCode(initialCode);
@@ -90,23 +94,26 @@ export function InviteClient({
   const [errors, setErrors] = useState<InviteFormErrors>({});
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
-  // Read once, the code leaves the address bar (and so the history).
-  useEffect(() => {
-    const clean = urlWithoutInviteCode(window.location.href);
-    if (clean !== null) window.history.replaceState(window.history.state, '', clean);
+  // Read once, before the first paint: the code leaves the address bar (and
+  // so the history); the inline script already took it (lib/link-code.ts).
+  useLayoutEffect(() => {
+    const code = readInviteCode(takeLinkCode(window, document.documentElement));
+    if (!code) return;
+    setLinkCode(code);
+    setCodeInput(code);
+    setPreview({ kind: 'checking', code, fromLink: true });
   }, []);
   // The link's code is checked on arrival.
   useEffect(() => {
-    const code = readInviteCode(initialCode);
-    if (!code) return;
+    if (!linkCode) return;
     let live = true;
-    void fetchPreview(code).then((p) => {
+    void fetchPreview(linkCode).then((p) => {
       if (live) setPreview(p);
     });
     return () => {
       live = false;
     };
-  }, [initialCode]);
+  }, [linkCode]);
 
   async function checkCode(e: React.FormEvent) {
     e.preventDefault();
@@ -212,7 +219,12 @@ export function InviteClient({
             : 'Enter your invite code to join.'}
         </p>
       </div>
-      <div className="p-4 md:p-5">
+      <div
+        className="p-4 md:p-5"
+        // Hidden while the inline script holds a link's code this render has
+        // not read yet: no flash of the code form before "Checking your invite".
+        data-link-code-wait={preview.kind === 'idle' ? '' : undefined}
+      >
         {invite ? (
           <form onSubmit={accept} noValidate>
             <FieldGroup>

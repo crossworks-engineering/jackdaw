@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   brandTitle,
+  clientLoginBrand,
+  clientTabTitle,
   FALLBACK_NAME,
   readBrandFields,
   resolveLoginBrand,
@@ -156,5 +158,48 @@ describe('the mark and the tab disagree on purpose', () => {
     expect(brand.kind).toBe('jackdaw');
     expect(brand.name).toBe(FALLBACK_NAME);
     expect(brand.peerName).toBe('westmill');
+  });
+});
+
+describe('client surfaces never name the peer (client logins audit B27)', () => {
+  const fields = {
+    siteName: null,
+    peerName: 'box-7',
+    logoVersion: null,
+    logoDarkVersion: null,
+  };
+
+  it('the tab: the site name, else the product, never the peer name', () => {
+    expect(clientTabTitle(fields)).toBe('Jackdaw');
+    expect(clientTabTitle({ siteName: 'Acme' })).toBe('Acme');
+    expect(clientTabTitle({ siteName: '  ' })).toBe('Jackdaw');
+    // The owner's tab keeps the peer name as its middle rung.
+    expect(brandTitle(fields)).toBe('box-7');
+  });
+
+  it('the sign-in mark: no peer name under it', () => {
+    expect(clientLoginBrand(fields).peerName).toBeNull();
+    expect(clientLoginBrand({ ...fields, siteName: 'Acme' })).toMatchObject({
+      kind: 'name',
+      name: 'Acme',
+      peerName: null,
+    });
+  });
+
+  it('the client sign-in page and the client tab use them', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const read = (rel: string) =>
+      readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+    const page = read('../app/client-signin/page.tsx');
+    expect(page).toContain('const brand = clientLoginBrand(readBrandFields(appearance));');
+    expect(page).toMatch(/title: \{ absolute: `Sign in · \$\{clientTabTitle\(fields\)\}` \}/);
+    expect(page).not.toContain('resolveLoginBrand');
+    const layout = read('../app/(app)/layout.tsx');
+    expect(layout).toMatch(
+      /CLIENT_HINT_COOKIE\)\?\.value !== '1'\) return \{\};[\s\S]*absolute: clientTabTitle\(fields\)/,
+    );
+    const portal = read('../components/client/client-portal.tsx');
+    expect(portal).toContain('document.title = clientTabTitle({ siteName });');
   });
 });

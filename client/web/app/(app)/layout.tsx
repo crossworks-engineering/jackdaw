@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { AppShell } from '@/components/app-shell';
 import {
@@ -10,6 +11,8 @@ import { UsageCard } from '@/components/usage-card';
 import type { SpendRange } from '@mantle/client-types';
 import { MEMBER_HINT_COOKIE } from '@/lib/member-surface';
 import { CLIENT_HINT_COOKIE } from '@/lib/client-surface';
+import { loadBrainAppearance } from '@/lib/appearance';
+import { clientTabTitle, readBrandFields } from '@/lib/brand';
 
 /**
  * App shell: the rail on the left (brand, account, search, nav, launchers),
@@ -32,6 +35,20 @@ import { CLIENT_HINT_COOKIE } from '@/lib/client-surface';
  * the range after mount, but seeding it server-side stops the pills flicking
  * from 'day' to the user's choice on every load.
  */
+
+/**
+ * A client's tab (client logins audit B27): the site name, else the
+ * product's, never the peer name the root layout falls back to (a box's
+ * name is staff knowledge). Only when the client hint says this is a client;
+ * the portal sets the same title once the brain confirms one
+ * (components/client/client-portal.tsx).
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const cookieStore = await cookies();
+  if (cookieStore.get(CLIENT_HINT_COOKIE)?.value !== '1') return {};
+  const fields = readBrandFields(await loadBrainAppearance());
+  return { title: { absolute: clientTabTitle(fields) } };
+}
 
 const SPEND_RANGES: SpendRange[] = ['day', 'week', 'month'];
 

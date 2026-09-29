@@ -25,7 +25,7 @@ import {
   clientCodeVerifyOutcome,
   normalizeClientCode,
 } from '../../lib/client-code';
-import { clientEmailError } from '../../lib/client-portal';
+import { CLIENT_SIGNIN_UNAVAILABLE, clientEmailError } from '../../lib/client-portal';
 import { signInErrorMessage } from '../../lib/sign-in-error';
 
 /**
@@ -51,14 +51,18 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
   const [pending, setPending] = useState(false);
 
   const post = (path: string, body: unknown) =>
-    // RAW fetch, never apiFetch: a code that signs nobody in is a 401 here,
-    // which apiFetch would turn into a trip to /login.
-    fetch(apiUrl(path), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: isCrossOrigin() ? 'omit' : 'include',
-    });
+    // Never from another origin (the page shows no form there): the code's
+    // cookies live on the brain's origin, so it would be spent for nothing.
+    isCrossOrigin()
+      ? Promise.reject(new Error(CLIENT_SIGNIN_UNAVAILABLE))
+      : // RAW fetch, never apiFetch: a code that signs nobody in is a 401
+        // here, which apiFetch would turn into a trip to /login.
+        fetch(apiUrl(path), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+          credentials: 'include',
+        });
 
   /** Ask for a code for `email`. Every 2xx is the same answer. */
   async function ask(again: boolean) {

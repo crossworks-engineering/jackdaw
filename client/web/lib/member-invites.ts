@@ -10,6 +10,7 @@
  * so each wording and each split is pinned by a test.
  */
 import type { MemberInviteRow } from '@mantle/client-types';
+import { readLinkCode } from './link-code';
 import { MAX_PASSWORD, MIN_PASSWORD } from './member-password';
 
 export { MAX_PASSWORD, MIN_PASSWORD };
@@ -18,7 +19,8 @@ export { MAX_PASSWORD, MIN_PASSWORD };
 export const INVITE_LIFETIME_HOURS = 72;
 
 /** The link an admin shares: the client's own origin plus the brain's
- *  `linkPath` (`/invite?code=…`). */
+ *  `linkPath` (`/invite#code=…`; `/invite?code=…` from brains before the
+ *  client logins audit fixes). */
 export function inviteLink(origin: string, linkPath: string): string {
   const path = linkPath.startsWith('/') ? linkPath : `/${linkPath}`;
   return `${origin.replace(/\/+$/, '')}${path}`;
@@ -35,8 +37,9 @@ export function readInviteCode(input: string): string {
   const raw = input.trim();
   if (/^https?:\/\//i.test(raw) || raw.startsWith('/invite')) {
     try {
-      const code = new URL(raw, 'http://invite.local').searchParams.get('code');
-      if (code) return code.replace(/\s+/g, '');
+      // The fragment's code first (`#code=`), else the query's.
+      const { code } = readLinkCode(new URL(raw, 'http://invite.local').href);
+      if (code) return code;
     } catch {
       // Not a URL after all: fall through and treat it as a code.
     }
@@ -88,19 +91,6 @@ export const INVITE_NOT_VALID =
 /** Shown when accept answers 401: the same words for every reason, as the
  *  brain gives the same answer for every reason. */
 export const CODE_NOT_VALID = 'That code is not valid. Ask your admin for a new invite.';
-
-/**
- * The address to show once the link's code is read: the same, without
- * `code`. A live invite code left in the address bar sits in the browser's
- * history (and its sync) for the invite's 72 hours. Null when there is no
- * code to drop.
- */
-export function urlWithoutInviteCode(href: string): string | null {
-  const url = new URL(href);
-  if (!url.searchParams.has('code')) return null;
-  url.searchParams.delete('code');
-  return url.pathname + url.search + url.hash;
-}
 
 export type InviteForm = { code: string; password: string; confirm: string };
 export type InviteFormErrors = Partial<Record<keyof InviteForm, string>>;

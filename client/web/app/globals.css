@@ -213,6 +213,20 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * A link's code, in flight (lib/link-code.ts).
+ *
+ * /client-signin and /invite render an inline script first that takes a
+ * `#code=` out of the address and marks <html> until the page has read it.
+ * The server cannot see a fragment, so it renders the no-code state; this
+ * keeps that state hidden for the moment before hydration swaps in the
+ * link's own form, instead of flashing "ask for a link" at someone holding
+ * one. The page clears the mark in its first layout effect.
+ * ------------------------------------------------------------------------- */
+html[data-link-code] [data-link-code-wait] {
+  visibility: hidden;
+}
+
+/* ---------------------------------------------------------------------------
  * App tile tints (sidebar apps tree, app pickers).
  *
  * Apps store a tint KEY (`teal`, `violet`, …; APP_TINTS in the app-nav
