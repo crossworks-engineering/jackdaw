@@ -1,6 +1,9 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import {
+  CLIENT_CODE_NOT_VALID,
+  CLIENT_CODE_RATE_EMAIL,
   CLIENT_EMAIL,
+  CLIENT_EMAIL_CODE,
   CLIENT_GOOD_CODE,
   CLIENT_ITEM_TITLE,
   CLIENT_NAME,
@@ -12,6 +15,8 @@ import {
   SHARED_FILE_TITLE,
   SHARED_NOTE_TITLE,
   SHARED_PAGE_TITLE,
+  SENDER_DESK,
+  SENDER_INFO,
   signInAsAdmin,
   signInAsMember,
   startMockMemberApi,
@@ -20,9 +25,9 @@ import {
 
 /**
  * The client portal (client logins C2), against the in-memory API (no
- * brain): the sign-in link page, the client chrome and "Shared with you"
- * with its read-only viewers, an ended session, and the admin's Team admin >
- * Clients. A client asks client routes only: every other route the page
+ * brain): the sign-in link page, sign-in by an emailed code (C2b), the
+ * client chrome and "Shared with you" with its read-only viewers, an ended
+ * session, and the admin's Team admin > Clients with its sign-in code sender. A client asks client routes only: every other route the page
  * calls is refused and recorded (`clientCalls`), and each client test ends
  * with none.
  */
@@ -104,6 +109,133 @@ test.describe('the sign-in link', () => {
     });
     await expect(page.getByRole('textbox')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
+  });
+});
+
+const SENT =
+  'If this email has a client login, we sent it a code. It works for 10 minutes, in this browser.';
+const sentNotice = (page: Page) => page.getByTestId('client-code-sent');
+
+test.describe('the email sign-in code', () => {
+  test.beforeEach(async ({ baseURL }) => {
+    api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
+    api.clientSession = false;
+    api.clientCodes = true;
+  });
+
+  test('email, a wrong code (one sentence, nothing signed in), the right one: the home', async ({
+    page,
+    context,
+  }) => {
+    await page.goto('/client-signin');
+    await expect(page.getByText('Sign in with a code sent to your email.')).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByLabel('Email', { exact: true }).fill(CLIENT_EMAIL);
+    await page.getByRole('button', { name: 'Email me a code' }).click();
+    await expect(sentNotice(page)).toHaveText(SENT, { timeout: 30_000 });
+    expect(api.clientCodeRequests).toEqual([{ email: CLIENT_EMAIL, status: 200 }]);
+
+    const code = page.getByLabel('Enter the 8-digit code');
+    await code.fill('1111 2222');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByText(CLIENT_CODE_NOT_VALID)).toBeVisible({ timeout: 30_000 });
+    await expect(code).toHaveAttribute('aria-invalid', 'true');
+    // Nothing of a session: still here, no client hint, the code step as it was.
+    await expect(page).toHaveURL(/\/client-signin$/);
+    expect((await context.cookies()).map((c) => c.name)).not.toContain('mantle_client');
+    await expect(sentNotice(page)).toHaveText(SENT);
+
+    // Pasted with spaces: they come out.
+    await code.fill(' 2468 1357 ');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(heading(page)).toBeVisible({ timeout: 60_000 });
+    await expect(page).toHaveURL(/\/$/);
+    expect(api.clientCodeVerifies).toEqual([
+      { email: CLIENT_EMAIL, code: '11112222', status: 401 },
+      { email: CLIENT_EMAIL, code: CLIENT_EMAIL_CODE, status: 200 },
+    ]);
+    const names = (await context.cookies()).map((c) => c.name);
+    expect(names).toContain('mantle_client');
+    expect(names).not.toContain('mantle_member');
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('a stranger reads exactly what a client reads, and moves on the same', async ({ page }) => {
+    const codeStep = async (email: string) => {
+      await page.goto('/client-signin');
+      await page.getByLabel('Email', { exact: true }).fill(email);
+      await page.getByRole('button', { name: 'Email me a code' }).click();
+      await expect(page.getByLabel('Enter the 8-digit code')).toBeVisible({ timeout: 30_000 });
+      return (await page.locator('section').first().innerText()).replaceAll(email, 'EMAIL');
+    };
+    const client = await codeStep(CLIENT_EMAIL);
+    const stranger = await codeStep('nobody@example.invalid');
+    expect(stranger).toBe(client);
+    expect(client).toContain(SENT);
+  });
+
+  test('the code waits for 8 digits; Send a new code and Use a different email', async ({
+    page,
+  }) => {
+    await page.goto('/client-signin');
+    await page.getByLabel('Email', { exact: true }).fill(CLIENT_EMAIL);
+    await page.getByRole('button', { name: 'Email me a code' }).click();
+    const code = page.getByLabel('Enter the 8-digit code');
+    await code.fill('1234');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByText('The code is 8 digits.')).toBeVisible();
+    expect(api.clientCodeVerifies).toEqual([]);
+
+    await page.getByRole('button', { name: 'Send a new code' }).click();
+    await expect(sentNotice(page)).toHaveText(`Asked again. ${SENT}`, { timeout: 30_000 });
+    expect(api.clientCodeRequests.map((r) => r.email)).toEqual([CLIENT_EMAIL, CLIENT_EMAIL]);
+
+    await page.getByRole('button', { name: 'Use a different email' }).click();
+    const email = page.getByLabel('Email', { exact: true });
+    await expect(email).toHaveValue(CLIENT_EMAIL);
+    await expect(page.getByLabel('Enter the 8-digit code')).toHaveCount(0);
+  });
+
+  test('a rate-limited request has its own sentence, and stays on the email', async ({ page }) => {
+    await page.goto('/client-signin');
+    await page.getByLabel('Email', { exact: true }).fill(CLIENT_CODE_RATE_EMAIL);
+    await page.getByRole('button', { name: 'Email me a code' }).click();
+    await expect(page.getByText('Too many attempts. Wait a minute, then try again.')).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByLabel('Enter the 8-digit code')).toHaveCount(0);
+  });
+
+  test('from /login and from a link page: the way to a code', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByRole('link', { name: 'Sign in with an email code' }).click({ timeout: 60_000 });
+    await expect(page).toHaveURL(/\/client-signin$/);
+    await expect(page.getByRole('button', { name: 'Email me a code' })).toBeVisible({
+      timeout: 60_000,
+    });
+
+    await page.goto(`/client-signin?code=${CLIENT_GOOD_CODE}`);
+    await page
+      .getByRole('button', { name: 'Sign in with an email code instead' })
+      .click({ timeout: 60_000 });
+    await expect(page.getByRole('button', { name: 'Email me a code' })).toBeVisible();
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('codes off: no code anywhere, and the page says to ask for a link', async ({ page }) => {
+    api.clientCodes = false;
+    await page.goto('/login');
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('link', { name: 'Sign in with an email code' })).toHaveCount(0);
+    await page.goto('/client-signin');
+    await expect(page.getByText('ask your admin for a new one')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('button', { name: 'Email me a code' })).toHaveCount(0);
+    await page.goto(`/client-signin?code=${CLIENT_GOOD_CODE}`);
+    await expect(page.getByLabel('Email', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByRole('button', { name: 'Sign in with an email code instead' }),
+    ).toHaveCount(0);
   });
 });
 
@@ -305,6 +437,79 @@ test.describe('Team admin > Clients', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByText('No client logins yet.')).toBeVisible({ timeout: 15_000 });
     expect(api.admin.userDeletes).toEqual(['16161616-1616-4161-8161-161616161616']);
+  });
+});
+
+test.describe('Team admin > Clients > Sign-in codes by email', () => {
+  test.beforeEach(async ({ baseURL, context }) => {
+    api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
+    await signInAsAdmin(context, baseURL!);
+  });
+
+  const picker = (page: Page) => page.getByRole('combobox', { name: 'Send codes from' });
+
+  test('pick a sender, the folders kept out, a refusal, then None', async ({ page }) => {
+    await page.goto('/team-admin?view=client-logins');
+    await expect(page.getByRole('heading', { name: 'Sign-in codes by email' })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByText(/^Codes are off\./)).toBeVisible();
+    await expect(page.getByText('0 of 200 codes sent in the last 24 hours.')).toBeVisible();
+    await expect(page.getByTestId('client-codes-cap')).toHaveCount(0);
+
+    await picker(page).click();
+    await page.getByRole('option', { name: SENDER_DESK.address }).click();
+    await expect(
+      page.getByText('Sent mail from this account is kept out of the brain: Sent, Sent Items.'),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(picker(page)).toContainText(SENDER_DESK.address);
+
+    // The account stopped being able to send since the list loaded.
+    api.admin.signinSender.refusal = {
+      status: 400,
+      body: { error: 'That account cannot send.', reason: 'account-cannot-send' },
+    };
+    await picker(page).click();
+    await page.getByRole('option', { name: SENDER_INFO.address }).click();
+    await expect(page.getByText(/That account cannot send: it needs IMAP and SMTP/)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(picker(page)).toContainText(SENDER_DESK.address);
+
+    await picker(page).click();
+    await page.getByRole('option', { name: 'None (codes off)' }).click();
+    await expect(page.getByText(/^Codes are off\./)).toBeVisible({ timeout: 15_000 });
+    expect(api.admin.signinSender.puts).toEqual([
+      { accountId: SENDER_DESK.id },
+      { accountId: SENDER_INFO.id },
+      { accountId: null },
+    ]);
+  });
+
+  test('the daily cap reached: the banner', async ({ page }) => {
+    api.admin.signinSender.senderId = SENDER_DESK.id;
+    api.admin.signinSender.sentLast24h = 201;
+    api.admin.signinSender.capReached = true;
+    await page.goto('/team-admin?view=client-logins');
+    await expect(page.getByTestId('client-codes-cap')).toHaveText(
+      'The daily limit of 200 sign-in codes is reached. Requests are still accepted, but no code is sent until the window moves on.',
+      { timeout: 60_000 },
+    );
+    await expect(page.getByText('201 of 200 codes sent in the last 24 hours.')).toBeVisible();
+  });
+
+  test('a sender gone from the brain says so', async ({ page }) => {
+    api.admin.signinSender.refusal = {
+      status: 404,
+      body: { error: 'Email account not found.', reason: 'account-not-found' },
+    };
+    await page.goto('/team-admin?view=client-logins');
+    await picker(page).click({ timeout: 60_000 });
+    await page.getByRole('option', { name: SENDER_INFO.address }).click();
+    await expect(
+      page.getByText('That email account is not in this brain any more. Pick another.'),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/^Codes are off\./)).toBeVisible();
   });
 });
 

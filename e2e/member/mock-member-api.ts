@@ -31,6 +31,13 @@ import type { BrowserContext } from '@playwright/test';
  * and the public sign-in link route, as the brain does; `clientSession`
  * false makes every client route a 401 (an ended session). Any other role
  * is refused on the client routes (403 `admin-login` / `member-login`).
+ *
+ * Since C2b it answers the public email sign-in code routes for every role,
+ * as the brain does (`clientCodes` says whether this brain sends codes; the
+ * request answers every email the same; CLIENT_EMAIL_CODE for CLIENT_EMAIL
+ * signs in), and, for an admin, the sign-in sender (`admin.signinSender`).
+ * The UI calls them cross-origin here, so the request cookie is not
+ * modelled: the brain's routes and their tests own that binding.
  */
 
 type Doc = Record<string, unknown>;
@@ -109,6 +116,8 @@ const MEMBER_OK = [
   /^\/api\/auth\/bootstrap-state$/,
   /^\/api\/auth\/invite\//,
   /^\/api\/auth\/token$/,
+  // Public: /login asks whether client sign-in codes are on (C2b).
+  /^\/api\/auth\/client-code(\/verify)?$/,
 ];
 const isAdminOnly = (path: string) =>
   path.startsWith('/api/') && !MEMBER_OK.some((re) => re.test(path));
@@ -123,6 +132,7 @@ const CLIENT_OK = [
   /^\/api\/auth\/(mobile-)?logout$/,
   /^\/api\/auth\/bootstrap-state$/,
   /^\/api\/auth\/client-link$/,
+  /^\/api\/auth\/client-code(\/verify)?$/,
 ];
 
 // ── The client portal (client logins C2) ─────────────────────────────────
@@ -143,6 +153,21 @@ export const SHARED_NOTE_TITLE = 'Meeting notes';
 export const SHARED_FILE_ID = '15151515-1515-4151-8151-151515151515';
 export const SHARED_FILE_TITLE = 'Site plan.png';
 export const PRIVATE_LABEL = 'Private item';
+
+/** Email sign-in codes (C2b): the code the mock "mailed" CLIENT_EMAIL, and
+ *  an email whose request is rate limited. */
+export const CLIENT_EMAIL_CODE = '24681357';
+export const CLIENT_CODE_RATE_EMAIL = 'busy@example.invalid';
+export const CLIENT_CODE_NOT_VALID = 'That code did not work. Ask for a new one.';
+/** The admin's sign-in sender candidates. */
+export const SENDER_DESK = {
+  id: '23232323-2323-4232-8232-232323232323',
+  address: 'desk@example.invalid',
+};
+export const SENDER_INFO = {
+  id: '24242424-2424-4242-8242-242424242424',
+  address: 'info@example.invalid',
+};
 
 /** The admin's client logins (Team admin > Clients). */
 export const CLIENT_LOGIN_ID = '16161616-1616-4161-8161-161616161616';
@@ -209,6 +234,12 @@ export type MockMemberApi = {
   clientSession: boolean;
   /** Every sign-in link redeem the page sent, with the answer's status. */
   clientSignIns: { code: string; email: string; status: number }[];
+  /** GET /api/auth/client-code: this brain sends sign-in codes (C2b). */
+  clientCodes: boolean;
+  /** Every code request the page sent, with the answer's status. */
+  clientCodeRequests: { email: string; status: number }[];
+  /** Every code verify the page sent, with the answer's status. */
+  clientCodeVerifies: { email: string; code: string; status: number }[];
   /** Member role: the Library list answers (a team and a client row). */
   libraryList: boolean;
   /** Member asset routes the page called. */
@@ -287,6 +318,16 @@ export type MockAdminState = {
   signinLinksIssued: string[];
   userPatches: { id: string; body: unknown }[];
   userDeletes: string[];
+  /** Sign-in codes by email (C2b): the sender's id (null: codes off), the
+   *  day's count, whether the cap is reached, every PUT body, and a refusal
+   *  the next PUT answers instead. */
+  signinSender: {
+    senderId: string | null;
+    sentLast24h: number;
+    capReached: boolean;
+    puts: unknown[];
+    refusal: { status: number; body: unknown } | null;
+  };
 };
 
 /** Sign the browser in as a member, the way the client sees it: the
@@ -329,6 +370,9 @@ export async function startMockMemberApi(
     clientRouteCalls: [],
     clientSession: true,
     clientSignIns: [],
+    clientCodes: false,
+    clientCodeRequests: [],
+    clientCodeVerifies: [],
     libraryList: false,
     memberAssetCalls: [],
     passwordChanges: [],
@@ -366,6 +410,13 @@ export async function startMockMemberApi(
       signinLinksIssued: [],
       userPatches: [],
       userDeletes: [],
+      signinSender: {
+        senderId: null,
+        sentLast24h: 0,
+        capReached: false,
+        puts: [],
+        refusal: null,
+      },
     },
     close: async () => undefined,
   };
@@ -690,6 +741,35 @@ export async function startMockMemberApi(
         return true;
       }
     }
+    // Sign-in codes by email (C2b): the sender and the day's count.
+    if (path === '/api/team-admin/clients/signin-sender') {
+      const S = A.signinSender;
+      const answer = () => {
+        const sender = [SENDER_DESK, SENDER_INFO].find((c) => c.id === S.senderId) ?? null;
+        json(res, 200, {
+          sender,
+          candidates: [SENDER_DESK, SENDER_INFO],
+          sentFoldersExcluded: sender ? ['Sent', 'Sent Items'] : [],
+          dailyCap: 200,
+          sentLast24h: S.sentLast24h,
+          capReached: S.capReached,
+        });
+        return true;
+      };
+      if (method === 'GET') return answer();
+      if (method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as { accountId?: string | null };
+        S.puts.push(body);
+        if (S.refusal) {
+          const { status, body: out } = S.refusal;
+          S.refusal = null;
+          json(res, status, out);
+          return true;
+        }
+        S.senderId = body.accountId ?? null;
+        return answer();
+      }
+    }
     const user = /^\/api\/users\/([0-9a-f-]{36})$/.exec(path);
     if (user) {
       const id = user[1]!;
@@ -936,6 +1016,29 @@ export async function startMockMemberApi(
       res.writeHead(204, cors);
       res.end();
       return;
+    }
+    // Email sign-in codes (C2b): public, for every role, as the brain has
+    // them. The request answers every email the same.
+    if (path === '/api/auth/client-code' && method === 'GET') {
+      return json(res, 200, { enabled: state.clientCodes });
+    }
+    if (path === '/api/auth/client-code' && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as { email?: string };
+      const email = body.email ?? '';
+      const status = email === CLIENT_CODE_RATE_EMAIL ? 429 : 200;
+      state.clientCodeRequests.push({ email, status });
+      return status === 429
+        ? json(res, 429, { error: 'Too many attempts. Try again in a minute.' })
+        : json(res, 200, { ok: true });
+    }
+    if (path === '/api/auth/client-code/verify' && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as { email?: string; code?: string };
+      const email = body.email ?? '';
+      const ok = email.toLowerCase() === CLIENT_EMAIL && body.code === CLIENT_EMAIL_CODE;
+      state.clientCodeVerifies.push({ email, code: body.code ?? '', status: ok ? 200 : 401 });
+      if (!ok) return json(res, 401, { error: CLIENT_CODE_NOT_VALID });
+      state.clientSession = true;
+      return json(res, 200, { ok: true });
     }
     // The client routes answer a client login only (C2).
     if (path.startsWith('/api/client/') && role !== 'client') {
