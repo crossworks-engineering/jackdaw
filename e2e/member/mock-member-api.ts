@@ -153,6 +153,20 @@ export const SHARED_NOTE_TITLE = 'Meeting notes';
 export const SHARED_FILE_ID = '15151515-1515-4151-8151-151515151515';
 export const SHARED_FILE_TITLE = 'Site plan.png';
 export const PRIVATE_LABEL = 'Private item';
+/** A summary the brain wrote from UNREDACTED text (client logins audit B1):
+ *  an older brain still sends it; no client surface may show it. */
+export const LEAKY_SUMMARY = 'Mentions the team page Price floor 2027';
+/** A shared table (`sharedTable`), in the allowlisted shape or the whole
+ *  record an older brain sends (audit B13). */
+export const SHARED_TABLE_ID = '25252525-2525-4252-8252-252525252525';
+export const SHARED_TABLE_TITLE = 'Price list';
+export const TABLE_DESCRIPTION = 'App export of an internal app';
+/** A row shared after the list first loaded (`sharedLater`, audit B27). */
+export const SHARED_LATER_ID = '26262626-2626-4262-8262-262626262626';
+export const SHARED_LATER_TITLE = 'Late addition';
+/** The box's peer name, as /api/appearance serves it to every role: a
+ *  client surface never shows it (audit B27). */
+export const MOCK_PEER = 'mock-box-peer';
 
 /** Email sign-in codes (C2b): the code the mock "mailed" CLIENT_EMAIL, and
  *  an email whose request is rate limited. */
@@ -242,6 +256,12 @@ export type MockMemberApi = {
   clientSignIns: { code: string; email: string; status: number }[];
   /** GET /api/auth/client-code: this brain sends sign-in codes (C2b). */
   clientCodes: boolean;
+  /** Shared with you also lists SHARED_TABLE_ID, in this shape (audit B13):
+   *  'allowlisted' (a brain with the fixes) or 'record' (an older brain). */
+  sharedTable: 'allowlisted' | 'record' | null;
+  /** Shared with you also lists SHARED_LATER_ID (shared since the list
+   *  loaded, audit B27). */
+  sharedLater: boolean;
   /** Every code request the page sent, with the answer's status. */
   clientCodeRequests: { email: string; status: number }[];
   /** Every code verify the page sent, with the answer's status. */
@@ -338,7 +358,18 @@ export type MockAdminState = {
     capReached: boolean;
     puts: unknown[];
     refusal: { status: number; body: unknown } | null;
+    /** The audit fix fields (B3) the card answer carries, when set. */
+    extra: Record<string, unknown>;
+    /** GET …/signin-sender/preview (B4): false answers 404 (an older
+     *  brain); else per account id, the preview (default: can use, Sent
+     *  and Sent Items). */
+    preview: boolean;
+    previews: Record<string, { sentFolders: string[]; canUse: boolean; reason?: string }>;
+    /** Every preview asked, by account id. */
+    previewCalls: string[];
   };
+  /** Member chats (B26): rows the roster answers, when set. */
+  memberChats: Record<string, unknown>[] | null;
 };
 
 /** Sign the browser in as a member, the way the client sees it: the
@@ -352,6 +383,32 @@ export async function signInAsMember(context: BrowserContext, baseURL: string): 
 
 /** Sign the browser in as an admin: the presence cookie only (no member
  *  hint), so the owner shell renders. */
+/**
+ * Serve this browser as a SAME-ORIGIN box: /env.js names no API base, and
+ * every /api/* request on the page's own origin is answered by the mock.
+ * A client signs in only on the brain's own origin (its session is a cookie
+ * there), so the client sign-in specs run this way; without it the owner UI
+ * calls the mock cross-origin (a split box), where client sign-in is not
+ * offered at all (audit B27).
+ */
+export async function serveSameOrigin(context: BrowserContext, baseURL: string): Promise<void> {
+  const origin = new URL(baseURL).origin;
+  await context.route(`${origin}/env.js`, (route) =>
+    route.fulfill({
+      contentType: 'application/javascript; charset=utf-8',
+      body: `window.__MANTLE_ENV__ = ${JSON.stringify({ apiBase: '', serverOrigin: '' })};`,
+    }),
+  );
+  await context.route(
+    (url) => url.origin === origin && url.pathname.startsWith('/api/'),
+    async (route) => {
+      const url = new URL(route.request().url());
+      const response = await route.fetch({ url: `${MOCK_API_ORIGIN}${url.pathname}${url.search}` });
+      await route.fulfill({ response });
+    },
+  );
+}
+
 export async function signInAsAdmin(context: BrowserContext, baseURL: string): Promise<void> {
   await context.addCookies([{ name: 'mantle_authed', value: '1', url: baseURL }]);
 }
@@ -382,6 +439,8 @@ export async function startMockMemberApi(
     clientSession: true,
     clientSignIns: [],
     clientCodes: false,
+    sharedTable: null,
+    sharedLater: false,
     clientCodeRequests: [],
     clientCodeVerifies: [],
     libraryList: false,
@@ -429,7 +488,12 @@ export async function startMockMemberApi(
         capReached: false,
         puts: [],
         refusal: null,
+        extra: {},
+        preview: true,
+        previews: {},
+        previewCalls: [],
       },
+      memberChats: null,
     },
     close: async () => undefined,
   };
@@ -787,7 +851,8 @@ export async function startMockMemberApi(
         json(res, 201, {
           link: issued,
           code: CLIENT_GOOD_CODE,
-          path: `/client-signin?code=${CLIENT_GOOD_CODE}`,
+          // Brains with the audit fixes (B12): the code in the fragment.
+          path: `/client-signin#code=${CLIENT_GOOD_CODE}`,
         });
         return true;
       }
@@ -797,6 +862,21 @@ export async function startMockMemberApi(
         json(res, 200, { ok: true });
         return true;
       }
+    }
+    // What picking a sender would do (audit B4); an older brain has no such
+    // route (404).
+    if (path === '/api/team-admin/clients/signin-sender/preview' && method === 'GET') {
+      const S = A.signinSender;
+      const id = url.searchParams.get('accountId') ?? '';
+      S.previewCalls.push(id);
+      if (!S.preview) return (json(res, 404, { error: 'Not found.' }), true);
+      json(res, 200, S.previews[id] ?? { sentFolders: ['Sent', 'Sent Items'], canUse: true });
+      return true;
+    }
+    // Member chats (B26): the roster with a client row, when set.
+    if (path === '/api/team-admin/member-chats' && method === 'GET' && A.memberChats) {
+      json(res, 200, { members: A.memberChats, selected: null });
+      return true;
     }
     // Sign-in codes by email (C2b): the sender and the day's count.
     if (path === '/api/team-admin/clients/signin-sender') {
@@ -810,6 +890,7 @@ export async function startMockMemberApi(
           dailyCap: 200,
           sentLast24h: S.sentLast24h,
           capReached: S.capReached,
+          ...S.extra,
         });
         return true;
       };
@@ -946,12 +1027,25 @@ export async function startMockMemberApi(
 
   // ── The client side (role 'client', C2) ───────────────────────────────
   const sharedRows = () => [
+    ...(state.sharedLater
+      ? [
+          {
+            id: SHARED_LATER_ID,
+            type: 'note',
+            title: SHARED_LATER_TITLE,
+            icon: null,
+            summary: null,
+            updatedAt: '2026-09-29T10:00:00.000Z',
+          },
+        ]
+      : []),
     {
       id: SHARED_PAGE_ID,
       type: 'page',
       title: SHARED_PAGE_TITLE,
       icon: null,
-      summary: 'What we are building.',
+      // An older brain's summary, from the unredacted text (B1).
+      summary: LEAKY_SUMMARY,
       updatedAt: '2026-09-28T10:00:00.000Z',
     },
     {
@@ -970,6 +1064,26 @@ export async function startMockMemberApi(
       summary: null,
       updatedAt: '2026-09-26T10:00:00.000Z',
     },
+    ...(state.sharedTable
+      ? [
+          {
+            id: SHARED_TABLE_ID,
+            type: 'table',
+            title: SHARED_TABLE_TITLE,
+            icon: null,
+            summary: state.sharedTable === 'record' ? LEAKY_SUMMARY : undefined,
+            updatedAt: '2026-09-25T10:00:00.000Z',
+          },
+        ]
+      : []),
+  ];
+  const TABLE_COLUMNS = [
+    { id: 'c1', name: 'Item', type: 'text' },
+    { id: 'c2', name: 'Price', type: 'number' },
+  ];
+  const TABLE_ROWS = [
+    { id: 'r1', cells: { c1: 'Survey', c2: 1200 } },
+    { id: 'r2', cells: { c1: 'Report', c2: 800 } },
   ];
   const sharedItem = (id: string): Record<string, unknown> | null => {
     const row = sharedRows().find((r) => r.id === id);
@@ -1001,9 +1115,68 @@ export async function startMockMemberApi(
                 { type: 'text', text: '.' },
               ],
             },
+            // References the client may read (audit B27): a mention chip
+            // of the shared note, and the shared file embedded.
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'Minutes: ' },
+                {
+                  type: 'mention',
+                  attrs: {
+                    id: SHARED_NOTE_ID,
+                    label: SHARED_NOTE_TITLE,
+                    ref: 'node',
+                    kind: 'note',
+                  },
+                },
+              ],
+            },
+            {
+              type: 'fileEmbed',
+              attrs: {
+                nodeId: SHARED_FILE_ID,
+                href: `/api/files/files/${SHARED_FILE_ID}?raw=1`,
+                filename: SHARED_FILE_TITLE,
+                mime: 'image/png',
+                size: 68,
+              },
+            },
           ],
         },
       };
+    }
+    if (row.type === 'table') {
+      const { summary: _summary, ...rest } = row;
+      void _summary;
+      return state.sharedTable === 'record'
+        ? {
+            ...row,
+            // The whole record an older brain sends (B13).
+            table: {
+              id: SHARED_TABLE_ID,
+              title: SHARED_TABLE_TITLE,
+              description: TABLE_DESCRIPTION,
+              tags: ['internal'],
+              summary: LEAKY_SUMMARY,
+              visibility: 'private',
+              appLink: null,
+              data: { columns: TABLE_COLUMNS, rows: TABLE_ROWS },
+              draft: null,
+              rowCount: TABLE_ROWS.length,
+            },
+          }
+        : {
+            ...rest,
+            // The allowlisted shape (B13): the grid, its tabs and counts.
+            table: {
+              data: { columns: TABLE_COLUMNS, rows: TABLE_ROWS },
+              docClipped: false,
+              tabs: [],
+              tabId: null,
+              rowCount: TABLE_ROWS.length,
+            },
+          };
     }
     if (row.type === 'note') {
       return { ...row, content: `Agreed: ship it. Background in [${PRIVATE_LABEL}]().` };
@@ -1073,6 +1246,11 @@ export async function startMockMemberApi(
       res.writeHead(204, cors);
       res.end();
       return;
+    }
+    // Public: the brain's appearance, with a peer name (a box's name), so a
+    // spec can see which surfaces show it (audit B27).
+    if (path === '/api/appearance' && method === 'GET') {
+      return json(res, 200, { siteName: null, peerName: MOCK_PEER });
     }
     // Email sign-in codes (C2b): public, for every role, as the brain has
     // them. The request answers every email the same.

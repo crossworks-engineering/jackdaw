@@ -41,6 +41,18 @@ test('the link shows who the invite is for', async ({ page }) => {
   expect(api.adminCalls).toEqual([]);
 });
 
+test('a link with the code in the fragment: read, gone from the address, no referrer (B12)', async ({
+  page,
+}) => {
+  const res = await page.goto(`/invite#code=${INVITE_GOOD_CODE}`);
+  expect(res?.headers()['referrer-policy']).toBe('no-referrer');
+  await expect(emailField(page)).toHaveValue(INVITE_EMAIL, { timeout: 60_000 });
+  await expect(page.getByText(`Welcome, ${INVITE_NAME}.`)).toBeVisible();
+  await expect(page).toHaveURL(/\/invite$/);
+  expect(await page.evaluate(() => window.location.hash)).toBe('');
+  expect(api.adminCalls).toEqual([]);
+});
+
 test('a code that is not valid says so and stays; an old team code is one', async ({ page }) => {
   await page.goto('/invite?code=NotARealCode123');
   await expect(page.getByText('This invite is not valid or has expired.')).toBeVisible({

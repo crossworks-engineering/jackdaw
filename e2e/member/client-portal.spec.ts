@@ -9,14 +9,21 @@ import {
   CLIENT_NAME,
   CLIENT_RATE_CODE,
   CLIENT_SITE,
+  LEAKY_SUMMARY,
   LIBRARY_CLIENT_TITLE,
   LIBRARY_TITLE,
+  MOCK_PEER,
   PRIVATE_LABEL,
+  SHARED_FILE_ID,
   SHARED_FILE_TITLE,
+  SHARED_LATER_TITLE,
   SHARED_NOTE_TITLE,
   SHARED_PAGE_TITLE,
+  SHARED_TABLE_TITLE,
   SENDER_DESK,
   SENDER_INFO,
+  TABLE_DESCRIPTION,
+  serveSameOrigin,
   signInAsAdmin,
   signInAsMember,
   startMockMemberApi,
@@ -49,9 +56,42 @@ const heading = (page: Page) => page.getByRole('heading', { name: 'Shared with y
 const list = (page: Page) => page.getByRole('list', { name: 'Shared items' });
 
 test.describe('the sign-in link', () => {
-  test.beforeEach(async ({ baseURL }) => {
+  test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
     api.clientSession = false;
+    // A client signs in on the brain's own origin only.
+    await serveSameOrigin(context, baseURL!);
+  });
+
+  test('a link carries its code in the fragment: read, gone from the address, signed in (B12)', async ({
+    page,
+  }) => {
+    const res = await page.goto(`/client-signin#code=${CLIENT_GOOD_CODE}`);
+    // No Referer from this page can name a code.
+    expect(res?.headers()['referrer-policy']).toBe('no-referrer');
+    const email = page.getByLabel('Email', { exact: true });
+    await expect(email).toBeVisible({ timeout: 60_000 });
+    await expect(page).toHaveURL(/\/client-signin$/);
+    expect(await page.evaluate(() => window.location.hash)).toBe('');
+    await email.fill(CLIENT_EMAIL);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(heading(page)).toBeVisible({ timeout: 60_000 });
+    expect(api.clientSignIns).toEqual([
+      { code: CLIENT_GOOD_CODE, email: CLIENT_EMAIL, status: 200 },
+    ]);
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('the sign-in page names the site or the product, never the box (B27)', async ({ page }) => {
+    // The box's peer name is served: /login shows it.
+    await page.goto('/login');
+    await expect(page.getByText(MOCK_PEER)).toBeVisible({ timeout: 60_000 });
+    await page.goto('/client-signin');
+    await expect(page.getByText('Open the sign-in link you were sent.')).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page).toHaveTitle('Sign in · Jackdaw');
+    await expect(page.getByText(MOCK_PEER)).toHaveCount(0);
   });
 
   test('a good link and the right email sign the client in, to the home', async ({
@@ -117,10 +157,11 @@ const SENT =
 const sentNotice = (page: Page) => page.getByTestId('client-code-sent');
 
 test.describe('the email sign-in code', () => {
-  test.beforeEach(async ({ baseURL }) => {
+  test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
     api.clientSession = false;
     api.clientCodes = true;
+    await serveSameOrigin(context, baseURL!);
   });
 
   test('email, a wrong code (one sentence, nothing signed in), the right one: the home', async ({
@@ -239,6 +280,30 @@ test.describe('the email sign-in code', () => {
   });
 });
 
+test.describe('client sign-in on a split box (the API on another origin, B27)', () => {
+  test.beforeEach(async ({ baseURL }) => {
+    api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
+    api.clientSession = false;
+    api.clientCodes = true;
+  });
+
+  test('no form, one plain line, and nothing is posted', async ({ page }) => {
+    for (const path of [`/client-signin#code=${CLIENT_GOOD_CODE}`, '/client-signin']) {
+      await page.goto(path);
+      await expect(page.getByText('Client sign-in is not available on this address.')).toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(page.getByRole('textbox')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Email me a code' })).toHaveCount(0);
+    }
+    // The code still left the address.
+    await expect(page).toHaveURL(/\/client-signin$/);
+    expect(api.clientSignIns).toEqual([]);
+    expect(api.clientCodeRequests).toEqual([]);
+  });
+});
+
 test.describe('a signed-in client', () => {
   test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
@@ -269,10 +334,28 @@ test.describe('a signed-in client', () => {
     expect(api.clientCalls).toEqual([]);
   });
 
+  test('Sign out everywhere speaks of browsers only (B14)', async ({ page }) => {
+    await page.goto('/');
+    await expect(heading(page)).toBeVisible({ timeout: 60_000 });
+    await page
+      .getByRole('button', { name: /^Account/ })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: 'Sign out everywhere' }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm).toContainText('Every browser you signed in on must sign in again');
+    await expect(confirm).not.toContainText('phone app');
+    await expect(confirm).not.toContainText('connected client');
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    expect(api.logouts).toEqual([]);
+  });
+
   test('Shared with you: newest first, by kind, by title', async ({ page }) => {
     await page.goto('/');
     await expect(list(page).getByRole('listitem')).toHaveCount(3, { timeout: 60_000 });
     await expect(list(page).getByRole('listitem').first()).toContainText(SHARED_PAGE_TITLE);
+    // Never the summary an older brain still sends (B1).
+    await expect(page.getByText(LEAKY_SUMMARY)).toHaveCount(0);
 
     await page.getByRole('combobox', { name: 'Kind' }).click();
     await page.getByRole('option', { name: 'Notes' }).click();
@@ -299,7 +382,9 @@ test.describe('a signed-in client', () => {
     await expect(body).toContainText(PRIVATE_LABEL);
     // Neither redaction is a link or a chip.
     await expect(body.getByRole('link', { name: PRIVATE_LABEL })).toHaveCount(0);
-    await expect(body.locator('.mention')).toHaveCount(0);
+    await expect(body.locator('.mention', { hasText: PRIVATE_LABEL })).toHaveCount(0);
+    // No summary in the reader either (B1).
+    await expect(page.getByText(LEAKY_SUMMARY)).toHaveCount(0);
     // No edit, share, access or comments here.
     for (const name of ['Edit', 'Share', 'Access', 'Comments']) {
       await expect(page.getByRole('button', { name })).toHaveCount(0);
@@ -310,6 +395,101 @@ test.describe('a signed-in client', () => {
       timeout: 30_000,
     });
     await expect(page).toHaveURL(/\/\?id=14141414/);
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('a mention of a readable item opens it here; a file embed downloads from the client route (B27)', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await serveSameOrigin(context, baseURL!);
+    await page.goto('/');
+    await list(page).getByText(SHARED_PAGE_TITLE).click({ timeout: 60_000 });
+    const body = page.locator('.ProseMirror');
+    const chip = body.locator(`a.file-embed`);
+    await expect(chip).toContainText(SHARED_FILE_TITLE, { timeout: 30_000 });
+    // The chip is a download on the client byte route; the reader saves it
+    // with this moment's asset URL (the anchor it clicks is caught here).
+    expect(await chip.getAttribute('href')).toBe(`/api/client/files/${SHARED_FILE_ID}`);
+    expect(await chip.getAttribute('download')).toBe(SHARED_FILE_TITLE);
+    await page.evaluate(() => {
+      HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+        (window as unknown as { __saved?: unknown }).__saved = {
+          href: this.getAttribute('href'),
+          download: this.getAttribute('download'),
+        };
+      };
+    });
+    await chip.click();
+    expect(await page.evaluate(() => (window as unknown as { __saved?: unknown }).__saved)).toEqual(
+      { href: `/api/client/files/${SHARED_FILE_ID}`, download: SHARED_FILE_TITLE },
+    );
+    // Still on the page it was read on.
+    await expect(page).toHaveURL(/\/\?id=13131313/);
+
+    await body.locator('.mention', { hasText: SHARED_NOTE_TITLE }).click();
+    await expect(page.getByRole('heading', { name: SHARED_NOTE_TITLE })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page).toHaveURL(/\/\?id=14141414/);
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('the list and the open item refresh on focus, with no reload (B27)', async ({ page }) => {
+    await page.goto('/');
+    await expect(list(page).getByRole('listitem')).toHaveCount(3, { timeout: 60_000 });
+    api.sharedLater = true;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(list(page).getByRole('listitem').first()).toContainText(SHARED_LATER_TITLE, {
+      timeout: 15_000,
+    });
+    await expect(list(page).getByRole('listitem')).toHaveCount(4);
+  });
+
+  test('an offline first load shows the failure card with Sign out, not Loading (B27)', async ({
+    page,
+    context,
+  }) => {
+    // The first ask of the shell is in flight when the device goes offline.
+    let release = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    const shell = /\/api\/client\/shell/;
+    await context.route(shell, async (route) => {
+      await held;
+      await route.abort('internetdisconnected');
+    });
+    const asked = page.waitForRequest(shell);
+    await page.goto('/', { waitUntil: 'commit' });
+    await asked;
+    await context.setOffline(true);
+    release();
+    await expect(page.getByText(/This device is offline\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    // Back online: the portal loads.
+    await context.unroute(shell);
+    await context.setOffline(false);
+    await expect(heading(page)).toBeVisible({ timeout: 60_000 });
+  });
+
+  test('the tab names the site, never the box (B27)', async ({ page }) => {
+    await page.goto('/');
+    await expect(heading(page)).toBeVisible({ timeout: 60_000 });
+    await expect(page).toHaveTitle(CLIENT_SITE);
+    await expect(page.getByText(MOCK_PEER)).toHaveCount(0);
+  });
+
+  test('a table reads in either shape, and nothing but the grid shows (B13)', async ({ page }) => {
+    for (const shape of ['allowlisted', 'record'] as const) {
+      api.sharedTable = shape;
+      await page.goto('/');
+      await list(page).getByText(SHARED_TABLE_TITLE).click({ timeout: 60_000 });
+      const grid = page.getByRole('table');
+      await expect(grid).toContainText('Survey', { timeout: 30_000 });
+      await expect(grid).toContainText('Report');
+      await expect(page.getByText(TABLE_DESCRIPTION)).toHaveCount(0);
+      await expect(page.getByText(LEAKY_SUMMARY)).toHaveCount(0);
+    }
     expect(api.clientCalls).toEqual([]);
   });
 
@@ -342,7 +522,8 @@ test.describe('a signed-in client', () => {
     expect(api.clientCalls).toEqual([]);
   });
 
-  test('an ended session goes to the client sign-in page', async ({ page }) => {
+  test('an ended session goes to the client sign-in page', async ({ page, context, baseURL }) => {
+    await serveSameOrigin(context, baseURL!);
     await page.goto('/');
     await expect(heading(page)).toBeVisible({ timeout: 60_000 });
     // An admin ended the sessions: the next ask of the shell is a 401.
@@ -371,6 +552,9 @@ test.describe('Team admin > Clients', () => {
   test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
     await signInAsAdmin(context, baseURL!);
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+      origin: new URL(baseURL!).origin,
+    });
   });
 
   test('Add client and Issue sign-in link wait for What clients see', async ({ page }) => {
@@ -396,17 +580,39 @@ test.describe('Team admin > Clients', () => {
     await expect(page.getByText(CLIENT_NAME).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('No open sign-in link')).toBeVisible();
 
-    // The link, once, as the full URL on this app's origin.
-    await page.getByRole('button', { name: `Issue a sign-in link for ${CLIENT_NAME}` }).click();
+    // The link, once, as the full URL on this app's origin, its code in
+    // the fragment (B12).
+    const issue = page.getByRole('button', { name: `Issue a sign-in link for ${CLIENT_NAME}` });
+    await issue.click();
     const link = page.getByLabel('Sign-in link', { exact: true });
     await expect(link).toHaveValue(
-      new RegExp(`^https?://[^/]+/client-signin\\?code=${CLIENT_GOOD_CODE}$`),
+      new RegExp(`^https?://[^/]+/client-signin#code=${CLIENT_GOOD_CODE}$`),
       { timeout: 15_000 },
     );
-    await expect(page.getByRole('button', { name: 'Copy the sign-in link' })).toBeVisible();
+    // Shown once: no Escape, no click outside, no corner X loses it (B27).
+    const dialog = page.getByRole('dialog', { name: 'Sign-in link ready' });
+    await page.keyboard.press('Escape');
+    await page.mouse.click(5, 5);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Close' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Done' }).click();
+    await expect(dialog).toHaveCount(0);
     await expect(page.getByText(/Sign-in link open until/)).toBeVisible();
     expect(api.admin.signinLinksIssued).toHaveLength(1);
+
+    // A new link over the open one asks first (B27), and Copy closes it.
+    await issue.click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm).toContainText(`Issue a new sign-in link for ${CLIENT_NAME}?`);
+    await expect(confirm).toContainText('stops working now');
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    expect(api.admin.signinLinksIssued).toHaveLength(1);
+    await issue.click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Issue new link' }).click();
+    await expect(link).toBeVisible({ timeout: 15_000 });
+    expect(api.admin.signinLinksIssued).toHaveLength(2);
+    await page.getByRole('button', { name: 'Copy the sign-in link' }).click();
+    await expect(dialog).toHaveCount(0, { timeout: 15_000 });
   });
 
   test('a client login is ended, disabled and deleted from its menu', async ({ page }) => {
@@ -424,7 +630,15 @@ test.describe('Team admin > Clients', () => {
     });
     await page.goto('/team-admin?view=client-logins');
     const more = page.getByRole('button', { name: `More for ${CLIENT_NAME}` });
+    // End sessions says what it does, and where a lockout is (B14).
     await more.click({ timeout: 60_000 });
+    await page.getByRole('menuitem', { name: 'End sessions' }).click();
+    const end = page.getByRole('alertdialog');
+    await expect(end).toContainText('any open sign-in link is revoked');
+    await expect(end).toContainText('To keep them out, disable the login instead.');
+    await expect(end).not.toContainText('need a new sign-in link');
+    await end.getByRole('button', { name: 'Cancel' }).click();
+    await more.click();
     await page.getByRole('menuitem', { name: 'Disable' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Disable' }).click();
     await expect(page.getByRole('button', { name: 'Enable' })).toBeVisible({ timeout: 15_000 });
@@ -457,33 +671,114 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
     await expect(page.getByText('0 of 200 codes sent in the last 24 hours.')).toBeVisible();
     await expect(page.getByTestId('client-codes-cap')).toHaveCount(0);
 
+    // Picking asks the brain first, and confirms naming the folders (B4).
     await picker(page).click();
     await page.getByRole('option', { name: SENDER_DESK.address }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm).toContainText(`Send sign-in codes from ${SENDER_DESK.address}?`, {
+      timeout: 15_000,
+    });
+    await expect(confirm).toContainText('left out of mail sync');
+    await expect(confirm).toContainText('Sent, Sent Items');
+    expect(api.admin.signinSender.previewCalls).toEqual([SENDER_DESK.id]);
+    // Cancel changes nothing.
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    expect(api.admin.signinSender.puts).toEqual([]);
+    await expect(page.getByText(/^Codes are off\./)).toBeVisible();
+
+    await picker(page).click();
+    await page.getByRole('option', { name: SENDER_DESK.address }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Use this account' }).click();
     await expect(
       page.getByText('Sent mail from this account is kept out of the brain: Sent, Sent Items.'),
     ).toBeVisible({ timeout: 15_000 });
     await expect(picker(page)).toContainText(SENDER_DESK.address);
 
-    // The account stopped being able to send since the list loaded.
+    // The preview refuses an account the brain cannot keep out: no dialog,
+    // no save.
+    api.admin.signinSender.previews[SENDER_INFO.id] = {
+      sentFolders: [],
+      canUse: false,
+      reason: 'no-sent-folder',
+    };
+    await picker(page).click();
+    await page.getByRole('option', { name: SENDER_INFO.address }).click();
+    await expect(page.getByText(/That account has no sent-mail folder/)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(picker(page)).toContainText(SENDER_DESK.address);
+
+    // The save itself refused (the account stopped being able to send).
+    delete api.admin.signinSender.previews[SENDER_INFO.id];
     api.admin.signinSender.refusal = {
       status: 400,
       body: { error: 'That account cannot send.', reason: 'account-cannot-send' },
     };
     await picker(page).click();
     await page.getByRole('option', { name: SENDER_INFO.address }).click();
+    const again = page.getByRole('alertdialog');
+    // The folders of the sender now come back.
+    await expect(again).toContainText('These come back into mail sync: Sent, Sent Items.', {
+      timeout: 15_000,
+    });
+    await again.getByRole('button', { name: 'Use this account' }).click();
     await expect(page.getByText(/That account cannot send: it needs IMAP and SMTP/)).toBeVisible({
       timeout: 15_000,
     });
     await expect(picker(page)).toContainText(SENDER_DESK.address);
 
+    // None says the folders come back.
     await picker(page).click();
     await page.getByRole('option', { name: 'None (codes off)' }).click();
+    const off = page.getByRole('alertdialog');
+    await expect(off).toContainText('Turn sign-in codes off?', { timeout: 15_000 });
+    await expect(off).toContainText('These folders come back into mail sync: Sent, Sent Items.');
+    await off.getByRole('button', { name: 'Turn codes off' }).click();
     await expect(page.getByText(/^Codes are off\./)).toBeVisible({ timeout: 15_000 });
     expect(api.admin.signinSender.puts).toEqual([
       { accountId: SENDER_DESK.id },
       { accountId: SENDER_INFO.id },
       { accountId: null },
     ]);
+  });
+
+  test('an older brain (no preview): still confirmed, without folder names', async ({ page }) => {
+    api.admin.signinSender.preview = false;
+    await page.goto('/team-admin?view=client-logins');
+    await picker(page).click({ timeout: 60_000 });
+    await page.getByRole('option', { name: SENDER_DESK.address }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm).toContainText('Its sent-mail folders are left out of mail sync', {
+      timeout: 15_000,
+    });
+    await confirm.getByRole('button', { name: 'Use this account' }).click();
+    await expect(picker(page)).toContainText(SENDER_DESK.address, { timeout: 15_000 });
+    expect(api.admin.signinSender.puts).toEqual([{ accountId: SENDER_DESK.id }]);
+  });
+
+  test('delivered, failed, skipped, the last failure, and no email worker (B3)', async ({
+    page,
+  }) => {
+    api.admin.signinSender.senderId = SENDER_DESK.id;
+    api.admin.signinSender.extra = {
+      deliveredLast24h: 4,
+      failedLast24h: 1,
+      capSkipsLast24h: 2,
+      lastFailure: { at: '2026-09-29T08:00:00.000Z', reason: '535 Authentication failed' },
+      emailWorker: false,
+    };
+    await page.goto('/team-admin?view=client-logins');
+    await expect(page.getByTestId('client-codes-count')).toHaveText(
+      '4 of 200 codes delivered in the last 24 hours, 1 send failed, 2 requests skipped at a limit.',
+      { timeout: 60_000 },
+    );
+    await expect(page.getByTestId('client-codes-last-failure')).toContainText(
+      '535 Authentication failed',
+    );
+    await expect(page.getByTestId('client-codes-worker-off')).toContainText(
+      'The email worker is not running on this box: codes are off.',
+    );
   });
 
   test('the daily cap reached: the banner', async ({ page }) => {
@@ -506,10 +801,45 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
     await page.goto('/team-admin?view=client-logins');
     await picker(page).click({ timeout: 60_000 });
     await page.getByRole('option', { name: SENDER_INFO.address }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Use this account' }).click();
     await expect(
       page.getByText('That email account is not in this brain any more. Pick another.'),
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/^Codes are off\./)).toBeVisible();
+  });
+});
+
+test.describe('Team admin > Member chats (B26)', () => {
+  test.beforeEach(async ({ baseURL, context }) => {
+    api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
+    await signInAsAdmin(context, baseURL!);
+  });
+
+  test('a client login is labelled Client, never a former member', async ({ page }) => {
+    const chat = (over: Record<string, unknown>) => ({
+      active: true,
+      lastMessageAt: '2026-09-28T08:00:00.000Z',
+      lastMessageText: 'Hello there',
+      lastMessageDirection: 'inbound',
+      messageCount: 1,
+      ...over,
+    });
+    api.admin.memberChats = [
+      chat({ loginId: 'm-1', name: 'Mo Member', email: 'mo@example.invalid', role: 'member' }),
+      chat({
+        loginId: 'c-1',
+        name: CLIENT_NAME,
+        email: CLIENT_EMAIL,
+        role: 'client',
+        lastMessageText: 'A question',
+      }),
+    ];
+    await page.goto('/team-admin?view=chats');
+    const client = page.getByRole('listitem').filter({ hasText: CLIENT_NAME });
+    await expect(client).toContainText('Client · A question', { timeout: 60_000 });
+    await expect(page.getByText(/no longer a member/)).toHaveCount(0);
+    const member = page.getByRole('listitem').filter({ hasText: 'Mo Member' });
+    await expect(member).not.toContainText('Client');
   });
 });
 
