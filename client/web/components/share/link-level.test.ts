@@ -31,6 +31,12 @@ describe('LinkLevel', () => {
   it('shows nothing extra when the brain sends no level', () => {
     expect(level(undefined)).toBe('');
   });
+
+  it('names a live link on an admin item an old open link', () => {
+    const html = level('admin');
+    expect(html).toContain('Admin (old open link)');
+    expect(html).not.toContain(OLD);
+  });
 });
 
 describe('the Shared links panel shows it', () => {
@@ -47,5 +53,38 @@ describe('the Shared links panel shows it', () => {
   it("takes the row's own level first, else the level from /api/shares/all", () => {
     expect(src).toContain('row.level ?? levels.get(row.id)');
     expect(src).toContain("apiFetch<{ shares: AllSharesRow[] }>('/api/shares/all')");
+  });
+
+  it('asks /api/shares/all only when a row came without its level', () => {
+    expect(src).toContain('const lookup = needsLevelLookup(rows);');
+    expect(src).toMatch(/queryKey: SHARE_LEVELS_KEY,\n[^\n]*\n\s*enabled: lookup,/);
+  });
+
+  it('says so when the levels failed, with Retry, instead of dropping the badges', () => {
+    expect(src).toContain('const levelsFailed = lookup && levelsQuery.isError;');
+    expect(src).toMatch(/\{levelsFailed \? \(\s*<p\s+role="status"[\s\S]*?\{LEVELS_FAILED\}/);
+    expect(src).toContain('onClick={() => void levelsQuery.refetch()}');
+  });
+
+  it('reloads the levels after a revoke', () => {
+    const revoke = src.slice(
+      src.indexOf('const revoke = async'),
+      src.indexOf('if (rows.length === 0)'),
+    );
+    expect(revoke).toContain('void queryClient.invalidateQueries({ queryKey: SHARE_LEVELS_KEY });');
+  });
+
+  it('offers Copy only for a link meant to be handed out (never an old client link)', () => {
+    expect(src).toMatch(
+      /\{canCopyLink\(levelOf\(selected\)\) \? \(\s*<Button[\s\S]*?aria-label="Copy link"/,
+    );
+    expect(src.match(/aria-label="Copy link"/g)).toHaveLength(1);
+  });
+
+  it('confirms a revoke in the shared dialog, saying an old client link stays at Client', () => {
+    expect(src).toContain('<RevokeLinkDialog');
+    expect(src).toContain(
+      'stays: isOldClientLink(levelOf(confirmRevoke)) ? STAYS_AT_CLIENT : null,',
+    );
   });
 });

@@ -858,7 +858,7 @@ function RequestsTab() {
   );
 }
 
-function SharesTab() {
+function SharesTab({ share }: { share?: string }) {
   const q = useQuery({
     queryKey: SHARES_KEY,
     queryFn: () => apiFetch<SharesResponse>('/api/team-admin/shares'),
@@ -866,7 +866,7 @@ function SharesTab() {
   if (!q.data) return <TabPending active="shares" query={q} what="shared links" />;
   return (
     <Tab active="shares" badges={q.data.badges}>
-      <SharedLinksPanel rows={q.data.shares} />
+      <SharedLinksPanel rows={q.data.shares} initialSelectedId={share} />
     </Tab>
   );
 }
@@ -941,9 +941,11 @@ export default function TeamAdminPage({
     login?: string;
     /** The selected item on the Review tab. */
     item?: string;
+    /** The selected link on the Shared links tab. */
+    share?: string;
   }>;
 }) {
-  const { contact, view, login, item } = use(searchParams);
+  const { contact, view, login, item, share } = use(searchParams);
   if (view === 'chats') return <MemberChatsTab login={login} />;
   if (view === 'invites')
     return (
@@ -963,7 +965,7 @@ export default function TeamAdminPage({
       </Tab>
     );
   if (view === 'settings') return <SettingsTab />;
-  if (view === 'shares') return <SharesTab />;
+  if (view === 'shares') return <SharesTab share={share} />;
   if (view === 'clients') return <ClientsTab />;
   if (view === 'client-logins')
     return (

@@ -6,32 +6,33 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AccessLevel } from '@mantle/client-types';
 import { Check, Copy, ExternalLink, Link2, Link2Off } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@mantle/web-ui/ui/alert-dialog';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { isOldClientLink, kindLabel, linkLevels } from '@/lib/access-levels';
+import {
+  LEVELS_FAILED,
+  SHARES_KEY,
+  SHARE_LEVELS_KEY,
+  canCopyLink,
+  needsLevelLookup,
+  revokeShareLink,
+} from '@/lib/shared-links';
 import type { SharedLinkRow as AllSharesRow } from '@mantle/client-types';
 import { LinkLevel } from './link-level';
+import { RevokeLinkDialog, STAYS_AT_CLIENT } from './revoke-link-dialog';
+
+export { SHARES_KEY };
 
 /** One active link from GET /api/team-admin/shares. Every link is open
  *  (anyone with it can view): team links are retired (member logins Phase 6
  *  stage 6), so the row's share `mode` is always 'public' and is not read.
- *  `level` is the item's level where the row carries it; otherwise it comes
- *  from GET /api/shares/all (client logins C1), and on an older brain it is
- *  absent and nothing extra shows. */
+ *  `level` is the item's level: on the row itself on a current brain;
+ *  otherwise it comes from GET /api/shares/all (client logins C1), and on a
+ *  brain before C1 it is absent and nothing extra shows. */
 export type SharedLinkRow = {
   id: string;
   path: string;
@@ -45,13 +46,6 @@ export type SharedLinkRow = {
   lastViewedAt: string | null;
   level?: AccessLevel;
 };
-
-/** The Shared links tab's query (GET /api/team-admin/shares). */
-export const SHARES_KEY = ['team-admin', 'shares'] as const;
-
-/** Each link's item level (GET /api/shares/all, which carries it since
- *  client logins C1). A failure or an older brain: no levels, nothing extra. */
-const SHARE_LEVELS_KEY = ['team-admin', 'share-levels'] as const;
 
 type SharesData = { shares: SharedLinkRow[] };
 
@@ -70,20 +64,36 @@ type SharesData = { shares: SharedLinkRow[] };
  * revoked link cannot come back on the next tab switch, and a later refetch
  * always shows.
  */
-export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
+export function SharedLinksPanel({
+  rows,
+  initialSelectedId,
+}: {
+  rows: SharedLinkRow[];
+  /** Open at this link (`?share=` from "What clients see"). */
+  initialSelectedId?: string;
+}) {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(rows[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    rows.find((r) => r.id === initialSelectedId)?.id ?? rows[0]?.id ?? null,
+  );
   const [confirmRevoke, setConfirmRevoke] = useState<SharedLinkRow | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  // A current brain puts the level on every row: no second call. An older
+  // one does not, and then /api/shares/all has it (a brain before C1: no
+  // level anywhere, nothing extra shows). A failure says so, with Retry,
+  // rather than dropping every badge in silence.
+  const lookup = needsLevelLookup(rows);
   const levelsQuery = useQuery({
     queryKey: SHARE_LEVELS_KEY,
     queryFn: () => apiFetch<{ shares: AllSharesRow[] }>('/api/shares/all'),
+    enabled: lookup,
     retry: false,
   });
   const levels = linkLevels(levelsQuery.data?.shares);
   const levelOf = (row: SharedLinkRow): AccessLevel | undefined => row.level ?? levels.get(row.id);
+  const levelsFailed = lookup && levelsQuery.isError;
 
   // Keep the selection on a live row: a revoke (or a refetch) must not leave
   // the preview on a link that no longer exists.
@@ -109,12 +119,14 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
     if (!confirmRevoke) return;
     setBusy(true);
     try {
-      await apiSend(`/api/shares/${confirmRevoke.id}`, 'DELETE');
+      await revokeShareLink(confirmRevoke.id);
       const gone = confirmRevoke.id;
       queryClient.setQueryData<SharesData>(SHARES_KEY, (d) =>
         d ? { ...d, shares: d.shares.filter((x) => x.id !== gone) } : d,
       );
       void queryClient.invalidateQueries({ queryKey: SHARES_KEY });
+      // The levels behind the badges, on a brain that sends them apart.
+      void queryClient.invalidateQueries({ queryKey: SHARE_LEVELS_KEY });
       toast.success(`Unshared "${confirmRevoke.title}"`);
       setConfirmRevoke(null);
     } catch (e) {
@@ -152,6 +164,22 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
               <h2 className="text-sm font-semibold">Shared links</h2>
               <span className="text-xs text-muted-foreground">{rows.length}</span>
             </div>
+            {levelsFailed ? (
+              <p
+                role="status"
+                className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"
+              >
+                {LEVELS_FAILED}
+                <Button
+                  size="2xs"
+                  variant="outline"
+                  disabled={levelsQuery.isFetching}
+                  onClick={() => void levelsQuery.refetch()}
+                >
+                  Retry
+                </Button>
+              </p>
+            ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
               <ul className="flex flex-col gap-2 p-3">
                 {rows.map((row) => (
@@ -204,15 +232,19 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      onClick={() => void copy(selected)}
-                      aria-label="Copy link"
-                    >
-                      {copied ? <Check /> : <Copy />}
-                    </Button>
+                    {/* An old client link is not handed out any more: clients
+                        sign in. It can still be opened and revoked. */}
+                    {canCopyLink(levelOf(selected)) ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        onClick={() => void copy(selected)}
+                        aria-label="Copy link"
+                      >
+                        {copied ? <Check /> : <Copy />}
+                      </Button>
+                    ) : null}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -257,34 +289,21 @@ export function SharedLinksPanel({ rows }: { rows: SharedLinkRow[] }) {
         }
       />
 
-      <AlertDialog open={!!confirmRevoke} onOpenChange={(o) => !o && setConfirmRevoke(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Revoke this link?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmRevoke?.cascade
-                ? `"${confirmRevoke?.title}" and its shared sub-pages stop being accessible immediately. The content itself is untouched.`
-                : `"${confirmRevoke?.title}" stops being accessible immediately. The content itself is untouched.`}
-              {confirmRevoke && isOldClientLink(levelOf(confirmRevoke))
-                ? ' It stays at Client, for signed-in clients.'
-                : ''}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Keep sharing</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(e) => {
-                e.preventDefault();
-                void revoke();
-              }}
-              disabled={busy}
-            >
-              Revoke link
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RevokeLinkDialog
+        target={
+          confirmRevoke
+            ? {
+                shareId: confirmRevoke.id,
+                title: confirmRevoke.title,
+                cascade: confirmRevoke.cascade,
+                stays: isOldClientLink(levelOf(confirmRevoke)) ? STAYS_AT_CLIENT : null,
+              }
+            : null
+        }
+        busy={busy}
+        onCancel={() => setConfirmRevoke(null)}
+        onConfirm={() => void revoke()}
+      />
     </>
   );
 }
