@@ -122,7 +122,9 @@ describe('the Access control uses it', () => {
     expect(src).toContain(
       "const oldLinksAbove = level === 'client' ? (view?.oldLinksAbove ?? []) : [];",
     );
-    expect(src).toMatch(/\{oldLinksAbove\.length > 0 && \(\s*<div[^>]*>\s*\{oldLinksAbove\.map\(\(l\) => \(/);
+    expect(src).toMatch(
+      /\{oldLinksAbove\.length > 0 && \(\s*<div[^>]*>\s*\{oldLinksAbove\.map\(\(l\) => \(/,
+    );
     expect(src).toContain('{oldLinkAboveLine(l)}: anyone with that link can open this item.');
     expect(src).toContain('<Link href={sharedLinkHref(l.shareId)}>Shared links</Link>');
     expect(src).toContain('Revoke that link');
