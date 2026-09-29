@@ -39,9 +39,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import type { TeamMemberActivity, TeamRequest, MemberChatPortalThread } from '@mantle/client-types';
+import type { TeamMemberActivity, MemberChatPortalThread } from '@mantle/client-types';
+// The C4 request shape (fromClient): drop to '@mantle/client-types' with the shim.
+import type { TeamRequest } from '@/lib/contract-next';
 import type { MemberChatsResponse } from '@mantle/client-types';
-import { chatRosterTag } from '@/lib/member-chats-roster';
+import {
+  CHAT_ROSTER_FILTERS,
+  chatRosterEmptyText,
+  chatRosterTag,
+  chatRowMetaTag,
+  filterChatRoster,
+  isClientChat,
+  type ChatRosterFilter,
+} from '@/lib/member-chats-roster';
 import {
   SHARES_KEY,
   SharedLinksPanel,
@@ -73,7 +83,14 @@ import {
   isReportMissing,
 } from '@/lib/client-report';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
-import { canReplyToRequest, requestChatHref } from '@/lib/team-requests';
+import {
+  canReplyToRequest,
+  isClientRequest,
+  requestChatHref,
+  requestFromText,
+} from '@/lib/team-requests';
+import { Badge } from '@mantle/web-ui/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
@@ -620,8 +637,11 @@ function MemberChatsTab({ login }: { login?: string }) {
     queryKey: ['team-admin', 'member-chats', login ?? null],
     queryFn: () => apiFetch<MemberChatsResponse>(`/api/team-admin/member-chats?${qs.toString()}`),
   });
+  // Local, not URL: a row link changes ?login=, and the filter holds.
+  const [filter, setFilter] = useState<ChatRosterFilter>('all');
   const data = q.data;
   if (!data) return <TabPending active="chats" query={q} what="member chats" />;
+  const rows = filterChatRoster(data.members, filter);
   const selected = data.selected;
   const member = selected
     ? (data.members.find((m) => m.loginId === selected.loginId) ?? null)
@@ -643,6 +663,19 @@ function MemberChatsTab({ login }: { login?: string }) {
                 <span className="text-xs text-muted-foreground">{data.members.length}</span>
               )}
             </div>
+            {data.members.length > 0 && (
+              <div className="border-b border-border p-3">
+                <Tabs value={filter} onValueChange={(v) => setFilter(v as ChatRosterFilter)}>
+                  <TabsList className="w-full" aria-label="Show">
+                    {CHAT_ROSTER_FILTERS.map((f) => (
+                      <TabsTrigger key={f.value} value={f.value} className="flex-1">
+                        {f.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
               {data.members.length === 0 ? (
                 <div className="p-4 text-sm text-muted-foreground">
@@ -652,20 +685,29 @@ function MemberChatsTab({ login }: { login?: string }) {
                   </Link>
                   .
                 </div>
+              ) : rows.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">{chatRosterEmptyText(filter)}</p>
               ) : (
                 <ul className="flex flex-col gap-2 p-3">
-                  {data.members.map((m) => (
+                  {rows.map((m) => (
                     <li key={m.loginId}>
                       <ListCard asChild selected={m.loginId === selected?.loginId}>
                         <Link href={`/team-admin?view=chats&login=${m.loginId}`}>
                           <div className="flex items-baseline justify-between gap-2">
-                            <ListCardTitle>{m.name}</ListCardTitle>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <ListCardTitle className="min-w-0">{m.name}</ListCardTitle>
+                              {isClientChat(m) ? (
+                                <Badge variant="outline" className="shrink-0">
+                                  Client
+                                </Badge>
+                              ) : null}
+                            </div>
                             <span className="shrink-0 text-xs text-muted-foreground">
                               {fmtWhen(m.lastMessageAt)}
                             </span>
                           </div>
                           <ListCardMeta>
-                            {chatRosterTag(m) ? `${chatRosterTag(m)} · ` : ''}
+                            {chatRowMetaTag(m) ? `${chatRowMetaTag(m)} · ` : ''}
                             {m.lastMessageText ? m.lastMessageText : `${m.email} · no messages yet`}
                           </ListCardMeta>
                         </Link>
@@ -787,13 +829,20 @@ function RequestsTab() {
                       onClick={() => setSelId(r.taskId)}
                     >
                       <div className="flex items-baseline justify-between gap-2">
-                        <ListCardTitle>{r.title}</ListCardTitle>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <ListCardTitle className="min-w-0">{r.title}</ListCardTitle>
+                          {isClientRequest(r) ? (
+                            <Badge variant="outline" className="shrink-0">
+                              Client
+                            </Badge>
+                          ) : null}
+                        </div>
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {fmtWhen(r.createdAt)}
                         </span>
                       </div>
                       <ListCardMeta>
-                        from {r.contactName ?? 'a team member'} ·{' '}
+                        from {requestFromText(r)} ·{' '}
                         {r.status === 'done' ? 'done' : r.notifiedAt ? 'replied' : 'open'}
                       </ListCardMeta>
                     </ListCard>
@@ -811,10 +860,15 @@ function RequestsTab() {
                   <div className="min-w-0">
                     <h2 className="flex items-center gap-2 text-sm font-semibold">
                       <span className="truncate">{selRequest.title}</span>
+                      {isClientRequest(selRequest) ? (
+                        <Badge variant="outline" className="shrink-0">
+                          Client
+                        </Badge>
+                      ) : null}
                       <RequestStatusPill done={selRequest.status === 'done'} />
                     </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      from {selRequest.contactName ?? 'a team member'} ·{' '}
+                      from {requestFromText(selRequest)} ·{' '}
                       {new Date(selRequest.createdAt).toLocaleDateString()}
                       {selRequest.notifiedAt ? ' · replied' : ''}
                     </p>
