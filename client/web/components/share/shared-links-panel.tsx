@@ -21,8 +21,10 @@ import {
   needsLevelLookup,
   revokeShareLink,
 } from '@/lib/shared-links';
+import type { RetiredClientLinkRow } from '@/lib/contract-next';
 import type { SharedLinkRow as AllSharesRow } from '@mantle/client-types';
 import { LinkLevel } from './link-level';
+import { RetiredClientLinks } from './retired-client-links';
 import { RevokeLinkDialog, STAYS_AT_CLIENT } from './revoke-link-dialog';
 
 export { SHARES_KEY };
@@ -55,6 +57,9 @@ type SharesData = { shares: SharedLinkRow[] };
  * open: members read team items by level with their own logins, not by link.
  * Each link shows its item's level; a live link on a client item is an OLD
  * client link (client logins C1: clients will sign in instead), marked so.
+ * Client logins C3 retired those (brain migration 0192), so on a C3 brain
+ * every live link is public and none is marked; the retired ones are listed
+ * below the live links (RetiredClientLinks), with no copy and no open.
  *
  * Master-detail: the links as cards on the left, and the SELECTED link's real
  * `/s/…` page framed on the right. The preview is the server surface itself,
@@ -66,9 +71,12 @@ type SharesData = { shares: SharedLinkRow[] };
  */
 export function SharedLinksPanel({
   rows,
+  retired = [],
   initialSelectedId,
 }: {
   rows: SharedLinkRow[];
+  /** The old client links the brain retired (C3); none from an older brain. */
+  retired?: readonly RetiredClientLinkRow[];
   /** Open at this link (`?share=` from "What clients see"). */
   initialSelectedId?: string;
 }) {
@@ -137,14 +145,26 @@ export function SharedLinksPanel({
     }
   };
 
+  const nothingShared = (
+    <div className="text-center text-sm text-muted-foreground">
+      <p>Nothing is shared right now.</p>
+      <p className="mt-1">
+        Use the Share button on any page, note, table, app, task, event, file, or folder.
+      </p>
+    </div>
+  );
+
+  if (rows.length === 0 && retired.length === 0) {
+    return <div className="flex flex-1 items-center justify-center p-8">{nothingShared}</div>;
+  }
+
+  // No live link, but links C3 retired: the empty note, and those below it.
   if (rows.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8">
-        <div className="text-center text-sm text-muted-foreground">
-          <p>Nothing is shared right now.</p>
-          <p className="mt-1">
-            Use the Share button on any page, note, table, app, task, event, file, or folder.
-          </p>
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+        <div className="mx-auto w-full max-w-xl space-y-8 px-4 py-8">
+          {nothingShared}
+          <RetiredClientLinks rows={retired} />
         </div>
       </div>
     );
@@ -208,6 +228,11 @@ export function SharedLinksPanel({
                   </li>
                 ))}
               </ul>
+              {retired.length > 0 ? (
+                <div className="border-t border-border p-3">
+                  <RetiredClientLinks rows={retired} />
+                </div>
+              ) : null}
             </div>
           </>
         }

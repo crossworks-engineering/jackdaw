@@ -50,6 +50,8 @@ import {
   SharedLinksPanel,
   type SharedLinkRow,
 } from '@/components/share/shared-links-panel';
+import type { RetiredClientLinkRow } from '@/lib/contract-next';
+import { retiredLinksOf } from '@/lib/shared-links';
 import { HubAppPicker } from '@/components/team-chat/hub-app-picker';
 import { PrivateReadsToggle } from '@/components/team-chat/private-reads-toggle';
 import { RequestReply } from '@/components/team-chat/request-reply';
@@ -123,7 +125,13 @@ type MembersResponse = {
 
 type RequestsResponse = { badges: Badges; requests: TeamRequest[] };
 
-type SharesResponse = { badges: Badges; shares: SharedLinkRow[] };
+/** `retired`: the old client links the brain retired (client logins C3);
+ *  absent from a brain before C3, which reads as none. */
+type SharesResponse = {
+  badges: Badges;
+  shares: SharedLinkRow[];
+  retired?: RetiredClientLinkRow[];
+};
 
 type SettingsResponse = {
   badges: Badges;
@@ -876,7 +884,11 @@ function SharesTab({ share }: { share?: string }) {
   if (!q.data) return <TabPending active="shares" query={q} what="shared links" />;
   return (
     <Tab active="shares" badges={q.data.badges}>
-      <SharedLinksPanel rows={q.data.shares} initialSelectedId={share} />
+      <SharedLinksPanel
+        rows={q.data.shares}
+        retired={retiredLinksOf(q.data)}
+        initialSelectedId={share}
+      />
     </Tab>
   );
 }
