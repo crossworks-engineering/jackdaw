@@ -83,6 +83,22 @@ test.describe('the client chat', () => {
     expect(api.clientRouteCalls.every((c) => / \/api\/client\//.test(c))).toBe(true);
   });
 
+  test('closing stops the polling; opening again asks at once', async ({ page }) => {
+    await openChat(page);
+    const box = dock(page).getByRole('textbox', { name: 'Message' });
+    await box.fill('When is the survey?');
+    await box.press('Enter');
+    // The reply is pending: an open dock would ask every 3 s.
+    await expect(dock(page).getByText('Thinking…')).toBeVisible({ timeout: 15_000 });
+    await dock(page).getByRole('button', { name: 'Close chat' }).click();
+    const asked = api.clientChat.gets.length;
+    await page.waitForTimeout(5_000);
+    expect(api.clientChat.gets.length).toBe(asked);
+    // Opened again: asked straight away, not at the next poll.
+    await page.getByRole('button', { name: 'Chat', exact: true }).click();
+    await expect(dock(page)).toContainText(CLIENT_CHAT_REPLY, { timeout: 2_000 });
+  });
+
   test('the chat not open: says so, with no composer', async ({ page }) => {
     api.clientChat.agent = null;
     await openChat(page);
