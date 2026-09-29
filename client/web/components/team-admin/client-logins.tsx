@@ -266,12 +266,9 @@ export function ClientLoginsPanel() {
             commentsDeletable={comments.isSuccess}
           />
           <ClientChatUsagePanel clients={q.data.clients} />
-          {q.data.clients.length > 0 ? (
-            <>
-              <ClientCommentsPanel />
-              <ClientStoragePanel />
-            </>
-          ) : null}
+          {q.data.clients.length > 0 ? <ClientCommentsPanel /> : null}
+          {/* Always: a deleted client's space still counts until it is purged. */}
+          <ClientStoragePanel />
         </>
       )}
       <ClientSigninSenderPanel />
