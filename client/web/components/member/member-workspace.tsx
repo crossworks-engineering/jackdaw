@@ -40,6 +40,7 @@ import { authorName } from '@/lib/item-author';
 import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { useListNav } from '@/lib/use-list-nav';
+import { useUrlSearchBox } from '@/lib/url-search-box';
 import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
 import { ClientRequestItem } from './client-request-item';
@@ -106,18 +107,14 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   // redirects write; a member's screen reads it the same way.
   const openId = params.get('id') ?? params.get('selected');
   const openSource = asSource(params.get('src'));
-  const [searchInput, setSearchInput] = useState(q);
   const [details, changeDetails] = useCardDetails(`mantle_member_${kind}_card_details_v1`);
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
 
-  // Debounced search into the URL; the page resets.
-  useEffect(() => {
-    if (searchInput.trim() === q) return;
-    const t = setTimeout(() => go({ q: searchInput.trim() || null, page: null }), 350);
-    return () => clearTimeout(t);
-  }, [searchInput, q, go]);
+  // The search box and the URL's `q`, each following the other (Back after
+  // a search restores the list); the page resets on a new search.
+  const [searchInput, setSearchInput] = useUrlSearchBox(q, (next) => go({ q: next, page: null }));
 
   // The item this screen pushed a history entry for, from no open item:
   // Close then goes Back to that list entry instead of stacking a second one.

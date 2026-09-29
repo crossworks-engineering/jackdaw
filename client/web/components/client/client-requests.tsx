@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Plus, Shapes, Upload } from 'lucide-react';
@@ -51,6 +51,7 @@ import type { ClientItemRow, ClientItemsPage } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { clientSpace } from '@/lib/member-space';
 import { useListNav } from '@/lib/use-list-nav';
+import { useUrlSearchBox } from '@/lib/url-search-box';
 import { ClientAcceptedReader } from './client-accepted-reader';
 import { ClientChatLauncher } from './client-chat';
 
@@ -85,16 +86,12 @@ export function ClientRequests() {
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
   const selectedId = params.get('id');
   const selectedSrc = clientSrcOf(params);
-  const [searchInput, setSearchInput] = useState(q);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Debounced search into the URL; the page resets.
-  useEffect(() => {
-    if (searchInput.trim() === q) return;
-    const t = setTimeout(() => go({ q: searchInput.trim() || null, page: null }), 350);
-    return () => clearTimeout(t);
-  }, [searchInput, q, go]);
+  // The search box and the URL's `q`, each following the other (Back after
+  // a search restores the list); the page resets on a new search.
+  const [searchInput, setSearchInput] = useUrlSearchBox(q, (next) => go({ q: next, page: null }));
 
   const list = useQuery({
     queryKey: [...CLIENT_REQUESTS_KEY, { kind, q, state, page }],
