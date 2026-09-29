@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlignLeft, ArrowUpDown, Check, ChevronDown, ListFilter, Tag } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
@@ -64,19 +64,25 @@ export function SortMenu<S extends string>({
 }
 
 /**
- * Which rows by state: All, or one pill (private, submitted, …), or a group
- * the screen names (Brain, By me). The first option is the default and reads
- * as unfiltered; any other lights the trigger.
+ * One choice from a short list, as a quiet ghost trigger (the Sort idiom):
+ * the kind on the client portal, the state on the workspace lists. The first
+ * option is the default and reads as unfiltered; any other lights the
+ * trigger. The trigger's name is the current choice.
  */
-export function StateFilter<S extends string>({
+export function ChoiceFilter<S extends string>({
   value,
   options,
   onChange,
+  title,
+  icon,
   tourTarget,
 }: {
   value: S;
   options: readonly { value: S; label: string }[];
-  onChange: (state: S) => void;
+  onChange: (value: S) => void;
+  /** The trigger's hover text ("Filter by state"). */
+  title: string;
+  icon: ReactNode;
   /** A product-tour anchor (`data-tour`) on the trigger. */
   tourTarget?: string;
 }) {
@@ -89,10 +95,10 @@ export function StateFilter<S extends string>({
           variant="ghost"
           size="sm"
           className={cn(TRIGGER, filtered && 'text-foreground')}
-          title="Filter by state"
+          title={title}
           data-tour={tourTarget}
         >
-          <ListFilter className="size-3.5" />
+          {icon}
           {current?.label}
           <ChevronDown className="size-3.5 opacity-60" />
         </Button>
@@ -107,6 +113,21 @@ export function StateFilter<S extends string>({
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Which rows by state: All, or one pill (private, submitted, …), or a group
+ * the screen names (Brain, By me).
+ */
+export function StateFilter<S extends string>(props: {
+  value: S;
+  options: readonly { value: S; label: string }[];
+  onChange: (state: S) => void;
+  tourTarget?: string;
+}) {
+  return (
+    <ChoiceFilter {...props} title="Filter by state" icon={<ListFilter className="size-3.5" />} />
   );
 }
 

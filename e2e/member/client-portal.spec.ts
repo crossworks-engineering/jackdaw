@@ -357,16 +357,20 @@ test.describe('a signed-in client', () => {
     // Never the summary an older brain still sends (B1).
     await expect(page.getByText(LEAKY_SUMMARY)).toHaveCount(0);
 
-    await page.getByRole('combobox', { name: 'Kind' }).click();
-    await page.getByRole('option', { name: 'Notes' }).click();
+    // The kind is the list kit's quiet filter (item-list alignment), and
+    // it lives in the URL like the search.
+    await page.getByRole('button', { name: 'Everything', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Notes' }).click();
+    await expect(page).toHaveURL(/[?&]kind=note/);
     await expect(list(page).getByRole('listitem')).toHaveCount(1);
     await expect(list(page)).toContainText(SHARED_NOTE_TITLE);
 
-    await page.getByRole('combobox', { name: 'Kind' }).click();
-    await page.getByRole('option', { name: 'Everything' }).click();
+    await page.getByRole('button', { name: 'Notes', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Everything' }).click();
     await page.getByRole('textbox', { name: 'Search by title' }).fill('plan');
     await expect(list(page).getByRole('listitem')).toHaveCount(1);
     await expect(list(page)).toContainText(SHARED_FILE_TITLE);
+    await expect(page).toHaveURL(/[?&]q=plan/);
     expect(api.clientRouteCalls).toContain('GET /api/client/shared');
     expect(api.clientCalls).toEqual([]);
   });

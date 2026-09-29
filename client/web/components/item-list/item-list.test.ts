@@ -161,3 +161,21 @@ describe('the member workspace is the same list (P4)', () => {
     expect(src).not.toMatch(/const SOURCES\b/);
   });
 });
+
+describe('the client portal is the same list (P5)', () => {
+  const src = read('../client/client-home.tsx');
+
+  it('uses the kit, keeps its state in the URL, and shows no summary (0.232.333)', () => {
+    for (const part of ['<ItemListHeader', '<ClientSharedCard', '<ChoiceFilter', '<ListPager']) {
+      expect(src, part).toContain(part);
+    }
+    expect(src).toContain("params.get('kind')");
+    expect(src).toContain("params.get('q')");
+    expect(src).not.toContain('summary');
+    // Read-only: no state pill, no actions.
+    expect(src).not.toContain('StatePill');
+    expect(src).not.toContain('actions=');
+    // The card is the kit's.
+    expect(read('../client/client-shared-card.tsx')).toContain('<ItemCard');
+  });
+});

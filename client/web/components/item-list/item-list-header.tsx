@@ -14,12 +14,16 @@ import { cn } from '@mantle/web-ui/lib/utils';
  * everything its reader can see, and a row's state is a pill on the card.
  */
 export function ItemListHeader({
+  heading,
   search,
   onSearch,
   placeholder,
   actions,
   children,
 }: {
+  /** A heading above the search row, for a screen with no page title of
+   *  its own (the client portal). */
+  heading?: ReactNode;
   search: string;
   onSearch: (value: string) => void;
   placeholder: string;
@@ -30,6 +34,7 @@ export function ItemListHeader({
 }) {
   return (
     <div className="space-y-3 border-b border-border p-4">
+      {heading}
       <div className="flex items-center gap-2">
         <ItemSearch value={search} onChange={onSearch} placeholder={placeholder} />
         {actions}

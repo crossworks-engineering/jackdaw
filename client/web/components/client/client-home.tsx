@@ -1,55 +1,88 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
+import { Shapes } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
-import { Input } from '@mantle/web-ui/ui/input';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@mantle/web-ui/ui/select';
 import useMediaQuery from '@mantle/web-ui/hooks/use-media-query';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import type { ClientSharedPage, ClientSharedRow } from '@mantle/client-types';
+import {
+  ItemListEmpty,
+  ItemListHeader,
+  ItemListScroll,
+} from '@/components/item-list/item-list-header';
+import { ChoiceFilter } from '@/components/item-list/item-filters';
 import { CLIENT_SHARED_KEY, sharedListPath } from '@/lib/client-portal';
-import { clientHomeHref } from '@/lib/client-surface';
-import type { ClientSharedPage } from '@mantle/client-types';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND, type MemberItemKind } from '@/lib/member-kinds';
+import { useListNav } from '@/lib/use-list-nav';
 import { ClientChatLauncher } from './client-chat';
 import { ClientReader } from './client-reader';
 import { ClientSharedCard } from './client-shared-card';
 
 const ALL = 'all';
 
-function asKind(v: string): MemberItemKind | null {
-  return (MEMBER_ITEM_KINDS as readonly string[]).includes(v) ? (v as MemberItemKind) : null;
+const KIND_OPTIONS: readonly { value: MemberItemKind | typeof ALL; label: string }[] = [
+  { value: ALL, label: 'Everything' },
+  ...MEMBER_ITEM_KINDS.map((k) => ({
+    value: k,
+    label: MEMBER_KIND[k].many.charAt(0).toUpperCase() + MEMBER_KIND[k].many.slice(1),
+  })),
+];
+
+function asKind(v: string | null): MemberItemKind | null {
+  return v && (MEMBER_ITEM_KINDS as readonly string[]).includes(v) ? (v as MemberItemKind) : null;
 }
 
 /**
  * "Shared with you" (client logins C2): every item at client level, newest
- * first, by kind and by title, a page at a time; the open item sits in the
- * URL (`/?id=`) and reads in the pane beside the list (the whole screen on a
- * phone). Read-only: a client edits, shares and comments on nothing here.
+ * first, by kind and by title, a page at a time, built like every other list
+ * screen (item-list alignment, P5): the kit's header, card and pager. Search,
+ * kind and page live in the URL (`q`, `kind`, `page`), and so does the open
+ * item (`?id=`), which reads in the pane beside the list (the whole screen
+ * on a phone); a wide screen opens the first item. Read-only: a client edits,
+ * shares and comments on nothing here, so the cards carry no actions and no
+ * state pill.
  */
 export function ClientHome() {
   const router = useRouter();
+  const pathname = usePathname() ?? '/';
   const params = useSearchParams();
+  const { pending, go } = useListNav();
   const selectedId = params.get('id');
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const [kind, setKind] = useState<MemberItemKind | null>(null);
-  const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
+  const kind = asKind(params.get('kind'));
+  const q = params.get('q')?.trim() ?? '';
+  const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
+  const [searchInput, setSearchInput] = useState(q);
+
+  // Debounced search into the URL; the page resets.
+  useEffect(() => {
+    if (searchInput.trim() === q) return;
+    const t = setTimeout(() => go({ q: searchInput.trim() || null, page: null }), 350);
+    return () => clearTimeout(t);
+  }, [searchInput, q, go]);
 
   const list = useQuery({
     queryKey: [...CLIENT_SHARED_KEY, { kind, q, page }],
     queryFn: () => apiFetch<ClientSharedPage>(sharedListPath({ kind, q, page })),
     placeholderData: (prev) => prev,
   });
+
+  /** This screen's URL with the open item changed, the list's own params
+   *  kept. */
+  const hrefFor = useCallback(
+    (id: string | null) => {
+      const sp = new URLSearchParams(params.toString());
+      if (id) sp.set('id', id);
+      else sp.delete('id');
+      const s = sp.toString();
+      return s ? `${pathname}?${s}` : pathname;
+    },
+    [params, pathname],
+  );
 
   // The item this screen pushed a history entry for, from no open item:
   // Close then goes Back to the list entry instead of stacking a second one.
@@ -58,98 +91,81 @@ export function ClientHome() {
     (id: string) => {
       if (id === selectedId) return;
       pushedFromList.current = selectedId ? null : id;
-      router.push(clientHomeHref(id), { scroll: false });
+      router.push(hrefFor(id), { scroll: false });
     },
-    [router, selectedId],
+    [router, selectedId, hrefFor],
   );
   const close = () => {
     if (selectedId && pushedFromList.current === selectedId) {
       pushedFromList.current = null;
       router.back();
     } else {
-      router.replace(clientHomeHref(null), { scroll: false });
+      router.replace(hrefFor(null), { scroll: false });
     }
   };
 
   const data = list.data;
+  const rows = data?.items ?? [];
+  // A wide screen opens the first item (master-detail); a phone the list.
+  const openId = selectedId ?? (isDesktop !== false ? (rows[0]?.id ?? null) : null);
+
+  const card = (row: ClientSharedRow) => (
+    <li key={row.id}>
+      <ClientSharedCard row={row} selected={row.id === openId} onOpen={open} />
+    </li>
+  );
+
   const listPane = (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-2 border-b border-border p-3">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-base font-semibold">Shared with you</h1>
-          <ClientChatLauncher />
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            value={kind ?? ALL}
-            onValueChange={(v) => {
-              setKind(asKind(v));
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-36 shrink-0" aria-label="Kind">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Everything</SelectItem>
-              {MEMBER_ITEM_KINDS.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {MEMBER_KIND[k].many.charAt(0).toUpperCase() + MEMBER_KIND[k].many.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="relative min-w-0 flex-1">
-            <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search by title…"
-              aria-label="Search by title"
-              className="pl-8"
-            />
+      <ItemListHeader
+        heading={
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-base font-semibold">Shared with you</h1>
+            <ClientChatLauncher />
           </div>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
+        }
+        search={searchInput}
+        onSearch={setSearchInput}
+        placeholder="Search by title…"
+      >
+        <ChoiceFilter
+          value={kind ?? ALL}
+          options={KIND_OPTIONS}
+          onChange={(v) => go({ kind: v === ALL ? null : v, page: null })}
+          title="Filter by kind"
+          icon={<Shapes className="size-3.5" />}
+        />
+      </ItemListHeader>
+      <ItemListScroll pending={pending}>
         {!data ? (
           <p className="text-sm text-muted-foreground">
             {list.isError ? 'Could not load the list.' : 'Loading…'}
           </p>
-        ) : data.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {q.trim() || kind ? 'Nothing matches that.' : 'Nothing has been shared with you yet.'}
-          </p>
+        ) : rows.length === 0 ? (
+          <ItemListEmpty>
+            {q || kind ? 'Nothing matches that.' : 'Nothing has been shared with you yet.'}
+          </ItemListEmpty>
         ) : (
           <ul className="space-y-2" aria-label="Shared items">
-            {data.items.map((row) => (
-              <li key={row.id}>
-                <ClientSharedCard row={row} selected={row.id === selectedId} onOpen={open} />
-              </li>
-            ))}
+            {rows.map(card)}
           </ul>
         )}
-      </div>
+      </ItemListScroll>
       {data ? (
         <ListPager
           page={data.page}
           total={data.total}
           pageSize={data.pageSize}
-          pending={list.isFetching}
-          onGo={setPage}
+          pending={pending}
+          onGo={(p) => go({ page: p > 1 ? p : null })}
+          noun={{ one: 'item', many: 'items' }}
         />
       ) : null}
     </div>
   );
 
-  const detailPane = selectedId ? (
-    <ClientReader id={selectedId} onClose={close} onOpen={open} />
+  const detailPane = openId ? (
+    <ClientReader key={openId} id={openId} onClose={close} onOpen={open} />
   ) : (
     <div className="flex h-full items-center justify-center p-6">
       <p className="text-sm text-muted-foreground">Pick an item to read it.</p>
