@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
+import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { ReadOnlyItemBody, type ReaderAssets } from '@/components/member/read-only-item';
 import { clientAssetPath, clientDrawUrlPath, clientFileUrlPath } from '@/lib/client-portal';
 import { CLIENT_ACCEPTED_KEY, clientAcceptedPath } from '@/lib/client-requests';
@@ -51,7 +52,7 @@ export function ClientAcceptedReader({ id, onClose }: { id: string; onClose: () 
       </div>
     );
   }
-  const when = item.acceptedAt ? new Date(item.acceptedAt).toLocaleDateString() : null;
+  const when = item.acceptedAt ? formatDate(item.acceptedAt) : null;
   const changed = acceptedBytesChanged(item);
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { ApiError } from '@mantle/web-ui/api-fetch';
+import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import {
   CLIENT_ACCEPTED_KEY,
   CLIENT_COMMENTS_POLL_MS,
@@ -124,8 +125,8 @@ describe('My requests: the list', () => {
   it('stamps an accepted row with when, and an own row with nothing', () => {
     expect(acceptedStamp({ source: 'own', acceptedAt: null })).toBeNull();
     expect(acceptedStamp({ source: 'accepted', acceptedAt: null })).toBe('accepted');
-    expect(acceptedStamp({ source: 'accepted', acceptedAt: '2026-09-20T10:00:00.000Z' })).toMatch(
-      /^accepted /,
+    expect(acceptedStamp({ source: 'accepted', acceptedAt: '2026-09-20T10:00:00.000Z' })).toBe(
+      `accepted ${formatDate('2026-09-20T10:00:00.000Z')}`,
     );
   });
 

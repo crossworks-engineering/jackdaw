@@ -228,13 +228,16 @@ export function ClientRequests() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* An icon: the search box keeps its room beside New. */}
       <Button
         variant="outline"
+        size="icon"
         disabled={busy}
         onClick={() => fileInput.current?.click()}
+        aria-label="Upload"
         title="Upload a file (up to 20 MB)"
       >
-        <Upload /> Upload
+        <Upload />
       </Button>
       <input
         ref={fileInput}

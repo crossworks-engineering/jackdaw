@@ -11,6 +11,7 @@
  * No React here, so every rule is pinned by a test (client-requests.test.ts).
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
+import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import {
   CLIENT_ITEM_FILTERS,
   CLIENT_ITEM_KINDS,
@@ -132,10 +133,11 @@ export function clientRequestsEmpty(opts: {
   return 'Nothing here yet. Start a page or a note with New, or upload a file.';
 }
 
-/** The row's own words beside its pill: when it was accepted, else nothing. */
+/** The row's own words beside its pill: when it was accepted (the list's
+ *  own date format, as the updated stamp), else nothing. */
 export function acceptedStamp(row: Pick<ClientItemRow, 'source' | 'acceptedAt'>): string | null {
   if (row.source !== 'accepted') return null;
-  return row.acceptedAt ? `accepted ${new Date(row.acceptedAt).toLocaleDateString()}` : 'accepted';
+  return row.acceptedAt ? `accepted ${formatDate(row.acceptedAt)}` : 'accepted';
 }
 
 /** Why a client's upload is refused before a byte is sent (over 20 MB), or
