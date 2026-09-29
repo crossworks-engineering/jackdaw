@@ -126,6 +126,10 @@ test('Submit lists the items it wants saved first, each a link', async ({ page }
   await page.goto(`/pages?id=${PAGE_ID}`);
   await expect(page.locator('.ProseMirror')).toContainText('Start.', { timeout: 60_000 });
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue(PAGE_TITLE);
+  // A member's own item: who can see it, and review (the admin's private
+  // item and a client's own have no sharing: admin-takeover and
+  // client-requests specs).
+  await expect(page.getByRole('radiogroup', { name: 'Who can see this' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Submit', exact: true }).click();
   const notice = page.getByRole('status').filter({ hasText: 'Save a version of each' });

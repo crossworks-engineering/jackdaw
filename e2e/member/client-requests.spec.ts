@@ -262,11 +262,9 @@ test.describe('My requests', () => {
     await expect(page.locator('.ProseMirror')).toContainText('The brief.', { timeout: 30_000 });
     await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
     await expect(page.getByText('Could not load')).toHaveCount(0);
-    // Asked once, not polled.
-    const asks = () =>
-      api.clientRouteCalls.filter((c) => c === `GET /api/client/shared/${SHARED_PAGE_ID}/comments`)
-        .length;
-    expect(asks()).toBe(1);
+    // Asked once, also after a poll's time and a focus: client-c5a.spec.ts
+    // (the clock moves there; counted here, straight after load, it could
+    // not fail).
   });
 });
 
@@ -291,7 +289,7 @@ test.describe('the thread on a shared item', () => {
     await expect(thread).toContainText('Team');
     await expect(thread.getByRole('button', { name: 'Delete comment' })).toHaveCount(0);
 
-    await thread.getByRole('textbox').fill('Thanks, looks right.');
+    await thread.getByRole('textbox', { name: 'Write a comment' }).fill('Thanks, looks right.');
     await thread.getByRole('button', { name: 'Add comment' }).click();
     await expect(thread).toContainText('Thanks, looks right.');
     await expect(thread.getByRole('button', { name: 'Delete comment' })).toHaveCount(1);
@@ -335,7 +333,9 @@ test.describe('the member side', () => {
     await row.click();
     await expect(page).toHaveURL(/[?&]src=client-request/);
     await expect(page.getByText(CLIENT_REQUEST_TEXT)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(`Written by ${CLIENT_NAME}.`, { exact: false })).toBeVisible();
+    await expect(
+      page.getByText(`Written by ${CLIENT_NAME}, Client.`, { exact: false }),
+    ).toBeVisible();
     // Read only: no title to edit, no review actions, no thread.
     await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Submit' })).toHaveCount(0);
@@ -356,7 +356,9 @@ test.describe('the member side', () => {
     const thread = page
       .locator('section')
       .filter({ has: page.getByRole('heading', { name: /^Comments/ }) });
-    await thread.getByRole('textbox').fill('Sent to the client on Monday.');
+    await thread
+      .getByRole('textbox', { name: 'Write a comment' })
+      .fill('Sent to the client on Monday.');
     await thread.getByRole('button', { name: 'Add comment' }).click();
     await expect(thread).toContainText('Sent to the client on Monday.');
     expect(api.libraryComments.map((c) => c.body)).toEqual(['Sent to the client on Monday.']);

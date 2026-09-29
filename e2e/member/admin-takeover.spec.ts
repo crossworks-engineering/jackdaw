@@ -31,6 +31,13 @@ test.afterEach(async () => {
 const reviewItem = (id: string) => `/team-admin?view=review&item=${id}`;
 
 test('Take over asks first, names what moves, and opens it in the Pages list', async ({ page }) => {
+  // What an admin's private item never asks: the member routes (sharing,
+  // review, the discussion, realtime). Watched from the first request.
+  const memberAsks: string[] = [];
+  page.on('request', (r) => {
+    const path = new URL(r.url()).pathname;
+    if (path.startsWith('/api/member')) memberAsks.push(`${r.method()} ${path}`);
+  });
   await page.goto(reviewItem(SUBMITTED_ID));
   await expect(page.getByRole('heading', { name: SUBMITTED_TITLE })).toBeVisible({
     timeout: 60_000,
@@ -66,6 +73,13 @@ test('Take over asks first, names what moves, and opens it in the Pages list', a
   await expect(page.getByRole('button', { name: 'Accept into brain' })).toBeVisible();
   // The member can still take it back: no Delete (the brain would refuse).
   await expect(page.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
+  // A private item has no sharing, no review and no discussion: those reach
+  // other people (this replaces a source-text guard, audit U12).
+  await expect(page.getByRole('radiogroup', { name: 'Who can see this' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recall' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Comments' })).toHaveCount(0);
+  expect(memberAsks).toEqual([]);
 });
 
 test('a refused Take over says why and stays on the queue', async ({ page }) => {

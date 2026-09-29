@@ -42,22 +42,16 @@ describe('the admin private screens never reach a member-only route', () => {
     expect(text).toMatch(/<SpaceApiProvider client=\{adminSpace\}>\s*<MineItem/);
   });
 
-  it('MineItem shows sharing, review and the discussion to a member only', () => {
+  // MineItem's own rule (sharing, review and the discussion for a member
+  // only, Give back for a taken item) is pinned by behaviour now, not by its
+  // source text (client logins C5 audit U12): e2e/member/admin-takeover
+  // (a private item asks no member route and shows none of them),
+  // member-takeover (a member's own item has them) and client-requests (a
+  // client's has no sharing).
+  it('MineItem reads and writes through the provided client only', () => {
     const text = src('./mine-item.tsx');
-    // Each member-only control sits behind the admin check, on its own line.
-    // (A client never shares either: client logins C5.)
-    expect(text).toMatch(/\{admin \|\| client \? null : <SharingControl row=\{row\} \/>\}/);
-    expect(text).toMatch(/\{!admin && commentsOpen\(row\) \? <SpaceComments/);
-    expect(text).toMatch(/\) : \(\s*<ReviewActions\s+row=\{row\}\s+beforeSubmit=\{beforeSubmit\}/);
-    // Give back is for an item an admin took over: `takenFrom` is null for
-    // a member (audit F07).
-    expect(text).toContain('const takenFrom = admin ? takenFromOf(');
-    expect(text).toMatch(
-      /\{takenFrom && canGiveBack\(row as AdminSpaceItemRow\) \? \(\s*<GiveBackDialog/,
-    );
-    // and the item is read and written through the provided client.
-    expect(text).toContain('replayRescue(id, Date.now(), api.base)');
     expect(text).not.toContain('memberSpace');
+    expect(text).not.toContain('/api/member');
   });
 
   it.each([
