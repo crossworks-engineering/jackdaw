@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import type { RetiredClientLinkRow } from '../../lib/contract-next';
+import type { RetiredClientLinkRow } from '@mantle/client-types';
 import { RetiredClientLinks } from './retired-client-links';
 
 /**

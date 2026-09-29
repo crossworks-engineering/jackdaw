@@ -50,7 +50,7 @@ import {
   SharedLinksPanel,
   type SharedLinkRow,
 } from '@/components/share/shared-links-panel';
-import type { RetiredClientLinkRow } from '@/lib/contract-next';
+import type { RetiredClientLinkRow } from '@mantle/client-types';
 import { retiredLinksOf } from '@/lib/shared-links';
 import { HubAppPicker } from '@/components/team-chat/hub-app-picker';
 import { PrivateReadsToggle } from '@/components/team-chat/private-reads-toggle';

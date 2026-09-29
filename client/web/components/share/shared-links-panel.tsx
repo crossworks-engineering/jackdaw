@@ -21,7 +21,7 @@ import {
   needsLevelLookup,
   revokeShareLink,
 } from '@/lib/shared-links';
-import type { RetiredClientLinkRow } from '@/lib/contract-next';
+import type { RetiredClientLinkRow } from '@mantle/client-types';
 import type { SharedLinkRow as AllSharesRow } from '@mantle/client-types';
 import { LinkLevel } from './link-level';
 import { RetiredClientLinks } from './retired-client-links';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AccessLevel } from '@mantle/client-types';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import type { RetiredClientLinkRow } from './contract-next';
+import type { RetiredClientLinkRow } from '@mantle/client-types';
 import {
   CLIENTS_HREF,
   LEVELS_FAILED,

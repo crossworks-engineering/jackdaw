@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 // Relative, not '@/': the node test runner renders this (retired-client-links.test.ts).
-import type { RetiredClientLinkRow } from '../../lib/contract-next';
+import type { RetiredClientLinkRow } from '@mantle/client-types';
 import {
   CLIENTS_HREF,
   retiredItemHref,

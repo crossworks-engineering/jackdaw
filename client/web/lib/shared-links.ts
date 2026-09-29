@@ -25,7 +25,7 @@ import type { AccessLevel } from '@mantle/client-types';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { LEVEL_LABEL, isOldClientLink, kindLabel } from './access-levels';
-import type { RetiredClientLinkRow } from './contract-next';
+import type { RetiredClientLinkRow } from '@mantle/client-types';
 
 /** The Shared links tab's query (GET /api/team-admin/shares). */
 export const SHARES_KEY = ['team-admin', 'shares'] as const;
