@@ -21,6 +21,7 @@ import {
   shownIds,
   shownLine,
 } from '../../lib/client-report';
+import { CLIENT_LOGINS_KEY } from '../../lib/client-logins';
 import type { ClientReport, ClientReportItem } from '@mantle/client-types';
 
 /**
@@ -44,6 +45,8 @@ export function ClientReportPanel({ report }: { report: ClientReport }) {
         d ? afterAck(d, res, ids) : d,
       );
       void queryClient.invalidateQueries({ queryKey: CLIENT_REPORT_KEY });
+      // Team admin > Clients waits on this check (client logins C2).
+      void queryClient.invalidateQueries({ queryKey: CLIENT_LOGINS_KEY });
       toast.success('Marked as checked');
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login

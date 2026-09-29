@@ -83,6 +83,9 @@ function useClientLogins() {
   return useQuery({
     queryKey: CLIENT_LOGINS_KEY,
     queryFn: () => apiFetch<ClientLoginList>('/api/team-admin/clients'),
+    // Whether the report is acknowledged can change on another tab (or in
+    // another browser): ask again each time the tab opens.
+    refetchOnMount: 'always',
   });
 }
 
