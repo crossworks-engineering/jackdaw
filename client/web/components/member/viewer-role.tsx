@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react';
 // Relative, not '@/': the node test runner renders this (viewer-role.test.ts).
-import type { ViewerRole } from '../../lib/shell-role';
+import type { ShellProbeFailure, ViewerRole } from '../../lib/shell-role';
 import {
   ClientLoginScreen,
   RoleLoadingScreen,
@@ -80,18 +80,26 @@ export function RoleSwitch({ member, children }: { member: ReactNode; children: 
  * `client` (the client portal, which is its whole app) in its place, never
  * the frame or a page of the owner or member app. Anything else gets a
  * neutral full-window screen instead, with no rail, no nav and no request
- * of its own: loading while the brain has not answered (or Try again when it
- * could not be asked), "not available" for a role this app does not know.
+ * of its own: loading while the brain has not answered (or, when it could
+ * not be asked, a failure card that retries on its own and offers Try again),
+ * "not available" for a role this app does not know. Every one of them
+ * offers Sign out (loading after a few seconds).
  */
 export function ShellRoleGate({
   role,
   probeFailed = false,
+  failure,
+  retrying,
   onRetry,
   client,
   children,
 }: {
   role: ViewerRole | null;
   probeFailed?: boolean;
+  /** How the probe failed (the failure card's words). */
+  failure?: ShellProbeFailure | null;
+  /** A retry of the probe is in flight. */
+  retrying?: boolean;
   onRetry: () => void;
   /** What a client login gets: the client portal. */
   client: ReactNode;
@@ -105,7 +113,12 @@ export function ShellRoleGate({
       return <>{client}</>;
     case null:
       return probeFailed ? (
-        <RoleProbeFailedScreen fullScreen onRetry={onRetry} />
+        <RoleProbeFailedScreen
+          fullScreen
+          failure={failure ?? 'error'}
+          retrying={retrying}
+          onRetry={onRetry}
+        />
       ) : (
         <RoleLoadingScreen fullScreen />
       );

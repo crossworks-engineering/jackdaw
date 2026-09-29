@@ -43,7 +43,7 @@ describe('a client gets the client portal and nothing of the owner or member she
 describe('the shell renders for a confirmed role only', () => {
   it('everything, providers and frame, sits inside the role gate', () => {
     expect(shell).toMatch(
-      /<ViewerRoleProvider role=\{role\}>\s*<ShellRoleGate\s+role=\{role\}\s+probeFailed=\{probeFailed\}\s+onRetry=\{retry\}\s+client=\{<ClientPortal query=\{probes\.client\} \/>\}\s*>\s*\{\(confirmed\) => \(\s*<ToastProvider>/,
+      /<ViewerRoleProvider role=\{role\}>\s*<ShellRoleGate\s+role=\{role\}\s+probeFailed=\{probeFailed\}\s+failure=\{failure\}\s+retrying=\{retrying\}\s+onRetry=\{retry\}\s+client=\{<ClientPortal query=\{probes\.client\} \/>\}\s*>\s*\{\(confirmed\) => \(\s*<ToastProvider>/,
     );
     expect(shell).toContain('<ShellFrame {...props} role={confirmed} probes={probes} />');
     // One frame, and only there.
@@ -53,8 +53,14 @@ describe('the shell renders for a confirmed role only', () => {
   it('the role comes from the brain through resolveShellRole', () => {
     expect(shell).toContain('const role = resolveShellRole(input);');
     expect(shell).toContain(
-      'const { role, probeFailed, retry, probes } = useShellRole(props.role);',
+      'const { role, probeFailed, failure, retrying, retry, probes } = useShellRole(props.role);',
     );
+  });
+
+  it('an offline (paused) probe counts, so the shell does not sit on Loading', () => {
+    expect(shell).toContain("paused: shell.fetchStatus === 'paused',");
+    expect(shell).toContain('const failure = shellProbeFailure(input, role);');
+    expect(shell).toContain('probeFailed: failure !== null,');
   });
 
   it('no retry on any of the three refusals', () => {

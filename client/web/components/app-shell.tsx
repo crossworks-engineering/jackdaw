@@ -10,7 +10,7 @@ import {
   setClientHint,
   setMemberHint,
 } from '@/lib/member-destination';
-import { resolveShellRole, shellProbeFailed, type ViewerRole } from '@/lib/shell-role';
+import { resolveShellRole, shellProbeFailure, type ViewerRole } from '@/lib/shell-role';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
@@ -273,14 +273,24 @@ function useShellRole(seed: 'member' | 'client' | null) {
 
   const input = {
     seed,
-    shell: { hasData: shell.data !== undefined, error: shell.error },
+    shell: {
+      hasData: shell.data !== undefined,
+      error: shell.error,
+      // Offline: TanStack parks the query instead of failing it, so without
+      // this the shell sat on Loading, with no way out, until the network came
+      // back (the same trap build-card.tsx names).
+      paused: shell.fetchStatus === 'paused',
+    },
     member: { hasData: member.data !== undefined, error: member.error },
     client: { hasData: client.data !== undefined, error: client.error },
   };
   const role = resolveShellRole(input);
+  const failure = shellProbeFailure(input, role);
   return {
     role,
-    probeFailed: shellProbeFailed(input, role),
+    probeFailed: failure !== null,
+    failure,
+    retrying: shell.fetchStatus === 'fetching',
     retry: () => void shell.refetch(),
     probes: { shell, member, client } satisfies ShellProbes,
   };
@@ -298,7 +308,7 @@ export function AppShell(props: {
   initialActivityCollapsed?: boolean;
   children: React.ReactNode;
 }) {
-  const { role, probeFailed, retry, probes } = useShellRole(props.role);
+  const { role, probeFailed, failure, retrying, retry, probes } = useShellRole(props.role);
   // Providers only — the frame itself lives in <ShellFrame/>, which sits INSIDE
   // AssistantDockProvider and HelpRailProvider so it can read both dock states
   // (each open column publishes its width to the frame's CSS vars). None of it
@@ -309,6 +319,8 @@ export function AppShell(props: {
       <ShellRoleGate
         role={role}
         probeFailed={probeFailed}
+        failure={failure}
+        retrying={retrying}
         onRetry={retry}
         client={<ClientPortal query={probes.client} />}
       >

@@ -2,6 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { RoleSwitch, ShellRoleGate, ViewerRoleProvider, useViewerRole } from './viewer-role';
+import { LOADING_SIGN_OUT_AFTER_MS, RoleLoadingScreen } from './role-screens';
 
 /**
  * The role plumbing renders (client logins C0): three roles and a neutral
@@ -21,11 +22,16 @@ const withRole = (role: unknown, child: ReactNode) =>
 const switchFor = (role: unknown) =>
   withRole(role, createElement(RoleSwitch, { member: MEMBER, children: ADMIN }));
 
-const gateFor = (role: unknown, probeFailed = false) =>
+const gateFor = (
+  role: unknown,
+  probeFailed = false,
+  failure?: 'offline' | 'unreachable' | 'error',
+) =>
   renderToStaticMarkup(
     createElement(ShellRoleGate, {
       role: role as 'admin',
       probeFailed,
+      failure,
       onRetry: () => {},
       client: CLIENT,
       children: (r: 'admin' | 'member') => (r === 'admin' ? ADMIN : MEMBER),
@@ -78,6 +84,17 @@ describe('RoleSwitch', () => {
     expect(html).not.toContain('MEMBER-SCREEN');
   });
 
+  it('the loading screen holds Sign out back a few seconds, then offers it', () => {
+    // First paint: no Sign out (a normal load is quick).
+    expect(switchFor(null)).not.toContain('Sign out');
+    expect(LOADING_SIGN_OUT_AFTER_MS).toBeGreaterThan(0);
+    expect(LOADING_SIGN_OUT_AFTER_MS).toBeLessThanOrEqual(5_000);
+    // Once the wait is over (0: from the start) it is there.
+    const late = renderToStaticMarkup(createElement(RoleLoadingScreen, { signOutAfterMs: 0 }));
+    expect(late).toContain('Sign out');
+    expect(late).toContain('Loading');
+  });
+
   it('renders the neutral screen for a role it does not know', () => {
     for (const r of ['owner', 'guest', '']) {
       const html = switchFor(r);
@@ -126,10 +143,25 @@ describe('ShellRoleGate (the whole shell)', () => {
 
   it('offers Try again (and Sign out) when the probe failed, not the shell', () => {
     const html = gateFor(null, true);
-    expect(html).toContain('Could not reach the workspace');
+    expect(html).toContain('Could not load your workspace');
     expect(html).toContain('Try again');
     expect(html).toContain('Sign out');
+    expect(html).toContain('Reconnecting');
     expect(html).not.toContain('ADMIN-SCREEN');
+  });
+
+  it('the failure card is an alert the keyboard can land on', () => {
+    const html = gateFor(null, true);
+    expect(html).toMatch(/<section role="alert" tabindex="-1"/);
+  });
+
+  it('says what failed, and never "the brain did not answer" for an answer', () => {
+    expect(gateFor(null, true, 'offline')).toContain('This device is offline.');
+    expect(gateFor(null, true, 'unreachable')).toContain('The brain could not be reached.');
+    for (const html of [gateFor(null, true, 'error'), gateFor(null, true)]) {
+      expect(html).toContain('Something went wrong while loading it.');
+      expect(html).not.toMatch(/did not answer|could not be reached|offline/i);
+    }
   });
 
   it('a failed probe never overrides a role the brain gave', () => {

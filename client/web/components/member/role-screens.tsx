@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, LogOut, RotateCw } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -8,6 +8,7 @@ import { performSignOut } from '@mantle/web-ui/sign-out';
 // Relative, not '@/': the node test runner renders these (viewer-role.test.ts)
 // and does not resolve the app's path alias.
 import { setClientHint, setMemberHint } from '../../lib/member-destination';
+import { shellRetryDelayMs, type ShellProbeFailure } from '../../lib/shell-role';
 
 /**
  * The neutral screens the shell shows when it must not show the owner (or
@@ -32,10 +33,29 @@ function NeutralFrame({ fullScreen, children }: { fullScreen?: boolean; children
   );
 }
 
-/** The settings-card shell (ui-style-guide §6e): a title block over a body. */
-function NeutralCard({ title, children }: { title: string; children: ReactNode }) {
+/** The settings-card shell (ui-style-guide §6e): a title block over a body.
+ *  `alert`: a failure the screen reader announces, focused on mount so the
+ *  keyboard starts at it. */
+function NeutralCard({
+  title,
+  alert = false,
+  children,
+}: {
+  title: string;
+  alert?: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (alert) ref.current?.focus();
+  }, [alert]);
   return (
-    <section className="w-full max-w-md rounded-xl border border-border bg-card text-card-foreground">
+    <section
+      ref={ref}
+      role={alert ? 'alert' : undefined}
+      tabIndex={alert ? -1 : undefined}
+      className="w-full max-w-md rounded-xl border border-border bg-card text-card-foreground outline-none"
+    >
       <div className="border-b border-border p-4 md:p-5">
         <h1 className="text-base font-semibold">{title}</h1>
       </div>
@@ -67,14 +87,34 @@ export function NeutralSignOutButton() {
   );
 }
 
-/** Until the brain has said who this login is. */
-export function RoleLoadingScreen({ fullScreen }: { fullScreen?: boolean }) {
+/** How long the loading screen waits before it offers Sign out: a slow
+ *  first answer is normal, a stuck one must not trap the login. */
+export const LOADING_SIGN_OUT_AFTER_MS = 4_000;
+
+/** Until the brain has said who this login is. Sign out joins it after
+ *  `signOutAfterMs` (0: from the start). */
+export function RoleLoadingScreen({
+  fullScreen,
+  signOutAfterMs = LOADING_SIGN_OUT_AFTER_MS,
+}: {
+  fullScreen?: boolean;
+  signOutAfterMs?: number;
+}) {
+  const [slow, setSlow] = useState(signOutAfterMs <= 0);
+  useEffect(() => {
+    if (signOutAfterMs <= 0) return;
+    const t = setTimeout(() => setSlow(true), signOutAfterMs);
+    return () => clearTimeout(t);
+  }, [signOutAfterMs]);
   return (
     <NeutralFrame fullScreen={fullScreen}>
-      <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" aria-hidden />
-        Loading…
-      </p>
+      <div className="flex flex-col items-center gap-4">
+        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Loading…
+        </p>
+        {slow ? <NeutralSignOutButton /> : null}
+      </div>
     </NeutralFrame>
   );
 }
@@ -109,23 +149,52 @@ export function UnknownRoleScreen({ fullScreen }: { fullScreen?: boolean }) {
   );
 }
 
-/** The brain could not be asked who this login is (a network failure, a
- *  500): try again, rather than guess. */
+/** What the failed screen says, by how the probe failed. Never "the brain
+ *  did not answer" for an answer (a 500, a 403): that one says only that the
+ *  workspace did not load. */
+export const PROBE_FAILURE_TEXT: Record<ShellProbeFailure, string> = {
+  offline: 'This device is offline. The workspace loads once the connection is back.',
+  unreachable: 'The brain could not be reached. Check the connection.',
+  error: 'Something went wrong while loading it.',
+};
+
+/** The brain could not be asked who this login is (offline, unreachable, a
+ *  500): fail closed, and keep asking. It retries on its own with a backoff
+ *  (2, 4, 8, then every 15 s) for as long as it shows, and Try again asks at
+ *  once. The card is an alert and takes focus, so a screen reader hears it
+ *  and the keyboard starts at it. */
 export function RoleProbeFailedScreen({
   fullScreen,
+  failure = 'error',
+  retrying = false,
   onRetry,
 }: {
   fullScreen?: boolean;
+  failure?: ShellProbeFailure;
+  /** A retry is in flight. */
+  retrying?: boolean;
   onRetry: () => void;
 }) {
+  const retry = useRef(onRetry);
+  retry.current = onRetry;
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAttempt((a) => a + 1);
+      retry.current();
+    }, shellRetryDelayMs(attempt));
+    return () => clearTimeout(t);
+  }, [attempt]);
   return (
     <NeutralFrame fullScreen={fullScreen}>
-      <NeutralCard title="Could not reach the workspace">
-        <p className="text-sm text-muted-foreground">
-          The brain did not answer. Check the connection and try again.
+      <NeutralCard title="Could not load your workspace" alert>
+        <p className="text-sm text-muted-foreground">{PROBE_FAILURE_TEXT[failure]}</p>
+        <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className={cn('size-3.5', retrying && 'animate-spin')} aria-hidden />
+          Reconnecting…
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onRetry}>
+          <Button onClick={onRetry} disabled={retrying}>
             <RotateCw aria-hidden />
             Try again
           </Button>

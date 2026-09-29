@@ -16,10 +16,11 @@ import { isLoginRefusal, loginRefusalReason } from './member-destination';
 /** Who the shell is rendering for. The brain's own login roles. */
 export type ViewerRole = LoginKind;
 
-/** One of the shell's two probes, as far as the role goes: whether it has
- *  answered with data (ever: a later failed refetch keeps it) and its
- *  latest error. */
-export type ShellProbe = { hasData: boolean; error: unknown };
+/** One of the shell's probes, as far as the role goes: whether it has
+ *  answered with data (ever: a later failed refetch keeps it), its latest
+ *  error, and whether TanStack parked it for want of a network (`fetchStatus`
+ *  'paused': offline, so it never reaches an error on its own). */
+export type ShellProbe = { hasData: boolean; error: unknown; paused?: boolean };
 
 export type ShellRoleInput = {
   /** From the UX-only hint cookies: 'member' seeds the member shell and
@@ -76,13 +77,42 @@ export function resolveShellRole({
   return shell.hasData ? 'admin' : null;
 }
 
-/** The role probe failed with nothing to say about the role (a network
- *  failure, a 500, a proxy's bare 403): the shell offers Try again rather
- *  than guessing. A 401 is not one: apiFetch is already on its way to
- *  /login. */
+/** Why the role probe has nothing to say about the role, when it has not:
+ *  `offline` (the device has no network: TanStack parks the query, which then
+ *  never fails on its own), `unreachable` (the request never got an answer:
+ *  DNS, refused, CORS) or `error` (the brain answered, but not with a role: a
+ *  500, a proxy's bare 403). */
+export type ShellProbeFailure = 'offline' | 'unreachable' | 'error';
+
+/** The role probe failed, and how (null: it has not, or it is not the shell's
+ *  to say). The shell offers Try again (and retries on its own) rather than
+ *  guessing. Not a login refusal (the role is in it), not a 401 (apiFetch is
+ *  already on its way to /login), and never once the brain gave a role or a
+ *  hint seeded one. */
+export function shellProbeFailure(
+  input: ShellRoleInput,
+  role: ViewerRole | null,
+): ShellProbeFailure | null {
+  if (role !== null || input.seed !== null) return null;
+  const { error, hasData, paused } = input.shell;
+  if (isLoginRefusal(error)) return null;
+  if (paused && !hasData) return 'offline';
+  if (error == null) return null;
+  if (error instanceof ApiError) return error.status === 401 ? null : 'error';
+  return 'unreachable';
+}
+
 export function shellProbeFailed(input: ShellRoleInput, role: ViewerRole | null): boolean {
-  if (role !== null || input.seed !== null) return false;
-  const err = input.shell.error;
-  if (err == null || isLoginRefusal(err)) return false;
-  return !(err instanceof ApiError && err.status === 401);
+  return shellProbeFailure(input, role) !== null;
+}
+
+/** The first automatic retry after a failed role probe, and the ceiling. */
+export const SHELL_RETRY_FIRST_MS = 2_000;
+export const SHELL_RETRY_MAX_MS = 15_000;
+
+/** How long the failed screen waits before its `attempt`th automatic retry
+ *  (0-based): 2, 4, 8 s, then every 15 s for as long as the screen shows. */
+export function shellRetryDelayMs(attempt: number): number {
+  const n = Number.isFinite(attempt) ? Math.max(0, Math.floor(attempt)) : 0;
+  return Math.min(SHELL_RETRY_FIRST_MS * 2 ** Math.min(n, 10), SHELL_RETRY_MAX_MS);
 }

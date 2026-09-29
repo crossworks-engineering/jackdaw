@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  SHELL_RETRY_MAX_MS,
   resolveShellRole,
   shellProbeFailed,
+  shellProbeFailure,
+  shellRetryDelayMs,
   type ShellProbe,
   type ShellRoleInput,
 } from './shell-role';
@@ -140,5 +143,55 @@ describe('shellProbeFailed', () => {
     // A client seed: the portal owns its own Try again (components/client).
     expect(at({ seed: 'client', client: failed(new ApiError('boom', 500)) })).toBe(false);
     expect(at({ seed: 'client', client: failed(refused('admin-login')) })).toBe(false);
+  });
+});
+
+describe('shellProbeFailure (how it failed, for the words)', () => {
+  const at = (over: Partial<ShellRoleInput>) => {
+    const i = input(over);
+    return shellProbeFailure(i, resolveShellRole(i));
+  };
+  const offline: ShellProbe = { hasData: false, error: null, paused: true };
+
+  it('a probe parked offline with no answer is a failure (offline), not Loading', () => {
+    expect(at({ shell: offline })).toBe('offline');
+    // Offline after an earlier failure: still offline, the words say so.
+    expect(at({ shell: { ...failed(new ApiError('boom', 500)), paused: true } })).toBe('offline');
+    expect(shellProbeFailed(input({ shell: offline }), null)).toBe(true);
+  });
+
+  it('a good answer survives going offline: no failure, still admin', () => {
+    const cached: ShellProbe = { hasData: true, error: null, paused: true };
+    expect(resolveShellRole(input({ shell: cached }))).toBe('admin');
+    expect(at({ shell: cached })).toBeNull();
+  });
+
+  it('tells an unanswered request from an answer that carried no role', () => {
+    expect(at({ shell: failed(new TypeError('fetch failed')) })).toBe('unreachable');
+    expect(at({ shell: failed(new ApiError('boom', 500)) })).toBe('error');
+    expect(at({ shell: failed(new ApiError('Forbidden', 403)) })).toBe('error');
+  });
+
+  it('never for a refusal, a 401, a seed or a known role', () => {
+    expect(at({ shell: failed(refused('member-login')) })).toBeNull();
+    expect(at({ shell: { ...failed(refused('member-login')), paused: true } })).toBeNull();
+    expect(at({ shell: failed(new ApiError('unauthorized', 401)) })).toBeNull();
+    expect(at({ seed: 'member', shell: offline })).toBeNull();
+    expect(at({ seed: 'client', shell: offline })).toBeNull();
+    expect(at({})).toBeNull();
+  });
+});
+
+describe('shellRetryDelayMs (the failed screen retries on its own)', () => {
+  it('backs off 2, 4, 8 s and then holds at 15 s, for good', () => {
+    expect([0, 1, 2, 3, 4, 5, 50, 5000].map(shellRetryDelayMs)).toEqual([
+      2000, 4000, 8000, 15000, 15000, 15000, 15000, 15000,
+    ]);
+    expect(SHELL_RETRY_MAX_MS).toBe(15_000);
+  });
+
+  it('never waits less than the first step, whatever it is handed', () => {
+    expect(shellRetryDelayMs(-3)).toBe(2000);
+    expect(shellRetryDelayMs(Number.NaN)).toBe(2000);
   });
 });
