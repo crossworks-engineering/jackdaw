@@ -19,11 +19,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, MoreHorizontal, UserPlus } from 'lucide-react';
+import { Copy, KeyRound, MoreHorizontal, UserPlus } from 'lucide-react';
 import type { ContactRow } from '@mantle/content-core/contacts-format';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
-import { CopyButton } from '@mantle/web-ui/ui/copy-button';
+import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +66,7 @@ import {
   CLIENT_ACTIONS_BLOCKED_TEXT,
   CLIENT_LINK_LIFETIME_HOURS,
   CLIENT_LOGINS_KEY,
+  clientActionConfirm,
   clientActionsBlocked,
   clientCreateErrorText,
   clientLinkErrorText,
@@ -95,6 +96,7 @@ function useClientLogins() {
 
 /** An action on one row, confirmed first where it cannot be undone. */
 type RowAction =
+  | { kind: 'reissue'; row: ClientLoginRow }
   | { kind: 'revoke'; row: ClientLoginRow }
   | { kind: 'end'; row: ClientLoginRow }
   | { kind: 'disable'; row: ClientLoginRow }
@@ -148,8 +150,19 @@ export function ClientLoginsPanel() {
     toast.success(disabled ? 'Client login disabled' : 'Client login enabled');
   };
 
+  // A new link revokes the open one: confirmed first when one is open.
+  const askIssue = (row: ClientLoginRow) => {
+    if (openLinkAt(row, Date.now())) setAction({ kind: 'reissue', row });
+    else void issue(row);
+  };
+
   const run = async () => {
     if (!action) return;
+    if (action.kind === 'reissue') {
+      setAction(null);
+      await issue(action.row);
+      return;
+    }
     setBusy(true);
     const { row } = action;
     try {
@@ -198,7 +211,15 @@ export function ClientLoginsPanel() {
     }
   };
 
-  const confirm = action ? CONFIRM[action.kind](action.row) : null;
+  const confirm = action
+    ? clientActionConfirm(
+        action.kind,
+        action.row,
+        action.kind === 'reissue' && action.row.openLink
+          ? formatDateTime(action.row.openLink.expiresAt)
+          : undefined,
+      )
+    : null;
 
   return (
     <div className="w-full space-y-4 p-4">
@@ -217,7 +238,7 @@ export function ClientLoginsPanel() {
           now={Date.now()}
           issuing={issuing}
           onAdd={() => setAddOpen(true)}
-          onIssue={(row) => void issue(row)}
+          onIssue={askIssue}
           onAction={setAction}
           onEnable={(row) => void enable(row)}
         />
@@ -250,32 +271,6 @@ export function ClientLoginsPanel() {
     </div>
   );
 }
-
-const CONFIRM: Record<
-  RowAction['kind'],
-  (row: ClientLoginRow) => { title: string; body: string; action: string }
-> = {
-  revoke: (row) => ({
-    title: `Revoke the sign-in link for ${clientName(row)}?`,
-    body: 'The link stops working now. Sessions it already started stay signed in; End sessions ends those.',
-    action: 'Revoke',
-  }),
-  end: (row) => ({
-    title: `End every session of ${clientName(row)}?`,
-    body: 'They are signed out on every device at once, and need a new sign-in link to come back.',
-    action: 'End sessions',
-  }),
-  disable: (row) => ({
-    title: `Disable ${clientName(row)}?`,
-    body: 'They are signed out at once and cannot sign in, not even with a link, until you enable the login again.',
-    action: 'Disable',
-  }),
-  delete: (row) => ({
-    title: `Delete the client login for ${clientName(row)}?`,
-    body: 'The login and its sign-in links are removed, and every session ends. This cannot be undone.',
-    action: 'Delete',
-  }),
-};
 
 /** The list itself: no state, no requests (the tests render it). */
 export function ClientLoginsView({
@@ -429,7 +424,12 @@ function ClientRow({
   );
 }
 
-/** The link, once: the full URL with Copy. The brain keeps only a hash. */
+/**
+ * The link, once: the full URL with Copy. The brain keeps only a hash, so a
+ * stray click must not lose it: the dialog closes only by Done, or by Copy
+ * once the link is on the clipboard (no corner X, no Escape, no click
+ * outside). A copy the browser refuses leaves it open, to select by hand.
+ */
 function SigninLinkDialog({
   issued,
   onClose,
@@ -437,10 +437,24 @@ function SigninLinkDialog({
   issued: { row: ClientLoginRow; link: ClientSigninLinkCreated } | null;
   onClose: () => void;
 }) {
+  const toast = useToast();
   const url = issued ? clientSigninUrl(window.location.origin, issued.link.path) : '';
+  const copy = async () => {
+    if (await copyText(url)) {
+      toast.success('Sign-in link copied');
+      onClose();
+    } else {
+      toast.error('Could not copy to clipboard. Select the link and copy it.');
+    }
+  };
   return (
-    <Dialog open={!!issued} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={!!issued}>
+      <DialogContent
+        className="sm:max-w-md"
+        hideClose
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Sign-in link ready</DialogTitle>
           <DialogDescription>
@@ -459,11 +473,16 @@ function SigninLinkDialog({
                 onFocus={(e) => e.currentTarget.select()}
                 aria-describedby="client-link-hint"
               />
-              <CopyButton
-                value={url}
-                className="h-9 shrink-0 gap-1.5 px-3 text-sm"
-                ariaLabel="Copy the sign-in link"
-              />
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0"
+                aria-label="Copy the sign-in link"
+                onClick={() => void copy()}
+              >
+                <Copy />
+                Copy
+              </Button>
             </div>
             <FieldDescription id="client-link-hint">
               For {issued?.row.email}. It works once and expires in {CLIENT_LINK_LIFETIME_HOURS}{' '}

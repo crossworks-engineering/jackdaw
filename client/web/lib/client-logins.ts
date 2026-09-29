@@ -32,7 +32,8 @@ export const CLIENT_ACTIONS_BLOCKED_TEXT =
   'Check the list in What clients see first: every client login reads all of it.';
 
 /** The full sign-in link to hand over: this app's origin plus the brain's
- *  `path` (`/client-signin?code=…`). */
+ *  `path` (`/client-signin#code=…`; `?code=…` from brains before the client
+ *  logins audit fixes). */
 export function clientSigninUrl(origin: string, path: string): string {
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${origin.replace(/\/+$/, '')}${p}`;
@@ -83,4 +84,55 @@ export function clientName(row: Pick<ClientLoginRow, 'displayName' | 'email'>): 
 export function openLinkAt(row: Pick<ClientLoginRow, 'openLink'>, now: number) {
   const link = row.openLink;
   return link && Date.parse(link.expiresAt) > now ? link : null;
+}
+
+/** A row action that is confirmed first. `reissue`: Issue sign-in link while
+ *  a link is still open (the new one revokes it). */
+export type ClientConfirmKind = 'reissue' | 'revoke' | 'end' | 'disable' | 'delete';
+
+/** What each confirm says. `openUntil`: the open link's expiry, formatted
+ *  (reissue only). */
+export function clientActionConfirm(
+  kind: ClientConfirmKind,
+  row: Pick<ClientLoginRow, 'displayName' | 'email'>,
+  openUntil?: string,
+): { title: string; body: string; action: string } {
+  const name = clientName(row);
+  switch (kind) {
+    case 'reissue':
+      return {
+        title: `Issue a new sign-in link for ${name}?`,
+        body:
+          `Their open link${openUntil ? ` (open until ${openUntil})` : ''} stops working now, ` +
+          'and the new one is shown once. Sessions they already have stay signed in.',
+        action: 'Issue new link',
+      };
+    case 'revoke':
+      return {
+        title: `Revoke the sign-in link for ${name}?`,
+        body: 'The link stops working now. Sessions it already started stay signed in; End sessions ends those.',
+        action: 'Revoke',
+      };
+    case 'end':
+      return {
+        title: `End every session of ${name}?`,
+        body:
+          'They are signed out on every device at once, and any open sign-in link is revoked. ' +
+          'They can still sign in again with a new link, or with an email code when codes are on. ' +
+          'To keep them out, disable the login instead.',
+        action: 'End sessions',
+      };
+    case 'disable':
+      return {
+        title: `Disable ${name}?`,
+        body: 'They are signed out at once and cannot sign in, not even with a link, until you enable the login again.',
+        action: 'Disable',
+      };
+    case 'delete':
+      return {
+        title: `Delete the client login for ${name}?`,
+        body: 'The login and its sign-in links are removed, and every session ends. This cannot be undone.',
+        action: 'Delete',
+      };
+  }
 }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   EVERYWHERE_CONFIRM,
+  everywhereConfirmText,
   everywhereOutcome,
   signLoginOutEverywhere,
   signOutEverywhere,
@@ -83,6 +84,20 @@ describe('everywhereOutcome', () => {
   });
 });
 
+describe('the confirm (client logins audit B14)', () => {
+  it('admins and members hear about the phone app and connected clients', () => {
+    expect(everywhereConfirmText(false)).toBe(
+      'This signs you out on every device, this one too. Every browser, the phone app and any connected client must sign in again.',
+    );
+  });
+
+  it('a client hears about browsers only: it has no phone app and no connected client', () => {
+    const text = everywhereConfirmText(true);
+    expect(text).toMatch(/^This signs you out on every device, this one too\. Every browser/);
+    expect(text).not.toMatch(/phone app|connected client/);
+  });
+});
+
 describe('the screens that offer it', () => {
   const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 
@@ -90,7 +105,7 @@ describe('the screens that offer it', () => {
     const menu = src('../components/layout/rail/profile-menu.tsx');
     expect(EVERYWHERE_CONFIRM).toBe('This signs you out on every device, this one too.');
     expect(menu).toContain('<MonitorOff className="size-4" /> Sign out everywhere');
-    expect(menu).toContain('{EVERYWHERE_CONFIRM}');
+    expect(menu).toContain('{everywhereConfirmText(client)}');
     expect(menu).toMatch(
       /const outcome = await signOutEverywhere\(\);[\s\S]*?return;\s*\}\s*await signOut\(\);/,
     );

@@ -54,7 +54,7 @@ import { CLIENT_SIGNIN_PATH } from '@/lib/client-surface';
 import { MemberPasswordDialog } from '@/components/member/member-password-dialog';
 import { useTour } from '@/components/tour/tour-provider';
 import { MEMBER_TOUR_ID } from '@/lib/tour/tours';
-import { EVERYWHERE_CONFIRM, signOutEverywhere } from '@/lib/sign-out-everywhere';
+import { everywhereConfirmText, signOutEverywhere } from '@/lib/sign-out-everywhere';
 import { BrowserNotifyItem } from '@/components/needs-you/browser-notify-item';
 
 export type ProfileIdentity = {
@@ -348,10 +348,7 @@ export function ProfileMenu({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out everywhere?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {EVERYWHERE_CONFIRM} Every browser, the phone app and any connected client must sign
-              in again.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{everywhereConfirmText(client)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>

@@ -18,6 +18,15 @@ import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 /** What the confirm dialog says before a login signs itself out everywhere. */
 export const EVERYWHERE_CONFIRM = 'This signs you out on every device, this one too.';
 
+/** The whole confirm, for the login signing itself out. A client has no
+ *  phone app and no connected client (it signs in with a link or a code in
+ *  a browser), so it is told only about browsers (client logins audit B14). */
+export function everywhereConfirmText(client: boolean): string {
+  return client
+    ? `${EVERYWHERE_CONFIRM} Every browser you signed in on must sign in again, with a new link or an email code.`
+    : `${EVERYWHERE_CONFIRM} Every browser, the phone app and any connected client must sign in again.`;
+}
+
 export type EverywhereOutcome =
   | { kind: 'ok' }
   /** No live session to act with: this browser is signed out already. */

@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ClientLoginList, ClientLoginRow } from '@mantle/client-types';
+import { clientActionConfirm } from '../../lib/client-logins';
 import { ClientLoginsView } from './client-logins';
 
 /**
@@ -104,5 +105,42 @@ describe('Clients', () => {
     expect(button(view({ clients: [], reportAcknowledged: false }), 'Add client')).toContain(
       'disabled=""',
     );
+  });
+});
+
+describe('the confirms (client logins audit B14, B27)', () => {
+  it('End sessions ends sessions and revokes the open link, and points to Disable', () => {
+    const c = clientActionConfirm('end', row());
+    expect(c.title).toBe('End every session of Pat Client?');
+    expect(c.body).toContain('signed out on every device at once');
+    expect(c.body).toContain('any open sign-in link is revoked');
+    expect(c.body).toContain('To keep them out, disable the login instead.');
+    // It no longer promises they need a new link: a code may still let them in.
+    expect(c.body).not.toContain('need a new sign-in link');
+  });
+
+  it('Issue sign-in link over an open one: says the open link stops working', () => {
+    const c = clientActionConfirm('reissue', row(), '1 Oct 2026, 09:00');
+    expect(c.title).toBe('Issue a new sign-in link for Pat Client?');
+    expect(c.body).toMatch(/^Their open link \(open until 1 Oct 2026, 09:00\) stops working now/);
+    expect(c.action).toBe('Issue new link');
+  });
+
+  it('the panel confirms a reissue only while a link is open, and the link dialog closes only by Done or Copy', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const panel = readFileSync(
+      fileURLToPath(new URL('./client-logins.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(panel).toMatch(
+      /if \(openLinkAt\(row, Date\.now\(\)\)\) setAction\(\{ kind: 'reissue', row \}\);\s*else void issue\(row\);/,
+    );
+    expect(panel).toContain('onIssue={askIssue}');
+    const dialog = panel.slice(panel.indexOf('function SigninLinkDialog('));
+    expect(dialog).toMatch(/<Dialog open=\{!!issued\}>/);
+    expect(dialog).toContain('hideClose');
+    expect(dialog).toContain('onEscapeKeyDown={(e) => e.preventDefault()}');
+    expect(dialog).toContain('onInteractOutside={(e) => e.preventDefault()}');
   });
 });

@@ -33,8 +33,14 @@ DialogOverlay.displayName = 'DialogOverlay';
 
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /** No corner X: the dialog closes only by its own buttons (pair it with
+     *  preventDefault on onEscapeKeyDown and onInteractOutside). For a
+     *  dialog showing something once that must not be lost by a stray
+     *  click, such as a one-time sign-in link. */
+    hideClose?: boolean;
+  }
+>(({ className, children, hideClose = false, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -57,12 +63,14 @@ export const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close
-        className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        aria-label="Close"
-      >
-        <X className="size-4" aria-hidden />
-      </DialogPrimitive.Close>
+      {hideClose ? null : (
+        <DialogPrimitive.Close
+          className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label="Close"
+        >
+          <X className="size-4" aria-hidden />
+        </DialogPrimitive.Close>
+      )}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
