@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUpDown, Check, ChevronDown, ListFilter, Tag } from 'lucide-react';
+import { AlignLeft, ArrowUpDown, Check, ChevronDown, ListFilter, Tag } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   Command,
@@ -72,10 +72,13 @@ export function StateFilter<S extends string>({
   value,
   options,
   onChange,
+  tourTarget,
 }: {
   value: S;
   options: readonly { value: S; label: string }[];
   onChange: (state: S) => void;
+  /** A product-tour anchor (`data-tour`) on the trigger. */
+  tourTarget?: string;
 }) {
   const current = options.find((o) => o.value === value) ?? options[0];
   const filtered = !!current && current.value !== options[0]?.value;
@@ -87,6 +90,7 @@ export function StateFilter<S extends string>({
           size="sm"
           className={cn(TRIGGER, filtered && 'text-foreground')}
           title="Filter by state"
+          data-tour={tourTarget}
         >
           <ListFilter className="size-3.5" />
           {current?.label}
@@ -199,6 +203,30 @@ export function TagFilter({
         </Command>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** The card density switch on its own, for a list with no tags (where
+ *  the tag filter would otherwise hold it). */
+export function DetailsToggle({
+  details,
+  onChange,
+}: {
+  details: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn(TRIGGER, details && 'text-foreground')}
+      aria-pressed={details}
+      onClick={() => onChange(!details)}
+      title={details ? 'Hide summaries — titles only' : 'Show summaries on cards'}
+    >
+      <AlignLeft className="size-3.5" />
+      Details
+    </Button>
   );
 }
 

@@ -279,6 +279,12 @@ export type MockMemberApi = {
   clientCodeVerifies: { email: string; code: string; status: number }[];
   /** Member role: the Library list answers (a team and a client row). */
   libraryList: boolean;
+  /** Member role: GET /api/member/items answers, as a brain from 0.232.334
+   *  does; false answers 404, as an older brain does (the client then
+   *  merges the four source lists itself). */
+  itemsRoute: boolean;
+  /** The `state=` of every /api/member/items request, in order. */
+  itemsStates: string[];
   /** Member asset routes the page called. */
   memberAssetCalls: string[];
   /** Every password change the page sent, in order. */
@@ -489,6 +495,8 @@ export async function startMockMemberApi(
     clientCodeRequests: [],
     clientCodeVerifies: [],
     libraryList: false,
+    itemsRoute: true,
+    itemsStates: [],
     memberAssetCalls: [],
     passwordChanges: [],
     inviteAccepts: [],
@@ -1560,6 +1568,69 @@ export async function startMockMemberApi(
     if (state.withAdmin && path.startsWith(`/api/member/space/${TAKEN_ID}`)) {
       state.withAdminReads.push(`${method} ${path}`);
       return json(res, 409, withAdminRefusal);
+    }
+    // The one list (item-list alignment): the brain reads each source under
+    // its own rules and merges them newest first; here the sources are this
+    // mock's own four lists, read over HTTP and merged the same way.
+    if (path === '/api/member/items' && method === 'GET' && state.itemsRoute) {
+      const kind = url.searchParams.get('kind') ?? 'page';
+      const filter = url.searchParams.get('state') ?? 'all';
+      state.itemsStates.push(filter);
+      const qs = `kind=${encodeURIComponent(kind)}`;
+      const read = async (p: string) => {
+        const r = await fetch(`${MOCK_API_ORIGIN}${p}?${qs}`);
+        return r.ok ? ((await r.json()) as { items: Record<string, unknown>[] }).items : [];
+      };
+      const [own, team, library, accepted] = await Promise.all([
+        read('/api/member/space'),
+        read('/api/member/team-drafts'),
+        read('/api/member/library'),
+        read('/api/member/accepted'),
+      ]);
+      const pill = (r: Record<string, unknown>) =>
+        r.reviewState === 'with-admin' || r.reviewState === 'taken'
+          ? 'with-admin'
+          : r.reviewState === 'submitted' || r.reviewState === 'returned'
+            ? r.reviewState
+            : r.reviewState === 'accepted'
+              ? null
+              : r.sharing === 'team'
+                ? 'draft'
+                : 'private';
+      const inLibrary = new Set(library.map((r) => r.id));
+      const rows = [
+        ...own.map((r) => ({ r, source: 'own', pill: pill(r), byMe: false })),
+        ...team.map((r) => ({ r, source: 'team', pill: pill(r), byMe: false })),
+        ...library.map((r) => ({ r, source: 'library', pill: null, byMe: false })),
+        ...accepted
+          .filter((r) => !inLibrary.has(r.id))
+          .map((r) => ({ r, source: 'accepted', pill: null, byMe: true })),
+      ]
+        .filter(({ pill: p, byMe }) =>
+          filter === 'all'
+            ? true
+            : filter === 'brain'
+              ? p === null
+              : filter === 'by-me'
+                ? byMe
+                : p === filter,
+        )
+        .map(({ r, source, pill: p, byMe }) => ({
+          id: r.id,
+          type: r.type,
+          title: r.title,
+          icon: r.icon ?? null,
+          summary: r.summary ?? null,
+          updatedAt: r.updatedAt,
+          source,
+          pill: p,
+          audience: source === 'library' || source === 'accepted' ? r.audience : null,
+          author: (r.author as unknown) ?? null,
+          byMe,
+          space: source === 'own' || source === 'team' ? r : null,
+        }))
+        .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      return json(res, 200, { items: rows, total: rows.length, page: 1, pageSize: 50 });
     }
     if (path === '/api/member/space' && method === 'GET') {
       const kind = url.searchParams.get('kind');

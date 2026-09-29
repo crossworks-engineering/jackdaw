@@ -142,3 +142,22 @@ describe('every admin list shows the admin’s private items beside the brain’
     );
   });
 });
+
+describe('the member workspace is the same list (P4)', () => {
+  const src = read('../member/member-workspace.tsx');
+
+  it('uses the kit and shows every source in one list, with no source switch', () => {
+    for (const part of [
+      '<ItemListHeader',
+      '<ItemCard',
+      '<StateFilter',
+      '<ListPager',
+      '<StatePill',
+    ]) {
+      expect(src, part).toContain(part);
+    }
+    expect(src).toContain('fetchMemberItems(');
+    expect(src).not.toContain('ToggleGroup');
+    expect(src).not.toMatch(/const SOURCES\b/);
+  });
+});

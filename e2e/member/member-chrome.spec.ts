@@ -71,7 +71,7 @@ test('the member tour opens once on Home and walks only member screens', async (
 test('every target the member tour names is on the member shell', async ({ page }) => {
   await skipTour(page);
   await page.goto('/pages');
-  await expect(page.locator('[data-tour="member-sources"]').first()).toBeVisible({
+  await expect(page.locator('[data-tour="member-state"]').first()).toBeVisible({
     timeout: 60_000,
   });
   for (const target of [

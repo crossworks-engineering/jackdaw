@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import {
-  ACCEPTED_AT,
   ACCEPTED_ID,
   ACCEPTED_TITLE,
   PAGE_TITLE,
@@ -10,10 +9,12 @@ import {
 } from './mock-member-api';
 
 /**
- * The Accepted source (member logins, Phase 4): what the member wrote and an
- * admin accepted into the brain, read-only, at any level. The mock's accepted
- * page sits at the ADMIN level, so neither Mine nor the Library has it: only
- * /api/member/accepted does. Runs against the in-memory member API, no brain.
+ * What the member wrote and an admin accepted into the brain (member logins,
+ * Phase 4), in the ONE list (item-list alignment): it lists beside the
+ * member's own items, marked "by you", and the State filter's "By me"
+ * narrows the list to it. The mock's accepted page sits at the ADMIN level,
+ * so the Library does not list it: it is its own accepted row, read-only,
+ * as accepted. Runs against the in-memory member API, no brain.
  */
 let api: MockMemberApi;
 test.beforeEach(async ({ baseURL, context }) => {
@@ -24,22 +25,31 @@ test.afterEach(async () => {
   await api.close();
 });
 
-const acceptedOn = new Date(ACCEPTED_AT).toLocaleDateString('en-US');
+const byMe = async (page: import('@playwright/test').Page) => {
+  await page.getByRole('button', { name: 'Filter by state' }).click();
+  await page.getByRole('menuitemradio', { name: 'By me' }).click();
+};
 
-test('the Accepted source lists the item and opens it read-only', async ({ page }) => {
+test('the one list shows the accepted item beside own ones; By me narrows to it', async ({
+  page,
+}) => {
   await page.goto('/pages');
+  // Everything the member can see, by default: no source to pick first.
   await expect(page.getByText(PAGE_TITLE).first()).toBeVisible({ timeout: 60_000 });
+  const accepted = page.locator(`[data-item-id="${ACCEPTED_ID}"]`);
+  await expect(accepted).toBeVisible();
+  await expect(accepted).toContainText('by you');
+  // The own item wears its state as a pill; the brain's item wears none.
+  await expect(page.locator('[data-state="private"]').first()).toBeVisible();
+  await expect(accepted.locator('[data-state]')).toHaveCount(0);
 
-  await page.getByRole('radio', { name: 'Accepted' }).click();
-  await expect(page).toHaveURL(/\/pages\?src=accepted$/);
-  // Mine's item is not in this list; the accepted one is, with where it sits.
+  await byMe(page);
+  await expect(page).toHaveURL(/\/pages\?state=by-me$/);
   await expect(page.getByText(PAGE_TITLE)).toHaveCount(0);
-  const card = page.getByText(ACCEPTED_TITLE).first();
-  await expect(card).toBeVisible();
-  await expect(page.getByText(`Accepted ${acceptedOn} · Admins only`)).toBeVisible();
+  expect(api.itemsStates).toContain('by-me');
 
-  await card.click();
-  await expect(page).toHaveURL(new RegExp(`/pages\\?src=accepted&id=${ACCEPTED_ID}$`));
+  await accepted.click();
+  await expect(page).toHaveURL(new RegExp(`/pages\\?state=by-me&src=accepted&id=${ACCEPTED_ID}$`));
   await expect(page.getByRole('heading', { name: ACCEPTED_TITLE })).toBeVisible();
   await expect(page.getByText('Saved survey.')).toBeVisible();
   await expect(
@@ -55,7 +65,7 @@ test('the Accepted source lists the item and opens it read-only', async ({ page 
   expect(api.adminCalls).toEqual([]);
 });
 
-test('an accepted item route opens it in Accepted', async ({ page }) => {
+test('an accepted item route opens it as accepted', async ({ page }) => {
   await page.goto(`/pages/${ACCEPTED_ID}`);
   await expect(page).toHaveURL(new RegExp(`/pages\\?src=accepted&id=${ACCEPTED_ID}$`), {
     timeout: 60_000,
@@ -67,10 +77,19 @@ test('an accepted item route opens it in Accepted', async ({ page }) => {
   expect(api.adminCalls).toEqual([]);
 });
 
-test('a kind with nothing accepted says so', async ({ page }) => {
-  await page.goto('/notes?src=accepted');
-  await expect(
-    page.getByText('None of your notes has been accepted into the brain yet.'),
-  ).toBeVisible({ timeout: 60_000 });
+test('a kind with nothing accepted says so under By me', async ({ page }) => {
+  await page.goto('/notes?state=by-me');
+  await expect(page.getByText('No notes match this filter.')).toBeVisible({ timeout: 60_000 });
+  expect(api.adminCalls).toEqual([]);
+});
+
+test('on a brain without the one-list route the client merges the sources itself', async ({
+  page,
+}) => {
+  api.itemsRoute = false;
+  await page.goto('/pages');
+  await expect(page.getByText(PAGE_TITLE).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(`[data-item-id="${ACCEPTED_ID}"]`)).toContainText('by you');
+  expect(api.itemsStates).toEqual([]);
   expect(api.adminCalls).toEqual([]);
 });

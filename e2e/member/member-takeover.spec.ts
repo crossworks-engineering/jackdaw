@@ -35,14 +35,15 @@ test.afterEach(async () => {
   await api.close();
 });
 
-test('an item an admin took over lists as With admin and opens nothing', async ({ page }) => {
+test('an item an admin took over lists as with admin and opens nothing', async ({ page }) => {
   api.withAdmin = true;
   await page.goto('/pages');
-  const card = page.getByRole('listitem').filter({ hasText: TAKEN_TITLE });
+  const card = page.locator(`[data-item-id="${TAKEN_ID}"]`);
   await expect(card).toBeVisible({ timeout: 60_000 });
-  await expect(card).toContainText('With admin');
-  // Who can see it is the admin's business now: no Private / Shared chip.
-  await expect(card).not.toContainText('Private');
+  // Its state is the one pill: with admin, not private or draft (who can see
+  // it is the admin's business now).
+  await expect(card.locator('[data-state]')).toHaveAttribute('data-state', 'with-admin');
+  await expect(card).toContainText('with admin');
 
   await card.click();
   await expect(page).toHaveURL(new RegExp(`/pages\\?id=${TAKEN_ID}$`));
@@ -140,7 +141,8 @@ test('Submit lists the items it wants saved first, each a link', async ({ page }
 
 test('an accepted file an admin changed says so, and asks for no bytes', async ({ page }) => {
   api.changedFile = true;
-  await page.goto('/files?src=accepted');
+  // The one list shows it beside everything else; it opens as accepted.
+  await page.goto('/files');
   const card = page.getByText(CHANGED_FILE_NAME).first();
   await expect(card).toBeVisible({ timeout: 60_000 });
   await card.click();

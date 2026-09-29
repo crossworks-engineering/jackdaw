@@ -860,11 +860,13 @@ test.describe('the member Library', () => {
   });
 
   test('a client-level row wears a Client badge; a team row none', async ({ page }) => {
-    await page.goto('/pages?src=library');
-    const clientRow = page.getByRole('listitem').filter({ hasText: LIBRARY_CLIENT_TITLE });
+    // The one list (item-list alignment): Library rows beside own ones.
+    await page.goto('/pages');
+    const rows = page.locator('[data-item-id]');
+    const clientRow = rows.filter({ hasText: LIBRARY_CLIENT_TITLE });
     await expect(clientRow).toBeVisible({ timeout: 60_000 });
     await expect(clientRow.getByText('Client', { exact: true })).toBeVisible();
-    const teamRow = page.getByRole('listitem').filter({ hasText: LIBRARY_TITLE });
+    const teamRow = rows.filter({ hasText: LIBRARY_TITLE });
     await expect(teamRow.getByText('Client', { exact: true })).toHaveCount(0);
     expect(api.adminCalls).toEqual([]);
   });

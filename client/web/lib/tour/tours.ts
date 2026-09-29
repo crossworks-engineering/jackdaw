@@ -114,8 +114,8 @@ const demo: Tour = {
  * browser on the member home, and `?tour=member` opens it again. Every claim
  * has to hold on any brain a member signs in to, so it names what a member
  * can do, never what this brain contains. Targets: the member rail
- * (`nav:<href>`, `nav:#chat` for the chat item), the source picker on a
- * workspace list (`member-sources`), and the shell's `brand`, `main` and
+ * (`nav:<href>`, `nav:#chat` for the chat item), the State filter on a
+ * workspace list (`member-state`), and the shell's `brand`, `main` and
  * `profile`.
  */
 const member: Tour = {
@@ -139,13 +139,13 @@ const member: Tour = {
       route: '/pages',
       target: 'nav:/pages',
       title: 'Pages, notes, drawings, tables and files',
-      body: 'Each works the same way. Start in Mine: anything new you make is private to you.',
+      body: 'Each works the same way: one list of everything you can see. Anything new you make is private to you.',
     },
     {
       route: '/pages',
-      target: 'member-sources',
-      title: 'Whose items',
-      body: 'Team drafts are what teammates shared with the team, and the Library is what the brain holds for the team. Accepted is your own work that an admin moved into the brain; you can still read it there.',
+      target: 'member-state',
+      title: 'Where each item stands',
+      body: "A small tag says where an item stands: private, draft (shared with the team), submitted or returned; the brain's items have none. Filter by it here, or pick By me for your own work an admin moved into the brain.",
     },
     {
       route: '/pages',

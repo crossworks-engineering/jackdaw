@@ -3,75 +3,56 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Upload } from 'lucide-react';
-import type { AccessLevel, MemberAcceptedPage } from '@mantle/client-types';
-import type { MemberLibraryPage } from '@mantle/client-types';
+import { Upload } from 'lucide-react';
+import type { MemberItemPill, MemberItemRow } from '@mantle/client-types';
 import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Input } from '@mantle/web-ui/ui/input';
-import {
-  ListCard,
-  ListCardMeta,
-  ListCardSnippet,
-  ListCardTitle,
-} from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
-import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import useMediaQuery from '@mantle/web-ui/hooks/use-media-query';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { SetPageTitle } from '@/components/layout/page-title';
+import { ItemCard, ItemIcon, UpdatedStamp } from '@/components/item-list/item-card';
 import {
-  acceptedPlace,
-  isWithAdmin,
+  ItemListEmpty,
+  ItemListHeader,
+  ItemListScroll,
+  NewButton,
+} from '@/components/item-list/item-list-header';
+import { DetailsToggle, StateFilter } from '@/components/item-list/item-filters';
+import { StatePill, type ItemState } from '@/components/item-list/state-pill';
+import { useCardDetails } from '@/components/item-list/use-card-details';
+import {
   LIBRARY_CLIENT_TITLE,
   libraryLevelBadge,
-  listPath,
   memberSpace,
   memberUploadRefusal,
   workspaceNavMode,
   workspaceQuery,
   type SpaceItemRow,
   type SpaceKind,
-  type SpaceList,
   type SpaceSource,
 } from '@/lib/member-space';
+import { MEMBER_STATE_OPTIONS, fetchMemberItems, memberStateOf, srcOf } from '@/lib/member-items';
+import { authorName } from '@/lib/item-author';
 import { MEMBER_KIND } from '@/lib/member-kinds';
+import { useListNav } from '@/lib/use-list-nav';
 import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
 import { TeamDraftItem } from './team-draft-item';
-import { StatusChip, spaceErrorMessage } from './space-status';
-import { authorName } from '@/lib/item-author';
+import { spaceErrorMessage } from './space-status';
 
 const KIND = MEMBER_KIND;
 
-const SOURCES: { value: SpaceSource; label: string }[] = [
-  { value: 'mine', label: 'Mine' },
-  { value: 'team', label: 'Team drafts' },
-  { value: 'library', label: 'Library' },
-  { value: 'accepted', label: 'Accepted' },
-];
+// The pill a row wears is the kit's StatePill: the brain's words and the
+// kit's must stay one set.
+const pillsMatch: [MemberItemPill] extends [ItemState] ? true : false = true;
+void pillsMatch;
 
 function asSource(v: string | null): SpaceSource {
   return v === 'team' || v === 'library' || v === 'accepted' ? v : 'mine';
 }
-
-type Row = {
-  id: string;
-  title: string;
-  icon: string | null;
-  updatedAt: string;
-  summary?: string | null;
-  space?: SpaceItemRow;
-  /** Library: who wrote it, when a member did and an admin accepted it. */
-  author?: string | null;
-  /** Library: its level (team or client, client logins C2). */
-  level?: string;
-  /** Accepted: when, and the level the admin chose. */
-  acceptedAt?: string | null;
-  audience?: AccessLevel;
-};
 
 /**
  * Personal items change under a member from other tabs and teammates: one
@@ -96,12 +77,14 @@ function useSpaceEvents() {
 }
 
 /**
- * A member's screen for one kind (member logins, the real app shell): the
- * same URL an admin uses (/pages, /notes, …), four sources side by side:
- * Mine (their own items, editable), Team drafts (teammates' shared items,
- * saved versions), the Library (brain items at the team level, read-only)
- * and Accepted (what they wrote and an admin accepted, read-only, any level).
- * The source and the selected item live in the URL (?src=, ?id=).
+ * A member's screen for one kind (member logins, the real app shell), built
+ * like the admin screens (item-list alignment, P4): ONE list of everything
+ * the member may see, newest first (their own items, teammates' shared
+ * drafts, the Library, what they wrote that an admin accepted), each row
+ * wearing its state as a pill. No source switch: the State filter narrows
+ * the list when asked. Search, state and page live in the URL (`q`,
+ * `state`, `page`); the open item is `?id=` with `?src=` naming which view
+ * opens it (own, a teammate's draft, the Library, accepted).
  */
 export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const router = useRouter();
@@ -110,16 +93,27 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const toast = useToast();
   const qc = useQueryClient();
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const source = asSource(params.get('src'));
+  const { pending, go } = useListNav();
+  const meta = KIND[kind];
+  const q = params.get('q')?.trim() ?? '';
+  const state = memberStateOf(params);
+  const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
   // `?selected=` is what the admin screens' /notes/<id> and /tables/<id>
   // redirects write; a member's screen reads it the same way.
-  const selectedId = params.get('id') ?? params.get('selected');
-  const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
-  const meta = KIND[kind];
+  const openId = params.get('id') ?? params.get('selected');
+  const openSource = asSource(params.get('src'));
+  const [searchInput, setSearchInput] = useState(q);
+  const [details, changeDetails] = useCardDetails(`mantle_member_${kind}_card_details_v1`);
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
+
+  // Debounced search into the URL; the page resets.
+  useEffect(() => {
+    if (searchInput.trim() === q) return;
+    const t = setTimeout(() => go({ q: searchInput.trim() || null, page: null }), 350);
+    return () => clearTimeout(t);
+  }, [searchInput, q, go]);
 
   // The item this screen pushed a history entry for, from no open item:
   // Close then goes Back to that list entry instead of stacking a second one.
@@ -130,66 +124,20 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
       const qs = workspaceQuery(current, next);
       const href = qs ? `${pathname}?${qs}` : pathname;
       if (workspaceNavMode(current, next) === 'push') {
-        pushedFromList.current = selectedId ? null : (next.id ?? null);
+        pushedFromList.current = openId ? null : (next.id ?? null);
         router.push(href, { scroll: false });
       } else {
         router.replace(href, { scroll: false });
       }
     },
-    [params, pathname, router, selectedId],
+    [params, pathname, router, openId],
   );
 
   const list = useQuery({
-    queryKey: ['member-space-list', source, kind, { q, page }],
-    queryFn: async (): Promise<{ rows: Row[]; total: number; page: number; pageSize: number }> => {
-      const path = listPath(source, { kind, q, page });
-      if (source === 'library') {
-        const d = await apiFetch<MemberLibraryPage>(path);
-        return {
-          rows: d.items.map((r) => ({
-            id: r.id,
-            title: r.title,
-            icon: r.icon,
-            updatedAt: r.updatedAt,
-            summary: r.summary,
-            author: r.author ? authorName(r.author) : null,
-            level: r.audience,
-          })),
-          total: d.total,
-          page: d.page,
-          pageSize: d.pageSize,
-        };
-      }
-      if (source === 'accepted') {
-        const d = await apiFetch<MemberAcceptedPage>(path);
-        return {
-          rows: d.items.map((r) => ({
-            id: r.id,
-            title: r.title,
-            icon: r.icon,
-            updatedAt: r.updatedAt,
-            acceptedAt: r.acceptedAt,
-            audience: r.audience,
-          })),
-          total: d.total,
-          page: d.page,
-          pageSize: d.pageSize,
-        };
-      }
-      const d = await apiFetch<SpaceList>(path);
-      return {
-        rows: d.items.map((r) => ({
-          id: r.id,
-          title: r.title,
-          icon: r.icon,
-          updatedAt: r.updatedAt,
-          space: r,
-        })),
-        total: d.total,
-        page: d.page,
-        pageSize: d.pageSize,
-      };
-    },
+    // `member-space-list` so every own-item change (save, share, submit,
+    // the event stream) refreshes it, as it refreshed the old source lists.
+    queryKey: ['member-space-list', 'items', kind, { q, state, page }],
+    queryFn: () => fetchMemberItems({ kind, q, state, page }),
     placeholderData: (prev) => prev,
   });
 
@@ -234,173 +182,138 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   };
 
   const data = list.data;
-  const empty =
-    source === 'mine'
-      ? `You have no ${meta.many} yet.`
-      : source === 'team'
-        ? 'No teammate has shared any with the team yet.'
-        : source === 'accepted'
-          ? `None of your ${meta.many} has been accepted into the brain yet.`
-          : 'Nothing of this kind has been shared with the team yet.';
+  const rows = data?.items ?? [];
+  // What the detail shows: the item the URL opens, else (on a wide screen)
+  // the first card, the master-detail default. A phone opens the list first.
+  const first = !openId && isDesktop !== false ? (rows[0] ?? null) : null;
+  const open: { id: string; source: SpaceSource; row: MemberItemRow | null } | null = openId
+    ? {
+        id: openId,
+        source: openSource,
+        row: rows.find((r) => r.id === openId && srcOf(r.source) === openSource) ?? null,
+      }
+    : first
+      ? { id: first.id, source: srcOf(first.source), row: first }
+      : null;
+
+  const empty = q
+    ? 'Nothing matches that search.'
+    : state === 'all'
+      ? meta.create
+        ? `Nothing here yet. Start a new ${meta.one} with New.`
+        : `Nothing here yet. Upload a ${meta.one} to start.`
+      : state === 'private'
+        ? `You have no private ${meta.many}.`
+        : `No ${meta.many} match this filter.`;
+
+  const card = (row: MemberItemRow) => {
+    const level = libraryLevelBadge(row.audience);
+    return (
+      <ItemCard
+        key={`${row.source}:${row.id}`}
+        id={row.id}
+        kind={row.type}
+        title={row.title}
+        icon={<ItemIcon emoji={row.icon ?? meta.icon} fallback={null} />}
+        badge={
+          level ? (
+            <Badge variant="outline" className="mt-0.5 shrink-0" title={LIBRARY_CLIENT_TITLE}>
+              {level}
+            </Badge>
+          ) : null
+        }
+        selected={open?.id === row.id && open.source === srcOf(row.source)}
+        onSelect={() => setParams({ src: srcOf(row.source), id: row.id })}
+        footerStart={
+          <>
+            <UpdatedStamp at={row.updatedAt} />
+            {row.byMe ? (
+              <span className="truncate text-xs text-muted-foreground">· by you</span>
+            ) : row.author ? (
+              <span className="truncate text-xs text-muted-foreground">
+                · by {authorName(row.author)}
+              </span>
+            ) : null}
+          </>
+        }
+        pill={row.pill ? <StatePill state={row.pill} /> : null}
+      >
+        {details && row.summary ? (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>
+        ) : null}
+      </ItemCard>
+    );
+  };
 
   const listPane = (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-2 border-b border-border p-3">
-        <div className="flex items-center gap-2">
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            spacing={1}
-            value={source}
-            onValueChange={(v) => {
-              if (!v) return;
-              setPage(1);
-              setParams({ src: v as SpaceSource, id: null });
-            }}
-            aria-label="Whose items"
-            data-tour="member-sources"
-            className="grid flex-1 grid-cols-2"
-          >
-            {SOURCES.map((s) => (
-              <ToggleGroupItem key={s.value} value={s.value} className="text-xs">
-                {s.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          {source === 'mine' && meta.create ? (
-            <Button
-              size="icon-sm"
-              aria-label={`New ${meta.one}`}
-              title={`New ${meta.one}`}
-              disabled={busy}
-              onClick={() => void create()}
-            >
-              <Plus />
-            </Button>
-          ) : null}
-          {source === 'mine' && meta.upload ? (
-            <>
-              <Button
-                size="icon-sm"
-                aria-label="Upload a file"
-                title="Upload a file"
-                disabled={busy}
-                onClick={() => fileInput.current?.click()}
-              >
-                <Upload />
-              </Button>
-              <input
-                ref={fileInput}
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (f) void upload(f);
-                }}
-              />
-            </>
-          ) : null}
-        </div>
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1);
-            }}
-            placeholder={`Search ${meta.title.toLowerCase()}…`}
-            aria-label={`Search ${meta.title.toLowerCase()}`}
-            className="pl-8"
-          />
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
+      <ItemListHeader
+        search={searchInput}
+        onSearch={setSearchInput}
+        placeholder={`Search ${meta.title.toLowerCase()}…`}
+        actions={
+          <>
+            {meta.create ? (
+              <NewButton onClick={() => void create()} busy={busy} title={`New ${meta.one}`} />
+            ) : null}
+            {meta.upload ? (
+              <>
+                <Button
+                  disabled={busy}
+                  onClick={() => fileInput.current?.click()}
+                  title="Upload a file"
+                >
+                  <Upload /> Upload
+                </Button>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) void upload(f);
+                  }}
+                />
+              </>
+            ) : null}
+          </>
+        }
+      >
+        <StateFilter
+          value={state}
+          options={MEMBER_STATE_OPTIONS}
+          onChange={(v) => go({ state: v === 'all' ? null : v, page: null })}
+          tourTarget="member-state"
+        />
+        <DetailsToggle details={details} onChange={changeDetails} />
+      </ItemListHeader>
+      <ItemListScroll pending={pending || (list.isFetching && !!data)}>
         {!data ? (
           <p className="text-sm text-muted-foreground">
             {list.isError ? 'Could not load the list.' : 'Loading…'}
           </p>
-        ) : data.rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {q.trim() ? 'Nothing matches that search.' : empty}
-          </p>
+        ) : rows.length === 0 ? (
+          <ItemListEmpty>{empty}</ItemListEmpty>
         ) : (
-          <ul className="space-y-2">
-            {data.rows.map((row) => (
-              <li key={row.id}>
-                <ListCard
-                  selected={row.id === selectedId}
-                  onClick={() => setParams({ id: row.id })}
-                >
-                  <div className="flex items-start gap-2">
-                    <span
-                      className="mt-px size-4 shrink-0 text-center text-sm leading-5"
-                      aria-hidden
-                    >
-                      {row.icon ?? meta.icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <ListCardTitle className="min-w-0 flex-1">
-                          {row.title || 'Untitled'}
-                        </ListCardTitle>
-                        {libraryLevelBadge(row.level) ? (
-                          <Badge
-                            variant="outline"
-                            className="shrink-0"
-                            title={LIBRARY_CLIENT_TITLE}
-                          >
-                            {libraryLevelBadge(row.level)}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      {row.summary ? <ListCardSnippet>{row.summary}</ListCardSnippet> : null}
-                      <ListCardMeta>
-                        {source === 'mine' && row.space ? (
-                          <span className="mr-2 inline-block align-middle">
-                            <StatusChip row={row.space} />
-                          </span>
-                        ) : null}
-                        {source === 'accepted' ? (
-                          <>
-                            Accepted{' '}
-                            {new Date(row.acceptedAt ?? row.updatedAt).toLocaleDateString()}
-                            {row.audience ? ` · ${acceptedPlace(row.audience)}` : null}
-                          </>
-                        ) : (
-                          <>
-                            Updated {new Date(row.updatedAt).toLocaleDateString()}
-                            {row.author ? ` · by ${row.author}` : null}
-                          </>
-                        )}
-                      </ListCardMeta>
-                    </div>
-                  </div>
-                </ListCard>
-              </li>
-            ))}
-          </ul>
+          rows.map(card)
         )}
-      </div>
+      </ItemListScroll>
       {data ? (
         <ListPager
           page={data.page}
           total={data.total}
           pageSize={data.pageSize}
-          pending={list.isFetching}
-          onGo={setPage}
+          pending={pending}
+          onGo={(p) => go({ page: p > 1 ? p : null })}
+          noun={{ one: meta.one, many: meta.many }}
         />
       ) : null}
     </div>
   );
 
   const close = () => {
-    if (selectedId && pushedFromList.current === selectedId) {
+    if (openId && pushedFromList.current === openId) {
       pushedFromList.current = null;
       router.back();
     } else {
@@ -409,26 +322,25 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   };
   // An own item an admin took over (audit F07): the list row says so, and
   // the item view opens nothing of it.
-  const selectedWithAdmin =
-    source === 'mine' &&
-    !!data?.rows.some((r) => r.id === selectedId && r.space && isWithAdmin(r.space));
-  const detailPane = selectedId ? (
-    source === 'mine' ? (
-      <MineItem id={selectedId} onClose={close} withAdmin={selectedWithAdmin} />
-    ) : source === 'team' ? (
-      <TeamDraftItem id={selectedId} onClose={close} />
+  const withAdmin = open?.row?.pill === 'with-admin';
+  const detailPane = open ? (
+    open.source === 'mine' ? (
+      <MineItem key={open.id} id={open.id} onClose={close} withAdmin={withAdmin} />
+    ) : open.source === 'team' ? (
+      <TeamDraftItem key={open.id} id={open.id} onClose={close} />
     ) : (
       <MemberReader
-        id={selectedId}
-        source={source === 'accepted' ? 'accepted' : 'library'}
+        key={`${open.source}:${open.id}`}
+        id={open.id}
+        source={open.source === 'accepted' ? 'accepted' : 'library'}
         onClose={close}
       />
     )
   ) : (
     <div className="flex h-full items-center justify-center p-6">
       <p className="text-sm text-muted-foreground">
-        {source === 'mine' && meta.create
-          ? `Pick a ${meta.one}, or start a new one with +.`
+        {meta.create
+          ? `Pick a ${meta.one}, or start a new one with New.`
           : `Pick a ${meta.one} to open it.`}
       </p>
     </div>
@@ -438,7 +350,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     <>
       <SetPageTitle title={meta.title} />
       {isDesktop === false ? (
-        <div className="relative h-full min-h-0">{selectedId ? detailPane : listPane}</div>
+        <div className="relative h-full min-h-0">{openId ? detailPane : listPane}</div>
       ) : (
         <MasterDetail id={`member-${kind}`} list={listPane} detail={detailPane} />
       )}
