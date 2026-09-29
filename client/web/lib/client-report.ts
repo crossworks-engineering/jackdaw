@@ -24,7 +24,11 @@ import type {
   ClientReportAckResponse,
   ClientReportRef,
 } from '@mantle/client-types';
-import type { ClientOldLinkAbove, ClientReport, ClientReportAckBody } from './contract-next';
+import type { ClientOldLinkAbove, ClientReport } from '@mantle/client-types';
+
+/** POST /api/access/client-report/ack: the fingerprint of the whole set (new
+ *  brains) or the ids shown (brains before the fingerprint). */
+export type ClientReportAckBody = { fingerprint: string } | { itemIds: string[] };
 
 export const CLIENT_REPORT_KEY = ['team-admin', 'client-report'] as const;
 

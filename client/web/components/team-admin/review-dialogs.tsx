@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Hand, Loader2, Trash2, Undo2 } from 'lucide-react';
 import type { AccessItemView, AccessLevel } from '@mantle/client-types';
-import type { ReviewAuthorRole } from '@/lib/contract-next';
+import type { ReviewAuthorRole } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';

@@ -27,7 +27,7 @@ import {
   shownLine,
 } from '../../lib/client-report';
 import { CLIENT_LOGINS_KEY } from '../../lib/client-logins';
-import type { ClientReport, ClientReportItem } from '../../lib/contract-next';
+import type { ClientReport, ClientReportItem } from '@mantle/client-types';
 
 /**
  * Team admin > What clients see (client logins C1): every item at client

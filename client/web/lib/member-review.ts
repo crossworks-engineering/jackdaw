@@ -18,7 +18,7 @@ import type {
   AcceptRequest,
   ReviewAuthorRole,
   ReviewAuthorView,
-} from './contract-next';
+} from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
 import {
   refusalReason,

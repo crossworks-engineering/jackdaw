@@ -10,7 +10,10 @@ import type {
   AccessLoweredView,
   AccessNodeUpdate,
 } from '@mantle/client-types';
-import type { AccessNodeView, ShareCascadeResult } from '@/lib/contract-next';
+import type { AccessNodeView } from '@mantle/client-types';
+
+/** POST /api/shares/cascade: `skipped` = client sub-pages kept at client (no link). */
+type ShareCascadeResult = { ok: true; count?: number; skipped?: string[] };
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';

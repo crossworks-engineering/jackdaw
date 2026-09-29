@@ -9,7 +9,7 @@
  * Pure: unit-tested (password-reset.test.ts).
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import type { PasswordResetRefused } from './contract-next';
+import type { PasswordResetRefused } from '@mantle/client-types';
 
 /** Reset password is offered for these roles only. */
 export function canResetPassword(role: string): boolean {
