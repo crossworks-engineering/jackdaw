@@ -9,15 +9,31 @@
  * Picking a sender keeps its sent mail out of the brain (the brain leaves
  * its sent-mail folders out of mail sync, and each code mail carries a
  * marker the sync skips), so a live code never becomes a searchable item.
- * The brain caps codes per day for all clients together; once reached,
- * requests still get the same answer and nothing is sent, and the card says
- * so. A brain before C2b answers 404 here: the card is left out.
+ * That is a real change to the admin's mail, so it is confirmed first: the
+ * brain's preview names the folders (or refuses an account it cannot keep
+ * out), and choosing None, or another sender, says which folders come back
+ * (audit B4). The brain caps codes per day for all clients together; once
+ * reached, requests still get the same answer and nothing is sent, and the
+ * card says so. It also shows what was delivered, what failed (and the last
+ * failure), what a limit skipped, and when no email worker runs on this box
+ * (codes are then off whatever the sender, audit B3). A brain before C2b
+ * answers 404 here: the card is left out.
  */
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MailCheck, TriangleAlert } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   Field,
@@ -34,19 +50,28 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 // Relative, not '@/': the node test runner renders this
 // (client-signin-sender.test.ts).
 import {
   CLIENT_SENDER_KEY,
   CLIENT_SENDER_PATH,
+  EMAIL_WORKER_OFF_TEXT,
   NO_SENDER,
   capReachedText,
+  codesWorkerOff,
+  lastFailureText,
   senderBody,
+  senderChangeConfirm,
+  senderChangedText,
   senderErrorText,
+  senderPreviewOutcome,
+  senderPreviewPath,
   senderStateText,
   sentCountText,
+  type SenderChange,
 } from '../../lib/client-signin-sender';
-import type { ClientSigninSender } from '@mantle/client-types';
+import type { ClientSigninSender, ClientSigninSenderPreview } from '../../lib/contract-next';
 
 /** The card: owns the query and the change; the markup is the view. */
 export function ClientSigninSenderPanel() {
@@ -60,26 +85,65 @@ export function ClientSigninSenderPanel() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [change, setChange] = useState<SenderChange | null>(null);
 
-  const change = async (value: string) => {
+  const fail = (e: unknown) => {
+    if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
+    const status = e instanceof ApiError ? e.status : 0;
+    setError(senderErrorText(status, e instanceof ApiError ? e.body : undefined));
+    // The list may have changed under the admin (an account removed).
+    void q.refetch();
+  };
+
+  /** A pick in the select: nothing changes until the admin confirms. */
+  const ask = async (value: string) => {
+    const data = q.data;
+    if (!data || value === (data.sender?.id ?? NO_SENDER)) return;
+    setError(undefined);
+    const restored = data.sentFoldersExcluded;
+    if (value === NO_SENDER) {
+      setChange({ kind: 'none', restored });
+      return;
+    }
+    const address = data.candidates.find((c) => c.id === value)?.address ?? 'this account';
+    setSaving(true);
+    try {
+      const preview = await apiFetch<ClientSigninSenderPreview>(senderPreviewPath(value));
+      const outcome = senderPreviewOutcome(preview);
+      if (outcome.kind === 'refused') {
+        setError(outcome.message);
+        return;
+      }
+      setChange({ kind: 'pick', accountId: value, address, folders: outcome.folders, restored });
+    } catch (e) {
+      // A brain before the preview route: confirm without the folder names.
+      if (e instanceof ApiError && e.status === 404) {
+        setChange({ kind: 'pick', accountId: value, address, folders: null, restored });
+      } else {
+        fail(e);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const save = async () => {
+    if (!change) return;
     setSaving(true);
     setError(undefined);
     try {
-      const next = await apiSend<ClientSigninSender>(CLIENT_SENDER_PATH, 'PUT', senderBody(value));
-      queryClient.setQueryData(CLIENT_SENDER_KEY, next);
-      toast.success(
-        next.sender
-          ? `Sign-in codes are sent from ${next.sender.address}`
-          : 'Sign-in codes are off',
+      const next = await apiSend<ClientSigninSender>(
+        CLIENT_SENDER_PATH,
+        'PUT',
+        senderBody(change.kind === 'none' ? NO_SENDER : change.accountId),
       );
+      queryClient.setQueryData(CLIENT_SENDER_KEY, next);
+      toast.success(senderChangedText(next, change.restored));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
-      const status = e instanceof ApiError ? e.status : 0;
-      setError(senderErrorText(status, e instanceof ApiError ? e.body : undefined));
-      // The list may have changed under the admin (an account removed).
-      void q.refetch();
+      fail(e);
     } finally {
       setSaving(false);
+      setChange(null);
     }
   };
 
@@ -96,13 +160,36 @@ export function ClientSigninSenderPanel() {
       </section>
     );
   }
+  const confirm = change ? senderChangeConfirm(change) : null;
   return (
-    <ClientSigninSenderView
-      data={q.data}
-      saving={saving}
-      error={error}
-      onChange={(v) => void change(v)}
-    />
+    <>
+      <ClientSigninSenderView
+        data={q.data}
+        saving={saving}
+        error={error}
+        onChange={(v) => void ask(v)}
+      />
+      <AlertDialog open={!!change} onOpenChange={(o) => !saving && !o && setChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm?.body}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              onClick={(e) => {
+                e.preventDefault();
+                void save();
+              }}
+            >
+              {confirm?.action}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -125,6 +212,7 @@ export function ClientSigninSenderView({
     ? [data.sender, ...data.candidates.filter((c) => c.id !== data.sender!.id)]
     : data.candidates;
   const label = data.sender ? data.sender.address : 'None (codes off)';
+  const failure = lastFailureText(data, formatDateTime);
   return (
     <section
       className="rounded-lg border border-border bg-card text-card-foreground"
@@ -141,6 +229,16 @@ export function ClientSigninSenderView({
         </p>
       </div>
       <div className="space-y-3 p-4">
+        {codesWorkerOff(data) ? (
+          <p
+            role="status"
+            className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink"
+            data-testid="client-codes-worker-off"
+          >
+            <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            {EMAIL_WORKER_OFF_TEXT}
+          </p>
+        ) : null}
         {data.capReached ? (
           <p
             role="status"
@@ -195,6 +293,11 @@ export function ClientSigninSenderView({
         <p className="text-xs text-muted-foreground" data-testid="client-codes-count">
           {sentCountText(data)}
         </p>
+        {failure ? (
+          <p className="text-xs text-destructive-ink" data-testid="client-codes-last-failure">
+            {failure}
+          </p>
+        ) : null}
       </div>
     </section>
   );

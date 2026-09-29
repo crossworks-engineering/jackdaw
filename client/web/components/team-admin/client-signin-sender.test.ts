@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ClientSigninSender } from '@mantle/client-types';
+import type { ClientSigninSender } from '../../lib/contract-next';
 import { ClientSigninSenderView } from './client-signin-sender';
 
 /**
@@ -74,5 +74,42 @@ describe('Sign-in codes by email', () => {
     );
     const trigger = html.match(/<button[^>]*id="client-codes-sender"[^>]*>/)?.[0] ?? '';
     expect(trigger).toContain('aria-invalid="true"');
+  });
+});
+
+describe('what the brain did with codes (audit B3)', () => {
+  it('delivered, failed and skipped, and the last failure', () => {
+    const html = view(
+      data({
+        deliveredLast24h: 4,
+        failedLast24h: 1,
+        capSkipsLast24h: 2,
+        lastFailure: { at: '2026-09-29T08:00:00.000Z', reason: '535 Authentication failed' },
+        emailWorker: true,
+      }),
+    );
+    expect(html).toContain(
+      '4 of 200 codes delivered in the last 24 hours, 1 send failed, 2 requests skipped at a limit.',
+    );
+    expect(html).toMatch(
+      /data-testid="client-codes-last-failure"[^>]*>Last failed send [^<]+: 535 Authentication failed/,
+    );
+    expect(html).not.toContain('data-testid="client-codes-worker-off"');
+  });
+
+  it('no failure: no failure line', () => {
+    expect(view(data({ deliveredLast24h: 3, lastFailure: null }))).not.toContain(
+      'client-codes-last-failure',
+    );
+  });
+
+  it('no email worker on this box: the banner says codes are off', () => {
+    const html = view(data({ emailWorker: false }));
+    expect(html).toMatch(
+      /<p role="status"[^>]*data-testid="client-codes-worker-off"[^>]*>.*The email worker is not running on this box: codes are off\./,
+    );
+    expect(html).toContain('Codes are off on this box (no email worker)');
+    // A brain that does not say: no banner.
+    expect(view(data())).not.toContain('client-codes-worker-off');
   });
 });
