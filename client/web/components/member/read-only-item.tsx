@@ -1,7 +1,7 @@
 'use client';
 
 import type { JSONContent } from '@tiptap/core';
-import type { TableDetail } from '@mantle/content-core/table-model';
+import type { TableDoc } from '@mantle/content-core/table-model';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
@@ -9,6 +9,7 @@ import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { Button } from '@mantle/web-ui/ui/button';
 import { PageView } from '@/components/page-editor/page-view';
+import { readerTableView } from '@/lib/reader-table';
 
 /** One brain item as a read-only viewer gets it: a Library or accepted item
  *  (a member), or a shared item (a client). The shapes agree per kind. */
@@ -26,6 +27,9 @@ export type ReaderAssets = {
   mapAssetPath: (path: string) => string;
   drawUrlPath: (id: string) => string;
   fileUrlPath: (id: string) => string;
+  /** When set, a page's file embeds draw as download chips pointing at this
+   *  byte route (the client portal). */
+  fileEmbedPath?: (id: string) => string;
 };
 
 /**
@@ -46,7 +50,13 @@ export function ReadOnlyItemBody({
   const asset = useAssetUrl();
   switch (item.type) {
     case 'page':
-      return <PageView content={item.doc as JSONContent} mapAssetPath={assets.mapAssetPath} />;
+      return (
+        <PageView
+          content={item.doc as JSONContent}
+          mapAssetPath={assets.mapAssetPath}
+          fileEmbedPath={assets.fileEmbedPath}
+        />
+      );
     case 'note':
       return (
         <NotePresenter view={{ title: item.title, content: item.content }} chrome="embedded" />
@@ -60,11 +70,15 @@ export function ReadOnlyItemBody({
         />
       );
     case 'table': {
-      const table = item.table as TableDetail;
-      const tabs = table.tabs ?? [];
+      // Either shape: the whole table record, or a client's allowlisted one.
+      const table = readerTableView(item.table);
+      if (!table) {
+        return <p className="text-sm text-muted-foreground">This table cannot be shown.</p>;
+      }
+      const tabs = table.tabs;
       const current = table.tabId ?? tabs[0]?.id ?? null;
       // A tab past the server's materialize window arrives as a leading window.
-      const totalRows = tabs.find((t) => t.id === current)?.rows ?? table.data.rows.length;
+      const totalRows = table.totalRows;
       return (
         <div className="space-y-2">
           {tabs.length > 1 ? (
@@ -85,7 +99,12 @@ export function ReadOnlyItemBody({
             </div>
           ) : null}
           <TablePresenter
-            view={{ title: item.title, icon: item.icon, tabs: null, legacyDoc: table.data }}
+            view={{
+              title: item.title,
+              icon: item.icon,
+              tabs: null,
+              legacyDoc: table.data as Pick<TableDoc, 'columns' | 'rows' | 'aggregates'>,
+            }}
             token=""
             chrome="embedded"
           />

@@ -6,12 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Input } from '@mantle/web-ui/ui/input';
-import {
-  ListCard,
-  ListCardMeta,
-  ListCardSnippet,
-  ListCardTitle,
-} from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import {
   Select,
@@ -22,12 +16,12 @@ import {
 } from '@mantle/web-ui/ui/select';
 import useMediaQuery from '@mantle/web-ui/hooks/use-media-query';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
-import { kindLabel } from '@/lib/access-levels';
-import { sharedListPath } from '@/lib/client-portal';
+import { CLIENT_SHARED_KEY, sharedListPath } from '@/lib/client-portal';
 import { clientHomeHref } from '@/lib/client-surface';
-import type { ClientSharedPage } from '@mantle/client-types';
+import type { ClientSharedPage } from '@/lib/contract-next';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND, type MemberItemKind } from '@/lib/member-kinds';
 import { ClientReader } from './client-reader';
+import { ClientSharedCard } from './client-shared-card';
 
 const ALL = 'all';
 
@@ -51,7 +45,7 @@ export function ClientHome() {
   const [page, setPage] = useState(1);
 
   const list = useQuery({
-    queryKey: ['client-shared', { kind, q, page }],
+    queryKey: [...CLIENT_SHARED_KEY, { kind, q, page }],
     queryFn: () => apiFetch<ClientSharedPage>(sharedListPath({ kind, q, page })),
     placeholderData: (prev) => prev,
   });
@@ -132,24 +126,7 @@ export function ClientHome() {
           <ul className="space-y-2" aria-label="Shared items">
             {data.items.map((row) => (
               <li key={row.id}>
-                <ListCard selected={row.id === selectedId} onClick={() => open(row.id)}>
-                  <div className="flex items-start gap-2">
-                    <span
-                      className="mt-px size-4 shrink-0 text-center text-sm leading-5"
-                      aria-hidden
-                    >
-                      {row.icon ?? MEMBER_KIND[row.type].icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <ListCardTitle className="min-w-0">{row.title || 'Untitled'}</ListCardTitle>
-                      {row.summary ? <ListCardSnippet>{row.summary}</ListCardSnippet> : null}
-                      <ListCardMeta>
-                        {kindLabel(row.type)} · updated{' '}
-                        {new Date(row.updatedAt).toLocaleDateString()}
-                      </ListCardMeta>
-                    </div>
-                  </div>
-                </ListCard>
+                <ClientSharedCard row={row} selected={row.id === selectedId} onOpen={open} />
               </li>
             ))}
           </ul>

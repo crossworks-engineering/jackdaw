@@ -75,16 +75,49 @@ export function clientShellPollMs(assetToken: string | null | undefined, nowMs =
 /** What the client portal shows for its shell query: the portal only once
  *  the shell answered (so the chrome is never drawn half-branded), a
  *  neutral loading screen before, the plain client screen for a brain
- *  without the client routes (404), Try again for anything else. A 401 is
- *  already on its way to sign-in. */
-export type ClientPortalView = 'ready' | 'loading' | 'unavailable' | 'failed';
+ *  without the client routes (404), Try again (and Sign out) for anything
+ *  else. A 401 is already on its way to sign-in. `offline`: the device has
+ *  no network, so TanStack parks the first ask instead of failing it, and
+ *  without this the portal sat on Loading with no way out (audit B27). */
+export type ClientPortalView = 'ready' | 'loading' | 'unavailable' | 'failed' | 'offline';
 
-export function clientPortalView(q: { data?: unknown; error?: unknown }): ClientPortalView {
+export function clientPortalView(q: {
+  data?: unknown;
+  error?: unknown;
+  fetchStatus?: string;
+}): ClientPortalView {
   if (q.data !== undefined && q.data !== null) return 'ready';
+  if (q.fetchStatus === 'paused') return 'offline';
   if (q.error == null) return 'loading';
   if (q.error instanceof ApiError && q.error.status === 404) return 'unavailable';
   if (q.error instanceof ApiError && q.error.status === 401) return 'loading';
   return 'failed';
+}
+
+/** The portal's own queries: "Shared with you" (every kind, query and page)
+ *  and the open item (every tab). */
+export const CLIENT_SHARED_KEY = ['client-shared'] as const;
+export const CLIENT_ITEM_KEY = ['client-item'] as const;
+
+/**
+ * Ask the list and the open item again. A client has no realtime, so the
+ * portal does this on every successful shell poll and when the window gets
+ * focus: an item shared or unshared since, or changed, shows without a
+ * reload (audit B27).
+ */
+export function refreshClientPortal(queryClient: {
+  invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>;
+}): Promise<void[]> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: CLIENT_SHARED_KEY }),
+    queryClient.invalidateQueries({ queryKey: CLIENT_ITEM_KEY }),
+  ]);
+}
+
+/** Whether a shell answer is a NEW successful poll (not the first answer,
+ *  which the list has not been asked before, and not a re-render). */
+export function isNewShellAnswer(prevUpdatedAt: number, nextUpdatedAt: number): boolean {
+  return prevUpdatedAt > 0 && nextUpdatedAt > prevUpdatedAt;
 }
 
 // ── References a client may not read ────────────────────────────────────────
@@ -161,7 +194,30 @@ export function clientLinkItemId(href: string | null | undefined, origin: string
   }
 }
 
+/**
+ * The item a mention chip in a shared page opens, when it is one the client
+ * may read: a chip naming a brain item (`ref` node) that the brain left its
+ * id. A chip the brain redacted has no id (or names "Private item") and is
+ * plain text already (clientDoc); a person or project chip (`ref` entity)
+ * names nothing a client can open. Null: not a way anywhere.
+ */
+export function clientMentionItemId(attrs: {
+  id?: string | null;
+  ref?: string | null;
+  label?: string | null;
+}): string | null {
+  const id = attrs.id?.trim();
+  if (!id || attrs.ref !== 'node' || attrs.label === CLIENT_PRIVATE_LABEL) return null;
+  return id;
+}
+
 // ── Sign-in ─────────────────────────────────────────────────────────────────
+
+/** What a split-origin setup (the API on another origin) shows instead of
+ *  any client sign-in form: a client's session is a cookie on the brain's
+ *  own origin, so signing in from here would spend the link (or the code)
+ *  and leave nobody signed in. Nothing is posted. */
+export const CLIENT_SIGNIN_UNAVAILABLE = 'Client sign-in is not available on this address.';
 
 /** What a client reads when the link does not sign them in: one sentence for
  *  every reason, as the brain gives one answer for every reason. */
@@ -184,8 +240,9 @@ export function clientSignInOutcome(status: number, body: unknown): ClientSignIn
   return { kind: 'error', message: 'Could not sign you in. Try again.' };
 }
 
-/** The code a sign-in link carries (`/client-signin?code=…`). Codes never
- *  hold whitespace; anything more is the brain's to judge. */
+/** The code a sign-in link carries (`/client-signin#code=…`, or `?code=…`
+ *  in links issued before). Codes never hold whitespace; anything more is
+ *  the brain's to judge. */
 export function readClientCode(raw: string | null | undefined): string {
   return (raw ?? '').replace(/\s+/g, '');
 }

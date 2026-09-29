@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { generateHTML, generateJSON, type JSONContent } from '@tiptap/core';
 import { assetUrl, subscribeAssetToken } from '@mantle/web-ui/asset-url';
+import { formatBytes } from '@mantle/web-ui/lib/format-bytes';
 import { stampDrawEmbeds } from './draw-embed-theme';
 import { lowlight, pageExtensions } from './extensions';
 import { ASSET_PATH_ATTR } from './image';
@@ -121,12 +122,46 @@ function remapAssets(rendered: string, mapAssetPath: (path: string) => string): 
   return tpl.innerHTML;
 }
 
+/** Marks a file embed's download chip (fillFileEmbeds) with the file's id. */
+export const EMBED_FILE_ATTR = 'data-embed-file';
+
+/**
+ * Give each file embed a download chip. The schema's `renderHTML` emits the
+ * embed as an EMPTY `div[data-file-embed]` (the editor draws it with a
+ * NodeView), so a static read showed nothing where a file was embedded. Each
+ * becomes the share surface's `a.file-embed` chip: the file's name and size,
+ * pointing at `fileEmbedPath(id)` (a reader's own byte route) and marked
+ * with the id (EMBED_FILE_ATTR). Built with DOM calls, so the name cannot
+ * re-enter as markup.
+ */
+function fillFileEmbeds(rendered: string, fileEmbedPath: (id: string) => string): string {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = rendered;
+  for (const el of tpl.content.querySelectorAll<HTMLElement>(
+    'div[data-file-embed][data-node-id]',
+  )) {
+    const id = el.getAttribute('data-node-id');
+    if (!id) continue;
+    const name = el.getAttribute('data-filename') || 'file';
+    const size = Number(el.getAttribute('data-size'));
+    const a = document.createElement('a');
+    a.className = 'file-embed';
+    a.href = fileEmbedPath(id);
+    a.setAttribute('download', name);
+    a.setAttribute(EMBED_FILE_ATTR, id);
+    a.textContent = size > 0 ? `${name} · ${formatBytes(size)}` : name;
+    el.replaceChildren(a);
+  }
+  return tpl.innerHTML;
+}
+
 export function StaticDoc({
   html,
   json,
   className,
   onClick,
   mapAssetPath,
+  fileEmbedPath,
 }: {
   /** HTML to normalise through the schema (the assistant's markdown path). */
   html?: string;
@@ -136,6 +171,9 @@ export function StaticDoc({
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   /** Rewrite each image's stored asset path (the member surface). */
   mapAssetPath?: (path: string) => string;
+  /** Draw each file embed as a download chip pointing here (fillFileEmbeds).
+   *  Pass a stable function. */
+  fileEmbedPath?: (id: string) => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Rendered in an effect, not in a `useMemo`, so the SSR pass and the
@@ -144,9 +182,11 @@ export function StaticDoc({
   // mounted. Rendering during hydration instead would be a mismatch.
   const [rendered, setRendered] = useState<string | null>(null);
   useEffect(() => {
-    const out = renderStatic({ html, json });
-    setRendered(mapAssetPath ? remapAssets(out, mapAssetPath) : out);
-  }, [html, json, mapAssetPath]);
+    let out = renderStatic({ html, json });
+    if (mapAssetPath) out = remapAssets(out, mapAssetPath);
+    if (fileEmbedPath) out = fillFileEmbeds(out, fileEmbedPath);
+    setRendered(out);
+  }, [html, json, mapAssetPath, fileEmbedPath]);
 
   // The editor path gets this from a ProseMirror plugin (see image.ts); a
   // static container has no plugins, so it re-signs its own images when the

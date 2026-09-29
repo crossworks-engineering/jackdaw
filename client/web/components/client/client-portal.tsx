@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { setAssetToken } from '@mantle/web-ui/asset-url';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
@@ -12,7 +12,8 @@ import {
   RoleLoadingScreen,
   RoleProbeFailedScreen,
 } from '@/components/member/role-screens';
-import { clientPortalView } from '@/lib/client-portal';
+import { clientTabTitle } from '@/lib/brand';
+import { clientPortalView, isNewShellAnswer, refreshClientPortal } from '@/lib/client-portal';
 import type { ClientShell } from '@mantle/client-types';
 import { ClientShellFrame } from './client-shell-frame';
 
@@ -27,6 +28,7 @@ export function ClientPortal({ query }: { query: UseQueryResult<ClientShell> }) 
   const view = clientPortalView(query);
   const shell = query.data;
   useBrand(shell);
+  useFreshList(query.dataUpdatedAt);
   switch (view) {
     case 'ready':
       return (
@@ -38,9 +40,33 @@ export function ClientPortal({ query }: { query: UseQueryResult<ClientShell> }) 
       return <ClientLoginScreen fullScreen />;
     case 'failed':
       return <RoleProbeFailedScreen fullScreen onRetry={() => void query.refetch()} />;
+    case 'offline':
+      return (
+        <RoleProbeFailedScreen fullScreen failure="offline" onRetry={() => void query.refetch()} />
+      );
     default:
       return <RoleLoadingScreen fullScreen />;
   }
+}
+
+/**
+ * A client has no realtime: "Shared with you" and the open item are asked
+ * again on every successful shell poll (about a minute) and whenever the
+ * window gets focus, so something shared, unshared or changed since shows
+ * without a reload (audit B27).
+ */
+function useFreshList(dataUpdatedAt: number) {
+  const queryClient = useQueryClient();
+  const last = useRef(0);
+  useEffect(() => {
+    if (isNewShellAnswer(last.current, dataUpdatedAt)) void refreshClientPortal(queryClient);
+    last.current = dataUpdatedAt;
+  }, [dataUpdatedAt, queryClient]);
+  useEffect(() => {
+    const onFocus = () => void refreshClientPortal(queryClient);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [queryClient]);
 }
 
 /**
@@ -85,4 +111,12 @@ function useBrand(shell: ClientShell | undefined) {
   useEffect(() => {
     setAssetToken(shell?.assetToken);
   }, [shell?.assetToken]);
+
+  // The tab: the site name, else the product's, never the peer name (the
+  // layout does the same from the client hint, for the first paint).
+  const siteName = shell?.siteName ?? null;
+  const confirmed = shell !== undefined;
+  useEffect(() => {
+    if (confirmed) document.title = clientTabTitle({ siteName });
+  }, [confirmed, siteName]);
 }

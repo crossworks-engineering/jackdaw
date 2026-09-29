@@ -4,19 +4,25 @@ import { describe, expect, it } from 'vitest';
 import type { JSONContent } from '@tiptap/core';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
+import { QueryClient } from '@tanstack/react-query';
 import {
+  CLIENT_ITEM_KEY,
   CLIENT_LINK_NOT_VALID,
   CLIENT_PRIVATE_LABEL,
+  CLIENT_SHARED_KEY,
   CLIENT_SHELL_POLL_MS,
   clientAssetPath,
   clientDoc,
   clientEmailError,
   clientLinkItemId,
+  clientMentionItemId,
   clientNoteMarkdown,
   clientPortalView,
   clientShellPollMs,
   clientSignInOutcome,
+  isNewShellAnswer,
   readClientCode,
+  refreshClientPortal,
   sharedItemPath,
   sharedListPath,
 } from './client-portal';
@@ -202,5 +208,83 @@ describe('the client shell', () => {
     expect(clientPortalView({ data: { role: 'client' }, error: new ApiError('x', 500) })).toBe(
       'ready',
     );
+  });
+});
+
+describe('the portal offline (audit B27)', () => {
+  it('a first ask parked offline is the failure card (with Sign out), not Loading', () => {
+    expect(clientPortalView({ fetchStatus: 'paused' })).toBe('offline');
+    // Once drawn, the portal stays drawn when the network drops.
+    expect(clientPortalView({ data: { role: 'client' }, fetchStatus: 'paused' })).toBe('ready');
+    expect(clientPortalView({ fetchStatus: 'fetching' })).toBe('loading');
+  });
+
+  it('the portal draws the failure card for offline, never the loading screen', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const portal = readFileSync(
+      fileURLToPath(new URL('../components/client/client-portal.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(portal).toMatch(
+      /case 'offline':\s*return \(\s*<RoleProbeFailedScreen\s+fullScreen\s+failure="offline"/,
+    );
+  });
+});
+
+describe('the portal stays fresh (audit B27)', () => {
+  const seeded = () => {
+    const qc = new QueryClient();
+    qc.setQueryData([...CLIENT_SHARED_KEY, { kind: null, q: '', page: 1 }], { items: [] });
+    qc.setQueryData([...CLIENT_ITEM_KEY, 'a', null], { item: {} });
+    qc.setQueryData(['client-shell'], { role: 'client' });
+    return qc;
+  };
+  const stale = (qc: QueryClient, key: readonly unknown[]) =>
+    qc.getQueryCache().find({ queryKey: key, exact: true })?.state.isInvalidated;
+
+  it('asks the list and the open item again, and leaves the shell alone', async () => {
+    const qc = seeded();
+    await refreshClientPortal(qc);
+    expect(stale(qc, [...CLIENT_SHARED_KEY, { kind: null, q: '', page: 1 }])).toBe(true);
+    expect(stale(qc, [...CLIENT_ITEM_KEY, 'a', null])).toBe(true);
+    expect(stale(qc, ['client-shell'])).toBe(false);
+  });
+
+  it('on every NEW successful shell answer, not the first', () => {
+    expect(isNewShellAnswer(0, 1000)).toBe(false);
+    expect(isNewShellAnswer(1000, 1000)).toBe(false);
+    expect(isNewShellAnswer(1000, 61_000)).toBe(true);
+  });
+
+  it('the portal refreshes on each new shell answer and on window focus', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const portal = readFileSync(
+      fileURLToPath(new URL('../components/client/client-portal.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(portal).toContain('useFreshList(query.dataUpdatedAt);');
+    expect(portal).toMatch(
+      /if \(isNewShellAnswer\(last\.current, dataUpdatedAt\)\) void refreshClientPortal\(queryClient\);/,
+    );
+    expect(portal).toMatch(
+      /const onFocus = \(\) => void refreshClientPortal\(queryClient\);\s*window\.addEventListener\('focus', onFocus\);/,
+    );
+  });
+});
+
+describe('references a client may read open (audit B27)', () => {
+  const ID2 = '22222222-2222-4222-8222-222222222222';
+
+  it('a mention chip of a brain item opens it', () => {
+    expect(clientMentionItemId({ id: ID2, ref: 'node', label: 'Plan' })).toBe(ID2);
+  });
+
+  it('a redacted chip, an entity chip or a chip with no id opens nothing', () => {
+    expect(clientMentionItemId({ id: null, ref: 'node', label: CLIENT_PRIVATE_LABEL })).toBeNull();
+    expect(clientMentionItemId({ id: ID2, ref: 'node', label: CLIENT_PRIVATE_LABEL })).toBeNull();
+    expect(clientMentionItemId({ id: ID2, ref: 'entity', label: 'Sam' })).toBeNull();
+    expect(clientMentionItemId({ id: '  ', ref: 'node', label: 'Plan' })).toBeNull();
   });
 });

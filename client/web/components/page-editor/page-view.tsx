@@ -22,11 +22,15 @@ import { StaticDoc } from './static-doc';
 export function PageView({
   content,
   mapAssetPath,
+  fileEmbedPath,
 }: {
   content: JSONContent;
   /** Rewrite image asset paths (the member surface reads bytes from its own
    *  routes). Pass a stable function. */
   mapAssetPath?: (path: string) => string;
+  /** Draw file embeds as download chips pointing here (the client portal).
+   *  Pass a stable function. */
+  fileEmbedPath?: (id: string) => string;
 }) {
   // READ surface only: clicking an inline image opens the fullscreen zoom
   // viewer. The EDITOR keeps native clicks (select/drag the node) — zooming
@@ -36,6 +40,7 @@ export function PageView({
       <StaticDoc
         json={content}
         mapAssetPath={mapAssetPath}
+        fileEmbedPath={fileEmbedPath}
         className="prose dark:prose-invert prose-accent prose-document max-w-none focus:outline-none"
       />
     </ZoomableImages>
