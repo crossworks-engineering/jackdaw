@@ -16,6 +16,7 @@ export function ListPager({
   pageSize,
   pending = false,
   onGo,
+  noun,
   className,
 }: {
   page: number;
@@ -23,6 +24,8 @@ export function ListPager({
   pageSize: number;
   pending?: boolean;
   onGo: (page: number) => void;
+  /** Names the items in the count ("12 pages" rather than "12 total"). */
+  noun?: { one: string; many: string };
   /** Override the default `px-3` — for a pager sitting in a DETAIL pane rather
    *  than a narrow list column, where the screen's own 24px inset applies. */
   className?: string;
@@ -37,7 +40,8 @@ export function ListPager({
       )}
     >
       <span className="text-xs text-muted-foreground tabular-nums">
-        {total} total · page {page} / {totalPages}
+        {noun ? `${total} ${total === 1 ? noun.one : noun.many}` : `${total} total`} · page {page} /{' '}
+        {totalPages}
       </span>
       <div className="flex items-center gap-1">
         <Button

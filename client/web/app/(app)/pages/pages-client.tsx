@@ -15,9 +15,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/react';
 import {
-  ArrowUpDown,
-  Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CornerLeftUp,
@@ -25,8 +22,6 @@ import {
   GripVertical,
   Pencil,
   Plus,
-  Search,
-  Tag,
   Trash2,
 } from 'lucide-react';
 import {
@@ -46,20 +41,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@mantle/web-ui/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
 import type { PageSort } from '@mantle/client-types';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -84,10 +68,23 @@ import {
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { Skeleton } from '@mantle/web-ui/ui/skeleton';
-import { Switch } from '@mantle/web-ui/ui/switch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
+import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { ItemCard, ItemCardAction, ItemIcon, UpdatedStamp } from '@/components/item-list/item-card';
+import {
+  ItemListEmpty,
+  ItemListHeader,
+  ItemListScroll,
+  NewButton,
+} from '@/components/item-list/item-list-header';
+import {
+  ClearFilter,
+  SortMenu,
+  TagFilter,
+  type TagCount,
+} from '@/components/item-list/item-filters';
+import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
 import { SpaceSwitch } from '@/components/member/admin-private-workspace';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
@@ -115,8 +112,6 @@ import type { PageListRow as ContractPageListRow, PageRow } from '@mantle/client
 // Wire shape is the GET /api/pages mapper's output — single source of truth
 // (the canonical row also carries `width`, unused by this list view). Drift
 // between the mapper and what this screen renders is now a compile error.
-
-type TagCount = { tag: string; count: number };
 
 /**
  * A list row as the server sends it: the page plus its place in the hierarchy
@@ -223,29 +218,8 @@ export function PagesClient() {
   const pendingQuery = useRef<string | null>(null);
 
   // Card density. Defaults to OFF: the column is for FINDING a page, and a
-  // title plus its sub-page count is what you scan. Summaries and tags are for
-  // the reader who asks for them.
-  //
-  // Read AFTER mount — `localStorage` does not exist during the server render,
-  // so seeding `useState` from it would hydrate-mismatch. The cost is a brief
-  // flash of the compact card for someone who turned details on; the cost of
-  // the alternative is a cookie.
-  const [details, setDetails] = useState(false);
-  useEffect(() => {
-    try {
-      if (window.localStorage.getItem(DETAILS_KEY) === '1') setDetails(true);
-    } catch {
-      /* private mode / quota — the preference just won't persist */
-    }
-  }, []);
-  const changeDetails = (on: boolean) => {
-    setDetails(on);
-    try {
-      window.localStorage.setItem(DETAILS_KEY, on ? '1' : '0');
-    } catch {
-      /* as above */
-    }
-  };
+  // title plus its sub-page count is what you scan (useCardDetails).
+  const [details, changeDetails] = useCardDetails(DETAILS_KEY);
 
   // Focus mode drops the list column so a page can be READ full-width, not
   // only written that way. The toggle lives in the preview header below.
@@ -290,7 +264,6 @@ export function PagesClient() {
   }, [mode, pages, childrenByParent, drillId, sort, subtreeEdits]);
   const levelTotal = mode === 'tree' ? levelPages.length : total;
   const levelPageSize = mode === 'tree' ? LEVEL_PAGE_SIZE : pageSize;
-  const totalPages = Math.max(1, Math.ceil(levelTotal / levelPageSize));
   const visiblePages =
     mode === 'tree'
       ? levelPages.slice((page - 1) * LEVEL_PAGE_SIZE, page * LEVEL_PAGE_SIZE)
@@ -567,13 +540,13 @@ export function PagesClient() {
     });
 
   const emptyState = (
-    <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
+    <ItemListEmpty>
       {mode === 'list'
         ? 'No pages match your search or filter.'
         : drillParent
           ? 'This page has no sub-pages.'
           : 'No pages yet. Click “New” to start writing.'}
-    </div>
+    </ItemListEmpty>
   );
 
   if (listQuery.isPending) {
@@ -620,88 +593,42 @@ export function PagesClient() {
         listCollapsed={zen}
         list={
           <>
-            <div className="space-y-3 border-b border-border p-4">
+            <div className="border-b border-border px-4 pt-4">
               <SpaceSwitch kind="page" value="brain" />
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search pages…"
-                    className="pl-8"
-                  />
-                </div>
-                <Button onClick={() => setOpen(true)}>
-                  <Plus /> New
-                </Button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-muted-foreground"
-                      title="Sort pages"
-                    >
-                      <ArrowUpDown className="size-3.5" />
-                      {SORT_LABELS[sort]}
-                      <ChevronDown className="size-3.5 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuRadioGroup
-                      value={sort}
-                      onValueChange={(v) => go({ sort: v as PageSort, page: 1 })}
-                    >
-                      {(Object.keys(SORT_LABELS) as PageSort[]).map((s) => (
-                        <DropdownMenuRadioItem key={s} value={s}>
-                          {SORT_LABELS[s]}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Rendered even with no tags: it also holds the density
-                    switch, which is not about tags and must stay reachable on
-                    a brain that has never used one. */}
-                <TagFilter
-                  tags={tags}
-                  activeTag={activeTag}
-                  onSelect={(t) => go({ tag: t, page: 1, parent: null })}
-                  details={details}
-                  onDetailsChange={changeDetails}
-                />
-
-                {activeTag && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-muted-foreground"
-                    onClick={() => go({ tag: null, page: 1 })}
-                    title="Clear tag filter"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
             </div>
+            <ItemListHeader
+              search={searchInput}
+              onSearch={setSearchInput}
+              placeholder="Search pages…"
+              actions={<NewButton onClick={() => setOpen(true)} />}
+            >
+              <SortMenu
+                value={sort}
+                labels={SORT_LABELS}
+                onChange={(v) => go({ sort: v, page: 1 })}
+              />
+              {/* Rendered even with no tags: it also holds the density
+                  switch, which is not about tags and must stay reachable on
+                  a brain that has never used one. */}
+              <TagFilter
+                tags={tags}
+                activeTag={activeTag}
+                onSelect={(t) => go({ tag: t, page: 1, parent: null })}
+                details={details}
+                onDetailsChange={changeDetails}
+                allLabel="All pages"
+              />
+              {activeTag && (
+                <ClearFilter onClear={() => go({ tag: null, page: 1 })} title="Clear tag filter" />
+              )}
+            </ItemListHeader>
 
             {/* One DndContext for BOTH modes so `PageCard` can call the dnd
                 hooks unconditionally; drag itself is off in search mode, where
                 a cross-level hit list has no level to re-parent within. Keyed
                 on the level so `placeholderData` can't leave the previous
                 level's cards on screen mid-navigation. */}
-            <div
-              key={drillId ?? 'root'}
-              className={cn(
-                'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
-                navPending && 'opacity-60',
-              )}
-            >
+            <ItemListScroll key={drillId ?? 'root'} pending={navPending}>
               {/* The breadcrumb is itself a drop target, so it has to sit
                   INSIDE the context — a `useDroppable` rendered outside one
                   registers with nothing and silently never fires. */}
@@ -739,42 +666,16 @@ export function PagesClient() {
                   {activeRow ? <DragGhost row={activeRow} /> : null}
                 </DragOverlay>
               </DndContext>
-            </div>
+            </ItemListScroll>
 
-            {levelTotal > 0 && (
-              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-                <span className="tabular-nums">
-                  {levelTotal} {levelTotal === 1 ? 'page' : 'pages'}
-                </span>
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="tabular-nums">
-                      {page} / {totalPages}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="size-7"
-                      disabled={page <= 1 || navPending}
-                      onClick={() => go({ page: page - 1 })}
-                      aria-label="Previous page"
-                    >
-                      <ChevronLeft />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="size-7"
-                      disabled={page >= totalPages || navPending}
-                      onClick={() => go({ page: page + 1 })}
-                      aria-label="Next page"
-                    >
-                      <ChevronRight />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+            <ListPager
+              page={page}
+              total={levelTotal}
+              pageSize={levelPageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p })}
+              noun={{ one: 'page', many: 'pages' }}
+            />
           </>
         }
         // The measure owns the scroller: it has to sit INSIDE the centered
@@ -951,185 +852,133 @@ function PageCard({
   const drills = childCount !== null && childCount > 0;
 
   return (
-    <ListCard asChild selected={selected} dimmed={dragging}>
-      <div
-        ref={setDropRef}
-        // The WHOLE card navigates — summary, tags and the dead space between,
-        // not just the title row (the natural expectation on a card). Real
-        // controls inside keep their own clicks: anything button-ish under the
-        // pointer wins, and a text selection (someone copying the summary)
-        // must not fire a navigation on mouse-up. Keyboard access rides the
-        // title button below, so this div needs no key handler of its own.
-        onClick={(e) => {
-          if ((e.target as HTMLElement).closest('button, a, [role="menuitem"]')) return;
-          if (window.getSelection()?.toString()) return;
-          onSelect();
-        }}
-        className={cn(
-          'cursor-pointer space-y-1.5',
-          nesting && 'border-primary bg-primary/10 ring-1 ring-primary',
-        )}
-      >
-        {/* The page itself. Keeps the marking attributes the marking system
-            reads — moving them off this element silently breaks it. */}
-        <RowButton
-          onClick={onSelect}
-          data-mark-id={row.id}
-          data-mark-kind="page"
-          data-mark-label={row.title}
-          className="flex w-full items-start gap-2"
-        >
-          <span className="mt-px size-4 shrink-0 text-center text-sm leading-5" aria-hidden>
-            {row.icon ?? '📄'}
-          </span>
-          <ListCardTitle wrap className="min-w-0 flex-1">
-            {row.title}
-          </ListCardTitle>
-          <AudienceBadge level={row.audience} className="mt-0.5" />
-        </RowButton>
-
-        {location &&
-          (onOpenParent ? (
-            <RowButton
-              onClick={onOpenParent}
-              className="flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              title={`Leave the search and open “${location}”`}
+    <ItemCard
+      id={row.id}
+      kind="page"
+      title={row.title}
+      icon={<ItemIcon emoji={row.icon ?? '📄'} fallback={null} />}
+      badge={<AudienceBadge level={row.audience} className="mt-0.5" />}
+      selected={selected}
+      dimmed={dragging}
+      highlight={nesting}
+      onSelect={onSelect}
+      dropRef={setDropRef}
+      footerStart={
+        <>
+          {draggable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-2xs"
+              ref={setDragRef}
+              {...listeners}
+              {...attributes}
+              aria-label={`Drag to move “${row.title}”`}
+              title="Drag onto another page to nest it there"
+              className="shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
             >
-              <CornerLeftUp className="size-3 shrink-0 opacity-70" aria-hidden />
-              <span className="truncate">in {location}</span>
+              <GripVertical className="size-3.5" />
+            </Button>
+          )}
+          {drills ? (
+            <RowButton
+              onClick={onSelect}
+              className="flex min-w-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              title={`Open the ${childCount} sub-page${childCount === 1 ? '' : 's'}`}
+            >
+              <span className="truncate tabular-nums">
+                {childCount} sub-page{childCount === 1 ? '' : 's'}
+              </span>
+              <ChevronRight className="size-3.5 shrink-0 opacity-70" />
             </RowButton>
           ) : (
-            <p className="truncate px-1 text-xs text-muted-foreground">in {location}</p>
-          ))}
-
-        {subEdit && (
-          <p
-            className="truncate px-1 text-xs text-muted-foreground"
-            title={`${subEdit.path.join(' › ')}, edited ${formatDateTime(subEdit.at)}`}
+            /* A leaf page leaves this slot empty, so it carries the updated
+               stamp instead. */
+            <UpdatedStamp at={row.updatedAt} />
+          )}
+        </>
+      }
+      actions={
+        <>
+          {/* Kept even though the card is a big drop target: once a level
+              pages, the page you want to drop onto may be on page 2, and this
+              is the only way to reach it. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ItemCardAction label="Move page" title="Move to…">
+                <FolderInput />
+              </ItemCardAction>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="max-h-72 w-56 overflow-y-auto scrollbar-thin"
+            >
+              <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
+                <CornerLeftUp />
+                Top level
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {moveTargets.length === 0 ? (
+                <DropdownMenuItem disabled>No other pages</DropdownMenuItem>
+              ) : (
+                moveTargets.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    disabled={t.id === row.parentId}
+                    onClick={() => onMove(t.id)}
+                  >
+                    <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+                      {t.icon ?? '📄'}
+                    </span>
+                    <span className="min-w-0 truncate">{t.title}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <ItemCardAction label="Add sub-page" onClick={onAddChild}>
+            <Plus />
+          </ItemCardAction>
+          <ItemCardAction label="Delete page" destructive onClick={onDelete}>
+            <Trash2 />
+          </ItemCardAction>
+        </>
+      }
+    >
+      {location &&
+        (onOpenParent ? (
+          <RowButton
+            onClick={onOpenParent}
+            className="flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            title={`Leave the search and open “${location}”`}
           >
-            Sub-page edited {updatedAgo(subEdit.at)}
-          </p>
-        )}
+            <CornerLeftUp className="size-3 shrink-0 opacity-70" aria-hidden />
+            <span className="truncate">in {location}</span>
+          </RowButton>
+        ) : (
+          <p className="truncate px-1 text-xs text-muted-foreground">in {location}</p>
+        ))}
 
-        {details && row.summary && (
-          <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>
-        )}
-        {details && row.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {row.tags.map((t) => (
-              <TagPill key={t} tag={t} />
-            ))}
-          </div>
-        )}
+      {subEdit && (
+        <p
+          className="truncate px-1 text-xs text-muted-foreground"
+          title={`${subEdit.path.join(' › ')}, edited ${formatDateTime(subEdit.at)}`}
+        >
+          Sub-page edited {updatedAgo(subEdit.at)}
+        </p>
+      )}
 
-        {/* Controls, at the FOOT of the card so they never eat the title. */}
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex min-w-0 items-center gap-1">
-            {draggable && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-2xs"
-                ref={setDragRef}
-                {...listeners}
-                {...attributes}
-                aria-label={`Drag to move “${row.title}”`}
-                title="Drag onto another page to nest it there"
-                className="shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
-              >
-                <GripVertical className="size-3.5" />
-              </Button>
-            )}
-            {drills ? (
-              <RowButton
-                onClick={onSelect}
-                className="flex min-w-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                title={`Open the ${childCount} sub-page${childCount === 1 ? '' : 's'}`}
-              >
-                <span className="truncate tabular-nums">
-                  {childCount} sub-page{childCount === 1 ? '' : 's'}
-                </span>
-                <ChevronRight className="size-3.5 shrink-0 opacity-70" />
-              </RowButton>
-            ) : (
-              /* A leaf page leaves this slot empty, so it carries the updated
-                 stamp instead — relative while fresh, the date once it's 5+
-                 days old (updatedAgo). Hover gives the exact timestamp. */
-              <span
-                className="truncate px-1 py-0.5 text-xs text-muted-foreground"
-                title={`Updated ${formatDateTime(row.updatedAt)}`}
-              >
-                {updatedAgo(row.updatedAt)}
-              </span>
-            )}
-          </div>
-
-          <div className="flex shrink-0 items-center">
-            {/* Kept even though the card is now a big drop target: once a level
-                pages, the page you want to drop onto may be on page 2, and this
-                is the only way to reach it. */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 text-muted-foreground"
-                  aria-label="Move page"
-                  title="Move to…"
-                >
-                  <FolderInput />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="max-h-72 w-56 overflow-y-auto scrollbar-thin"
-              >
-                <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
-                  <CornerLeftUp />
-                  Top level
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {moveTargets.length === 0 ? (
-                  <DropdownMenuItem disabled>No other pages</DropdownMenuItem>
-                ) : (
-                  moveTargets.map((t) => (
-                    <DropdownMenuItem
-                      key={t.id}
-                      disabled={t.id === row.parentId}
-                      onClick={() => onMove(t.id)}
-                    >
-                      <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
-                        {t.icon ?? '📄'}
-                      </span>
-                      <span className="min-w-0 truncate">{t.title}</span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground"
-              onClick={onAddChild}
-              aria-label="Add sub-page"
-              title="Add sub-page"
-            >
-              <Plus />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground hover:text-destructive-ink"
-              onClick={onDelete}
-              aria-label="Delete page"
-            >
-              <Trash2 />
-            </Button>
-          </div>
+      {details && row.summary && (
+        <p className="line-clamp-2 text-xs text-muted-foreground">{row.summary}</p>
+      )}
+      {details && row.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {row.tags.map((t) => (
+            <TagPill key={t} tag={t} />
+          ))}
         </div>
-      </div>
-    </ListCard>
+      )}
+    </ItemCard>
   );
 }
 
@@ -1206,98 +1055,6 @@ function TopLevelDropZone() {
     >
       Drop here to move to the top level
     </div>
-  );
-}
-
-/** Searchable tag filter — Popover + Command (cmdk) combobox. Replaces the
- *  inline pill row, which got unwieldy past a handful of tags. cmdk filters the
- *  list by each item's `value` as you type; selecting drives the URL `tag`
- *  param (SSR filtering), and re-picking the active tag clears it. */
-function TagFilter({
-  tags,
-  activeTag,
-  onSelect,
-  details,
-  onDetailsChange,
-}: {
-  tags: TagCount[];
-  activeTag: string | null;
-  onSelect: (tag: string | null) => void;
-  details: boolean;
-  onDetailsChange: (on: boolean) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const choose = (tag: string | null) => {
-    onSelect(tag);
-    setOpen(false);
-  };
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          role="combobox"
-          aria-expanded={open}
-          className={cn('h-7 gap-1 px-2 text-muted-foreground', activeTag && 'text-foreground')}
-          title="Filter by tag, and choose how much of each card to show"
-        >
-          <Tag className="size-3.5" />
-          <span className="max-w-32 truncate">{activeTag ?? 'All tags'}</span>
-          <ChevronDown className="size-3.5 opacity-60" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 p-0">
-        {/* Density lives here rather than in the toolbar row, where it read as
-            a fourth filter. It sits ABOVE `<Command>`, not inside it: cmdk owns
-            arrow keys and Enter for everything in its list, and a switch in
-            there would be reachable by typing at it. */}
-        <label className="flex cursor-pointer items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground">
-          Details
-          <Switch
-            checked={details}
-            onCheckedChange={onDetailsChange}
-            aria-label="Show summaries and tags on cards"
-            title={
-              details ? 'Hide summaries and tags — titles only' : 'Show summaries and tags on cards'
-            }
-            className="h-4 w-7 [&>span]:size-3 [&>span]:data-[state=checked]:translate-x-3"
-          />
-        </label>
-        <Command>
-          <CommandInput placeholder="Search tags…" className="border-0 focus:ring-0" />
-          {/* `scrollbar-thin`: a long tag list scrolls, and the platform
-              scrollbar is too heavy for a 240px popover. */}
-          <CommandList className="max-h-72 scrollbar-thin">
-            <CommandEmpty className="px-3 py-6 text-center text-xs text-muted-foreground">
-              No tags found.
-            </CommandEmpty>
-            <CommandGroup>
-              {/* Sentinel value so a tag search doesn't accidentally match it. */}
-              <CommandItem value="__all_pages__" onSelect={() => choose(null)}>
-                <Check className={cn('size-4', activeTag === null ? 'opacity-100' : 'opacity-0')} />
-                <span className="flex-1">All pages</span>
-              </CommandItem>
-              {tags.map((t) => (
-                <CommandItem
-                  key={t.tag}
-                  value={t.tag}
-                  onSelect={() => choose(activeTag === t.tag ? null : t.tag)}
-                >
-                  <Check
-                    className={cn('size-4', activeTag === t.tag ? 'opacity-100' : 'opacity-0')}
-                  />
-                  <span className="min-w-0 flex-1 truncate">{t.tag}</span>
-                  <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground group-data-[selected=true]/command-item:text-accent-foreground">
-                    {t.count}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   );
 }
 
