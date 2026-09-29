@@ -376,18 +376,31 @@ test.describe('a client on a phone', () => {
   }) => {
     await page.goto('/?view=requests');
     await expect(requests(page).getByRole('listitem')).toHaveCount(4, { timeout: 60_000 });
+    // Nothing wider than the phone, and nothing that scrolls sideways: the
+    // page, and every scroller inside it (the app's <main> clips, so the
+    // page alone would never show it).
     const overflow = () =>
-      page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-    expect(await overflow()).toBeLessThanOrEqual(0);
+      page.evaluate(() => {
+        const w = window.innerWidth;
+        const wide = [...document.querySelectorAll('body *')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && r.right > w + 1;
+        });
+        const sideways = [...document.querySelectorAll('body *')].filter((el) => {
+          const x = getComputedStyle(el).overflowX;
+          return (x === 'auto' || x === 'scroll') && el.scrollWidth > el.clientWidth + 1;
+        });
+        const page = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+        return wide.length + sideways.length + Math.max(0, page);
+      });
+    expect(await overflow()).toBe(0);
     await card(page, CLIENT_SUBMITTED_TITLE).click();
     await expect(page).toHaveURL(new RegExp(`[?&]id=${CLIENT_SUBMITTED_ID}`));
     await expect(requests(page)).toHaveCount(0);
     await expect(page.getByText('Submitted for review: nobody can change it now.')).toBeVisible({
       timeout: 30_000,
     });
-    expect(await overflow()).toBeLessThanOrEqual(0);
+    expect(await overflow()).toBe(0);
   });
 
   test('the thread’s delete shows on touch, and the composer has a name (U10)', async ({
@@ -399,7 +412,9 @@ test.describe('a client on a phone', () => {
     });
     const thread = threadOf(page);
     await expect(thread).toContainText(SHARED_TEAM_COMMENT, { timeout: 30_000 });
-    await thread.getByRole('textbox', { name: 'Write a comment' }).fill('From the site.');
+    await thread
+      .getByRole('textbox', { name: 'Write a comment', exact: true })
+      .fill('From the site.');
     await thread.getByRole('button', { name: 'Add comment' }).click();
     const del = thread.getByRole('button', { name: 'Delete comment' });
     await expect(del).toHaveCount(1);
