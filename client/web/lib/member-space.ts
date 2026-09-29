@@ -85,6 +85,12 @@ const REFUSAL_TEXT: Record<string, string> = {
   'with-admin':
     'An admin is working on this. You will see it again when it is accepted or given back.',
   'too-large': 'This holds too many items to move at once (more than 200).',
+  // Client logins C5 audit fixes: a client's day of comments, a full
+  // thread, and a request body over the brain's ceiling. The brain sends
+  // its own sentence with each; these read when it does not.
+  'comment-cap': 'You have written as many comments as you can today. Try again tomorrow.',
+  'thread-full': 'This thread is full: it takes no more comments.',
+  'body-too-large': 'This is too big to send in one go. Make it smaller, then try again.',
 };
 
 /** What a member reads for an item an admin has taken over (audit F07). */
@@ -133,15 +139,22 @@ export function unsavedBundleIds(err: unknown, ownId: string): string[] {
 
 /**
  * The sentence for a member-route refusal: the brain's own `error` when it
- * sent one (every state refusal does: quota, embed, frozen, …), else a
- * sentence for its `reason` (a 429 counts as rate-limit), else null so the
- * caller keeps its own fallback.
+ * sent one (every state refusal does: quota, embed, frozen, comment-cap,
+ * thread-full, too-large, body-too-large, …), else a sentence for its
+ * `reason` (a bare 429 counts as rate-limit, a bare 413 as body-too-large),
+ * else null so the caller keeps its own fallback.
  */
 export function refusalMessage(err: unknown): string | null {
   if (!(err instanceof ApiError)) return null;
   const body = (err.body ?? {}) as { error?: unknown; reason?: unknown };
   const reason =
-    typeof body.reason === 'string' ? body.reason : err.status === 429 ? 'rate-limit' : null;
+    typeof body.reason === 'string'
+      ? body.reason
+      : err.status === 429
+        ? 'rate-limit'
+        : err.status === 413
+          ? 'body-too-large'
+          : null;
   // `forbidden` / `unauthorized` are codes, not sentences.
   if (typeof body.error === 'string' && body.error && !/^[a-z-]+$/.test(body.error)) {
     return body.error;

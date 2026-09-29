@@ -64,6 +64,32 @@ describe('refusalMessage', () => {
     );
   });
 
+  it("shows the brain's sentence for the C5a refusals: comment-cap, thread-full, too-large, body-too-large", () => {
+    const cases: [number, string, string][] = [
+      [429, 'comment-cap', 'You have posted 100 comments today. Try again tomorrow.'],
+      [409, 'thread-full', 'This thread holds 1000 comments. It takes no more.'],
+      [400, 'too-large', 'This page is over 500 KB. Split it into two pages.'],
+      [413, 'body-too-large', 'That request is over 8 MB.'],
+    ];
+    for (const [status, reason, error] of cases) {
+      expect(refusalMessage(new ApiError(error, status, { reason, error }))).toBe(error);
+    }
+  });
+
+  it('reads the C5a refusals when the brain sent no sentence', () => {
+    expect(refusalMessage(new ApiError('429', 429, { reason: 'comment-cap' }))).toMatch(
+      /as many comments as you can today/,
+    );
+    expect(refusalMessage(new ApiError('409', 409, { reason: 'thread-full' }))).toMatch(
+      /thread is full/,
+    );
+    expect(refusalMessage(new ApiError('413', 413, { reason: 'body-too-large' }))).toMatch(
+      /too big to send/,
+    );
+    // A bare 413 (a proxy's, with no JSON) reads the same.
+    expect(refusalMessage(new ApiError('Payload Too Large', 413))).toMatch(/too big to send/);
+  });
+
   it('leaves the fallback to the caller otherwise', () => {
     expect(refusalMessage(new ApiError('forbidden', 403, { error: 'forbidden' }))).toBeNull();
     expect(refusalMessage(new TypeError('Failed to fetch'))).toBeNull();

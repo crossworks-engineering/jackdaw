@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SendHorizontal, Trash2 } from 'lucide-react';
 
@@ -30,6 +30,18 @@ export type ThreadComment = Omit<NodeComment, 'authorKind'> & {
 };
 
 /**
+ * A comment's markdown draws no image. A client can write in some of these
+ * threads (client logins C5), and an image from anywhere would load in every
+ * reader's browser the moment the thread opens: a tracking pixel that tells
+ * its author who read the thread, when, and from where. So an image is its
+ * words only (the alt text, else "image"), in brackets, and nothing is
+ * fetched.
+ */
+const NO_IMAGES: Components = {
+  img: ({ alt }) => <span className="text-muted-foreground">[{alt?.trim() || 'image'}]</span>,
+};
+
+/**
  * A discussion thread on a node — modeled on the Team Forum's post anatomy
  * (`mine` computed server-side, name snapshot + role chip, own posts tinted).
  *
@@ -51,6 +63,9 @@ export function CommentThread({
   onSend,
   onDelete,
   canDelete,
+  hasMore = false,
+  onLoadOlder,
+  loadingOlder = false,
   className,
 }: {
   /** Oldest-first, as both APIs return them — this reverses for display. */
@@ -75,6 +90,11 @@ export function CommentThread({
   /** Which comments this reader may delete, where it is not every one: a
    *  member or a client deletes only their own (`c.mine`). Omitted: all. */
   canDelete?: (comment: ThreadComment) => boolean;
+  /** The brain holds older comments than `comments` (a paged thread): a
+   *  Load older at the foot of the list asks for them. */
+  hasMore?: boolean;
+  onLoadOlder?: () => void;
+  loadingOlder?: boolean;
   className?: string;
 }) {
   const [draft, setDraft] = useState('');
@@ -102,7 +122,10 @@ export function CommentThread({
       <h3 className="text-sm font-semibold">
         Comments
         {newestFirst.length > 0 && (
-          <span className="ml-1.5 font-normal text-muted-foreground">({newestFirst.length})</span>
+          <span className="ml-1.5 font-normal text-muted-foreground">
+            ({newestFirst.length}
+            {hasMore ? '+' : ''})
+          </span>
         )}
       </h3>
 
@@ -124,6 +147,7 @@ export function CommentThread({
           }}
           rows={2}
           placeholder="Write a comment… (markdown, ⌘↵ to send)"
+          aria-label="Write a comment"
         />
         <div className="flex justify-end">
           <SubmitButton pending={sending} disabled={!draft.trim()}>
@@ -162,12 +186,14 @@ export function CommentThread({
                 {onDelete && (canDelete ? canDelete(c) : true) && (
                   // §8's delete idiom, row-scoped: grey until hover, no text
                   // label, and revealed on hover so a thread of ten posts is
-                  // not a column of ten bins.
+                  // not a column of ten bins. Only where the pointer can
+                  // hover: on touch it stays visible, at reduced emphasis
+                  // (as SpaceComments does).
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="ml-auto h-6 px-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive-ink group-hover:opacity-100 focus-visible:opacity-100"
+                    className="ml-auto h-6 px-1.5 text-muted-foreground opacity-60 transition-opacity hover:text-destructive-ink group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0"
                     onClick={() => setDeleteId(c.id)}
                     aria-label="Delete comment"
                   >
@@ -176,10 +202,26 @@ export function CommentThread({
                 )}
               </div>
               <div className="prose prose-sm dark:prose-invert prose-accent mt-1 max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{c.body}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={NO_IMAGES}>
+                  {c.body}
+                </ReactMarkdown>
               </div>
             </li>
           ))}
+          {hasMore && onLoadOlder ? (
+            <li className="flex justify-center">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={loadingOlder}
+                onClick={onLoadOlder}
+              >
+                {loadingOlder ? <Spinner /> : null}
+                Load older
+              </Button>
+            </li>
+          ) : null}
         </ul>
       )}
 

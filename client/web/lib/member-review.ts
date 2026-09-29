@@ -80,11 +80,16 @@ const base = (id: string) => `/api/team-admin/submissions/${id}`;
 
 export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
 export const itemKey = (id: string) => ['team-admin', 'submissions', id] as const;
+/** The review talk's pages: under the item's key, so a refresh of the item
+ *  refreshes its talk too. */
+export const commentsKey = (id: string) => [...itemKey(id), 'comments'] as const;
 
 export const memberReview = {
   queue: () => apiFetch<ReviewQueue>('/api/team-admin/submissions'),
   item: (id: string) => apiFetch<ReviewItem>(base(id)),
   bundle: (id: string) => apiFetch<Bundle>(`${base(id)}/bundle`),
+  /** The review talk, a page at a time (use-thread-pages.ts). */
+  commentsPath: (id: string) => `${base(id)}/comments`,
   addComment: (id: string, body: string) =>
     apiSend<{ comment: SpaceComment }>(`${base(id)}/comments`, 'POST', { body }),
   deleteComment: (id: string, commentId: string) =>

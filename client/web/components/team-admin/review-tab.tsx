@@ -33,6 +33,7 @@ import {
   QUEUE_KEY,
   authorRoleLabel,
   canTakeOver,
+  commentsKey,
   isReleased,
   itemKey,
   memberReview,
@@ -45,6 +46,8 @@ import {
   type ReviewItem,
   type ReviewItemRow,
 } from '@/lib/member-review';
+import type { SpaceComment } from '@/lib/member-space';
+import { useThreadPages } from '@/lib/use-thread-pages';
 import { AcceptDialog, DiscardDialog, ReturnDialog, TakeOverDialog } from './review-dialogs';
 
 const KIND_LABEL: Record<ReviewItemRow['type'], string> = {
@@ -305,6 +308,13 @@ function ReviewThread({ id, item, canWrite }: { id: string; item: ReviewItem; ca
   const [text, setText] = useState('');
   const composer = useRef<HTMLTextAreaElement>(null);
   const refresh = () => void qc.invalidateQueries({ queryKey: itemKey(id) });
+  // Read a page at a time (the newest 100, then Load older); the item's own
+  // answer carries the talk too, which shows until the first page is read
+  // (and on a brain whose talk route fails).
+  const thread = useThreadPages<SpaceComment>({
+    queryKey: commentsKey(id),
+    path: memberReview.commentsPath(id),
+  });
   const add = useMutation({
     mutationFn: () => memberReview.addComment(id, text),
     onSuccess: () => {
@@ -322,7 +332,7 @@ function ReviewThread({ id, item, canWrite }: { id: string; item: ReviewItem; ca
     },
     onError: (err) => toast.error(reviewErrorMessage(err, 'Could not delete the comment.')),
   });
-  const comments = item.comments;
+  const comments = thread.query.data ? thread.comments : item.comments;
   return (
     <section className="space-y-3 border-t border-border pt-4" aria-label="Review comments">
       <div>
@@ -335,6 +345,19 @@ function ReviewThread({ id, item, canWrite }: { id: string; item: ReviewItem; ca
         <p className="text-sm text-muted-foreground">No comments yet.</p>
       ) : (
         <ul className="space-y-2">
+          {thread.query.data && thread.hasMore ? (
+            <li className="flex justify-center">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={thread.loadingOlder}
+                onClick={thread.loadOlder}
+              >
+                Load older
+              </Button>
+            </li>
+          ) : null}
           {comments.map((c) => (
             <li key={c.id} className="group/comment rounded-md bg-muted/40 px-3 py-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">

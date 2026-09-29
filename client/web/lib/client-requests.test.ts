@@ -12,6 +12,8 @@ import {
   CLIENT_VIEW_HREF,
   MEMBER_THREAD_CHIPS,
   acceptedStamp,
+  askUnlessMissing,
+  forgetMissingRoutes,
   clientAcceptedPath,
   clientItemsPath,
   clientKindOf,
@@ -233,5 +235,47 @@ describe('the client portal refresh (no live stream)', () => {
     expect(stale(keys[1]!)).toBe(true);
     expect(stale(keys[2]!)).toBe(true);
     expect(stale(keys[3]!)).toBe(false);
+  });
+});
+
+/**
+ * Older brains are asked once (audit U4): after a route's 404 nothing asks
+ * it again in this page load, not a poll, a focus refresh or a remount.
+ */
+describe('askUnlessMissing', () => {
+  it('asks once after a 404, then answers the 404 without asking', async () => {
+    forgetMissingRoutes();
+    let asks = 0;
+    const ask = async () => {
+      asks += 1;
+      throw new ApiError('Not found.', 404);
+    };
+    await expect(askUnlessMissing('/api/client/items', ask)).rejects.toSatisfy(isMissingRoute);
+    await expect(askUnlessMissing('/api/client/items', ask)).rejects.toSatisfy(isMissingRoute);
+    await expect(askUnlessMissing('/api/client/items', ask)).rejects.toSatisfy(isMissingRoute);
+    expect(asks).toBe(1);
+  });
+
+  it('keeps asking a route that answers, or fails another way', async () => {
+    forgetMissingRoutes();
+    let asks = 0;
+    await askUnlessMissing('/api/a', async () => (asks += 1));
+    await askUnlessMissing('/api/a', async () => (asks += 1));
+    const boom = async () => {
+      asks += 1;
+      throw new ApiError('Server error', 500);
+    };
+    await expect(askUnlessMissing('/api/b', boom)).rejects.toBeInstanceOf(ApiError);
+    await expect(askUnlessMissing('/api/b', boom)).rejects.toBeInstanceOf(ApiError);
+    expect(asks).toBe(4);
+  });
+
+  it('remembers each route on its own', async () => {
+    forgetMissingRoutes();
+    const missing = async () => {
+      throw new ApiError('Not found.', 404);
+    };
+    await expect(askUnlessMissing('/api/x/comments', missing)).rejects.toBeInstanceOf(ApiError);
+    await expect(askUnlessMissing('/api/y/comments', async () => 'ok')).resolves.toBe('ok');
   });
 });

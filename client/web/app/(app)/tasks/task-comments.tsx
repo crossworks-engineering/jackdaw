@@ -1,11 +1,12 @@
 'use client';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { CommentThread } from '@mantle/web-ui/comment-thread';
-import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import type { NodeComment } from '@mantle/client-types';
+import { useThreadPages } from '@/lib/use-thread-pages';
 
 /** Role chip text per author kind — the forum's vocabulary, owner's side. */
 const ROLE_CHIP: Record<NodeComment['authorKind'], string | null> = {
@@ -19,18 +20,15 @@ const ROLE_CHIP: Record<NodeComment['authorKind'], string | null> = {
  * The discussion thread on a task, owner side. `<CommentThread>` owns the
  * anatomy and the composer; this owns the transport — the query, the writes,
  * and a realtime subscription scoped to this node so a member/agent comment
- * appears live.
+ * appears live. Read a page at a time: the newest 100, then Load older.
  */
 export function TaskComments({ taskId }: { taskId: string }) {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const commentsQuery = useQuery({
+  const thread = useThreadPages<NodeComment>({
     queryKey: ['task-comments', taskId],
-    queryFn: () =>
-      apiFetch<{ comments: NodeComment[] }>(`/api/nodes/${taskId}/comments`).then(
-        (r) => r.comments,
-      ),
+    path: `/api/nodes/${encodeURIComponent(taskId)}/comments`,
   });
 
   // Thread-scoped invalidation only. The task-row counts repaint via the
@@ -70,11 +68,14 @@ export function TaskComments({ taskId }: { taskId: string }) {
 
   return (
     <CommentThread
-      comments={commentsQuery.data ?? []}
-      pending={commentsQuery.isPending}
+      comments={thread.comments}
+      pending={thread.query.isPending}
       roleChip={ROLE_CHIP}
       onSend={send}
       onDelete={(id) => void remove(id)}
+      hasMore={thread.hasMore}
+      onLoadOlder={thread.loadOlder}
+      loadingOlder={thread.loadingOlder}
     />
   );
 }

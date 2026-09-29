@@ -30,11 +30,13 @@ import { SpaceApiProvider } from '@/components/member/space-api';
 import { spaceErrorMessage } from '@/components/member/space-status';
 import { kindLabel } from '@/lib/access-levels';
 import {
+  CLIENT_ITEMS_ROUTE,
   CLIENT_KIND_OPTIONS,
   CLIENT_REQUESTS_KEY,
   CLIENT_REQUESTS_UNAVAILABLE,
   CLIENT_STATE_OPTIONS,
   acceptedStamp,
+  askUnlessMissing,
   clientItemsPath,
   clientKindOf,
   clientRequestsEmpty,
@@ -96,9 +98,13 @@ export function ClientRequests() {
 
   const list = useQuery({
     queryKey: [...CLIENT_REQUESTS_KEY, { kind, q, state, page }],
-    queryFn: () => apiFetch<ClientItemsPage>(clientItemsPath({ kind, q, state, page })),
+    // An older brain has no such route: say so once, and ask no more in
+    // this page load (not on the portal's poll or focus refresh either).
+    queryFn: () =>
+      askUnlessMissing(CLIENT_ITEMS_ROUTE, () =>
+        apiFetch<ClientItemsPage>(clientItemsPath({ kind, q, state, page })),
+      ),
     placeholderData: (prev) => prev,
-    // An older brain has no such route: say so once, ask no more.
     retry: (count, err) => !isMissingRoute(err) && count < 1,
   });
   const unavailable = isMissingRoute(list.error);

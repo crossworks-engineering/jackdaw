@@ -1,14 +1,15 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { apiSend } from '@mantle/web-ui/api-fetch';
 import { CLIENT_COMMENTS_POLL_MS, commentPath } from '@/lib/client-requests';
 import { isClientSpace, spaceCommentsPath, type SpaceComment } from '@/lib/member-space';
+import { useThreadPages } from '@/lib/use-thread-pages';
 import { useSpaceApi } from './space-api';
 import { spaceErrorMessage } from './space-status';
 
@@ -21,6 +22,9 @@ import { spaceErrorMessage } from './space-status';
  * (client logins C5), on the client routes; a reviewer's comment carries the
  * brand name. A client has no live stream, so it is asked again every 30
  * seconds while open (the member's stream refreshes a member's).
+ *
+ * Read a page at a time: the newest 100, and Load older above them for each
+ * page before (a brain before paging answers the whole thread at once).
  */
 export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: string }) {
   const toast = useToast();
@@ -35,11 +39,12 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
   const toComposer = () => composer.current?.focus();
   const key = ['member-space-comments', source, id];
   const path = spaceCommentsPath(api, source, id);
-  const q = useQuery({
+  const thread = useThreadPages<SpaceComment>({
     queryKey: key,
-    queryFn: () => apiFetch<{ comments: SpaceComment[] }>(path),
+    path,
     refetchInterval: client ? CLIENT_COMMENTS_POLL_MS : false,
   });
+  const q = thread.query;
   const refresh = () => void qc.invalidateQueries({ queryKey: key });
   const add = useMutation({
     mutationFn: () => apiSend<{ comment: SpaceComment }>(path, 'POST', { body: text }),
@@ -59,7 +64,7 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
     },
     onError: (err) => toast.error(spaceErrorMessage(err, 'Could not delete the comment.')),
   });
-  const comments = q.data?.comments ?? [];
+  const comments = thread.comments;
 
   return (
     <section className="space-y-3 border-t border-border pt-4" aria-label="Comments">
@@ -70,6 +75,19 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
         <p className="text-sm text-muted-foreground">No comments yet.</p>
       ) : (
         <ul className="space-y-2">
+          {thread.hasMore ? (
+            <li className="flex justify-center">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={thread.loadingOlder}
+                onClick={thread.loadOlder}
+              >
+                Load older
+              </Button>
+            </li>
+          ) : null}
           {comments.map((c) => (
             <li key={c.id} className="group/comment rounded-md bg-muted/40 px-3 py-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">

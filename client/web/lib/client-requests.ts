@@ -48,6 +48,10 @@ export const CLIENT_VIEW_HREF: Record<ClientView, string> = {
 export const CLIENT_REQUESTS_KEY = ['client-requests'] as const;
 export const CLIENT_ACCEPTED_KEY = ['client-accepted'] as const;
 
+/** My requests' list route, whatever its query: what a 404 marks missing
+ *  (askUnlessMissing). */
+export const CLIENT_ITEMS_ROUTE = `${CLIENT_SPACE_BASE}/items`;
+
 /** One page of My requests (`?kind=&q=&state=&page=`), newest first. No
  *  kind: every kind; `all`: every state. */
 export function clientItemsPath(opts: {
@@ -61,7 +65,7 @@ export function clientItemsPath(opts: {
   if (opts.q?.trim()) sp.set('q', opts.q.trim());
   if (opts.state && opts.state !== 'all') sp.set('state', opts.state);
   sp.set('page', String(opts.page ?? 1));
-  return `${CLIENT_SPACE_BASE}/items?${sp.toString()}`;
+  return `${CLIENT_ITEMS_ROUTE}?${sp.toString()}`;
 }
 
 /** An accepted item, read only. */
@@ -152,6 +156,36 @@ export function clientUploadRefusal(size: number): string | null {
  *  a quiet line (or nothing) instead of an error, and asks no more. */
 export function isMissingRoute(err: unknown): boolean {
   return err instanceof ApiError && err.status === 404;
+}
+
+/** The routes this page load found missing (a 404), by route. */
+const missingRoutes = new Set<string>();
+
+/**
+ * Ask a C5 route through `ask`, unless this page load already found it
+ * missing: then answer that 404 again without a request. So nothing asks a
+ * brain before C5 twice (audit U4): not the portal's shell poll or focus
+ * refresh (refreshClientPortal invalidates My requests), not a thread's
+ * refetch on focus, not a remount. `route` names what is missing: the list
+ * route for My requests (whatever its query), the thread's own path for a
+ * thread (a 404 there can also mean the item left client level). A reload
+ * asks again, once.
+ */
+export async function askUnlessMissing<T>(route: string, ask: () => Promise<T>): Promise<T> {
+  if (missingRoutes.has(route)) {
+    throw new ApiError('Not found.', 404, { reason: 'missing-route' });
+  }
+  try {
+    return await ask();
+  } catch (err) {
+    if (isMissingRoute(err)) missingRoutes.add(route);
+    throw err;
+  }
+}
+
+/** Forget every missing route (the tests; a new session starts empty). */
+export function forgetMissingRoutes(): void {
+  missingRoutes.clear();
 }
 
 /** What My requests shows on a brain before C5. */
