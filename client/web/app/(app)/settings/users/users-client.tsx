@@ -71,8 +71,11 @@ type UserRow = {
   /** This login's personal assistant, or null when it shares the brain default. */
   agent: { id: string; slug: string; name: string } | null;
   /** 'member' = a team member's login (users are the team): refused by every
-   *  admin screen, reads team-level items at /m (member logins, Phase 1). */
-  role: 'admin' | 'member';
+   *  admin screen, reads team-level items at /m (member logins, Phase 1).
+   *  'client' = a person at the brain's client company (client logins C2):
+   *  reads client-level items only and signs in with a link. Made and managed
+   *  in Team admin > Clients; the brain refuses a role change to or from it. */
+  role: 'admin' | 'member' | 'client';
   contactId: string | null;
   disabledAt: string | null;
 };
@@ -214,6 +217,11 @@ export function UsersClient() {
                         Member
                       </Badge>
                     )}
+                    {u.role === 'client' && (
+                      <Badge variant="outline" className="shrink-0">
+                        Client
+                      </Badge>
+                    )}
                     {u.disabledAt && (
                       <Badge variant="outline" className="shrink-0">
                         Disabled
@@ -338,7 +346,9 @@ function UserDetail({
               ? 'The anchor login. The brain is keyed to it, so it can’t be deleted.'
               : user.role === 'member'
                 ? 'A member login: team-level items and chat only, at /m. Admin screens refuse it.'
-                : 'Another way into this brain. Same brain, same data, same settings — actions are recorded under this identity.'}
+                : user.role === 'client'
+                  ? 'A client login: client-level items only, signed in with a link. Sign-in links live in Team admin > Clients.'
+                  : 'Another way into this brain. Same brain, same data, same settings — actions are recorded under this identity.'}
           </p>
         </div>
         {!user.isOwner && !isSelf && (
@@ -391,23 +401,26 @@ function UserDetail({
 
       {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
 
-      {user.role !== 'member' && <AssistantCard user={user} onChanged={onChanged} />}
+      {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
 
-      <div className="rounded-md border border-border p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <KeyRound className="size-4 text-muted-foreground" /> Password
+      {/* A client has no password: it signs in with a link. */}
+      {user.role !== 'client' && (
+        <div className="rounded-md border border-border p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <KeyRound className="size-4 text-muted-foreground" /> Password
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Set a new password for this login. The reset is recorded in the audit log.
+              </p>
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Set a new password for this login. The reset is recorded in the audit log.
-            </p>
+            <Button type="button" variant="outline" size="sm" onClick={onRequestReset}>
+              Reset password
+            </Button>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={onRequestReset}>
-            Reset password
-          </Button>
         </div>
-      </div>
+      )}
 
       <DevicesCard user={user} isSelf={isSelf} />
       {isSelf && <PairPhoneCard userId={user.id} />}
@@ -419,11 +432,15 @@ function UserDetail({
  * Role and access for one login (member logins, Phase 1): admin or member
  * (a member login is the team member itself), and a Disabled switch that stops the
  * login at once (sessions are re-checked every request; bearers are revoked).
+ * A client login shows its role and no role change: the brain refuses one to
+ * or from client (client logins C2).
  * Never shown for the anchor or your own login.
  */
 function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void }) {
   const toast = useToast();
-  const [role, setRole] = useState<'admin' | 'member'>(user.role);
+  const [role, setRole] = useState<'admin' | 'member'>(
+    user.role === 'client' ? 'member' : user.role,
+  );
   const [saving, setSaving] = useState(false);
   const dirty = role !== user.role;
 
@@ -470,12 +487,23 @@ function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void 
           aria-label="Disable this login"
         />
       </div>
-      <form onSubmit={save} noValidate className="space-y-3 border-t border-border pt-4">
-        <RoleFields idPrefix={`user-${user.id}`} role={role} onRoleChange={setRole} />
-        <SubmitButton pending={saving} disabled={!dirty}>
-          Save role
-        </SubmitButton>
-      </form>
+      {user.role === 'client' ? (
+        <div className="border-t border-border pt-4">
+          <div className="text-sm font-medium">Role</div>
+          <p className="mt-0.5 text-sm">Client</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            A client login stays a client. To give this person more, delete the client login and
+            invite them as a member.
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={save} noValidate className="space-y-3 border-t border-border pt-4">
+          <RoleFields idPrefix={`user-${user.id}`} role={role} onRoleChange={setRole} />
+          <SubmitButton pending={saving} disabled={!dirty}>
+            Save role
+          </SubmitButton>
+        </form>
+      )}
     </div>
   );
 }

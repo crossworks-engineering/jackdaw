@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Upload } from 'lucide-react';
-import type { AccessLevel, MemberAcceptedPage, MemberLibraryPage } from '@mantle/client-types';
+import type { AccessLevel, MemberAcceptedPage } from '@mantle/client-types';
+import type { MemberLibraryPage } from '@/lib/contract-next';
 import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import {
@@ -23,6 +25,8 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import {
   acceptedPlace,
   isWithAdmin,
+  LIBRARY_CLIENT_TITLE,
+  libraryLevelBadge,
   listPath,
   memberSpace,
   memberUploadRefusal,
@@ -61,6 +65,8 @@ type Row = {
   space?: SpaceItemRow;
   /** Library: who wrote it, when a member did and an admin accepted it. */
   author?: string | null;
+  /** Library: its level (team or client, client logins C2). */
+  level?: string;
   /** Accepted: when, and the level the admin chose. */
   acceptedAt?: string | null;
   audience?: AccessLevel;
@@ -146,6 +152,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
             updatedAt: r.updatedAt,
             summary: r.summary,
             author: r.author?.name ?? null,
+            level: r.audience,
           })),
           total: d.total,
           page: d.page,
@@ -337,7 +344,20 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
                       {row.icon ?? meta.icon}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <ListCardTitle className="min-w-0">{row.title || 'Untitled'}</ListCardTitle>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <ListCardTitle className="min-w-0 flex-1">
+                          {row.title || 'Untitled'}
+                        </ListCardTitle>
+                        {libraryLevelBadge(row.level) ? (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0"
+                            title={LIBRARY_CLIENT_TITLE}
+                          >
+                            {libraryLevelBadge(row.level)}
+                          </Badge>
+                        ) : null}
+                      </div>
                       {row.summary ? <ListCardSnippet>{row.summary}</ListCardSnippet> : null}
                       <ListCardMeta>
                         {source === 'mine' && row.space ? (

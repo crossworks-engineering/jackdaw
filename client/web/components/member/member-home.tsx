@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { MessageSquare } from 'lucide-react';
-import type { MemberLibraryPage } from '@mantle/client-types';
+import type { MemberLibraryPage } from '@/lib/contract-next';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import {
   isWithAdmin,
+  LIBRARY_CLIENT_TITLE,
+  libraryLevelBadge,
   reviewListPath,
   splitByReview,
   type SpaceItemRow,
@@ -34,6 +37,8 @@ type Entry = {
   icon: string | null;
   updatedAt: string;
   status?: Parameters<typeof StatusChip>[0]['row'];
+  /** A Library row's level badge ("Client"), when it wears one. */
+  badge?: string | null;
 };
 
 function Section({
@@ -67,6 +72,11 @@ function Section({
                 <span aria-hidden>{e.icon ?? MEMBER_KIND[e.type].icon}</span>
                 <span className="min-w-0 flex-1 truncate">{e.title || 'Untitled'}</span>
                 {e.status ? <StatusChip row={e.status} /> : null}
+                {e.badge ? (
+                  <Badge variant="outline" className="shrink-0" title={LIBRARY_CLIENT_TITLE}>
+                    {e.badge}
+                  </Badge>
+                ) : null}
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {new Date(e.updatedAt).toLocaleDateString()}
                 </span>
@@ -142,6 +152,7 @@ export function MemberHome() {
     title: r.title,
     icon: r.icon,
     updatedAt: r.updatedAt,
+    badge: libraryLevelBadge(r.audience),
   }));
 
   return (
