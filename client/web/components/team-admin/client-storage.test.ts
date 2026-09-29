@@ -34,7 +34,7 @@ const usage: ClientStorageUsage = {
     },
     {
       loginId: 'l-2',
-      name: 'Old Client',
+      name: 'Former client (2)',
       usedBytes: MB,
       uploadedTodayBytes: 0,
       items: 1,
@@ -42,7 +42,7 @@ const usage: ClientStorageUsage = {
       former: true,
     },
   ],
-  refusals: [{ at: '2026-09-29T10:00:00.000Z', loginId: 'l-1', reason: 'client-total' }],
+  refusals: [{ at: '2026-09-29T10:00:00.000Z', loginId: 'l-1', reason: 'storage' }],
 };
 
 describe('ClientStorageView', () => {
@@ -52,9 +52,12 @@ describe('ClientStorageView', () => {
     expect(html).toContain('4.69 GB of 5.00 GB used by all client spaces');
     expect(html).toContain('Pat Client');
     expect(html).toContain('190 MB of 200 MB · 3 of 500 items · 1 waiting for review');
-    expect(html).toContain('Old Client (deleted, purged after 30 days)');
+    expect(html).toContain('Former client (2)');
+    expect(html).toContain('(deleted: its space counts until it is purged after 30 days)');
+    // A deleted client is no login: nothing on its row acts on one.
+    expect(html).not.toMatch(/<(button|a)\b/);
     expect(html).toContain('Refused in the last 7 days');
-    expect(html).toContain('client total');
+    expect(html).toContain('Pat Client · their space is full');
     // Near the total and near a client's cap: the warning ink.
     expect(html.match(/text-warning-ink/g)?.length).toBe(2);
     expect(html).toContain('scrollbar-thin');

@@ -581,7 +581,9 @@ test.describe('an admin', () => {
           former: false,
         },
       ],
-      refusals: [{ at: '2026-09-29T10:00:00.000Z', loginId: CLIENT_LOGIN_ID, reason: 'daily' }],
+      refusals: [
+        { at: '2026-09-29T10:00:00.000Z', loginId: CLIENT_LOGIN_ID, reason: 'daily-upload' },
+      ],
     };
     await page.goto('/team-admin?view=client-logins');
     const storage = page.getByRole('region', { name: 'Client storage' });
@@ -589,7 +591,7 @@ test.describe('an admin', () => {
       timeout: 60_000,
     });
     await expect(storage).toContainText(`${CLIENT_NAME}12 MB of 200 MB · 4 of 500 items`);
-    await expect(storage).toContainText(`${CLIENT_NAME} · daily`);
+    await expect(storage).toContainText(`${CLIENT_NAME} · the day's uploads are used up`);
   });
 
   test('Clients on a brain before the fixes: no comments or storage card, no delete offered', async ({

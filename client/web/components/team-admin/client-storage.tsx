@@ -16,6 +16,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { askUnlessMissing, isMissingRoute } from '../../lib/client-requests';
 import {
   CLIENT_STORAGE_KEY,
+  FORMER_CLIENT_NOTE,
   CLIENT_STORAGE_PATH,
   nearCap,
   refusalLine,
@@ -87,7 +88,14 @@ export function ClientStorageView({ usage }: { usage: ClientStorageUsage }) {
               key={r.loginId}
               className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4 py-3"
             >
-              <span className="min-w-0 truncate text-sm font-medium">{storageRowName(r)}</span>
+              <span className="min-w-0 truncate text-sm font-medium">
+                {storageRowName(r)}
+                {r.former ? (
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                    ({FORMER_CLIENT_NOTE})
+                  </span>
+                ) : null}
+              </span>
               <span
                 className={cn(
                   'text-xs',

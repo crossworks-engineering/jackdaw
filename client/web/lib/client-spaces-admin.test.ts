@@ -8,6 +8,7 @@ import {
   deletedCommentsText,
   nearCap,
   refusalLine,
+  refusalReasonLabel,
   storageLimitsText,
   storageRowLine,
   storageRowName,
@@ -60,10 +61,10 @@ describe('client storage', () => {
     );
   });
 
-  it('marks a deleted client that still counts', () => {
+  it('names a row as the brain does, a deleted client too', () => {
     expect(storageRowName(row())).toBe('Pat Client');
-    expect(storageRowName(row({ former: true }))).toBe(
-      'Pat Client (deleted, purged after 30 days)',
+    expect(storageRowName(row({ name: 'Former client (3)', former: true }))).toBe(
+      'Former client (3)',
     );
   });
 
@@ -73,14 +74,28 @@ describe('client storage', () => {
     expect(nearCap(1, 0)).toBe(false);
   });
 
-  it('a refusal: when, whose, which cap', () => {
+  it('a refusal: when, whose, which cap in words; an unknown cap as given', () => {
     const at = '2026-09-29T10:00:00.000Z';
-    expect(refusalLine({ at, loginId: 'l-1', reason: 'client-total' }, [row()])).toMatch(
-      / · Pat Client · client total$/,
+    expect(refusalLine({ at, loginId: 'l-1', reason: 'daily-upload' }, [row()])).toMatch(
+      / · Pat Client · the day's uploads are used up$/,
     );
     expect(refusalLine({ at, loginId: null, reason: 'total' }, [row()])).toMatch(
-      / · A client no longer here · total$/,
+      / · A client no longer here · all client spaces are full$/,
     );
+    expect(refusalLine({ at, loginId: 'l-1', reason: 'new-cap' }, [row()])).toMatch(/ · new-cap$/);
+    for (const reason of [
+      'file-size',
+      'storage',
+      'upload-no-room',
+      'items',
+      'submits-per-day',
+      'open-submissions',
+      'comment-cap',
+      'thread-full',
+      'give-back',
+    ]) {
+      expect(refusalReasonLabel(reason)).not.toBe(reason);
+    }
   });
 });
 

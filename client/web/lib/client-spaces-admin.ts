@@ -62,14 +62,36 @@ export function storageRowLine(
   return parts.join(' · ');
 }
 
-/** A row's name: a deleted client still counts until its space is purged. */
-export function storageRowName(row: Pick<ClientStorageUsage['rows'][number], 'name' | 'former'>) {
-  const name = row.name.trim() || 'A client';
-  return row.former ? `${name} (deleted, purged after 30 days)` : name;
+/** A row's name, as the brain gives it ("Former client..." for a deleted
+ *  one, whose `loginId` is its space's id: no login to act on). */
+export function storageRowName(row: Pick<ClientStorageUsage['rows'][number], 'name'>) {
+  return row.name.trim() || 'A client';
 }
 
-/** One refusal, in words: when, whose, and which cap ("client-total" reads
- *  "client total"). */
+/** What a deleted client's row adds: it still counts until the purge. */
+export const FORMER_CLIENT_NOTE = 'deleted: its space counts until it is purged after 30 days';
+
+/** Each cap a refusal names, in an admin's words. */
+const REFUSAL_LABEL: Record<string, string> = {
+  'file-size': 'file over the size limit',
+  storage: 'their space is full',
+  total: 'all client spaces are full',
+  'daily-upload': "the day's uploads are used up",
+  'upload-no-room': 'no room for the upload',
+  items: 'too many items',
+  'submits-per-day': "the day's submissions are used up",
+  'open-submissions': 'too many waiting for review',
+  'comment-cap': "the day's comments are used up",
+  'thread-full': 'the thread is full',
+  'give-back': 'a give back found no room',
+};
+
+/** A refusal's cap in words; one this app does not know yet, as given. */
+export function refusalReasonLabel(reason: string): string {
+  return REFUSAL_LABEL[reason] ?? reason;
+}
+
+/** One refusal, in words: when, whose, and which cap. */
 export function refusalLine(
   r: ClientStorageUsage['refusals'][number],
   rows: readonly Pick<ClientStorageUsage['rows'][number], 'loginId' | 'name'>[],
@@ -77,7 +99,7 @@ export function refusalLine(
   const who = r.loginId
     ? (rows.find((x) => x.loginId === r.loginId)?.name.trim() ?? 'A client')
     : 'A client no longer here';
-  return `${formatDateTime(r.at)} · ${who} · ${r.reason.replace(/[-_]+/g, ' ')}`;
+  return `${formatDateTime(r.at)} · ${who} · ${refusalReasonLabel(r.reason)}`;
 }
 
 // ── Client comments ─────────────────────────────────────────────────────────

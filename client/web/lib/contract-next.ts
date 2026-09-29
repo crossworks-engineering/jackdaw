@@ -57,7 +57,10 @@ export type ClientStorageUsage = {
   };
   totalUsedBytes: number;
   rows: {
+    /** The client login; for a deleted client (`former`), its space's id:
+     *  never a login to act on. */
     loginId: string;
+    /** For a deleted client, the brain's "Former client..." words. */
     name: string;
     usedBytes: number;
     uploadedTodayBytes: number;
@@ -66,7 +69,10 @@ export type ClientStorageUsage = {
     /** A deleted client whose space still counts until it is purged. */
     former: boolean;
   }[];
-  /** Quota refusals in the last 7 days, newest first, at most 50. */
+  /** Quota refusals in the last 7 days, newest first, at most 50. `reason`:
+   *  file-size, storage, total, daily-upload, upload-no-room, items,
+   *  submits-per-day, open-submissions, comment-cap, thread-full,
+   *  give-back (a brain may add more). */
   refusals: { at: string; loginId: string | null; reason: string }[];
 };
 
