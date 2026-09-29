@@ -5,19 +5,22 @@ import { X } from 'lucide-react';
 import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import type { MemberItemAuthor } from '@mantle/client-types';
+import type { MemberClientRequestItem, MemberItemAuthor } from '@mantle/client-types';
 import { clientRequestBytesPath, clientRequestPath } from '@/lib/client-requests';
 import { authorName } from '@/lib/item-author';
 import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import type { SpaceItem } from '@/lib/member-space';
+import type { TableDetail } from '@mantle/content-core/table-model';
 import { SpaceItemView } from './space-item-view';
 
 /**
  * A client's SUBMITTED item, as a member reads it (client logins C5,
  * decision 5 B): its saved version, read only, from the member's own route
  * (/api/member/client-requests/:id; a file's bytes from its bytes route).
- * The Client badge says who wrote it. No actions and no thread: the review
+ * "Written by <name>, Client" says who wrote it: the brain's `author` on the
+ * item (audit U6: so a link, or a row on another page of the list, names
+ * them too), else the list row's. No actions and no thread: the review
  * talk is the client's and the reviewers', and an admin accepts or returns
  * it from the Review queue.
  */
@@ -27,13 +30,17 @@ export function ClientRequestItem({
   onClose,
 }: {
   id: string;
-  /** The list row's author (the client), when the list gave one. */
+  /** The list row's author (the client), when the list gave one; the
+   *  item's own `author` wins. */
   author: MemberItemAuthor | null;
   onClose: () => void;
 }) {
   const q = useQuery({
     queryKey: ['member-client-request', id],
-    queryFn: () => apiFetch<SpaceItem>(clientRequestPath(id)),
+    queryFn: () =>
+      apiFetch<MemberClientRequestItem<Record<string, unknown>, TableDetail>>(
+        clientRequestPath(id),
+      ),
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
   });
   // react-query v5 keeps the data through a failed background refetch: only
@@ -57,6 +64,7 @@ export function ClientRequestItem({
     );
   }
   const { row } = item;
+  const writer = item.author ?? author;
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
       <div className="space-y-4 p-6">
@@ -72,15 +80,18 @@ export function ClientRequestItem({
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          <Badge variant="secondary" className="mr-1.5 align-middle">
-            {authorRoleLabel('client')}
-          </Badge>
-          {author ? `Written by ${authorName({ ...author, role: 'client' })}. ` : ''}A client sent
-          this for review. You are reading the version they submitted.
+          {writer ? (
+            `Written by ${authorName({ ...writer, role: 'client' })}, ${authorRoleLabel('client')}. `
+          ) : (
+            <Badge variant="secondary" className="mr-1.5 align-middle">
+              {authorRoleLabel('client')}
+            </Badge>
+          )}
+          A client sent this for review. You are reading the version they submitted.
         </p>
         <SpaceItemView
           source="team"
-          item={item}
+          item={item satisfies SpaceItem}
           fileBytesPath={row.type === 'file' ? clientRequestBytesPath(row.id) : undefined}
         />
       </div>
