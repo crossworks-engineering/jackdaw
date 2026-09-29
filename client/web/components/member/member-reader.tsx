@@ -14,6 +14,8 @@ import { formatBytes } from '@/lib/upload-progress';
 import { acceptedBytesChanged, acceptedChangedText, acceptedPlace } from '@/lib/member-space';
 import { ReadOnlyItemBody, type ReaderAssets } from './read-only-item';
 import { authorBadgeText, authorName } from '@/lib/item-author';
+import { MEMBER_THREAD_CHIPS, libraryCommentsPath } from '@/lib/client-requests';
+import { ClientLevelComments } from '@/components/client/client-level-comments';
 
 type ReaderItem = MemberLibraryItem | MemberAcceptedItem;
 
@@ -29,7 +31,8 @@ const MEMBER_ASSETS: ReaderAssets = {
  * Library item, or one the member wrote and an admin accepted (`accepted`,
  * the saved version at any level). Bytes (images, drawings, files) come from
  * the member routes, which serve the member's level and the author's own
- * accepted items.
+ * accepted items. A Library item at CLIENT level carries the thread the
+ * team, the admins and the clients share (client logins C5, decision 8).
  */
 export function MemberReader({
   id,
@@ -127,6 +130,9 @@ export function MemberReader({
           <p className="text-sm text-muted-foreground">{item.summary}</p>
         ) : null}
         {body}
+        {source === 'library' && item.audience === 'client' ? (
+          <ClientLevelComments path={libraryCommentsPath(item.id)} chips={MEMBER_THREAD_CHIPS} />
+        ) : null}
       </div>
     </div>
   );

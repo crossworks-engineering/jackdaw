@@ -2,7 +2,8 @@
 
 /**
  * Team admin > Review (member logins Phase 4, plan v3.1 section 6): what
- * members submitted for review, oldest first, and what deactivated logins
+ * members and clients submitted for review, oldest first (a client's item
+ * wears the Client badge, client logins C1 and C5), and what deactivated logins
  * left shared with the team. The detail pane shows the item's SAVED version
  * read-only (a submitted item is frozen), its thread, and the actions:
  * Accept into the brain, Return with a note, Take over (into the admin's own
@@ -16,6 +17,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/core';
 import { ClipboardCheck, Trash2, Unlock, UserX } from 'lucide-react';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -29,6 +31,7 @@ import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageView } from '@/components/page-editor/page-view';
 import {
   QUEUE_KEY,
+  authorRoleLabel,
   canTakeOver,
   isReleased,
   itemKey,
@@ -51,6 +54,17 @@ const KIND_LABEL: Record<ReviewItemRow['type'], string> = {
   table: 'Table',
   file: 'File',
 };
+
+/** A client author's badge (client logins C1): "Client". A member's item,
+ *  the queue's usual row, wears none. */
+function ClientAuthorBadge({ row }: { row: ReviewItemRow }) {
+  if (row.author.role !== 'client') return null;
+  return (
+    <Badge variant="secondary" className="ml-1.5 align-middle" title="Written by a client">
+      {authorRoleLabel(row.author.role)}
+    </Badge>
+  );
+}
 
 function fmtWhen(iso: string | null): string {
   if (!iso) return '';
@@ -106,6 +120,7 @@ function QueueSection({
                   {KIND_LABEL[r.type]} · {r.author.name}
                   {r.author.inactive ? ' · deactivated' : ''}
                   {isReleased(r) ? ' · released' : ''}
+                  <ClientAuthorBadge row={r} />
                 </ListCardMeta>
               </Link>
             </ListCard>
@@ -148,7 +163,7 @@ export function ReviewPanel({ itemId }: { itemId?: string }) {
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
             {items.length === 0 ? (
               <div className="p-4 text-sm text-muted-foreground">
-                Nothing waits for review. When a member submits an item, it shows here.
+                Nothing waits for review. When a member or a client submits an item, it shows here.
               </div>
             ) : (
               <>
@@ -197,6 +212,7 @@ function ReviewDetail({ row }: { row: ReviewItemRow }) {
             {row.author.email ? ` (${row.author.email})` : ''}
             {row.submittedAt ? ` · submitted ${fmtWhen(row.submittedAt)}` : ''}
             {row.sharing === 'team' ? ' · shared with the team' : ''}
+            <ClientAuthorBadge row={row} />
           </p>
           {row.author.inactive ? (
             <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">

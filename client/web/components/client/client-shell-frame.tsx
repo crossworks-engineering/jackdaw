@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { Inbox } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Inbox, Send } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Sheet, SheetContent, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
@@ -13,19 +13,64 @@ import { MobileBar } from '@/components/layout/rail/mobile-bar';
 import { RailControls } from '@/components/layout/rail/rail-controls';
 import { NAV_W_DEFAULT } from '@/lib/nav-width';
 import { clientRedirectFor } from '@/lib/client-surface';
+import { CLIENT_VIEW_HREF, clientViewOf, type ClientView } from '@/lib/client-requests';
 import type { ClientShell } from '@mantle/client-types';
 import { ClientChatDock, ClientChatProvider } from './client-chat';
 import { ClientHome } from './client-home';
+import { ClientRequests } from './client-requests';
 
 /** The public paths a client may stand on; everything else is the home. */
 const CLIENT_PUBLIC: readonly string[] = [];
+
+/** The client's two screens, in the rail's order. */
+const CLIENT_NAV: readonly { view: ClientView; label: string; icon: typeof Inbox }[] = [
+  { view: 'shared', label: 'Shared with you', icon: Inbox },
+  { view: 'requests', label: 'My requests', icon: Send },
+];
+
+/** The rail's links. `?view=` picks the screen (both live at `/`). */
+function ClientNav({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname() ?? '/';
+  const current = clientViewOf(useSearchParams());
+  return (
+    <nav className="flex flex-col gap-0.5 px-3 py-3" aria-label="Primary">
+      {CLIENT_NAV.map(({ view, label, icon: Icon }) => {
+        const active = pathname === '/' && current === view;
+        return (
+          <Link
+            key={view}
+            href={CLIENT_VIEW_HREF[view]}
+            onClick={() => onNavigate?.()}
+            aria-current={active ? 'page' : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              active
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+            )}
+          >
+            <Icon className="size-4 shrink-0" aria-hidden />
+            <span className="flex-1 truncate text-left">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** The screen the URL names: "Shared with you", or My requests (C5). */
+function ClientScreen() {
+  return clientViewOf(useSearchParams()) === 'requests' ? <ClientRequests /> : <ClientHome />;
+}
 
 /**
  * The client chrome (client logins C2), the member chrome cut down to what a
  * client has: the brand (its name or logo, never a staff name or the peer
  * name), the account menu (name, theme, sign out, sign out everywhere),
- * one screen, "Shared with you", and the client's own chat (C4, a dock the
- * home opens). No search, no activity, no owner assistant, no uploads, no
+ * two screens, "Shared with you" and My requests (C5, what the client wrote
+ * and sent for review), and the client's own chat (C4, a dock the screens
+ * open). No search, no activity, no owner assistant, no upload dock, no
  * tour. The rail is a drawer below md, as in the owner shell.
  *
  * Any other path a client lands on (before the middleware knew it was a
@@ -61,23 +106,9 @@ export function ClientShellFrame({ shell }: { shell: ClientShell }) {
       />
       <RailControls identity={identity} onNavigate={onNavigate} client />
       <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
-        <nav className="flex flex-col gap-0.5 px-3 py-3" aria-label="Primary">
-          <Link
-            href="/"
-            onClick={() => onNavigate?.()}
-            aria-current={pathname === '/' ? 'page' : undefined}
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              pathname === '/'
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-            )}
-          >
-            <Inbox className="size-4 shrink-0" aria-hidden />
-            <span className="flex-1 truncate text-left">Shared with you</span>
-          </Link>
-        </nav>
+        <Suspense fallback={null}>
+          <ClientNav onNavigate={onNavigate} />
+        </Suspense>
       </div>
     </>
   );
@@ -125,7 +156,7 @@ export function ClientShellFrame({ shell }: { shell: ClientShell }) {
         </div>
         <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)]">
           <Suspense fallback={null}>
-            <ClientHome />
+            <ClientScreen />
           </Suspense>
         </main>
         <ClientChatDock />

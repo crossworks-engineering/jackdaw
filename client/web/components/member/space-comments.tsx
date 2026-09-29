@@ -6,17 +6,27 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { memberSpace } from '@/lib/member-space';
+import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { CLIENT_COMMENTS_POLL_MS, commentPath } from '@/lib/client-requests';
+import { isClientSpace, spaceCommentsPath, type SpaceComment } from '@/lib/member-space';
+import { useSpaceApi } from './space-api';
 import { spaceErrorMessage } from './space-status';
 
 /**
  * The discussion on a personal item (member logins Phase 2): on a teammate's
  * shared item, and on an own item while it is shared or submitted (the review
  * discussion). Oldest first; a member deletes only their own comments.
+ *
+ * Under `clientSpace` it is a CLIENT's review talk on its own submitted item
+ * (client logins C5), on the client routes; a reviewer's comment carries the
+ * brand name. A client has no live stream, so it is asked again every 30
+ * seconds while open (the member's stream refreshes a member's).
  */
 export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: string }) {
   const toast = useToast();
   const qc = useQueryClient();
+  const api = useSpaceApi();
+  const client = isClientSpace(api);
   const [text, setText] = useState('');
   // Posting clears the composer and disables its button; deleting removes
   // the focused button: either way focus returns to the composer, not the
@@ -24,10 +34,15 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
   const composer = useRef<HTMLTextAreaElement>(null);
   const toComposer = () => composer.current?.focus();
   const key = ['member-space-comments', source, id];
-  const q = useQuery({ queryKey: key, queryFn: () => memberSpace.comments(source, id) });
+  const path = spaceCommentsPath(api, source, id);
+  const q = useQuery({
+    queryKey: key,
+    queryFn: () => apiFetch<{ comments: SpaceComment[] }>(path),
+    refetchInterval: client ? CLIENT_COMMENTS_POLL_MS : false,
+  });
   const refresh = () => void qc.invalidateQueries({ queryKey: key });
   const add = useMutation({
-    mutationFn: () => memberSpace.addComment(source, id, text),
+    mutationFn: () => apiSend<{ comment: SpaceComment }>(path, 'POST', { body: text }),
     onSuccess: () => {
       setText('');
       refresh();
@@ -36,7 +51,8 @@ export function SpaceComments({ source, id }: { source: 'mine' | 'team'; id: str
     onError: (err) => toast.error(spaceErrorMessage(err, 'Could not post the comment.')),
   });
   const del = useMutation({
-    mutationFn: (commentId: string) => memberSpace.deleteComment(source, id, commentId),
+    mutationFn: (commentId: string) =>
+      apiSend<{ ok: true }>(commentPath(path, commentId), 'DELETE'),
     onSuccess: () => {
       refresh();
       toComposer();

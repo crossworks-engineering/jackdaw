@@ -35,6 +35,7 @@ import {
   commentsOpen,
   frozenByOther,
   isAdminSpace,
+  isClientSpace,
   isEditable,
   isWithAdminRefusal,
   unsavedBundleIds,
@@ -44,6 +45,7 @@ import {
 import { AcceptIntoBrainDialog } from '@/components/team-admin/review-dialogs';
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
 import { MEMBER_KIND } from '@/lib/member-kinds';
+import { CLIENT_REQUESTS_KEY } from '@/lib/client-requests';
 import { useSpaceApi } from './space-api';
 import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
@@ -61,6 +63,11 @@ import type { MemberEditorHandle } from './member-editor';
  * version (what teammates and a reviewer see), share it with the team or keep
  * it private, submit it for review or recall it, discuss it, delete it.
  * A submitted item is frozen: read-only until Recall, Accept or Return.
+ *
+ * Under a `clientSpace` provider it is a CLIENT's own item (client logins
+ * C5): the same editors on the client routes, Save version, Submit, Recall,
+ * Delete and the review talk while submitted; never sharing (a client has no
+ * Team drafts).
  *
  * Under an `adminSpace` provider it is an ADMIN's own private item (Phase
  * 7): the same editors on the admin routes, Save version and Delete, and
@@ -235,6 +242,7 @@ function MineItemLoaded({
   const router = useRouter();
   const api = useSpaceApi();
   const admin = isAdminSpace(api);
+  const client = isClientSpace(api);
   const editable = isEditable(row);
   // An item this admin took over from the Review queue (audit F07): who
   // wrote it, and whether it can still go back to them.
@@ -258,6 +266,8 @@ function MineItemLoaded({
     }
     void qc.invalidateQueries({ queryKey: ['member-space-list'] });
     void qc.invalidateQueries({ queryKey: ['member-home'] });
+    // A client's My requests (client logins C5).
+    void qc.invalidateQueries({ queryKey: CLIENT_REQUESTS_KEY });
   }, [admin, qc, row.type]);
   const refreshItem = useCallback(
     () =>
@@ -403,7 +413,7 @@ function MineItemLoaded({
             </Badge>
           ) : null}
           <span className="flex-1" />
-          {admin ? null : <SharingControl row={row} />}
+          {admin || client ? null : <SharingControl row={row} />}
           {(body.type === 'page' || body.type === 'draw' || body.type === 'table') &&
           editable &&
           !held ? (
@@ -415,7 +425,9 @@ function MineItemLoaded({
               title={
                 admin
                   ? 'Save a version: what goes into the brain when you accept it'
-                  : 'Save a version: what teammates and a reviewer see'
+                  : client
+                    ? 'Save a version: what a reviewer sees'
+                    : 'Save a version: what teammates and a reviewer see'
               }
             >
               <Save /> {editorSaving ? 'Saving…' : 'Save version'}

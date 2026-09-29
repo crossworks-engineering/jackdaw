@@ -8,7 +8,8 @@ import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageView } from '@/components/page-editor/page-view';
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
-import { bytesPath, isAdminSpace, type SpaceItem } from '@/lib/member-space';
+import { clientAssetPath } from '@/lib/client-portal';
+import { bytesPath, isAdminSpace, isClientSpace, type SpaceItem } from '@/lib/member-space';
 import { useSpaceApi } from './space-api';
 
 /**
@@ -20,9 +21,13 @@ export function SpaceItemView({
   source,
   item,
   working = false,
+  fileBytesPath,
 }: {
   source: 'mine' | 'team';
   item: SpaceItem;
+  /** Where a file's bytes stream from, where it is not the item's own
+   *  space route (a client request a member reads, client logins C5). */
+  fileBytesPath?: string;
   /** Own items: a page or a table shows its working copy (the draft, when
    *  there is one). A drawing always shows its saved SVG and a note has no
    *  draft, so for those two this changes nothing. */
@@ -33,11 +38,18 @@ export function SpaceItemView({
   // An admin's private item reads its bytes from the admin routes, and the
   // brain items it embeds from their own (owner) routes, never the member ones.
   const admin = isAdminSpace(api);
+  // A client's own item reads its bytes from the client routes (C5).
+  const client = isClientSpace(api);
   const { row, body } = item;
   switch (body.type) {
     case 'page': {
       const doc = (working ? (body.page.draft ?? body.page.doc) : body.page.doc) as JSONContent;
-      return <PageView content={doc} mapAssetPath={admin ? undefined : memberAssetPath} />;
+      return (
+        <PageView
+          content={doc}
+          mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}
+        />
+      );
     }
     case 'note':
       return (
@@ -71,7 +83,12 @@ export function SpaceItemView({
             mimeType: body.file.mimeType,
             size: body.file.sizeBytes,
           }}
-          assetUrl={() => asset(admin ? api.bytesPath(row.id) : bytesPath(source, row.id))}
+          assetUrl={() =>
+            asset(
+              fileBytesPath ??
+                (admin || client ? api.bytesPath(row.id) : bytesPath(source, row.id)),
+            )
+          }
           chrome="embedded"
         />
       );

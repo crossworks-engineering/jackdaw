@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MemberItemRow, MemberSpaceItemRow } from '@mantle/client-types';
+import type { MemberSpaceItemRow } from '@mantle/client-types';
+import type { MemberItemRow } from './contract-next';
 
 /**
  * A member's one list (item-list alignment, P4): the request, the pill and
@@ -71,8 +72,17 @@ describe('the request and the URL', () => {
   });
 
   it('offers every filter the brain takes, All first, and reads unknown as all', () => {
-    expect(MEMBER_STATE_OPTIONS.map((o) => o.value)).toEqual([...MEMBER_ITEM_FILTERS]);
+    // `client-requests` (client logins C5) is in the contract from the C5
+    // release; the shim adds it until the pin gets there.
+    expect(MEMBER_STATE_OPTIONS.map((o) => o.value)).toEqual([
+      ...new Set<string>([...MEMBER_ITEM_FILTERS, 'client-requests']),
+    ]);
+    expect(MEMBER_STATE_OPTIONS.at(-1)).toEqual({
+      value: 'client-requests',
+      label: 'Client requests',
+    });
     expect(memberStateOf(new URLSearchParams('state=submitted'))).toBe('submitted');
+    expect(memberStateOf(new URLSearchParams('state=client-requests'))).toBe('client-requests');
     expect(memberStateOf(new URLSearchParams('state=secret'))).toBe('all');
     expect(memberStateOf(null)).toBe('all');
   });
@@ -82,6 +92,8 @@ describe('the request and the URL', () => {
     expect(srcOf('team')).toBe('team');
     expect(srcOf('library')).toBe('library');
     expect(srcOf('accepted')).toBe('accepted');
+    // A client's submitted item opens its own read-only view (C5).
+    expect(srcOf('client-request')).toBe('client-request');
   });
 });
 
@@ -102,6 +114,13 @@ describe('pills and the State filter', () => {
     expect(passesState(row('draft'), 'brain')).toBe(false);
     expect(passesState(row(null, true), 'by-me')).toBe(true);
     expect(passesState(row('submitted'), 'all')).toBe(true);
+  });
+
+  it('finds client requests under Client requests only (C5)', () => {
+    const req = { pill: 'submitted', byMe: false, source: 'client-request' } as MemberItemRow;
+    const own = { pill: 'submitted', byMe: false, source: 'own' } as MemberItemRow;
+    expect(passesState(req, 'client-requests')).toBe(true);
+    expect(passesState(own, 'client-requests')).toBe(false);
   });
 });
 
@@ -166,6 +185,17 @@ describe('fetchMemberItems', () => {
     ]);
     const priv = await fetchMemberItems({ kind: 'page', state: 'private', page: 1 });
     expect(priv.items.map((r) => r.id)).toEqual(['own']);
+  });
+
+  it('asks the brain for client requests, and a brain before C5 (400) shows none', async () => {
+    h.answers.set('/api/member/items', new ApiError('Invalid query.', 400));
+    const res = await fetchMemberItems({ kind: 'page', state: 'client-requests', page: 1 });
+    expect(h.calls).toEqual(['/api/member/items?kind=page&state=client-requests']);
+    expect(res.items).toEqual([]);
+    // Any other filter's 400 is still an error.
+    await expect(fetchMemberItems({ kind: 'page', state: 'private', page: 1 })).rejects.toThrow(
+      'Invalid query.',
+    );
   });
 
   it('rethrows anything but a missing route', async () => {

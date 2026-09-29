@@ -15,6 +15,7 @@ import { CLIENT_PRIVATE_LABEL } from '@mantle/client-types/dto/client';
 import type { MemberItemKind } from './member-kinds';
 import type { SpaceApiBase } from './member-space';
 import { clientItemIdFromPath } from './client-surface';
+import { CLIENT_ACCEPTED_KEY, CLIENT_REQUESTS_KEY } from './client-requests';
 
 export { CLIENT_PRIVATE_LABEL };
 
@@ -99,11 +100,15 @@ export function clientPortalView(q: {
 export const CLIENT_SHARED_KEY = ['client-shared'] as const;
 export const CLIENT_ITEM_KEY = ['client-item'] as const;
 
+/** The client's own open item: MineItem's key (client logins C5). */
+export const CLIENT_OWN_ITEM_KEY = ['member-space-item'] as const;
+
 /**
- * Ask the list and the open item again. A client has no realtime, so the
+ * Ask the lists and the open item again. A client has no realtime, so the
  * portal does this on every successful shell poll and when the window gets
  * focus: an item shared or unshared since, or changed, shows without a
- * reload (audit B27).
+ * reload (audit B27); so does a request a reviewer returned or accepted
+ * (C5: My requests, the own item and the accepted one).
  */
 export function refreshClientPortal(queryClient: {
   invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>;
@@ -111,6 +116,9 @@ export function refreshClientPortal(queryClient: {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: CLIENT_SHARED_KEY }),
     queryClient.invalidateQueries({ queryKey: CLIENT_ITEM_KEY }),
+    queryClient.invalidateQueries({ queryKey: CLIENT_REQUESTS_KEY }),
+    queryClient.invalidateQueries({ queryKey: CLIENT_OWN_ITEM_KEY }),
+    queryClient.invalidateQueries({ queryKey: CLIENT_ACCEPTED_KEY }),
   ]);
 }
 

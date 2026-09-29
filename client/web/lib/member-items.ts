@@ -9,16 +9,18 @@
 import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
 import type {
   MemberAcceptedPage,
-  MemberItemFilter,
   MemberItemPill,
-  MemberItemRow,
-  MemberItemSource,
-  MemberItemsPage,
   MemberLibraryPage,
   MemberSpaceItemRow,
   MemberSpaceList,
 } from '@mantle/client-types';
-import { listPath, type SpaceKind, type SpaceSource } from './member-space';
+import type {
+  MemberItemFilter,
+  MemberItemRow,
+  MemberItemSource,
+  MemberItemsPage,
+} from './contract-next';
+import { listPath, type SpaceKind, type WorkspaceSource } from './member-space';
 
 /** The State filter's choices, the first the default. */
 export const MEMBER_STATE_OPTIONS: readonly { value: MemberItemFilter; label: string }[] = [
@@ -30,6 +32,8 @@ export const MEMBER_STATE_OPTIONS: readonly { value: MemberItemFilter; label: st
   { value: 'with-admin', label: 'With admin' },
   { value: 'brain', label: 'Brain' },
   { value: 'by-me', label: 'By me' },
+  // A client's submitted items, read only (client logins C5).
+  { value: 'client-requests', label: 'Client requests' },
 ];
 
 export function memberStateOf(params: Pick<URLSearchParams, 'get'> | null): MemberItemFilter {
@@ -50,8 +54,9 @@ export function memberItemsPath(opts: {
   return `/api/member/items?${sp.toString()}`;
 }
 
-/** The URL's `src` for a row (the old source names, which links still use). */
-export function srcOf(source: MemberItemSource): SpaceSource {
+/** The URL's `src` for a row (the old source names, which links still use;
+ *  `client-request` for a client's submitted item, client logins C5). */
+export function srcOf(source: MemberItemSource): WorkspaceSource {
   return source === 'own' ? 'mine' : source;
 }
 
@@ -99,6 +104,8 @@ export function passesState(row: MemberItemRow, state: MemberItemFilter): boolea
       return row.pill === null;
     case 'by-me':
       return row.byMe;
+    case 'client-requests':
+      return row.source === 'client-request';
     default:
       return row.pill === state;
   }
@@ -163,7 +170,9 @@ export async function legacyMemberItems(opts: {
 }
 
 /** The one list: the brain's merge, or the fallback on an older brain (the
- *  route is unknown there: 404, or the member gate's 403). */
+ *  route is unknown there: 404, or the member gate's 403). A brain before
+ *  client logins C5 refuses the `client-requests` filter as an invalid query
+ *  (400): it has no client requests, so the list is empty, not broken. */
 export async function fetchMemberItems(opts: {
   kind: SpaceKind;
   q?: string;
@@ -175,6 +184,9 @@ export async function fetchMemberItems(opts: {
   } catch (err) {
     if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
       return legacyMemberItems(opts);
+    }
+    if (err instanceof ApiError && err.status === 400 && opts.state === 'client-requests') {
+      return { items: [], total: 0, page: 1, pageSize: 50 };
     }
     throw err;
   }

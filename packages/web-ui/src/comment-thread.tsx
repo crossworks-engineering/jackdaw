@@ -23,6 +23,12 @@ import { cn } from './lib/utils';
 import { formatDayTime } from './lib/format-datetime';
 import type { NodeComment } from '@mantle/client-types';
 
+/** One comment as the thread draws it. `client` (client logins C5): a
+ *  client login's comment on an item at client level. */
+export type ThreadComment = Omit<NodeComment, 'authorKind'> & {
+  authorKind: NodeComment['authorKind'] | 'client';
+};
+
 /**
  * A discussion thread on a node — modeled on the Team Forum's post anatomy
  * (`mine` computed server-side, name snapshot + role chip, own posts tinted).
@@ -44,10 +50,11 @@ export function CommentThread({
   roleChip,
   onSend,
   onDelete,
+  canDelete,
   className,
 }: {
   /** Oldest-first, as both APIs return them — this reverses for display. */
-  comments: NodeComment[];
+  comments: ThreadComment[];
   /** The first load is still in flight; renders a spinner instead of the
    *  empty state, so "no comments yet" is never shown before we know. */
   pending?: boolean;
@@ -57,7 +64,7 @@ export function CommentThread({
    * needs "Team" marked and their own login not, and a member needs the
    * reverse.
    */
-  roleChip: Record<NodeComment['authorKind'], string | null>;
+  roleChip: Partial<Record<ThreadComment['authorKind'], string | null>>;
   /** Post a comment. Resolve `true` to clear the composer, `false` to keep the
    *  draft so a failed send is not silently lost. */
   onSend: (body: string) => Promise<boolean>;
@@ -65,6 +72,9 @@ export function CommentThread({
    *  but deletion stays owner-side, so the button must not merely be disabled;
    *  it must not be there. */
   onDelete?: (id: string) => void;
+  /** Which comments this reader may delete, where it is not every one: a
+   *  member or a client deletes only their own (`c.mine`). Omitted: all. */
+  canDelete?: (comment: ThreadComment) => boolean;
   className?: string;
 }) {
   const [draft, setDraft] = useState('');
@@ -149,7 +159,7 @@ export function CommentThread({
                 )}
                 <span className="text-muted-foreground">{formatDayTime(c.createdAt)}</span>
                 {c.editedAt && <span className="text-muted-foreground">(edited)</span>}
-                {onDelete && (
+                {onDelete && (canDelete ? canDelete(c) : true) && (
                   // §8's delete idiom, row-scoped: grey until hover, no text
                   // label, and revealed on hover so a thread of ten posts is
                   // not a column of ten bins.

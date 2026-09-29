@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
-import type { MemberItemPill, MemberItemRow } from '@mantle/client-types';
+import type { MemberItemPill } from '@mantle/client-types';
+import type { MemberItemRow } from '@/lib/contract-next';
 import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -32,14 +33,16 @@ import {
   workspaceQuery,
   type SpaceItemRow,
   type SpaceKind,
-  type SpaceSource,
+  type WorkspaceSource,
 } from '@/lib/member-space';
 import { MEMBER_STATE_OPTIONS, fetchMemberItems, memberStateOf, srcOf } from '@/lib/member-items';
 import { authorName } from '@/lib/item-author';
+import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { useListNav } from '@/lib/use-list-nav';
 import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
+import { ClientRequestItem } from './client-request-item';
 import { TeamDraftItem } from './team-draft-item';
 import { spaceErrorMessage } from './space-status';
 
@@ -50,8 +53,8 @@ const KIND = MEMBER_KIND;
 const pillsMatch: [MemberItemPill] extends [ItemState] ? true : false = true;
 void pillsMatch;
 
-function asSource(v: string | null): SpaceSource {
-  return v === 'team' || v === 'library' || v === 'accepted' ? v : 'mine';
+function asSource(v: string | null): WorkspaceSource {
+  return v === 'team' || v === 'library' || v === 'accepted' || v === 'client-request' ? v : 'mine';
 }
 
 /**
@@ -84,7 +87,8 @@ function useSpaceEvents() {
  * wearing its state as a pill. No source switch: the State filter narrows
  * the list when asked. Search, state and page live in the URL (`q`,
  * `state`, `page`); the open item is `?id=` with `?src=` naming which view
- * opens it (own, a teammate's draft, the Library, accepted).
+ * opens it (own, a teammate's draft, the Library, accepted, or a client's
+ * submitted item, read only: client logins C5).
  */
 export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const router = useRouter();
@@ -119,7 +123,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   // Close then goes Back to that list entry instead of stacking a second one.
   const pushedFromList = useRef<string | null>(null);
   const setParams = useCallback(
-    (next: { src?: SpaceSource; id?: string | null }) => {
+    (next: { src?: WorkspaceSource; id?: string | null }) => {
       const current = params.toString();
       const qs = workspaceQuery(current, next);
       const href = qs ? `${pathname}?${qs}` : pathname;
@@ -186,7 +190,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   // What the detail shows: the item the URL opens, else (on a wide screen)
   // the first card, the master-detail default. A phone opens the list first.
   const first = !openId && isDesktop !== false ? (rows[0] ?? null) : null;
-  const open: { id: string; source: SpaceSource; row: MemberItemRow | null } | null = openId
+  const open: { id: string; source: WorkspaceSource; row: MemberItemRow | null } | null = openId
     ? {
         id: openId,
         source: openSource,
@@ -204,10 +208,15 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
         : `Nothing here yet. Upload a ${meta.one} to start.`
       : state === 'private'
         ? `You have no private ${meta.many}.`
-        : `No ${meta.many} match this filter.`;
+        : state === 'client-requests'
+          ? `No client ${meta.many} wait for review.`
+          : `No ${meta.many} match this filter.`;
 
   const card = (row: MemberItemRow) => {
     const level = libraryLevelBadge(row.audience);
+    // A client's submitted item (client logins C5): who wrote it, as a badge
+    // (a level badge is outlined; this one is filled).
+    const fromClient = row.source === 'client-request';
     return (
       <ItemCard
         key={`${row.source}:${row.id}`}
@@ -216,7 +225,11 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
         title={row.title}
         icon={<ItemIcon emoji={row.icon ?? meta.icon} fallback={null} />}
         badge={
-          level ? (
+          fromClient ? (
+            <Badge variant="secondary" className="mt-0.5 shrink-0" title="Written by a client">
+              {authorRoleLabel('client')}
+            </Badge>
+          ) : level ? (
             <Badge variant="outline" className="mt-0.5 shrink-0" title={LIBRARY_CLIENT_TITLE}>
               {level}
             </Badge>
@@ -328,6 +341,13 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
       <MineItem key={open.id} id={open.id} onClose={close} withAdmin={withAdmin} />
     ) : open.source === 'team' ? (
       <TeamDraftItem key={open.id} id={open.id} onClose={close} />
+    ) : open.source === 'client-request' ? (
+      <ClientRequestItem
+        key={open.id}
+        id={open.id}
+        author={open.row?.author ?? null}
+        onClose={close}
+      />
     ) : (
       <MemberReader
         key={`${open.source}:${open.id}`}

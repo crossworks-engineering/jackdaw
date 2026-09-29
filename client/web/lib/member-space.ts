@@ -49,6 +49,11 @@ export type SpaceItemState = MemberSpaceItemState;
  *  and an admin accepted into the brain (any level; brains from 0.232.285). */
 export type SpaceSource = 'mine' | 'team' | 'library' | 'accepted';
 
+/** What the member workspace's `?src=` may name: a source above, or
+ *  `client-request`, a client's submitted item the member reads only
+ *  (client logins C5; no link resolves to one). */
+export type WorkspaceSource = SpaceSource | 'client-request';
+
 export type SpaceItemRow = MemberSpaceItemRow;
 export type SpaceFile = MemberSpaceFile;
 
@@ -150,11 +155,21 @@ export function refusalMessage(err: unknown): string | null {
  *  checks it itself before a byte is sent. The brain still refuses above it. */
 export const MEMBER_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
-/** Why a member upload of `size` bytes is refused before it starts, or null
- *  when it may go. Names the file's size unless it rounds to the limit's. */
-export function memberUploadRefusal(size: number): string | null {
-  if (size <= MEMBER_MAX_UPLOAD_BYTES) return null;
-  const limit = formatBytes(MEMBER_MAX_UPLOAD_BYTES);
+/** A CLIENT login's per-upload cap (client logins C5): 20 MB a file. The
+ *  brain also caps a client's space (200 MB), a day's uploads (50 MB) and
+ *  its items (500); those refusals come back as a 409 `quota` with the
+ *  brain's own sentence. */
+export const CLIENT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+/** Why an upload of `size` bytes is refused before it starts, or null when
+ *  it may go (a member's cap unless `max` names another). Names the file's
+ *  size unless it rounds to the limit's. */
+export function memberUploadRefusal(
+  size: number,
+  max: number = MEMBER_MAX_UPLOAD_BYTES,
+): string | null {
+  if (size <= max) return null;
+  const limit = formatBytes(max);
   const actual = formatBytes(size);
   return actual === limit
     ? `This file is over the ${limit} upload limit.`
@@ -163,10 +178,11 @@ export function memberUploadRefusal(size: number): string | null {
 
 /** Whose routes a client reads: a member's own space, an admin's private
  *  one, or a client login's (client logins C2: its shared items and bytes,
- *  lib/client-portal.ts; its own drafts come in C5). */
+ *  lib/client-portal.ts; C5: its own items, `clientSpace`). */
 export type SpaceApiBase = '/api/member' | '/api/admin' | '/api/client';
 export const MEMBER_API_BASE: SpaceApiBase = '/api/member';
 export const ADMIN_API_BASE: SpaceApiBase = '/api/admin';
+export const CLIENT_SPACE_BASE: SpaceApiBase = '/api/client';
 
 /** The route one own item answers on, under its space's base. */
 export function ownItemPath(id: string, base: SpaceApiBase = MEMBER_API_BASE): string {
@@ -407,6 +423,47 @@ export function isAdminSpace(client: Pick<SpaceClient, 'base'>): boolean {
 }
 
 /**
+ * A CLIENT login's own space (client logins C5): the member space routes
+ * under /api/client, for pages, notes and files. A client submits and
+ * recalls, and talks with the reviewers on a submitted item; it never shares
+ * (no Team drafts: a client's item is private until submitted).
+ */
+export const clientSpace = {
+  ...spaceClient(CLIENT_SPACE_BASE),
+  submit: (id: string) =>
+    apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id, CLIENT_SPACE_BASE)}/submit`, 'POST'),
+  recall: (id: string) =>
+    apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id, CLIENT_SPACE_BASE)}/recall`, 'POST'),
+};
+
+/** Is this a client login's own space? */
+export function isClientSpace(client: Pick<SpaceClient, 'base'>): boolean {
+  return client.base === CLIENT_SPACE_BASE;
+}
+
+/** Submit and Recall for the space an item view writes to: a client's own
+ *  routes, else a member's (an admin's private space has no review). */
+export function reviewClient(client: Pick<SpaceClient, 'base'>): {
+  submit: (id: string) => Promise<{ item: SpaceItemRow }>;
+  recall: (id: string) => Promise<{ item: SpaceItemRow }>;
+} {
+  return isClientSpace(client) ? clientSpace : memberSpace;
+}
+
+/** The discussion on an own item (or a teammate's) for the space an item
+ *  view reads: a client's review talk on its own submitted item lives under
+ *  /api/client/space/:id/comments, a member's under its own routes. */
+export function spaceCommentsPath(
+  client: Pick<SpaceClient, 'base'>,
+  source: 'mine' | 'team',
+  id: string,
+): string {
+  return isClientSpace(client)
+    ? `${ownItemPath(id, CLIENT_SPACE_BASE)}/comments`
+    : `${itemBase(source, id)}/comments`;
+}
+
+/**
  * The query string a member's workspace moves to (`?src=`, `?id=`). The
  * admin screens' redirects (/notes/<id>, /tables/<id>) write `?selected=<id>`
  * and `&edit=1`, which the workspace reads as the open item too: so any
@@ -415,7 +472,7 @@ export function isAdminSpace(client: Pick<SpaceClient, 'base'>): boolean {
  */
 export function workspaceQuery(
   current: string,
-  next: { src?: SpaceSource; id?: string | null },
+  next: { src?: WorkspaceSource; id?: string | null },
 ): string {
   const sp = new URLSearchParams(current);
   if (next.src !== undefined) {
@@ -440,7 +497,7 @@ export function workspaceQuery(
  */
 export function workspaceNavMode(
   current: string,
-  next: { src?: SpaceSource; id?: string | null },
+  next: { src?: WorkspaceSource; id?: string | null },
 ): 'push' | 'replace' {
   if (!next.id) return 'replace';
   const sp = new URLSearchParams(current);

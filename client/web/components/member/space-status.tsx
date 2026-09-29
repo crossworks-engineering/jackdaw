@@ -11,10 +11,13 @@ import {
   isWithAdmin,
   memberSpace,
   refusalMessage,
+  reviewClient,
   statusLabels,
   type SpaceItemRow,
   type SpaceSharing,
 } from '@/lib/member-space';
+import { CLIENT_REQUESTS_KEY } from '@/lib/client-requests';
+import { useSpaceApi } from './space-api';
 
 /**
  * Where an own item stands (plan section 7, StatusChip): who can see it
@@ -55,13 +58,15 @@ function messageOf(err: unknown, fallback: string): string {
   return refusalMessage(err) ?? fallback;
 }
 
-/** Refresh everything that shows this item (its detail, the lists, home). */
+/** Refresh everything that shows this item (its detail, the lists, home;
+ *  a client's My requests). */
 function useRefreshItem() {
   const qc = useQueryClient();
   return () => {
     void qc.invalidateQueries({ queryKey: ['member-space-item'] });
     void qc.invalidateQueries({ queryKey: ['member-space-list'] });
     void qc.invalidateQueries({ queryKey: ['member-home'] });
+    void qc.invalidateQueries({ queryKey: CLIENT_REQUESTS_KEY });
   };
 }
 
@@ -112,6 +117,9 @@ export function ReviewActions({
 }) {
   const toast = useToast();
   const refresh = useRefreshItem();
+  // A client's own routes under `clientSpace` (client logins C5), else a
+  // member's.
+  const review = reviewClient(useSpaceApi());
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<unknown>, ok: string, fail: string) => {
     setBusy(true);
@@ -137,7 +145,7 @@ export function ReviewActions({
         disabled={busy}
         onClick={() =>
           run(
-            () => memberSpace.recall(row.id),
+            () => review.recall(row.id),
             'Recalled. You can edit it again.',
             'Could not recall it.',
           )
@@ -155,7 +163,7 @@ export function ReviewActions({
         run(
           async () => {
             if (beforeSubmit && !(await beforeSubmit())) throw new Error('not saved');
-            return memberSpace.submit(row.id);
+            return review.submit(row.id);
           },
           'Submitted for review.',
           'Could not submit it.',

@@ -23,6 +23,8 @@ import {
 } from '@/lib/client-portal';
 import type { ClientSharedItem } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
+import { CLIENT_THREAD_CHIPS, sharedCommentsPath } from '@/lib/client-requests';
+import { ClientLevelComments } from './client-level-comments';
 
 /** A client reads bytes from the client routes; a page's file embeds are
  *  download chips on the client byte route. */
@@ -55,7 +57,9 @@ function forClient(item: ClientSharedItem): ClientSharedItem {
 /**
  * One shared item, read-only (client logins C2): the member Library's
  * presenters, pointed at the client routes. A file or a drawing downloads.
- * No edit, no share, no Access control, no comments (C5). A link, a
+ * No edit, no share, no Access control. Under it, the item's thread (C5,
+ * decision 8): the team, the admins and every client read and write it. A
+ * link, a
  * sub-page card or a mention chip in a page naming another item the client
  * may read opens it here, in the portal; a file embed downloads the file
  * from the client byte route. No summary: see ClientSharedCard.
@@ -168,6 +172,7 @@ export function ClientReader({
             onPickTab={(tab) => setPicked({ itemId: id, tabId: tab })}
           />
         </div>
+        <ClientLevelComments path={sharedCommentsPath(item.id)} chips={CLIENT_THREAD_CHIPS} />
       </div>
     </div>
   );
