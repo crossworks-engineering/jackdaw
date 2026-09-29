@@ -120,3 +120,54 @@ describe('middleware: a member follows an item link', () => {
     }
   });
 });
+
+describe('middleware: client logins (C2)', () => {
+  const ID = '11111111-1111-4111-8111-111111111111';
+  const client = { mantle_authed: '1', mantle_client: '1' };
+  const to = (res: Response) => {
+    const l = location(res);
+    return l ? new URL(l).pathname + new URL(l).search : null;
+  };
+
+  it('/client-signin renders with no session, and for anyone signed in', () => {
+    expect(location(middleware(request('/client-signin?code=abc')))).toBeNull();
+    expect(location(middleware(request('/client-signin', client)))).toBeNull();
+    expect(location(middleware(request('/client-signin', { mantle_authed: '1' })))).toBeNull();
+  });
+
+  it('sends a hinted client from every owner and member screen to the client home', () => {
+    for (const p of ['/pages', '/settings/users', '/team-admin?view=clients', '/apps', '/tasks']) {
+      expect(to(middleware(request(p, client))), p).toBe('/');
+    }
+  });
+
+  it('opens a permalink a client follows in the portal', () => {
+    expect(to(middleware(request(`/n/${ID}`, client)))).toBe(`/?id=${ID}`);
+    expect(to(middleware(request(`/notes/${ID}?x=1`, client)))).toBe(`/?id=${ID}`);
+  });
+
+  it('leaves a hinted client on the home, open item and all', () => {
+    expect(location(middleware(request('/', client)))).toBeNull();
+    expect(location(middleware(request(`/?id=${ID}`, client)))).toBeNull();
+  });
+
+  it('sends a hinted client from /login to the client sign-in page (a client has no password)', () => {
+    expect(to(middleware(request('/login?next=%2F', client)))).toBe('/client-signin');
+    // An ended session: the presence cookie is gone, the hint is not.
+    expect(to(middleware(request('/login', { mantle_client: '1' })))).toBe('/client-signin');
+  });
+
+  it('a client hint wins a stale member hint', () => {
+    const both = { ...client, mantle_member: '1' };
+    expect(to(middleware(request('/pages', both)))).toBe('/');
+  });
+
+  it('touches nobody without the hint (the controls)', () => {
+    expect(location(middleware(request('/login')))).toBeNull();
+    expect(location(middleware(request('/pages', { mantle_authed: '1' })))).toBeNull();
+    // No session at all: the ordinary bounce, hint or not.
+    expect(location(middleware(request('/pages', { mantle_client: '1' })))).toMatch(
+      /\/login\?next=/,
+    );
+  });
+});

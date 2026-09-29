@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { MEMBER_HINT_COOKIE, sendsMemberHome } from './lib/member-surface';
+import { CLIENT_HINT_COOKIE, CLIENT_SIGNIN_PATH, clientRedirectFor } from './lib/client-surface';
 
 /**
  * ZERO-SECRET client middleware. This app holds no SESSION_SECRET, so it can
@@ -16,11 +17,19 @@ const PRESENCE_COOKIE = 'mantle_authed';
 
 /** Paths that render without a session: login itself, the runtime env,
  *  `/pair` (the static page a browser lands on when it scans the phone
- *  sign-in QR; it holds no data and never reads the code in the fragment) and
- *  `/invite`, where a person redeems a member invite (member logins, Phase 6).
- *  Public paths pass before any cookie is read, so a signed-in browser (admin
- *  or member) is never sent away from them. */
-const PUBLIC_PREFIXES: readonly string[] = ['/login', '/env.js', '/pair', '/invite'];
+ *  sign-in QR; it holds no data and never reads the code in the fragment),
+ *  `/invite`, where a person redeems a member invite (member logins, Phase 6),
+ *  and `/client-signin`, where a client opens the sign-in link an admin issued
+ *  (client logins C2). Public paths pass before any cookie is read, so a
+ *  signed-in browser is never sent away from them (the one exception: a
+ *  hinted client's /login, below). */
+const PUBLIC_PREFIXES: readonly string[] = [
+  '/login',
+  '/env.js',
+  '/pair',
+  '/invite',
+  CLIENT_SIGNIN_PATH,
+];
 
 /** The retired team-code portal (member logins Phase 6): `/team`, `/hub` and
  *  anything under them. A team member signs in with a member login now, so
@@ -42,8 +51,21 @@ export function middleware(req: NextRequest): NextResponse {
     // (`/login/`), and nothing of the old address may ride along.
     return NextResponse.redirect(new URL('/login', req.nextUrl.origin), 307);
   }
+  const hintedClient = req.cookies.get(CLIENT_HINT_COOKIE)?.value === '1';
+  // A client has no password: /login is not their way in. A client whose
+  // session ended (the shell's 401 bounces to /login) lands on the client
+  // sign-in page instead, which says to open their link and offers staff
+  // sign-in (clearing the hint) for anyone else on this browser.
+  if (hintedClient && under(pathname, ['/login'])) {
+    return NextResponse.redirect(new URL(CLIENT_SIGNIN_PATH, req.nextUrl.origin), 307);
+  }
   if (under(pathname, PUBLIC_PREFIXES)) return pass();
   if (req.cookies.get(PRESENCE_COOKIE)?.value === '1') {
+    // A client login's browser is sent from every other path to the client
+    // home before the page renders (UX only, see CLIENT_HINT_COOKIE), with
+    // the item open when the path named one. Nothing is carried over.
+    const clientTo = hintedClient ? clientRedirectFor(pathname, PUBLIC_PREFIXES) : null;
+    if (clientTo) return NextResponse.redirect(new URL(clientTo, req.nextUrl.origin), 307);
     // A member login's browser is sent off admin-only paths to the member
     // home before the page renders (UX only, see MEMBER_HINT_COOKIE).
     if (
