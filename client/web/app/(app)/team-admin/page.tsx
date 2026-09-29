@@ -694,19 +694,18 @@ function MemberChatsTab({ login }: { login?: string }) {
                       <ListCard asChild selected={m.loginId === selected?.loginId}>
                         <Link href={`/team-admin?view=chats&login=${m.loginId}`}>
                           <div className="flex items-baseline justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <ListCardTitle className="min-w-0">{m.name}</ListCardTitle>
-                              {isClientChat(m) ? (
-                                <Badge variant="outline" className="shrink-0">
-                                  Client
-                                </Badge>
-                              ) : null}
-                            </div>
+                            <ListCardTitle>{m.name}</ListCardTitle>
                             <span className="shrink-0 text-xs text-muted-foreground">
                               {fmtWhen(m.lastMessageAt)}
                             </span>
                           </div>
                           <ListCardMeta>
+                            {/* On the meta line, so the name keeps the width. */}
+                            {isClientChat(m) ? (
+                              <Badge variant="outline" className="mr-1.5 px-1.5 py-0">
+                                Client
+                              </Badge>
+                            ) : null}
                             {chatRowMetaTag(m) ? `${chatRowMetaTag(m)} · ` : ''}
                             {m.lastMessageText ? m.lastMessageText : `${m.email} · no messages yet`}
                           </ListCardMeta>
