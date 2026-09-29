@@ -34,6 +34,8 @@ const {
   afterAck,
   ackLine,
   isReportChanged,
+  isReportMissing,
+  NOT_ON_THIS_BRAIN,
   linkViewsLine,
   newSinceIds,
   newSinceLine,
@@ -230,5 +232,14 @@ describe('the words', () => {
     expect(
       linkViewsLine({ ...link, viewCount: 7, lastViewedAt: '2026-09-01T09:00:00.000Z' }),
     ).toMatch(/^7 views, last .+/);
+  });
+});
+
+describe('a brain without the report', () => {
+  it('is a 404, and only a 404', () => {
+    expect(isReportMissing(new ApiError('Not found.', 404))).toBe(true);
+    expect(isReportMissing(new ApiError('boom', 500))).toBe(false);
+    expect(isReportMissing(new TypeError('x'))).toBe(false);
+    expect(NOT_ON_THIS_BRAIN).toBe('This brain does not have this yet.');
   });
 });

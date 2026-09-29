@@ -222,4 +222,17 @@ describe('the ack sends what is on the screen', () => {
     expect(page).toMatch(/<TabPending active="clients" query=\{q\}/);
     expect(page).toContain('<ClientReportPanel report={q.data} />');
   });
+
+  it('on a brain without the report (404): a plain line, no retry, and the tab leaves the strip', () => {
+    const page = readFileSync(
+      fileURLToPath(new URL('../../app/(app)/team-admin/page.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(page).toContain('if (!q.data && isReportMissing(q.error)) {');
+    expect(page).toContain('{NOT_ON_THIS_BRAIN}');
+    expect(page).toContain('retry: (count, err) => !isReportMissing(err) && count < 1,');
+    expect(page).toMatch(
+      /\{reportMissing && active !== 'clients'\s*\? null\s*: tab\('What clients see'/,
+    );
+  });
 });

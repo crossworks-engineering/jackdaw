@@ -35,7 +35,7 @@ import { useNeedsYou } from '@/components/needs-you/use-needs-you';
 import { requestsOpen, reviewWaiting } from '@/lib/needs-you';
 import Link from 'next/link';
 import { use, useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -67,7 +67,12 @@ import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { ClientReportPanel } from '@/components/team-admin/client-report';
 import { ClientLoginsPanel } from '@/components/team-admin/client-logins';
-import { CLIENT_REPORT_KEY, fetchClientReport } from '@/lib/client-report';
+import {
+  CLIENT_REPORT_KEY,
+  NOT_ON_THIS_BRAIN,
+  fetchClientReport,
+  isReportMissing,
+} from '@/lib/client-report';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
 import { canReplyToRequest, requestChatHref } from '@/lib/team-requests';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -193,6 +198,9 @@ function TeamTabs({
   const queued = useReviewQueue().data?.counts.submitted ?? 0;
   const reviewCount = needsYou ? reviewWaiting(needsYou) : queued;
   const requestCount = needsYou ? requestsOpen(needsYou) : openRequestCount;
+  // A brain before client logins C1 has no "What clients see": once its
+  // route answered 404 the tab leaves the strip (it stays while open).
+  const reportMissing = isReportMissing(useQueryClient().getQueryState(CLIENT_REPORT_KEY)?.error);
   const tab = (label: string, href: string, isActive: boolean, badge?: number) => (
     <Link
       href={href}
@@ -228,7 +236,9 @@ function TeamTabs({
       {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Clients', '/team-admin?view=client-logins', active === 'client-logins')}
-      {tab('What clients see', '/team-admin?view=clients', active === 'clients')}
+      {reportMissing && active !== 'clients'
+        ? null
+        : tab('What clients see', '/team-admin?view=clients', active === 'clients')}
       {tab('Settings', '/team-admin?view=settings', active === 'settings')}
     </nav>
   );
@@ -873,7 +883,21 @@ function SharesTab({ share }: { share?: string }) {
 
 /** What clients see (client logins C1): one measured column, like Settings. */
 function ClientsTab() {
-  const q = useQuery({ queryKey: CLIENT_REPORT_KEY, queryFn: fetchClientReport });
+  const q = useQuery({
+    queryKey: CLIENT_REPORT_KEY,
+    queryFn: fetchClientReport,
+    // A 404 is a brain without the report, not a hiccup: no retry.
+    retry: (count, err) => !isReportMissing(err) && count < 1,
+  });
+  if (!q.data && isReportMissing(q.error)) {
+    return (
+      <Tab active="clients">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-sm text-muted-foreground">{NOT_ON_THIS_BRAIN}</p>
+        </div>
+      </Tab>
+    );
+  }
   if (!q.data) return <TabPending active="clients" query={q} what="the client list" />;
   return (
     <Tab active="clients">

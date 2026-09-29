@@ -32,6 +32,14 @@ export function fetchClientReport(): Promise<ClientReport> {
   return apiFetch<ClientReport>('/api/access/client-report');
 }
 
+/** A brain before client logins C1 has no report route (404): the tab says
+ *  so plainly, and hides itself from the strip, rather than show an error. */
+export function isReportMissing(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
+}
+
+export const NOT_ON_THIS_BRAIN = 'This brain does not have this yet.';
+
 /** The ids on the screen. */
 export function shownIds(report: ClientReport): string[] {
   return report.items.map((i) => i.id);
