@@ -93,7 +93,7 @@ test.describe('My requests', () => {
     await page.getByRole('button', { name: 'New' }).click();
     await page.getByRole('menuitem', { name: /Page/ }).click();
 
-    const title = page.getByRole('textbox', { name: 'Title' });
+    const title = page.getByRole('textbox', { name: 'Title', exact: true });
     await expect(title).toBeVisible({ timeout: 30_000 });
     await title.fill('Handover checklist');
     await title.press('Enter');
@@ -193,6 +193,15 @@ test.describe('My requests', () => {
     });
     await expect(toast(page, 'Uploaded.')).toBeVisible();
     expect(api.clientOwn.uploads).toEqual(['photo.png']);
+    // It opens, its bytes from the client's own route.
+    await expect
+      .poll(
+        () => api.clientRouteCalls.some((c) => /^GET \/api\/client\/space\/[^/]+\/bytes$/.test(c)),
+        {
+          timeout: 15_000,
+        },
+      )
+      .toBe(true);
     await expect(card(page, 'photo.png').locator('[data-state]')).toHaveText('private', {
       timeout: 15_000,
     });
@@ -235,7 +244,7 @@ test.describe('My requests', () => {
     await expect(page).toHaveURL(/[?&]src=accepted/);
     await expect(page.getByText('The site is open 7 to 5 on weekdays.')).toBeVisible();
     await expect(page.getByText(/You wrote this, and it was accepted/)).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Submit' })).toHaveCount(0);
   });
 
@@ -328,7 +337,7 @@ test.describe('the member side', () => {
     await expect(page.getByText(CLIENT_REQUEST_TEXT)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(`Written by ${CLIENT_NAME}.`, { exact: false })).toBeVisible();
     // Read only: no title to edit, no review actions, no thread.
-    await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Submit' })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'Comments' })).toHaveCount(0);
     expect(api.adminCalls).toEqual([]);
