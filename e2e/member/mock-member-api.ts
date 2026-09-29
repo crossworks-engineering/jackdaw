@@ -10,9 +10,9 @@ import type { BrowserContext } from '@playwright/test';
  *
  * Started with `{ role: 'admin' }` it answers an ADMIN instead: the shell,
  * the Review queue and the admin's private space, enough for Take over and
- * Give back (audit F07); "What clients see" and its acknowledgement; and one
+ * Give back (audit F07); "What clients see" and its acknowledgement; one
  * client note's Access control with old client links (the client logins
- * audit). `admin.shellFailures` makes /api/shell answer 500 that many times
+ * audit, a brain before C3); and Shared links as a C3 brain lists them. `admin.shellFailures` makes /api/shell answer 500 that many times
  * (the Try again screen). Anything else an admin screen asks for is a 404.
  *
  * A server rather than page.route(): a write the browser starts while the tab
@@ -189,6 +189,12 @@ export const OLD_FOLDER_TITLE = 'Handover folder';
 export const CLIENT_NOTE_ID = '19191919-1919-4191-8191-191919191919';
 export const CLIENT_NOTE_TITLE = 'Client note';
 export const OLD_NOTE_SHARE_ID = '20202020-2020-4202-8202-202020202020';
+/** Shared links on a C3 brain: one live link on a public page, and the old
+ *  client link on CLIENT_ITEM_ID that C3 retired (no token: it is dead). */
+export const PUBLIC_SHARE_ID = '25252525-2525-4252-8252-252525252525';
+export const PUBLIC_PAGE_ID = '26262626-2626-4262-8262-262626262626';
+export const PUBLIC_PAGE_TITLE = 'Price list';
+export const RETIRED_SHARE_ID = '27272727-2727-4272-8272-272727272727';
 
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
@@ -312,6 +318,11 @@ export type MockAdminState = {
   noteShare: boolean;
   /** Link revokes (DELETE /api/shares/:id), by share id. */
   revokes: string[];
+  /** Shared links (GET /api/team-admin/shares): whether PUBLIC_SHARE_ID is
+   *  live, and whether the brain lists the links C3 retired (false: a brain
+   *  before C3, whose answer has no `retired`). */
+  publicShare: boolean;
+  sendsRetired: boolean;
   /** Team admin > Clients: the client logins, and what was done to them. */
   clientLogins: Record<string, unknown>[];
   clientCreates: unknown[];
@@ -405,6 +416,8 @@ export async function startMockMemberApi(
       shellCalls: 0,
       noteShare: true,
       revokes: [],
+      publicShare: true,
+      sendsRetired: true,
       clientLogins: [],
       clientCreates: [],
       signinLinksIssued: [],
@@ -678,10 +691,54 @@ export async function startMockMemberApi(
       });
       return true;
     }
+    // Shared links (client logins C3): the live links, all public, and the
+    // old client links the brain retired, as a C3 brain answers.
+    if (path === '/api/team-admin/shares' && method === 'GET') {
+      json(res, 200, {
+        badges: { openRequestCount: 0 },
+        shares: A.publicShare
+          ? [
+              {
+                id: PUBLIC_SHARE_ID,
+                path: '/s/publicpagetoken',
+                nodeId: PUBLIC_PAGE_ID,
+                nodeType: 'page',
+                title: PUBLIC_PAGE_TITLE,
+                icon: null,
+                cascade: false,
+                createdAt: now,
+                viewCount: 3,
+                lastViewedAt: now,
+                level: 'public',
+              },
+            ]
+          : [],
+        ...(A.sendsRetired
+          ? {
+              retired: [
+                {
+                  id: RETIRED_SHARE_ID,
+                  nodeId: CLIENT_ITEM_ID,
+                  nodeType: 'page',
+                  title: CLIENT_ITEM_TITLE,
+                  icon: null,
+                  level: 'client',
+                  createdAt: '2026-03-01T10:00:00.000Z',
+                  retiredAt: '2026-09-29T08:00:00.000Z',
+                  viewCount: 7,
+                  lastViewedAt: '2026-09-20T09:00:00.000Z',
+                },
+              ],
+            }
+          : {}),
+      });
+      return true;
+    }
     const share = /^\/api\/shares\/([0-9a-f-]{36})$/.exec(path);
     if (share && method === 'DELETE') {
       A.revokes.push(share[1]!);
       if (share[1] === OLD_NOTE_SHARE_ID) A.noteShare = false;
+      if (share[1] === PUBLIC_SHARE_ID) A.publicShare = false;
       json(res, 200, { ok: true });
       return true;
     }
