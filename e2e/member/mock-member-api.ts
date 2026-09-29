@@ -23,7 +23,11 @@ import type { BrowserContext } from '@playwright/test';
  *
  * Started with `{ role: 'client' }` it answers a CLIENT login (client logins
  * C0): every admin and member route refuses it with 403 `client-login`, as
- * the brain does, and records the call (`clientCalls`).
+ * the brain does, and records the call (`clientCalls`). Since C2 it answers
+ * the client routes too (/api/client/*: the shell, Shared with you, bytes)
+ * and the public sign-in link route, as the brain does; `clientSession`
+ * false makes every client route a 401 (an ended session). Any other role
+ * is refused on the client routes (403 `admin-login` / `member-login`).
  */
 
 type Doc = Record<string, unknown>;
@@ -106,14 +110,42 @@ const MEMBER_OK = [
 const isAdminOnly = (path: string) =>
   path.startsWith('/api/') && !MEMBER_OK.some((re) => re.test(path));
 
-/** What a client login may call before the client routes exist (C2): only
- *  what the brain answers every login or nobody in particular. */
+/** What a client login may call: the client routes (C2), and what the
+ *  brain answers every login or nobody in particular (the public sign-in
+ *  link route among them). */
 const CLIENT_OK = [
+  /^\/api\/client\//,
   /^\/api\/version$/,
   /^\/api\/appearance(\/|$)/,
   /^\/api\/auth\/(mobile-)?logout$/,
   /^\/api\/auth\/bootstrap-state$/,
+  /^\/api\/auth\/client-link$/,
 ];
+
+// ── The client portal (client logins C2) ─────────────────────────────────
+/** The brain's name, as the client shell brands it. */
+export const CLIENT_SITE = 'Example Studio';
+export const CLIENT_EMAIL = 'pat@example.invalid';
+export const CLIENT_NAME = 'Pat Client';
+/** The sign-in link codes: GOOD signs CLIENT_EMAIL in, RATE answers 429;
+ *  any other code (or a wrong email) is the uniform 401. */
+export const CLIENT_GOOD_CODE = 'GoodClientCode2345abcdEFGH';
+export const CLIENT_RATE_CODE = 'RateLimitedCode2345abcdEF';
+/** Shared with you: a page (with a redacted mention and link), a note and a
+ *  file, newest first. */
+export const SHARED_PAGE_ID = '13131313-1313-4131-8131-131313131313';
+export const SHARED_PAGE_TITLE = 'Design brief';
+export const SHARED_NOTE_ID = '14141414-1414-4141-8141-141414141414';
+export const SHARED_NOTE_TITLE = 'Meeting notes';
+export const SHARED_FILE_ID = '15151515-1515-4151-8151-151515151515';
+export const SHARED_FILE_TITLE = 'Site plan.png';
+export const PRIVATE_LABEL = 'Private item';
+
+/** The admin's client logins (Team admin > Clients). */
+export const CLIENT_LOGIN_ID = '16161616-1616-4161-8161-161616161616';
+/** A Library row at CLIENT level, for the member's Client badge. */
+export const LIBRARY_CLIENT_ID = '17171717-1717-4171-8171-171717171717';
+export const LIBRARY_CLIENT_TITLE = 'Client handover';
 
 /** The admin's "What clients see" item (client logins C1). */
 export const CLIENT_ITEM_ID = '12121212-1212-4121-8121-121212121212';
@@ -156,6 +188,15 @@ export type MockMemberApi = {
   adminCalls: string[];
   /** Client role: every route the page called that refused the client. */
   clientCalls: string[];
+  /** Client role: every client route the page called (answered). */
+  clientRouteCalls: string[];
+  /** Client role: false makes every client route a 401 (the session ended,
+   *  or nobody signed in yet); a good sign-in link sets it. */
+  clientSession: boolean;
+  /** Every sign-in link redeem the page sent, with the answer's status. */
+  clientSignIns: { code: string; email: string; status: number }[];
+  /** Member role: the Library list answers (a team and a client row). */
+  libraryList: boolean;
   /** Member asset routes the page called. */
   memberAssetCalls: string[];
   /** Every password change the page sent, in order. */
@@ -208,6 +249,12 @@ export type MockAdminState = {
   deletes: string[];
   /** "What clients see": the ids of each acknowledgement sent. */
   clientAcks: string[][];
+  /** Team admin > Clients: the client logins, and what was done to them. */
+  clientLogins: Record<string, unknown>[];
+  clientCreates: unknown[];
+  signinLinksIssued: string[];
+  userPatches: { id: string; body: unknown }[];
+  userDeletes: string[];
 };
 
 /** Sign the browser in as a member, the way the client sees it: the
@@ -247,6 +294,10 @@ export async function startMockMemberApi(
     frozen: false,
     adminCalls: [],
     clientCalls: [],
+    clientRouteCalls: [],
+    clientSession: true,
+    clientSignIns: [],
+    libraryList: false,
     memberAssetCalls: [],
     passwordChanges: [],
     inviteAccepts: [],
@@ -270,6 +321,11 @@ export async function startMockMemberApi(
       accepts: [],
       deletes: [],
       clientAcks: [],
+      clientLogins: [],
+      clientCreates: [],
+      signinLinksIssued: [],
+      userPatches: [],
+      userDeletes: [],
     },
     close: async () => undefined,
   };
@@ -458,6 +514,80 @@ export async function startMockMemberApi(
       });
       return true;
     }
+    // Team admin > Clients (client logins C2). Acknowledged once What
+    // clients see was checked here.
+    const acked = () => A.clientAcks.length > 0;
+    if (path === '/api/team-admin/clients' && method === 'GET') {
+      json(res, 200, { clients: A.clientLogins, reportAcknowledged: acked() });
+      return true;
+    }
+    if (path === '/api/team-admin/clients' && method === 'POST') {
+      const body = JSON.parse(await readBody(req)) as { email?: string; displayName?: string };
+      A.clientCreates.push(body);
+      if (!acked()) {
+        json(res, 409, { error: 'Check the report first.', reason: 'report-not-acknowledged' });
+        return true;
+      }
+      const client = {
+        id: CLIENT_LOGIN_ID,
+        email: body.email ?? CLIENT_EMAIL,
+        displayName: body.displayName ?? null,
+        contactId: null,
+        disabled: false,
+        createdAt: now,
+        lastLoginAt: null,
+        openLink: null,
+        lastLinkUsedAt: null,
+      };
+      A.clientLogins = [client, ...A.clientLogins];
+      json(res, 201, { client });
+      return true;
+    }
+    const link = /^\/api\/team-admin\/clients\/([0-9a-f-]{36})\/signin-link$/.exec(path);
+    if (link) {
+      const id = link[1]!;
+      const row = A.clientLogins.find((c) => c.id === id);
+      if (!row) return (json(res, 404, { error: 'Not a client.', reason: 'not-a-client' }), true);
+      if (method === 'POST') {
+        if (!acked()) {
+          json(res, 409, { error: 'Check the report first.', reason: 'report-not-acknowledged' });
+          return true;
+        }
+        A.signinLinksIssued.push(id);
+        const issued = { id: 'link-1', createdAt: now, expiresAt: '2099-01-01T00:00:00.000Z' };
+        row.openLink = issued;
+        json(res, 201, {
+          link: issued,
+          code: CLIENT_GOOD_CODE,
+          path: `/client-signin?code=${CLIENT_GOOD_CODE}`,
+        });
+        return true;
+      }
+      if (method === 'DELETE') {
+        if (!row.openLink) return (json(res, 404, { error: 'No open sign-in link.' }), true);
+        row.openLink = null;
+        json(res, 200, { ok: true });
+        return true;
+      }
+    }
+    const user = /^\/api\/users\/([0-9a-f-]{36})$/.exec(path);
+    if (user) {
+      const id = user[1]!;
+      if (method === 'PATCH') {
+        const body = JSON.parse(await readBody(req)) as { disabled?: boolean };
+        A.userPatches.push({ id, body });
+        const row = A.clientLogins.find((c) => c.id === id);
+        if (row && typeof body.disabled === 'boolean') row.disabled = body.disabled;
+        json(res, 200, { ok: true });
+        return true;
+      }
+      if (method === 'DELETE') {
+        A.userDeletes.push(id);
+        A.clientLogins = A.clientLogins.filter((c) => c.id !== id);
+        json(res, 200, { ok: true });
+        return true;
+      }
+    }
     if (path === '/api/access/client-report/ack' && method === 'POST') {
       const body = JSON.parse(await readBody(req)) as { itemIds: string[] };
       A.clientAcks.push(body.itemIds);
@@ -543,6 +673,114 @@ export async function startMockMemberApi(
     updatedAt: now,
   });
 
+  // ── The client side (role 'client', C2) ───────────────────────────────
+  const sharedRows = () => [
+    {
+      id: SHARED_PAGE_ID,
+      type: 'page',
+      title: SHARED_PAGE_TITLE,
+      icon: null,
+      summary: 'What we are building.',
+      updatedAt: '2026-09-28T10:00:00.000Z',
+    },
+    {
+      id: SHARED_NOTE_ID,
+      type: 'note',
+      title: SHARED_NOTE_TITLE,
+      icon: null,
+      summary: null,
+      updatedAt: '2026-09-27T10:00:00.000Z',
+    },
+    {
+      id: SHARED_FILE_ID,
+      type: 'file',
+      title: SHARED_FILE_TITLE,
+      icon: null,
+      summary: null,
+      updatedAt: '2026-09-26T10:00:00.000Z',
+    },
+  ];
+  const sharedItem = (id: string): Record<string, unknown> | null => {
+    const row = sharedRows().find((r) => r.id === id);
+    if (!row) return null;
+    if (row.type === 'page') {
+      return {
+        ...row,
+        doc: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'The brief. See ' },
+                // The brain's redactions: a mention and a link to nowhere.
+                { type: 'mention', attrs: { id: null, label: PRIVATE_LABEL, ref: 'node' } },
+                { type: 'text', text: ' and ' },
+                {
+                  type: 'text',
+                  text: PRIVATE_LABEL,
+                  marks: [{ type: 'link', attrs: { href: null } }],
+                },
+                { type: 'text', text: '. Also ' },
+                {
+                  type: 'text',
+                  text: 'the meeting notes',
+                  marks: [{ type: 'link', attrs: { href: `/n/${SHARED_NOTE_ID}` } }],
+                },
+                { type: 'text', text: '.' },
+              ],
+            },
+          ],
+        },
+      };
+    }
+    if (row.type === 'note') {
+      return { ...row, content: `Agreed: ship it. Background in [${PRIVATE_LABEL}]().` };
+    }
+    return { ...row, filename: SHARED_FILE_TITLE, mimeType: 'image/png', sizeBytes: 68 };
+  };
+  const handleClient = (res: ServerResponse, url: URL, path: string) => {
+    if (path === '/api/client/shell') {
+      return json(res, 200, {
+        role: 'client',
+        loginId: CLIENT_LOGIN_ID,
+        displayName: CLIENT_NAME,
+        email: CLIENT_EMAIL,
+        assetToken: '',
+        siteName: CLIENT_SITE,
+        colorTheme: null,
+        fontLogo: null,
+        fontTitle: null,
+        fontUi: null,
+        fontProse: null,
+        fontSize: null,
+        fontLogoSize: null,
+        fontTitleSize: null,
+        fontProseSize: null,
+        logoVersion: null,
+        logoDarkVersion: null,
+      });
+    }
+    if (path === '/api/client/shared') {
+      const kind = url.searchParams.get('kind');
+      const q = url.searchParams.get('q')?.toLowerCase() ?? '';
+      const items = sharedRows().filter(
+        (r) => (!kind || r.type === kind) && (!q || r.title.toLowerCase().includes(q)),
+      );
+      return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
+    }
+    const one = /^\/api\/client\/shared\/([0-9a-f-]{36})$/.exec(path);
+    if (one) {
+      const item = sharedItem(one[1]!);
+      return item ? json(res, 200, { item }) : json(res, 404, { error: 'Not found.' });
+    }
+    if (path.startsWith('/api/client/files/')) return send(res, 200, 'image/png', PNG_1PX);
+    if (path.startsWith('/api/client/draws/')) {
+      return send(res, 200, 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    }
+    return json(res, 404, { error: `not mocked: ${path}` });
+  };
+
   const cors = {
     'access-control-allow-origin': clientOrigin,
     'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
@@ -564,6 +802,34 @@ export async function startMockMemberApi(
       res.writeHead(204, cors);
       res.end();
       return;
+    }
+    // The client routes answer a client login only (C2).
+    if (path.startsWith('/api/client/') && role !== 'client') {
+      return json(res, 403, {
+        error: 'forbidden',
+        reason: role === 'admin' ? 'admin-login' : 'member-login',
+        message: 'This route is for client logins.',
+      });
+    }
+    if (role === 'client' && path.startsWith('/api/client/')) {
+      if (!state.clientSession) return json(res, 401, { error: 'unauthorized' });
+      state.clientRouteCalls.push(`${method} ${path}`);
+      return handleClient(res, url, path);
+    }
+    if (path === '/api/auth/client-link' && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as { code?: string; email?: string };
+      const answer = (status: number, out: unknown) => {
+        state.clientSignIns.push({ code: body.code ?? '', email: body.email ?? '', status });
+        return json(res, status, out);
+      };
+      if (body.code === CLIENT_RATE_CODE) {
+        return answer(429, { error: 'Too many attempts. Try again in a minute.' });
+      }
+      if (body.code !== CLIENT_GOOD_CODE || body.email?.toLowerCase() !== CLIENT_EMAIL) {
+        return answer(401, { error: 'This sign-in link is not valid. Ask for a new one.' });
+      }
+      state.clientSession = true;
+      return answer(200, { ok: true });
     }
     if (role === 'client') {
       if (path.startsWith('/api/') && !CLIENT_OK.some((re) => re.test(path))) {
@@ -754,6 +1020,25 @@ export async function startMockMemberApi(
       state.draft = body.doc;
       state.draftRev += 1;
       return json(res, 200, { ok: true, draft_rev: state.draftRev });
+    }
+    if (state.libraryList && path === '/api/member/library' && method === 'GET') {
+      const libRow = (id: string, title: string, audience: 'team' | 'client') => ({
+        id,
+        type: 'page',
+        title,
+        icon: null,
+        summary: null,
+        audience,
+        updatedAt: now,
+      });
+      const items =
+        url.searchParams.get('kind') === 'page'
+          ? [
+              libRow(LIBRARY_CLIENT_ID, LIBRARY_CLIENT_TITLE, 'client'),
+              libRow(LIBRARY_ID, LIBRARY_TITLE, 'team'),
+            ]
+          : [];
+      return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
     }
     if (path === `/api/member/library/${LIBRARY_ID}` && method === 'GET') {
       return json(res, 200, {
