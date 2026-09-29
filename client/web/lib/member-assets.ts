@@ -15,5 +15,5 @@ export function memberAssetPath(path: string): string {
   return path;
 }
 
-export const memberFileUrlPath = (id: string) => `/api/member/files/${id}`;
-export const memberDrawUrlPath = (id: string) => `/api/member/draws/${id}/svg`;
+export const memberFileUrlPath = (id: string) => `/api/member/files/${encodeURIComponent(id)}`;
+export const memberDrawUrlPath = (id: string) => `/api/member/draws/${encodeURIComponent(id)}/svg`;

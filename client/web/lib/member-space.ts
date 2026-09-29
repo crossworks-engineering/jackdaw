@@ -146,20 +146,14 @@ export function unsavedBundleIds(err: unknown, ownId: string): string[] {
  * The sentence for a member-route refusal: the brain's own `error` when it
  * sent one (every state refusal does: quota, embed, frozen, comment-cap,
  * thread-full, too-large, body-too-large, …), else a sentence for its
- * `reason` (a bare 429 counts as rate-limit, a bare 413 as body-too-large),
- * else null so the caller keeps its own fallback.
+ * `reason` (a bare 429 counts as rate-limit), else null so the caller keeps
+ * its own fallback.
  */
 export function refusalMessage(err: unknown): string | null {
   if (!(err instanceof ApiError)) return null;
   const body = (err.body ?? {}) as { error?: unknown; reason?: unknown };
   const reason =
-    typeof body.reason === 'string'
-      ? body.reason
-      : err.status === 429
-        ? 'rate-limit'
-        : err.status === 413
-          ? 'body-too-large'
-          : null;
+    typeof body.reason === 'string' ? body.reason : err.status === 429 ? 'rate-limit' : null;
   // `forbidden` / `unauthorized` are codes, not sentences.
   if (typeof body.error === 'string' && body.error && !/^[a-z-]+$/.test(body.error)) {
     return body.error;
@@ -202,9 +196,11 @@ export const MEMBER_API_BASE: SpaceApiBase = '/api/member';
 export const ADMIN_API_BASE: SpaceApiBase = '/api/admin';
 export const CLIENT_SPACE_BASE: SpaceApiBase = '/api/client';
 
-/** The route one own item answers on, under its space's base. */
+/** The route one own item answers on, under its space's base. The id is
+ *  encoded: it often comes from the URL (`?id=`), and a crafted one such as
+ *  `../chat` must stay one path segment, never another route (audit U8). */
 export function ownItemPath(id: string, base: SpaceApiBase = MEMBER_API_BASE): string {
-  return `${base}/space/${id}`;
+  return `${base}/space/${encodeURIComponent(id)}`;
 }
 
 /** An own-space list page (`?kind=&q=&page=`), under its space's base. */
@@ -219,7 +215,7 @@ export function ownListPath(
 
 /** The routes one item answers on: own items vs a teammate's shared one. */
 export function itemBase(source: 'mine' | 'team', id: string): string {
-  return source === 'mine' ? ownItemPath(id) : `/api/member/team-drafts/${id}`;
+  return source === 'mine' ? ownItemPath(id) : `/api/member/team-drafts/${encodeURIComponent(id)}`;
 }
 
 export function listPath(
@@ -414,15 +410,18 @@ export const memberSpace = {
       `${itemBase(source, id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
     ),
   share: (id: string, sharing: SpaceSharing) =>
-    apiSend<{ item: SpaceItemRow }>(`/api/member/space/${id}/share`, 'POST', { sharing }),
-  submit: (id: string) => apiSend<{ item: SpaceItemRow }>(`/api/member/space/${id}/submit`, 'POST'),
-  recall: (id: string) => apiSend<{ item: SpaceItemRow }>(`/api/member/space/${id}/recall`, 'POST'),
+    apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/share`, 'POST', { sharing }),
+  submit: (id: string) => apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/submit`, 'POST'),
+  recall: (id: string) => apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/recall`, 'POST'),
   comments: (source: 'mine' | 'team', id: string) =>
     apiFetch<{ comments: SpaceComment[] }>(`${itemBase(source, id)}/comments`),
   addComment: (source: 'mine' | 'team', id: string, body: string) =>
     apiSend<{ comment: SpaceComment }>(`${itemBase(source, id)}/comments`, 'POST', { body }),
   deleteComment: (source: 'mine' | 'team', id: string, commentId: string) =>
-    apiSend<{ ok: true }>(`${itemBase(source, id)}/comments/${commentId}`, 'DELETE'),
+    apiSend<{ ok: true }>(
+      `${itemBase(source, id)}/comments/${encodeURIComponent(commentId)}`,
+      'DELETE',
+    ),
 };
 
 /**
@@ -594,7 +593,7 @@ export function probeMemberItem(id: string): (source: SpaceSource) => Promise<un
   return (source) =>
     source === 'library' || source === 'accepted'
       ? apiFetch(`/api/member/${source}/${encodeURIComponent(id)}`)
-      : apiFetch(itemBase(source, encodeURIComponent(id)));
+      : apiFetch(itemBase(source, id));
 }
 
 /**

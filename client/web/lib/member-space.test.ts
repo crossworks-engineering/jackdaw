@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  CLIENT_SPACE_BASE,
   MEMBER_MAX_UPLOAD_BYTES,
+  bytesPath,
+  clientSpace,
+  itemBase,
+  ownItemPath,
+  spaceCommentsPath,
   commentsOpen,
   isEditable,
   memberUploadRefusal,
@@ -86,8 +92,6 @@ describe('refusalMessage', () => {
     expect(refusalMessage(new ApiError('413', 413, { reason: 'body-too-large' }))).toMatch(
       /too big to send/,
     );
-    // A bare 413 (a proxy's, with no JSON) reads the same.
-    expect(refusalMessage(new ApiError('Payload Too Large', 413))).toMatch(/too big to send/);
   });
 
   it('leaves the fallback to the caller otherwise', () => {
@@ -318,5 +322,30 @@ describe('libraryLevelBadge (client logins C2)', () => {
     for (const level of ['team', 'admin', 'public', null, undefined, '']) {
       expect(libraryLevelBadge(level), String(level)).toBeNull();
     }
+  });
+});
+
+/**
+ * An id from the URL stays one path segment (audit U8): `?id=..%2Fchat`
+ * reads `../chat`, and a route built from it must never be another route
+ * once the browser folds the dot segment.
+ */
+describe('ids in route paths', () => {
+  const crafted = '../chat';
+  const resolved = (path: string) => new URL(path, 'https://brain.example').pathname;
+
+  it('encodes an own item’s id for every space', () => {
+    expect(ownItemPath(crafted)).toBe('/api/member/space/..%2Fchat');
+    expect(ownItemPath(crafted, CLIENT_SPACE_BASE)).toBe('/api/client/space/..%2Fchat');
+    expect(resolved(ownItemPath(crafted, CLIENT_SPACE_BASE))).toBe('/api/client/space/..%2Fchat');
+    expect(clientSpace.bytesPath(crafted)).toBe('/api/client/space/..%2Fchat/bytes');
+  });
+
+  it('encodes a teammate’s draft, its thread and its bytes', () => {
+    expect(itemBase('team', crafted)).toBe('/api/member/team-drafts/..%2Fchat');
+    expect(spaceCommentsPath(clientSpace, 'mine', crafted)).toBe(
+      '/api/client/space/..%2Fchat/comments',
+    );
+    expect(bytesPath('team', crafted)).toBe('/api/member/team-drafts/..%2Fchat/bytes');
   });
 });

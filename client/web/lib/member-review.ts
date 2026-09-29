@@ -76,7 +76,7 @@ export type AcceptResult = {
   levelWarning?: string;
 };
 
-const base = (id: string) => `/api/team-admin/submissions/${id}`;
+const base = (id: string) => `/api/team-admin/submissions/${encodeURIComponent(id)}`;
 
 export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
 export const itemKey = (id: string) => ['team-admin', 'submissions', id] as const;
@@ -93,7 +93,7 @@ export const memberReview = {
   addComment: (id: string, body: string) =>
     apiSend<{ comment: SpaceComment }>(`${base(id)}/comments`, 'POST', { body }),
   deleteComment: (id: string, commentId: string) =>
-    apiSend(`${base(id)}/comments/${commentId}`, 'DELETE'),
+    apiSend(`${base(id)}/comments/${encodeURIComponent(commentId)}`, 'DELETE'),
   accept: (id: string, input: AcceptInput) =>
     apiSend<AcceptResult>(`${base(id)}/accept`, 'POST', input),
   giveBack: (id: string, note: string) => apiSend(`${base(id)}/return`, 'POST', { note }),

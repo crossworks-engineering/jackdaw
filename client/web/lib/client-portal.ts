@@ -40,8 +40,10 @@ export function sharedItemPath(id: string, tabId?: string | null): string {
   return tabId ? `${base}?tab=${encodeURIComponent(tabId)}` : base;
 }
 
-export const clientFileUrlPath = (id: string) => `${CLIENT_API_BASE}/files/${id}`;
-export const clientDrawUrlPath = (id: string) => `${CLIENT_API_BASE}/draws/${id}/svg`;
+export const clientFileUrlPath = (id: string) =>
+  `${CLIENT_API_BASE}/files/${encodeURIComponent(id)}`;
+export const clientDrawUrlPath = (id: string) =>
+  `${CLIENT_API_BASE}/draws/${encodeURIComponent(id)}/svg`;
 
 const FILE_RE = /^\/api\/files\/files\/([0-9a-f-]{36})(?:\?.*)?$/i;
 const DRAW_RE = /^\/api\/draws\/([0-9a-f-]{36})\/svg(?:\?.*)?$/i;

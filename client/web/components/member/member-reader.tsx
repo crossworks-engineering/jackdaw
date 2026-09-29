@@ -51,7 +51,7 @@ export function MemberReader({
     queryKey: ['member-item', id, source, tabId],
     queryFn: () =>
       apiFetch<{ item: ReaderItem }>(
-        `/api/member/${source}/${id}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
+        `/api/member/${source}/${encodeURIComponent(id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
       ),
     // Switching tabs keeps the current grid on screen until the next lands.
     placeholderData: (prev, prevQuery) =>
