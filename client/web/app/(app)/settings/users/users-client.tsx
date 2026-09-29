@@ -4,6 +4,11 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  canResetPassword,
+  isNotAPasswordLogin,
+  resetPasswordErrorMessage,
+} from '@/lib/password-reset';
+import {
   Anchor,
   Bot,
   KeyRound,
@@ -403,8 +408,9 @@ function UserDetail({
 
       {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
 
-      {/* A client has no password: it signs in with a link. */}
-      {user.role !== 'client' && (
+      {/* Only a password login (admin, member) has one: a client signs in
+          with a link, and a role this app does not know gets nothing. */}
+      {canResetPassword(user.role) && (
         <div className="rounded-md border border-border p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -1130,6 +1136,7 @@ function ResetPasswordDialog({
   user: UserRow;
 }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -1155,7 +1162,14 @@ function ResetPasswordDialog({
       setPassword('');
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not reset password');
+      toast.error(resetPasswordErrorMessage(err));
+      if (isNotAPasswordLogin(err)) {
+        // Nothing to retry: this login has no password (its role moved
+        // under the list). Close, and reload the list.
+        setPassword('');
+        onOpenChange(false);
+        void queryClient.invalidateQueries({ queryKey: ['users'] });
+      }
     } finally {
       setPending(false);
     }
