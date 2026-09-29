@@ -54,7 +54,10 @@ describe('Shared links: a revoked link stays gone', () => {
   it('reads its rows from the tab query, not a copy of it', () => {
     expect(panel).not.toMatch(/useState\(initial\)|setRows/);
     expect(page).toContain('queryKey: SHARES_KEY,');
-    expect(page).toContain('<SharedLinksPanel rows={q.data.shares} initialSelectedId={share} />');
+    // The live links and the retired ones (client logins C3), both from it.
+    expect(page).toMatch(
+      /<SharedLinksPanel\s+rows=\{q\.data\.shares\}\s+retired=\{retiredLinksOf\(q\.data\)\}\s+initialSelectedId=\{share\}\s+\/>/,
+    );
   });
 
   it('takes the link out of that query and refetches it after a revoke', () => {
