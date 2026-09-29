@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { MemberChatMessage } from '@mantle/client-types';
-import { PENDING_POLL_MS, pollForPending, replyLanded, sendKey } from './member-chat';
+import { ApiError } from '@mantle/web-ui/api-fetch';
+import {
+  PENDING_POLL_MS,
+  memberChatRefusal,
+  pollForPending,
+  replyLanded,
+  sendKey,
+} from './member-chat';
 
 const msg = (
   id: string,
@@ -72,5 +79,28 @@ describe('sendKey', () => {
     const first = sendKey('hi', null, fresh);
     expect(sendKey('hi', { text: 'hi', key: first }, fresh)).toBe(first);
     expect(sendKey('hello', { text: 'hi', key: first }, fresh)).not.toBe(first);
+  });
+});
+
+/** The member chat's refusals, unchanged by the body it now shares with a
+ *  client's chat (client logins C4): the brain's words in a toast, and a 409
+ *  reloads the thread. */
+describe('memberChatRefusal', () => {
+  it('shows the brain message, and a 409 reloads', () => {
+    expect(memberChatRefusal(new ApiError('Chat is closed.', 409))).toEqual({
+      message: 'Chat is closed.',
+      reload: true,
+    });
+    expect(memberChatRefusal(new ApiError('Too many.', 429))).toEqual({
+      message: 'Too many.',
+      reload: false,
+    });
+  });
+
+  it('a 401 shows nothing', () => {
+    expect(memberChatRefusal(new ApiError('unauthorized', 401))).toEqual({
+      message: null,
+      reload: false,
+    });
   });
 });
