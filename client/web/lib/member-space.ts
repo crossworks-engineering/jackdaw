@@ -161,8 +161,10 @@ export function memberUploadRefusal(size: number): string | null {
     : `This file is ${actual}, over the ${limit} upload limit.`;
 }
 
-/** Whose own space a client reads: a member's, or an admin's private one. */
-export type SpaceApiBase = '/api/member' | '/api/admin';
+/** Whose routes a client reads: a member's own space, an admin's private
+ *  one, or a client login's (client logins C2: its shared items and bytes,
+ *  lib/client-portal.ts; its own drafts come in C5). */
+export type SpaceApiBase = '/api/member' | '/api/admin' | '/api/client';
 export const MEMBER_API_BASE: SpaceApiBase = '/api/member';
 export const ADMIN_API_BASE: SpaceApiBase = '/api/admin';
 
@@ -248,6 +250,19 @@ export function statusLabels(row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>)
   if (row.reviewState === 'with-admin') return { sharing: null, review };
   return { sharing: row.sharing === 'team' ? 'Shared with team' : 'Private', review };
 }
+
+/**
+ * The badge a Library row wears for its level (client logins C2): the
+ * Library lists items at team AND client level, and a client-level one is
+ * marked "Client", since the brain's client logins read it too. Team rows,
+ * the quiet default, wear none.
+ */
+export function libraryLevelBadge(audience: string | null | undefined): 'Client' | null {
+  return audience === 'client' ? 'Client' : null;
+}
+
+/** What that badge says on hover. */
+export const LIBRARY_CLIENT_TITLE = 'Client level: client logins read this too';
 
 /** A row the member's list shows for an item an admin took over: no editor,
  *  no content, no actions (audit F07). */

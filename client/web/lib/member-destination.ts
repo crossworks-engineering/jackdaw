@@ -1,14 +1,24 @@
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import type { LoginRefused, LoginRefusedReason } from '@mantle/client-types';
 import { MEMBER_HINT_COOKIE, memberMayOpen } from './member-surface';
+import { CLIENT_HINT_COOKIE } from './client-surface';
 
-/** Set or clear the UX-only member hint cookie (see MEMBER_HINT_COOKIE). */
-export function setMemberHint(on: boolean): void {
+function setHint(name: string, on: boolean): void {
   if (typeof document === 'undefined') return;
   const secure = window.location.protocol === 'https:' ? '; Secure' : '';
   document.cookie = on
-    ? `${MEMBER_HINT_COOKIE}=1; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${secure}`
-    : `${MEMBER_HINT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+    ? `${name}=1; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${secure}`
+    : `${name}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+}
+
+/** Set or clear the UX-only member hint cookie (see MEMBER_HINT_COOKIE). */
+export function setMemberHint(on: boolean): void {
+  setHint(MEMBER_HINT_COOKIE, on);
+}
+
+/** Set or clear the UX-only client hint cookie (see CLIENT_HINT_COOKIE). */
+export function setClientHint(on: boolean): void {
+  setHint(CLIENT_HINT_COOKIE, on);
 }
 
 /** Where a MEMBER lands: `next` when a member may open it, else the home. */
@@ -58,20 +68,33 @@ export function isClientLoginRefusal(err: unknown): boolean {
 
 /**
  * After sign-in: a member goes to the member home (or `next` when a member may
- * open it), a client login to `/` (the shell shows it the client screen, and
- * no deep link into the owner screens is carried), anyone else to `next` (or
- * /). Asks the member shell, which answers only a member; a failure of any
- * other kind keeps the ordinary destination (the admin shell sorts out the
- * rest, and never renders for a login it has not confirmed as an admin).
+ * open it), a client login to `/` (the client home; no deep link into the
+ * owner screens is carried), anyone else to `next` (or /). Asks the member
+ * shell, which answers only a member; a client refusal there asks the client
+ * shell too, and sets the client hint when it answers (a brain without the
+ * client routes leaves the hint off: the shell shows the plain client screen).
+ * A failure of any other kind keeps the ordinary destination (the admin shell
+ * sorts out the rest, and never renders for a login it has not confirmed as
+ * an admin).
  */
 export async function destinationAfterSignIn(next: string | null | undefined): Promise<string> {
   try {
     await apiFetch('/api/member/shell');
     setMemberHint(true);
+    setClientHint(false);
     return memberHome(next);
   } catch (err) {
     setMemberHint(false);
-    if (isClientLoginRefusal(err)) return '/';
+    if (isClientLoginRefusal(err)) {
+      try {
+        await apiFetch('/api/client/shell');
+        setClientHint(true);
+      } catch {
+        setClientHint(false);
+      }
+      return '/';
+    }
+    setClientHint(false);
     return next ?? '/';
   }
 }

@@ -191,9 +191,13 @@ export function clearRescues(s: Store | null = store()): void {
   }
 }
 
+/** A space's route base (SpaceApiBase in member-space.ts, spelled out here:
+ *  that module imports this one). */
+type RescueBase = '/api/member' | '/api/admin' | '/api/client';
+
 /** The paths an item's autosave writes to (see spaceClient in
  *  member-space.ts): a member's space, or an admin's private one. */
-export const rescuePaths = (id: string, base: '/api/member' | '/api/admin' = '/api/member') => [
+export const rescuePaths = (id: string, base: RescueBase = '/api/member') => [
   `${base}/space/${id}/draft`,
   `${base}/space/${id}`,
 ];
@@ -206,7 +210,7 @@ export const rescuePaths = (id: string, base: '/api/member' | '/api/admin' = '/a
 export async function replayRescue(
   id: string,
   now = Date.now(),
-  base: '/api/member' | '/api/admin' = '/api/member',
+  base: RescueBase = '/api/member',
 ): Promise<void> {
   const paths = rescuePaths(id, base);
   // Nearly always nothing is kept: open the item at once.

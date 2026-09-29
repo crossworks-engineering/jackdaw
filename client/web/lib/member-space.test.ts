@@ -16,6 +16,7 @@ import {
   splitByReview,
   workspaceNavMode,
   workspaceQuery,
+  libraryLevelBadge,
   type ReviewState,
   type SpaceSource,
 } from './member-space';
@@ -282,5 +283,14 @@ describe('accepted items (Phase 4)', () => {
     expect(acceptedPlace('admin')).toBe('Admins only');
     expect(acceptedPlace('team')).toBe('In the Library');
     expect(acceptedPlace('public')).toBe('In the Library');
+  });
+});
+
+describe('libraryLevelBadge (client logins C2)', () => {
+  it('marks a client-level Library row "Client", and nothing else', () => {
+    expect(libraryLevelBadge('client')).toBe('Client');
+    for (const level of ['team', 'admin', 'public', null, undefined, '']) {
+      expect(libraryLevelBadge(level), String(level)).toBeNull();
+    }
   });
 });

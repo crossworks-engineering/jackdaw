@@ -7,14 +7,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * anyone else to where they were headed. apiFetch is replaced so the probe
  * answers as each role would.
  */
-const probe = vi.hoisted(() => ({ answer: null as null | (() => unknown) }));
+const probe = vi.hoisted(() => ({
+  answer: null as null | ((path: string) => unknown),
+  asked: [] as string[],
+}));
 
 vi.mock('@mantle/web-ui/api-fetch', async (importActual) => {
   const actual = await importActual<typeof import('@mantle/web-ui/api-fetch')>();
   return {
     ...actual,
-    apiFetch: vi.fn(async () => {
-      const a = probe.answer?.();
+    apiFetch: vi.fn(async (path: string) => {
+      probe.asked.push(path);
+      const a = probe.answer?.(path);
       if (a instanceof Error) throw a;
       return a;
     }),
@@ -28,6 +32,7 @@ const refused = (reason: string) => new ApiError('forbidden', 403, { error: 'for
 
 afterEach(() => {
   probe.answer = null;
+  probe.asked = [];
 });
 
 describe('destinationAfterSignIn', () => {
@@ -48,5 +53,26 @@ describe('destinationAfterSignIn', () => {
     expect(await destinationAfterSignIn('/settings')).toBe('/');
     expect(await destinationAfterSignIn('/team-admin?view=shares')).toBe('/');
     expect(await destinationAfterSignIn(null)).toBe('/');
+  });
+
+  it('asks the client shell after a client refusal (client logins C2), and lands home either way', async () => {
+    probe.answer = (path) =>
+      path === '/api/client/shell' ? { role: 'client' } : refused('client-login');
+    expect(await destinationAfterSignIn('/settings')).toBe('/');
+    expect(probe.asked).toEqual(['/api/member/shell', '/api/client/shell']);
+    // A brain without the client routes: still the home, never the deep link.
+    probe.asked = [];
+    probe.answer = (path) =>
+      path === '/api/client/shell' ? new ApiError('nf', 404) : refused('client-login');
+    expect(await destinationAfterSignIn('/settings')).toBe('/');
+    expect(probe.asked).toEqual(['/api/member/shell', '/api/client/shell']);
+  });
+
+  it('asks nothing more of a member or an admin', async () => {
+    probe.answer = () => ({ role: 'member' });
+    await destinationAfterSignIn(null);
+    probe.answer = () => refused('admin-login');
+    await destinationAfterSignIn(null);
+    expect(probe.asked).toEqual(['/api/member/shell', '/api/member/shell']);
   });
 });
