@@ -2,7 +2,7 @@
  * Wire types the brain is about to have and the pinned contract does not yet
  * (the client logins C2/C2b audit fixes). Each EXTENDS the published type of
  * the same name in @crossworks/client-types (dto/client.ts, dto/access.ts,
- * dto/member-apps.ts): this app pins @crossworks/client-types@0.232.325,
+ * dto/member-apps.ts): this app pins @crossworks/client-types@0.232.328,
  * which predates them.
  *
  * Every NEW field is optional: this app must work against a brain that does
@@ -28,8 +28,8 @@ import type {
 
 /** One item in "Shared with you": an item at client level. */
 export type ClientSharedRow = Omit<PublishedClientSharedRow, 'summary'> & {
-  /** Never sent since 0.232.329 (it was built from the unredacted text); do
-   *  not show it. */
+  /** Never sent by brains with the audit fixes (it was built from the
+   *  unredacted text); do not show it. */
   summary?: string | null;
 };
 
