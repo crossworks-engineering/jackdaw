@@ -7,8 +7,9 @@
  * client has no password, so a link is the only way in: one use, 72 hours,
  * and a new one revokes the old.
  *
- * Below the list, Sign-in codes by email (C2b): the account codes are
- * mailed from, for a client with no link.
+ * Below the list, Chat use today (C4): each client's chat against the daily
+ * limits; then Sign-in codes by email (C2b): the account codes are mailed
+ * from, for a client with no link.
  *
  * Add client and Issue sign-in link stay disabled until "What clients see"
  * is checked (the brain refuses both until then: every client login reads
@@ -82,6 +83,7 @@ import type {
   ClientSigninLinkCreated,
 } from '@mantle/client-types';
 import { signLoginOutEverywhere } from '../../lib/sign-out-everywhere';
+import { ClientChatUsagePanel } from './client-chat-usage';
 import { ClientSigninSenderPanel } from './client-signin-sender';
 
 function useClientLogins() {
@@ -233,15 +235,18 @@ export function ClientLoginsPanel() {
           </Button>
         </div>
       ) : (
-        <ClientLoginsView
-          list={q.data}
-          now={Date.now()}
-          issuing={issuing}
-          onAdd={() => setAddOpen(true)}
-          onIssue={askIssue}
-          onAction={setAction}
-          onEnable={(row) => void enable(row)}
-        />
+        <>
+          <ClientLoginsView
+            list={q.data}
+            now={Date.now()}
+            issuing={issuing}
+            onAdd={() => setAddOpen(true)}
+            onIssue={askIssue}
+            onAction={setAction}
+            onEnable={(row) => void enable(row)}
+          />
+          <ClientChatUsagePanel clients={q.data.clients} />
+        </>
       )}
       <ClientSigninSenderPanel />
 
