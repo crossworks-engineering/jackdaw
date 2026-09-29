@@ -1,9 +1,11 @@
 /**
- * An admin's own private items (member logins Phase 7): where the Private
- * view lives, and how an owner create flow's "Keep private" switch routes a
- * new item into it instead of the brain. The view is the kind's own screen
- * with `?space=private` (and `&id=` for the open item); the brain view is the
- * screen as it always was.
+ * An admin's own private items (member logins Phase 7): where they show, and
+ * how an owner create flow's "Keep private" switch routes a new item into
+ * them instead of the brain. Since the item-list alignment they list INSIDE
+ * the kind's own screen, beside the brain's items, wearing a `private` pill;
+ * the screen's State filter (`?state=private`) lists them alone, and
+ * `?pid=<id>` opens one. The old Private view (`?space=private&id=`) still
+ * resolves: the screens redirect it (legacyPrivateHref).
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { MEMBER_KIND } from './member-kinds';
@@ -22,22 +24,29 @@ export const KEEP_PRIVATE_HELP = 'Only you can see it until you accept it into t
 
 export const SPACE_PARAM = 'space';
 export const PRIVATE_SPACE = 'private';
+/** The open private item on a kind's screen. */
+export const PRIVATE_ID_PARAM = 'pid';
 
 export type CreatableKind = Exclude<SpaceKind, 'file'>;
 
-/** Is this URL the Private view? */
+/** Is this URL the retired Private view (`?space=private`)? */
 export function isPrivateView(params: Pick<URLSearchParams, 'get'> | null | undefined): boolean {
   return params?.get(SPACE_PARAM) === PRIVATE_SPACE;
 }
 
-/** The Private view of a kind's screen, with an item open when `id` is set. */
+/** The kind's screen with a private item open (`id`), or filtered to the
+ *  private items (no `id`). */
 export function privateViewHref(kind: SpaceKind, id?: string | null): string {
-  const sp = new URLSearchParams({ [SPACE_PARAM]: PRIVATE_SPACE });
-  if (id) sp.set('id', id);
+  const sp = new URLSearchParams(id ? { [PRIVATE_ID_PARAM]: id } : { state: PRIVATE_SPACE });
   return `${MEMBER_KIND[kind].path}?${sp.toString()}`;
 }
 
-/** The brain view of a kind's screen (the owner list, as it always was). */
+/** Where an old Private-view link (`?space=private[&id=]`) goes now. */
+export function legacyPrivateHref(kind: SpaceKind, params: Pick<URLSearchParams, 'get'>): string {
+  return privateViewHref(kind, params.get('id'));
+}
+
+/** The kind's screen, unfiltered. */
 export function brainViewHref(kind: SpaceKind): string {
   return MEMBER_KIND[kind].path;
 }

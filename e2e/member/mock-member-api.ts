@@ -1011,6 +1011,37 @@ export async function startMockMemberApi(
       });
       return true;
     }
+    // The owner /pages list (item-list alignment): with `state=all` or
+    // `private` the brain adds the admin's own private pages as
+    // AdminPrivateListRow rows (the `private` key holds the space row).
+    // This brain holds no brain pages.
+    if (path === '/api/pages' && method === 'GET') {
+      const state = url.searchParams.get('state');
+      const pages =
+        state === 'all' || state === 'private'
+          ? A.privateIds.map((id) => {
+              const row = privateRow(id);
+              return {
+                id,
+                type: 'page',
+                title: row.title,
+                icon: row.icon,
+                createdAt: row.updatedAt,
+                updatedAt: row.updatedAt,
+                private: row,
+              };
+            })
+          : [];
+      json(res, 200, {
+        mode: 'tree',
+        pages,
+        total: pages.length,
+        page: 1,
+        pageSize: 2000,
+        tags: [],
+      });
+      return true;
+    }
     if (path === '/api/admin/space' && method === 'GET') {
       const items = url.searchParams.get('kind') === 'page' ? A.privateIds.map(privateRow) : [];
       json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });

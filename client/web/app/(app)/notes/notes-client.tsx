@@ -1,22 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Pencil,
-  Plus,
-  Search,
-  Sparkles,
-  Trash2,
-} from 'lucide-react';
+import { FileText, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   AlertDialog,
@@ -28,17 +18,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { Input } from '@mantle/web-ui/ui/input';
 import { AccessControl } from '@/components/share/access-control';
 import { ExportButton } from '@/components/export/export-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import {
-  ListCard,
-  ListCardSnippet,
-  ListCardTags,
-  ListCardTitle,
-} from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { syncSelectionParam } from '@/lib/url-sync';
@@ -46,13 +29,34 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
-import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import type { AdminPrivateListRow } from '@mantle/client-types';
+import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { ItemCard, ItemIcon } from '@/components/item-list/item-card';
+import {
+  ItemListEmpty,
+  ItemListHeader,
+  ItemListScroll,
+  NewButton,
+} from '@/components/item-list/item-list-header';
+import { ClearFilter, StateFilter, TagFilter } from '@/components/item-list/item-filters';
+import { useCardDetails } from '@/components/item-list/use-card-details';
+import {
+  ADMIN_STATE_OPTIONS,
+  PrivateItemCard,
+  PrivateItemDetail,
+  adminStateOf,
+  isPrivateRow,
+  usePrivateOpen,
+  type AdminListState,
+} from '@/components/item-list/admin-private-rows';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
 
 type NotesListResponse = {
-  notes: NoteRow[];
+  /** Brain notes, and with `state=all|private` the admin's own private
+   *  notes (AdminPrivateListRow, the `private` key marks them). */
+  notes: Array<NoteRow | AdminPrivateListRow>;
   total: number;
   page: number;
   pageSize: number;
@@ -79,22 +83,27 @@ export function NotesClient() {
   const activeTag = searchParams.get('tag')?.trim() || null;
   const showDigests =
     searchParams.get('digests') === '1' || (!!activeTag && isDigestTag(activeTag));
+  // Which items: all (default), the brain's, or this admin's private ones
+  // (item-list alignment). Always sent: the brain's default is `brain`.
+  const state = adminStateOf(searchParams);
+  const { pid, openPrivate } = usePrivateOpen();
 
   const listQuery = useQuery({
-    queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page }],
+    queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, state }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (activeTag) qs.set('tag', activeTag);
       if (showDigests) qs.set('digests', '1');
       if (page > 1) qs.set('page', String(page));
-      const s = qs.toString();
-      return apiFetch<NotesListResponse>(`/api/notes${s ? `?${s}` : ''}`);
+      qs.set('state', state);
+      return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
   });
 
-  const notes = useMemo(() => listQuery.data?.notes ?? [], [listQuery.data?.notes]);
+  const rows = useMemo(() => listQuery.data?.notes ?? [], [listQuery.data?.notes]);
+  const notes = useMemo(() => rows.filter((r): r is NoteRow => !isPrivateRow(r)), [rows]);
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
   const tags = useMemo(() => listQuery.data?.tags ?? [], [listQuery.data?.tags]);
@@ -122,32 +131,24 @@ export function NotesClient() {
 
   const [searchInput, setSearchInput] = useState(query);
 
-  // Tag filter row collapses to one line; a toggle reveals the rest.
-  const tagRowRef = useRef<HTMLDivElement>(null);
-  const [tagsExpanded, setTagsExpanded] = useState(false);
-  const [tagsOverflow, setTagsOverflow] = useState(false);
-
-  useEffect(() => {
-    if (tagsExpanded) return;
-    const el = tagRowRef.current;
-    if (!el) return;
-    const check = () => setTagsOverflow(el.scrollHeight - el.clientHeight > 4);
-    check();
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [tags, tagsExpanded]);
+  // Card density (summaries and tags), as on every list screen.
+  const [details, changeDetails] = useCardDetails('mantle_notes_card_details_v1');
 
   // ── Selection / edit state machine ──────────────────────────────────
+  // The first card, when nothing is picked (auto-select), whichever kind.
+  const first = !selectedId && !pid ? (rows[0] ?? null) : null;
+  // The private note `?pid=` names, or a private first card.
+  const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
   const selected = useMemo<NoteRow | null>(() => {
+    if (privateOpen) return null;
     if (selectedId) {
       return (
         notes.find((n) => n.id === selectedId) ??
         (selectedNoteQuery.data?.id === selectedId ? selectedNoteQuery.data : null)
       );
     }
-    return notes[0] ?? null;
-  }, [selectedId, notes, selectedNoteQuery.data]);
+    return first && !isPrivateRow(first) ? first : null;
+  }, [privateOpen, selectedId, notes, selectedNoteQuery.data, first]);
 
   // Pin whatever the right pane is showing. That includes the `notes[0]`
   // fallback above: nothing was clicked, but the note is on screen and read,
@@ -179,7 +180,14 @@ export function NotesClient() {
     guard(() => {
       setSelectedId(id);
       syncSelectionParam('selected', id);
+      if (pid) openPrivate(null);
       exitEdit();
+    });
+
+  const selectPrivate = (id: string) =>
+    guard(() => {
+      exitEdit();
+      openPrivate(id);
     });
 
   const startCreate = () =>
@@ -204,19 +212,20 @@ export function NotesClient() {
     void queryClient.invalidateQueries({ queryKey: ['notes'] });
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
   const buildHref = (over: {
     page?: number;
     tag?: string | null;
     q?: string | null;
     digests?: boolean;
+    state?: AdminListState;
   }) => {
     const nextTag = over.tag !== undefined ? over.tag : activeTag;
     const nextQ = over.q !== undefined ? over.q : query || null;
     const nextPage = over.page !== undefined ? over.page : page;
     const nextDigests = over.digests !== undefined ? over.digests : showDigests;
+    const nextState = over.state ?? state;
     const params = new URLSearchParams();
+    if (nextState !== 'all') params.set('state', nextState);
     if (nextTag) params.set('tag', nextTag);
     if (nextQ) params.set('q', nextQ);
     if (nextDigests) params.set('digests', '1');
@@ -309,175 +318,111 @@ export function NotesClient() {
         listCollapsed={focus}
         list={
           <>
-            <div className="space-y-3 border-b border-border p-4">
-              <SpaceSwitch kind="note" value="brain" />
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search notes…"
-                    className="pl-8"
-                  />
-                </div>
-                <Button onClick={startCreate}>
-                  <Plus /> New
-                </Button>
-              </div>
-
-              <div className="flex items-start gap-1.5">
-                <div
-                  ref={tagRowRef}
-                  className={cn(
-                    'flex flex-1 flex-wrap items-center gap-1.5',
-                    !tagsExpanded && 'max-h-7 overflow-hidden',
-                  )}
-                >
-                  {tags.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant={activeTag ? 'outline' : 'default'}
-                      className="h-7 rounded-full px-3"
-                      onClick={() => go({ tag: null, page: 1 })}
-                    >
-                      All
-                    </Button>
-                  )}
-                  {tags.map((t) => (
-                    <Button
-                      key={t.tag}
-                      size="sm"
-                      variant={activeTag === t.tag ? 'default' : 'outline'}
-                      className="h-7 rounded-full px-3"
-                      onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: 1 })}
-                    >
-                      {t.tag}
-                      <span className="ml-1 opacity-60">{t.count}</span>
-                    </Button>
-                  ))}
-                </div>
-                {tagsOverflow && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-7 shrink-0"
-                    onClick={() => setTagsExpanded((v) => !v)}
-                    aria-label={tagsExpanded ? 'Show fewer tags' : 'Show all tags'}
-                    title={tagsExpanded ? 'Show fewer tags' : 'Show all tags'}
-                  >
-                    <ChevronDown
-                      className={cn('transition-transform', tagsExpanded && 'rotate-180')}
-                    />
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant={showDigests ? 'default' : 'outline'}
-                  className={cn(
-                    'h-7 shrink-0 rounded-full px-3',
-                    !showDigests && 'text-muted-foreground',
-                  )}
-                  onClick={() =>
-                    go({
-                      digests: !showDigests,
-                      page: 1,
-                      // Hiding digests while filtered on a digest tag would show an
-                      // empty list — drop the tag along with them.
-                      ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
-                    })
-                  }
-                  title={
-                    showDigests
-                      ? 'Hide agent conversation digests'
-                      : 'Show agent conversation digests'
-                  }
-                >
-                  <Sparkles /> Digests
-                </Button>
-              </div>
-            </div>
-
-            {/* Cards */}
-            <div
-              className={cn(
-                'space-y-2 p-3 transition-opacity md:flex-1 md:overflow-y-auto md:scrollbar-thin',
-                navPending && 'opacity-60',
-              )}
+            <ItemListHeader
+              search={searchInput}
+              onSearch={setSearchInput}
+              placeholder="Search notes…"
+              actions={<NewButton onClick={startCreate} />}
             >
-              {notes.length === 0 ? (
-                <div className="rounded-md border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
-                  {query || activeTag
-                    ? 'No notes match your search or filter.'
-                    : 'No notes yet. Click “New” or ask your assistant to add one.'}
-                </div>
-              ) : (
-                notes.map((n) => (
-                  <ListCard
-                    key={n.id}
-                    onClick={() => selectNote(n.id)}
-                    data-mark-id={n.id}
-                    data-mark-kind="note"
-                    data-mark-label={n.title}
-                    selected={selected?.id === n.id && !creating}
-                  >
-                    <div className="flex items-start gap-2">
-                      <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <ListCardTitle className="min-w-0">{n.title}</ListCardTitle>
-                          <AudienceBadge level={n.audience} />
-                        </div>
-                        {(n.summary || n.content) && (
-                          <ListCardSnippet>{n.summary ?? n.content.slice(0, 200)}</ListCardSnippet>
-                        )}
-                        {n.tags.length > 0 && (
-                          <ListCardTags>
-                            {n.tags.map((t) => (
-                              <TagPill key={t} tag={t} />
-                            ))}
-                          </ListCardTags>
-                        )}
-                      </div>
-                    </div>
-                  </ListCard>
-                ))
+              <TagFilter
+                tags={tags}
+                activeTag={activeTag}
+                onSelect={(t) => go({ tag: t, page: 1 })}
+                details={details}
+                onDetailsChange={changeDetails}
+                allLabel="All notes"
+              />
+              <StateFilter
+                value={state}
+                options={ADMIN_STATE_OPTIONS}
+                onChange={(v) => go({ state: v, page: 1 })}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn(
+                  'h-7 gap-1 px-2',
+                  showDigests ? 'text-foreground' : 'text-muted-foreground',
+                )}
+                aria-pressed={showDigests}
+                onClick={() =>
+                  go({
+                    digests: !showDigests,
+                    page: 1,
+                    // Hiding digests while filtered on a digest tag would show an
+                    // empty list — drop the tag along with them.
+                    ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
+                  })
+                }
+                title={
+                  showDigests
+                    ? 'Hide agent conversation digests'
+                    : 'Show agent conversation digests'
+                }
+              >
+                <Sparkles className="size-3.5" /> Digests
+              </Button>
+              {activeTag && (
+                <ClearFilter onClear={() => go({ tag: null, page: 1 })} title="Clear tag filter" />
               )}
-            </div>
+            </ItemListHeader>
 
-            {/* Pagination */}
-            {total > 0 && (
-              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-                <span className="tabular-nums">
-                  {total} {total === 1 ? 'note' : 'notes'}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="tabular-nums">
-                    {page} / {totalPages}
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="size-7"
-                    disabled={page <= 1 || navPending}
-                    onClick={() => go({ page: page - 1 })}
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="size-7"
-                    disabled={page >= totalPages || navPending}
-                    onClick={() => go({ page: page + 1 })}
-                    aria-label="Next page"
-                  >
-                    <ChevronRight />
-                  </Button>
-                </div>
-              </div>
-            )}
+            <ItemListScroll pending={navPending}>
+              {rows.length === 0 ? (
+                <ItemListEmpty>
+                  {state === 'private' && !query
+                    ? 'You have no private notes. Only you would see them, until you accept one into the brain.'
+                    : query || activeTag
+                      ? 'No notes match your search or filter.'
+                      : 'No notes yet. Click “New” or ask your assistant to add one.'}
+                </ItemListEmpty>
+              ) : (
+                rows.map((n) =>
+                  isPrivateRow(n) ? (
+                    <PrivateItemCard
+                      key={n.id}
+                      row={n}
+                      selected={privateOpen === n.id}
+                      onSelect={() => selectPrivate(n.id)}
+                    />
+                  ) : (
+                    <ItemCard
+                      key={n.id}
+                      id={n.id}
+                      kind="note"
+                      title={n.title}
+                      icon={<ItemIcon fallback={<FileText />} />}
+                      badge={<AudienceBadge level={n.audience} className="mt-0.5" />}
+                      selected={!privateOpen && selected?.id === n.id && !creating}
+                      onSelect={() => selectNote(n.id)}
+                      updatedAt={n.updatedAt}
+                    >
+                      {details && (n.summary || n.content) && (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {n.summary ?? n.content.slice(0, 200)}
+                        </p>
+                      )}
+                      {details && n.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {n.tags.map((t) => (
+                            <TagPill key={t} tag={t} />
+                          ))}
+                        </div>
+                      )}
+                    </ItemCard>
+                  ),
+                )
+              )}
+            </ItemListScroll>
+
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p })}
+              noun={{ one: 'note', many: 'notes' }}
+            />
           </>
         }
         // Both the editor and the preview open with their own sticky header
@@ -486,7 +431,15 @@ export function NotesClient() {
         // overflow, so only one bar is ever painted.
         detail={
           <div className="md:h-full md:overflow-hidden">
-            {editing ? (
+            {privateOpen ? (
+              <div className="relative h-full min-h-0">
+                <PrivateItemDetail
+                  key={privateOpen}
+                  id={privateOpen}
+                  onClose={() => openPrivate(null)}
+                />
+              </div>
+            ) : editing ? (
               <NoteEditor
                 note={creating ? null : selected}
                 focus={focus}

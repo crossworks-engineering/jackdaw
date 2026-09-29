@@ -6,7 +6,7 @@ import { AudienceBadge } from '@/components/share/audience-badge';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, PenTool, Plus, Search, Trash2, X } from 'lucide-react';
+import { Pencil, PenTool, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -30,7 +30,6 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { drawSnapshotClass } from '@/components/draw/snapshot-theme';
 import { AccessControl } from '@/components/share/access-control';
 import { FocusToggle } from '@/components/layout/focus-toggle';
@@ -45,7 +44,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
-import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import type { AdminPrivateListRow } from '@mantle/client-types';
+import { ItemCard, ItemIcon } from '@/components/item-list/item-card';
+import { ItemListHeader, ItemListScroll, NewButton } from '@/components/item-list/item-list-header';
+import { ClearFilter, SortMenu, StateFilter, TagFilter } from '@/components/item-list/item-filters';
+import { useCardDetails } from '@/components/item-list/use-card-details';
+import {
+  ADMIN_STATE_OPTIONS,
+  PrivateItemCard,
+  PrivateItemDetail,
+  adminStateOf,
+  isPrivateRow,
+  usePrivateOpen,
+} from '@/components/item-list/admin-private-rows';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 
@@ -66,12 +77,23 @@ type DrawRow = {
 };
 
 type ListResponse = {
-  draws: DrawRow[];
+  /** Brain drawings, and with `state=all|private` the admin's own private
+   *  drawings (AdminPrivateListRow, the `private` key marks them). */
+  draws: Array<DrawRow | AdminPrivateListRow>;
   total: number;
   page: number;
   pageSize: number;
   tags: { tag: string; count: number }[];
 };
+
+type DrawSort = 'edited' | 'newest' | 'oldest' | 'title';
+const SORT_LABELS: Record<DrawSort, string> = {
+  edited: 'Last edited',
+  newest: 'Newest',
+  oldest: 'Oldest',
+  title: 'Title A–Z',
+};
+const isSort = (v: string | null): v is DrawSort => !!v && v in SORT_LABELS;
 
 export function DrawsClient() {
   const searchParams = useSearchParams();
@@ -95,6 +117,13 @@ export function DrawsClient() {
   const query = searchParams.get('q')?.trim() ?? '';
   const tag = searchParams.get('tag')?.trim() ?? '';
   const urlId = searchParams.get('id')?.trim() || null;
+  const sortParam = searchParams.get('sort');
+  const sort: DrawSort = isSort(sortParam) ? sortParam : 'edited';
+  // Which items: all (default), the brain's, or this admin's private ones
+  // (item-list alignment). Always sent: the brain's default is `brain`.
+  const state = adminStateOf(searchParams);
+  const { pid, openPrivate } = usePrivateOpen();
+  const [details, changeDetails] = useCardDetails('mantle_draws_card_details_v1');
 
   // Selection lives in client state; `select` mirrors it to the URL with
   // replaceState (no navigation) — the param is an entry point, not truth.
@@ -139,24 +168,31 @@ export function DrawsClient() {
   }, [searchInput, query, go]);
 
   const listQuery = useQuery({
-    queryKey: ['draws', { q: query, tag, page }],
+    queryKey: ['draws', { q: query, tag, page, sort, state }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (tag) qs.set('tag', tag);
       if (page > 1) qs.set('page', String(page));
-      const suffix = qs.toString();
-      return apiFetch<ListResponse>(`/api/draws${suffix ? `?${suffix}` : ''}`);
+      if (sort !== 'edited') qs.set('sort', sort);
+      qs.set('state', state);
+      return apiFetch<ListResponse>(`/api/draws?${qs.toString()}`);
     },
+    placeholderData: (prev) => prev,
   });
 
-  const draws = useMemo(() => listQuery.data?.draws ?? [], [listQuery.data]);
-  const activeId = selectedId ?? draws[0]?.id ?? null;
+  const rows = useMemo(() => listQuery.data?.draws ?? [], [listQuery.data]);
+  const draws = useMemo(() => rows.filter((r): r is DrawRow => !isPrivateRow(r)), [rows]);
+  // The first card when nothing is picked (auto-select), whichever kind.
+  const first = !selectedId && !pid ? (rows[0] ?? null) : null;
+  const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
+  const activeId = privateOpen ? null : (selectedId ?? first?.id ?? null);
   const active = draws.find((d) => d.id === activeId) ?? null;
 
   function select(id: string) {
     setSelectedId(id);
     syncSelectionParam('id', id);
+    if (pid) openPrivate(null);
   }
 
   async function createDraw() {
@@ -216,50 +252,55 @@ export function DrawsClient() {
         listCollapsed={zen}
         list={
           <>
-            <div className="space-y-2 border-b border-border p-4">
-              <SpaceSwitch kind="draw" value="brain" />
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    ref={searchRef}
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search drawings…"
-                    className="pl-8"
-                  />
-                </div>
-                <Button size="sm" onClick={openCreate} disabled={creating}>
-                  {creating ? <Spinner /> : <Plus />}
-                  New
-                </Button>
-              </div>
+            <ItemListHeader
+              search={searchInput}
+              onSearch={setSearchInput}
+              placeholder="Search drawings…"
+              actions={<NewButton onClick={openCreate} busy={creating} />}
+            >
+              <SortMenu
+                value={sort}
+                labels={SORT_LABELS}
+                onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
+              />
+              <TagFilter
+                tags={listQuery.data?.tags ?? []}
+                activeTag={tag || null}
+                onSelect={(t) => go({ tag: t, page: null, pid: null })}
+                details={details}
+                onDetailsChange={changeDetails}
+                allLabel="All drawings"
+              />
+              <StateFilter
+                value={state}
+                options={ADMIN_STATE_OPTIONS}
+                onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
+              />
               {tag ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => go({ tag: null, page: null })}
-                  title="Clear the tag filter"
-                >
-                  <X />
-                  {tag}
-                </Button>
+                <ClearFilter
+                  onClear={() => go({ tag: null, page: null })}
+                  title="Clear tag filter"
+                />
               ) : null}
-            </div>
+            </ItemListHeader>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-              {draws.length === 0 && (query || tag) ? (
+            <ItemListScroll pending={pending}>
+              {rows.length === 0 && (query || tag || state !== 'all') ? (
                 <div className="space-y-3 px-1 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {state === 'private' && !query && !tag
+                      ? 'You have no private drawings. Only you would see them, until you accept one into the brain.'
+                      : 'Nothing matches these filters.'}
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => go({ q: null, tag: null, page: null })}
+                    onClick={() => go({ q: null, tag: null, state: null, page: null })}
                   >
                     Clear filters
                   </Button>
                 </div>
-              ) : draws.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <div className="space-y-3 px-1 py-8 text-center">
                   <p className="text-sm text-muted-foreground">
                     No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
@@ -271,66 +312,54 @@ export function DrawsClient() {
                   </Button>
                 </div>
               ) : (
-                draws.map((d) => (
-                  <ListCard key={d.id} asChild selected={activeId === d.id} className="p-0">
-                    <div>
-                      <RowButton
-                        onClick={() => select(d.id)}
-                        data-mark-id={d.id}
-                        data-mark-kind="draw"
-                        data-mark-label={d.title}
-                        className="block w-full rounded-lg p-2.5 text-left"
-                      >
-                        <div className="flex items-start gap-2">
-                          {d.icon ? (
-                            <span className="mt-0.5 w-4 shrink-0 text-center text-sm leading-4">
-                              {d.icon}
-                            </span>
-                          ) : (
-                            <PenTool className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                rows.map((d) =>
+                  isPrivateRow(d) ? (
+                    <PrivateItemCard
+                      key={d.id}
+                      row={d}
+                      selected={privateOpen === d.id}
+                      onSelect={() => openPrivate(d.id)}
+                    />
+                  ) : (
+                    <ItemCard
+                      key={d.id}
+                      id={d.id}
+                      kind="draw"
+                      title={d.title}
+                      icon={<ItemIcon emoji={d.icon} fallback={<PenTool />} />}
+                      badge={
+                        <>
+                          {/* A dot, not a word: the row is a scan target and the
+                              preview pane carries the full explanation. */}
+                          {d.hasDraft && (
+                            <span
+                              className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
+                              title="Uncommitted edits"
+                              aria-label="Uncommitted edits"
+                            />
                           )}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <ListCardTitle className="min-w-0">{d.title}</ListCardTitle>
-                              {/* A dot, not a word: the row is a scan target and the
-                            preview pane carries the full explanation. */}
-                              {d.hasDraft && (
-                                <span
-                                  className="size-1.5 shrink-0 rounded-full bg-primary"
-                                  title="Uncommitted edits"
-                                  aria-label="Uncommitted edits"
-                                />
-                              )}
-                              <AudienceBadge level={d.audience} />
-                            </div>
-                            {d.summary ? <ListCardSnippet>{d.summary}</ListCardSnippet> : null}
-                          </div>
-                        </div>
-                      </RowButton>
-                      {d.tags.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
+                          <AudienceBadge level={d.audience} className="mt-0.5" />
+                        </>
+                      }
+                      selected={activeId === d.id}
+                      onSelect={() => select(d.id)}
+                      updatedAt={d.updatedAt}
+                    >
+                      {details && d.summary ? (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">{d.summary}</p>
+                      ) : null}
+                      {details && d.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
                           {d.tags.map((t) => (
-                            <RowButton
-                              key={t}
-                              onClick={() => go({ tag: t === tag ? null : t, page: null })}
-                              title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
-                            >
-                              <TagPill
-                                tag={t}
-                                className={cn(
-                                  'transition-opacity hover:opacity-80',
-                                  t === tag && 'ring-1 ring-primary',
-                                )}
-                              />
-                            </RowButton>
+                            <TagPill key={t} tag={t} />
                           ))}
                         </div>
                       ) : null}
-                    </div>
-                  </ListCard>
-                ))
+                    </ItemCard>
+                  ),
+                )
               )}
-            </div>
+            </ItemListScroll>
 
             <ListPager
               page={page}
@@ -338,13 +367,22 @@ export function DrawsClient() {
               pageSize={listQuery.data?.pageSize ?? 50}
               pending={pending}
               onGo={(p) => go({ page: p > 1 ? p : null })}
+              noun={{ one: 'drawing', many: 'drawings' }}
             />
           </>
         }
         // No wrapper: the preview is a plain document with no pinned header of
         // its own, so `MasterDetail`'s pane is the only scroller.
         detail={
-          active ? (
+          privateOpen ? (
+            <div className="relative h-full min-h-0">
+              <PrivateItemDetail
+                key={privateOpen}
+                id={privateOpen}
+                onClose={() => openPrivate(null)}
+              />
+            </div>
+          ) : active ? (
             <DrawPreview
               key={active.id}
               draw={active}

@@ -22,11 +22,30 @@ export type MemberKindInfo = {
   /** "New" makes one; files come by upload instead. */
   create: boolean;
   upload?: true;
+  /** The admin screen's list query key root: an admin's private item lists
+   *  there too (item-list alignment), so its changes refresh it. */
+  listKey: string;
 };
 
 export const MEMBER_KIND: Record<MemberItemKind, MemberKindInfo> = {
-  page: { path: '/pages', title: 'Pages', one: 'page', many: 'pages', icon: '📄', create: true },
-  note: { path: '/notes', title: 'Notes', one: 'note', many: 'notes', icon: '📝', create: true },
+  page: {
+    path: '/pages',
+    title: 'Pages',
+    one: 'page',
+    many: 'pages',
+    icon: '📄',
+    create: true,
+    listKey: 'pages',
+  },
+  note: {
+    path: '/notes',
+    title: 'Notes',
+    one: 'note',
+    many: 'notes',
+    icon: '📝',
+    create: true,
+    listKey: 'notes',
+  },
   draw: {
     path: '/draw',
     title: 'Draw',
@@ -34,6 +53,7 @@ export const MEMBER_KIND: Record<MemberItemKind, MemberKindInfo> = {
     many: 'drawings',
     icon: '✏️',
     create: true,
+    listKey: 'draws',
   },
   table: {
     path: '/tables',
@@ -42,6 +62,7 @@ export const MEMBER_KIND: Record<MemberItemKind, MemberKindInfo> = {
     many: 'tables',
     icon: '📊',
     create: true,
+    listKey: 'tables',
   },
   file: {
     path: '/files',
@@ -51,6 +72,7 @@ export const MEMBER_KIND: Record<MemberItemKind, MemberKindInfo> = {
     icon: '📎',
     create: false,
     upload: true,
+    listKey: 'files',
   },
 };
 

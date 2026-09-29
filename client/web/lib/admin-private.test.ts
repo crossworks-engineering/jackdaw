@@ -5,6 +5,7 @@ import {
   brainViewHref,
   createPrivateItem,
   isPrivateView,
+  legacyPrivateHref,
   privateTextFile,
   privateViewHref,
   uploadPrivateFile,
@@ -36,10 +37,17 @@ function fakeClient() {
 }
 
 describe('the Private view (member logins Phase 7)', () => {
-  it('is the kind screen with ?space=private and the open item', () => {
-    expect(privateViewHref('page')).toBe('/pages?space=private');
-    expect(privateViewHref('table', 't1')).toBe('/tables?space=private&id=t1');
-    expect(privateViewHref('file', 'f1')).toBe('/files?space=private&id=f1');
+  it('is the kind screen with the open private item, or filtered to them', () => {
+    expect(privateViewHref('page')).toBe('/pages?state=private');
+    expect(privateViewHref('table', 't1')).toBe('/tables?pid=t1');
+    expect(privateViewHref('file', 'f1')).toBe('/files?pid=f1');
+    // An old Private-view link lands on the same place.
+    expect(legacyPrivateHref('note', new URLSearchParams('space=private&id=n1'))).toBe(
+      '/notes?pid=n1',
+    );
+    expect(legacyPrivateHref('note', new URLSearchParams('space=private'))).toBe(
+      '/notes?state=private',
+    );
     expect(brainViewHref('draw')).toBe('/draw');
   });
 
@@ -82,7 +90,7 @@ describe('Keep private in the create flows', () => {
     // One write: a refused text can no longer leave an empty note behind.
     expect(c.log).toEqual(['create note']);
     expect(c.bodies[0]).toEqual({ type: 'note', title: 'N', content: '# hi' });
-    expect(href).toBe('/notes?space=private&id=new-1');
+    expect(href).toBe('/notes?pid=new-1');
 
     const empty = fakeClient();
     await createPrivateItem('note', { title: 'N', content: '' }, empty);
@@ -107,7 +115,7 @@ describe('Keep private in the create flows', () => {
     const c = fakeClient();
     const href = await uploadPrivateFile(new File(['x'], 'plan.pdf'), c);
     expect(c.log).toEqual(['upload plan.pdf']);
-    expect(href).toBe('/files?space=private&id=file-1');
+    expect(href).toBe('/files?pid=file-1');
   });
 
   it('a private upload over the cap is refused before a byte is sent', async () => {

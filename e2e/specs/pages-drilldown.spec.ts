@@ -155,11 +155,13 @@ test.describe('pages drill-down', () => {
       const list = await listReady(ownerPage);
 
       // The footer counts THIS LEVEL, not the corpus.
-      await expect(list.getByText('26 pages', { exact: true })).toBeVisible({ timeout: 15_000 });
-      await expect(list.getByText('1 / 2', { exact: true })).toBeVisible();
+      // The shared list pager (item-list kit): "26 pages · page 1 / 2".
+      await expect(list.getByText('26 pages · page 1 / 2', { exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
 
       await list.getByRole('button', { name: 'Next page' }).click();
-      await expect(list.getByText('2 / 2', { exact: true })).toBeVisible();
+      await expect(list.getByText('26 pages · page 2 / 2', { exact: true })).toBeVisible();
       await expect(ownerPage).toHaveURL(new RegExp(`parent=${parent.id}`));
       await expect(ownerPage).toHaveURL(/page=2/);
 
@@ -170,7 +172,9 @@ test.describe('pages drill-down', () => {
       // The URL is the state — a reload lands back on the same level and page.
       await ownerPage.reload();
       await listReady(ownerPage);
-      await expect(list.getByText('2 / 2', { exact: true })).toBeVisible({ timeout: 15_000 });
+      await expect(list.getByText('26 pages · page 2 / 2', { exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
       expect(await list.locator('[data-mark-kind="page"]').count()).toBe(1);
     } finally {
       expect((await ownerApi.delete(`/api/pages/${parent.id}`)).ok()).toBeTruthy();

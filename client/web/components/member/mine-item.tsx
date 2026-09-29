@@ -43,6 +43,7 @@ import {
 } from '@/lib/member-space';
 import { AcceptIntoBrainDialog } from '@/components/team-admin/review-dialogs';
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
+import { MEMBER_KIND } from '@/lib/member-kinds';
 import { useSpaceApi } from './space-api';
 import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
@@ -250,11 +251,14 @@ function MineItemLoaded({
   const refreshLists = useCallback(() => {
     if (admin) {
       void qc.invalidateQueries({ queryKey: ['admin-space-list'] });
+      // Private items list inside the kind's own screen too (item-list
+      // alignment): its list shows the new title, or the item gone.
+      void qc.invalidateQueries({ queryKey: [MEMBER_KIND[row.type].listKey] });
       return;
     }
     void qc.invalidateQueries({ queryKey: ['member-space-list'] });
     void qc.invalidateQueries({ queryKey: ['member-home'] });
-  }, [admin, qc]);
+  }, [admin, qc, row.type]);
   const refreshItem = useCallback(
     () =>
       void qc.invalidateQueries({ queryKey: [admin ? 'admin-space-item' : 'member-space-item'] }),

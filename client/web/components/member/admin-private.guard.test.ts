@@ -28,6 +28,7 @@ const MEMBER_ONLY = [
 describe('the admin private screens never reach a member-only route', () => {
   it.each([
     './admin-private-workspace.tsx',
+    '../item-list/admin-private-rows.tsx',
     './keep-private-field.tsx',
     './give-back-dialog.tsx',
     '../../lib/admin-private.ts',
@@ -36,10 +37,9 @@ describe('the admin private screens never reach a member-only route', () => {
     for (const needle of MEMBER_ONLY) expect(text, needle).not.toContain(needle);
   });
 
-  it('the private workspace opens items under the admin client only', () => {
-    const text = src('./admin-private-workspace.tsx');
+  it('a private item in an owner list opens under the admin client only', () => {
+    const text = src('../item-list/admin-private-rows.tsx');
     expect(text).toMatch(/<SpaceApiProvider client=\{adminSpace\}>\s*<MineItem/);
-    expect(text).toContain('adminSpace.listPath(');
   });
 
   it('MineItem shows sharing, review and the discussion to a member only', () => {
@@ -106,7 +106,7 @@ describe('each owner create flow routes Keep private into the private space', ()
   });
 
   it.each(['pages', 'notes', 'draw', 'tables', 'files'])(
-    'the %s screen mounts the private view for an admin only',
+    'the %s screen keeps old Private-view links working, for an admin only',
     (dir) => {
       const text = src(`../../app/(app)/${dir}/page.tsx`);
       expect(text).toMatch(

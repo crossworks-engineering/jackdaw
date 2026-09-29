@@ -4,18 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-  Search,
-  Trash2,
-} from 'lucide-react';
-import { cn } from '@mantle/web-ui/lib/utils';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
+import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from 'lucide-react';
 import { useListNav } from '@/lib/use-list-nav';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -26,7 +15,6 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { parseFlag, serialiseFlag, usePersistedState } from '@/lib/use-persisted-state';
-import { ListCard, ListCardMeta, ListCardTags, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   Dialog,
@@ -46,7 +34,25 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
-import { SpaceSwitch } from '@/components/member/admin-private-workspace';
+import type { AdminPrivateListRow } from '@mantle/client-types';
+import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import { ItemCard, ItemCardAction, ItemIcon, UpdatedStamp } from '@/components/item-list/item-card';
+import {
+  ItemListEmpty,
+  ItemListHeader,
+  ItemListScroll,
+  NewButton,
+} from '@/components/item-list/item-list-header';
+import { ClearFilter, SortMenu, StateFilter, TagFilter } from '@/components/item-list/item-filters';
+import { useCardDetails } from '@/components/item-list/use-card-details';
+import {
+  ADMIN_STATE_OPTIONS,
+  PrivateItemCard,
+  PrivateItemDetail,
+  adminStateOf,
+  isPrivateRow,
+  usePrivateOpen,
+} from '@/components/item-list/admin-private-rows';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { TableDetailClient } from './[id]/table-detail-client';
@@ -54,8 +60,17 @@ import type { TableDetail, TableRow, TableSort } from '@mantle/content-core/tabl
 
 const SORTS: TableSort[] = ['edited', 'newest', 'oldest', 'title'];
 
+const SORT_LABELS: Record<TableSort, string> = {
+  edited: 'Last edited',
+  newest: 'Newest',
+  oldest: 'Oldest',
+  title: 'Title A–Z',
+};
+
 type TablesListResponse = {
-  tables: TableRow[];
+  /** Brain tables, and with `state=all|private` the admin's own private
+   *  tables (AdminPrivateListRow, the `private` key marks them). */
+  tables: Array<TableRow | AdminPrivateListRow>;
   total: number;
   page: number;
   pageSize: number;
@@ -76,29 +91,40 @@ export function TablesShell() {
   const sort: TableSort = SORTS.includes(sortParam as TableSort)
     ? (sortParam as TableSort)
     : 'edited';
+  // Which items: all (default), the brain's, or this admin's private ones
+  // (item-list alignment). Always sent: the brain's default is `brain`.
+  const state = adminStateOf(searchParams);
+  const { pid, openPrivate } = usePrivateOpen();
+  const [details, changeDetails] = useCardDetails('mantle_tables_card_details_v1');
 
   const listQuery = useQuery({
-    queryKey: ['tables', { q: query, tag: activeTag, sort, page }],
+    queryKey: ['tables', { q: query, tag: activeTag, sort, page, state }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (activeTag) qs.set('tag', activeTag);
       if (sort !== 'edited') qs.set('sort', sort);
       if (page > 1) qs.set('page', String(page));
-      const s = qs.toString();
-      return apiFetch<TablesListResponse>(`/api/tables${s ? `?${s}` : ''}`);
+      qs.set('state', state);
+      return apiFetch<TablesListResponse>(`/api/tables?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
   });
 
-  const tables = listQuery.data?.tables ?? [];
+  const rows = listQuery.data?.tables ?? [];
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
   const tags = listQuery.data?.tags ?? [];
 
   // The full selected table (grid + draft) — a separate fetch since list rows
-  // are summaries. Defaults to the first row (master-detail convention).
-  const selectedId = (searchParams.get('selected')?.trim() || tables[0]?.id) ?? null;
+  // are summaries. Defaults to the first row (master-detail convention),
+  // which may be a private table: that one opens in its own item view.
+  const urlSelected = searchParams.get('selected')?.trim() || null;
+  const first = !urlSelected && !pid ? (rows[0] ?? null) : null;
+  const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
+  const selectedId = privateOpen
+    ? null
+    : (urlSelected ?? (first && !isPrivateRow(first) ? first.id : null));
   const selectedTableQuery = useQuery({
     queryKey: ['tables', selectedId],
     queryFn: () =>
@@ -145,8 +171,6 @@ export function TablesShell() {
     serialiseFlag,
   );
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
   // Which table is mid-open. Selecting is a server round-trip (the full grid is
   // loaded SSR), so without a cue the click feels dead for a beat. Set on click,
   // cleared once the new selection lands.
@@ -157,7 +181,7 @@ export function TablesShell() {
   const selectTable = (id: string) => {
     if (id === selectedId) return;
     setPendingId(id);
-    go({ selected: id });
+    go({ selected: id, pid: null });
   };
 
   // The WIDTH is `MasterDetail`'s now, under `master-detail:tables`.
@@ -288,153 +312,130 @@ export function TablesShell() {
         listCollapsed={collapsed}
         list={
           <>
-            <div className="space-y-3 border-b border-border p-3">
-              <SpaceSwitch kind="table" value="brain" />
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search
-                    className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden
-                  />
-                  <Input
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search tables…"
-                    className="h-8 pl-8"
-                  />
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 shrink-0"
-                  onClick={openCreate}
-                  aria-label="New table"
-                  title="New table"
-                >
-                  <Plus />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 shrink-0 text-muted-foreground"
-                  onClick={() => setCollapse(true)}
-                  aria-label="Collapse list"
-                  title="Collapse"
-                >
-                  <PanelLeftClose />
-                </Button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.slice(0, 12).map((t) => (
-                    <RowButton
-                      key={t.tag}
-                      onClick={() => go({ tag: activeTag === t.tag ? null : t.tag, page: 1 })}
-                      className={cn(
-                        'rounded-md border border-border px-2 py-0.5 text-xs transition-colors hover:bg-muted/50',
-                        activeTag === t.tag && 'border-primary bg-muted',
-                      )}
-                    >
-                      {t.tag} <span className="text-muted-foreground">{t.count}</span>
-                    </RowButton>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-              {tables.length === 0 ? (
-                <p className="px-1 py-10 text-center text-sm text-muted-foreground">
-                  No tables yet.
-                </p>
-              ) : (
-                tables.map((t) => (
-                  <ListCard
-                    key={t.id}
-                    onClick={() => selectTable(t.id)}
-                    data-mark-id={t.id}
-                    data-mark-kind="table"
-                    data-mark-label={t.title}
-                    aria-busy={pendingId === t.id}
-                    selected={selectedId === t.id || pendingId === t.id}
-                    className="group flex items-start gap-2"
+            <ItemListHeader
+              search={searchInput}
+              onSearch={setSearchInput}
+              placeholder="Search tables…"
+              actions={
+                <>
+                  <NewButton onClick={openCreate} />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-9 shrink-0 text-muted-foreground"
+                    onClick={() => setCollapse(true)}
+                    aria-label="Collapse list"
+                    title="Collapse"
                   >
-                    <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center text-base leading-none">
-                      {pendingId === t.id ? (
-                        <Loader2
-                          className="size-4 animate-spin text-muted-foreground"
-                          aria-hidden
-                        />
-                      ) : (
-                        t.icon || '📊'
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <ListCardTitle className="min-w-0">{t.title}</ListCardTitle>
-                        <AudienceBadge level={t.audience} />
-                      </div>
-                      <ListCardMeta>
-                        Updated {new Date(t.updatedAt).toLocaleDateString()} · {t.columnCount} cols
-                        · {t.rowCount} rows
-                      </ListCardMeta>
-                      {t.tags.length > 0 && (
-                        <ListCardTags>
+                    <PanelLeftClose />
+                  </Button>
+                </>
+              }
+            >
+              <SortMenu
+                value={sort}
+                labels={SORT_LABELS}
+                onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
+              />
+              <TagFilter
+                tags={tags}
+                activeTag={activeTag}
+                onSelect={(t) => go({ tag: t, page: null, pid: null })}
+                details={details}
+                onDetailsChange={changeDetails}
+                allLabel="All tables"
+              />
+              <StateFilter
+                value={state}
+                options={ADMIN_STATE_OPTIONS}
+                onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
+              />
+              {activeTag && (
+                <ClearFilter
+                  onClear={() => go({ tag: null, page: null })}
+                  title="Clear tag filter"
+                />
+              )}
+            </ItemListHeader>
+
+            <ItemListScroll pending={navPending}>
+              {rows.length === 0 ? (
+                <ItemListEmpty>
+                  {state === 'private' && !query
+                    ? 'You have no private tables. Only you would see them, until you accept one into the brain.'
+                    : query || activeTag
+                      ? 'No tables match your search or filter.'
+                      : 'No tables yet.'}
+                </ItemListEmpty>
+              ) : (
+                rows.map((t) =>
+                  isPrivateRow(t) ? (
+                    <PrivateItemCard
+                      key={t.id}
+                      row={t}
+                      selected={privateOpen === t.id}
+                      onSelect={() => openPrivate(t.id)}
+                    />
+                  ) : (
+                    <ItemCard
+                      key={t.id}
+                      id={t.id}
+                      kind="table"
+                      title={t.title}
+                      icon={
+                        pendingId === t.id ? (
+                          <ItemIcon
+                            fallback={
+                              <Loader2 className="animate-spin text-muted-foreground" aria-hidden />
+                            }
+                          />
+                        ) : (
+                          <ItemIcon emoji={t.icon || '📊'} fallback={null} />
+                        )
+                      }
+                      badge={<AudienceBadge level={t.audience} className="mt-0.5" />}
+                      selected={selectedId === t.id || pendingId === t.id}
+                      onSelect={() => selectTable(t.id)}
+                      footerStart={
+                        <>
+                          <UpdatedStamp at={t.updatedAt} />
+                          <span className="truncate text-xs text-muted-foreground tabular-nums">
+                            · {t.columnCount} cols · {t.rowCount} rows
+                          </span>
+                        </>
+                      }
+                      actions={
+                        <ItemCardAction
+                          label={`Delete ${t.title}`}
+                          title="Delete table"
+                          destructive
+                          onClick={() => setDeleteTarget(t)}
+                        >
+                          <Trash2 />
+                        </ItemCardAction>
+                      }
+                    >
+                      {details && t.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
                           {t.tags.map((tag) => (
                             <TagPill key={tag} tag={tag} />
                           ))}
-                        </ListCardTags>
+                        </div>
                       )}
-                    </div>
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDeleteTarget(t);
-                      }}
-                      className="shrink-0 self-center p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive-ink group-hover:opacity-100"
-                      aria-label={`Delete ${t.title}`}
-                      title="Delete table"
-                    >
-                      <Trash2 className="size-4" />
-                    </span>
-                  </ListCard>
-                ))
+                    </ItemCard>
+                  ),
+                )
               )}
-            </div>
+            </ItemListScroll>
 
-            {total > pageSize && (
-              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-                <span className="tabular-nums">{total} tables</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="tabular-nums">
-                    {page} / {totalPages}
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="size-7"
-                    disabled={page <= 1 || navPending}
-                    onClick={() => go({ page: page - 1 })}
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="size-7"
-                    disabled={page >= totalPages || navPending}
-                    onClick={() => go({ page: page + 1 })}
-                    aria-label="Next page"
-                  >
-                    <ChevronRight />
-                  </Button>
-                </div>
-              </div>
-            )}
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p > 1 ? p : null })}
+              noun={{ one: 'table', many: 'tables' }}
+            />
           </>
         }
         // The editor brings its own sticky toolbar above a scrolling grid, so
@@ -442,7 +443,13 @@ export function TablesShell() {
         // scroller can never overflow, so only one bar is ever painted.
         detail={
           <div className="relative h-full overflow-hidden">
-            {selectedTable && selectedTableQuery.isFetchedAfterMount ? (
+            {privateOpen ? (
+              <PrivateItemDetail
+                key={privateOpen}
+                id={privateOpen}
+                onClose={() => openPrivate(null)}
+              />
+            ) : selectedTable && selectedTableQuery.isFetchedAfterMount ? (
               <TableDetailClient key={selectedTable.id} initial={selectedTable} embedded />
             ) : selectedId && selectedTableQuery.isError ? (
               <>
@@ -469,7 +476,7 @@ export function TablesShell() {
               <>
                 <SetPageTitle title="Tables" />
                 <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
-                  {tables.length === 0 ? 'Create a table to get started.' : 'Select a table.'}
+                  {rows.length === 0 ? 'Create a table to get started.' : 'Select a table.'}
                 </div>
               </>
             )}

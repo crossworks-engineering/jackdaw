@@ -30,9 +30,7 @@ test.afterEach(async () => {
 
 const reviewItem = (id: string) => `/team-admin?view=review&item=${id}`;
 
-test('Take over asks first, names what moves, and opens it in the Private view', async ({
-  page,
-}) => {
+test('Take over asks first, names what moves, and opens it in the Pages list', async ({ page }) => {
   await page.goto(reviewItem(SUBMITTED_ID));
   await expect(page.getByRole('heading', { name: SUBMITTED_TITLE })).toBeVisible({
     timeout: 60_000,
@@ -51,19 +49,19 @@ test('Take over asks first, names what moves, and opens it in the Private view',
   expect(api.admin.takeOvers).toEqual([]);
 
   await dialog.getByRole('button', { name: 'Take over' }).click();
-  await expect(page).toHaveURL(new RegExp(`/pages\\?space=private&id=${SUBMITTED_ID}$`), {
+  await expect(page).toHaveURL(new RegExp(`/pages\\?pid=${SUBMITTED_ID}$`), {
     timeout: 30_000,
   });
   expect(api.admin.takeOvers).toEqual([SUBMITTED_ID]);
 
-  // The Private view: it lists "From <member>" beside the admin's own item,
-  // and the open item says who it is from.
-  const taken = page.getByRole('listitem').filter({ hasText: SUBMITTED_TITLE });
+  // The Pages list: the taken item lists "From <member>" with the private
+  // pill, beside the admin's own private item; the open item says who it is
+  // from too (the card and the item view: two).
+  const taken = page.locator(`[data-item-id="${SUBMITTED_ID}"]`);
   await expect(taken).toContainText(`From ${MEMBER_NAME}`, { timeout: 30_000 });
-  await expect(page.getByRole('listitem').filter({ hasText: ADMIN_OWN_TITLE })).not.toContainText(
-    'From ',
-  );
-  await expect(page.getByText(`From ${MEMBER_NAME}`, { exact: true })).toBeVisible();
+  await expect(taken).toContainText('private');
+  await expect(page.locator(`[data-item-id="${ADMIN_OWN_ID}"]`)).not.toContainText('From ');
+  await expect(page.getByText(`From ${MEMBER_NAME}`, { exact: true })).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'Give back' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accept into brain' })).toBeVisible();
   // The member can still take it back: no Delete (the brain would refuse).
@@ -106,10 +104,10 @@ test('a released item says so, can be taken over again, and takes no comments', 
   await expect(page.getByRole('textbox', { name: 'Reply to the author' })).toHaveCount(0);
 });
 
-test('Give back needs a note, sends it, and the item leaves the Private view', async ({ page }) => {
+test('Give back needs a note, sends it, and the item leaves the Pages list', async ({ page }) => {
   api.admin.queue = [];
   api.admin.privateIds = [SUBMITTED_ID, ADMIN_OWN_ID];
-  await page.goto(`/pages?space=private&id=${SUBMITTED_ID}`);
+  await page.goto(`/pages?pid=${SUBMITTED_ID}`);
   await page.getByRole('button', { name: 'Give back' }).click({ timeout: 60_000 });
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: `Give back to ${MEMBER_NAME}` })).toBeVisible();
@@ -122,8 +120,8 @@ test('Give back needs a note, sends it, and the item leaves the Private view', a
     timeout: 15_000,
   });
   expect(api.admin.giveBacks).toEqual([{ id: SUBMITTED_ID, note: 'Add the load test.' }]);
-  await expect(page.getByRole('listitem').filter({ hasText: SUBMITTED_TITLE })).toHaveCount(0);
-  await expect(page.getByRole('listitem').filter({ hasText: ADMIN_OWN_TITLE })).toBeVisible();
+  await expect(page.locator(`[data-item-id="${SUBMITTED_ID}"]`)).toHaveCount(0);
+  await expect(page.locator(`[data-item-id="${ADMIN_OWN_ID}"]`)).toBeVisible();
 });
 
 test('a refused Give back stays in the dialog and names the items to remove', async ({ page }) => {
@@ -133,7 +131,7 @@ test('a refused Give back stays in the dialog and names the items to remove', as
     status: 409,
     body: { error: 'uses things', reason: 'embed', ids: [ADMIN_OWN_ID] },
   };
-  await page.goto(`/pages?space=private&id=${SUBMITTED_ID}`);
+  await page.goto(`/pages?pid=${SUBMITTED_ID}`);
   await page.getByRole('button', { name: 'Give back' }).click({ timeout: 60_000 });
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('What needs to change').fill('Tidy it.');
@@ -144,7 +142,7 @@ test('a refused Give back stays in the dialog and names the items to remove', as
     timeout: 15_000,
   });
   const link = notice.getByRole('link', { name: ADMIN_OWN_TITLE });
-  await expect(link).toHaveAttribute('href', `/pages?space=private&id=${ADMIN_OWN_ID}`);
+  await expect(link).toHaveAttribute('href', `/pages?pid=${ADMIN_OWN_ID}`);
   // Still open, the note kept, nothing moved.
   await expect(dialog.getByLabel('What needs to change')).toHaveValue('Tidy it.');
   expect(api.admin.privateIds).toContain(SUBMITTED_ID);
@@ -165,7 +163,7 @@ test('once its member cannot take it back: no Give back, and Delete is offered',
   api.admin.queue = [];
   api.admin.privateIds = [SUBMITTED_ID];
   api.admin.authorActive = false;
-  await page.goto(`/pages?space=private&id=${SUBMITTED_ID}`);
+  await page.goto(`/pages?pid=${SUBMITTED_ID}`);
   await expect(page.getByText(`${MEMBER_NAME} cannot take this back any more.`)).toBeVisible({
     timeout: 60_000,
   });
@@ -179,7 +177,7 @@ test('once its member cannot take it back: no Give back, and Delete is offered',
 test('Accept into brain works on a taken item as on the admin’s own', async ({ page }) => {
   api.admin.queue = [];
   api.admin.privateIds = [SUBMITTED_ID];
-  await page.goto(`/pages?space=private&id=${SUBMITTED_ID}`);
+  await page.goto(`/pages?pid=${SUBMITTED_ID}`);
   await page.getByRole('button', { name: 'Accept into brain' }).click({ timeout: 60_000 });
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText(`by ${MEMBER_NAME}`);
@@ -187,4 +185,15 @@ test('Accept into brain works on a taken item as on the admin’s own', async ({
   await dialog.getByRole('button', { name: 'Accept into the brain' }).click();
   await expect(page).toHaveURL(new RegExp(`/pages/${SUBMITTED_ID}$`), { timeout: 15_000 });
   expect(api.admin.accepts.map((a) => a.id)).toEqual([SUBMITTED_ID]);
+});
+
+test('an old Private-view link lands on the item in the Pages list', async ({ page }) => {
+  api.admin.queue = [];
+  api.admin.privateIds = [SUBMITTED_ID, ADMIN_OWN_ID];
+  await page.goto(`/pages?space=private&id=${SUBMITTED_ID}`);
+  await expect(page).toHaveURL(new RegExp(`/pages\\?pid=${SUBMITTED_ID}$`), { timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'Give back' })).toBeVisible({ timeout: 30_000 });
+  // No Brain / Private switch any more: one list, the state as a pill.
+  await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
+  await expect(page.locator(`[data-item-id="${ADMIN_OWN_ID}"]`)).toContainText('private');
 });

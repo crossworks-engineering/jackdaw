@@ -81,12 +81,22 @@ import {
 import {
   ClearFilter,
   SortMenu,
+  StateFilter,
   TagFilter,
   type TagCount,
 } from '@/components/item-list/item-filters';
+import {
+  ADMIN_STATE_OPTIONS,
+  PrivateItemCard,
+  PrivateItemDetail,
+  adminStateOf,
+  isPrivateRow,
+  usePrivateOpen,
+  type AdminListState,
+} from '@/components/item-list/admin-private-rows';
+import { mergeSortedRows } from '@/components/item-list/merge-rows';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
-import { SpaceSwitch } from '@/components/member/admin-private-workspace';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { PageView } from '@/components/page-editor/page-view';
@@ -107,7 +117,11 @@ import {
   subtreeEditedAt,
 } from '@mantle/web-ui/page-tree';
 import { scrollBehavior } from '@mantle/web-ui/lib/motion';
-import type { PageListRow as ContractPageListRow, PageRow } from '@mantle/client-types';
+import type {
+  AdminPrivateListRow,
+  PageListRow as ContractPageListRow,
+  PageRow,
+} from '@mantle/client-types';
 
 // Wire shape is the GET /api/pages mapper's output — single source of truth
 // (the canonical row also carries `width`, unused by this list view). Drift
@@ -152,7 +166,9 @@ const SORTS: PageSort[] = ['edited', 'newest', 'oldest', 'title'];
 
 type PagesListResponse = {
   mode: 'tree' | 'list';
-  pages: PageListRow[];
+  /** Brain pages, and with `state=all|private` the admin's own private
+   *  pages (AdminPrivateListRow, the `private` key marks them). */
+  pages: Array<PageListRow | AdminPrivateListRow>;
   total: number;
   page: number;
   pageSize: number;
@@ -177,23 +193,31 @@ export function PagesClient() {
   // Drill-down: which level the list column is showing. null = top level.
   // Only meaningful in tree mode — a search spans levels, so it has no parent.
   const parentParam = searchParams.get('parent')?.trim() || null;
+  // Which items: all (default), the brain's, or this admin's private ones
+  // (item-list alignment). Always sent: the brain's default is `brain`.
+  const state = adminStateOf(searchParams);
+  const { pid, openPrivate } = usePrivateOpen();
 
   const listQuery = useQuery({
-    queryKey: ['pages', { q: query, tag: activeTag, sort, page }],
+    queryKey: ['pages', { q: query, tag: activeTag, sort, page, state }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (activeTag) qs.set('tag', activeTag);
       if (sort !== 'edited') qs.set('sort', sort);
       if (page > 1) qs.set('page', String(page));
-      const s = qs.toString();
-      return apiFetch<PagesListResponse>(`/api/pages${s ? `?${s}` : ''}`);
+      qs.set('state', state);
+      return apiFetch<PagesListResponse>(`/api/pages?${qs.toString()}`);
     },
     placeholderData: (prev) => prev, // keep the list visible while paging/filtering
   });
 
   const mode = listQuery.data?.mode ?? (query || activeTag ? 'list' : 'tree');
-  const pages = useMemo(() => listQuery.data?.pages ?? [], [listQuery.data?.pages]);
+  const rows = useMemo(() => listQuery.data?.pages ?? [], [listQuery.data?.pages]);
+  // The brain's pages drive the tree, drag and Move to…; private pages have
+  // no parent, so they list at the top level only (D3).
+  const pages = useMemo(() => rows.filter((r): r is PageListRow => !isPrivateRow(r)), [rows]);
+  const privateRows = useMemo(() => rows.filter(isPrivateRow), [rows]);
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
   const tags = listQuery.data?.tags ?? [];
@@ -225,8 +249,6 @@ export function PagesClient() {
   // only written that way. The toggle lives in the preview header below.
   const { zen } = useZenMode();
 
-  const selected = pages.find((p) => p.id === selectedId) ?? pages[0] ?? null;
-
   // Tree index: parent id → sorted children (null key = top-level). See
   // buildChildrenIndex for the orphan-as-root + cycle-safety rules.
   const childrenByParent = useMemo(() => buildChildrenIndex(pages), [pages]);
@@ -257,17 +279,33 @@ export function PagesClient() {
     () => (mode === 'tree' ? subtreeEditedAt(pages, childrenByParent) : null),
     [mode, pages, childrenByParent],
   );
-  const levelPages = useMemo(() => {
-    if (mode !== 'tree') return pages;
+  const levelPages = useMemo((): Array<PageListRow | AdminPrivateListRow> => {
+    if (mode !== 'tree') return rows;
     const level = childrenByParent.get(drillId) ?? [];
-    return sort === 'edited' && subtreeEdits ? sortBySubtreeEdit(level, subtreeEdits) : level;
-  }, [mode, pages, childrenByParent, drillId, sort, subtreeEdits]);
+    const ordered =
+      sort === 'edited' && subtreeEdits ? sortBySubtreeEdit(level, subtreeEdits) : level;
+    if (drillId !== null || privateRows.length === 0) return ordered;
+    // The top level holds the private pages too, in the same order.
+    return mergeSortedRows<PageListRow | AdminPrivateListRow>(
+      ordered,
+      privateRows,
+      pageLevelCompare(sort, subtreeEdits),
+    );
+  }, [mode, rows, childrenByParent, drillId, sort, subtreeEdits, privateRows]);
   const levelTotal = mode === 'tree' ? levelPages.length : total;
   const levelPageSize = mode === 'tree' ? LEVEL_PAGE_SIZE : pageSize;
   const visiblePages =
-    mode === 'tree'
-      ? levelPages.slice((page - 1) * LEVEL_PAGE_SIZE, page * LEVEL_PAGE_SIZE)
-      : pages;
+    mode === 'tree' ? levelPages.slice((page - 1) * LEVEL_PAGE_SIZE, page * LEVEL_PAGE_SIZE) : rows;
+
+  // What the detail shows: the private page `?pid=` names, else the brain
+  // page picked, else the first card of the list (auto-select), whichever
+  // kind it is.
+  const brainPicked = pages.find((p) => p.id === selectedId) ?? null;
+  const first = brainPicked ? null : (visiblePages[0] ?? null);
+  const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
+  const selected: PageListRow | null = privateOpen
+    ? null
+    : (brainPicked ?? (first && !isPrivateRow(first) ? first : null));
   const deleteHasChildren = deleteTarget ? hasChildren(deleteTarget.id) : false;
   useEffect(() => {
     if (!deleteTarget) {
@@ -367,13 +405,16 @@ export function PagesClient() {
     q?: string | null;
     sort?: PageSort;
     parent?: string | null;
+    state?: AdminListState;
   }) => {
     const nextTag = over.tag !== undefined ? over.tag : activeTag;
     const nextQ = over.q !== undefined ? over.q : query || null;
     const nextPage = over.page !== undefined ? over.page : page;
     const nextSort = over.sort !== undefined ? over.sort : sort;
     const nextParent = over.parent !== undefined ? over.parent : drillId;
+    const nextState = over.state ?? state;
     const params = new URLSearchParams();
+    if (nextState !== 'all') params.set('state', nextState);
     if (nextTag) params.set('tag', nextTag);
     if (nextQ) params.set('q', nextQ);
     if (nextPage && nextPage > 1) params.set('page', String(nextPage));
@@ -498,6 +539,16 @@ export function PagesClient() {
   // them, which is what Jason described and what makes the pager meaningful.
   const renderCards = (): ReactNode[] =>
     visiblePages.map((p) => {
+      if (isPrivateRow(p)) {
+        return (
+          <PrivateItemCard
+            key={p.id}
+            row={p}
+            selected={privateOpen === p.id}
+            onSelect={() => openPrivate(p.id)}
+          />
+        );
+      }
       // Tree mode counts from the index it holds. A search or tag filter holds
       // only the HITS, so there the count is the server's; null when the brain
       // predates it, which hides the drill link as before.
@@ -520,7 +571,7 @@ export function PagesClient() {
           }
           subEdit={subEdit}
           details={details}
-          selected={selected?.id === p.id}
+          selected={!privateOpen && selected?.id === p.id}
           allPages={pages}
           descendantIdsOf={descendantIdsOf}
           draggable={mode === 'tree'}
@@ -528,7 +579,10 @@ export function PagesClient() {
           dragging={activeId === p.id}
           onSelect={() => {
             setSelectedId(p.id);
-            if (!kids || kids <= 0) return;
+            if (!kids || kids <= 0) {
+              if (pid) openPrivate(null);
+              return;
+            }
             if (mode === 'list') leaveSearchFor(p.id, p.id);
             else go({ parent: p.id, page: 1 });
           }}
@@ -541,11 +595,13 @@ export function PagesClient() {
 
   const emptyState = (
     <ItemListEmpty>
-      {mode === 'list'
-        ? 'No pages match your search or filter.'
-        : drillParent
-          ? 'This page has no sub-pages.'
-          : 'No pages yet. Click “New” to start writing.'}
+      {state === 'private' && !query
+        ? 'You have no private pages. Only you would see them, until you accept one into the brain.'
+        : mode === 'list'
+          ? 'No pages match your search or filter.'
+          : drillParent
+            ? 'This page has no sub-pages.'
+            : 'No pages yet. Click “New” to start writing.'}
     </ItemListEmpty>
   );
 
@@ -593,9 +649,6 @@ export function PagesClient() {
         listCollapsed={zen}
         list={
           <>
-            <div className="border-b border-border px-4 pt-4">
-              <SpaceSwitch kind="page" value="brain" />
-            </div>
             <ItemListHeader
               search={searchInput}
               onSearch={setSearchInput}
@@ -617,6 +670,11 @@ export function PagesClient() {
                 details={details}
                 onDetailsChange={changeDetails}
                 allLabel="All pages"
+              />
+              <StateFilter
+                value={state}
+                options={ADMIN_STATE_OPTIONS}
+                onChange={(v) => go({ state: v, page: 1, parent: null })}
               />
               {activeTag && (
                 <ClearFilter onClear={() => go({ tag: null, page: 1 })} title="Clear tag filter" />
@@ -683,7 +741,17 @@ export function PagesClient() {
         // would scroll away with the page. 900px, not the 672px default: the
         // preview also holds the `xl:` outline rail (a 224px aside).
         detail={
-          selected ? (
+          privateOpen ? (
+            <MeasurePane id="pages-preview" defaultSize="900px" minSize="480px">
+              <div className="relative h-full min-h-0">
+                <PrivateItemDetail
+                  key={privateOpen}
+                  id={privateOpen}
+                  onClose={() => openPrivate(null)}
+                />
+              </div>
+            </MeasurePane>
+          ) : selected ? (
             <MeasurePane id="pages-preview" defaultSize="900px" minSize="480px">
               <div className="h-full min-h-0 overflow-y-auto scrollbar-thin">
                 <PagePreview
@@ -769,6 +837,28 @@ export function PagesClient() {
       </AlertDialog>
     </>
   );
+}
+
+/** The top level's order, for merging the private pages into it: the level
+ *  is already in `sort` order ("Last edited" by the newest edit in a page's
+ *  subtree), and so are the private pages (the brain sorts them). */
+function pageLevelCompare(
+  sort: PageSort,
+  subtreeEdits: Map<string, { at: string }> | null,
+): (a: PageListRow | AdminPrivateListRow, b: PageListRow | AdminPrivateListRow) => number {
+  const edited = (r: PageListRow | AdminPrivateListRow) =>
+    isPrivateRow(r) ? r.updatedAt : (subtreeEdits?.get(r.id)?.at ?? r.updatedAt);
+  const desc = (x: string, y: string) => (x < y ? 1 : x > y ? -1 : 0);
+  switch (sort) {
+    case 'newest':
+      return (a, b) => desc(a.createdAt, b.createdAt);
+    case 'oldest':
+      return (a, b) => -desc(a.createdAt, b.createdAt);
+    case 'title':
+      return (a, b) => a.title.localeCompare(b.title);
+    default:
+      return (a, b) => desc(edited(a), edited(b));
+  }
 }
 
 /** One page in the list column — the card treatment the rest of the system
