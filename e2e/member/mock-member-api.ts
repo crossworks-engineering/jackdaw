@@ -1,6 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { BrowserContext } from '@playwright/test';
+// The C5 answers are typed against the brain's contract (audit U7): a
+// contract change that the mock does not follow fails the typecheck here.
+import type {
+  ClientAcceptedItem,
+  ClientItemRow,
+  ClientItemsPage,
+  MemberClientRequestItem,
+  MemberSpaceItem,
+  MemberSpaceItemBody,
+  MemberSpaceItemRow,
+  NodeComment,
+} from '@mantle/client-types';
+import type {
+  ClientCommentThread,
+  ClientCommentsDeleted,
+  ClientStorageUsage,
+  ClientThreadActivity,
+} from '../../client/web/lib/contract-next';
 
 /**
  * An in-memory member API for the member specs: a real HTTP server in the
@@ -46,6 +64,16 @@ import type { BrowserContext } from '@playwright/test';
  * list and its read-only route (`clientRequests`) and the thread on a
  * client-level Library item; for an admin, a client's item in the Review
  * queue (CLIENT_SUBMISSION_ID, with what goes down with it at Client).
+ *
+ * Since the C5 audit fixes every C5 answer is typed against the contract
+ * (and the contract-next shim), comment threads are paged (`threadPageSize`,
+ * `?before=`), a client's own items include one a reviewer holds
+ * (`clientOwn.held`) and an accepted file changed since (`clientOwn.
+ * acceptedFile`); the member thread can be missing (`libraryThread` false,
+ * an older brain); and an admin reads and answers the owner thread on the
+ * client note (/api/nodes/:id/comments), and Team admin > Clients' client
+ * comments and storage cards (`admin.clientComments`, `admin.clientStorage`;
+ * null answers 404, an older brain).
  *
  * Since C2b it answers the public email sign-in code routes for every role,
  * as the brain does (`clientCodes` says whether this brain sends codes; the
@@ -220,6 +248,14 @@ export const CLIENT_RETURNED_TITLE = 'Door schedule';
 export const CLIENT_RETURNED_NOTE = 'Add the level 2 doors, please.';
 export const CLIENT_ACCEPTED_ID = '34343434-3434-4343-8343-343434343434';
 export const CLIENT_ACCEPTED_TITLE = 'Access hours';
+/** An own item a reviewer took over (`clientOwn.held`). */
+export const CLIENT_HELD_ID = '37373737-3737-4373-8373-373737373737';
+export const CLIENT_HELD_TITLE = 'Gate request';
+/** An accepted file an admin changed since (`clientOwn.acceptedFile`). */
+export const CLIENT_ACCEPTED_FILE_ID = '38383838-3838-4383-8383-383838383838';
+export const CLIENT_ACCEPTED_FILE_NAME = 'site-photo.png';
+/** A client's comment on the client note, as the owner thread reads it. */
+export const OWNER_THREAD_CLIENT_COMMENT = 'Can we move the handover to Thursday?';
 /** A reviewer's comment on the submitted note: the brand name, never a
  *  staff name. */
 export const REVIEWER_COMMENT = 'We will look at this on Monday.';
@@ -308,6 +344,12 @@ export type MockMemberApi = {
   clientRequests: boolean;
   /** Member role: the thread on the client-level Library page (C5). */
   libraryComments: MockComment[];
+  /** Member role: false answers the Library thread 404 (a brain before
+   *  C5). */
+  libraryThread: boolean;
+  /** Every thread answers this many of the newest comments a page (the
+   *  brain's is 100), with `hasMore` and `?before=`. */
+  threadPageSize: number;
   /** Client role: false makes every client route a 401 (the session ended,
    *  or nobody signed in yet); a good sign-in link sets it. */
   clientSession: boolean;
@@ -440,34 +482,28 @@ export type MockAdminState = {
   chatUsage: Record<string, unknown> | null;
   /** The Requests tab's rows (C4: a client's carries fromClient). */
   requests: Record<string, unknown>[];
+  /** The owner's comment threads (/api/nodes/:id/comments), by node id:
+   *  the client note's client thread holds a client's comment. */
+  nodeComments: Record<string, MockComment[]>;
+  /** Every comment the owner deleted (/api/comments/:id). */
+  commentDeletes: string[];
+  /** The review talk on a queue item, by id. */
+  reviewComments: Record<string, MockComment[]>;
+  /** Team admin > Clients > Client comments; null answers 404 (a brain
+   *  before the C5 audit fixes), and so does the per-client delete. */
+  clientComments: ClientThreadActivity | null;
+  /** Every "Delete this client's comments", by login id. */
+  clientCommentDeletes: string[];
+  /** Team admin > Clients > Client storage; null answers 404. */
+  clientStorage: ClientStorageUsage | null;
 };
 
-export type MockComment = {
-  id: string;
-  nodeId: string;
-  authorKind: 'owner' | 'member' | 'agent' | 'client';
-  authorName: string;
-  mine: boolean;
-  body: string;
-  createdAt: string;
-  editedAt: string | null;
-};
+export type MockComment = NodeComment;
 
 /** One item of a client's own space: the member space shapes. */
 export type MockClientItem = {
-  row: {
-    id: string;
-    type: 'page' | 'note' | 'file';
-    title: string;
-    icon: null;
-    sharing: 'private';
-    reviewState: 'draft' | 'submitted' | 'returned' | 'with-admin';
-    submittedAt: string | null;
-    returnedNote: string | null;
-    authorLoginId: string;
-    updatedAt: string;
-  };
-  body: Record<string, unknown>;
+  row: MemberSpaceItemRow & { type: 'page' | 'note' | 'file' };
+  body: MemberSpaceItemBody<Doc>;
 };
 
 export type MockClientOwn = {
@@ -490,6 +526,20 @@ export type MockClientOwn = {
   saves: { id: string; doc: unknown }[];
   /** The `state=` of every /api/client/items request, in order. */
   itemsStates: string[];
+  /** The `page=` of every /api/client/items request, in order. */
+  itemsPages: number[];
+  /** Rows a page of /api/client/items holds (the brain's is 50). */
+  itemsPageSize: number;
+  /** Own items also hold CLIENT_HELD_ID, which a reviewer took over: its
+   *  row says `with-admin`, and every route of it answers 409. */
+  held: boolean;
+  /** Accepted rows also hold CLIENT_ACCEPTED_FILE_ID, a file an admin
+   *  changed since (`changedByAdmin`). */
+  acceptedFile: boolean;
+  /** Set to have the next comment refused with this (a cap reached). */
+  commentRefusal: { status: number; body: unknown } | null;
+  /** Every own item deleted, by id. */
+  deletes: string[];
 };
 
 export type MockClientChat = {
@@ -597,9 +647,17 @@ export async function startMockMemberApi(
       recalls: [],
       saves: [],
       itemsStates: [],
+      itemsPages: [],
+      itemsPageSize: 50,
+      held: false,
+      acceptedFile: false,
+      commentRefusal: null,
+      deletes: [],
     },
     clientRequests: false,
     libraryComments: [],
+    libraryThread: true,
+    threadPageSize: 100,
     clientSession: true,
     clientSignIns: [],
     clientCodes: false,
@@ -662,6 +720,12 @@ export async function startMockMemberApi(
       memberChats: null,
       chatUsage: null,
       requests: [],
+      nodeComments: {},
+      commentDeletes: [],
+      reviewComments: {},
+      clientComments: null,
+      clientCommentDeletes: [],
+      clientStorage: null,
     },
     close: async () => undefined,
   };
@@ -864,6 +928,14 @@ export async function startMockMemberApi(
         });
         return true;
       }
+      if (tail === '/comments' && method === 'GET') {
+        A.reviewComments[id] ??= [];
+        await thread(req, res, url, A.reviewComments[id]!, id, undefined, method, {
+          kind: 'owner',
+          name: 'Ada Admin',
+        });
+        return true;
+      }
       if (tail === '/bundle' && method === 'GET') {
         json(res, 200, {
           items: moved(id).map(({ id: i, type, title }) => ({ id: i, type, title })),
@@ -908,6 +980,50 @@ export async function startMockMemberApi(
         newSinceAck,
         ...(A.reportFingerprint ? { fingerprint: fingerprint() } : {}),
       });
+      return true;
+    }
+    // The owner's thread on an item (tasks first; on an item at client
+    // level it is the client thread, C5 audit U2): paged, post as the admin,
+    // and any comment deleted (moderation).
+    const nodeThread = /^\/api\/nodes\/([^/]+)\/comments$/.exec(path);
+    if (nodeThread) {
+      const id = nodeThread[1]!;
+      A.nodeComments[id] ??= [];
+      await thread(req, res, url, A.nodeComments[id]!, id, undefined, method, {
+        kind: 'owner',
+        name: 'Ada Admin',
+      });
+      return true;
+    }
+    const oneComment = /^\/api\/comments\/([^/]+)$/.exec(path);
+    if (oneComment && method === 'DELETE') {
+      const cid = decodeURIComponent(oneComment[1]!);
+      A.commentDeletes.push(cid);
+      for (const list of Object.values(A.nodeComments)) {
+        const i = list.findIndex((c) => c.id === cid);
+        if (i >= 0) list.splice(i, 1);
+      }
+      json(res, 200, { ok: true });
+      return true;
+    }
+    // Team admin > Clients: the week's client comments, one client's
+    // comments deleted, and client storage (C5 audit fixes); null: 404.
+    if (path === '/api/team-admin/clients/comments' && method === 'GET') {
+      if (!A.clientComments) return (json(res, 404, { error: 'Not found.' }), true);
+      json(res, 200, A.clientComments satisfies ClientThreadActivity);
+      return true;
+    }
+    const clientComments = /^\/api\/team-admin\/clients\/([^/]+)\/comments$/.exec(path);
+    if (clientComments && method === 'DELETE') {
+      if (!A.clientComments) return (json(res, 404, { error: 'Not found.' }), true);
+      A.clientCommentDeletes.push(clientComments[1]!);
+      const answer: ClientCommentsDeleted = { deleted: 3 };
+      json(res, 200, answer);
+      return true;
+    }
+    if (path === '/api/team-admin/clients/storage' && method === 'GET') {
+      if (!A.clientStorage) return (json(res, 404, { error: 'Not found.' }), true);
+      json(res, 200, A.clientStorage satisfies ClientStorageUsage);
       return true;
     }
     // The Access control (audit A30): a client note with its own old link
@@ -1468,7 +1584,7 @@ export async function startMockMemberApi(
   };
 
   // ── A client's submitted item, as a member reads it (C5) ──────────────
-  const clientRequestSpaceRow = () => ({
+  const clientRequestSpaceRow = (): MemberSpaceItemRow => ({
     id: CLIENT_REQUEST_ID,
     type: 'note',
     title: CLIENT_REQUEST_TITLE,
@@ -1480,6 +1596,7 @@ export async function startMockMemberApi(
     authorLoginId: CLIENT_LOGIN_ID,
     updatedAt: now,
   });
+  const clientRequestAuthor = { name: CLIENT_NAME, acceptedAt: null, role: 'client' as const };
   const clientRequestRow = () => ({
     id: CLIENT_REQUEST_ID,
     type: 'note',
@@ -1490,29 +1607,34 @@ export async function startMockMemberApi(
     source: 'client-request',
     pill: 'submitted',
     audience: null,
-    author: { name: CLIENT_NAME, acceptedAt: null, role: 'client' },
+    author: clientRequestAuthor,
     byMe: false,
     space: clientRequestSpaceRow(),
   });
 
   // ── A client's own items and the shared threads (C5) ──────────────────
   const O = state.clientOwn;
+  // Distinct, increasing times: a thread pages by `createdAt`.
+  let commentClock = Date.parse('2026-09-01T08:00:00.000Z');
   const comment = (
     nodeId: string,
     authorKind: MockComment['authorKind'],
     authorName: string,
     body: string,
     mine = false,
-  ): MockComment => ({
-    id: `c-${Math.random().toString(36).slice(2, 10)}`,
-    nodeId,
-    authorKind,
-    authorName,
-    mine,
-    body,
-    createdAt: new Date().toISOString(),
-    editedAt: null,
-  });
+  ): MockComment => {
+    commentClock = Math.max(commentClock + 1000, Date.now());
+    return {
+      id: `c-${Math.random().toString(36).slice(2, 10)}`,
+      nodeId,
+      authorKind,
+      authorName,
+      mine,
+      body,
+      createdAt: new Date(commentClock).toISOString(),
+      editedAt: null,
+    };
+  };
   const clientRow = (
     id: string,
     type: MockClientItem['row']['type'],
@@ -1531,7 +1653,19 @@ export async function startMockMemberApi(
     authorLoginId: CLIENT_LOGIN_ID,
     updatedAt,
   });
-  const noteBody = (title: string, content: string) => ({
+  const clientPageBody = (title: string, text: string): MemberSpaceItemBody<Doc> => ({
+    type: 'page',
+    page: {
+      doc: {
+        type: 'doc',
+        content: text ? [{ type: 'paragraph', content: [{ type: 'text', text }] }] : [],
+      },
+      draft: null,
+      draftRev: 0,
+      title,
+    },
+  });
+  const noteBody = (title: string, content: string): MemberSpaceItemBody<Doc> => ({
     type: 'note',
     note: { content, title },
   });
@@ -1544,7 +1678,7 @@ export async function startMockMemberApi(
         'draft',
         '2026-09-28T12:00:00.000Z',
       ),
-      body: pageBody(CLIENT_DRAFT_TITLE, 'We would like a site visit.'),
+      body: clientPageBody(CLIENT_DRAFT_TITLE, 'We would like a site visit.'),
     },
     {
       row: clientRow(
@@ -1564,14 +1698,29 @@ export async function startMockMemberApi(
         'returned',
         '2026-09-26T12:00:00.000Z',
       ),
-      body: pageBody(CLIENT_RETURNED_TITLE, 'Level 1 doors.'),
+      body: clientPageBody(CLIENT_RETURNED_TITLE, 'Level 1 doors.'),
     },
   ];
+  /** The item a reviewer holds (`O.held`): its row only. */
+  const heldItem: MockClientItem = {
+    row: clientRow(
+      CLIENT_HELD_ID,
+      'note',
+      CLIENT_HELD_TITLE,
+      'with-admin',
+      '2026-09-29T09:00:00.000Z',
+    ),
+    body: noteBody(CLIENT_HELD_TITLE, 'Open the east gate at 6.'),
+  };
+  const ownItems = () => [...(O.held ? [heldItem] : []), ...O.items];
   O.comments[CLIENT_SUBMITTED_ID] = [
     comment(CLIENT_SUBMITTED_ID, 'member', CLIENT_SITE, REVIEWER_COMMENT),
   ];
   O.shared[SHARED_PAGE_ID] = [comment(SHARED_PAGE_ID, 'member', STAFF_NAME, SHARED_TEAM_COMMENT)];
-  const acceptedClientRow = () => ({
+  A.nodeComments[CLIENT_NOTE_ID] = [
+    comment(CLIENT_NOTE_ID, 'client', CLIENT_NAME, OWNER_THREAD_CLIENT_COMMENT),
+  ];
+  const acceptedNoteRow = (): ClientItemRow => ({
     id: CLIENT_ACCEPTED_ID,
     type: 'note',
     title: CLIENT_ACCEPTED_TITLE,
@@ -1582,20 +1731,62 @@ export async function startMockMemberApi(
     space: null,
     acceptedAt: ACCEPTED_AT,
   });
-  const pillOf = (r: MockClientItem['row']) =>
-    r.reviewState === 'draft' ? 'private' : r.reviewState;
-  /** The thread routes, the brain's rules: read and post; delete your own. */
+  const acceptedFileRow = (): ClientItemRow => ({
+    id: CLIENT_ACCEPTED_FILE_ID,
+    type: 'file',
+    title: CLIENT_ACCEPTED_FILE_NAME,
+    icon: null,
+    updatedAt: '2026-09-19T12:00:00.000Z',
+    source: 'accepted',
+    pill: null,
+    space: null,
+    acceptedAt: ACCEPTED_AT,
+  });
+  const pillOf = (r: MockClientItem['row']): ClientItemRow['pill'] =>
+    r.reviewState === 'draft'
+      ? 'private'
+      : r.reviewState === 'submitted' ||
+          r.reviewState === 'returned' ||
+          r.reviewState === 'with-admin'
+        ? r.reviewState
+        : null;
+  const heldRefusal = {
+    error: 'The reviewer is working on this item.',
+    reason: 'with-admin',
+  };
+
+  /**
+   * The thread routes, the brain's rules: read a page (the newest
+   * `threadPageSize`, oldest first, `hasMore`, `?before=`), post, and
+   * delete your own (`canDelete` false: any, as the owner moderates).
+   */
   const thread = async (
     req: IncomingMessage,
     res: ServerResponse,
+    url: URL,
     list: MockComment[],
     nodeId: string,
     commentId: string | undefined,
     method: string,
     author: { kind: MockComment['authorKind']; name: string },
+    opts: { anyDelete?: boolean } = {},
   ) => {
-    if (!commentId && method === 'GET') return json(res, 200, { comments: list });
+    if (!commentId && method === 'GET') {
+      const before = url.searchParams.get('before');
+      const older = before ? list.filter((c) => c.createdAt < before) : list;
+      const size = state.threadPageSize;
+      const page: ClientCommentThread = {
+        comments: older.slice(-size),
+        hasMore: older.length > size,
+      };
+      return json(res, 200, page);
+    }
     if (!commentId && method === 'POST') {
+      if (O.commentRefusal) {
+        const { status, body } = O.commentRefusal;
+        O.commentRefusal = null;
+        return json(res, status, body);
+      }
       const body = JSON.parse((await readBody(req)) || '{}') as { body?: string };
       const c = comment(nodeId, author.kind, author.name, body.body ?? '', true);
       list.push(c);
@@ -1604,7 +1795,7 @@ export async function startMockMemberApi(
     if (commentId && method === 'DELETE') {
       const i = list.findIndex((c) => c.id === commentId);
       if (i < 0) return json(res, 404, { error: 'Not found.' });
-      if (!list[i]!.mine)
+      if (!list[i]!.mine && !opts.anyDelete)
         return json(res, 403, { error: 'You can delete your own comments only.' });
       list.splice(i, 1);
       return json(res, 200, { ok: true });
@@ -1635,9 +1826,11 @@ export async function startMockMemberApi(
       const kind = url.searchParams.get('kind');
       const q = url.searchParams.get('q')?.toLowerCase() ?? '';
       const filter = url.searchParams.get('state') ?? 'all';
+      const pageNo = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
       O.itemsStates.push(filter);
+      O.itemsPages.push(pageNo);
       const rows = [
-        ...O.items.map((i) => ({
+        ...ownItems().map((i): ClientItemRow => ({
           id: i.row.id,
           type: i.row.type,
           title: i.row.title,
@@ -1648,7 +1841,8 @@ export async function startMockMemberApi(
           space: i.row,
           acceptedAt: null,
         })),
-        ...(O.accepted ? [acceptedClientRow()] : []),
+        ...(O.accepted ? [acceptedNoteRow()] : []),
+        ...(O.acceptedFile ? [acceptedFileRow()] : []),
       ]
         .filter((r) => !kind || r.type === kind)
         .filter((r) => !q || r.title.toLowerCase().includes(q))
@@ -1660,7 +1854,14 @@ export async function startMockMemberApi(
               : r.pill === filter,
         )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-      json(res, 200, { items: rows, total: rows.length, page: 1, pageSize: 50 });
+      const size = O.itemsPageSize;
+      const answer: ClientItemsPage = {
+        items: rows.slice((pageNo - 1) * size, pageNo * size),
+        total: rows.length,
+        page: pageNo,
+        pageSize: size,
+      };
+      json(res, 200, answer);
       return true;
     }
     if (path === '/api/client/space' && method === 'POST') {
@@ -1673,13 +1874,12 @@ export async function startMockMemberApi(
       const item: MockClientItem = {
         row: clientRow(id, body.type, body.title ?? '', 'draft', at),
         body:
-          body.type === 'page' ? pageBody(body.title ?? '', '') : noteBody(body.title ?? '', ''),
+          body.type === 'page'
+            ? clientPageBody(body.title ?? '', '')
+            : noteBody(body.title ?? '', ''),
       };
-      if (body.type === 'page') {
-        (item.body.page as Record<string, unknown>).doc = {
-          type: 'doc',
-          content: [{ type: 'paragraph' }],
-        };
+      if (item.body.type === 'page') {
+        item.body.page.doc = { type: 'doc', content: [{ type: 'paragraph' }] };
       }
       O.items.unshift(item);
       json(res, 201, { item: item.row });
@@ -1711,37 +1911,54 @@ export async function startMockMemberApi(
         },
       };
       O.items.unshift(item);
-      json(res, 201, { row: item.row });
+      // The brain answers the item as GET /api/client/space/:id would.
+      json(res, 201, { row: item.row, body: item.body } satisfies MemberSpaceItem<Doc>);
       return true;
     }
-    const acc = /^\/api\/client\/accepted\/([0-9a-f-]{36})$/.exec(path);
+    const acc = /^\/api\/client\/accepted\/([^/]+)$/.exec(path);
     if (acc) {
-      if (!O.accepted || acc[1] !== CLIENT_ACCEPTED_ID) {
-        return (json(res, 404, { error: 'Not found.' }), true);
-      }
-      json(res, 200, {
-        item: {
+      const base = { icon: null, acceptedAt: ACCEPTED_AT };
+      let item: ClientAcceptedItem | null = null;
+      if (O.accepted && acc[1] === CLIENT_ACCEPTED_ID) {
+        item = {
+          ...base,
           id: CLIENT_ACCEPTED_ID,
           type: 'note',
           title: CLIENT_ACCEPTED_TITLE,
-          icon: null,
-          acceptedAt: ACCEPTED_AT,
           updatedAt: '2026-09-20T12:00:00.000Z',
           content: 'The site is open 7 to 5 on weekdays.',
-        },
-      });
+        };
+      } else if (O.acceptedFile && acc[1] === CLIENT_ACCEPTED_FILE_ID) {
+        item = {
+          ...base,
+          id: CLIENT_ACCEPTED_FILE_ID,
+          type: 'file',
+          title: CLIENT_ACCEPTED_FILE_NAME,
+          updatedAt: '2026-09-19T12:00:00.000Z',
+          filename: CLIENT_ACCEPTED_FILE_NAME,
+          mimeType: 'image/png',
+          sizeBytes: 2048,
+          changedByAdmin: true,
+        };
+      }
+      if (!item) return (json(res, 404, { error: 'Not found.' }), true);
+      json(res, 200, { item });
       return true;
     }
-    const shared = /^\/api\/client\/shared\/([0-9a-f-]{36})\/comments(?:\/([^/]+))?$/.exec(path);
+    const shared = /^\/api\/client\/shared\/([^/]+)\/comments(?:\/([^/]+))?$/.exec(path);
     if (shared) {
       const [, id, commentId] = shared as unknown as [string, string, string | undefined];
       if (!sharedRows().some((r) => r.id === id))
         return (json(res, 404, { error: 'Not found.' }), true);
       O.shared[id] ??= [];
-      await thread(req, res, O.shared[id]!, id, commentId, method, me);
+      await thread(req, res, url, O.shared[id]!, id, commentId, method, me);
       return true;
     }
-    const own = /^\/api\/client\/space\/([0-9a-f-]{36})(\/[a-z-]+)?(?:\/([^/]+))?$/.exec(path);
+    if (O.held && path.startsWith(`/api/client/space/${CLIENT_HELD_ID}`)) {
+      json(res, 409, heldRefusal);
+      return true;
+    }
+    const own = /^\/api\/client\/space\/([^/]+)(\/[a-z-]+)?(?:\/([^/]+))?$/.exec(path);
     if (own) {
       const [, id, tail, extra] = own as unknown as [
         string,
@@ -1752,8 +1969,9 @@ export async function startMockMemberApi(
       const item = O.items.find((i) => i.row.id === id);
       if (!item) return (json(res, 404, { error: 'Not found.' }), true);
       const touch = () => (item.row.updatedAt = new Date().toISOString());
-      const page = item.body.page as { doc: Doc; draft: Doc | null; draftRev: number } | undefined;
-      if (!tail && method === 'GET') return (json(res, 200, item), true);
+      const page = item.body.type === 'page' ? item.body.page : undefined;
+      const answerItem = () => json(res, 200, item satisfies MemberSpaceItem<Doc>);
+      if (!tail && method === 'GET') return (answerItem(), true);
       if (!tail && method === 'PATCH') {
         const body = JSON.parse((await readBody(req)) || '{}') as {
           title?: string;
@@ -1767,13 +1985,14 @@ export async function startMockMemberApi(
           return true;
         }
         if (body.title !== undefined) item.row.title = body.title;
-        if (body.content !== undefined) {
-          (item.body.note as Record<string, unknown>).content = body.content;
+        if (body.content !== undefined && item.body.type === 'note') {
+          item.body.note.content = body.content;
         }
         touch();
-        return (json(res, 200, item), true);
+        return (answerItem(), true);
       }
       if (!tail && method === 'DELETE') {
+        O.deletes.push(id);
         O.items = O.items.filter((i) => i !== item);
         return (json(res, 200, { ok: true }), true);
       }
@@ -1786,12 +2005,13 @@ export async function startMockMemberApi(
           });
           return true;
         }
-        if (body.if_rev !== undefined && body.if_rev !== page.draftRev) {
-          json(res, 409, { error: 'The draft changed.', current_rev: page.draftRev });
+        const rev = page.draftRev ?? 0;
+        if (body.if_rev !== undefined && body.if_rev !== rev) {
+          json(res, 409, { error: 'The draft changed.', current_rev: rev });
           return true;
         }
         page.draft = body.doc;
-        page.draftRev += 1;
+        page.draftRev = rev + 1;
         touch();
         return (json(res, 200, { ok: true, draft_rev: page.draftRev }), true);
       }
@@ -1801,7 +2021,7 @@ export async function startMockMemberApi(
         page.doc = body.doc;
         page.draft = null;
         touch();
-        return (json(res, 200, item), true);
+        return (answerItem(), true);
       }
       if (tail === '/submit' && method === 'POST') {
         O.submits.push(id);
@@ -1835,7 +2055,7 @@ export async function startMockMemberApi(
       if (tail === '/bytes') return (send(res, 200, 'image/png', PNG_1PX), true);
       if (tail === '/comments') {
         O.comments[id] ??= [];
-        await thread(req, res, O.comments[id]!, id, extra, method, me);
+        await thread(req, res, url, O.comments[id]!, id, extra, method, me);
         return true;
       }
     }
@@ -2157,10 +2377,12 @@ export async function startMockMemberApi(
     }
     if (path === `/api/member/client-requests/${CLIENT_REQUEST_ID}` && method === 'GET') {
       if (!state.clientRequests) return json(res, 404, { error: 'Not found.' });
-      return json(res, 200, {
+      const item: MemberClientRequestItem<Doc> = {
         row: clientRequestSpaceRow(),
         body: { type: 'note', note: { content: CLIENT_REQUEST_TEXT, title: CLIENT_REQUEST_TITLE } },
-      });
+        author: clientRequestAuthor,
+      };
+      return json(res, 200, item);
     }
     // The thread on a Library item at client level (C5); a team item has none.
     const libThread = /^\/api\/member\/library\/([0-9a-f-]{36})\/comments(?:\/([^/]+))?$/.exec(
@@ -2168,8 +2390,10 @@ export async function startMockMemberApi(
     );
     if (libThread) {
       const [, id, commentId] = libThread as unknown as [string, string, string | undefined];
-      if (id !== LIBRARY_CLIENT_ID) return json(res, 404, { error: 'Not found.' });
-      return thread(req, res, state.libraryComments, id, commentId, method, {
+      if (id !== LIBRARY_CLIENT_ID || !state.libraryThread) {
+        return json(res, 404, { error: 'Not found.' });
+      }
+      return thread(req, res, url, state.libraryComments, id, commentId, method, {
         kind: 'member',
         name: MEMBER_NAME,
       });

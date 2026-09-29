@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "End-to-end regression net for the server/client split — runs against a live stack, parameterized same-origin vs split topology.",
+  "description": "End-to-end regression net for the server/client split \u2014 runs against a live stack, parameterized same-origin vs split topology.",
   "scripts": {
     "e2e": "playwright test",
     "e2e:same": "playwright test --project=same-origin",
@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@mantle/client-types": "npm:@crossworks/client-types@0.232.342",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.4.1",
     "typescript": "^5.9.3"

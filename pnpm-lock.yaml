@@ -269,6 +269,9 @@ importers:
 
   e2e:
     devDependencies:
+      '@mantle/client-types':
+        specifier: npm:@crossworks/client-types@0.232.342
+        version: '@crossworks/client-types@0.232.342'
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
