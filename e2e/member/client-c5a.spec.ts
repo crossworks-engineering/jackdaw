@@ -530,7 +530,7 @@ test.describe('an admin', () => {
     );
 
     await page.getByRole('button', { name: `More for ${CLIENT_NAME}` }).click();
-    await page.getByRole('menuitem', { name: 'Delete this client’s comments' }).click();
+    await page.getByRole('menuitem', { name: "Delete this client's comments" }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText(`Delete every comment ${CLIENT_NAME} wrote?`);
     expect(api.admin.clientCommentDeletes).toEqual([]);

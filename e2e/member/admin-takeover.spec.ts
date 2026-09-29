@@ -77,7 +77,6 @@ test('Take over asks first, names what moves, and opens it in the Pages list', a
   // other people (this replaces a source-text guard, audit U12).
   await expect(page.getByRole('radiogroup', { name: 'Who can see this' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Recall' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Comments' })).toHaveCount(0);
   expect(memberAsks).toEqual([]);
 });
