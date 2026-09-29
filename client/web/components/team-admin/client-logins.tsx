@@ -7,6 +7,9 @@
  * client has no password, so a link is the only way in: one use, 72 hours,
  * and a new one revokes the old.
  *
+ * Below the list, Sign-in codes by email (C2b): the account codes are
+ * mailed from, for a client with no link.
+ *
  * Add client and Issue sign-in link stay disabled until "What clients see"
  * is checked (the brain refuses both until then: every client login reads
  * every client-level item). The code and link are in the issue answer ONCE,
@@ -78,6 +81,7 @@ import type {
   ClientSigninLinkCreated,
 } from '@mantle/client-types';
 import { signLoginOutEverywhere } from '../../lib/sign-out-everywhere';
+import { ClientSigninSenderPanel } from './client-signin-sender';
 
 function useClientLogins() {
   return useQuery({
@@ -218,6 +222,7 @@ export function ClientLoginsPanel() {
           onEnable={(row) => void enable(row)}
         />
       )}
+      <ClientSigninSenderPanel />
 
       <AddClientDialog open={addOpen} onOpenChange={setAddOpen} onCreated={() => void refresh()} />
       <SigninLinkDialog issued={issued} onClose={() => setIssued(null)} />
