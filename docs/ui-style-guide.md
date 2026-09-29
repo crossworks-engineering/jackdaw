@@ -966,6 +966,10 @@ screen whose card has loaded is then free, and the list warms the cache.
 
 ### Sibling-view tabs: top of the list pane
 
+⚠ **Not for filtering one collection.** Sources or states of the SAME items
+(Mine / Library, Brain / Private) are not sibling views: show them in one
+list with a state pill and a State filter (see "The item list kit" below).
+
 When a screen offers a **selection between sibling views or routes** and lives
 in the resizable card-list scaffold, the switcher goes in the **navigation area
 at the top of the LIST pane** — its own `border-b border-border p-3` row,
@@ -1086,6 +1090,63 @@ hold either way:
   a debounced search input, and **`<ListPager>`** (footer count + prev/next,
   shown whenever there are rows). Don't filter a loaded list in `useMemo`,
   paginating a client-filtered slice is wrong.
+
+### The item list kit: one list, state as a pill (2026-09-29)
+
+Every list of ITEMS (the admin Pages, Notes, Tables and Draw screens, the
+member workspace for each kind, the client portal's "Shared with you") is
+built from ONE kit, `client/web/components/item-list/`. Do not hand-roll a
+list header, card, filter row or pager on a list screen again; extend the
+kit instead. Files keeps its file-manager layout (a folder rail and a
+table), but follows the same state rule below.
+
+**The rule (Jason, 2026-09-29): show everything the reader can see, by
+default, and say each item's state on the item.** A list never hides items
+behind a source switch (Mine / Team drafts / Library / Accepted, Brain /
+Private), never preselects a source, and never opens on the emptiest view.
+Where an item stands is a small pill on its card; the reader narrows the
+list with a quiet State filter only when they want to.
+
+- **Header: `<ItemListHeader>`**: the search box and the create actions
+  (`<NewButton>`, an Upload button) on one row, the filter row under it.
+  `heading` only where the screen has no page title of its own (the client
+  portal).
+- **Filter row: quiet ghost triggers, never a row of blocks.** `<SortMenu>`,
+  `<TagFilter>` (a popover combobox that also holds the card density switch),
+  `<StateFilter>` (All items first; the pills, then groups such as Brain or By
+  me), `<ChoiceFilter>` for any other short choice (the client's kind),
+  `<DetailsToggle>` where there are no tags to hold the density switch, and
+  `<ClearFilter>` while a filter is on. A segmented `ToggleGroup` of sources
+  above the list is exactly what this replaced.
+- **Card: `<ItemCard>`**, the /pages card anatomy: the leading glyph
+  (`<ItemIcon>`), the TITLE written out in full (it wraps), a level badge
+  beside it, then a footer row: the drag handle and the updated stamp
+  (`<UpdatedStamp>`) or a sub-page link at the start; the state pill, then the
+  actions (`<ItemCardAction>`) at the end. The pill sits immediately LEFT of
+  the first action. Summaries and tags only with the density switch on.
+  Actions a reader may not take are simply absent: no disabled buttons.
+- **State pill: `<StatePill>`**, lower-case words, `rounded-full border px-2
+  py-0.5 text-[11px]`: `private`, `draft` (shared with the team), `submitted`
+  (info ink), `returned` (warning ink), `with admin`. The words are the
+  brain's (`MemberItemPill`); the brain's own items wear none. One pill per
+  card.
+- **Scroll area and pager: `<ItemListScroll>`, `<ItemListEmpty>` and
+  `<ListPager noun>`** ("26 pages · page 1 / 2"). The pager is always the
+  shared one.
+- **The brain merges, never the client.** A list that mixes sources (a
+  member's own items and the Library, an admin's private items and the
+  brain's) is ONE request the brain answers merged and paged
+  (`GET /api/member/items`, `?state=` on the admin lists). Never merge two
+  paged lists in the browser: page 2 of a client-side merge is wrong. The
+  State filter goes to the brain the same way.
+- **URL-driven, as §8 says**: `q`, `state`, `page` (and `sort`, `tag`,
+  `kind`) in the URL; the open item too (`?id=`, `?selected=`, and `?pid=` for
+  an admin's private item). The first card opens on a wide screen; a phone
+  shows the list first.
+
+The reference screens: `/pages` (the admin card, drag and drill-down) and the
+member workspace (`components/member/member-workspace.tsx`, the one list with
+every pill).
 
 ### Detail header anatomy (right pane)
 
@@ -1236,3 +1297,9 @@ as deep links** even after a master-detail supersedes the in-app navigation
 - ❌ `text-[10px]`/`text-[11px]` for normal list/table text (use `text-xs`+).
 - ❌ The Enabled toggle buried in the form body on a master-detail editor; it
   goes top-right in the header as a `Switch`.
+- ❌ A source or state switch above a list (Mine / Team drafts / Library,
+  Brain / Private) that hides items until the reader picks one, or a list that
+  preselects a source. One list of everything, the state as a pill on the
+  card, a quiet State filter (§8, "The item list kit").
+- ❌ A hand-rolled list header, card, filter row or pager on a list screen:
+  compose `components/item-list/` (§8).
