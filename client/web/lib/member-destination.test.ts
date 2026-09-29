@@ -7,6 +7,7 @@ import {
   isMemberLoginRefusal,
   loginRefusalReason,
   memberHome,
+  onboardingExitFor,
 } from './member-destination';
 import { sendsMemberHome } from './member-surface';
 
@@ -134,5 +135,23 @@ describe('the client-login refusal (client logins C0)', () => {
     }
     expect(isLoginRefusal(new ApiError('boom', 500))).toBe(false);
     expect(isLoginRefusal(new ApiError('Forbidden', 403))).toBe(false);
+  });
+});
+
+describe('onboardingExitFor (audit A30e)', () => {
+  const refused = (reason: string) =>
+    new ApiError('forbidden', 403, { error: 'forbidden', reason });
+
+  it('sends a member or client login home instead of a dead-end Retry', () => {
+    expect(onboardingExitFor(refused('member-login'))).toBe('/');
+    expect(onboardingExitFor(refused('client-login'))).toBe('/');
+  });
+
+  it('stays for anything Retry may cure, or nothing at all', () => {
+    expect(onboardingExitFor(null)).toBeNull();
+    expect(onboardingExitFor(new ApiError('boom', 500))).toBeNull();
+    expect(onboardingExitFor(new ApiError('Forbidden', 403))).toBeNull();
+    expect(onboardingExitFor(new TypeError('fetch failed'))).toBeNull();
+    expect(onboardingExitFor(refused('admin-login'))).toBeNull();
   });
 });

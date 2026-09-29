@@ -37,6 +37,7 @@ import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { ToastProvider, useToast } from '@mantle/web-ui/ui/toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { isLoginRefusal, onboardingExitFor } from '@/lib/member-destination';
 import { PurposeFieldNote } from '@/components/purpose-field-note';
 import { checkPurpose } from '@/lib/purpose-input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -116,12 +117,20 @@ function OnboardingGate() {
   const stateQuery = useQuery({
     queryKey: ['onboarding'],
     queryFn: () => apiFetch<OnboardingState>('/api/onboarding'),
+    // A refusal is for good: retrying only delays leaving.
+    retry: (count, err) => !isLoginRefusal(err) && count < 1,
   });
   useEffect(() => {
     if (stateQuery.data?.onboarded && !force) router.replace('/');
   }, [stateQuery.data, force, router]);
+  // A member or client login is refused here: home, where the shell shows
+  // that login its own screen (not a Retry that is refused again).
+  const exit = stateQuery.data ? null : onboardingExitFor(stateQuery.error);
+  useEffect(() => {
+    if (exit) router.replace(exit);
+  }, [exit, router]);
 
-  if (stateQuery.isPending || (stateQuery.data?.onboarded && !force)) {
+  if (stateQuery.isPending || exit || (stateQuery.data?.onboarded && !force)) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <Spinner />

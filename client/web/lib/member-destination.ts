@@ -66,6 +66,15 @@ export function isClientLoginRefusal(err: unknown): boolean {
   return loginRefusalReason(err) === 'client-login';
 }
 
+/** Onboarding is an admin's (its route refuses anyone else). A member or
+ *  client login that lands on /onboarding goes home, where the shell shows
+ *  its own screen, instead of a Retry that can only be refused again. Null:
+ *  stay (loading, or any other failure, which Retry may cure). */
+export function onboardingExitFor(err: unknown): '/' | null {
+  const reason = loginRefusalReason(err);
+  return reason === 'member-login' || reason === 'client-login' ? '/' : null;
+}
+
 /**
  * After sign-in: a member goes to the member home (or `next` when a member may
  * open it), a client login to `/` (the client home; no deep link into the
