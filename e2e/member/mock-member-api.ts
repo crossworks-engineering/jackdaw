@@ -10,7 +10,10 @@ import type { BrowserContext } from '@playwright/test';
  *
  * Started with `{ role: 'admin' }` it answers an ADMIN instead: the shell,
  * the Review queue and the admin's private space, enough for Take over and
- * Give back (audit F07). Anything else an admin screen asks for is a 404.
+ * Give back (audit F07); "What clients see" and its acknowledgement; and one
+ * client note's Access control with old client links (the client logins
+ * audit). `admin.shellFailures` makes /api/shell answer 500 that many times
+ * (the Try again screen). Anything else an admin screen asks for is a 404.
  *
  * A server rather than page.route(): a write the browser starts while the tab
  * unloads (the leave flush on a reload, sent keepalive) outlives the page,
@@ -150,6 +153,17 @@ export const LIBRARY_CLIENT_TITLE = 'Client handover';
 /** The admin's "What clients see" item (client logins C1). */
 export const CLIENT_ITEM_ID = '12121212-1212-4121-8121-121212121212';
 export const CLIENT_ITEM_TITLE = 'Project brief';
+/** A second client item, gone to client after the check, reachable through
+ *  an old link on a folder above it (audit A7, A11, A25). */
+export const NEW_CLIENT_ITEM_ID = '18181818-1818-4181-8181-181818181818';
+export const NEW_CLIENT_ITEM_TITLE = 'Launch plan';
+export const OLD_FOLDER_SHARE_ID = '21212121-2121-4212-8212-212121212121';
+export const OLD_FOLDER_TITLE = 'Handover folder';
+/** A client-level note with its own old client link (made when client meant
+ *  "anyone with the link") and one on a folder above it (audit A30, A11). */
+export const CLIENT_NOTE_ID = '19191919-1919-4191-8191-191919191919';
+export const CLIENT_NOTE_TITLE = 'Client note';
+export const OLD_NOTE_SHARE_ID = '20202020-2020-4202-8202-202020202020';
 
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
@@ -247,8 +261,26 @@ export type MockAdminState = {
   giveBacks: { id: string; note: string }[];
   accepts: { id: string; body: unknown }[];
   deletes: string[];
-  /** "What clients see": the ids of each acknowledgement sent. */
+  /** "What clients see": the ids of each acknowledgement recorded. */
   clientAcks: string[][];
+  /** Every acknowledgement body sent, as sent. */
+  clientAckBodies: unknown[];
+  /** The client-level items the report lists (CLIENT_ITEM_ID,
+   *  NEW_CLIENT_ITEM_ID). */
+  clientItems: string[];
+  /** The report carries a fingerprint (a current brain); false: an older
+   *  one, acknowledged by the ids shown. */
+  reportFingerprint: boolean;
+  /** The next acknowledgement answers 409 report-changed (the set moved). */
+  reportChangedOnce: boolean;
+  /** /api/shell answers 500 this many more times (the Try again screen). */
+  shellFailures: number;
+  /** Every /api/shell request. */
+  shellCalls: number;
+  /** CLIENT_NOTE_ID's own old client link is live. */
+  noteShare: boolean;
+  /** Link revokes (DELETE /api/shares/:id), by share id. */
+  revokes: string[];
   /** Team admin > Clients: the client logins, and what was done to them. */
   clientLogins: Record<string, unknown>[];
   clientCreates: unknown[];
@@ -321,6 +353,14 @@ export async function startMockMemberApi(
       accepts: [],
       deletes: [],
       clientAcks: [],
+      clientAckBodies: [],
+      clientItems: [CLIENT_ITEM_ID],
+      reportFingerprint: true,
+      reportChangedOnce: false,
+      shellFailures: 0,
+      shellCalls: 0,
+      noteShare: true,
+      revokes: [],
       clientLogins: [],
       clientCreates: [],
       signinLinksIssued: [],
@@ -374,6 +414,49 @@ export async function startMockMemberApi(
 
   // ── The admin side (role 'admin') ─────────────────────────────────────
   const A = state.admin;
+  const fingerprint = () => `fp-${[...A.clientItems].sort().join(',')}`;
+  const folderLink = () => ({
+    shareId: OLD_FOLDER_SHARE_ID,
+    nodeId: 'f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0',
+    title: OLD_FOLDER_TITLE,
+    type: 'branch',
+    via: 'folder',
+  });
+  const reportItem = (id: string) =>
+    id === NEW_CLIENT_ITEM_ID
+      ? {
+          id,
+          type: 'file',
+          title: NEW_CLIENT_ITEM_TITLE,
+          updatedAt: now,
+          link: null,
+          emailedTo: [],
+          refsAbove: [],
+          oldLinksAbove: [folderLink()],
+        }
+      : {
+          id: CLIENT_ITEM_ID,
+          type: 'page',
+          title: CLIENT_ITEM_TITLE,
+          updatedAt: now,
+          link: null,
+          emailedTo: ['pat@example.com'],
+          refsAbove: [
+            { id: ADMIN_OWN_ID, type: 'page', title: 'Internal pricing', audience: 'team' },
+            // Not the brain's (a personal item): never its title.
+            { id: 'abababab-abab-4aba-8aba-abababababab', type: null, title: null, audience: null },
+          ],
+        };
+  const noteRow = () => ({
+    id: CLIENT_NOTE_ID,
+    title: CLIENT_NOTE_TITLE,
+    content: 'For the client.',
+    tags: [],
+    summary: null,
+    createdAt: now,
+    updatedAt: now,
+    audience: 'client',
+  });
   const member = () => ({
     loginId: 'login-1',
     name: MEMBER_NAME,
@@ -424,6 +507,12 @@ export async function startMockMemberApi(
     method: string,
   ): Promise<boolean> => {
     if (path === '/api/shell') {
+      A.shellCalls += 1;
+      if (A.shellFailures > 0) {
+        A.shellFailures -= 1;
+        json(res, 500, { error: 'Internal Server Error' });
+        return true;
+      }
       json(res, 200, {
         onboarded: true,
         avatar: null,
@@ -488,30 +577,61 @@ export async function startMockMemberApi(
       json(res, 404, { error: `not mocked: ${method} ${path}` });
       return true;
     }
-    // "What clients see" (client logins C1): one client item, until acked.
+    // "What clients see" (client logins C1): the client items, what went to
+    // client since the newest acknowledgement, and (a current brain) the
+    // fingerprint of the whole set.
     if (path === '/api/access/client-report' && method === 'GET') {
       const last = A.clientAcks.at(-1);
+      const newSinceAck = A.clientItems.filter((id) => !last?.includes(id));
       json(res, 200, {
-        items: [
-          {
-            id: CLIENT_ITEM_ID,
-            type: 'page',
-            title: CLIENT_ITEM_TITLE,
-            updatedAt: now,
-            link: null,
-            emailedTo: ['pat@example.com'],
-            refsAbove: [
-              { id: ADMIN_OWN_ID, type: 'page', title: 'Internal pricing', audience: 'team' },
-            ],
-          },
-        ],
-        total: 1,
+        items: A.clientItems.map(reportItem),
+        total: A.clientItems.length,
         acknowledgement: last
           ? { ackedAt: now, ackedBy: { id: 'admin-1', name: 'Ada Admin' }, itemCount: last.length }
           : null,
-        acknowledged: last?.includes(CLIENT_ITEM_ID) ?? false,
-        newSinceAck: [],
+        acknowledged: !!last && newSinceAck.length === 0,
+        newSinceAck,
+        ...(A.reportFingerprint ? { fingerprint: fingerprint() } : {}),
       });
+      return true;
+    }
+    // The Access control (audit A30): a client note with its own old link
+    // and one on a folder above it; the popover reads it and revokes links.
+    if (path === '/api/notes' && method === 'GET') {
+      json(res, 200, { notes: [noteRow()], total: 1, page: 1, pageSize: 50, tags: [] });
+      return true;
+    }
+    if (path === `/api/notes/${CLIENT_NOTE_ID}` && method === 'GET') {
+      json(res, 200, { note: noteRow() });
+      return true;
+    }
+    if (path === `/api/access/nodes/${CLIENT_NOTE_ID}` && method === 'GET') {
+      json(res, 200, {
+        item: { id: CLIENT_NOTE_ID, type: 'note', title: CLIENT_NOTE_TITLE, audience: 'client' },
+        closure: [],
+        share: A.noteShare
+          ? {
+              id: OLD_NOTE_SHARE_ID,
+              token: 'oldnotetoken',
+              path: '/s/oldnotetoken',
+              mode: 'public',
+              cascade: false,
+            }
+          : null,
+        childCount: 0,
+        canLower: true,
+        canLink: true,
+        embedsFollow: true,
+        openLinkLevels: ['public'],
+        oldLinksAbove: A.revokes.includes(OLD_FOLDER_SHARE_ID) ? [] : [folderLink()],
+      });
+      return true;
+    }
+    const share = /^\/api\/shares\/([0-9a-f-]{36})$/.exec(path);
+    if (share && method === 'DELETE') {
+      A.revokes.push(share[1]!);
+      if (share[1] === OLD_NOTE_SHARE_ID) A.noteShare = false;
+      json(res, 200, { ok: true });
       return true;
     }
     // Team admin > Clients (client logins C2). Acknowledged once What
@@ -589,15 +709,29 @@ export async function startMockMemberApi(
       }
     }
     if (path === '/api/access/client-report/ack' && method === 'POST') {
-      const body = JSON.parse(await readBody(req)) as { itemIds: string[] };
-      A.clientAcks.push(body.itemIds);
+      const body = JSON.parse(await readBody(req)) as { itemIds?: string[]; fingerprint?: string };
+      A.clientAckBodies.push(body);
+      if (A.reportChangedOnce || (body.fingerprint && body.fingerprint !== fingerprint())) {
+        A.reportChangedOnce = false;
+        json(res, 409, {
+          error: 'conflict',
+          reason: 'report-changed',
+          message: 'The client list changed. Reload it and check again.',
+        });
+        return true;
+      }
+      // A fingerprint acknowledges the whole current set; ids, what was shown.
+      const ids = body.fingerprint
+        ? [...A.clientItems]
+        : (body.itemIds ?? []).filter((id) => A.clientItems.includes(id));
+      A.clientAcks.push(ids);
       json(res, 200, {
         acknowledgement: {
           ackedAt: now,
           ackedBy: { id: 'admin-1', name: 'Ada Admin' },
-          itemCount: body.itemIds.length,
+          itemCount: ids.length,
         },
-        acknowledged: true,
+        acknowledged: A.clientItems.every((id) => ids.includes(id)),
       });
       return true;
     }

@@ -108,10 +108,19 @@ test.describe('What clients see', () => {
     ).toBeVisible();
     await expect(page.getByText('Internal pricing (Team)')).toBeVisible();
     await expect(page.getByText('Nobody has checked this list yet.')).toBeVisible();
+    // Before any check the brain names every item as new: none is marked.
+    await expect(page.getByText('New since checked')).toHaveCount(0);
+    // A ref outside the brain: never its title.
+    await expect(page.getByText(/An item outside the brain/)).toBeVisible();
 
     await page.getByRole('button', { name: 'I have checked this list' }).click();
-    await expect(page.getByText(/Ada Admin checked this list on/)).toBeVisible({ timeout: 15_000 });
+    const ack = page.getByTestId('client-report-ack');
+    await expect(ack).toHaveText(/Ada Admin checked this list on/, { timeout: 15_000 });
     await expect(page.getByRole('button', { name: 'I have checked this list' })).toHaveCount(0);
+    // The keyboard lands on the line that says who checked it.
+    await expect(ack).toBeFocused();
+    // The whole set, by its fingerprint (a current brain).
+    expect(api.admin.clientAckBodies).toEqual([{ fingerprint: `fp-${CLIENT_ITEM_ID}` }]);
     expect(api.admin.clientAcks).toEqual([[CLIENT_ITEM_ID]]);
   });
 
