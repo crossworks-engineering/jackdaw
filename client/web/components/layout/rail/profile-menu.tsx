@@ -49,7 +49,8 @@ import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { themeLabel } from '@mantle/web-ui/lib/themes';
 import { RandomThemeItems } from '@/components/random-theme-toggle';
 import { agentInitials } from '@/lib/agent-color';
-import { setMemberHint } from '@/lib/member-destination';
+import { setClientHint, setMemberHint } from '@/lib/member-destination';
+import { CLIENT_SIGNIN_PATH } from '@/lib/client-surface';
 import { MemberPasswordDialog } from '@/components/member/member-password-dialog';
 import { useTour } from '@/components/tour/tour-provider';
 import { MEMBER_TOUR_ID } from '@/lib/tour/tours';
@@ -124,6 +125,7 @@ export function ProfileMenu({
   onNavigate,
   onSearchClick,
   member = false,
+  client = false,
 }: {
   identity: ProfileIdentity;
   variant?: 'rail' | 'bar';
@@ -133,6 +135,11 @@ export function ProfileMenu({
    *  hint. The random theme stays: it is visitor-local and never writes to
    *  the brain. */
   member?: boolean;
+  /** A client login (client logins C2): its name, the theme (visitor-local),
+   *  Sign out and Sign out everywhere, and nothing else: no Profile, no
+   *  password (a client signs in with a link), no tour, no notices. Sign-out
+   *  clears the client hint and lands on the client sign-in page. */
+  client?: boolean;
   /** Opens the search palette. Absent on surfaces that have no palette to open
    *  — the item is then not rendered rather than rendered inert. */
   onSearchClick?: () => void;
@@ -151,8 +158,9 @@ export function ProfileMenu({
   async function signOut() {
     setBusy(true);
     if (member) setMemberHint(false);
+    if (client) setClientHint(false);
     await performSignOut();
-    router.push('/login');
+    router.push(client ? CLIENT_SIGNIN_PATH : '/login');
     router.refresh();
   }
 
@@ -185,7 +193,7 @@ export function ProfileMenu({
   // A member has no photo route (the brain's /api/profile/photo is admin
   // only), so a member's face starts at the generated rung.
   const face =
-    photoVersion && !member ? (
+    photoVersion && !member && !client ? (
       <ProfilePhoto version={photoVersion} size={28} fallback={generated} />
     ) : (
       generated
@@ -255,7 +263,7 @@ export function ProfileMenu({
           </DropdownMenuItem>
         )}
 
-        {member ? (
+        {client ? null : member ? (
           // A member's account is their password: the Profile screen and its
           // routes are admin-only, and an admin sets a member's name.
           <>
@@ -315,7 +323,7 @@ export function ProfileMenu({
         </DropdownMenuSub>
         {/* Admins: an OS notice when a member submits or files a request
             while this tab is in the background. Opt-in, per browser. */}
-        {member ? null : <BrowserNotifyItem />}
+        {member || client ? null : <BrowserNotifyItem />}
         <DropdownMenuSeparator />
 
         <DropdownMenuItem

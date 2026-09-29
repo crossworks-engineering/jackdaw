@@ -24,13 +24,16 @@ export function RailControls({
   onSearchClick,
   onNavigate,
   member = false,
+  client = false,
 }: {
   identity: ProfileIdentity;
-  /** Absent = no search palette on this shell (a member's). */
+  /** Absent = no search palette on this shell (a member's, a client's). */
   onSearchClick?: () => void;
   onNavigate?: () => void;
   /** A member login: the menu drops the admin-only profile screen. */
   member?: boolean;
+  /** A client login: the client's short menu (see ProfileMenu). */
+  client?: boolean;
 }) {
   return (
     // `relative` is load-bearing, exactly as on the rail's other three bands:
@@ -45,6 +48,7 @@ export function RailControls({
         onNavigate={onNavigate}
         onSearchClick={onSearchClick}
         member={member}
+        client={client}
       />
     </div>
   );

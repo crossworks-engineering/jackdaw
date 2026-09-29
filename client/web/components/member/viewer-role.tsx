@@ -52,8 +52,10 @@ export function useIsAdmin(): boolean {
 /**
  * Render `children` (the owner screen) for an admin and `member` for a
  * member. Each branch is explicit: a client login gets the neutral client
- * screen, an unknown role the neutral "not available" screen, and no role
- * yet the neutral loading screen. The owner screen mounts for `admin` and
+ * screen (the shell renders the client portal in place of every page, so a
+ * page's switch never meets one; this is the fail-closed answer if it does),
+ * an unknown role the neutral "not available" screen, and no role yet the
+ * neutral loading screen. The owner screen mounts for `admin` and
  * nothing else, so none of its admin requests fire for anyone else.
  */
 export function RoleSwitch({ member, children }: { member: ReactNode; children: ReactNode }) {
@@ -73,22 +75,26 @@ export function RoleSwitch({ member, children }: { member: ReactNode; children: 
 }
 
 /**
- * The shell's own gate (client logins C0): the whole shell, chrome and page,
- * renders only for a confirmed admin or member. Anything else gets a neutral
- * full-window screen instead, with no rail, no nav and no request of its own:
- * loading while the brain has not answered (or Try again when it could not be
- * asked), the client screen for a client login, "not available" for a role
- * this app does not know.
+ * The shell's own gate (client logins C0, C2): the whole shell, chrome and
+ * page, renders only for a confirmed admin or member; a client login gets
+ * `client` (the client portal, which is its whole app) in its place, never
+ * the frame or a page of the owner or member app. Anything else gets a
+ * neutral full-window screen instead, with no rail, no nav and no request
+ * of its own: loading while the brain has not answered (or Try again when it
+ * could not be asked), "not available" for a role this app does not know.
  */
 export function ShellRoleGate({
   role,
   probeFailed = false,
   onRetry,
+  client,
   children,
 }: {
   role: ViewerRole | null;
   probeFailed?: boolean;
   onRetry: () => void;
+  /** What a client login gets: the client portal. */
+  client: ReactNode;
   children: (role: 'admin' | 'member') => ReactNode;
 }) {
   switch (role) {
@@ -96,7 +102,7 @@ export function ShellRoleGate({
     case 'member':
       return <>{children(role)}</>;
     case 'client':
-      return <ClientLoginScreen fullScreen />;
+      return <>{client}</>;
     case null:
       return probeFailed ? (
         <RoleProbeFailedScreen fullScreen onRetry={onRetry} />

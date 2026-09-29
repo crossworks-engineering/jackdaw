@@ -4,8 +4,8 @@
  * null, "not known yet". Nothing defaults to admin. The owner chrome, the
  * owner screens and every request they make wait for the brain to confirm an
  * admin: /api/shell answering 200. Before that the shell shows a neutral
- * loading screen, and a client login (403 `client-login`) gets the neutral
- * client screen for good.
+ * loading screen, and a client login (403 `client-login`, or the client hint
+ * the brain has not contradicted) gets the client portal (C2) for good.
  *
  * Pure: no React, so every answer is unit-tested (shell-role.test.ts).
  */
@@ -22,20 +22,28 @@ export type ViewerRole = LoginKind;
 export type ShellProbe = { hasData: boolean; error: unknown };
 
 export type ShellRoleInput = {
-  /** From the UX-only member hint cookie: 'member' seeds the member shell
-   *  for the first paint; null asks the brain first. Never 'admin'. */
-  seed: 'member' | null;
-  /** GET /api/shell: asked unless seeded as a member. 200 only for an admin. */
+  /** From the UX-only hint cookies: 'member' seeds the member shell and
+   *  'client' the client portal for the first paint; null asks the brain
+   *  first. Never 'admin'. */
+  seed: 'member' | 'client' | null;
+  /** GET /api/shell: asked unless seeded. 200 only for an admin. */
   shell: ShellProbe;
   /** GET /api/member/shell: asked when seeded as a member. */
   member: ShellProbe;
+  /** GET /api/client/shell: asked when seeded as a client, or once another
+   *  probe named a client. 200 only for a client. Absent: never asked. */
+  client?: ShellProbe;
 };
 
 /**
  * The role, or null while it is not known.
  *
- * - A `client-login` refusal from either probe is a client, whatever was
- *   cached before it: the login in this browser changed.
+ * - A `client-login` refusal from the admin or the member probe is a client,
+ *   whatever was cached before it: the login in this browser changed.
+ * - Seeded as a client: the client portal, until the client route says this
+ *   is an admin or a member (`admin-login` / `member-login`: the shell
+ *   reloads without the hint, null meanwhile). The portal's requests are
+ *   client routes only, so a wrong hint costs nothing but that reload.
  * - Seeded as a member: the member shell, until the member route says this
  *   is an admin (`admin-login`: the shell reloads without the hint, null
  *   meanwhile). Member chrome is not owner chrome, and member requests are
@@ -45,12 +53,21 @@ export type ShellRoleInput = {
  *   pending, a network failure or any other error is null too. A failed
  *   refetch after a good answer keeps admin (the data is still there).
  */
-export function resolveShellRole({ seed, shell, member }: ShellRoleInput): ViewerRole | null {
+export function resolveShellRole({
+  seed,
+  shell,
+  member,
+  client,
+}: ShellRoleInput): ViewerRole | null {
   if (
     loginRefusalReason(shell.error) === 'client-login' ||
     loginRefusalReason(member.error) === 'client-login'
   ) {
     return 'client';
+  }
+  if (seed === 'client') {
+    const refused = loginRefusalReason(client?.error);
+    return refused === 'admin-login' || refused === 'member-login' ? null : 'client';
   }
   if (seed === 'member') {
     return loginRefusalReason(member.error) === 'admin-login' ? null : 'member';
@@ -64,7 +81,7 @@ export function resolveShellRole({ seed, shell, member }: ShellRoleInput): Viewe
  *  than guessing. A 401 is not one: apiFetch is already on its way to
  *  /login. */
 export function shellProbeFailed(input: ShellRoleInput, role: ViewerRole | null): boolean {
-  if (role !== null || input.seed === 'member') return false;
+  if (role !== null || input.seed !== null) return false;
   const err = input.shell.error;
   if (err == null || isLoginRefusal(err)) return false;
   return !(err instanceof ApiError && err.status === 401);

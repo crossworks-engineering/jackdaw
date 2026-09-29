@@ -7,6 +7,7 @@ import {
   isLoginRefusal,
   isMemberLoginRefusal,
   memberHome,
+  setClientHint,
   setMemberHint,
 } from '@/lib/member-destination';
 import { resolveShellRole, shellProbeFailed, type ViewerRole } from '@/lib/shell-role';
@@ -14,6 +15,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import type { MemberShell as MemberShellData } from '@mantle/client-types';
+import type { ClientShell as ClientShellData } from '@/lib/contract-next';
+import { clientShellPollMs } from '@/lib/client-portal';
+import { ClientPortal } from '@/components/client/client-portal';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
@@ -151,23 +155,25 @@ type ShellData = {
 type ShellProbes = {
   shell: UseQueryResult<ShellData>;
   member: UseQueryResult<MemberShellData>;
+  client: UseQueryResult<ClientShellData>;
 };
 
 /**
- * Who this shell is for, asked of the brain (client logins C0). The seed is
- * the member hint or nothing: an admin is NEVER assumed. Seeded as a member,
- * the member shell answers (and a member-route `admin-login` reloads without
- * the hint); otherwise /api/shell answers, and only its 200 makes an admin.
- * Its `member-login` refusal reloads as the member; its `client-login`
- * refusal is the client screen, with no navigation at all, so a client can
- * never loop between /login and here.
+ * Who this shell is for, asked of the brain (client logins C0, C2). The seed
+ * is a hint or nothing: an admin is NEVER assumed. Seeded as a member, the
+ * member shell answers (and a member-route `admin-login` reloads without the
+ * hint); seeded as a client, the client shell answers (and its `admin-login`
+ * or `member-login` reloads without the hint); otherwise /api/shell answers,
+ * and only its 200 makes an admin. Its `member-login` refusal reloads as the
+ * member; its `client-login` refusal is the client portal, with no
+ * navigation at all, so a client can never loop between /login and here.
  */
-function useShellRole(seed: 'member' | null) {
+function useShellRole(seed: 'member' | 'client' | null) {
   const isMemberSeed = seed === 'member';
   const shell = useQuery({
     queryKey: ['shell'],
     queryFn: () => apiFetch<ShellData>('/api/shell'),
-    enabled: !isMemberSeed,
+    enabled: seed === null,
     // This payload carries the asset token, and that token EXPIRES — it rides
     // in the URL, so the brain keeps its life short (two hours, "one working
     // session"). Nothing refreshed it: this query ran once per mount, so a tab
@@ -200,6 +206,24 @@ function useShellRole(seed: 'member' | null) {
     refetchOnWindowFocus: true,
     retry: (count, err) => !isLoginRefusal(err) && count < 1,
   });
+  // A client login is not a member: drop a stale member hint so the
+  // middleware stops routing it as one, and keep the client hint so it
+  // routes the client. No reload and no redirect: the gate below shows the
+  // client portal on whatever path this is.
+  const isClient =
+    seed === 'client' || isClientLoginRefusal(shell.error) || isClientLoginRefusal(member.error);
+  // The client's shell: brand, identity and the asset token, from the client
+  // route (every admin and member route refuses a client). Asked only once
+  // this is a client; polled, since a client has no realtime: an ended
+  // session answers 401 on the next ask, which goes to sign-in.
+  const client = useQuery({
+    queryKey: ['client-shell'],
+    queryFn: () => apiFetch<ClientShellData>('/api/client/shell'),
+    enabled: isClient,
+    refetchInterval: (query) => clientShellPollMs(query.state.data?.assetToken),
+    refetchOnWindowFocus: true,
+    retry: (count, err) => !isLoginRefusal(err) && count < 1,
+  });
   // A wrong hint either way reloads as what the brain says this login is: a
   // full reload, so the layout renders the right shell from the first paint.
   // The hint cookie also lets the middleware keep a member off admin paths.
@@ -218,41 +242,55 @@ function useShellRole(seed: 'member' | null) {
       window.location.reload();
     }
   }, [member.error]);
-  // A client login is not a member: drop a stale member hint so the
-  // middleware stops routing it as one. No reload and no redirect: the gate
-  // below shows the client screen on whatever path this is.
-  const isClient = isClientLoginRefusal(shell.error) || isClientLoginRefusal(member.error);
+  // A client hint the brain contradicts: a full reload without it, and the
+  // member hint when the brain named a member, as the member's first paint.
   useEffect(() => {
-    if (isClient) setMemberHint(false);
-  }, [isClient]);
+    if (isAdminLoginRefusal(client.error) || isMemberLoginRefusal(client.error)) {
+      setClientHint(false);
+      setMemberHint(isMemberLoginRefusal(client.error));
+      window.location.reload();
+    }
+  }, [client.error]);
+  const clientConfirmed =
+    isClient && !isAdminLoginRefusal(client.error) && !isMemberLoginRefusal(client.error);
+  useEffect(() => {
+    if (!clientConfirmed) return;
+    setMemberHint(false);
+    setClientHint(true);
+  }, [clientConfirmed]);
   const shellLoaded = shell.isSuccess;
   useEffect(() => {
-    if (shellLoaded) setMemberHint(false);
+    if (!shellLoaded) return;
+    setMemberHint(false);
+    setClientHint(false);
   }, [shellLoaded]);
   const memberLoaded = member.isSuccess;
   useEffect(() => {
-    if (memberLoaded) setMemberHint(true);
+    if (!memberLoaded) return;
+    setMemberHint(true);
+    setClientHint(false);
   }, [memberLoaded]);
 
   const input = {
     seed,
     shell: { hasData: shell.data !== undefined, error: shell.error },
     member: { hasData: member.data !== undefined, error: member.error },
+    client: { hasData: client.data !== undefined, error: client.error },
   };
   const role = resolveShellRole(input);
   return {
     role,
     probeFailed: shellProbeFailed(input, role),
     retry: () => void shell.refetch(),
-    probes: { shell, member } satisfies ShellProbes,
+    probes: { shell, member, client } satisfies ShellProbes,
   };
 }
 
 export function AppShell(props: {
   contextCard: React.ReactNode;
-  /** Seeded from the member hint cookie by the layout ('member', or null to
-   *  ask the brain); confirmed here. Never admin. */
-  role: 'member' | null;
+  /** Seeded from the hint cookies by the layout ('member', 'client', or null
+   *  to ask the brain); confirmed here. Never admin. */
+  role: 'member' | 'client' | null;
   initialNavCollapsed?: boolean;
   /** Rail widths in px, seeded from cookies for the same no-flash reason. */
   initialNavWidth?: number;
@@ -264,10 +302,16 @@ export function AppShell(props: {
   // Providers only — the frame itself lives in <ShellFrame/>, which sits INSIDE
   // AssistantDockProvider and HelpRailProvider so it can read both dock states
   // (each open column publishes its width to the frame's CSS vars). None of it
-  // mounts until the brain has confirmed an admin or a member.
+  // mounts until the brain has confirmed an admin or a member. A client gets
+  // the client portal in place of all of it (client logins C2).
   return (
     <ViewerRoleProvider role={role}>
-      <ShellRoleGate role={role} probeFailed={probeFailed} onRetry={retry}>
+      <ShellRoleGate
+        role={role}
+        probeFailed={probeFailed}
+        onRetry={retry}
+        client={<ClientPortal query={probes.client} />}
+      >
         {(confirmed) => (
           <ToastProvider>
             <PageTitleProvider>

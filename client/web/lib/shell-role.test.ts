@@ -79,6 +79,43 @@ describe('resolveShellRole', () => {
     // the cache does not make this login an admin.
     expect(resolveShellRole(input({ seed: 'member', shell: answered }))).toBe('member');
   });
+
+  // Client logins C2: the client hint seeds the client portal.
+  it('seeded as a client: the client portal from the first paint, and while it loads', () => {
+    expect(resolveShellRole(input({ seed: 'client' }))).toBe('client');
+    expect(resolveShellRole(input({ seed: 'client', client: pending }))).toBe('client');
+    expect(resolveShellRole(input({ seed: 'client', client: answered }))).toBe('client');
+  });
+
+  it('a client seed never reads as admin or member, whatever the other probes hold', () => {
+    // The admin and member queries are off for a client seed; even stale
+    // answers in the cache do not make this login anything but a client.
+    expect(resolveShellRole(input({ seed: 'client', shell: answered, member: answered }))).toBe(
+      'client',
+    );
+    // A failed client shell (a 500, a network error, an old brain's 404)
+    // is still no reason to show the owner or member chrome.
+    for (const err of [new ApiError('boom', 500), new TypeError('x'), new ApiError('nf', 404)]) {
+      expect(resolveShellRole(input({ seed: 'client', client: failed(err) }))).toBe('client');
+    }
+  });
+
+  it('a client seed the brain contradicts is not known while the shell reloads', () => {
+    for (const reason of ['admin-login', 'member-login']) {
+      expect(
+        resolveShellRole(input({ seed: 'client', client: failed(refused(reason)) })),
+        reason,
+      ).toBeNull();
+    }
+  });
+
+  it('a client-login refusal wins a member seed and a stale admin answer alike', () => {
+    expect(
+      resolveShellRole(
+        input({ seed: 'member', member: failed(refused('client-login')), shell: answered }),
+      ),
+    ).toBe('client');
+  });
 });
 
 describe('shellProbeFailed', () => {
@@ -100,5 +137,8 @@ describe('shellProbeFailed', () => {
     expect(at({ shell: failed(new ApiError('unauthorized', 401)) })).toBe(false);
     expect(at({ shell: failed(new ApiError('boom', 500), true) })).toBe(false);
     expect(at({ seed: 'member', member: failed(new ApiError('boom', 500)) })).toBe(false);
+    // A client seed: the portal owns its own Try again (components/client).
+    expect(at({ seed: 'client', client: failed(new ApiError('boom', 500)) })).toBe(false);
+    expect(at({ seed: 'client', client: failed(refused('admin-login')) })).toBe(false);
   });
 });

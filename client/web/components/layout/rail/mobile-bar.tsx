@@ -34,6 +34,7 @@ export function MobileBar({
   onMenuClick,
   onSearchClick,
   member = false,
+  client = false,
 }: {
   identity: ProfileIdentity;
   siteName?: string | null;
@@ -45,6 +46,8 @@ export function MobileBar({
   /** A member login: the account menu drops Profile and its sign-out clears
    *  the member hint, exactly as the rail's does. */
   member?: boolean;
+  /** A client login: the client's short menu (see ProfileMenu). */
+  client?: boolean;
 }) {
   // As in the rail: an unnamed brain wears the brand art rather than the
   // brand's name set in type. There is no collapsed state here — the bar is
@@ -99,7 +102,7 @@ export function MobileBar({
           <Search />
         </Button>
       ) : null}
-      <ProfileMenu identity={identity} variant="bar" member={member} />
+      <ProfileMenu identity={identity} variant="bar" member={member} client={client} />
     </header>
   );
 }

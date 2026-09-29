@@ -9,6 +9,7 @@ import {
 import { UsageCard } from '@/components/usage-card';
 import type { SpendRange } from '@mantle/client-types';
 import { MEMBER_HINT_COOKIE } from '@/lib/member-surface';
+import { CLIENT_HINT_COOKIE } from '@/lib/client-surface';
 
 /**
  * App shell: the rail on the left (brand, account, search, nav, launchers),
@@ -46,12 +47,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const navWidth = clampNavWidth(cookieStore.get(NAV_W_COOKIE)?.value);
   const activityWidth = clampActivityWidth(cookieStore.get(ACTIVITY_W_COOKIE)?.value);
   const spendRange = readSpendRange(cookieStore.get('mantle_spend_range')?.value);
-  // Member logins: the hint seeds the member shell for the first paint (no
-  // flash of owner chrome); the shell confirms it and reloads if wrong.
-  // Without it the role is NOT known (client logins C0): never assumed to be
-  // an admin. The shell shows a neutral screen until the brain confirms one,
-  // and the usage card (like all owner chrome) mounts only for that admin.
-  const role = cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : null;
+  // Member and client logins: a hint seeds the member shell, or the client
+  // portal (client logins C2), for the first paint (no flash of owner chrome,
+  // no owner request); the shell confirms it and reloads if wrong. The client
+  // hint wins a (stale) member hint: the portal asks only client routes.
+  // Without either the role is NOT known (client logins C0): never assumed to
+  // be an admin. The shell shows a neutral screen until the brain confirms
+  // one, and the usage card (like all owner chrome) mounts only for that admin.
+  const role =
+    cookieStore.get(CLIENT_HINT_COOKIE)?.value === '1'
+      ? 'client'
+      : cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1'
+        ? 'member'
+        : null;
 
   return (
     <AppShell

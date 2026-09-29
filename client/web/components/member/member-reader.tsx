@@ -3,25 +3,25 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import type { JSONContent } from '@tiptap/core';
 import type { MemberAcceptedItem, MemberLibraryItem } from '@mantle/client-types';
-import type { TableDetail } from '@mantle/content-core/table-model';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
-import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
-import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
-import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
-import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
-import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import { PageView } from '@/components/page-editor/page-view';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { memberAssetPath, memberDrawUrlPath, memberFileUrlPath } from '@/lib/member-assets';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { formatBytes } from '@/lib/upload-progress';
 import { acceptedBytesChanged, acceptedChangedText, acceptedPlace } from '@/lib/member-space';
+import { ReadOnlyItemBody, type ReaderAssets } from './read-only-item';
 
 type ReaderItem = MemberLibraryItem | MemberAcceptedItem;
+
+/** A member reads bytes from the member routes. */
+const MEMBER_ASSETS: ReaderAssets = {
+  mapAssetPath: memberAssetPath,
+  drawUrlPath: memberDrawUrlPath,
+  fileUrlPath: memberFileUrlPath,
+};
 
 /**
  * One item, read-only, with the same presenters the share links use: a
@@ -39,7 +39,6 @@ export function MemberReader({
   source?: 'library' | 'accepted';
   onClose: () => void;
 }) {
-  const asset = useAssetUrl();
   // A table's chosen tab, kept with the item it belongs to so opening another
   // item starts on its first tab. Null = the server's default (the first).
   const [picked, setPicked] = useState<{ itemId: string; tabId: string } | null>(null);
@@ -98,79 +97,13 @@ export function MemberReader({
       </div>
     );
   } else {
-    switch (item.type) {
-      case 'page':
-        body = <PageView content={item.doc as JSONContent} mapAssetPath={memberAssetPath} />;
-        break;
-      case 'note':
-        body = (
-          <NotePresenter view={{ title: item.title, content: item.content }} chrome="embedded" />
-        );
-        break;
-      case 'draw':
-        body = (
-          <DrawPresenter
-            view={{ title: item.title, hasSvg: true }}
-            src={asset(memberDrawUrlPath(item.id))}
-            chrome="embedded"
-          />
-        );
-        break;
-      case 'table': {
-        const table = item.table as TableDetail;
-        const tabs = table.tabs ?? [];
-        const current = table.tabId ?? tabs[0]?.id ?? null;
-        // A tab past the server's materialize window arrives as a leading window.
-        const totalRows = tabs.find((t) => t.id === current)?.rows ?? table.data.rows.length;
-        body = (
-          <div className="space-y-2">
-            {tabs.length > 1 ? (
-              <div className="flex flex-wrap gap-1" role="tablist" aria-label="Table tabs">
-                {tabs.map((t) => (
-                  <Button
-                    key={t.id}
-                    size="sm"
-                    variant={t.id === current ? 'default' : 'ghost'}
-                    role="tab"
-                    aria-selected={t.id === current}
-                    onClick={() => setPicked({ itemId: id, tabId: t.id })}
-                  >
-                    {t.name}
-                    <span className="text-xs opacity-70">{t.rows.toLocaleString()}</span>
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-            <TablePresenter
-              view={{ title: item.title, icon: item.icon, tabs: null, legacyDoc: table.data }}
-              token=""
-              chrome="embedded"
-            />
-            {table.docClipped ? (
-              <p className="text-xs text-muted-foreground">
-                Showing the first {table.data.rows.length.toLocaleString()} of{' '}
-                {totalRows.toLocaleString()} rows.
-              </p>
-            ) : null}
-          </div>
-        );
-        break;
-      }
-      case 'file':
-        body = (
-          <FilePresenter
-            view={{
-              fileId: item.id,
-              filename: item.filename,
-              mimeType: item.mimeType ?? 'application/octet-stream',
-              size: item.sizeBytes ?? 0,
-            }}
-            assetUrl={(fileId) => asset(memberFileUrlPath(fileId))}
-            chrome="embedded"
-          />
-        );
-        break;
-    }
+    body = (
+      <ReadOnlyItemBody
+        item={item}
+        assets={MEMBER_ASSETS}
+        onPickTab={(tab) => setPicked({ itemId: id, tabId: tab })}
+      />
+    );
   }
 
   return (

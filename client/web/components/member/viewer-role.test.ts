@@ -10,6 +10,7 @@ import { RoleSwitch, ShellRoleGate, ViewerRoleProvider, useViewerRole } from './
  */
 const ADMIN = createElement('p', null, 'ADMIN-SCREEN');
 const MEMBER = createElement('p', null, 'MEMBER-SCREEN');
+const CLIENT = createElement('p', null, 'CLIENT-PORTAL');
 
 const withRole = (role: unknown, child: ReactNode) =>
   renderToStaticMarkup(
@@ -26,6 +27,7 @@ const gateFor = (role: unknown, probeFailed = false) =>
       role: role as 'admin',
       probeFailed,
       onRetry: () => {},
+      client: CLIENT,
       children: (r: 'admin' | 'member') => (r === 'admin' ? ADMIN : MEMBER),
     }),
   );
@@ -99,12 +101,18 @@ describe('ShellRoleGate (the whole shell)', () => {
   it('renders the shell for a confirmed admin or member, with that role', () => {
     expect(gateFor('admin')).toContain('ADMIN-SCREEN');
     expect(gateFor('member')).toContain('MEMBER-SCREEN');
+    expect(gateFor('admin')).not.toContain('CLIENT-PORTAL');
+    expect(gateFor('member')).not.toContain('CLIENT-PORTAL');
+  });
+
+  it('renders the client portal for a client login, and never the owner or member shell', () => {
+    const html = gateFor('client');
+    expect(html).toBe('<p>CLIENT-PORTAL</p>');
   });
 
   it('renders a full-window neutral screen for everything else', () => {
     for (const [role, text] of [
       [null, 'Loading'],
-      ['client', 'This account is a client login.'],
       ['guest', 'This account cannot open this workspace here.'],
     ] as const) {
       const html = gateFor(role);
@@ -112,6 +120,7 @@ describe('ShellRoleGate (the whole shell)', () => {
       expect(html, String(role)).toContain('min-h-dvh');
       expect(html, String(role)).not.toContain('ADMIN-SCREEN');
       expect(html, String(role)).not.toContain('MEMBER-SCREEN');
+      expect(html, String(role)).not.toContain('CLIENT-PORTAL');
     }
   });
 
@@ -124,7 +133,7 @@ describe('ShellRoleGate (the whole shell)', () => {
   });
 
   it('a failed probe never overrides a role the brain gave', () => {
-    expect(gateFor('client', true)).toContain('This account is a client login.');
+    expect(gateFor('client', true)).toBe('<p>CLIENT-PORTAL</p>');
     expect(gateFor('admin', true)).toContain('ADMIN-SCREEN');
   });
 });

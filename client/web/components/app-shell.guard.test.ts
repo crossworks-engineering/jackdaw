@@ -13,23 +13,37 @@ const shell = src('./app-shell.tsx');
 const layout = src('../app/(app)/layout.tsx');
 
 describe('no default of admin', () => {
-  it('the layout seeds a member from the hint, or nothing', () => {
-    expect(layout).toContain(
-      "const role = cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : null;",
+  it('the layout seeds a client or a member from the hints (the client first), or nothing', () => {
+    expect(layout.replace(/\s+/g, ' ')).toContain(
+      "const role = cookieStore.get(CLIENT_HINT_COOKIE)?.value === '1' ? 'client' : cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : null;",
     );
     expect(layout).not.toMatch(/'admin'/);
   });
 
   it('the shell never falls back to admin', () => {
     expect(shell).not.toMatch(/\?\? 'admin'|= 'admin'|: 'admin'\s*[,;)]/);
-    expect(shell).toContain("role: 'member' | null;");
+    expect(shell).toContain("role: 'member' | 'client' | null;");
+  });
+});
+
+describe('a client gets the client portal and nothing of the owner or member shell', () => {
+  it('the gate renders the portal for a client, beside (not inside) the frame', () => {
+    expect(shell).toContain('client={<ClientPortal query={probes.client} />}');
+  });
+
+  it('a seeded shell asks neither the admin nor the other role probe', () => {
+    // /api/shell only when nothing is seeded, the member shell only for a
+    // member seed, the client shell only once this is a client.
+    expect(shell).toContain('enabled: seed === null,');
+    expect(shell).toContain('enabled: isMemberSeed,');
+    expect(shell).toContain('enabled: isClient,');
   });
 });
 
 describe('the shell renders for a confirmed role only', () => {
   it('everything, providers and frame, sits inside the role gate', () => {
     expect(shell).toMatch(
-      /<ViewerRoleProvider role=\{role\}>\s*<ShellRoleGate role=\{role\} probeFailed=\{probeFailed\} onRetry=\{retry\}>\s*\{\(confirmed\) => \(\s*<ToastProvider>/,
+      /<ViewerRoleProvider role=\{role\}>\s*<ShellRoleGate\s+role=\{role\}\s+probeFailed=\{probeFailed\}\s+onRetry=\{retry\}\s+client=\{<ClientPortal query=\{probes\.client\} \/>\}\s*>\s*\{\(confirmed\) => \(\s*<ToastProvider>/,
     );
     expect(shell).toContain('<ShellFrame {...props} role={confirmed} probes={probes} />');
     // One frame, and only there.
@@ -46,15 +60,16 @@ describe('the shell renders for a confirmed role only', () => {
   it('no retry on any of the three refusals', () => {
     expect(
       shell.match(/retry: \(count, err\) => !isLoginRefusal\(err\) && count < 1/g),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
-  it('a client refusal clears the member hint and navigates nowhere', () => {
+  it('a confirmed client clears the member hint, keeps the client hint and navigates nowhere', () => {
     const effect = shell.slice(
-      shell.indexOf('const isClient ='),
+      shell.indexOf('const clientConfirmed'),
       shell.indexOf('const shellLoaded'),
     );
-    expect(effect).toContain('if (isClient) setMemberHint(false);');
+    expect(effect).toContain('setMemberHint(false);');
+    expect(effect).toContain('setClientHint(true);');
     expect(effect).not.toMatch(/location|router/);
   });
 });

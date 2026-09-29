@@ -7,7 +7,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { performSignOut } from '@mantle/web-ui/sign-out';
 // Relative, not '@/': the node test runner renders these (viewer-role.test.ts)
 // and does not resolve the app's path alias.
-import { setMemberHint } from '../../lib/member-destination';
+import { setClientHint, setMemberHint } from '../../lib/member-destination';
 
 /**
  * The neutral screens the shell shows when it must not show the owner (or
@@ -56,6 +56,7 @@ export function NeutralSignOutButton() {
       onClick={async () => {
         setBusy(true);
         setMemberHint(false);
+        setClientHint(false);
         await performSignOut();
         window.location.assign('/login');
       }}
@@ -78,8 +79,9 @@ export function RoleLoadingScreen({ fullScreen }: { fullScreen?: boolean }) {
   );
 }
 
-/** A client login (client logins C0): the client portal is not built yet, so
- *  this is all a client sees. */
+/** A client login on a brain without the client portal's routes (before
+ *  client logins C2: /api/client/shell answers 404), and the fail-closed
+ *  answer of a page's RoleSwitch: this is all such a client sees. */
 export function ClientLoginScreen({ fullScreen }: { fullScreen?: boolean }) {
   return (
     <NeutralFrame fullScreen={fullScreen}>
