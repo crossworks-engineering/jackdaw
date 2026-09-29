@@ -315,7 +315,8 @@ test.describe('a signed-in client', () => {
     await expect(heading(page)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('link', { name: `${CLIENT_SITE} home` }).first()).toBeVisible();
     const nav = page.getByRole('navigation', { name: 'Primary' });
-    await expect(nav.getByRole('link')).toHaveText(['Shared with you']);
+    // Two screens since C5: what is shared, and what the client sent.
+    await expect(nav.getByRole('link')).toHaveText(['Shared with you', 'My requests']);
     await page
       .getByRole('button', { name: /^Account/ })
       .first()
@@ -530,9 +531,12 @@ test.describe('a signed-in client', () => {
     await serveSameOrigin(context, baseURL!);
     await page.goto('/');
     await expect(heading(page)).toBeVisible({ timeout: 60_000 });
-    // An admin ended the sessions: the next ask of the shell is a 401.
+    // An admin ended the sessions: the next ask is a 401, and the portal
+    // goes to sign in by itself. Focus asks the list again at once (the
+    // shell's own poll would too, within a minute); a reload here raced
+    // that redirect (ERR_ABORTED), so the spec waits for it instead.
     api.clientSession = false;
-    await page.reload();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page).toHaveURL(/\/client-signin$/, { timeout: 30_000 });
     await expect(page.getByText('Open the sign-in link you were sent.')).toBeVisible();
   });

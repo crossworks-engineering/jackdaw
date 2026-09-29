@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { BrowserContext } from '@playwright/test';
 
@@ -36,6 +37,15 @@ import type { BrowserContext } from '@playwright/test';
  * and a send whose reply lands on the second ask after it, so a spec sees
  * the dock poll), and, for an admin, the clients' chat use today and the
  * Requests tab.
+ *
+ * Since C5 it answers a client's own items (My requests: /api/client/items,
+ * the client space and its files, submit, recall, the review talk, the
+ * accepted reader) and the thread on an item shared with clients
+ * (`clientOwn`; `clientOwn.routes` false answers every C5 route 404, as a
+ * brain before C5 does); for a member, a client's submitted item in the one
+ * list and its read-only route (`clientRequests`) and the thread on a
+ * client-level Library item; for an admin, a client's item in the Review
+ * queue (CLIENT_SUBMISSION_ID, with what goes down with it at Client).
  *
  * Since C2b it answers the public email sign-in code routes for every role,
  * as the brain does (`clientCodes` says whether this brain sends codes; the
@@ -198,6 +208,38 @@ export const CLIENT_CHAT_REPLY = 'The survey is booked for Tuesday.';
 export const LIBRARY_CLIENT_ID = '17171717-1717-4171-8171-171717171717';
 export const LIBRARY_CLIENT_TITLE = 'Client handover';
 
+/** A client's own items (C5): a draft page, a submitted note with the
+ *  reviewers' talk, a returned page with the reviewer's note, and a note an
+ *  admin accepted. */
+export const CLIENT_DRAFT_ID = '31313131-3131-4313-8313-313131313131';
+export const CLIENT_DRAFT_TITLE = 'Site visit request';
+export const CLIENT_SUBMITTED_ID = '32323232-3232-4323-8323-323232323232';
+export const CLIENT_SUBMITTED_TITLE = 'Parking request';
+export const CLIENT_RETURNED_ID = '33333333-3333-4333-8333-333333333334';
+export const CLIENT_RETURNED_TITLE = 'Door schedule';
+export const CLIENT_RETURNED_NOTE = 'Add the level 2 doors, please.';
+export const CLIENT_ACCEPTED_ID = '34343434-3434-4343-8343-343434343434';
+export const CLIENT_ACCEPTED_TITLE = 'Access hours';
+/** A reviewer's comment on the submitted note: the brand name, never a
+ *  staff name. */
+export const REVIEWER_COMMENT = 'We will look at this on Monday.';
+/** A team comment on the shared page (C5, decision 8): its author's name. */
+export const STAFF_NAME = 'Sam Staff';
+export const SHARED_TEAM_COMMENT = 'The brief is final from our side.';
+/** The brain's refusal of an upload over a client cap (the day's 50 MB). */
+export const CLIENT_QUOTA_MESSAGE =
+  'You have uploaded 50 MB today, the most a client may. Try again tomorrow.';
+
+/** A client's submitted item as a member reads it (C5, decision 5 B). */
+export const CLIENT_REQUEST_ID = '35353535-3535-4353-8353-353535353535';
+export const CLIENT_REQUEST_TITLE = 'Loading bay request';
+export const CLIENT_REQUEST_TEXT = 'Please open the loading bay on Friday.';
+/** A client's item in the admin's Review queue (C1, C5), and a team item
+ *  it embeds, which goes down with it at Client. */
+export const CLIENT_SUBMISSION_ID = '36363636-3636-4363-8363-363636363636';
+export const CLIENT_SUBMISSION_TITLE = 'Client brief';
+export const CLIENT_EMBED_TITLE = 'Team photo';
+
 /** The admin's "What clients see" item (client logins C1). */
 export const CLIENT_ITEM_ID = '12121212-1212-4121-8121-121212121212';
 export const CLIENT_ITEM_TITLE = 'Project brief';
@@ -260,6 +302,12 @@ export type MockMemberApi = {
   clientRouteCalls: string[];
   /** Client role: the client's own chat (C4). */
   clientChat: MockClientChat;
+  /** Client role: the client's own items and the shared threads (C5). */
+  clientOwn: MockClientOwn;
+  /** Member role: the one list carries CLIENT_REQUEST_ID (C5). */
+  clientRequests: boolean;
+  /** Member role: the thread on the client-level Library page (C5). */
+  libraryComments: MockComment[];
   /** Client role: false makes every client route a 401 (the session ended,
    *  or nobody signed in yet); a good sign-in link sets it. */
   clientSession: boolean;
@@ -394,6 +442,56 @@ export type MockAdminState = {
   requests: Record<string, unknown>[];
 };
 
+export type MockComment = {
+  id: string;
+  nodeId: string;
+  authorKind: 'owner' | 'member' | 'agent' | 'client';
+  authorName: string;
+  mine: boolean;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+};
+
+/** One item of a client's own space: the member space shapes. */
+export type MockClientItem = {
+  row: {
+    id: string;
+    type: 'page' | 'note' | 'file';
+    title: string;
+    icon: null;
+    sharing: 'private';
+    reviewState: 'draft' | 'submitted' | 'returned' | 'with-admin';
+    submittedAt: string | null;
+    returnedNote: string | null;
+    authorLoginId: string;
+    updatedAt: string;
+  };
+  body: Record<string, unknown>;
+};
+
+export type MockClientOwn = {
+  /** false: every C5 client route answers 404 (a brain before C5). */
+  routes: boolean;
+  items: MockClientItem[];
+  /** Accepted rows (a note). */
+  accepted: boolean;
+  /** The review talk, by own item id. */
+  comments: Record<string, MockComment[]>;
+  /** The thread on each shared item, by id. */
+  shared: Record<string, MockComment[]>;
+  /** Set to have the next upload refused with this (a cap reached). */
+  uploadRefusal: { status: number; body: unknown } | null;
+  /** Every upload that reached the brain (the file names). */
+  uploads: string[];
+  /** Every submit and recall, by id; every Save version body. */
+  submits: string[];
+  recalls: string[];
+  saves: { id: string; doc: unknown }[];
+  /** The `state=` of every /api/client/items request, in order. */
+  itemsStates: string[];
+};
+
 export type MockClientChat = {
   /** null: the chat is not open (no client-level agent). */
   agent: { name: string } | null;
@@ -487,6 +585,21 @@ export async function startMockMemberApi(
       refusal: null,
       replyAfter: 0,
     },
+    clientOwn: {
+      routes: true,
+      items: [],
+      accepted: true,
+      comments: {},
+      shared: {},
+      uploadRefusal: null,
+      uploads: [],
+      submits: [],
+      recalls: [],
+      saves: [],
+      itemsStates: [],
+    },
+    clientRequests: false,
+    libraryComments: [],
     clientSession: true,
     clientSignIns: [],
     clientCodes: false,
@@ -647,17 +760,30 @@ export async function startMockMemberApi(
     inactive: false,
   });
   const queueRow = (id: string) =>
-    id === RELEASED_ID
+    id === CLIENT_SUBMISSION_ID
       ? {
-          ...spaceRow(RELEASED_ID, RELEASED_TITLE, 'taken'),
+          ...spaceRow(CLIENT_SUBMISSION_ID, CLIENT_SUBMISSION_TITLE, 'submitted'),
+          authorLoginId: CLIENT_LOGIN_ID,
           reason: 'submitted',
-          author: member(),
+          author: {
+            loginId: CLIENT_LOGIN_ID,
+            name: CLIENT_NAME,
+            email: CLIENT_EMAIL,
+            inactive: false,
+            role: 'client',
+          },
         }
-      : {
-          ...spaceRow(SUBMITTED_ID, SUBMITTED_TITLE, 'submitted'),
-          reason: 'submitted',
-          author: member(),
-        };
+      : id === RELEASED_ID
+        ? {
+            ...spaceRow(RELEASED_ID, RELEASED_TITLE, 'taken'),
+            reason: 'submitted',
+            author: member(),
+          }
+        : {
+            ...spaceRow(SUBMITTED_ID, SUBMITTED_TITLE, 'submitted'),
+            reason: 'submitted',
+            author: member(),
+          };
   const TAKEN_BY_ADMIN = new Set([SUBMITTED_ID, RELEASED_ID]);
   const privateRow = (id: string) => {
     const title =
@@ -742,6 +868,12 @@ export async function startMockMemberApi(
         json(res, 200, {
           items: moved(id).map(({ id: i, type, title }) => ({ id: i, type, title })),
           linksStayingBehind: 0,
+          // What the item embeds, at its current level (C1): a client's item
+          // accepted at Client takes this team photo down with it.
+          closure:
+            id === CLIENT_SUBMISSION_ID
+              ? [{ id: FILE_ID, type: 'file', title: CLIENT_EMBED_TITLE, audience: 'team' }]
+              : [],
         });
         return true;
       }
@@ -1335,6 +1467,382 @@ export async function startMockMemberApi(
     return answer(202, { turnId: `turn-${n}` });
   };
 
+  // ── A client's submitted item, as a member reads it (C5) ──────────────
+  const clientRequestSpaceRow = () => ({
+    id: CLIENT_REQUEST_ID,
+    type: 'note',
+    title: CLIENT_REQUEST_TITLE,
+    icon: null,
+    sharing: 'private',
+    reviewState: 'submitted',
+    submittedAt: now,
+    returnedNote: null,
+    authorLoginId: CLIENT_LOGIN_ID,
+    updatedAt: now,
+  });
+  const clientRequestRow = () => ({
+    id: CLIENT_REQUEST_ID,
+    type: 'note',
+    title: CLIENT_REQUEST_TITLE,
+    icon: null,
+    summary: null,
+    updatedAt: now,
+    source: 'client-request',
+    pill: 'submitted',
+    audience: null,
+    author: { name: CLIENT_NAME, acceptedAt: null, role: 'client' },
+    byMe: false,
+    space: clientRequestSpaceRow(),
+  });
+
+  // ── A client's own items and the shared threads (C5) ──────────────────
+  const O = state.clientOwn;
+  const comment = (
+    nodeId: string,
+    authorKind: MockComment['authorKind'],
+    authorName: string,
+    body: string,
+    mine = false,
+  ): MockComment => ({
+    id: `c-${Math.random().toString(36).slice(2, 10)}`,
+    nodeId,
+    authorKind,
+    authorName,
+    mine,
+    body,
+    createdAt: new Date().toISOString(),
+    editedAt: null,
+  });
+  const clientRow = (
+    id: string,
+    type: MockClientItem['row']['type'],
+    title: string,
+    reviewState: MockClientItem['row']['reviewState'],
+    updatedAt: string,
+  ): MockClientItem['row'] => ({
+    id,
+    type,
+    title,
+    icon: null,
+    sharing: 'private',
+    reviewState,
+    submittedAt: reviewState === 'submitted' ? updatedAt : null,
+    returnedNote: reviewState === 'returned' ? CLIENT_RETURNED_NOTE : null,
+    authorLoginId: CLIENT_LOGIN_ID,
+    updatedAt,
+  });
+  const noteBody = (title: string, content: string) => ({
+    type: 'note',
+    note: { content, title },
+  });
+  O.items = [
+    {
+      row: clientRow(
+        CLIENT_DRAFT_ID,
+        'page',
+        CLIENT_DRAFT_TITLE,
+        'draft',
+        '2026-09-28T12:00:00.000Z',
+      ),
+      body: pageBody(CLIENT_DRAFT_TITLE, 'We would like a site visit.'),
+    },
+    {
+      row: clientRow(
+        CLIENT_SUBMITTED_ID,
+        'note',
+        CLIENT_SUBMITTED_TITLE,
+        'submitted',
+        '2026-09-27T12:00:00.000Z',
+      ),
+      body: noteBody(CLIENT_SUBMITTED_TITLE, 'Two bays for the visit, please.'),
+    },
+    {
+      row: clientRow(
+        CLIENT_RETURNED_ID,
+        'page',
+        CLIENT_RETURNED_TITLE,
+        'returned',
+        '2026-09-26T12:00:00.000Z',
+      ),
+      body: pageBody(CLIENT_RETURNED_TITLE, 'Level 1 doors.'),
+    },
+  ];
+  O.comments[CLIENT_SUBMITTED_ID] = [
+    comment(CLIENT_SUBMITTED_ID, 'member', CLIENT_SITE, REVIEWER_COMMENT),
+  ];
+  O.shared[SHARED_PAGE_ID] = [comment(SHARED_PAGE_ID, 'member', STAFF_NAME, SHARED_TEAM_COMMENT)];
+  const acceptedClientRow = () => ({
+    id: CLIENT_ACCEPTED_ID,
+    type: 'note',
+    title: CLIENT_ACCEPTED_TITLE,
+    icon: null,
+    updatedAt: '2026-09-20T12:00:00.000Z',
+    source: 'accepted',
+    pill: null,
+    space: null,
+    acceptedAt: ACCEPTED_AT,
+  });
+  const pillOf = (r: MockClientItem['row']) =>
+    r.reviewState === 'draft' ? 'private' : r.reviewState;
+  /** The thread routes, the brain's rules: read and post; delete your own. */
+  const thread = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    list: MockComment[],
+    nodeId: string,
+    commentId: string | undefined,
+    method: string,
+    author: { kind: MockComment['authorKind']; name: string },
+  ) => {
+    if (!commentId && method === 'GET') return json(res, 200, { comments: list });
+    if (!commentId && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as { body?: string };
+      const c = comment(nodeId, author.kind, author.name, body.body ?? '', true);
+      list.push(c);
+      return json(res, 201, { comment: c });
+    }
+    if (commentId && method === 'DELETE') {
+      const i = list.findIndex((c) => c.id === commentId);
+      if (i < 0) return json(res, 404, { error: 'Not found.' });
+      if (!list[i]!.mine)
+        return json(res, 403, { error: 'You can delete your own comments only.' });
+      list.splice(i, 1);
+      return json(res, 200, { ok: true });
+    }
+    return json(res, 405, { error: 'Method not allowed.' });
+  };
+
+  /** The C5 client routes; true when it answered. */
+  const handleClientOwn = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    path: string,
+    method: string,
+  ): Promise<boolean> => {
+    const c5 =
+      path === '/api/client/items' ||
+      path === '/api/client/space' ||
+      path === '/api/client/space-files' ||
+      path.startsWith('/api/client/space/') ||
+      path.startsWith('/api/client/accepted/') ||
+      /^\/api\/client\/shared\/[^/]+\/comments/.test(path);
+    if (!c5) return false;
+    if (!O.routes) return (json(res, 404, { error: 'Not found.' }), true);
+    const me = { kind: 'client' as const, name: CLIENT_NAME };
+
+    if (path === '/api/client/items' && method === 'GET') {
+      const kind = url.searchParams.get('kind');
+      const q = url.searchParams.get('q')?.toLowerCase() ?? '';
+      const filter = url.searchParams.get('state') ?? 'all';
+      O.itemsStates.push(filter);
+      const rows = [
+        ...O.items.map((i) => ({
+          id: i.row.id,
+          type: i.row.type,
+          title: i.row.title,
+          icon: null,
+          updatedAt: i.row.updatedAt,
+          source: 'own',
+          pill: pillOf(i.row),
+          space: i.row,
+          acceptedAt: null,
+        })),
+        ...(O.accepted ? [acceptedClientRow()] : []),
+      ]
+        .filter((r) => !kind || r.type === kind)
+        .filter((r) => !q || r.title.toLowerCase().includes(q))
+        .filter((r) =>
+          filter === 'all'
+            ? true
+            : filter === 'accepted'
+              ? r.source === 'accepted'
+              : r.pill === filter,
+        )
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      json(res, 200, { items: rows, total: rows.length, page: 1, pageSize: 50 });
+      return true;
+    }
+    if (path === '/api/client/space' && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as {
+        type: 'page' | 'note';
+        title?: string;
+      };
+      const id = randomUUID();
+      const at = new Date().toISOString();
+      const item: MockClientItem = {
+        row: clientRow(id, body.type, body.title ?? '', 'draft', at),
+        body:
+          body.type === 'page' ? pageBody(body.title ?? '', '') : noteBody(body.title ?? '', ''),
+      };
+      if (body.type === 'page') {
+        (item.body.page as Record<string, unknown>).doc = {
+          type: 'doc',
+          content: [{ type: 'paragraph' }],
+        };
+      }
+      O.items.unshift(item);
+      json(res, 201, { item: item.row });
+      return true;
+    }
+    if (path === '/api/client/space-files' && method === 'POST') {
+      const raw = await readBody(req);
+      const filename = /filename="([^"]+)"/.exec(raw)?.[1] ?? 'upload.bin';
+      if (O.uploadRefusal) {
+        const { status, body } = O.uploadRefusal;
+        O.uploadRefusal = null;
+        json(res, status, body);
+        return true;
+      }
+      O.uploads.push(filename);
+      const id = randomUUID();
+      const item: MockClientItem = {
+        row: clientRow(id, 'file', filename, 'draft', new Date().toISOString()),
+        body: {
+          type: 'file',
+          file: {
+            id,
+            filename,
+            extension: filename.split('.').pop() ?? '',
+            mimeType: 'image/png',
+            sizeBytes: 68,
+            sha256: null,
+          },
+        },
+      };
+      O.items.unshift(item);
+      json(res, 201, { row: item.row });
+      return true;
+    }
+    const acc = /^\/api\/client\/accepted\/([0-9a-f-]{36})$/.exec(path);
+    if (acc) {
+      if (!O.accepted || acc[1] !== CLIENT_ACCEPTED_ID) {
+        return (json(res, 404, { error: 'Not found.' }), true);
+      }
+      json(res, 200, {
+        item: {
+          id: CLIENT_ACCEPTED_ID,
+          type: 'note',
+          title: CLIENT_ACCEPTED_TITLE,
+          icon: null,
+          acceptedAt: ACCEPTED_AT,
+          updatedAt: '2026-09-20T12:00:00.000Z',
+          content: 'The site is open 7 to 5 on weekdays.',
+        },
+      });
+      return true;
+    }
+    const shared = /^\/api\/client\/shared\/([0-9a-f-]{36})\/comments(?:\/([^/]+))?$/.exec(path);
+    if (shared) {
+      const [, id, commentId] = shared as unknown as [string, string, string | undefined];
+      if (!sharedRows().some((r) => r.id === id))
+        return (json(res, 404, { error: 'Not found.' }), true);
+      O.shared[id] ??= [];
+      await thread(req, res, O.shared[id]!, id, commentId, method, me);
+      return true;
+    }
+    const own = /^\/api\/client\/space\/([0-9a-f-]{36})(\/[a-z-]+)?(?:\/([^/]+))?$/.exec(path);
+    if (own) {
+      const [, id, tail, extra] = own as unknown as [
+        string,
+        string,
+        string | undefined,
+        string | undefined,
+      ];
+      const item = O.items.find((i) => i.row.id === id);
+      if (!item) return (json(res, 404, { error: 'Not found.' }), true);
+      const touch = () => (item.row.updatedAt = new Date().toISOString());
+      const page = item.body.page as { doc: Doc; draft: Doc | null; draftRev: number } | undefined;
+      if (!tail && method === 'GET') return (json(res, 200, item), true);
+      if (!tail && method === 'PATCH') {
+        const body = JSON.parse((await readBody(req)) || '{}') as {
+          title?: string;
+          content?: string;
+        };
+        if (item.row.reviewState === 'submitted') {
+          json(res, 409, {
+            error: 'Submitted for review: nobody can change it now.',
+            reason: 'frozen',
+          });
+          return true;
+        }
+        if (body.title !== undefined) item.row.title = body.title;
+        if (body.content !== undefined) {
+          (item.body.note as Record<string, unknown>).content = body.content;
+        }
+        touch();
+        return (json(res, 200, item), true);
+      }
+      if (!tail && method === 'DELETE') {
+        O.items = O.items.filter((i) => i !== item);
+        return (json(res, 200, { ok: true }), true);
+      }
+      if (tail === '/draft' && method === 'PUT' && page) {
+        const body = JSON.parse(await readBody(req)) as { doc: Doc; if_rev?: number };
+        if (item.row.reviewState === 'submitted') {
+          json(res, 409, {
+            error: 'Submitted for review: nobody can change it now.',
+            reason: 'frozen',
+          });
+          return true;
+        }
+        if (body.if_rev !== undefined && body.if_rev !== page.draftRev) {
+          json(res, 409, { error: 'The draft changed.', current_rev: page.draftRev });
+          return true;
+        }
+        page.draft = body.doc;
+        page.draftRev += 1;
+        touch();
+        return (json(res, 200, { ok: true, draft_rev: page.draftRev }), true);
+      }
+      if (tail === '/save' && method === 'POST' && page) {
+        const body = JSON.parse(await readBody(req)) as { doc: Doc; if_rev?: number };
+        O.saves.push({ id, doc: body.doc });
+        page.doc = body.doc;
+        page.draft = null;
+        touch();
+        return (json(res, 200, item), true);
+      }
+      if (tail === '/submit' && method === 'POST') {
+        O.submits.push(id);
+        if (page?.draft) {
+          json(res, 409, {
+            error: 'Save a version first: a reviewer reads the saved version.',
+            reason: 'unsaved-draft',
+            ids: [id],
+          });
+          return true;
+        }
+        if (item.row.reviewState !== 'draft' && item.row.reviewState !== 'returned') {
+          return (json(res, 409, { error: 'Not a draft.', reason: 'not-draft' }), true);
+        }
+        item.row.reviewState = 'submitted';
+        item.row.submittedAt = new Date().toISOString();
+        item.row.returnedNote = null;
+        touch();
+        return (json(res, 200, { item: item.row }), true);
+      }
+      if (tail === '/recall' && method === 'POST') {
+        O.recalls.push(id);
+        if (item.row.reviewState !== 'submitted') {
+          return (json(res, 409, { error: 'Not submitted.', reason: 'not-submitted' }), true);
+        }
+        item.row.reviewState = 'draft';
+        item.row.submittedAt = null;
+        touch();
+        return (json(res, 200, { item: item.row }), true);
+      }
+      if (tail === '/bytes') return (send(res, 200, 'image/png', PNG_1PX), true);
+      if (tail === '/comments') {
+        O.comments[id] ??= [];
+        await thread(req, res, O.comments[id]!, id, extra, method, me);
+        return true;
+      }
+    }
+    json(res, 404, { error: `not mocked: ${method} ${path}` });
+    return true;
+  };
+
   const handleClient = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -1343,6 +1851,7 @@ export async function startMockMemberApi(
     method: string,
   ) => {
     if (path === '/api/client/chat') return handleClientChat(req, res, method);
+    if (await handleClientOwn(req, res, url, path, method)) return;
     if (path === '/api/client/shell') {
       return json(res, 200, {
         role: 'client',
@@ -1630,7 +2139,57 @@ export async function startMockMemberApi(
           space: source === 'own' || source === 'team' ? r : null,
         }))
         .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-      return json(res, 200, { items: rows, total: rows.length, page: 1, pageSize: 50 });
+      // A client's submitted item (C5): in All, and alone under Client
+      // requests.
+      const requests =
+        state.clientRequests &&
+        kind === 'note' &&
+        (filter === 'all' || filter === 'client-requests')
+          ? [clientRequestRow()]
+          : [];
+      const merged =
+        filter === 'client-requests'
+          ? requests
+          : [...requests, ...rows].sort((a, b) =>
+              String(b.updatedAt).localeCompare(String(a.updatedAt)),
+            );
+      return json(res, 200, { items: merged, total: merged.length, page: 1, pageSize: 50 });
+    }
+    if (path === `/api/member/client-requests/${CLIENT_REQUEST_ID}` && method === 'GET') {
+      if (!state.clientRequests) return json(res, 404, { error: 'Not found.' });
+      return json(res, 200, {
+        row: clientRequestSpaceRow(),
+        body: { type: 'note', note: { content: CLIENT_REQUEST_TEXT, title: CLIENT_REQUEST_TITLE } },
+      });
+    }
+    // The thread on a Library item at client level (C5); a team item has none.
+    const libThread = /^\/api\/member\/library\/([0-9a-f-]{36})\/comments(?:\/([^/]+))?$/.exec(
+      path,
+    );
+    if (libThread) {
+      const [, id, commentId] = libThread as unknown as [string, string, string | undefined];
+      if (id !== LIBRARY_CLIENT_ID) return json(res, 404, { error: 'Not found.' });
+      return thread(req, res, state.libraryComments, id, commentId, method, {
+        kind: 'member',
+        name: MEMBER_NAME,
+      });
+    }
+    if (path === `/api/member/library/${LIBRARY_CLIENT_ID}` && method === 'GET') {
+      return json(res, 200, {
+        item: {
+          id: LIBRARY_CLIENT_ID,
+          type: 'page',
+          title: LIBRARY_CLIENT_TITLE,
+          icon: null,
+          summary: null,
+          audience: 'client',
+          updatedAt: now,
+          doc: {
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'For the client.' }] }],
+          },
+        },
+      });
     }
     if (path === '/api/member/space' && method === 'GET') {
       const kind = url.searchParams.get('kind');
