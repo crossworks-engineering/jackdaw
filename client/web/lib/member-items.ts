@@ -19,7 +19,7 @@ import type {
   MemberItemRow,
   MemberItemSource,
   MemberItemsPage,
-} from './contract-next';
+} from '@mantle/client-types';
 import { listPath, type SpaceKind, type WorkspaceSource } from './member-space';
 
 /** The State filter's choices, the first the default. */

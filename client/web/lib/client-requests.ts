@@ -19,9 +19,8 @@ import {
   isClientItemKind,
   type ClientItemFilter,
   type ClientItemKind,
-  type ClientItemRow,
-  type NodeCommentAuthorKind,
-} from './contract-next';
+} from '@mantle/client-types/member-kinds';
+import type { ClientItemRow, NodeCommentAuthorKind } from '@mantle/client-types';
 import { CLIENT_MAX_UPLOAD_BYTES, CLIENT_SPACE_BASE, memberUploadRefusal } from './member-space';
 import { MEMBER_KIND } from './member-kinds';
 

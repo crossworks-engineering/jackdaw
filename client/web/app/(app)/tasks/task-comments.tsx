@@ -12,6 +12,7 @@ const ROLE_CHIP: Record<NodeComment['authorKind'], string | null> = {
   owner: null, // a login's name speaks for itself
   member: 'Team',
   agent: 'Assistant',
+  client: 'Client',
 };
 
 /**

@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
 import type { MemberItemPill } from '@mantle/client-types';
-import type { MemberItemRow } from '@/lib/contract-next';
+import type { MemberItemRow } from '@mantle/client-types';
 import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';

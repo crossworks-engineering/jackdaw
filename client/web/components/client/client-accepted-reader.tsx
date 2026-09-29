@@ -8,7 +8,7 @@ import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { ReadOnlyItemBody, type ReaderAssets } from '@/components/member/read-only-item';
 import { clientAssetPath, clientDrawUrlPath, clientFileUrlPath } from '@/lib/client-portal';
 import { CLIENT_ACCEPTED_KEY, clientAcceptedPath } from '@/lib/client-requests';
-import type { ClientAcceptedItem } from '@/lib/contract-next';
+import type { ClientAcceptedItem } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { acceptedBytesChanged, acceptedChangedText } from '@/lib/member-space';
 import { formatBytes } from '@/lib/upload-progress';

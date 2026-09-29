@@ -45,7 +45,7 @@ import {
   isMissingRoute,
   type ClientRowSrc,
 } from '@/lib/client-requests';
-import type { ClientItemRow, ClientItemsPage } from '@/lib/contract-next';
+import type { ClientItemRow, ClientItemsPage } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { clientSpace } from '@/lib/member-space';
 import { useListNav } from '@/lib/use-list-nav';

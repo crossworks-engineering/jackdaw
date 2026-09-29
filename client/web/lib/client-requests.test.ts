@@ -29,7 +29,7 @@ import {
   libraryCommentsPath,
   sharedCommentsPath,
 } from './client-requests';
-import { CLIENT_ITEM_FILTERS } from './contract-next';
+import { CLIENT_ITEM_FILTERS } from '@mantle/client-types/member-kinds';
 import {
   CLIENT_MAX_UPLOAD_BYTES,
   clientSpace,

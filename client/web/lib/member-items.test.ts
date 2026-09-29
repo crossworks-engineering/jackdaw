@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MemberSpaceItemRow } from '@mantle/client-types';
-import type { MemberItemRow } from './contract-next';
+import type { MemberItemRow } from '@mantle/client-types';
 
 /**
  * A member's one list (item-list alignment, P4): the request, the pill and

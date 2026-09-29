@@ -10,7 +10,7 @@ import {
   commentsPollMs,
   isMissingRoute,
 } from '@/lib/client-requests';
-import type { ClientCommentThread, NodeCommentAuthorKind } from '@/lib/contract-next';
+import type { ClientCommentThread, NodeCommentAuthorKind } from '@mantle/client-types';
 import { refusalMessage } from '@/lib/member-space';
 
 /**
