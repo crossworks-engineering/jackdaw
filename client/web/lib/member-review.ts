@@ -10,7 +10,15 @@
  * contract with the member-space types (lib/member-space.ts).
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import type { AccessLevel, TakeOverResult } from '@mantle/client-types';
+import type { AccessItemView, AccessLevel, TakeOverResult } from '@mantle/client-types';
+import { closureAbove, LEVEL_LABEL } from './access-levels';
+import type {
+  AcceptBodyNext,
+  AcceptPreviewNext,
+  ConfirmLevelRefusal,
+  ReviewAuthorNext,
+  ReviewAuthorRole,
+} from './contract-next';
 import { MEMBER_KIND } from './member-kinds';
 import {
   refusalReason,
@@ -23,7 +31,7 @@ import {
 
 export type ReviewReason = 'submitted' | 'left-behind';
 
-export type ReviewAuthor = {
+export type ReviewAuthor = ReviewAuthorNext & {
   loginId: string | null;
   name: string;
   email: string | null;
@@ -58,9 +66,9 @@ export type ReviewItem = {
 };
 
 export type BundleItem = { id: string; type: SpaceKind; title: string };
-export type Bundle = { items: BundleItem[]; linksStayingBehind: number };
+export type Bundle = AcceptPreviewNext & { items: BundleItem[]; linksStayingBehind: number };
 
-export type AcceptInput = {
+export type AcceptInput = AcceptBodyNext & {
   audience: AccessLevel;
   parentPageId?: string | null;
   folderPath?: string | null;
@@ -207,4 +215,71 @@ export const TOP_OF_PAGES = '__top__';
  */
 export function shownParent(picked: string, shownIds: readonly string[]): string {
   return picked !== TOP_OF_PAGES && shownIds.includes(picked) ? picked : TOP_OF_PAGES;
+}
+
+// ── A client's item at client or public (audit A28) ─────────────────────────
+
+/** The author's role in words, for the badge (absent from older brains). */
+export function authorRoleLabel(role: ReviewAuthorRole | null | undefined): string | null {
+  return role === 'client' ? 'Client' : role === 'member' ? 'Member' : null;
+}
+
+/** Where the accept dialog's level starts: a client's item at Team (the
+ *  brain's own default for it), anything else at Admin. */
+export function defaultAcceptLevel(role: ReviewAuthorRole | null | undefined): AccessLevel {
+  return role === 'client' ? 'team' : 'admin';
+}
+
+/** A client's item accepted at client or public goes to every client login
+ *  (or everyone with the link), with what it embeds: the admin confirms it,
+ *  item by item. A member's item is unchanged. */
+export function needsLevelConfirm(
+  role: ReviewAuthorRole | null | undefined,
+  level: AccessLevel,
+): boolean {
+  return role === 'client' && (level === 'client' || level === 'public');
+}
+
+/** What goes DOWN with the item at `level`: the closure items above it. */
+export function goingDownAt(
+  closure: readonly AccessItemView[] | undefined,
+  level: AccessLevel,
+): AccessItemView[] {
+  return closureAbove(closure ?? [], level);
+}
+
+/** The brain asked for a confirmation (409 `confirm-level`): its words and,
+ *  from the audit-fix release on, the items that would go down. Null for any
+ *  other failure. */
+export function confirmLevelRefusal(
+  err: unknown,
+): { message: string; goingDown: AccessItemView[] | null } | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const body = err.body as Partial<ConfirmLevelRefusal> | undefined;
+  if (body?.reason !== 'confirm-level') return null;
+  return {
+    message: err.message || body.message || 'Confirm the level to accept this item.',
+    goingDown: Array.isArray(body.goingDown) ? body.goingDown : null,
+  };
+}
+
+/** The confirmation an accept sends: every item that goes down, each ticked.
+ *  Null until all of them are (the Accept button waits for it). */
+export function levelConfirmation(
+  goingDown: readonly AccessItemView[],
+  ticked: ReadonlySet<string>,
+): Required<AcceptBodyNext> | null {
+  if (!goingDown.every((i) => ticked.has(i.id))) return null;
+  return { lowerConfirmed: true, confirmedIds: goingDown.map((i) => i.id) };
+}
+
+/** The line over the list the admin ticks. `null`: a brain that sends no
+ *  list, so the one tick is for the level and all it embeds. */
+export function goingDownLine(level: AccessLevel, count: number | null): string {
+  const who = level === 'public' ? 'anyone with the link' : 'every client login';
+  if (count === null) {
+    return `A client wrote this. At ${LEVEL_LABEL[level]}, ${who} reads it, with what it embeds. Tick to confirm.`;
+  }
+  if (count === 0) return `A client wrote this. At ${LEVEL_LABEL[level]}, ${who} reads it.`;
+  return `A client wrote this. At ${LEVEL_LABEL[level]}, ${who} reads it, and ${count === 1 ? 'this item it embeds goes' : `these ${count} items it embeds go`} down with it. Tick each to confirm.`;
 }

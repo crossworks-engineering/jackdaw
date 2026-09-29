@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   TOP_OF_PAGES,
+  authorRoleLabel,
+  confirmLevelRefusal,
+  defaultAcceptLevel,
+  goingDownAt,
+  goingDownLine,
+  levelConfirmation,
+  needsLevelConfirm,
   bundleSummary,
   reviewAssetPath,
   reviewErrorMessage,
@@ -104,5 +111,82 @@ describe('the accept dialog: the parent page', () => {
     expect(ui).toMatch(/onClick=\{\(\) => void bundle\.refetch\(\)\}\s*>\s*Retry/);
     expect(ui).toContain('<Label id="review-level-label">Who can see it</Label>');
     expect(ui).toContain('aria-labelledby="review-level-label"');
+  });
+});
+
+describe("a client's item at client or public (audit A28)", () => {
+  const item = (id: string, audience: 'admin' | 'team' | 'client' | 'public') => ({
+    id,
+    type: 'file',
+    title: id,
+    audience,
+  });
+
+  it('badges the author role where the brain sends it', () => {
+    expect(authorRoleLabel('client')).toBe('Client');
+    expect(authorRoleLabel('member')).toBe('Member');
+    expect(authorRoleLabel(undefined)).toBeNull();
+    expect(authorRoleLabel(null)).toBeNull();
+  });
+
+  it("starts a client's item at Team, anything else at Admin (unchanged)", () => {
+    expect(defaultAcceptLevel('client')).toBe('team');
+    expect(defaultAcceptLevel('member')).toBe('admin');
+    expect(defaultAcceptLevel(undefined)).toBe('admin');
+  });
+
+  it('asks for ticks only for a client item at Client or Public', () => {
+    expect(needsLevelConfirm('client', 'client')).toBe(true);
+    expect(needsLevelConfirm('client', 'public')).toBe(true);
+    expect(needsLevelConfirm('client', 'team')).toBe(false);
+    expect(needsLevelConfirm('client', 'admin')).toBe(false);
+    // A member's item: unchanged, never asked.
+    for (const l of ['admin', 'team', 'client', 'public'] as const) {
+      expect(needsLevelConfirm('member', l)).toBe(false);
+      expect(needsLevelConfirm(undefined, l)).toBe(false);
+    }
+  });
+
+  it('lists what goes down: the closure items above the level', () => {
+    const closure = [item('a', 'admin'), item('t', 'team'), item('c', 'client')];
+    expect(goingDownAt(closure, 'client').map((i) => i.id)).toEqual(['a', 't']);
+    expect(goingDownAt(closure, 'public').map((i) => i.id)).toEqual(['a', 't', 'c']);
+    expect(goingDownAt(undefined, 'client')).toEqual([]);
+  });
+
+  it('confirms only once every item that goes down is ticked', () => {
+    const down = [item('a', 'admin'), item('t', 'team')];
+    expect(levelConfirmation(down, new Set(['a']))).toBeNull();
+    expect(levelConfirmation(down, new Set(['a', 't', 'x']))).toEqual({
+      lowerConfirmed: true,
+      confirmedIds: ['a', 't'],
+    });
+    // Nothing goes down: the level itself is the confirmation.
+    expect(levelConfirmation([], new Set())).toEqual({ lowerConfirmed: true, confirmedIds: [] });
+  });
+
+  it("reads the brain's 409 confirm-level, with its list when it sends one", () => {
+    const down = [item('a', 'admin')];
+    const withList = new ApiError('Confirm.', 409, {
+      error: 'Confirm.',
+      reason: 'confirm-level',
+      goingDown: down,
+    });
+    expect(confirmLevelRefusal(withList)).toEqual({ message: 'Confirm.', goingDown: down });
+    const bare = new ApiError('Confirm it.', 409, { reason: 'confirm-level' });
+    expect(confirmLevelRefusal(bare)).toEqual({ message: 'Confirm it.', goingDown: null });
+    expect(confirmLevelRefusal(new ApiError('x', 409, { reason: 'other' }))).toBeNull();
+    expect(confirmLevelRefusal(new ApiError('x', 400, { reason: 'confirm-level' }))).toBeNull();
+  });
+
+  it('says who reads it and what goes down', () => {
+    expect(goingDownLine('client', 2)).toBe(
+      'A client wrote this. At Client, every client login reads it, and these 2 items it embeds go down with it. Tick each to confirm.',
+    );
+    expect(goingDownLine('public', 1)).toMatch(/anyone with the link reads it, and this item/);
+    expect(goingDownLine('client', 0)).toBe(
+      'A client wrote this. At Client, every client login reads it.',
+    );
+    expect(goingDownLine('client', null)).toMatch(/with what it embeds\. Tick to confirm\.$/);
   });
 });

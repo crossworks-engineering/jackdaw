@@ -7,10 +7,13 @@
  * accept dialog also serves an admin's own private items (Phase 7).
  */
 import { useState, type ReactNode } from 'react';
+import { Badge } from '@mantle/web-ui/ui/badge';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Hand, Loader2, Trash2, Undo2 } from 'lucide-react';
-import type { AccessLevel } from '@mantle/client-types';
+import type { AccessItemView, AccessLevel } from '@mantle/client-types';
+import type { ReviewAuthorRole } from '@/lib/contract-next';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -49,8 +52,15 @@ import { LEVEL_LABEL, LEVEL_MEANING, LEVEL_ORDER, isAccessLevel } from '@/lib/ac
 import { privateViewHref } from '@/lib/admin-private';
 import {
   TOP_OF_PAGES,
+  authorRoleLabel,
   bundleSummary,
+  confirmLevelRefusal,
+  defaultAcceptLevel,
+  goingDownAt,
+  goingDownLine,
+  levelConfirmation,
   memberReview,
+  needsLevelConfirm,
   reviewErrorMessage,
   shownParent,
   takeOverErrorMessage,
@@ -80,6 +90,7 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
   return (
     <AcceptIntoBrainDialog
       item={row}
+      authorRole={row.author.role}
       description={
         <>
           “{row.title || 'Untitled'}” moves out of {row.author.name}&rsquo;s space and becomes a
@@ -107,6 +118,13 @@ export type AcceptTarget = { id: string; type: SpaceKind; title: string };
  * own private item (member logins Phase 7) both come through here; only the
  * route differs. `bundle` lists what moves along when the route can say so;
  * without it only a file item asks for a folder.
+ *
+ * A client's item (audit A28): the dialog says who wrote it, starts at Team,
+ * and at Client or Public lists what goes down with it (the embed closure
+ * above that level, from the bundle), one tick each; Accept waits for all of
+ * them and sends `lowerConfirmed` with the ticked ids. The brain's own 409
+ * `confirm-level` (a brain that knew more, or the admin's own accept after a
+ * Take over) shows its list the same way. A member's item is unchanged.
  */
 export function AcceptIntoBrainDialog({
   item,
@@ -118,8 +136,11 @@ export function AcceptIntoBrainDialog({
   onFailed,
   errorMessage,
   triggerLabel = 'Accept',
+  authorRole,
 }: {
   item: AcceptTarget;
+  /** Who wrote it, where the brain says (absent from older brains). */
+  authorRole?: ReviewAuthorRole | null;
   description: ReactNode;
   bundle?: { key: readonly unknown[]; load: () => Promise<Bundle> };
   accept: (input: AcceptInput) => Promise<AcceptResult>;
@@ -132,7 +153,15 @@ export function AcceptIntoBrainDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const [level, setLevel] = useState<AccessLevel>('admin');
+  const [level, setLevel] = useState<AccessLevel>(() => defaultAcceptLevel(authorRole));
+  // What the admin ticked of what goes down, and the brain's own ask when it
+  // refused the level (409 confirm-level); both start over on a new level.
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
+  const [refusal, setRefusal] = useState<{
+    level: AccessLevel;
+    message: string;
+    goingDown: AccessItemView[] | null;
+  } | null>(null);
   const [folder, setFolder] = useState('files');
   const [parent, setParent] = useState<string>(TOP);
   const [pageQuery, setPageQuery] = useState('');
@@ -167,6 +196,38 @@ export function AcceptIntoBrainDialog({
     parentChoices.map((p) => p.id),
   );
 
+  // What goes down with it at this level, when it needs the admin's ticks.
+  const asked = refusal?.level === level ? refusal : null;
+  const confirming = !!asked || needsLevelConfirm(authorRole, level);
+  const goingDown: AccessItemView[] = asked
+    ? (asked.goingDown ?? [])
+    : confirming
+      ? goingDownAt(bundle.data?.closure, level)
+      : [];
+  // A brain that sends no list (before the audit fix), in its 409 or in the
+  // bundle: one tick, for the level and all it embeds.
+  const levelOnly = asked
+    ? asked.goingDown === null
+    : confirming && !!bundle.data && bundle.data.closure === undefined;
+  const confirmation = confirming
+    ? levelOnly
+      ? ticked.has(LEVEL_TICK)
+        ? { lowerConfirmed: true }
+        : null
+      : levelConfirmation(goingDown, ticked)
+    : undefined;
+  const pickLevel = (v: AccessLevel) => {
+    setLevel(v);
+    setTicked(new Set());
+  };
+  const tick = (id: string, on: boolean) =>
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
   const accept = async () => {
     setBusy(true);
     try {
@@ -175,6 +236,7 @@ export function AcceptIntoBrainDialog({
         audience: level,
         parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,
         folderPath: hasFiles ? folder : null,
+        ...(confirmation ?? {}),
       };
       const res = await send(input);
       toast.success(
@@ -184,6 +246,13 @@ export function AcceptIntoBrainDialog({
       setOpen(false);
       onAccepted(res, input);
     } catch (err) {
+      const ask = confirmLevelRefusal(err);
+      if (ask) {
+        // Not a failure: the brain wants the admin to see what goes down.
+        setRefusal({ level, ...ask });
+        setTicked(new Set());
+        return;
+      }
       toast.error(errorMessage(err, 'Could not accept this item.'));
       onFailed?.();
     } finally {
@@ -216,6 +285,16 @@ export function AcceptIntoBrainDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {authorRoleLabel(authorRole) ? (
+            <p className="text-xs text-muted-foreground">
+              <Badge variant="secondary" className="mr-1.5 align-middle">
+                {authorRoleLabel(authorRole)}
+              </Badge>
+              {authorRole === 'client'
+                ? 'A client wrote this. It starts at Team.'
+                : 'A member wrote this.'}
+            </p>
+          ) : null}
           <div className="space-y-2">
             {/* A label for a group of buttons names it through aria-labelledby
                 (htmlFor reaches only one form control). */}
@@ -229,7 +308,7 @@ export function AcceptIntoBrainDialog({
               value={level}
               disabled={busy}
               onValueChange={(v) => {
-                if (isAccessLevel(v)) setLevel(v);
+                if (isAccessLevel(v)) pickLevel(v);
               }}
             >
               {LEVEL_ORDER.map((l) => (
@@ -240,6 +319,20 @@ export function AcceptIntoBrainDialog({
             </ToggleGroup>
             <p className="text-xs text-muted-foreground">{LEVEL_MEANING[level]}</p>
           </div>
+
+          {confirming ? (
+            <GoingDownList
+              line={
+                asked ? asked.message : goingDownLine(level, levelOnly ? null : goingDown.length)
+              }
+              items={levelOnly ? [] : goingDown}
+              levelTick={levelOnly ? `Accept it at ${LEVEL_LABEL[level]}` : null}
+              waiting={!asked && !!bundleSource && !bundle.data}
+              ticked={ticked}
+              disabled={busy}
+              onTick={tick}
+            />
+          ) : null}
 
           {item.type === 'page' ? (
             <div className="space-y-2">
@@ -337,7 +430,7 @@ export function AcceptIntoBrainDialog({
               Cancel
             </Button>
             <Button
-              disabled={busy || (!!bundleSource && !bundle.data)}
+              disabled={busy || (!!bundleSource && !bundle.data) || (confirming && !confirmation)}
               onClick={() => void accept()}
             >
               {busy ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
@@ -347,6 +440,68 @@ export function AcceptIntoBrainDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The id of the one tick a brain without a list asks for (the level). */
+const LEVEL_TICK = '__level__';
+
+/** What goes down with a client's item, one tick each (audit A28). */
+function GoingDownList({
+  line,
+  items,
+  levelTick,
+  waiting,
+  ticked,
+  disabled,
+  onTick,
+}: {
+  line: string;
+  items: readonly AccessItemView[];
+  /** A single tick for the level itself (a brain that sent no list). */
+  levelTick: string | null;
+  waiting: boolean;
+  ticked: ReadonlySet<string>;
+  disabled: boolean;
+  onTick: (id: string, on: boolean) => void;
+}) {
+  const rows = levelTick
+    ? [{ id: LEVEL_TICK, label: levelTick, note: null as string | null }]
+    : items.map((i) => ({
+        id: i.id,
+        label: i.title || 'Untitled',
+        note: LEVEL_LABEL[i.audience] as string | null,
+      }));
+  return (
+    <div
+      role="group"
+      aria-label="What goes down with it"
+      className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm"
+    >
+      <p className="text-xs text-warning-ink">{line}</p>
+      {waiting ? (
+        <p className="text-xs text-muted-foreground">Working out what goes down with it…</p>
+      ) : rows.length ? (
+        <ul className="-mx-1 max-h-40 space-y-1 overflow-y-auto px-1 scrollbar-thin">
+          {rows.map((r) => (
+            <li key={r.id} className="flex min-w-0 items-center gap-2">
+              <Checkbox
+                id={`going-down-${r.id}`}
+                checked={ticked.has(r.id)}
+                disabled={disabled}
+                onCheckedChange={(v) => onTick(r.id, v === true)}
+              />
+              <Label htmlFor={`going-down-${r.id}`} className="min-w-0 flex-1 truncate font-normal">
+                {r.label}
+              </Label>
+              {r.note ? (
+                <span className="shrink-0 text-xs text-muted-foreground">{r.note}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
