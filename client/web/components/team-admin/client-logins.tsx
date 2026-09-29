@@ -575,7 +575,11 @@ function AddClientDialog({
       const status = e instanceof ApiError ? e.status : 0;
       const body = e instanceof ApiError ? e.body : undefined;
       const text = clientCreateErrorText(status, body);
-      if (body?.reason === 'email-has-login' || body?.reason === 'no-email') {
+      if (
+        body?.reason === 'email-has-login' ||
+        body?.reason === 'no-email' ||
+        body?.reason === 'email-not-on-contact'
+      ) {
         setEmailError(text);
         document.getElementById('client-add-email')?.focus();
       } else {

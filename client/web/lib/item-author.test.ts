@@ -12,10 +12,11 @@ describe('item author', () => {
     expect(authorName({ name: 'A member', role: 'member' })).toBe('A member');
   });
 
-  it('a client: Client-authored, and "Client" where the brain said "A member"', () => {
-    expect(authorBadgeText({ name: 'A member', role: 'client' })).toBe('Client-authored');
-    expect(authorName({ name: 'A member', role: 'client' })).toBe('Client');
-    expect(authorName({ name: ' ', role: 'client' })).toBe('Client');
+  it('a client: Client-authored, and never "A member"', () => {
+    expect(authorBadgeText({ name: 'A client', role: 'client' })).toBe('Client-authored');
+    expect(authorName({ name: 'A client', role: 'client' })).toBe('A client');
+    expect(authorName({ name: 'A member', role: 'client' })).toBe('A client');
+    expect(authorName({ name: ' ', role: 'client' })).toBe('A client');
     expect(authorName({ name: 'Pat Client', role: 'client' })).toBe('Pat Client');
   });
 

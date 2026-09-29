@@ -29,6 +29,10 @@ describe('clientSigninUrl', () => {
     expect(clientSigninUrl('https://app.example.invalid', 'client-signin?code=abc')).toBe(
       'https://app.example.invalid/client-signin?code=abc',
     );
+    // Brains with the audit fixes: the code in the fragment (B12).
+    expect(clientSigninUrl('https://app.example.invalid', '/client-signin#code=abc')).toBe(
+      'https://app.example.invalid/client-signin#code=abc',
+    );
   });
 });
 
@@ -42,6 +46,10 @@ describe('refusals', () => {
       /already has a login/,
     );
     expect(clientCreateErrorText(400, { reason: 'no-email' })).toMatch(/no email address/);
+    // A typed email the picked contact does not have (audit fix).
+    expect(clientCreateErrorText(400, { reason: 'email-not-on-contact' })).toBe(
+      'That email is not on this contact. Leave it blank to use the contact’s email, or add it to the contact first.',
+    );
     expect(clientCreateErrorText(400, { reason: 'contact-not-found' })).toMatch(
       /not in this brain/,
     );

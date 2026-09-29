@@ -9,6 +9,7 @@
  * End sessions, Disable and Delete are the users routes (/api/users/:id).
  */
 import type { ClientLoginList, ClientLoginRow } from '@mantle/client-types';
+import type { ClientAdminRefusedReason } from './contract-next';
 
 export const CLIENT_LOGINS_KEY = ['team-admin', 'client-logins'] as const;
 
@@ -47,7 +48,7 @@ const NOT_ACKNOWLEDGED =
 
 /** What the admin reads when Add client is refused. */
 export function clientCreateErrorText(status: number, body: Refusal): string {
-  switch (body?.reason) {
+  switch (body?.reason as ClientAdminRefusedReason | undefined) {
     case 'report-not-acknowledged':
       return NOT_ACKNOWLEDGED;
     case 'email-has-login':
@@ -58,6 +59,8 @@ export function clientCreateErrorText(status: number, body: Refusal): string {
       return 'This contact has no email address. Enter the email instead.';
     case 'contact-not-found':
       return 'That contact is not in this brain any more.';
+    case 'email-not-on-contact':
+      return 'That email is not on this contact. Leave it blank to use the contact’s email, or add it to the contact first.';
   }
   if (status === 400) return 'Enter a valid email address, or choose a contact.';
   if (typeof body?.error === 'string' && body.error) return body.error;

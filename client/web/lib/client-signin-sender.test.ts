@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   EMAIL_WORKER_OFF_TEXT,
+  isMissingPreviewRoute,
   NO_SENDER,
   capReachedText,
   codesWorkerOff,
@@ -179,6 +181,30 @@ describe('a sender change is confirmed first (audit B4)', () => {
     );
     expect(senderChangedText({ sender: SENDER }, [])).toBe(
       'Sign-in codes are sent from desk@example.invalid.',
+    );
+  });
+
+  it('a brain without the preview route is told apart from a refused account', () => {
+    expect(isMissingPreviewRoute(new ApiError('Not found', 404))).toBe(true);
+    expect(isMissingPreviewRoute(new ApiError('Not found', 404, { error: 'Not found.' }))).toBe(
+      true,
+    );
+    expect(
+      isMissingPreviewRoute(
+        new ApiError('gone', 404, {
+          error: 'Email account not found.',
+          reason: 'account-not-found',
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isMissingPreviewRoute(new ApiError('bad', 400, { error: 'Choose an email account.' })),
+    ).toBe(false);
+    expect(isMissingPreviewRoute(new TypeError('fetch failed'))).toBe(false);
+    // The route's own refusals read in words.
+    expect(senderErrorText(404, { reason: 'account-not-found' })).toMatch(/not in this brain/);
+    expect(senderErrorText(400, { error: 'Choose an email account.' })).toBe(
+      'Choose an email account.',
     );
   });
 

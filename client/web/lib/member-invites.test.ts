@@ -14,6 +14,10 @@ describe('inviteLink', () => {
     expect(inviteLink('https://app.example.com', '/invite?code=AbC23xyz')).toBe(
       'https://app.example.com/invite?code=AbC23xyz',
     );
+    // Brains with the client logins audit fixes: the code in the fragment.
+    expect(inviteLink('https://app.example.com', '/invite#code=AbC23xyz')).toBe(
+      'https://app.example.com/invite#code=AbC23xyz',
+    );
   });
 
   it('never doubles or drops the slash', () => {

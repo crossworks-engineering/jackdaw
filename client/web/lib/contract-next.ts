@@ -14,6 +14,7 @@
  * import of '@/lib/contract-next' becomes one of '@mantle/client-types').
  */
 import type {
+  ClientAdminRefusedReason as PublishedClientAdminRefusedReason,
   ClientSenderRefusedReason as PublishedClientSenderRefusedReason,
   ClientSharedPage as PublishedClientSharedPage,
   ClientSharedRow as PublishedClientSharedRow,
@@ -37,17 +38,29 @@ export type ClientSharedPage = Omit<PublishedClientSharedPage, 'items'> & {
   items: ClientSharedRow[];
 };
 
-/** A table as a client reads it: an allowlist (no description, tags,
- *  summary, visibility, audience or draft), with cell refs the client may
- *  not read blanked. A brain before the audit fixes sends the whole table
- *  record instead (`data`, `tabs`, `tabId`, `docClipped`); the viewer reads
- *  both (lib/client-portal.ts, clientTableView). */
+/** A column of a client's table: what the viewer draws, nothing more. */
+export type ClientSharedTableColumn = { id: string; name: string; type: string };
+
+/** A row of a client's table. A cell that named an item the client may not
+ *  read arrives as "Private item". */
+export type ClientSharedTableRow = {
+  id: string;
+  cells: Record<string, string | number | boolean | string[] | null>;
+};
+
+/** A table as a client reads it: an allowlist (the committed grid, its tabs
+ *  and counts; no description, tags, summary, visibility, audience or
+ *  draft). A brain before the audit fixes sends the whole table record,
+ *  which carries the same `data`, `tabs`, `tabId` and `docClipped`; the
+ *  viewer reads only those (lib/reader-table.ts). */
 export type ClientSharedTable = {
-  /** The committed column schema as the viewer needs it. */
-  columns: unknown;
-  /** Committed rows, with cell refs the client may not read blanked. */
-  rows: unknown;
-  tabs?: unknown;
+  data: {
+    columns: ClientSharedTableColumn[];
+    rows: ClientSharedTableRow[];
+    aggregates?: Record<string, string>;
+  };
+  docClipped?: boolean;
+  tabs?: { id: string; name: string; rows: number; columns: number }[];
   tabId?: string | null;
   rowCount?: number;
 };
@@ -64,6 +77,13 @@ export type ClientSharedItem =
       mimeType: string | null;
       sizeBytes: number | null;
     });
+
+// ── dto/client.ts: Team admin > Clients ─────────────────────────────────────
+
+/** Why an admin's client action was refused (the 4xx `reason`).
+ *  `email-not-on-contact`: Add client picked a contact and typed an email
+ *  the contact does not have (400). */
+export type ClientAdminRefusedReason = PublishedClientAdminRefusedReason | 'email-not-on-contact';
 
 // ── dto/client.ts: the sign-in sender card (B3, B4) ─────────────────────────
 
@@ -98,13 +118,15 @@ export type ClientSenderRefusedReason =
 
 // ── dto/access.ts and dto/member-apps.ts: who wrote it, who chats (B26) ─────
 
-/** Who wrote an accepted item. `role` client: a client wrote it (C5). */
+/** Who wrote an accepted item. `role` client: a client wrote it (C5); the
+ *  brain names a client with no display name "A client". */
 export type MemberItemAuthor = PublishedMemberItemAuthor & {
   role?: 'member' | 'client' | null;
 };
 
 /** GET /api/team-admin/member-chats: one login and its chat. `role` client:
- *  a client login, never a team member. */
+ *  a client login, never a team member (absent for a former member who is
+ *  an admin now). */
 export type MemberChatRow = PublishedMemberChatRow & {
   role?: 'member' | 'client';
 };

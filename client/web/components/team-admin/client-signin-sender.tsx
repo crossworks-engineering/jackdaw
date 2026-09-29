@@ -60,6 +60,7 @@ import {
   NO_SENDER,
   capReachedText,
   codesWorkerOff,
+  isMissingPreviewRoute,
   lastFailureText,
   senderBody,
   senderChangeConfirm,
@@ -116,8 +117,9 @@ export function ClientSigninSenderPanel() {
       }
       setChange({ kind: 'pick', accountId: value, address, folders: outcome.folders, restored });
     } catch (e) {
-      // A brain before the preview route: confirm without the folder names.
-      if (e instanceof ApiError && e.status === 404) {
+      // A brain before the preview route (a 404 naming no reason): confirm
+      // without the folder names. A 404 with a reason is the account gone.
+      if (isMissingPreviewRoute(e)) {
         setChange({ kind: 'pick', accountId: value, address, folders: null, restored });
       } else {
         fail(e);

@@ -9,6 +9,7 @@
  * with the audit fixes) GET …/signin-sender/preview?accountId=, which names
  * the folders a sender would leave out of mail sync before anything changes.
  */
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import type {
   ClientSenderRefusedReason,
   ClientSigninSender,
@@ -116,6 +117,15 @@ export type SenderPreviewOutcome =
 export function senderPreviewOutcome(p: ClientSigninSenderPreview): SenderPreviewOutcome {
   if (p.canUse) return { kind: 'confirm', folders: p.sentFolders };
   return { kind: 'refused', message: REFUSED[p.reason ?? 'no-sent-folder'] };
+}
+
+/** The preview's failure is a brain without the route (a 404 that names no
+ *  reason), not a refusal: the change is then confirmed without folder
+ *  names. The route's own 404 names `account-not-found`. */
+export function isMissingPreviewRoute(e: unknown): boolean {
+  if (!(e instanceof ApiError) || e.status !== 404) return false;
+  const body = e.body as { reason?: unknown } | undefined;
+  return typeof body?.reason !== 'string';
 }
 
 /** A sender change, before it is made: what the admin confirms. */

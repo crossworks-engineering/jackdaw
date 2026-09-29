@@ -137,10 +137,10 @@ describe('takeLinkCode (the page, in its first effect)', () => {
 });
 
 describe('Referrer-Policy on the link pages (next.config.ts)', () => {
-  it('serves /client-signin and /invite with no-referrer', async () => {
+  it('serves /client-signin and /invite (and below) with no-referrer', async () => {
     const { default: config } = await import('../next.config');
     const rules = (await config.headers?.()) ?? [];
-    for (const page of ['/client-signin', '/invite']) {
+    for (const page of ['/client-signin', '/client-signin/:path*', '/invite', '/invite/:path*']) {
       const rule = rules.find((r) => r.source === page);
       expect(rule?.headers, page).toContainEqual({
         key: 'Referrer-Policy',

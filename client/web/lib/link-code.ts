@@ -14,10 +14,15 @@
  * `Referrer-Policy: no-referrer` (next.config.ts), for the query links.
  */
 
-/** The pages a link's code lands on. next.config.ts serves each with
- *  `Referrer-Policy: no-referrer`: a query code (links issued before the
- *  fragment) never rides out in a Referer header. */
-export const LINK_CODE_PAGES = ['/client-signin', '/invite'] as const;
+/** The pages a link's code lands on, as next.config.ts header sources:
+ *  each is served with `Referrer-Policy: no-referrer`, so a query code
+ *  (links issued before the fragment) never rides out in a Referer header. */
+export const LINK_CODE_PAGES = [
+  '/client-signin',
+  '/client-signin/:path*',
+  '/invite',
+  '/invite/:path*',
+] as const;
 
 /** Where the inline script leaves the code it took out of the address. */
 export const LINK_CODE_GLOBAL = '__MANTLE_LINK_CODE__';
