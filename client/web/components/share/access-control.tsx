@@ -42,6 +42,7 @@ import { oldLinkAboveLine, sharedLinkHref } from '@/lib/client-report';
 import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import { AccessLinkBox } from './access-link-box';
 import { RevokeLinkDialog, STAYS_AT_CLIENT, type RevokeTarget } from './revoke-link-dialog';
+import { authorBadgeText, authorName } from '@/lib/item-author';
 
 /**
  * The owner's Access control for one item: who can see it, as one level
@@ -334,13 +335,14 @@ export function AccessControl({
           ) : (
             <div className="space-y-3">
               {view.author ? (
-                // A member wrote it and an admin accepted it (member logins
-                // Phase 4): the author keeps read access at every level.
+                // A member (or a client) wrote it and an admin accepted it
+                // (member logins Phase 4): the author keeps read access at
+                // every level.
                 <p className="text-xs text-muted-foreground">
                   <Badge variant="secondary" className="mr-1.5 align-middle">
-                    Member-authored
+                    {authorBadgeText(view.author)}
                   </Badge>
-                  Written by {view.author.name}
+                  Written by {authorName(view.author)}
                   {view.author.acceptedAt
                     ? `, accepted ${new Date(view.author.acceptedAt).toLocaleDateString()}`
                     : ''}

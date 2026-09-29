@@ -42,6 +42,7 @@ import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
 import { TeamDraftItem } from './team-draft-item';
 import { StatusChip, spaceErrorMessage } from './space-status';
+import { authorName } from '@/lib/item-author';
 
 const KIND = MEMBER_KIND;
 
@@ -151,7 +152,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
             icon: r.icon,
             updatedAt: r.updatedAt,
             summary: r.summary,
-            author: r.author?.name ?? null,
+            author: r.author ? authorName(r.author) : null,
             level: r.audience,
           })),
           total: d.total,

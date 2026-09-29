@@ -13,6 +13,7 @@ import { MEMBER_KIND } from '@/lib/member-kinds';
 import { formatBytes } from '@/lib/upload-progress';
 import { acceptedBytesChanged, acceptedChangedText, acceptedPlace } from '@/lib/member-space';
 import { ReadOnlyItemBody, type ReaderAssets } from './read-only-item';
+import { authorBadgeText, authorName } from '@/lib/item-author';
 
 type ReaderItem = MemberLibraryItem | MemberAcceptedItem;
 
@@ -147,9 +148,9 @@ function Byline({ item }: { item: ReaderItem }) {
   return (
     <p className="text-xs text-muted-foreground">
       <Badge variant="secondary" className="mr-1.5 align-middle">
-        Member-authored
+        {authorBadgeText(item.author)}
       </Badge>
-      Written by {item.author.name}
+      Written by {authorName(item.author)}
     </p>
   );
 }

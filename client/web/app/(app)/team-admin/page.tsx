@@ -39,12 +39,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import type {
-  TeamMemberActivity,
-  TeamRequest,
-  MemberChatsResponse,
-  MemberChatPortalThread,
-} from '@mantle/client-types';
+import type { TeamMemberActivity, TeamRequest, MemberChatPortalThread } from '@mantle/client-types';
+import type { MemberChatsResponse } from '@/lib/contract-next';
+import { chatRosterTag } from '@/lib/member-chats-roster';
 import {
   SHARES_KEY,
   SharedLinksPanel,
@@ -629,6 +626,7 @@ function MemberChatsTab({ login }: { login?: string }) {
   const member = selected
     ? (data.members.find((m) => m.loginId === selected.loginId) ?? null)
     : null;
+  const rosterTag = member ? chatRosterTag(member) : null;
   return (
     <Tab active="chats">
       <MasterDetail
@@ -667,7 +665,7 @@ function MemberChatsTab({ login }: { login?: string }) {
                             </span>
                           </div>
                           <ListCardMeta>
-                            {!m.active ? 'no longer a member · ' : ''}
+                            {chatRosterTag(m) ? `${chatRosterTag(m)} · ` : ''}
                             {m.lastMessageText ? m.lastMessageText : `${m.email} · no messages yet`}
                           </ListCardMeta>
                         </Link>
@@ -688,7 +686,7 @@ function MemberChatsTab({ login }: { login?: string }) {
                   <p className="text-xs text-muted-foreground">
                     {member.email} · {member.messageCount}{' '}
                     {member.messageCount === 1 ? 'message' : 'messages'}
-                    {member.active ? '' : ' · no longer a member'}
+                    {rosterTag ? ` · ${rosterTag}` : ''}
                   </p>
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
