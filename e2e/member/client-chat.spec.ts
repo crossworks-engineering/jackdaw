@@ -204,12 +204,16 @@ test.describe('the admin side of client chat', () => {
         lastLinkUsedAt: null,
       },
     ];
+    const asked = page.waitForResponse((r) => r.url().includes('/api/team-admin/clients/usage'));
     await page.goto('/team-admin?view=client-logins');
+    expect((await asked).status()).toBe(404);
     await expect(page.getByRole('list', { name: 'Client logins' })).toContainText(CLIENT_NAME, {
       timeout: 60_000,
     });
     await expect(page.getByRole('heading', { name: 'Sign-in codes by email' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Chat use today' })).toHaveCount(0);
+    // Not an error either: a 404 is a brain without the route.
+    await expect(page.getByText(/chat use/i)).toHaveCount(0);
   });
 
   test('Requests: a client’s request wears the Client badge; a member’s none', async ({ page }) => {
