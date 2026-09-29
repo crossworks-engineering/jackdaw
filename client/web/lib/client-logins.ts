@@ -91,7 +91,7 @@ export function openLinkAt(row: Pick<ClientLoginRow, 'openLink'>, now: number) {
 
 /** A row action that is confirmed first. `reissue`: Issue sign-in link while
  *  a link is still open (the new one revokes it). */
-export type ClientConfirmKind = 'reissue' | 'revoke' | 'end' | 'disable' | 'delete';
+export type ClientConfirmKind = 'reissue' | 'revoke' | 'end' | 'disable' | 'delete' | 'comments';
 
 /** What each confirm says. `openUntil`: the open link's expiry, formatted
  *  (reissue only). */
@@ -130,6 +130,16 @@ export function clientActionConfirm(
         title: `Disable ${name}?`,
         body: 'They are signed out at once and cannot sign in, not even with a link, until you enable the login again.',
         action: 'Disable',
+      };
+    case 'comments':
+      // Client logins C5 audit fix: an admin removes what one client wrote
+      // in every thread at once (DELETE /api/team-admin/clients/:id/comments).
+      return {
+        title: `Delete every comment ${name} wrote?`,
+        body:
+          'Their comments go from every thread on items shared with clients, and from the ' +
+          'review talk on what they submitted. The login stays. This cannot be undone.',
+        action: 'Delete comments',
       };
     case 'delete':
       return {
