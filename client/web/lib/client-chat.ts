@@ -8,7 +8,7 @@
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { ASSISTANT_TURN_MAX_CHARS } from '@mantle/web-ui/assistant-limits';
 import { CLIENT_API_BASE } from './client-portal';
-import type { ClientChatRefusedReason } from './contract-next';
+import type { ClientChatRefusedReason } from '@mantle/client-types';
 
 /** GET the thread, POST a message. The client's own route: never a member's. */
 export const CLIENT_CHAT_PATH = `${CLIENT_API_BASE}/chat`;

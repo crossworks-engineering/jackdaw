@@ -17,7 +17,7 @@ import {
   clientChatRefusal,
   clientChatTooLongText,
 } from '@/lib/client-chat';
-import type { ClientChatThread } from '@/lib/contract-next';
+import type { ClientChatThread } from '@mantle/client-types';
 
 /**
  * A client's own chat (client logins C4): a launcher on the home, and a

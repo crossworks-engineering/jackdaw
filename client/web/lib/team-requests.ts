@@ -7,7 +7,7 @@
  * from the old team portal names a contact, whose chat is the Chat archive.
  */
 // The C4 shape (fromClient); drop to '@mantle/client-types' with the shim.
-import type { TeamRequest } from './contract-next';
+import type { TeamRequest } from '@mantle/client-types';
 
 /** Can an admin reply to whoever filed it? Either a login or a contact. */
 export function canReplyToRequest(r: Pick<TeamRequest, 'contactId' | 'loginId'>): boolean {

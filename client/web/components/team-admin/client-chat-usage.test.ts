@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { isUsageMissing, usageLimitsText, usageLine, usageRows } from '../../lib/client-chat-usage';
-import type { ClientChatUsage } from '../../lib/contract-next';
+import type { ClientChatUsage } from '@mantle/client-types';
 import { ClientChatUsageView } from './client-chat-usage';
 
 /**

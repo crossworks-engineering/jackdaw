@@ -8,7 +8,7 @@
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { ClientLoginRow } from '@mantle/client-types';
-import type { ClientChatUsage } from './contract-next';
+import type { ClientChatUsage } from '@mantle/client-types';
 import { clientName } from './client-logins';
 
 export const CLIENT_CHAT_USAGE_PATH = '/api/team-admin/clients/usage';

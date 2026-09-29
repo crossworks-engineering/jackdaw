@@ -41,7 +41,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { TeamMemberActivity, MemberChatPortalThread } from '@mantle/client-types';
 // The C4 request shape (fromClient): drop to '@mantle/client-types' with the shim.
-import type { TeamRequest } from '@/lib/contract-next';
+import type { TeamRequest } from '@mantle/client-types';
 import type { MemberChatsResponse } from '@mantle/client-types';
 import {
   CHAT_ROSTER_FILTERS,

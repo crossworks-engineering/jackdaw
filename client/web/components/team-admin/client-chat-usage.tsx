@@ -24,7 +24,7 @@ import {
   usageRows,
   type UsageRow,
 } from '../../lib/client-chat-usage';
-import type { ClientChatUsage } from '../../lib/contract-next';
+import type { ClientChatUsage } from '@mantle/client-types';
 
 /** The card: owns the query; the markup is the view. */
 export function ClientChatUsagePanel({ clients }: { clients: readonly ClientLoginRow[] }) {
