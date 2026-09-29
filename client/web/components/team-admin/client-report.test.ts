@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ClientReport } from '@mantle/client-types';
+import type { ClientReport } from '../../lib/contract-next';
 import { ClientReportView } from './client-report';
 
 /**
@@ -117,6 +117,57 @@ describe('What clients see', () => {
     expect(html).toContain('New since checked');
   });
 
+  it('marks nothing "New since checked" before anyone checked the list', () => {
+    // The brain lists every item as new until the first check (A25).
+    const r = report({
+      acknowledgement: null,
+      newSinceAck: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+    });
+    const html = view(r);
+    expect(html).not.toContain('New since checked');
+    expect(html).not.toContain('went to client since');
+  });
+
+  it('counts only the new items as new, not the rest of the list', () => {
+    const r = report({
+      acknowledgement: ACK,
+      newSinceAck: ['22222222-2222-4222-8222-222222222222'],
+    });
+    expect(view(r).match(/New since checked/g)).toHaveLength(1);
+  });
+
+  it('names an old link above an item, with a way to Shared links', () => {
+    const r = report();
+    r.items[1] = {
+      ...r.items[1]!,
+      oldLinksAbove: [
+        { shareId: 'sh-1', nodeId: 'f1', title: 'Handover', type: 'branch', via: 'folder' },
+      ],
+    };
+    const html = view(r);
+    expect(html).toContain('Reachable through the old link on the folder Handover');
+    expect(html).toContain('href="/team-admin?view=shares&amp;share=sh-1"');
+    // A brain before the field: nothing extra.
+    expect(view(report())).not.toContain('Reachable through');
+  });
+
+  it('never shows a title for an item outside the brain', () => {
+    const r = report();
+    r.items[0] = {
+      ...r.items[0]!,
+      refsAbove: [{ id: 'x', type: null, title: null, audience: null }],
+    };
+    const html = view(r);
+    expect(html).toContain('clients cannot read: An item outside the brain.');
+    expect(html).not.toContain('not in the brain');
+  });
+
+  it('the count is labelled, and the acknowledgement line can take focus', () => {
+    const html = view(report());
+    expect(html).toContain('aria-label="2 client items"');
+    expect(html).toMatch(/<p tabindex="-1"[^>]*data-testid="client-report-ack"/);
+  });
+
   it('the button shows it is working while the check is sent', () => {
     const html = view(report(), true);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*I have checked this list/);
@@ -142,10 +193,21 @@ describe('What clients see', () => {
 
 describe('the ack sends what is on the screen', () => {
   const src = readFileSync(fileURLToPath(new URL('./client-report.tsx', import.meta.url)), 'utf8');
-  it('the ids of the report it rendered, then refetches', () => {
-    expect(src).toContain('const ids = shownIds(report);');
-    expect(src).toContain('await acknowledgeClientReport(ids);');
+  it('the fingerprint (else the ids) of the report it rendered, then refetches', () => {
+    expect(src).toContain('const body = ackBody(report);');
+    expect(src).toContain('await acknowledgeClientReport(body);');
     expect(src).toContain('void queryClient.invalidateQueries({ queryKey: CLIENT_REPORT_KEY });');
+  });
+
+  it('a report-changed refusal reloads the list and says so', () => {
+    const branch = src.slice(src.indexOf('if (isReportChanged(e))'));
+    expect(branch).toMatch(
+      /^if \(isReportChanged\(e\)\) \{[^}]*invalidateQueries\(\{ queryKey: CLIENT_REPORT_KEY \}\);\s*toast\.error\(REPORT_CHANGED\);/,
+    );
+  });
+
+  it('focuses the acknowledgement line once the check is recorded', () => {
+    expect(src).toContain('requestAnimationFrame(() => ackRef.current?.focus());');
   });
 
   it('is a Team admin tab, fed by the tab query', () => {

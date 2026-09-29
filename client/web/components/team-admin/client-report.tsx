@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Eye, Link2, Loader2, Mail, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, Eye, FolderOpen, Link2, Loader2, Mail, TriangleAlert } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -12,17 +12,22 @@ import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { kindLabel } from '../../lib/access-levels';
 import {
   CLIENT_REPORT_KEY,
+  REPORT_CHANGED,
+  ackBody,
   ackLine,
   acknowledgeClientReport,
   afterAck,
+  isReportChanged,
   linkViewsLine,
+  newSinceIds,
   newSinceLine,
+  oldLinkAboveLine,
   refLabel,
-  shownIds,
+  sharedLinkHref,
   shownLine,
 } from '../../lib/client-report';
 import { CLIENT_LOGINS_KEY } from '../../lib/client-logins';
-import type { ClientReport, ClientReportItem } from '@mantle/client-types';
+import type { ClientReport, ClientReportItem } from '../../lib/contract-next';
 
 /**
  * Team admin > What clients see (client logins C1): every item at client
@@ -34,29 +39,48 @@ export function ClientReportPanel({ report }: { report: ClientReport }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [acking, setAcking] = useState(false);
+  // After the check the button is gone: focus moves to the line that says
+  // who checked it, so the keyboard is not dropped at the top of the page.
+  const ackRef = useRef<HTMLParagraphElement>(null);
 
   const acknowledge = async () => {
-    // Exactly what is on the screen: the brain records those ids.
-    const ids = shownIds(report);
+    // The whole set by its fingerprint where the brain gives one, else
+    // exactly the ids on the screen: the brain records those.
+    const body = ackBody(report);
     setAcking(true);
     try {
-      const res = await acknowledgeClientReport(ids);
+      const res = await acknowledgeClientReport(body);
       queryClient.setQueryData<ClientReport>(CLIENT_REPORT_KEY, (d) =>
-        d ? afterAck(d, res, ids) : d,
+        d ? afterAck(d, res, body) : d,
       );
       void queryClient.invalidateQueries({ queryKey: CLIENT_REPORT_KEY });
       // Team admin > Clients waits on this check (client logins C2).
       void queryClient.invalidateQueries({ queryKey: CLIENT_LOGINS_KEY });
       toast.success('Marked as checked');
+      requestAnimationFrame(() => ackRef.current?.focus());
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
+      if (isReportChanged(e)) {
+        // Something went to (or left) client after this list loaded: show
+        // the list as it is now, and ask for the check again.
+        void queryClient.invalidateQueries({ queryKey: CLIENT_REPORT_KEY });
+        toast.error(REPORT_CHANGED);
+        return;
+      }
       toast.error(e instanceof Error && e.message ? e.message : 'Could not record the check');
     } finally {
       setAcking(false);
     }
   };
 
-  return <ClientReportView report={report} acking={acking} onAck={() => void acknowledge()} />;
+  return (
+    <ClientReportView
+      report={report}
+      acking={acking}
+      onAck={() => void acknowledge()}
+      ackRef={ackRef}
+    />
+  );
 }
 
 /** The report itself: no state, no requests (the tests render it). */
@@ -64,13 +88,17 @@ export function ClientReportView({
   report,
   acking,
   onAck,
+  ackRef,
 }: {
   report: ClientReport;
   acking: boolean;
   onAck: () => void;
+  /** The acknowledgement line, focused after the check. */
+  ackRef?: RefObject<HTMLParagraphElement | null>;
 }) {
   const ack = report.acknowledgement;
   const newCount = report.newSinceAck.length;
+  const newIds = newSinceIds(report);
   const cut = shownLine(report);
   return (
     <div className="w-full space-y-4 p-4">
@@ -80,13 +108,23 @@ export function ClientReportView({
             <Eye className="size-4 text-primary-ink" aria-hidden />
             What clients see
           </h2>
-          <span className="text-xs text-muted-foreground">{report.total}</span>
+          <span
+            className="text-xs text-muted-foreground"
+            aria-label={`${report.total} client ${report.total === 1 ? 'item' : 'items'}`}
+          >
+            {report.total}
+          </span>
         </div>
         <p className="text-xs text-muted-foreground">
           Before anyone is invited as a client, check this list. Every client login will be able to
           read all of it.
         </p>
-        <p className="text-xs" data-testid="client-report-ack">
+        <p
+          ref={ackRef}
+          tabIndex={-1}
+          className="text-xs outline-none"
+          data-testid="client-report-ack"
+        >
           {ack ? ackLine(ack) : 'Nobody has checked this list yet.'}
         </p>
         {ack && newCount > 0 ? (
@@ -95,7 +133,7 @@ export function ClientReportView({
             className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink"
           >
             <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-            {newSinceLine(newCount)}
+            {newSinceLine(report)}
           </p>
         ) : null}
         {report.acknowledged ? null : (
@@ -121,11 +159,7 @@ export function ClientReportView({
       ) : (
         <ul className="flex flex-col gap-2" aria-label="Client-level items">
           {report.items.map((item) => (
-            <ClientReportRow
-              key={item.id}
-              item={item}
-              isNew={report.newSinceAck.includes(item.id)}
-            />
+            <ClientReportRow key={item.id} item={item} isNew={newIds.has(item.id)} />
           ))}
         </ul>
       )}
@@ -157,6 +191,20 @@ function ClientReportRow({ item, isNew }: { item: ClientReportItem; isNew: boole
           <span>Old open link: {linkViewsLine(item.link)}</span>
         </p>
       ) : null}
+      {(item.oldLinksAbove ?? []).map((l) => (
+        <p
+          key={l.shareId}
+          className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink"
+        >
+          <FolderOpen className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0 break-words">
+            {oldLinkAboveLine(l)}: anyone with that link can open it.{' '}
+            <Link href={sharedLinkHref(l.shareId)} className="underline underline-offset-2">
+              Open in Shared links
+            </Link>
+          </span>
+        </p>
+      ))}
       {item.emailedTo.length > 0 ? (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Mail className="mt-px size-3.5 shrink-0" aria-hidden />
