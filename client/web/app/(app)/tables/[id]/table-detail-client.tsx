@@ -39,6 +39,7 @@ import {
 import { ExportMenu } from '@/components/export/export-menu';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { AccessControl } from '@/components/share/access-control';
+import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { TableGrid } from '@/components/table-grid/table-grid';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
@@ -532,6 +533,8 @@ export function TableDetailClient({
             iconOnly
             hint="Members and link holders always see the last committed version, never your draft."
           />
+          {/* At Client level: the thread clients read (audit U2). */}
+          <OwnerClientThread nodeId={initial.id} type="table" iconOnly />
           {dirty && (
             <Button
               size="sm"

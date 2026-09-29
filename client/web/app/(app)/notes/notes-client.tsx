@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
+import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -541,6 +542,8 @@ function NotePreview({
         <div className="flex shrink-0 items-center gap-2">
           <ExportButton nodeId={note.id} label="Word" />
           <AccessControl nodeId={note.id} />
+          {/* At Client level: the thread clients read (audit U2). */}
+          <OwnerClientThread nodeId={note.id} type="note" audience={note.audience} />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil /> Edit
           </Button>
