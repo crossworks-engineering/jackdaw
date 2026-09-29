@@ -1,15 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Share2 } from 'lucide-react';
+import { FolderOpen, Loader2, Share2 } from 'lucide-react';
 import type {
   AccessItemView,
   AccessLevel,
   AccessLoweredView,
   AccessNodeUpdate,
-  AccessNodeView,
 } from '@mantle/client-types';
+import type { AccessNodeView } from '@/lib/contract-next';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
@@ -20,17 +21,23 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import {
   LEVEL_LABEL,
-  LEVEL_MEANING,
   LEVEL_ORDER,
   accessErrorMessage,
+  cascadeSwitch,
   closureAbove,
   closureBelow,
   embedsSharedWith,
   isAccessLevel,
+  isOldClientLink,
+  levelMeaning,
+  openLinkLevelsOf,
   queryKeysForType,
-  showsLink,
+  takesLink,
 } from '@/lib/access-levels';
+import { oldLinkAboveLine, sharedLinkHref } from '@/lib/client-report';
+import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import { AccessLinkBox } from './access-link-box';
+import { RevokeLinkDialog, STAYS_AT_CLIENT, type RevokeTarget } from './revoke-link-dialog';
 
 /**
  * The owner's Access control for one item: who can see it, as one level
@@ -58,6 +65,13 @@ import { AccessLinkBox } from './access-link-box';
  * what it holds below it, so those show too, with "Raise them too". Tasks,
  * events and the other admin-only kinds stay at admin; an old link on one
  * can be removed here.
+ *
+ * Old client links (made when client meant "anyone with the link", live
+ * until a later phase retires them): one on the item itself can be revoked
+ * here (the item stays at Client), and one on a folder or page above a client
+ * item is named, with Shared links and a revoke. Both confirm in the dialog
+ * Shared links uses. A brain before C1 (no `openLinkLevels`) keeps its own
+ * words: Client is an open link there.
  *
  * Picking a level does not change it. The level is a server write that can
  * create an open link, so the arrow keys (which move the selection in a kit
@@ -102,6 +116,12 @@ export function AccessControl({
     nodeId: string;
     items: AccessLoweredView[];
   } | null>(null);
+  // The link a revoke is about to end (confirmed in its own dialog, beside
+  // the popover, never inside it).
+  const [revokeTarget, setRevokeTarget] = useState<RevokeTarget | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  // The item's kind, kept past the popover closing: its screens refresh after.
+  const revokeType = useRef('');
   // The item on screen now; async work checks it before writing state.
   const current = useRef(nodeId);
   current.current = nodeId;
@@ -141,6 +161,36 @@ export function AccessControl({
 
   const refreshScreens = (type: string) => {
     for (const queryKey of queryKeysForType(type)) void queryClient.invalidateQueries({ queryKey });
+    // A level change moves links too: Shared links and its level badges follow.
+    invalidateLinkQueries(queryClient);
+  };
+
+  const askRevoke = (target: RevokeTarget) => {
+    // The popover closes first: the dialog is modal, and a popover left open
+    // behind it would take the focus back.
+    revokeType.current = view?.item.type ?? '';
+    setOpen(false);
+    setRevokeTarget(target);
+  };
+
+  const revoke = async () => {
+    if (!revokeTarget) return;
+    const target = revokeTarget;
+    setRevoking(true);
+    try {
+      await revokeShareLink(target.shareId);
+      invalidateLinkQueries(queryClient);
+      for (const queryKey of queryKeysForType(revokeType.current)) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+      toast.success(`Revoked the link on "${target.title || 'Untitled'}"`);
+      setRevokeTarget(null);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) return;
+      toast.error(accessErrorMessage(e, 'Could not revoke the link'));
+    } finally {
+      setRevoking(false);
+    }
   };
 
   const setLevel = async (
@@ -200,7 +250,11 @@ export function AccessControl({
       }
       const n = d.count ?? view.childCount;
       toast.success(
-        on ? `${n} sub-page${n === 1 ? '' : 's'} now match this page` : 'Sub-pages back to admin',
+        on
+          ? `${n} sub-page${n === 1 ? '' : 's'} now match this page`
+          : isOldClientLink(view.item.audience)
+            ? 'The old link no longer opens the sub-pages'
+            : 'Sub-pages back to admin',
       );
       refreshScreens('page');
     } catch (e) {
@@ -224,6 +278,20 @@ export function AccessControl({
 
   const level = view?.item.audience ?? 'admin';
   const picked = choice ?? level;
+  // Where this brain makes an open link: public since C1; a brain before C1
+  // (no `openLinkLevels`) made one at client too, and keeps those words.
+  const openLevels = view ? openLinkLevelsOf(view) : [];
+  const oldOwnLink = !!view?.share && isOldClientLink(level) && !takesLink(level, openLevels);
+  const cascade = view
+    ? cascadeSwitch({
+        type: view.item.type,
+        level,
+        open: openLevels,
+        share: view.share,
+        childCount: view.childCount,
+      })
+    : null;
+  const oldLinksAbove = level === 'client' ? (view?.oldLinksAbove ?? []) : [];
   const above: AccessItemView[] = view ? closureAbove(view.closure, level) : [];
   const below: AccessItemView[] = view ? closureBelow(view.closure, level) : [];
   // The item's embeds follow it on this brain: nothing to offer, only to say.
@@ -234,243 +302,311 @@ export function AccessControl({
   const shownLowered = lastLowered?.nodeId === nodeId ? lastLowered.items : [];
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {/* `icon-sm`, not `icon`: this sits in detail headers next to
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          {/* `icon-sm`, not `icon`: this sits in detail headers next to
             `size="sm"` buttons, and `icon` is 40px against their 36px. */}
-        <Button variant="outline" size={iconOnly ? 'icon-sm' : 'sm'} aria-label="Access">
-          <Share2 />
-          {!iconOnly && 'Access'}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
-        {!view ? (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            {loaded ? (
-              'Could not load who can see this.'
-            ) : (
-              <>
-                <Loader2 className="size-3 animate-spin" aria-hidden /> Loading…
-              </>
-            )}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {view.author ? (
-              // A member wrote it and an admin accepted it (member logins
-              // Phase 4): the author keeps read access at every level.
-              <p className="text-xs text-muted-foreground">
-                <Badge variant="secondary" className="mr-1.5 align-middle">
-                  Member-authored
-                </Badge>
-                Written by {view.author.name}
-                {view.author.acceptedAt
-                  ? `, accepted ${new Date(view.author.acceptedAt).toLocaleDateString()}`
-                  : ''}
-                . They can always read it.
-              </p>
-            ) : null}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Who can see this</p>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                size="default"
-                className="w-full"
-                loop={false}
-                value={picked}
-                disabled={busy || !view.canLower}
-                onValueChange={(v) => {
-                  // Empty = a press on the picked item: keep the pick.
-                  if (isAccessLevel(v)) {
-                    setChoice(v === level ? null : v);
-                    setLastLowered(null);
-                  }
-                }}
-              >
-                {LEVEL_ORDER.map((l) => (
-                  <ToggleGroupItem key={l} value={l} className="flex-1" aria-label={LEVEL_LABEL[l]}>
-                    {LEVEL_LABEL[l]}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <p className="text-xs text-muted-foreground">
-                {view.canLower
-                  ? LEVEL_MEANING[picked]
-                  : 'Admin only. Only pages, notes, drawings, tables, files, folders, apps and formulas can be shared.'}
-              </p>
-              {choice && willShare.length > 0 && (
-                <ItemList
-                  summary={`${willShare.length} embedded item${willShare.length === 1 ? '' : 's'} will be shared too`}
-                  items={willShare.map((c) => ({
-                    id: c.id,
-                    title: c.title,
-                    note: `${LEVEL_LABEL[c.audience]} to ${LEVEL_LABEL[choice]}`,
-                  }))}
-                />
+          <Button variant="outline" size={iconOnly ? 'icon-sm' : 'sm'} aria-label="Access">
+            <Share2 />
+            {!iconOnly && 'Access'}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80">
+          {!view ? (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              {loaded ? (
+                'Could not load who can see this.'
+              ) : (
+                <>
+                  <Loader2 className="size-3 animate-spin" aria-hidden /> Loading…
+                </>
               )}
-              {choice && view.share && !showsLink(choice) && (
-                // Client (like Team and Admin) takes no link: applying it
-                // removes this one (client logins C1).
-                <p className="text-xs text-muted-foreground">Its link will stop working.</p>
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {view.author ? (
+                // A member wrote it and an admin accepted it (member logins
+                // Phase 4): the author keeps read access at every level.
+                <p className="text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="mr-1.5 align-middle">
+                    Member-authored
+                  </Badge>
+                  Written by {view.author.name}
+                  {view.author.acceptedAt
+                    ? `, accepted ${new Date(view.author.acceptedAt).toLocaleDateString()}`
+                    : ''}
+                  . They can always read it.
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Who can see this</p>
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  size="default"
+                  className="w-full"
+                  loop={false}
+                  value={picked}
+                  disabled={busy || !view.canLower}
+                  onValueChange={(v) => {
+                    // Empty = a press on the picked item: keep the pick.
+                    if (isAccessLevel(v)) {
+                      setChoice(v === level ? null : v);
+                      setLastLowered(null);
+                    }
+                  }}
+                >
+                  {LEVEL_ORDER.map((l) => (
+                    <ToggleGroupItem
+                      key={l}
+                      value={l}
+                      className="flex-1"
+                      aria-label={LEVEL_LABEL[l]}
+                    >
+                      {LEVEL_LABEL[l]}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                <p className="text-xs text-muted-foreground">
+                  {view.canLower
+                    ? levelMeaning(picked, {
+                        open: openLevels,
+                        oldLink: picked === level && oldOwnLink,
+                      })
+                    : 'Admin only. Only pages, notes, drawings, tables, files, folders, apps and formulas can be shared.'}
+                </p>
+                {choice && willShare.length > 0 && (
+                  <ItemList
+                    summary={`${willShare.length} embedded item${willShare.length === 1 ? '' : 's'} will be shared too`}
+                    items={willShare.map((c) => ({
+                      id: c.id,
+                      title: c.title,
+                      note: `${LEVEL_LABEL[c.audience]} to ${LEVEL_LABEL[choice]}`,
+                    }))}
+                  />
+                )}
+                {choice && view.share && !takesLink(choice, openLevels) && (
+                  // Client (like Team and Admin) takes no link: applying it
+                  // removes this one (client logins C1).
+                  <p className="text-xs text-muted-foreground">Its link will stop working.</p>
+                )}
+                {choice && (
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => setChoice(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button size="sm" disabled={busy} onClick={() => void setLevel(choice)}>
+                      {busy && <Loader2 className="animate-spin" aria-hidden />}
+                      {takesLink(choice, openLevels) && !takesLink(level, openLevels)
+                        ? `Make ${LEVEL_LABEL[choice]} (open link)`
+                        : `Set to ${LEVEL_LABEL[choice]}`}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <AccessLinkBox
+                level={level}
+                canLower={view.canLower}
+                share={view.share}
+                url={absoluteUrl}
+                copied={copied}
+                onCopy={() => void copy()}
+                open={openLevels}
+                onRevoke={
+                  view.share
+                    ? () =>
+                        askRevoke({
+                          shareId: view.share!.id,
+                          title: view.item.title,
+                          cascade: view.share!.cascade,
+                          stays: STAYS_AT_CLIENT,
+                        })
+                    : undefined
+                }
+              />
+
+              {/* Sub-pages ride the link, so only where a link lives: public. An
+                old client link cannot be extended (client-links-retired): at
+                Client the switch shows only while it is on, to turn it off. */}
+              {cascade && view.share && (
+                <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">Include sub-pages</p>
+                    <p className="text-xs text-muted-foreground">
+                      {cascade === 'toggle'
+                        ? `The ${view.childCount} page${view.childCount === 1 ? '' : 's'} nested under this one take its level. Off puts them back to admin.`
+                        : `The old link also opens the ${view.childCount} page${view.childCount === 1 ? '' : 's'} nested under this one. Turn it off to revoke their links.`}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={view.share.cascade}
+                    disabled={busy}
+                    onCheckedChange={(v) => {
+                      // At an old client link the switch only turns off.
+                      if (cascade === 'toggle' || !v) void setCascade(v);
+                    }}
+                    aria-label="Include sub-pages"
+                  />
+                </div>
               )}
-              {choice && (
-                <div className="flex items-center justify-end gap-2">
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => setChoice(null)}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" disabled={busy} onClick={() => void setLevel(choice)}>
-                    {busy && <Loader2 className="animate-spin" aria-hidden />}
-                    {showsLink(choice) && !showsLink(level)
-                      ? `Make ${LEVEL_LABEL[choice]} (open link)`
-                      : `Set to ${LEVEL_LABEL[choice]}`}
+
+              {oldLinksAbove.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  {oldLinksAbove.map((l) => (
+                    <div key={l.shareId} className="space-y-1.5">
+                      <p className="flex items-start gap-1.5 text-xs text-warning-ink">
+                        <FolderOpen className="mt-px size-3.5 shrink-0" aria-hidden />
+                        <span className="min-w-0 break-words">
+                          {oldLinkAboveLine(l)}: anyone with that link can open this item.
+                        </span>
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={sharedLinkHref(l.shareId)}>Shared links</Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() =>
+                            askRevoke({ shareId: l.shareId, title: l.title, cascade: false })
+                          }
+                        >
+                          Revoke that link
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {shownLowered.length > 0 && (
+                <div className="border-t border-border pt-3">
+                  <ItemList
+                    summary={`${shownLowered.length} embedded item${shownLowered.length === 1 ? '' : 's'} shared too`}
+                    items={shownLowered.map((l) => ({
+                      id: l.id,
+                      title: l.title,
+                      note: `${LEVEL_LABEL[l.from]} to ${LEVEL_LABEL[l.to]}`,
+                    }))}
+                  />
+                </div>
+              )}
+
+              {above.length > 0 && follows && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    {above.length} embedded item{above.length === 1 ? '' : 's'}{' '}
+                    {above.length === 1 ? 'stays' : 'stay'} above {LEVEL_LABEL[level]} (raised on
+                    purpose, or admin only), so people at this level and its link will not see{' '}
+                    {above.length === 1 ? 'it' : 'them'}:
+                  </p>
+                  <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
+                    {above.map((c) => (
+                      <li key={c.id} className="flex min-w-0 justify-between gap-2">
+                        <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {LEVEL_LABEL[c.audience]}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {above.length > 0 && !follows && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    {above.length} item{above.length === 1 ? '' : 's'} it{' '}
+                    {view.item.type === 'branch' ? 'holds' : 'embeds'}{' '}
+                    {above.length === 1 ? 'stays' : 'stay'} above {LEVEL_LABEL[level]}, so people at
+                    this level will not see {above.length === 1 ? 'it' : 'them'}:
+                  </p>
+                  <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
+                    {above.map((c) => (
+                      <li key={c.id} className="flex min-w-0 justify-between gap-2">
+                        <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {LEVEL_LABEL[c.audience]}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void setLevel(level, { withClosure: true })}
+                  >
+                    Lower {above.length === 1 ? 'it' : 'them'} too
                   </Button>
                 </div>
+              )}
+
+              {below.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    {below.length} item{below.length === 1 ? '' : 's'} it{' '}
+                    {view.item.type === 'branch' ? 'holds' : 'embeds'}{' '}
+                    {below.length === 1 ? 'is' : 'are'} still open to more people than{' '}
+                    {LEVEL_LABEL[level]}:
+                  </p>
+                  <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
+                    {below.map((c) => (
+                      <li key={c.id} className="flex min-w-0 justify-between gap-2">
+                        <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {LEVEL_LABEL[c.audience]}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void setLevel(level, { raiseClosure: true })}
+                  >
+                    Raise {below.length === 1 ? 'it' : 'them'} too
+                  </Button>
+                </div>
+              )}
+
+              {!view.canLower && view.share && (
+                <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">An older link still exists.</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void setLevel('admin')}
+                  >
+                    Remove link
+                  </Button>
+                </div>
+              )}
+
+              {hint && view.canLower && (
+                <p className="border-t border-border pt-3 text-xs text-muted-foreground">{hint}</p>
               )}
             </div>
-
-            <AccessLinkBox
-              level={level}
-              canLower={view.canLower}
-              share={view.share}
-              url={absoluteUrl}
-              copied={copied}
-              onCopy={() => void copy()}
-            />
-
-            {/* Sub-pages ride the link, so only where a link lives: public. An
-                old client link cannot be extended (client-links-retired). */}
-            {view.item.type === 'page' && view.share && showsLink(level) && view.childCount > 0 && (
-              <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">Include sub-pages</p>
-                  <p className="text-xs text-muted-foreground">
-                    The {view.childCount} page{view.childCount === 1 ? '' : 's'} nested under this
-                    one take its level. Off puts them back to admin.
-                  </p>
-                </div>
-                <Switch
-                  checked={view.share.cascade}
-                  disabled={busy}
-                  onCheckedChange={(v) => void setCascade(v)}
-                  aria-label="Include sub-pages"
-                />
-              </div>
-            )}
-
-            {shownLowered.length > 0 && (
-              <div className="border-t border-border pt-3">
-                <ItemList
-                  summary={`${shownLowered.length} embedded item${shownLowered.length === 1 ? '' : 's'} shared too`}
-                  items={shownLowered.map((l) => ({
-                    id: l.id,
-                    title: l.title,
-                    note: `${LEVEL_LABEL[l.from]} to ${LEVEL_LABEL[l.to]}`,
-                  }))}
-                />
-              </div>
-            )}
-
-            {above.length > 0 && follows && (
-              <div className="space-y-2 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">
-                  {above.length} embedded item{above.length === 1 ? '' : 's'}{' '}
-                  {above.length === 1 ? 'stays' : 'stay'} above {LEVEL_LABEL[level]} (raised on
-                  purpose, or admin only), so people at this level and its link will not see{' '}
-                  {above.length === 1 ? 'it' : 'them'}:
-                </p>
-                <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
-                  {above.map((c) => (
-                    <li key={c.id} className="flex min-w-0 justify-between gap-2">
-                      <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
-                      <span className="shrink-0 text-muted-foreground">
-                        {LEVEL_LABEL[c.audience]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {above.length > 0 && !follows && (
-              <div className="space-y-2 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">
-                  {above.length} item{above.length === 1 ? '' : 's'} it{' '}
-                  {view.item.type === 'branch' ? 'holds' : 'embeds'}{' '}
-                  {above.length === 1 ? 'stays' : 'stay'} above {LEVEL_LABEL[level]}, so people at
-                  this level will not see {above.length === 1 ? 'it' : 'them'}:
-                </p>
-                <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
-                  {above.map((c) => (
-                    <li key={c.id} className="flex min-w-0 justify-between gap-2">
-                      <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
-                      <span className="shrink-0 text-muted-foreground">
-                        {LEVEL_LABEL[c.audience]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void setLevel(level, { withClosure: true })}
-                >
-                  Lower {above.length === 1 ? 'it' : 'them'} too
-                </Button>
-              </div>
-            )}
-
-            {below.length > 0 && (
-              <div className="space-y-2 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">
-                  {below.length} item{below.length === 1 ? '' : 's'} it{' '}
-                  {view.item.type === 'branch' ? 'holds' : 'embeds'}{' '}
-                  {below.length === 1 ? 'is' : 'are'} still open to more people than{' '}
-                  {LEVEL_LABEL[level]}:
-                </p>
-                <ul className="scrollbar-thin scrollbar-hair max-h-28 space-y-0.5 overflow-y-auto text-xs">
-                  {below.map((c) => (
-                    <li key={c.id} className="flex min-w-0 justify-between gap-2">
-                      <span className="min-w-0 truncate">{c.title || 'Untitled'}</span>
-                      <span className="shrink-0 text-muted-foreground">
-                        {LEVEL_LABEL[c.audience]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void setLevel(level, { raiseClosure: true })}
-                >
-                  Raise {below.length === 1 ? 'it' : 'them'} too
-                </Button>
-              </div>
-            )}
-
-            {!view.canLower && view.share && (
-              <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">An older link still exists.</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void setLevel('admin')}
-                >
-                  Remove link
-                </Button>
-              </div>
-            )}
-
-            {hint && view.canLower && (
-              <p className="border-t border-border pt-3 text-xs text-muted-foreground">{hint}</p>
-            )}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+          )}
+        </PopoverContent>
+      </Popover>
+      <RevokeLinkDialog
+        target={revokeTarget}
+        busy={revoking}
+        onCancel={() => setRevokeTarget(null)}
+        onConfirm={() => void revoke()}
+      />
+    </>
   );
 }
 

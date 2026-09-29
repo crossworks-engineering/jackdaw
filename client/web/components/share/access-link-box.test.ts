@@ -20,7 +20,12 @@ const SHARE: AccessLinkView = {
 };
 const URL_ = 'https://brain.example/s/tok123';
 
-const box = (level: AccessLevel, share: AccessLinkView | null, canLower = true) =>
+const box = (
+  level: AccessLevel,
+  share: AccessLinkView | null,
+  canLower = true,
+  extra: { open?: AccessLevel[]; onRevoke?: () => void } = {},
+) =>
   renderToStaticMarkup(
     createElement(AccessLinkBox, {
       level,
@@ -29,6 +34,7 @@ const box = (level: AccessLevel, share: AccessLinkView | null, canLower = true) 
       url: URL_,
       copied: false,
       onCopy: () => {},
+      ...extra,
     }),
   );
 
@@ -59,6 +65,21 @@ describe('AccessLinkBox', () => {
     expect(box('client', null)).toBe('');
   });
 
+  it('offers to revoke an old client link on the item itself, which stays at Client', () => {
+    const html = box('client', SHARE, true, { onRevoke: () => {} });
+    expect(html).toContain('Revoke link (stays at Client)');
+    expect(html).toContain('It still opens until it is revoked.');
+    expect(html).not.toContain('Copy link');
+    // No link, nothing to revoke.
+    expect(box('client', null, true, { onRevoke: () => {} })).toBe('');
+  });
+
+  it('a brain before C1 (client makes a link there): the link and Copy at Client', () => {
+    const html = box('client', SHARE, true, { open: ['client', 'public'] });
+    expect(html).toContain('aria-label="Copy link"');
+    expect(html).not.toContain('Old client link');
+  });
+
   it('shows nothing at Team or Admin, or for a kind that stays admin', () => {
     expect(box('team', null)).toBe('');
     expect(box('admin', null)).toBe('');
@@ -76,8 +97,40 @@ describe('the Access control uses it', () => {
     expect(src).not.toContain('<Input');
   });
 
-  it('offers sub-pages only where the link lives (public)', () => {
-    expect(src).toMatch(/view\.share &&\s+showsLink\(level\) &&\s+view\.childCount > 0/);
+  it('offers sub-pages where the link lives, and at an old client link only to turn off', () => {
+    expect(src).toContain('const cascade = view');
+    expect(src).toMatch(/\{cascade && view\.share && \(/);
+    expect(src).toContain("if (cascade === 'toggle' || !v) void setCascade(v);");
+  });
+
+  it('feature-detects a brain before C1 by openLinkLevels', () => {
+    expect(src).toContain('const openLevels = view ? openLinkLevelsOf(view) : [];');
+    expect(src).toContain('open={openLevels}');
+    expect(src.replace(/\s+/g, ' ')).toContain(
+      'levelMeaning(picked, { open: openLevels, oldLink: picked === level && oldOwnLink, })',
+    );
+  });
+
+  it('revokes old client links in the Shared links dialog, outside the popover', () => {
+    const after = src.slice(src.indexOf('</PopoverContent>'));
+    expect(after).toMatch(/<\/Popover>\s*<RevokeLinkDialog/);
+    expect(src).toContain('await revokeShareLink(target.shareId);');
+    expect(src).toContain('stays: STAYS_AT_CLIENT,');
+  });
+
+  it('names an old link above a client item, with Shared links and a revoke', () => {
+    expect(src).toContain(
+      "const oldLinksAbove = level === 'client' ? (view?.oldLinksAbove ?? []) : [];",
+    );
+    expect(src).toMatch(/\{oldLinksAbove\.length > 0 && \(\s*<div[^>]*>\s*\{oldLinksAbove\.map\(\(l\) => \(/);
+    expect(src).toContain('{oldLinkAboveLine(l)}: anyone with that link can open this item.');
+    expect(src).toContain('<Link href={sharedLinkHref(l.shareId)}>Shared links</Link>');
+    expect(src).toContain('Revoke that link');
+  });
+
+  it('a level change reloads Shared links and its levels', () => {
+    const refresh = src.slice(src.indexOf('const refreshScreens'), src.indexOf('const askRevoke'));
+    expect(refresh).toContain('invalidateLinkQueries(queryClient);');
   });
 
   it("toasts a refused change in the brain's words", () => {

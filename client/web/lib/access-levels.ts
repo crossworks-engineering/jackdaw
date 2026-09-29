@@ -59,6 +59,64 @@ export function showsLink(level: AccessLevel): boolean {
   return level === 'public';
 }
 
+// ── Brains before client logins C1 (feature-detected) ──────────────────────
+// C1 made public the one level with an open link; before it, client made
+// one too. A brain says which levels make a link (`openLinkLevels`, from the
+// audit-fix release on); a brain without the field is taken as one before
+// C1, and the control keeps that brain's old words (Client = open link).
+
+/** The levels a brain before C1 made an open link at. */
+export const LEGACY_OPEN_LINK_LEVELS: readonly AccessLevel[] = ['client', 'public'];
+
+/** The levels this brain makes an open link at. */
+export function openLinkLevelsOf(view: {
+  openLinkLevels?: readonly AccessLevel[];
+}): readonly AccessLevel[] {
+  return view.openLinkLevels ?? LEGACY_OPEN_LINK_LEVELS;
+}
+
+/** Does this brain give an item at `level` an open link? */
+export function takesLink(level: AccessLevel, open: readonly AccessLevel[]): boolean {
+  return open.includes(level);
+}
+
+/** Client, as a brain before C1 meant it. */
+export const LEGACY_CLIENT_MEANING =
+  'Anyone with the link can view. Client and team agents can read it.';
+
+/** Client on an item that still has its old link: no "No link" right above
+ *  the line that says the old link still opens. */
+export const CLIENT_MEANING_OLD_LINK =
+  'Signed-in clients (and the team). Client and team agents can read it.';
+
+/** The line under the level control: who sees the item at `level`. */
+export function levelMeaning(
+  level: AccessLevel,
+  { open, oldLink }: { open: readonly AccessLevel[]; oldLink: boolean },
+): string {
+  if (level === 'client') {
+    if (takesLink('client', open)) return LEGACY_CLIENT_MEANING;
+    if (oldLink) return CLIENT_MEANING_OLD_LINK;
+  }
+  return LEVEL_MEANING[level];
+}
+
+/** The "Include sub-pages" switch for a page with a link: a normal switch
+ *  where the level makes a link, and at an old client link only a way to
+ *  turn it OFF (the brain refuses to extend an old client link). */
+export function cascadeSwitch(input: {
+  type: string;
+  level: AccessLevel;
+  open: readonly AccessLevel[];
+  share: { cascade: boolean } | null;
+  childCount: number;
+}): 'toggle' | 'off-only' | null {
+  const { type, level, open, share, childCount } = input;
+  if (type !== 'page' || !share || childCount <= 0) return null;
+  if (takesLink(level, open)) return 'toggle';
+  return isOldClientLink(level) && share.cascade ? 'off-only' : null;
+}
+
 /** A live link on an item at client level is an OLD client link: made when
  *  client meant "anyone with the link", live until a later phase retires it.
  *  Undefined (a brain before C1 sends no level): nothing to say. */

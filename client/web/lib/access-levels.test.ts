@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { AccessItemView } from '@mantle/client-types';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  CLIENT_MEANING_OLD_LINK,
+  LEGACY_CLIENT_MEANING,
+  cascadeSwitch,
+  levelMeaning,
+  openLinkLevelsOf,
+  takesLink,
   AUDIENCE_TITLE,
   LEVEL_MEANING,
   OLD_CLIENT_LINK,
@@ -134,5 +140,70 @@ describe('access levels', () => {
     expect(embedsSharedWith(true, closure, 'admin')).toEqual([]);
     // A folder's contents do not follow it, and an older brain does not lower them.
     expect(embedsSharedWith(false, closure, 'public')).toEqual([]);
+  });
+});
+
+describe('brains before client logins C1 (feature-detected, audit A30d)', () => {
+  it('takes the open-link levels from the brain, else client and public (before C1)', () => {
+    expect(openLinkLevelsOf({ openLinkLevels: ['public'] })).toEqual(['public']);
+    expect(openLinkLevelsOf({})).toEqual(['client', 'public']);
+    expect(takesLink('client', openLinkLevelsOf({}))).toBe(true);
+    expect(takesLink('client', openLinkLevelsOf({ openLinkLevels: ['public'] }))).toBe(false);
+  });
+
+  it("keeps a brain before C1's words for Client (an open link)", () => {
+    expect(levelMeaning('client', { open: ['client', 'public'], oldLink: false })).toBe(
+      LEGACY_CLIENT_MEANING,
+    );
+    expect(LEGACY_CLIENT_MEANING).toMatch(/^Anyone with the link can view/);
+  });
+});
+
+describe('the Client meaning line (audit A30c)', () => {
+  const open = ['public'] as const;
+
+  it('says No link at Client when there is none', () => {
+    expect(levelMeaning('client', { open, oldLink: false })).toBe(LEVEL_MEANING.client);
+    expect(LEVEL_MEANING.client).toContain('No link');
+  });
+
+  it('never says No link above an old client link that still opens', () => {
+    const line = levelMeaning('client', { open, oldLink: true });
+    expect(line).toBe(CLIENT_MEANING_OLD_LINK);
+    expect(line).not.toMatch(/no link/i);
+    expect(line).toMatch(/^Signed-in clients \(and the team\)/);
+  });
+
+  it('leaves the other levels alone', () => {
+    for (const l of ['admin', 'team', 'public'] as const) {
+      expect(levelMeaning(l, { open, oldLink: true })).toBe(LEVEL_MEANING[l]);
+    }
+  });
+});
+
+describe('the Include sub-pages switch (audit A30b)', () => {
+  const base = {
+    type: 'page',
+    open: ['public'] as const,
+    share: { cascade: false },
+    childCount: 2,
+  };
+
+  it('is a normal switch where the level makes a link', () => {
+    expect(cascadeSwitch({ ...base, level: 'public' })).toBe('toggle');
+    // A brain before C1: client made a link too.
+    expect(cascadeSwitch({ ...base, level: 'client', open: ['client', 'public'] })).toBe('toggle');
+  });
+
+  it('at an old client link, shows only while on, to turn it off', () => {
+    expect(cascadeSwitch({ ...base, level: 'client', share: { cascade: true } })).toBe('off-only');
+    expect(cascadeSwitch({ ...base, level: 'client', share: { cascade: false } })).toBeNull();
+  });
+
+  it('never without a link, sub-pages, or on anything but a page', () => {
+    expect(cascadeSwitch({ ...base, level: 'public', share: null })).toBeNull();
+    expect(cascadeSwitch({ ...base, level: 'public', childCount: 0 })).toBeNull();
+    expect(cascadeSwitch({ ...base, level: 'public', type: 'note' })).toBeNull();
+    expect(cascadeSwitch({ ...base, level: 'team', share: { cascade: true } })).toBeNull();
   });
 });
