@@ -13,7 +13,7 @@ import { MobileBar } from '@/components/layout/rail/mobile-bar';
 import { RailControls } from '@/components/layout/rail/rail-controls';
 import { NAV_W_DEFAULT } from '@/lib/nav-width';
 import { clientRedirectFor } from '@/lib/client-surface';
-import type { ClientShell } from '@/lib/contract-next';
+import type { ClientShell } from '@mantle/client-types';
 import { ClientHome } from './client-home';
 
 /** The public paths a client may stand on; everything else is the home. */

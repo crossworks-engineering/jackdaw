@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ClientLoginList, ClientLoginRow } from '../../lib/contract-next';
+import type { ClientLoginList, ClientLoginRow } from '@mantle/client-types';
 import { ClientLoginsView } from './client-logins';
 
 /**

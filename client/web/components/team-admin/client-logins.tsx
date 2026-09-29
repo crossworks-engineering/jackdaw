@@ -76,7 +76,7 @@ import type {
   ClientLoginList,
   ClientLoginRow,
   ClientSigninLinkCreated,
-} from '../../lib/contract-next';
+} from '@mantle/client-types';
 import { signLoginOutEverywhere } from '../../lib/sign-out-everywhere';
 
 function useClientLogins() {

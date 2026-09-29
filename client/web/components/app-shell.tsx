@@ -15,7 +15,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import type { MemberShell as MemberShellData } from '@mantle/client-types';
-import type { ClientShell as ClientShellData } from '@/lib/contract-next';
+import type { ClientShell as ClientShellData } from '@mantle/client-types';
 import { clientShellPollMs } from '@/lib/client-portal';
 import { ClientPortal } from '@/components/client/client-portal';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';

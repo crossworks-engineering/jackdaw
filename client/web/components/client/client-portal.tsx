@@ -13,7 +13,7 @@ import {
   RoleProbeFailedScreen,
 } from '@/components/member/role-screens';
 import { clientPortalView } from '@/lib/client-portal';
-import type { ClientShell } from '@/lib/contract-next';
+import type { ClientShell } from '@mantle/client-types';
 import { ClientShellFrame } from './client-shell-frame';
 
 /**

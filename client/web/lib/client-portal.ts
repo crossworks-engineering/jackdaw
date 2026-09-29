@@ -11,7 +11,7 @@
 import type { JSONContent } from '@tiptap/core';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { assetTokenRefreshDelayMs } from '@mantle/web-ui/token-claims';
-import { CLIENT_PRIVATE_LABEL } from './contract-next';
+import { CLIENT_PRIVATE_LABEL } from '@mantle/client-types/dto/client';
 import type { MemberItemKind } from './member-kinds';
 import type { SpaceApiBase } from './member-space';
 import { clientItemIdFromPath } from './client-surface';

@@ -25,7 +25,7 @@ import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { kindLabel } from '@/lib/access-levels';
 import { sharedListPath } from '@/lib/client-portal';
 import { clientHomeHref } from '@/lib/client-surface';
-import type { ClientSharedPage } from '@/lib/contract-next';
+import type { ClientSharedPage } from '@mantle/client-types';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND, type MemberItemKind } from '@/lib/member-kinds';
 import { ClientReader } from './client-reader';
 
