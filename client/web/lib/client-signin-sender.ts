@@ -7,7 +7,7 @@
  *
  * Server: GET and PUT /api/team-admin/clients/signin-sender.
  */
-import type { ClientSenderRefusedReason, ClientSigninSender } from './contract-next';
+import type { ClientSenderRefusedReason, ClientSigninSender } from '@mantle/client-types';
 
 export const CLIENT_SENDER_PATH = '/api/team-admin/clients/signin-sender';
 export const CLIENT_SENDER_KEY = ['team-admin', 'client-signin-sender'] as const;

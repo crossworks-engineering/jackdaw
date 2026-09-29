@@ -14,7 +14,7 @@
  * Server: GET and POST /api/auth/client-code, POST
  * /api/auth/client-code/verify (all public, under /api/auth).
  */
-import type { ClientCodeAvailability } from './contract-next';
+import type { ClientCodeAvailability } from '@mantle/client-types';
 
 export const CLIENT_CODE_PATH = '/api/auth/client-code';
 export const CLIENT_CODE_VERIFY_PATH = '/api/auth/client-code/verify';
