@@ -26,7 +26,7 @@ test.afterEach(async () => {
 });
 
 const byMe = async (page: import('@playwright/test').Page) => {
-  await page.getByRole('button', { name: 'Filter by state' }).click();
+  await page.getByRole('button', { name: 'All items' }).click();
   await page.getByRole('menuitemradio', { name: 'By me' }).click();
 };
 
