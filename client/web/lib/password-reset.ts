@@ -9,7 +9,7 @@
  * Pure: unit-tested (password-reset.test.ts).
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import type { PasswordResetRefusal } from './contract-next';
+import type { PasswordResetRefused } from './contract-next';
 
 /** Reset password is offered for these roles only. */
 export function canResetPassword(role: string): boolean {
@@ -22,7 +22,7 @@ export function isNotAPasswordLogin(err: unknown): boolean {
   return (
     err instanceof ApiError &&
     err.status === 400 &&
-    (err.body as Partial<PasswordResetRefusal> | undefined)?.reason === 'not-a-password-login'
+    (err.body as Partial<PasswordResetRefused> | undefined)?.reason === 'not-a-password-login'
   );
 }
 
@@ -32,7 +32,7 @@ export const NOT_A_PASSWORD_LOGIN =
 /** The toast for a failed reset. */
 export function resetPasswordErrorMessage(err: unknown): string {
   if (isNotAPasswordLogin(err)) {
-    const body = (err as ApiError).body as Partial<PasswordResetRefusal> | undefined;
+    const body = (err as ApiError).body as Partial<PasswordResetRefused> | undefined;
     return body?.message || (err as ApiError).message || NOT_A_PASSWORD_LOGIN;
   }
   return err instanceof ApiError && err.message ? err.message : 'Could not reset password';

@@ -13,11 +13,11 @@ import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { AccessItemView, AccessLevel, TakeOverResult } from '@mantle/client-types';
 import { closureAbove, LEVEL_LABEL } from './access-levels';
 import type {
-  AcceptBodyNext,
-  AcceptPreviewNext,
-  ConfirmLevelRefusal,
-  ReviewAuthorNext,
+  AcceptConfirmLevelRefusal,
+  AcceptPreview,
+  AcceptRequest,
   ReviewAuthorRole,
+  ReviewAuthorView,
 } from './contract-next';
 import { MEMBER_KIND } from './member-kinds';
 import {
@@ -31,13 +31,8 @@ import {
 
 export type ReviewReason = 'submitted' | 'left-behind';
 
-export type ReviewAuthor = ReviewAuthorNext & {
-  loginId: string | null;
-  name: string;
-  email: string | null;
-  /** Deactivated, or the login is gone. */
-  inactive: boolean;
-};
+/** `inactive`: deactivated, or the login is gone. */
+export type ReviewAuthor = ReviewAuthorView;
 
 export type ReviewItemRow = {
   id: string;
@@ -66,13 +61,12 @@ export type ReviewItem = {
 };
 
 export type BundleItem = { id: string; type: SpaceKind; title: string };
-export type Bundle = AcceptPreviewNext & { items: BundleItem[]; linksStayingBehind: number };
-
-export type AcceptInput = AcceptBodyNext & {
-  audience: AccessLevel;
-  parentPageId?: string | null;
-  folderPath?: string | null;
+export type Bundle = Pick<AcceptPreview, 'closure'> & {
+  items: BundleItem[];
+  linksStayingBehind: number;
 };
+
+export type AcceptInput = AcceptRequest & { audience: AccessLevel };
 
 export type AcceptResult = {
   id: string;
@@ -255,7 +249,7 @@ export function confirmLevelRefusal(
   err: unknown,
 ): { message: string; goingDown: AccessItemView[] | null } | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
-  const body = err.body as Partial<ConfirmLevelRefusal> | undefined;
+  const body = err.body as Partial<AcceptConfirmLevelRefusal & { message: string }> | undefined;
   if (body?.reason !== 'confirm-level') return null;
   return {
     message: err.message || body.message || 'Confirm the level to accept this item.',
@@ -268,7 +262,7 @@ export function confirmLevelRefusal(
 export function levelConfirmation(
   goingDown: readonly AccessItemView[],
   ticked: ReadonlySet<string>,
-): Required<AcceptBodyNext> | null {
+): Required<Pick<AcceptRequest, 'lowerConfirmed' | 'confirmedIds'>> | null {
   if (!goingDown.every((i) => ticked.has(i.id))) return null;
   return { lowerConfirmed: true, confirmedIds: goingDown.map((i) => i.id) };
 }

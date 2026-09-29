@@ -5,6 +5,7 @@ import {
   CLIENT_MEANING_OLD_LINK,
   LEGACY_CLIENT_MEANING,
   cascadeSwitch,
+  keptAtClientLine,
   levelMeaning,
   openLinkLevelsOf,
   takesLink,
@@ -205,5 +206,14 @@ describe('the Include sub-pages switch (audit A30b)', () => {
     expect(cascadeSwitch({ ...base, level: 'public', childCount: 0 })).toBeNull();
     expect(cascadeSwitch({ ...base, level: 'public', type: 'note' })).toBeNull();
     expect(cascadeSwitch({ ...base, level: 'team', share: { cascade: true } })).toBeNull();
+  });
+});
+
+describe('Include sub-pages leaves client sub-pages alone', () => {
+  it('says how many it kept at client, and nothing when none or not said', () => {
+    expect(keptAtClientLine(['a'])).toBe('Kept at client: 1 sub-page');
+    expect(keptAtClientLine(['a', 'b'])).toBe('Kept at client: 2 sub-pages');
+    expect(keptAtClientLine([])).toBeNull();
+    expect(keptAtClientLine(undefined)).toBeNull();
   });
 });

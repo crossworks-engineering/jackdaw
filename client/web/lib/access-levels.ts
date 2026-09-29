@@ -117,6 +117,13 @@ export function cascadeSwitch(input: {
   return isOldClientLink(level) && share.cascade ? 'off-only' : null;
 }
 
+/** What "Include sub-pages" left alone: client sub-pages keep client and
+ *  take no link. Null when none (or a brain that does not say). */
+export function keptAtClientLine(skipped: readonly string[] | undefined): string | null {
+  const n = skipped?.length ?? 0;
+  return n > 0 ? `Kept at client: ${n} sub-page${n === 1 ? '' : 's'}` : null;
+}
+
 /** A live link on an item at client level is an OLD client link: made when
  *  client meant "anyone with the link", live until a later phase retires it.
  *  Undefined (a brain before C1 sends no level): nothing to say. */

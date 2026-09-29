@@ -61,41 +61,57 @@ export type AccessNodeView = PublishedAccessNodeView & {
   oldLinksAbove?: ClientOldLinkAbove[];
 };
 
-// ── Review and Accept ───────────────────────────────────────────────────────
+// ── dto/review.ts: Review and Accept ────────────────────────────────────────
 
 export type ReviewAuthorRole = 'member' | 'client';
 
-/** The review queue row's author object gains its login's role. */
-export type ReviewAuthorNext = { role?: ReviewAuthorRole | null };
+/** The review queue row's author. `role` absent from older brains. */
+export type ReviewAuthorView = {
+  loginId: string | null;
+  name: string;
+  email: string | null;
+  inactive: boolean;
+  role?: ReviewAuthorRole | null;
+};
 
-/** The Accept preview (GET .../bundle) gains the embed closure. */
-export type AcceptPreviewNext = {
-  /** Brain items in the embed closure of what Accept moves in, with their
-   *  CURRENT level. The ones above the chosen level go DOWN with it and need
-   *  a tick. */
+/** GET .../bundle: what Accept moves in. `closure`: brain items in the embed
+ *  closure with their CURRENT level; the ones above the chosen level go
+ *  DOWN with it and need a tick. There is no preview for the admin's own
+ *  accept after a Take over: there the closure comes only in the 409. */
+export type AcceptPreview = {
+  items: { id: string; type: string; title: string }[];
+  linksStayingBehind: number;
   closure?: AccessItemView[];
 };
 
-/** The Accept body gains the ticked closure items. */
-export type AcceptBodyNext = {
+/** The Accept body. */
+export type AcceptRequest = {
+  audience?: AccessLevel;
+  parentPageId?: string | null;
+  folderPath?: string | null;
   lowerConfirmed?: boolean;
   /** Ids of closure items the admin ticked (with lowerConfirmed: true). */
   confirmedIds?: string[];
 };
 
 /** 409 from Accept when the level needs a confirmation. */
-export type ConfirmLevelRefusal = {
+export type AcceptConfirmLevelRefusal = {
   error: string;
   reason: 'confirm-level';
-  message?: string;
   goingDown?: AccessItemView[];
 };
 
-// ── Password reset ──────────────────────────────────────────────────────────
+// ── Shares: sub-pages ───────────────────────────────────────────────────────
+
+/** POST /api/shares/cascade on success. `skipped`: client sub-pages kept at
+ *  client (no link). Absent from older brains. */
+export type ShareCascadeResult = { ok: true; count?: number; skipped?: string[] };
+
+// ── dto (logins): password reset ────────────────────────────────────────────
 
 /** 400 from POST /api/users/:id/password on a client (or unknown-role)
  *  login: it has no password to reset. */
-export type PasswordResetRefusal = {
+export type PasswordResetRefused = {
   error: string;
   reason: 'not-a-password-login';
   message: string;

@@ -130,6 +130,11 @@ describe('the Access control uses it', () => {
     expect(src).toContain('Revoke that link');
   });
 
+  it('says which client sub-pages Include sub-pages kept at client', () => {
+    expect(src).toContain('const kept = keptAtClientLine(d.skipped);');
+    expect(src).toContain('if (kept) toast.info(kept);');
+  });
+
   it('a level change reloads Shared links and its levels', () => {
     const refresh = src.slice(src.indexOf('const refreshScreens'), src.indexOf('const askRevoke'));
     expect(refresh).toContain('invalidateLinkQueries(queryClient);');

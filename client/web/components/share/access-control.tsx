@@ -10,7 +10,7 @@ import type {
   AccessLoweredView,
   AccessNodeUpdate,
 } from '@mantle/client-types';
-import type { AccessNodeView } from '@/lib/contract-next';
+import type { AccessNodeView, ShareCascadeResult } from '@/lib/contract-next';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
@@ -29,6 +29,7 @@ import {
   embedsSharedWith,
   isAccessLevel,
   isOldClientLink,
+  keptAtClientLine,
   levelMeaning,
   openLinkLevelsOf,
   queryKeysForType,
@@ -241,7 +242,7 @@ export function AccessControl({
     setBusy(true);
     try {
       const id = nodeId;
-      const d = await apiSend<{ count?: number }>('/api/shares/cascade', 'POST', {
+      const d = await apiSend<ShareCascadeResult>('/api/shares/cascade', 'POST', {
         nodeId: id,
         on,
       });
@@ -256,6 +257,9 @@ export function AccessControl({
             ? 'The old link no longer opens the sub-pages'
             : 'Sub-pages back to admin',
       );
+      // Client sub-pages keep client and take no link (absent from older brains).
+      const kept = keptAtClientLine(d.skipped);
+      if (kept) toast.info(kept);
       refreshScreens('page');
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return;
