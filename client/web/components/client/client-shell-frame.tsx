@@ -14,6 +14,7 @@ import { RailControls } from '@/components/layout/rail/rail-controls';
 import { NAV_W_DEFAULT } from '@/lib/nav-width';
 import { clientRedirectFor } from '@/lib/client-surface';
 import type { ClientShell } from '@mantle/client-types';
+import { ClientChatDock, ClientChatProvider } from './client-chat';
 import { ClientHome } from './client-home';
 
 /** The public paths a client may stand on; everything else is the home. */
@@ -22,9 +23,10 @@ const CLIENT_PUBLIC: readonly string[] = [];
 /**
  * The client chrome (client logins C2), the member chrome cut down to what a
  * client has: the brand (its name or logo, never a staff name or the peer
- * name), the account menu (name, theme, sign out, sign out everywhere) and
- * one screen, "Shared with you". No search, no activity, no assistant, no
- * uploads, no tour. The rail is a drawer below md, as in the owner shell.
+ * name), the account menu (name, theme, sign out, sign out everywhere),
+ * one screen, "Shared with you", and the client's own chat (C4, a dock the
+ * home opens). No search, no activity, no owner assistant, no uploads, no
+ * tour. The rail is a drawer below md, as in the owner shell.
  *
  * Any other path a client lands on (before the middleware knew it was a
  * client) is replaced with the home, the item open when the path named one.
@@ -81,50 +83,53 @@ export function ClientShellFrame({ shell }: { shell: ClientShell }) {
   );
 
   return (
-    <div
-      className="mantle-shell group/shell h-screen bg-background"
-      data-nav-collapsed="false"
-      data-client-shell=""
-      style={
-        {
-          '--nav-w': `${NAV_W_DEFAULT}px`,
-          '--activity-w': '0px',
-          '--assistant-w': '0rem',
-          '--help-w': '0rem',
-        } as React.CSSProperties
-      }
-    >
-      <MobileBar
-        identity={identity}
-        siteName={shell.siteName}
-        logoVersion={shell.logoVersion}
-        logoDarkVersion={shell.logoDarkVersion}
-        onMenuClick={() => setMobileOpen(true)}
-        client
-      />
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--nav-w)] flex-col border-r bg-sidebar md:flex">
-        <AreaBackdrop area="menu" />
-        {body()}
-      </aside>
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="flex w-80 flex-col gap-0 p-0">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          {body(() => setMobileOpen(false), true)}
-        </SheetContent>
-      </Sheet>
-      {/* The brain's saved background, as a shared-out surface (the share
-          switch applies), under <main> and never scrolling with it. */}
+    <ClientChatProvider>
       <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 top-[var(--top-bar-h)] md:left-[var(--nav-w)]"
+        className="mantle-shell group/shell h-screen bg-background"
+        data-nav-collapsed="false"
+        data-client-shell=""
+        style={
+          {
+            '--nav-w': `${NAV_W_DEFAULT}px`,
+            '--activity-w': '0px',
+            '--assistant-w': '0rem',
+            '--help-w': '0rem',
+          } as React.CSSProperties
+        }
       >
-        <NeatSurface shared />
+        <MobileBar
+          identity={identity}
+          siteName={shell.siteName}
+          logoVersion={shell.logoVersion}
+          logoDarkVersion={shell.logoDarkVersion}
+          onMenuClick={() => setMobileOpen(true)}
+          client
+        />
+        <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--nav-w)] flex-col border-r bg-sidebar md:flex">
+          <AreaBackdrop area="menu" />
+          {body()}
+        </aside>
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetContent side="left" className="flex w-80 flex-col gap-0 p-0">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            {body(() => setMobileOpen(false), true)}
+          </SheetContent>
+        </Sheet>
+        {/* The brain's saved background, as a shared-out surface (the share
+          switch applies), under <main> and never scrolling with it. */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 top-[var(--top-bar-h)] md:left-[var(--nav-w)]"
+        >
+          <NeatSurface shared />
+        </div>
+        <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)]">
+          <Suspense fallback={null}>
+            <ClientHome />
+          </Suspense>
+        </main>
+        <ClientChatDock />
       </div>
-      <main className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)]">
-        <Suspense fallback={null}>
-          <ClientHome />
-        </Suspense>
-      </main>
-    </div>
+    </ClientChatProvider>
   );
 }

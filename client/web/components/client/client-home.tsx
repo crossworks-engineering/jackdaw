@@ -20,6 +20,7 @@ import { CLIENT_SHARED_KEY, sharedListPath } from '@/lib/client-portal';
 import { clientHomeHref } from '@/lib/client-surface';
 import type { ClientSharedPage } from '@mantle/client-types';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND, type MemberItemKind } from '@/lib/member-kinds';
+import { ClientChatLauncher } from './client-chat';
 import { ClientReader } from './client-reader';
 import { ClientSharedCard } from './client-shared-card';
 
@@ -74,7 +75,10 @@ export function ClientHome() {
   const listPane = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="space-y-2 border-b border-border p-3">
-        <h1 className="text-base font-semibold">Shared with you</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-base font-semibold">Shared with you</h1>
+          <ClientChatLauncher />
+        </div>
         <div className="flex items-center gap-2">
           <Select
             value={kind ?? ALL}

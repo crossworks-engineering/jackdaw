@@ -1,3 +1,4 @@
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { MemberChatMessage } from '@mantle/client-types';
 
 /**
@@ -54,4 +55,17 @@ export function sendKey(
   fresh: () => string,
 ) {
   return last && last.text === text ? last.key : fresh();
+}
+
+/**
+ * A refused member send: the brain's message in a toast (none for a 401,
+ * which is on its way to sign-in), and a 409 reloads the thread, since the
+ * brain's state changed (chat closed).
+ */
+export function memberChatRefusal(e: unknown): { message: string | null; reload: boolean } {
+  if (e instanceof ApiError && e.status === 401) return { message: null, reload: false };
+  return {
+    message: e instanceof Error ? e.message : 'Could not send that',
+    reload: e instanceof ApiError && e.status === 409,
+  };
 }
