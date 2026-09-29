@@ -17,9 +17,9 @@ import {
  * The link part of the Access control. Public is the only level with an open
  * link (client logins C1), so the link box and Copy show there and nowhere
  * else. A client item never gets one: clients sign in to read it. An old
- * link made on it before that (still live until a later phase retires it)
- * is named, never offered to copy, and can be revoked right here (the item
- * stays at Client). `open` is the levels this brain makes a link at: a brain
+ * link made on it before that (live only on a brain before client logins C3,
+ * which retired them all) is named, never offered to copy, and can be
+ * revoked right here (the item stays at Client). `open` is the levels this brain makes a link at: a brain
  * before C1 made one at client too, and there the box shows at Client as it
  * always did.
  */

@@ -5,9 +5,11 @@
  * read a team item by level, signed in with their own logins), none at
  * client (signed-in clients, client logins C1), and an open link at public,
  * the ONLY level with one. There are no team links (member logins Phase 6
- * stage 6), and a link on a client item is refused (`client-links-retired`);
- * links made on client items before C1 live on until a later phase retires
- * them. See the brain's docs/access-levels.md.
+ * stage 6), and a link on a client item is refused (`client-links-retired`).
+ * Links made on client items before C1 were retired by client logins C3
+ * (brain migration 0192): they ask their visitors to sign in as a client,
+ * and only a brain before C3 still has one live. See the brain's
+ * docs/access-levels.md.
  *
  * Pure: no React, so the rules are unit-tested (access-levels.test.ts).
  */
@@ -125,8 +127,10 @@ export function keptAtClientLine(skipped: readonly string[] | undefined): string
 }
 
 /** A live link on an item at client level is an OLD client link: made when
- *  client meant "anyone with the link", live until a later phase retires it.
- *  Undefined (a brain before C1 sends no level): nothing to say. */
+ *  client meant "anyone with the link". Client logins C3 retired them all
+ *  (brain migration 0192), so only a brain before C3 still shows one; on a
+ *  C3 brain this is never true of a live link. Undefined (a brain before C1
+ *  sends no level): nothing to say. */
 export function isOldClientLink(level: AccessLevel | undefined): boolean {
   return level === 'client';
 }

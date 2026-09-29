@@ -70,10 +70,11 @@ import { RevokeLinkDialog, STAYS_AT_CLIENT, type RevokeTarget } from './revoke-l
  * events and the other admin-only kinds stay at admin; an old link on one
  * can be removed here.
  *
- * Old client links (made when client meant "anyone with the link", live
- * until a later phase retires them): one on the item itself can be revoked
- * here (the item stays at Client), and one on a folder or page above a client
- * item is named, with Shared links and a revoke. Both confirm in the dialog
+ * Old client links (made when client meant "anyone with the link"; client
+ * logins C3 retired them all, so only a brain before C3 still has one live):
+ * one on the item itself can be revoked here (the item stays at Client), and
+ * one on a folder or page above a client item is named, with Shared links
+ * and a revoke. Both confirm in the dialog
  * Shared links uses. A brain before C1 (no `openLinkLevels`) keeps its own
  * words: Client is an open link there.
  *

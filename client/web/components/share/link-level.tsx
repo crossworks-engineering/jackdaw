@@ -9,7 +9,9 @@ import { linkLevelLabel } from '../../lib/shared-links';
 /**
  * A shared link's level, beside it in the Shared links list and header
  * (client logins C1). A live link on a client item is an OLD client link,
- * from when client meant "anyone with the link": marked, in plain words. So
+ * from when client meant "anyone with the link": marked, in plain words
+ * (only on a brain before C3; a C3 brain retired them and lists them apart,
+ * RetiredClientLinks). So
  * is one on an admin item (a task or an event, which stay admin): an old open
  * link. A brain before C1 sends no level, and then nothing extra shows.
  */
