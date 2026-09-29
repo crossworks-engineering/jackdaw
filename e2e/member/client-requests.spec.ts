@@ -101,7 +101,7 @@ test.describe('My requests', () => {
     await editor.click();
     await page.keyboard.type('Keys, manuals, warranties.');
     // No sharing for a client: no Private / Team switch.
-    await expect(page.getByRole('group', { name: 'Who can see this' })).toHaveCount(0);
+    await expect(page.getByRole('radiogroup', { name: 'Who can see this' })).toHaveCount(0);
 
     const save = page.getByRole('button', { name: 'Save version' });
     await expect(save).toBeEnabled({ timeout: 15_000 });
