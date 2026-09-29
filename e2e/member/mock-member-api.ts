@@ -32,6 +32,11 @@ import type { BrowserContext } from '@playwright/test';
  * false makes every client route a 401 (an ended session). Any other role
  * is refused on the client routes (403 `admin-login` / `member-login`).
  *
+ * Since C4 it answers the client's own chat (/api/client/chat: the thread,
+ * and a send whose reply lands on the second ask after it, so a spec sees
+ * the dock poll), and, for an admin, the clients' chat use today and the
+ * Requests tab.
+ *
  * Since C2b it answers the public email sign-in code routes for every role,
  * as the brain does (`clientCodes` says whether this brain sends codes; the
  * request answers every email the same; CLIENT_EMAIL_CODE for CLIENT_EMAIL
@@ -185,6 +190,10 @@ export const SENDER_INFO = {
 
 /** The admin's client logins (Team admin > Clients). */
 export const CLIENT_LOGIN_ID = '16161616-1616-4161-8161-161616161616';
+/** The client-level agent a client chats with (C4): a name, never a person's. */
+export const CLIENT_AGENT_NAME = 'Front desk';
+/** What the agent answers every client message with. */
+export const CLIENT_CHAT_REPLY = 'The survey is booked for Tuesday.';
 /** A Library row at CLIENT level, for the member's Client badge. */
 export const LIBRARY_CLIENT_ID = '17171717-1717-4171-8171-171717171717';
 export const LIBRARY_CLIENT_TITLE = 'Client handover';
@@ -249,6 +258,8 @@ export type MockMemberApi = {
   clientCalls: string[];
   /** Client role: every client route the page called (answered). */
   clientRouteCalls: string[];
+  /** Client role: the client's own chat (C4). */
+  clientChat: MockClientChat;
   /** Client role: false makes every client route a 401 (the session ended,
    *  or nobody signed in yet); a good sign-in link sets it. */
   clientSession: boolean;
@@ -370,6 +381,32 @@ export type MockAdminState = {
   };
   /** Member chats (B26): rows the roster answers, when set. */
   memberChats: Record<string, unknown>[] | null;
+  /** Clients' chat use today (C4): the answer, or null for a brain before
+   *  C4 (404). */
+  chatUsage: Record<string, unknown> | null;
+  /** The Requests tab's rows (C4: a client's carries fromClient). */
+  requests: Record<string, unknown>[];
+};
+
+export type MockClientChat = {
+  /** null: the chat is not open (no client-level agent). */
+  agent: { name: string } | null;
+  messages: {
+    id: string;
+    direction: 'inbound' | 'outbound';
+    text: string;
+    status: 'pending' | 'complete' | 'failed';
+    failed: boolean;
+    createdAt: string;
+  }[];
+  /** Every send, with its Idempotency-Key and the answer's status. */
+  posts: { text: string; key: string | null; status: number }[];
+  /** Every GET of the thread, with when it arrived (Date.now()). */
+  gets: number[];
+  /** Set to have every send refused with this (a limit reached). */
+  refusal: { status: number; body: unknown } | null;
+  /** Asks of the thread left before the pending reply completes. */
+  replyAfter: number;
 };
 
 /** Sign the browser in as a member, the way the client sees it: the
@@ -436,6 +473,14 @@ export async function startMockMemberApi(
     adminCalls: [],
     clientCalls: [],
     clientRouteCalls: [],
+    clientChat: {
+      agent: { name: CLIENT_AGENT_NAME },
+      messages: [],
+      posts: [],
+      gets: [],
+      refusal: null,
+      replyAfter: 0,
+    },
     clientSession: true,
     clientSignIns: [],
     clientCodes: false,
@@ -494,6 +539,8 @@ export async function startMockMemberApi(
         previewCalls: [],
       },
       memberChats: null,
+      chatUsage: null,
+      requests: [],
     },
     close: async () => undefined,
   };
@@ -873,6 +920,17 @@ export async function startMockMemberApi(
       json(res, 200, S.previews[id] ?? { sentFolders: ['Sent', 'Sent Items'], canUse: true });
       return true;
     }
+    // The clients' chat use today (C4); a brain before C4 has no such route.
+    if (path === '/api/team-admin/clients/usage' && method === 'GET') {
+      if (!A.chatUsage) return (json(res, 404, { error: 'Not found.' }), true);
+      json(res, 200, A.chatUsage);
+      return true;
+    }
+    if (path === '/api/team-admin/requests' && method === 'GET') {
+      const open = A.requests.filter((r) => r.status !== 'done').length;
+      json(res, 200, { badges: { openRequestCount: open }, requests: A.requests });
+      return true;
+    }
     // Member chats (B26): the roster with a client row, when set.
     if (path === '/api/team-admin/member-chats' && method === 'GET' && A.memberChats) {
       json(res, 200, { members: A.memberChats, selected: null });
@@ -1183,7 +1241,69 @@ export async function startMockMemberApi(
     }
     return { ...row, filename: SHARED_FILE_TITLE, mimeType: 'image/png', sizeBytes: 68 };
   };
-  const handleClient = (res: ServerResponse, url: URL, path: string) => {
+  // The client's own chat (C4): a send queues the turn, and the reply lands
+  // on the second ask of the thread after it (the first still pending), as a
+  // brain writes it a moment later.
+  const C = state.clientChat;
+  const handleClientChat = async (req: IncomingMessage, res: ServerResponse, method: string) => {
+    if (method === 'GET') {
+      C.gets.push(Date.now());
+      const pending = C.messages.find((m) => m.status === 'pending');
+      if (pending) {
+        if (C.replyAfter <= 0) {
+          pending.status = 'complete';
+          pending.text = CLIENT_CHAT_REPLY;
+        } else {
+          C.replyAfter -= 1;
+        }
+      }
+      return json(res, 200, { agent: C.agent, messages: C.messages });
+    }
+    if (method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
+    const body = JSON.parse((await readBody(req)) || '{}') as { text?: string };
+    const text = body.text ?? '';
+    const header = req.headers['idempotency-key'];
+    const key = typeof header === 'string' ? header : null;
+    const answer = (status: number, out: unknown) => {
+      C.posts.push({ text, key, status });
+      return json(res, status, out);
+    };
+    if (C.refusal) return answer(C.refusal.status, C.refusal.body);
+    if (!C.agent) {
+      return answer(409, { error: 'Chat is not open.', reason: 'chat-closed' });
+    }
+    const at = new Date().toISOString();
+    const n = C.messages.length;
+    C.messages.push(
+      {
+        id: `in-${n}`,
+        direction: 'inbound',
+        text,
+        status: 'complete',
+        failed: false,
+        createdAt: at,
+      },
+      {
+        id: `out-${n}`,
+        direction: 'outbound',
+        text: '',
+        status: 'pending',
+        failed: false,
+        createdAt: at,
+      },
+    );
+    C.replyAfter = 1;
+    return answer(202, { turnId: `turn-${n}` });
+  };
+
+  const handleClient = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    path: string,
+    method: string,
+  ) => {
+    if (path === '/api/client/chat') return handleClientChat(req, res, method);
     if (path === '/api/client/shell') {
       return json(res, 200, {
         role: 'client',
@@ -1228,7 +1348,7 @@ export async function startMockMemberApi(
   const cors = {
     'access-control-allow-origin': clientOrigin,
     'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'access-control-allow-headers': 'content-type, authorization, last-event-id',
+    'access-control-allow-headers': 'content-type, authorization, last-event-id, idempotency-key',
     'access-control-max-age': '600',
   };
   const send = (res: ServerResponse, status: number, type: string, body: string | Buffer) => {
@@ -1286,7 +1406,7 @@ export async function startMockMemberApi(
     if (role === 'client' && path.startsWith('/api/client/')) {
       if (!state.clientSession) return json(res, 401, { error: 'unauthorized' });
       state.clientRouteCalls.push(`${method} ${path}`);
-      return handleClient(res, url, path);
+      return handleClient(req, res, url, path, method);
     }
     if (path === '/api/auth/client-link' && method === 'POST') {
       const body = JSON.parse((await readBody(req)) || '{}') as { code?: string; email?: string };

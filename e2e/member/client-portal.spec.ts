@@ -836,7 +836,9 @@ test.describe('Team admin > Member chats (B26)', () => {
     ];
     await page.goto('/team-admin?view=chats');
     const client = page.getByRole('listitem').filter({ hasText: CLIENT_NAME });
-    await expect(client).toContainText('Client · A question', { timeout: 60_000 });
+    // The Client badge beside the name (C4), then the last message.
+    await expect(client.getByText('Client', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(client).toContainText('A question');
     await expect(page.getByText(/no longer a member/)).toHaveCount(0);
     const member = page.getByRole('listitem').filter({ hasText: 'Mo Member' });
     await expect(member).not.toContainText('Client');
