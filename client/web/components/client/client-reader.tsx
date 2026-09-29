@@ -21,7 +21,7 @@ import {
   clientNoteMarkdown,
   sharedItemPath,
 } from '@/lib/client-portal';
-import type { ClientSharedItem } from '@/lib/contract-next';
+import type { ClientSharedItem } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 
 /** A client reads bytes from the client routes; a page's file embeds are

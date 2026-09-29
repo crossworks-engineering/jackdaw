@@ -18,7 +18,7 @@ import useMediaQuery from '@mantle/web-ui/hooks/use-media-query';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { CLIENT_SHARED_KEY, sharedListPath } from '@/lib/client-portal';
 import { clientHomeHref } from '@/lib/client-surface';
-import type { ClientSharedPage } from '@/lib/contract-next';
+import type { ClientSharedPage } from '@mantle/client-types';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND, type MemberItemKind } from '@/lib/member-kinds';
 import { ClientReader } from './client-reader';
 import { ClientSharedCard } from './client-shared-card';

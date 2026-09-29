@@ -9,7 +9,7 @@
  * End sessions, Disable and Delete are the users routes (/api/users/:id).
  */
 import type { ClientLoginList, ClientLoginRow } from '@mantle/client-types';
-import type { ClientAdminRefusedReason } from './contract-next';
+import type { ClientAdminRefusedReason } from '@mantle/client-types';
 
 export const CLIENT_LOGINS_KEY = ['team-admin', 'client-logins'] as const;
 

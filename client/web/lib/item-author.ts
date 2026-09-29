@@ -8,7 +8,7 @@
  * does not say the role is read as before. Pure, pinned by
  * item-author.test.ts.
  */
-import type { MemberItemAuthor } from './contract-next';
+import type { MemberItemAuthor } from '@mantle/client-types';
 
 /** The brain's names for an author login with no display name. */
 const NAMELESS_MEMBER = 'A member';

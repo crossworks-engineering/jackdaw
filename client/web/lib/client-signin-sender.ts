@@ -14,7 +14,7 @@ import type {
   ClientSenderRefusedReason,
   ClientSigninSender,
   ClientSigninSenderPreview,
-} from './contract-next';
+} from '@mantle/client-types';
 
 export const CLIENT_SENDER_PATH = '/api/team-admin/clients/signin-sender';
 export const CLIENT_SENDER_KEY = ['team-admin', 'client-signin-sender'] as const;

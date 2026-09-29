@@ -40,7 +40,7 @@ import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { TeamMemberActivity, TeamRequest, MemberChatPortalThread } from '@mantle/client-types';
-import type { MemberChatsResponse } from '@/lib/contract-next';
+import type { MemberChatsResponse } from '@mantle/client-types';
 import { chatRosterTag } from '@/lib/member-chats-roster';
 import {
   SHARES_KEY,

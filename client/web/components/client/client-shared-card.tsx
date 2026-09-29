@@ -4,7 +4,7 @@ import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-ca
 // Relative, not '@/': the node test runner renders this
 // (client-shared-card.test.ts) and does not resolve the app's path alias.
 import { kindLabel } from '../../lib/access-levels';
-import type { ClientSharedRow } from '../../lib/contract-next';
+import type { ClientSharedRow } from '@mantle/client-types';
 import { MEMBER_KIND } from '../../lib/member-kinds';
 
 /**

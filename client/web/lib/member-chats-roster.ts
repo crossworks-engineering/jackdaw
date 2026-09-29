@@ -5,7 +5,7 @@
  * "Client", never "no longer a member": it never was one. Pure, pinned by
  * member-chats-roster.test.ts.
  */
-import type { MemberChatRow } from './contract-next';
+import type { MemberChatRow } from '@mantle/client-types';
 
 /** The tag a roster row wears, or null for an active member. */
 export function chatRosterTag(row: Pick<MemberChatRow, 'role' | 'active'>): string | null {

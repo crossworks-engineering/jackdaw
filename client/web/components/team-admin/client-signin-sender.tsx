@@ -72,7 +72,7 @@ import {
   sentCountText,
   type SenderChange,
 } from '../../lib/client-signin-sender';
-import type { ClientSigninSender, ClientSigninSenderPreview } from '../../lib/contract-next';
+import type { ClientSigninSender, ClientSigninSenderPreview } from '@mantle/client-types';
 
 /** The card: owns the query and the change; the markup is the view. */
 export function ClientSigninSenderPanel() {
