@@ -96,6 +96,11 @@ const REFUSAL_TEXT: Record<string, string> = {
 /** What a member reads for an item an admin has taken over (audit F07). */
 export const WITH_ADMIN_TEXT = REFUSAL_TEXT['with-admin']!;
 
+/** What a CLIENT reads for it (client logins C5 audit fix U3): a client
+ *  never reads a staff role, so the one who holds it is the reviewer. */
+export const CLIENT_WITH_REVIEWER_TEXT =
+  'The reviewer is working on this. You will see it again when it is accepted or given back.';
+
 /** The `reason` of a 409 state refusal, else null. */
 export function refusalReason(err: unknown): string | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
@@ -270,12 +275,19 @@ const REVIEW_LABEL: Record<SpaceItemState, string | null> = {
  * What an own item's StatusChip says: who can see it and, once it has left
  * draft, its review state. An item an admin took over (audit F07) says only
  * "With admin": who can see it is the admin's business until it comes back.
+ * A client reads "With the team" (`client`, audit U3: no staff role).
  */
-export function statusLabels(row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>): {
+export function statusLabels(
+  row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>,
+  client = false,
+): {
   sharing: 'Private' | 'Shared with team' | null;
   review: string | null;
 } {
-  const review = REVIEW_LABEL[row.reviewState] ?? null;
+  const review =
+    client && row.reviewState === 'with-admin'
+      ? 'With the team'
+      : (REVIEW_LABEL[row.reviewState] ?? null);
   if (row.reviewState === 'with-admin') return { sharing: null, review };
   return { sharing: row.sharing === 'team' ? 'Shared with team' : 'Private', review };
 }
@@ -626,8 +638,14 @@ export function acceptedBytesChanged(
   return (item.type === 'file' || item.type === 'draw') && item.changedByAdmin === true;
 }
 
-/** What the reader shows in place of a changed file or drawing. */
-export function acceptedChangedText(type: SpaceKind): string {
+/** What the reader shows in place of a changed file or drawing. A client
+ *  reads "the reviewer" (audit U3: no staff role). */
+export function acceptedChangedText(type: SpaceKind, client = false): string {
+  if (client) {
+    return type === 'draw'
+      ? 'The reviewer changed this drawing after accepting it, so the picture you submitted is not shown any more.'
+      : 'The reviewer changed this file after accepting it, so the file you submitted is not served any more.';
+  }
   return type === 'draw'
     ? 'An admin changed this drawing after accepting it, so the picture you submitted is not shown any more.'
     : 'An admin changed this file after accepting it, so the file you submitted is not served any more.';

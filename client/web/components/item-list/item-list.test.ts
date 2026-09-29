@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ItemCard, ItemCardAction, ItemIcon } from './item-card';
-import { StatePill, stateLabel, type ItemState } from './state-pill';
+import { StatePill, stateLabel, stateTitle, type ItemState } from './state-pill';
 import { mergeSortedRows } from './merge-rows';
 
 /**
@@ -63,7 +63,7 @@ describe('StatePill', () => {
   const states: ItemState[] = ['private', 'draft', 'submitted', 'returned', 'with-admin'];
 
   it('says each state in plain words, lower case, like [private]', () => {
-    expect(states.map(stateLabel)).toEqual([
+    expect(states.map((st) => stateLabel(st))).toEqual([
       'private',
       'draft',
       'submitted',
@@ -77,6 +77,21 @@ describe('StatePill', () => {
       // Ink roles only: a status fill used as text can vanish on some themes.
       expect(html).not.toMatch(/text-(info|warning|destructive|success)(?!-ink)\b/);
     }
+  });
+
+  it('says no staff role to a client (audit U3); a member keeps its words', () => {
+    for (const s of states) {
+      // What a person reads: the words and the hover (the data-state hook
+      // is the brain's code, for the tests and styles, never shown).
+      const html = renderToStaticMarkup(createElement(StatePill, { state: s, client: true }));
+      expect(html.replace(/ data-state="[^"]*"/, '')).not.toMatch(/admin/i);
+      expect(stateTitle(s, true)).not.toMatch(/admin/i);
+    }
+    expect(stateLabel('with-admin', true)).toBe('with the team');
+    expect(stateTitle('returned', true)).toBe('Returned: the reviewer sent it back with a note');
+    // The member's and the admin's own words stay.
+    expect(stateLabel('with-admin')).toBe('with admin');
+    expect(stateTitle('submitted')).toMatch(/admin/);
   });
 });
 

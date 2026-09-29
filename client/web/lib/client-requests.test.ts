@@ -87,6 +87,11 @@ describe('My requests: the list', () => {
     expect(CLIENT_STATE_OPTIONS.map((o) => o.value)).not.toContain('draft');
   });
 
+  it('names no staff role in the State filter (audit U3)', () => {
+    for (const o of CLIENT_STATE_OPTIONS) expect(o.label).not.toMatch(/admin/i);
+    expect(CLIENT_STATE_OPTIONS.find((o) => o.value === 'with-admin')?.label).toBe('With the team');
+  });
+
   it('reads the URL: a kind and a state the client has, else none', () => {
     const p = new URLSearchParams('kind=file&state=submitted');
     expect(clientKindOf(p)).toBe('file');

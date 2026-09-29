@@ -30,6 +30,7 @@ import {
   takenFromOf,
 } from '@/lib/admin-private';
 import {
+  CLIENT_WITH_REVIEWER_TEXT,
   WITH_ADMIN_TEXT,
   adminSpace,
   commentsOpen,
@@ -113,7 +114,7 @@ export function MineItem({
   // `with-admin`, also on a refetch after the take-over): no content, no
   // editor, whatever this view showed before.
   if (withAdmin || isWithAdminRefusal(q.error)) {
-    return <WithAdminNotice onClose={onClose} />;
+    return <WithAdminNotice onClose={onClose} client={isClientSpace(api)} />;
   }
   // A failed background refetch keeps the data it had (react-query v5): only
   // an item that never loaded is an error screen.
@@ -149,13 +150,21 @@ export function MineItem({
 }
 
 /** An own item an admin has taken over (audit F07): the member reads none
- *  of it until it is accepted (it shows under Accepted) or given back. */
-export function WithAdminNotice({ onClose }: { onClose: () => void }) {
+ *  of it until it is accepted (it shows under Accepted) or given back. A
+ *  client reads it in its own words: "the reviewer", "with the team" (audit
+ *  U3: a client never reads a staff role). */
+export function WithAdminNotice({
+  onClose,
+  client = false,
+}: {
+  onClose: () => void;
+  client?: boolean;
+}) {
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-start gap-2">
         <Badge variant="secondary" className="gap-1">
-          <ShieldCheck className="size-3" aria-hidden /> With admin
+          <ShieldCheck className="size-3" aria-hidden /> {client ? 'With the team' : 'With admin'}
         </Badge>
         <span className="flex-1" />
         <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
@@ -163,7 +172,7 @@ export function WithAdminNotice({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
       <p role="status" className="text-sm text-muted-foreground">
-        {WITH_ADMIN_TEXT}
+        {client ? CLIENT_WITH_REVIEWER_TEXT : WITH_ADMIN_TEXT}
       </p>
     </div>
   );

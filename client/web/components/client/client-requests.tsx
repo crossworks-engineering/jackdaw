@@ -209,7 +209,7 @@ export function ClientRequests() {
               </span>
             </>
           }
-          pill={row.pill ? <StatePill state={row.pill} /> : null}
+          pill={row.pill ? <StatePill state={row.pill} client /> : null}
         />
       </li>
     );

@@ -3,6 +3,7 @@ import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   WITH_ADMIN_TEXT,
   acceptedBytesChanged,
+  CLIENT_WITH_REVIEWER_TEXT,
   acceptedChangedText,
   adminSpace,
   frozenByOther,
@@ -67,6 +68,11 @@ describe('the member side of a taken item', () => {
     expect(statusLabels({ sharing: 'private', reviewState: 'with-admin' })).toEqual({
       sharing: null,
       review: 'With admin',
+    });
+    // A client reads no staff role (client logins C5 audit U3).
+    expect(statusLabels({ sharing: 'private', reviewState: 'with-admin' }, true)).toEqual({
+      sharing: null,
+      review: 'With the team',
     });
     expect(statusLabels({ sharing: 'team', reviewState: 'submitted' })).toEqual({
       sharing: 'Shared with team',
@@ -266,6 +272,10 @@ describe('the accepted snapshot: a file or drawing an admin changed', () => {
     expect(acceptedChangedText('draw')).toMatch(
       /^An admin changed this drawing after accepting it/,
     );
+    // A client reads "the reviewer" (client logins C5 audit U3).
+    expect(acceptedChangedText('file', true)).toMatch(/^The reviewer changed this file/);
+    expect(acceptedChangedText('draw', true)).not.toMatch(/admin/i);
+    expect(CLIENT_WITH_REVIEWER_TEXT).not.toMatch(/admin/i);
   });
 });
 

@@ -22,7 +22,7 @@ const CLIENT_ASSETS: ReaderAssets = {
 };
 
 /**
- * An item the client wrote and an admin accepted (client logins C5): the
+ * An item the client wrote and the team accepted (client logins C5): the
  * version accepted, read only, from /api/client/accepted/:id (a file's bytes
  * from /api/client/files/:id). Nothing to do with it any more: it is the
  * brain's now. A file an admin changed since says so instead of a download
@@ -77,7 +77,7 @@ export function ClientAcceptedReader({ id, onClose }: { id: string; onClose: () 
             role="status"
             className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
           >
-            <p>{acceptedChangedText(item.type)}</p>
+            <p>{acceptedChangedText(item.type, true)}</p>
             {item.type === 'file' ? (
               <p className="text-xs text-muted-foreground">
                 {item.filename}

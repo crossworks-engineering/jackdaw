@@ -8,6 +8,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
+  isClientSpace,
   isWithAdmin,
   memberSpace,
   refusalMessage,
@@ -25,7 +26,7 @@ import { useSpaceApi } from './space-api';
  * An item an admin took over says only that (audit F07; `statusLabels`).
  */
 export function StatusChip({ row }: { row: Pick<SpaceItemRow, 'sharing' | 'reviewState'> }) {
-  const { sharing, review } = statusLabels(row);
+  const { sharing, review } = statusLabels(row, isClientSpace(useSpaceApi()));
   if (!sharing) {
     return (
       <Badge variant="secondary" className="gap-1">
