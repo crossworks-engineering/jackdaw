@@ -3,6 +3,7 @@ import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { safeNext } from '@/lib/safe-next';
+import { loadClientCodesEnabled } from '@/lib/client-code-availability';
 import { LoginClient } from './login-client';
 import { LoginMark } from './login-mark';
 import { LoginCredit } from './login-credit';
@@ -27,7 +28,13 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const [params, appearance] = await Promise.all([searchParams, loadBrainAppearance()]);
+  // Whether this brain mails client sign-in codes (client logins C2b): a
+  // client has no password, and the screen points them at the codes then.
+  const [params, appearance, clientCodes] = await Promise.all([
+    searchParams,
+    loadBrainAppearance(),
+    loadClientCodesEnabled(),
+  ]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
   // The saved Neat background, decoded defensively like every appearance field —
   // absence simply decodes to null (the plain fill), per the contract's own
@@ -59,6 +66,7 @@ export default async function LoginPage({
             // the raw parameter was an open redirect (lib/safe-next.ts).
             next={safeNext(params.next)}
             error={params.error}
+            clientCodes={clientCodes}
           />
         </div>
       </div>

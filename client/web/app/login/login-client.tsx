@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { LoginForm } from './login-form';
+import { ClientCodeLink } from './client-code-link';
 
 /**
  * Everything on the sign-in screen that has to run in the browser: the
@@ -22,12 +23,15 @@ export function LoginClient({
   mark,
   next,
   error,
+  clientCodes = false,
 }: {
   /** The server-rendered brand block. A React node, not data — this component
    *  has no business knowing which rung of the branding ladder won. */
   mark: React.ReactNode;
   next?: string;
   error?: string;
+  /** This brain mails client sign-in codes: offer a client the way there. */
+  clientCodes?: boolean;
 }) {
   const router = useRouter();
 
@@ -58,8 +62,10 @@ export function LoginClient({
           {firstRun ? 'Create your login to begin.' : 'Sign in to your data-aware workspace.'}
         </p>
       </div>
-      <div className="p-4 md:p-5">
+      <div className="space-y-4 p-4 md:p-5">
         <LoginForm mode={firstRun ? 'signup' : 'login'} next={next} error={error} />
+        {/* No client exists on a brain that is still being set up. */}
+        <ClientCodeLink enabled={clientCodes && !firstRun} />
       </div>
     </section>
   );

@@ -21,27 +21,50 @@ import { urlWithoutInviteCode } from '../../lib/member-invites';
 import { clientEmailError, clientSignInOutcome, readClientCode } from '../../lib/client-portal';
 import { CLIENT_LINK_LIFETIME_HOURS } from '../../lib/client-logins';
 import { signInErrorMessage } from '../../lib/sign-in-error';
+import { ClientCodeForm } from './client-code-form';
+
+/** What the page offers: the link's email check, sign-in by an emailed code
+ *  (C2b), or neither (how to get a link). */
+type ClientSigninMode = 'link' | 'code' | 'none';
+
+/** The first state: the link when there is one, else a code when this brain
+ *  sends codes, else how to get a link. */
+export function clientSigninMode(code: string, codesEnabled: boolean): ClientSigninMode {
+  if (code) return 'link';
+  return codesEnabled ? 'code' : 'none';
+}
+
+const STRAPLINE: Record<ClientSigninMode, string> = {
+  link: 'Enter your email to sign in.',
+  code: 'Sign in with a code sent to your email.',
+  none: 'Sign in with the link you were sent.',
+};
 
 /**
- * The browser half of /client-signin (client logins C2). Two complete states
- * and nothing between them: with the link's code, the email check and Sign
- * in; without one, how a client gets in (their link) and the way to staff
- * sign-in. The code is read once and leaves the address bar (and so the
- * history); the email is a check the brain makes, not a choice.
+ * The browser half of /client-signin (client logins C2, C2b). Complete
+ * states and nothing between them: with the link's code, the email check
+ * and Sign in; without one, sign-in by an emailed code when this brain
+ * sends codes (`codesEnabled`, asked on the server), else how a client gets
+ * in (their link). Staff sign-in is offered whenever there is no link. The
+ * code is read once and leaves the address bar (and so the history); the
+ * email is a check the brain makes, not a choice.
  *
- * Signing in sets the 30-day session cookie on the answer (same origin: a
- * client never holds a bearer), the presence cookie and the client hint,
- * then loads the client home with a full navigation, so nothing an earlier
- * session cached on this tab survives.
+ * Signing in (by link or by code) sets the 30-day session cookie on the
+ * answer (same origin: a client never holds a bearer), the presence cookie
+ * and the client hint, then loads the client home with a full navigation,
+ * so nothing an earlier session cached on this tab survives.
  */
 export function ClientSigninClient({
   mark,
   initialCode,
+  codesEnabled,
 }: {
   mark: React.ReactNode;
   initialCode: string;
+  codesEnabled: boolean;
 }) {
   const [code] = useState(() => readClientCode(initialCode));
+  const [mode, setMode] = useState(() => clientSigninMode(code, codesEnabled));
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string>();
   const [formError, setFormError] = useState<string>();
@@ -50,6 +73,16 @@ export function ClientSigninClient({
     const clean = urlWithoutInviteCode(window.location.href);
     if (clean !== null) window.history.replaceState(window.history.state, '', clean);
   }, []);
+
+  const signedIn = () => {
+    // A bearer left by an earlier session on this browser would ride along
+    // with every request; the new cookie is the session now.
+    tokenStore.clear();
+    tokenStore.markPresence();
+    setMemberHint(false);
+    setClientHint(true);
+    window.location.assign('/');
+  };
 
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
@@ -75,13 +108,7 @@ export function ClientSigninClient({
         setFormError(outcome.message);
         return;
       }
-      // A bearer left by an earlier session on this browser would ride along
-      // with every request; the new cookie is the session now.
-      tokenStore.clear();
-      tokenStore.markPresence();
-      setMemberHint(false);
-      setClientHint(true);
-      window.location.assign('/');
+      signedIn();
     } catch (err) {
       setFormError(signInErrorMessage(err));
     } finally {
@@ -100,45 +127,64 @@ export function ClientSigninClient({
     <section className="rounded-xl border border-border bg-card">
       <div className="space-y-2 border-b border-border p-4 text-center md:p-5">
         {mark}
-        <p className="text-sm text-muted-foreground">
-          {code ? 'Enter your email to sign in.' : 'Sign in with the link you were sent.'}
-        </p>
+        <p className="text-sm text-muted-foreground">{STRAPLINE[mode]}</p>
       </div>
       <div className="p-4 md:p-5">
-        {code ? (
-          <form onSubmit={signIn} noValidate>
-            <FieldGroup>
-              <Field data-invalid={!!emailError || undefined}>
-                <FieldLabel htmlFor="client-email">Email</FieldLabel>
-                <Input
-                  id="client-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  autoFocus
-                  aria-invalid={!!emailError || undefined}
-                  aria-describedby={
-                    emailError ? 'client-email-error client-email-hint' : 'client-email-hint'
-                  }
-                />
-                <FieldDescription id="client-email-hint">
-                  The email this link was made for.
-                </FieldDescription>
-                <FieldError id="client-email-error">{emailError}</FieldError>
-              </Field>
-              <FieldError id="client-signin-error">{formError}</FieldError>
-              <SubmitButton pending={pending} className="w-full">
-                Sign in
-              </SubmitButton>
-            </FieldGroup>
-          </form>
+        {mode === 'link' ? (
+          <div className="space-y-4">
+            <form onSubmit={signIn} noValidate>
+              <FieldGroup>
+                <Field data-invalid={!!emailError || undefined}>
+                  <FieldLabel htmlFor="client-email">Email</FieldLabel>
+                  <Input
+                    id="client-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    autoFocus
+                    aria-invalid={!!emailError || undefined}
+                    aria-describedby={
+                      emailError ? 'client-email-error client-email-hint' : 'client-email-hint'
+                    }
+                  />
+                  <FieldDescription id="client-email-hint">
+                    The email this link was made for.
+                  </FieldDescription>
+                  <FieldError id="client-email-error">{emailError}</FieldError>
+                </Field>
+                <FieldError id="client-signin-error">{formError}</FieldError>
+                <SubmitButton pending={pending} className="w-full">
+                  Sign in
+                </SubmitButton>
+              </FieldGroup>
+            </form>
+            {codesEnabled ? (
+              <div className="text-center">
+                <Button type="button" variant="link" size="sm" onClick={() => setMode('code')}>
+                  Sign in with an email code instead
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : mode === 'code' ? (
+          <div className="space-y-4">
+            <ClientCodeForm onSignedIn={signedIn} />
+            <p className="text-center text-xs text-muted-foreground">
+              Were you sent a sign-in link? Open it instead.
+            </p>
+            <div className="text-center">
+              <Button type="button" variant="link" size="sm" onClick={staffSignIn}>
+                Staff sign in
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-4 text-sm">
             <p className="text-muted-foreground">
               Open the sign-in link you were sent. A link works once, for{' '}
-              {CLIENT_LINK_LIFETIME_HOURS} hours; if yours has been used or has expired, ask for a
-              new one.
+              {CLIENT_LINK_LIFETIME_HOURS} hours. If you have no link, or yours has been used or has
+              expired, ask your admin for a new one.
             </p>
             <div className="text-center">
               <Button type="button" variant="link" size="sm" onClick={staffSignIn}>
