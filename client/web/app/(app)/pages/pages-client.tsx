@@ -452,6 +452,8 @@ export function PagesClient() {
         let href: string;
         try {
           href = await createPrivateItem('page', { title: form.title });
+          // The private page lists in this screen now: refresh the list too.
+          void queryClient.invalidateQueries({ queryKey: ['pages'] });
         } catch (e) {
           if (e instanceof ApiError && e.status === 401) return;
           toast.error(e instanceof Error ? e.message : 'request failed');

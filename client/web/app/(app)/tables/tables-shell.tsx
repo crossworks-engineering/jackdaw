@@ -212,6 +212,8 @@ export function TablesShell() {
     try {
       if (keepPrivate) {
         const href = await createPrivateItem('table', { title });
+        // The private table lists in this screen now: refresh the list too.
+        void queryClient.invalidateQueries({ queryKey: ['tables'] });
         setCreateOpen(false);
         router.push(href);
         return;

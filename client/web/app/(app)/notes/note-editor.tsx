@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AccessLevel } from '@mantle/client-types';
@@ -49,6 +50,7 @@ export function NoteEditor({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const creating = note === null;
   const [title, setTitle] = useState(note?.title ?? '');
   const [content, setContent] = useState(note?.content ?? '');
@@ -86,6 +88,8 @@ export function NoteEditor({
         let href: string;
         try {
           href = await createPrivateItem('note', { title, content });
+          // The private note lists in this screen now: refresh the list too.
+          void queryClient.invalidateQueries({ queryKey: ['notes'] });
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Save failed');
           return;

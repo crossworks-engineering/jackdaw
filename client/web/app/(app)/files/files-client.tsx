@@ -346,6 +346,8 @@ function FilesView({
     if (!f) return;
     try {
       const href = await uploadPrivateFile(f);
+      // The private file lists in the root folder now: refresh the lists too.
+      void queryClient.invalidateQueries({ queryKey: ['files'] });
       toast.success(`Uploaded ${f.name} to your private files`);
       router.push(href);
     } catch (err) {

@@ -6,6 +6,7 @@
  * Moved out of files-client.tsx unchanged (structure pass, phase 1):
  * already standalone, just living in the wrong file. No signatures changed.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
@@ -235,6 +236,7 @@ export function CreateFileDialog({
   onCreated: (fileId: string) => void;
 }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const open = ext !== null;
   const [stem, setStem] = useState('');
   const [type, setType] = useState<TextExt>('md');
@@ -264,6 +266,8 @@ export function CreateFileDialog({
       let href: string;
       try {
         href = await uploadPrivateFile(privateTextFile(filename, type, defaultBodyFor(type)));
+        // The private file lists in the root folder now: refresh the lists too.
+        void queryClient.invalidateQueries({ queryKey: ['files'] });
       } catch (err) {
         toast.error(
           refusalMessage(err) ?? (err instanceof Error ? err.message : 'Could not create file'),

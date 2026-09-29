@@ -202,6 +202,8 @@ export function DrawsClient() {
     try {
       if (keepPrivate) {
         const href = await createPrivateItem('draw', { title });
+        // The private drawing lists in this screen now: refresh the list too.
+        void queryClient.invalidateQueries({ queryKey: ['draws'] });
         setCreateOpen(false);
         router.push(href);
         setCreating(false);
