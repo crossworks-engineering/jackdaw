@@ -81,7 +81,7 @@ import {
   clientCommentsPath,
   deletedCommentsText,
 } from '../../lib/client-spaces-admin';
-import type { ClientCommentsDeleted } from '../../lib/contract-next';
+import type { ClientCommentsDeleted } from '@mantle/client-types';
 import type {
   ClientLoginCreated,
   ClientLoginList,

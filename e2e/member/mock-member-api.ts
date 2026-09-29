@@ -18,7 +18,7 @@ import type {
   ClientCommentsDeleted,
   ClientStorageUsage,
   ClientThreadActivity,
-} from '../../client/web/lib/contract-next';
+} from '@mantle/client-types';
 
 /**
  * An in-memory member API for the member specs: a real HTTP server in the
@@ -66,7 +66,7 @@ import type {
  * queue (CLIENT_SUBMISSION_ID, with what goes down with it at Client).
  *
  * Since the C5 audit fixes every C5 answer is typed against the contract
- * (and the contract-next shim), comment threads are paged (`threadPageSize`,
+ * comment threads are paged (`threadPageSize`,
  * `?before=`), a client's own items include one a reviewer holds
  * (`clientOwn.held`) and an accepted file changed since (`clientOwn.
  * acceptedFile`); the member thread can be missing (`libraryThread` false,

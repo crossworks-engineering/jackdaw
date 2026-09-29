@@ -12,7 +12,7 @@ import {
   isMissingRoute,
 } from '@/lib/client-requests';
 import type { NodeComment, NodeCommentAuthorKind } from '@mantle/client-types';
-import type { ClientCommentThread } from '@/lib/contract-next';
+import type { ClientCommentThread } from '@mantle/client-types';
 import { refusalMessage } from '@/lib/member-space';
 import { useThreadPages } from '@/lib/use-thread-pages';
 

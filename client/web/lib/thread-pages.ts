@@ -8,7 +8,11 @@
  * The pure half, pinned by thread-pages.test.ts; the hook that reads a
  * thread this way is use-thread-pages.ts.
  */
-import type { CommentThreadPage } from './contract-next';
+import type { NodeComment } from '@mantle/client-types';
+
+/** One page of a thread, of any comment shape (the brain's
+ *  ClientCommentThread for a NodeComment). */
+export type CommentThreadPage<C = NodeComment> = { comments: C[]; hasMore?: boolean };
 
 /** One page of a thread: the newest without `before`, else the page older
  *  than it. */

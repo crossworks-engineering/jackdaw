@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, type QueryKey } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
-import type { CommentThreadPage } from './contract-next';
+import type { CommentThreadPage } from './thread-pages';
 import { olderCursor, threadComments, threadPagePath } from './thread-pages';
 
 /**

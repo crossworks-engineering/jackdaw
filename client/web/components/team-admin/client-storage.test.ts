@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ClientStorageUsage } from '../../lib/contract-next';
+import type { ClientStorageUsage } from '@mantle/client-types';
 import { ClientStorageView } from './client-storage';
 import { ClientCommentsView } from './client-comments-card';
 

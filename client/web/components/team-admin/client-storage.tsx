@@ -25,7 +25,7 @@ import {
   storageRowName,
   storageTotalLine,
 } from '../../lib/client-spaces-admin';
-import type { ClientStorageUsage } from '../../lib/contract-next';
+import type { ClientStorageUsage } from '@mantle/client-types';
 
 /** The card: owns the query; the markup is the view. */
 export function ClientStoragePanel() {

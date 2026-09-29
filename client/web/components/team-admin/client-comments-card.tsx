@@ -25,7 +25,7 @@ import {
   commentItemHref,
   commentRowLine,
 } from '../../lib/client-spaces-admin';
-import type { ClientThreadActivity } from '../../lib/contract-next';
+import type { ClientThreadActivity } from '@mantle/client-types';
 
 /** The week's client comments. Also what says whether this brain has the
  *  per-client delete (the same release): no 404, the action is offered. */

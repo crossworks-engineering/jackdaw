@@ -19,7 +19,7 @@
  */
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import type { ClientLoginRow } from '@mantle/client-types';
-import type { ClientStorageUsage, ClientThreadActivity } from './contract-next';
+import type { ClientStorageUsage, ClientThreadActivity } from '@mantle/client-types';
 import { formatBytes } from './upload-progress';
 import { clientName } from './client-logins';
 

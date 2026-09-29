@@ -14,7 +14,7 @@ import {
   storageRowName,
   storageTotalLine,
 } from './client-spaces-admin';
-import type { ClientStorageUsage } from './contract-next';
+import type { ClientStorageUsage } from '@mantle/client-types';
 
 /**
  * Team admin > Clients, the C5 audit fixes' cards: client storage against
