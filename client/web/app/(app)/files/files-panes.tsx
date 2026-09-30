@@ -9,6 +9,7 @@
  */
 import { useMemo, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
+import { effectiveOf } from '@/lib/access-levels';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Folder } from 'lucide-react';
@@ -75,7 +76,12 @@ export function ChildFolders({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <ListCardTitle className="min-w-0">{f.slug}</ListCardTitle>
-                  <AudienceBadge level={f.audience} />
+                  {/* A folder shared itself is read at its share too, and one
+                      below a shared folder at that folder's. */}
+                  <AudienceBadge
+                    level={f.audience && f.share ? effectiveOf(f.audience, f.share) : f.audience}
+                    inherited={f.inherited}
+                  />
                 </div>
                 <ListCardMeta>{folderCounts(f)}</ListCardMeta>
               </div>

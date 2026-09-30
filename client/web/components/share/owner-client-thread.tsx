@@ -27,45 +27,53 @@ import {
   ownerLevelKey,
   ownerThreadPath,
   showsClientThread,
+  threadLevelUnknown,
   type OwnerThreadKind,
 } from '@/lib/owner-client-thread';
+import type { AccessViewShared } from '@/lib/access-levels';
 import { useThreadPages } from '@/lib/use-thread-pages';
 
 /**
  * The client thread, owner side (client logins C5 audit fix U2): on an item
- * at CLIENT level, a "Client comments" button in the item's header opens the
- * thread every client login reads and writes (decision 8), so an admin reads
- * a client's comment and answers it, even on a brain with no members. The
- * owner deletes any comment (moderation, as on a task). Nothing shows at any
- * other level.
+ * clients read (at CLIENT level, or in a folder shared with clients), a
+ * "Client comments" button in the item's header opens the thread every
+ * client login reads and writes (decision 8), so an admin reads a client's
+ * comment and answers it, even on a brain with no members. The owner deletes
+ * any comment (moderation, as on a task). Nothing shows otherwise.
  *
- * `audience`: the level, when the view has it fresh (a list row the Access
- * control's change refreshes). Without it the level is read from the Access
- * route, under the kind's list key, so a change of level shows or hides the
- * thread at once.
+ * `audience` and `inherited`: the level and the share it takes from a folder
+ * above, when the view has them fresh (a row the Access control's change
+ * refreshes). What it lacks is read from the Access route (its `sharedVia`),
+ * under the kind's list key, so a change of level shows or hides the thread
+ * at once.
  */
 export function OwnerClientThread({
   nodeId,
   type,
   audience,
+  inherited,
   iconOnly = false,
 }: {
   nodeId: string;
   type: OwnerThreadKind;
   audience?: AccessLevel | null;
+  inherited?: 'team' | 'client' | null;
   iconOnly?: boolean;
 }) {
+  const ask = threadLevelUnknown(audience, inherited);
   const level = useQuery({
     queryKey: ownerLevelKey(type, nodeId),
     queryFn: () =>
-      apiFetch<AccessNodeView>(`/api/access/nodes/${encodeURIComponent(nodeId)}`).then(
-        (v) => v.item.audience,
-      ),
-    enabled: audience === undefined,
+      apiFetch<AccessNodeView & AccessViewShared>(
+        `/api/access/nodes/${encodeURIComponent(nodeId)}`,
+      ).then((v) => ({ audience: v.item.audience, inherited: v.sharedVia?.level ?? null })),
+    enabled: ask,
     retry: false,
   });
-  const at = audience === undefined ? level.data : audience;
-  if (!showsClientThread(at)) return null;
+  const shows = ask
+    ? showsClientThread(level.data?.audience, level.data?.inherited)
+    : showsClientThread(audience, inherited);
+  if (!shows) return null;
   return <ClientThreadButton nodeId={nodeId} iconOnly={iconOnly} />;
 }
 

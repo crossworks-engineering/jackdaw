@@ -79,6 +79,10 @@ type DrawRow = {
   updatedAt: string;
   /** Access level; absent from brains older than the level rows. */
   audience?: AccessLevel;
+  /** The share it inherits from a folder above it (team or client), or
+   *  null. It is read at the more open of this and `audience`. Absent from
+   *  brains before folder sharing reported it. */
+  inherited?: 'team' | 'client' | null;
 };
 
 type ListResponse = {
@@ -306,6 +310,9 @@ export function DrawsClient() {
                     </DropdownMenuItem>
                   )
                 }
+                // A share or a move changes the level the open item is read
+                // at: its header badge and client thread follow.
+                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['draws'] })}
                 onUnsupported={() => setTreeGone(true)}
               />
             </aside>
@@ -397,7 +404,11 @@ export function DrawsClient() {
                                 aria-label="Uncommitted edits"
                               />
                             )}
-                            <AudienceBadge level={d.audience} className="mt-0.5" />
+                            <AudienceBadge
+                              level={d.audience}
+                              inherited={d.inherited}
+                              className="mt-0.5"
+                            />
                           </>
                         }
                         selected={activeId === d.id}
@@ -593,7 +604,7 @@ function DrawPreview({
                 Draft · uncommitted
               </span>
             )}
-            <AudienceBadge level={draw.audience} />
+            <AudienceBadge level={draw.audience} inherited={draw.inherited} />
           </h2>
           {/* The user's own one-liner wins; the extractor's summary fills in
               when none was written. */}

@@ -360,6 +360,9 @@ export function NotesClient() {
                     </DropdownMenuItem>
                   )
                 }
+                // A share or a move changes the level the open item is read
+                // at: its header badge and client thread follow.
+                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['notes'] })}
                 onUnsupported={() => setTreeGone(true)}
               />
             </aside>
@@ -442,7 +445,13 @@ export function NotesClient() {
                         kind="note"
                         title={n.title}
                         icon={<ItemIcon fallback={<FileText />} />}
-                        badge={<AudienceBadge level={n.audience} className="mt-0.5" />}
+                        badge={
+                          <AudienceBadge
+                            level={n.audience}
+                            inherited={n.inherited}
+                            className="mt-0.5"
+                          />
+                        }
                         selected={!privateOpen && selected?.id === n.id && !creating}
                         onSelect={() => selectNote(n.id)}
                         updatedAt={n.updatedAt}
@@ -579,7 +588,7 @@ function NotePreview({
         <div className="min-w-0 flex-1">
           <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
             <span className="min-w-0 truncate">{note.title}</span>
-            <AudienceBadge level={note.audience} />
+            <AudienceBadge level={note.audience} inherited={note.inherited} />
           </h2>
           {note.tags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
@@ -593,7 +602,12 @@ function NotePreview({
           <ExportButton nodeId={note.id} label="Word" />
           <AccessControl nodeId={note.id} />
           {/* At Client level: the thread clients read (audit U2). */}
-          <OwnerClientThread nodeId={note.id} type="note" audience={note.audience} />
+          <OwnerClientThread
+            nodeId={note.id}
+            type="note"
+            audience={note.audience}
+            inherited={note.inherited}
+          />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil /> Edit
           </Button>

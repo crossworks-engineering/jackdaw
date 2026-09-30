@@ -371,6 +371,9 @@ export function TablesShell() {
                     </DropdownMenuItem>
                   )
                 }
+                // A share or a move changes the level the open item is read
+                // at: its header badge and client thread follow.
+                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['tables'] })}
                 onUnsupported={() => setTreeGone(true)}
               />
             </aside>

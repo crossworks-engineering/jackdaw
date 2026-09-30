@@ -10,6 +10,7 @@ import {
   ownerLevelKey,
   ownerThreadPath,
   showsClientThread,
+  threadLevelUnknown,
 } from './owner-client-thread';
 
 /**
@@ -23,6 +24,25 @@ describe('owner client thread', () => {
     for (const level of ['admin', 'team', 'public', null, undefined] as const) {
       expect(showsClientThread(level)).toBe(false);
     }
+  });
+
+  it('shows on an item in a folder shared with clients, whatever its own level', () => {
+    for (const level of ['admin', 'team', 'public'] as const) {
+      expect(showsClientThread(level, 'client')).toBe(true);
+      expect(showsClientThread(level, 'team')).toBe(false);
+      expect(showsClientThread(level, null)).toBe(false);
+    }
+    expect(showsClientThread('client', 'team')).toBe(true);
+  });
+
+  it('asks the Access route only for what the view does not know', () => {
+    expect(threadLevelUnknown(undefined, undefined)).toBe(true);
+    expect(threadLevelUnknown(undefined, null)).toBe(true);
+    // A brain before the inherited field: the level alone can say yes.
+    expect(threadLevelUnknown('client', undefined)).toBe(false);
+    expect(threadLevelUnknown('admin', undefined)).toBe(true);
+    expect(threadLevelUnknown('admin', null)).toBe(false);
+    expect(threadLevelUnknown('admin', 'client')).toBe(false);
   });
 
   it('reads and writes the owner routes, ids encoded', () => {

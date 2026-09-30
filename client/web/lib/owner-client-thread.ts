@@ -57,9 +57,28 @@ export function ownerLevelKey(type: OwnerThreadKind, id: string): readonly unkno
   return [...(list ?? [type]), 'client-thread-level', id];
 }
 
-/** Is the thread for this item: only at client level. */
-export function showsClientThread(level: AccessLevel | null | undefined): boolean {
-  return level === 'client';
+/**
+ * Is the thread for this item: when clients read it, by its own level or by
+ * a folder shared with clients above it (the brain's union rule, folder plan
+ * phase 4: an item in a client-shared folder carries the client thread
+ * whatever its own level, a public one included).
+ */
+export function showsClientThread(
+  level: AccessLevel | null | undefined,
+  inherited?: 'team' | 'client' | null,
+): boolean {
+  return level === 'client' || inherited === 'client';
+}
+
+/** What the view must still ask the Access route for: nothing when it knows
+ *  both the level and the inherited share, or the level alone already opens
+ *  the thread. */
+export function threadLevelUnknown(
+  audience: AccessLevel | null | undefined,
+  inherited: 'team' | 'client' | null | undefined,
+): boolean {
+  if (audience === undefined) return true;
+  return inherited === undefined && audience !== 'client';
 }
 
 /** The chip beside an author, owner side: the forum's vocabulary (a login's

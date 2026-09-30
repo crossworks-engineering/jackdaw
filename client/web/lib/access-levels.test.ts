@@ -3,6 +3,8 @@ import type { AccessItemView } from '@mantle/client-types';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   effectiveOf,
+  readLevel,
+  viaFolderTitle,
   offeredUnder,
   sharedViaLine,
   CLIENT_MEANING_OLD_LINK,
@@ -241,5 +243,25 @@ describe('folder sharing in the Access control', () => {
     expect(sharedViaLine({ folderId: 'f', trail: ['Clients', 'Acme'], level: 'client' })).toBe(
       'Shared with clients via Clients / Acme. Move it out of that folder to hide it.',
     );
+  });
+});
+
+describe('the badge shows the level an item is read at', () => {
+  it('its own level when no folder above opens it', () => {
+    expect(readLevel('team', null)).toEqual({ level: 'team', viaFolder: false });
+    expect(readLevel('admin', undefined)).toEqual({ level: 'admin', viaFolder: false });
+    expect(readLevel('public', 'client')).toEqual({ level: 'public', viaFolder: false });
+  });
+  it('the folder’s share when that is more open, and says so', () => {
+    expect(readLevel('admin', 'client')).toEqual({ level: 'client', viaFolder: true });
+    expect(readLevel('admin', 'team')).toEqual({ level: 'team', viaFolder: true });
+    expect(readLevel(undefined, 'team')).toEqual({ level: 'team', viaFolder: true });
+  });
+  it('nothing when a brain sends neither', () => {
+    expect(readLevel(undefined, undefined)).toBeNull();
+    expect(readLevel(null, null)).toBeNull();
+  });
+  it('names the folder in the tooltip', () => {
+    expect(viaFolderTitle('client')).toMatch(/^Client: .*Shared through a folder above it\.$/);
   });
 });

@@ -24,6 +24,10 @@ export type NoteRow = {
   updatedAt: string;
   /** Access level; absent from brains older than the level rows. */
   audience?: AccessLevel;
+  /** The share it inherits from a folder above it (team or client), or
+   *  null. It is read at the more open of this and `audience`. Absent from
+   *  brains before folder sharing reported it. */
+  inherited?: 'team' | 'client' | null;
 };
 
 /**

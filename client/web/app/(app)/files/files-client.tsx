@@ -1213,7 +1213,7 @@ function FilesView({
                                 <span className="min-w-0 truncate text-xs font-medium">
                                   {f.filename}
                                 </span>
-                                <AudienceBadge level={f.audience} />
+                                <AudienceBadge level={f.audience} inherited={f.inherited} />
                               </span>
                               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                 {fmtSize(f.sizeBytes)}

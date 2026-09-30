@@ -281,3 +281,21 @@ export function sharedViaLine(via: AccessSharedVia): string {
   const who = via.level === 'team' ? 'the team' : 'clients';
   return `Shared with ${who} via ${via.trail.join(' / ')}. Move it out of that folder to hide it.`;
 }
+
+/** The level a badge shows: the level an item is READ at (its own, or the
+ *  share it takes from a folder above when that is more open), and whether
+ *  the folder is why. Null own level (a brain that sends none) with no
+ *  inherited share: nothing to say. */
+export function readLevel(
+  own: AccessLevel | null | undefined,
+  inherited: 'team' | 'client' | null | undefined,
+): { level: AccessLevel; viaFolder: boolean } | null {
+  if (!own) return inherited ? { level: inherited, viaFolder: true } : null;
+  const level = effectiveOf(own, inherited);
+  return { level, viaFolder: level !== own };
+}
+
+/** The badge's tooltip for a level a folder above opened. */
+export function viaFolderTitle(level: Exclude<AccessLevel, 'admin'>): string {
+  return `${AUDIENCE_TITLE[level]}. Shared through a folder above it.`;
+}
