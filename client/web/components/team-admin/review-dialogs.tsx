@@ -11,7 +11,7 @@ import { Badge } from '@mantle/web-ui/ui/badge';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Hand, Loader2, Trash2, Undo2 } from 'lucide-react';
+import { CheckCircle2, Hand, Handshake, Loader2, Trash2, Undo2, Users } from 'lucide-react';
 import type { AccessItemView, AccessLevel } from '@mantle/client-types';
 import type { ReviewAuthorRole } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
@@ -48,10 +48,19 @@ import {
   AlertDialogTrigger,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { LEVEL_LABEL, LEVEL_MEANING, LEVEL_ORDER, isAccessLevel } from '@/lib/access-levels';
+import {
+  LEVEL_LABEL,
+  LEVEL_MEANING,
+  LEVEL_ORDER,
+  effectiveOf,
+  isAccessLevel,
+  offeredUnder,
+} from '@/lib/access-levels';
 import { privateViewHref } from '@/lib/admin-private';
 import {
   TOP_OF_PAGES,
+  acceptVisibilityRefusal,
+  acceptedLine,
   authorRoleLabel,
   bundleSummary,
   confirmLevelRefusal,
@@ -61,10 +70,13 @@ import {
   levelConfirmation,
   memberReview,
   needsLevelConfirm,
+  placeIsFor,
+  placeShareLine,
   reviewErrorMessage,
   shownParent,
   takeOverErrorMessage,
   type AcceptInput,
+  type AcceptPlace,
   type AcceptResult,
   type Bundle,
   type ReviewItemRow,
@@ -72,6 +84,10 @@ import {
 import type { SpaceKind } from '@/lib/member-space';
 import { FolderPickerDialog } from '@/components/item-tree/folder-picker';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
+import {
+  VisibilityConfirmDialog,
+  type PendingConfirm,
+} from '@/components/item-tree/visibility-confirm';
 import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
 
 const TOP = TOP_OF_PAGES;
@@ -102,7 +118,7 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
       }
       bundle={{
         key: ['team-admin', 'submissions', row.id, 'bundle'],
-        load: () => memberReview.bundle(row.id),
+        load: (pick) => memberReview.bundle(row.id, pick),
       }}
       accept={(input) => memberReview.accept(row.id, input)}
       onAccepted={back}
@@ -128,6 +144,14 @@ export type AcceptTarget = { id: string; type: SpaceKind; title: string };
  * them and sends `lowerConfirmed` with the ticked ids. The brain's own 409
  * `confirm-level` (a brain that knew more, or the admin's own accept after a
  * Take over) shows its list the same way. A member's item is unchanged.
+ *
+ * A shared folder (folder plan phase 5): where it lands says so, and the
+ * level picker offers nothing above that folder's share (it is read at the
+ * share there whatever is chosen, as the Access control says). A pick of
+ * another folder asks the brain again for that place. When the item or its
+ * bundle would still be read above the chosen level where it lands, the
+ * brain refuses (409 `visibility`) with the list; the admin sees it and
+ * repeats with `visibilityConfirmed`.
  */
 export function AcceptIntoBrainDialog({
   item,
@@ -145,7 +169,9 @@ export function AcceptIntoBrainDialog({
   /** Who wrote it, where the brain says (absent from older brains). */
   authorRole?: ReviewAuthorRole | null;
   description: ReactNode;
-  bundle?: { key: readonly unknown[]; load: () => Promise<Bundle> };
+  /** `load(pick)`: the preview, with the place worked out for the admin's
+   *  pick (undefined = where it was filed, null = the top level). */
+  bundle?: { key: readonly unknown[]; load: (pick?: string | null) => Promise<Bundle> };
   accept: (input: AcceptInput) => Promise<AcceptResult>;
   /** Runs first (an editor saving what was typed); false stops the accept. */
   beforeAccept?: () => Promise<boolean>;
@@ -156,7 +182,7 @@ export function AcceptIntoBrainDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const [level, setLevel] = useState<AccessLevel>(() => defaultAcceptLevel(authorRole));
+  const [chosen, setChosen] = useState<AccessLevel>(() => defaultAcceptLevel(authorRole));
   // What the admin ticked of what goes down, and the brain's own ask when it
   // refused the level (409 confirm-level); both start over on a new level.
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
@@ -174,18 +200,40 @@ export function AcceptIntoBrainDialog({
   const [parent, setParent] = useState<string>(TOP);
   const [pageQuery, setPageQuery] = useState('');
   const [busy, setBusy] = useState(false);
+  // The brain's 409 `visibility`: what would be read above the chosen level.
+  const [exposed, setExposed] = useState<PendingConfirm | null>(null);
 
   const bundle = useQuery({
-    queryKey: bundleSource?.key ?? ['accept-bundle', 'none'],
+    queryKey: [...(bundleSource?.key ?? ['accept-bundle', 'none']), 'filed'],
     queryFn: () => bundleSource!.load(),
     enabled: open && !!bundleSource,
   });
   // A brain with the tree says where it lands; it files every item of the
   // bundle in place, so no separate Files folder is asked for.
-  const place = item.type === 'page' ? undefined : bundle.data?.place;
-  const placeAdapter = place ? readerTreeAdapter(place.kind) : null;
+  const filed = item.type === 'page' ? undefined : bundle.data?.place;
+  // The admin's pick, asked for again: its crumbs, the folders made below
+  // it, and the share it is read at there.
+  const picked = useQuery({
+    queryKey: [
+      ...(bundleSource?.key ?? ['accept-bundle', 'none']),
+      'pick',
+      pick === undefined ? null : (pick?.id ?? 'root'),
+    ],
+    queryFn: () => bundleSource!.load(pick?.id ?? null),
+    enabled: open && !!bundleSource && !!filed && pick !== undefined,
+  });
+  const pickPlace = picked.data?.place;
+  const place: AcceptPlace | undefined =
+    pick === undefined ? filed : pickPlace && placeIsFor(pickPlace, pick) ? pickPlace : undefined;
+  // Still asking where the pick lands: its share is not known yet.
+  const placing = pick !== undefined && !!filed && picked.isPending;
+  const placeAdapter = filed ? readerTreeAdapter(filed.kind) : null;
+  // What it is read at there, at least (null: no shared folder, or a brain
+  // that does not say).
+  const share = place?.share ?? null;
+  const level = effectiveOf(chosen, share);
   const hasFiles =
-    !place &&
+    !filed &&
     (bundleSource
       ? (bundle.data?.items.some((i) => i.type === 'file') ?? false)
       : item.type === 'file');
@@ -231,7 +279,7 @@ export function AcceptIntoBrainDialog({
       : levelConfirmation(goingDown, ticked)
     : undefined;
   const pickLevel = (v: AccessLevel) => {
-    setLevel(v);
+    setChosen(v);
     setTicked(new Set());
   };
   const tick = (id: string, on: boolean) =>
@@ -242,7 +290,7 @@ export function AcceptIntoBrainDialog({
       return next;
     });
 
-  const accept = async () => {
+  const accept = async (visibilityConfirmed = false) => {
     setBusy(true);
     try {
       if (beforeAccept && !(await beforeAccept())) return;
@@ -250,13 +298,12 @@ export function AcceptIntoBrainDialog({
         audience: level,
         parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,
         folderPath: hasFiles ? folder : null,
-        ...(place && pick !== undefined ? { folderId: pick?.id ?? null } : {}),
+        ...(filed && pick !== undefined ? { folderId: pick?.id ?? null } : {}),
         ...(confirmation ?? {}),
+        ...(visibilityConfirmed ? { visibilityConfirmed: true } : {}),
       };
       const res = await send(input);
-      toast.success(
-        `Accepted “${item.title || 'Untitled'}” into the brain at ${LEVEL_LABEL[res.audience]}.`,
-      );
+      toast.success(acceptedLine(item.title, res));
       if (res.levelWarning) toast.error(`Level set, link not made: ${res.levelWarning}`);
       setOpen(false);
       onAccepted(res, input);
@@ -266,6 +313,19 @@ export function AcceptIntoBrainDialog({
         // Not a failure: the brain wants the admin to see what goes down.
         setRefusal({ level, ...ask });
         setTicked(new Set());
+        return;
+      }
+      const refusal = acceptVisibilityRefusal(err);
+      if (refusal) {
+        // Not a failure either: it lands in a shared folder, read above the
+        // chosen level there. Nothing moved; the admin sees what and says so.
+        setExposed({
+          refusal,
+          action: `Accept “${item.title || 'Untitled'}” at ${LEVEL_LABEL[level]}.`,
+          note: 'Where they land, a shared folder opens them above that: they are read at its share.',
+          verb: 'Accept',
+          run: () => void accept(true),
+        });
         return;
       }
       toast.error(errorMessage(err, 'Could not accept this item.'));
@@ -327,7 +387,15 @@ export function AcceptIntoBrainDialog({
               }}
             >
               {LEVEL_ORDER.map((l) => (
-                <ToggleGroupItem key={l} value={l} className="flex-1" aria-label={LEVEL_LABEL[l]}>
+                <ToggleGroupItem
+                  key={l}
+                  value={l}
+                  className="flex-1"
+                  aria-label={LEVEL_LABEL[l]}
+                  // Nothing above the share of the folder it lands in: it is
+                  // read at that share there whatever is chosen.
+                  disabled={!offeredUnder(l, share)}
+                >
                   {LEVEL_LABEL[l]}
                 </ToggleGroupItem>
               ))}
@@ -378,19 +446,33 @@ export function AcceptIntoBrainDialog({
             </div>
           ) : null}
 
-          {place && placeAdapter ? (
+          {filed && placeAdapter ? (
             <div className="space-y-2">
               <Label>Where it goes</Label>
               <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                <p className="min-w-0 truncate">
-                  {placeLine(place, pick)}
-                  {place.creates.length ? (
-                    <span className="text-muted-foreground">
-                      {' '}
-                      / {place.creates.join(' / ')} (new)
-                    </span>
+                <div className="min-w-0">
+                  <p className="truncate">
+                    {placeLine(place ?? filed, place ? undefined : pick)}
+                    {(place ?? filed).creates.length ? (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        / {(place ?? filed).creates.join(' / ')} (new)
+                      </span>
+                    ) : null}
+                  </p>
+                  {placing ? (
+                    <p className="text-xs text-muted-foreground">Working out who reads it there…</p>
+                  ) : placeShareLine(share) ? (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {share === 'team' ? (
+                        <Users className="size-3.5 shrink-0" aria-hidden />
+                      ) : (
+                        <Handshake className="size-3.5 shrink-0" aria-hidden />
+                      )}
+                      {placeShareLine(share)}
+                    </p>
                   ) : null}
-                </p>
+                </div>
                 <div className="flex shrink-0 gap-1">
                   {pick !== undefined ? (
                     <Button
@@ -413,19 +495,19 @@ export function AcceptIntoBrainDialog({
                 </div>
               </div>
               <FolderPickerDialog
-                kind={place.kind}
+                kind={filed.kind}
                 adapter={placeAdapter}
-                sort={TREE_KIND_SPECS[place.kind].sorts[0]!}
+                sort={TREE_KIND_SPECS[filed.kind].sorts[0]!}
                 open={picking}
                 onOpenChange={setPicking}
                 title={`Accept “${item.title || 'Untitled'}” into…`}
                 description={
-                  place.creates.length
-                    ? `The author’s folders (${place.creates.join(' / ')}) go below the folder you pick.`
+                  filed.creates.length
+                    ? `The author’s folders (${filed.creates.join(' / ')}) go below the folder you pick.`
                     : undefined
                 }
                 rootLabel="Top level"
-                currentFolderId={pick === undefined ? place.folderId : (pick?.id ?? null)}
+                currentFolderId={pick === undefined ? filed.folderId : (pick?.id ?? null)}
                 onPick={(f) => {
                   setPick(f ? { id: f.id, name: f.name } : null);
                   setPicking(false);
@@ -501,7 +583,9 @@ export function AcceptIntoBrainDialog({
               Cancel
             </Button>
             <Button
-              disabled={busy || (!!bundleSource && !bundle.data) || (confirming && !confirmation)}
+              disabled={
+                busy || (!!bundleSource && !bundle.data) || placing || (confirming && !confirmation)
+              }
               onClick={() => void accept()}
             >
               {busy ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
@@ -509,6 +593,7 @@ export function AcceptIntoBrainDialog({
             </Button>
           </div>
         </div>
+        <VisibilityConfirmDialog pending={exposed} onOpenChange={(o) => !o && setExposed(null)} />
       </DialogContent>
     </Dialog>
   );

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   TOP_OF_PAGES,
+  acceptVisibilityRefusal,
+  acceptedLine,
   authorRoleLabel,
+  bundlePath,
+  placeIsFor,
+  placeShareLine,
   confirmLevelRefusal,
   defaultAcceptLevel,
   goingDownAt,
@@ -188,5 +193,65 @@ describe("a client's item at client or public (audit A28)", () => {
       'A client wrote this. At Client, every client login reads it.',
     );
     expect(goingDownLine('client', null)).toMatch(/with what it embeds\. Tick to confirm\.$/);
+  });
+});
+
+describe('the accept dialog: a shared folder where it lands (folder plan phase 5)', () => {
+  it('asks the preview for the admin’s pick, or the top level', () => {
+    expect(bundlePath(S)).toBe(`/api/team-admin/submissions/${S}/bundle`);
+    expect(bundlePath(S, F)).toBe(`/api/team-admin/submissions/${S}/bundle?folderId=${F}`);
+    expect(bundlePath(S, null)).toBe(`/api/team-admin/submissions/${S}/bundle?folderId=root`);
+  });
+
+  it('trusts a preview place only for the pick it was asked for', () => {
+    expect(placeIsFor({ folderId: F }, undefined)).toBe(true);
+    expect(placeIsFor({ folderId: F }, { id: F })).toBe(true);
+    expect(placeIsFor({ folderId: null }, null)).toBe(true);
+    // A brain before the pick preview answers the filed place.
+    expect(placeIsFor({ folderId: F }, { id: D })).toBe(false);
+    expect(placeIsFor({ folderId: F }, null)).toBe(false);
+  });
+
+  it('says who reads everything in a shared folder', () => {
+    expect(placeShareLine('client')).toBe('Clients read everything in this folder.');
+    expect(placeShareLine('team')).toBe('The team reads everything in this folder.');
+    expect(placeShareLine(null)).toBeNull();
+    expect(placeShareLine(undefined)).toBeNull();
+  });
+
+  it('reads the brain’s 409 visibility, in the tree’s refusal shape', () => {
+    const change = { id: F, title: 'Plan', from: 'admin', to: 'client' };
+    const err = new ApiError('It lands in a shared folder', 409, {
+      error: 'It lands in a shared folder',
+      reason: 'visibility',
+      changes: [change, { id: 1 }],
+      total: 3,
+    });
+    expect(acceptVisibilityRefusal(err)).toEqual({
+      error: 'visibility',
+      changes: [change],
+      total: 3,
+    });
+  });
+
+  it('ignores the other refusals', () => {
+    expect(
+      acceptVisibilityRefusal(new ApiError('x', 409, { reason: 'confirm-level', goingDown: [] })),
+    ).toBeNull();
+    expect(acceptVisibilityRefusal(new ApiError('x', 404))).toBeNull();
+    expect(acceptVisibilityRefusal(new Error('x'))).toBeNull();
+  });
+
+  it('toasts the level it is read at', () => {
+    expect(acceptedLine('Plan', { audience: 'team', readAt: 'team' })).toBe(
+      'Accepted “Plan” into the brain at Team.',
+    );
+    expect(acceptedLine('', { audience: 'admin', readAt: 'client' })).toBe(
+      'Accepted “Untitled” into the brain at Admin. Its folder shares it, so it is read at Client.',
+    );
+    // A brain before readAt.
+    expect(acceptedLine('Plan', { audience: 'client' })).toBe(
+      'Accepted “Plan” into the brain at Client.',
+    );
   });
 });

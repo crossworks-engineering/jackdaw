@@ -20,7 +20,13 @@ import type {
   ReviewAuthorView,
 } from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
-import type { TreeCrumb, TreeKind } from '@mantle/web-ui/types/tree';
+import type {
+  TreeCrumb,
+  TreeKind,
+  TreeShareLevel,
+  TreeVisibilityChange,
+  TreeVisibilityRefusal,
+} from '@mantle/web-ui/types/tree';
 import {
   refusalReason,
   type SpaceComment,
@@ -73,6 +79,10 @@ export type AcceptPlace = {
   crumbs: TreeCrumb[];
   /** The author's own folders that become brain folders below it. */
   creates: string[];
+  /** The share it is read at there through a shared folder (null: none):
+   *  the item is read at the more open of this and the chosen level. Absent
+   *  from brains before the Accept visibility check. */
+  share?: TreeShareLevel | null;
 };
 
 export type Bundle = Pick<AcceptPreview, 'closure'> & {
@@ -83,18 +93,49 @@ export type Bundle = Pick<AcceptPreview, 'closure'> & {
 };
 
 /** `folderId` (folder plan phase 5, shim): where the item lands; left out,
- *  in place; null, the kind's top level. */
-export type AcceptInput = AcceptRequest & { audience: AccessLevel; folderId?: string | null };
+ *  in place; null, the kind's top level. `visibilityConfirmed` (shim, the
+ *  brain's AcceptRequest): the admin saw the `visibility` refusal's list and
+ *  accepts that those items are read above the chosen level where they land. */
+export type AcceptInput = AcceptRequest & {
+  audience: AccessLevel;
+  folderId?: string | null;
+  visibilityConfirmed?: boolean;
+};
+
+/** TEMPORARY contract shim until the pin bump (the brain's
+ *  AcceptVisibilityRefusal): 409 from either Accept (brains with the Accept
+ *  visibility check): the item, or something of its bundle, lands in a
+ *  shared folder and would be read above the chosen level there. Nothing
+ *  moved; repeat with `visibilityConfirmed: true`. */
+export type AcceptVisibilityRefusal = {
+  error: string;
+  reason: 'visibility';
+  /** The first changes (at most TREE_VISIBILITY_LIST_MAX): `from` the
+   *  chosen level, `to` the level it would be read at. */
+  changes: TreeVisibilityChange[];
+  total: number;
+};
 
 export type AcceptResult = {
   id: string;
   audience: AccessLevel;
+  /** The level the item is read at: the more open of `audience` and the
+   *  share of the folder it landed in. Absent from brains before the Accept
+   *  visibility check. */
+  readAt?: AccessLevel;
   moved: BundleItem[];
   linksStayingBehind: number;
   levelWarning?: string;
 };
 
 const base = (id: string) => `/api/team-admin/submissions/${encodeURIComponent(id)}`;
+
+/** The bundle preview; `?folderId=` (an id, or `root` for the top level)
+ *  works the place out for the admin's pick. A brain before it ignores it. */
+export function bundlePath(id: string, pick?: string | null): string {
+  if (pick === undefined) return `${base(id)}/bundle`;
+  return `${base(id)}/bundle?folderId=${pick === null ? 'root' : encodeURIComponent(pick)}`;
+}
 
 export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
 export const itemKey = (id: string) => ['team-admin', 'submissions', id] as const;
@@ -105,7 +146,9 @@ export const commentsKey = (id: string) => [...itemKey(id), 'comments'] as const
 export const memberReview = {
   queue: () => apiFetch<ReviewQueue>('/api/team-admin/submissions'),
   item: (id: string) => apiFetch<ReviewItem>(base(id)),
-  bundle: (id: string) => apiFetch<Bundle>(`${base(id)}/bundle`),
+  /** `pick` (folder plan phase 5): the place worked out for the folder the
+   *  admin picked (null = the top level) instead of where it was filed. */
+  bundle: (id: string, pick?: string | null) => apiFetch<Bundle>(bundlePath(id, pick)),
   /** The review talk, a page at a time (use-thread-pages.ts). */
   commentsPath: (id: string) => `${base(id)}/comments`,
   addComment: (id: string, body: string) =>
@@ -299,4 +342,62 @@ export function goingDownLine(level: AccessLevel, count: number | null): string 
   }
   if (count === 0) return `A client wrote this. At ${LEVEL_LABEL[level]}, ${who} reads it.`;
   return `A client wrote this. At ${LEVEL_LABEL[level]}, ${who} reads it, and ${count === 1 ? 'this item it embeds goes' : `these ${count} items it embeds go`} down with it. Tick each to confirm.`;
+}
+
+// ── Where it lands: a shared folder (folder plan phase 5) ───────────────────
+
+/** Whether the preview's place is the one the admin picked: where it was
+ *  filed when nothing is picked, else the picked folder (null = the top
+ *  level). A brain before the pick preview answers the filed place whatever
+ *  was picked, and so does the last answer while the new one loads. */
+export function placeIsFor(
+  place: Pick<AcceptPlace, 'folderId'>,
+  pick: { id: string } | null | undefined,
+): boolean {
+  return pick === undefined || place.folderId === (pick?.id ?? null);
+}
+
+/** The line beside "Where it goes" for a folder that shares what it holds. */
+export function placeShareLine(share: TreeShareLevel | null | undefined): string | null {
+  if (share === 'client') return 'Clients read everything in this folder.';
+  if (share === 'team') return 'The team reads everything in this folder.';
+  return null;
+}
+
+function isChange(v: unknown): v is TreeVisibilityChange {
+  if (!v || typeof v !== 'object') return false;
+  const c = v as Record<string, unknown>;
+  return (
+    typeof c.id === 'string' &&
+    typeof c.title === 'string' &&
+    typeof c.from === 'string' &&
+    typeof c.to === 'string'
+  );
+}
+
+/** The brain's 409 `visibility` on an Accept (AcceptVisibilityRefusal): what
+ *  would be read above the chosen level, in the tree's refusal shape so the
+ *  tree's confirm dialog shows it. Null for any other failure. */
+export function acceptVisibilityRefusal(err: unknown): TreeVisibilityRefusal | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const body = err.body as Partial<AcceptVisibilityRefusal> | undefined;
+  if (body?.reason !== 'visibility' || !Array.isArray(body.changes)) return null;
+  const changes = body.changes.filter(isChange);
+  const total =
+    typeof body.total === 'number' ? Math.max(body.total, changes.length) : changes.length;
+  return { error: 'visibility', changes, total };
+}
+
+/** The toast after an Accept: the level it is READ at, which a shared folder
+ *  can open above the one chosen (a brain before it says only `audience`). */
+export function acceptedLine(
+  title: string,
+  res: Pick<AcceptResult, 'audience' | 'readAt'>,
+): string {
+  const name = `“${title || 'Untitled'}”`;
+  const at = res.readAt ?? res.audience;
+  if (at !== res.audience) {
+    return `Accepted ${name} into the brain at ${LEVEL_LABEL[res.audience]}. Its folder shares it, so it is read at ${LEVEL_LABEL[at]}.`;
+  }
+  return `Accepted ${name} into the brain at ${LEVEL_LABEL[at]}.`;
 }

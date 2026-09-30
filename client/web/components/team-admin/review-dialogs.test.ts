@@ -37,8 +37,35 @@ describe('the accept dialog, for a client item', () => {
 
   it('starts the ticks over when the level changes', () => {
     expect(flat).toContain(
-      'const pickLevel = (v: AccessLevel) => { setLevel(v); setTicked(new Set()); };',
+      'const pickLevel = (v: AccessLevel) => { setChosen(v); setTicked(new Set()); };',
     );
     expect(src).toContain('if (isAccessLevel(v)) pickLevel(v);');
+  });
+});
+
+describe('the accept dialog, landing in a shared folder (folder plan phase 5)', () => {
+  it('floors the level at the share of the folder it lands in', () => {
+    expect(flat).toContain('const share = place?.share ?? null;');
+    expect(flat).toContain('const level = effectiveOf(chosen, share);');
+    expect(flat).toContain('disabled={!offeredUnder(l, share)}');
+    expect(src).toContain('placeShareLine(share)');
+  });
+
+  it('asks the brain again for the place of the admin’s pick', () => {
+    expect(flat).toContain('queryFn: () => bundleSource!.load(pick?.id ?? null),');
+    expect(src).toContain('load: (pick) => memberReview.bundle(row.id, pick),');
+    expect(flat).toContain('pickPlace && placeIsFor(pickPlace, pick) ? pickPlace : undefined');
+  });
+
+  it("shows the brain's 409 visibility list and repeats with visibilityConfirmed", () => {
+    expect(flat).toMatch(
+      /const refusal = acceptVisibilityRefusal\(err\); if \(refusal\) \{ .*setExposed\(\{ refusal,.*run: \(\) => void accept\(true\),/,
+    );
+    expect(src).toContain('...(visibilityConfirmed ? { visibilityConfirmed: true } : {}),');
+    expect(src).toContain('<VisibilityConfirmDialog');
+  });
+
+  it('toasts the level it is read at', () => {
+    expect(src).toContain('toast.success(acceptedLine(item.title, res));');
   });
 });
