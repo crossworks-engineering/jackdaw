@@ -202,6 +202,9 @@ export function AcceptIntoBrainDialog({
   const [busy, setBusy] = useState(false);
   // The brain's 409 `visibility`: what would be read above the chosen level.
   const [exposed, setExposed] = useState<PendingConfirm | null>(null);
+  // What the admin said yes to (the level and the place it was for), so a
+  // later ask on the same accept (a client's ticks) does not ask it again.
+  const [exposedOk, setExposedOk] = useState<string | null>(null);
 
   const bundle = useQuery({
     queryKey: [...(bundleSource?.key ?? ['accept-bundle', 'none']), 'filed'],
@@ -290,7 +293,8 @@ export function AcceptIntoBrainDialog({
       return next;
     });
 
-  const accept = async (visibilityConfirmed = false) => {
+  const acceptFor = `${level}|${pick === undefined ? 'filed' : (pick?.id ?? 'root')}`;
+  const accept = async (visibilityConfirmed = exposedOk === acceptFor) => {
     setBusy(true);
     try {
       if (beforeAccept && !(await beforeAccept())) return;
@@ -324,7 +328,10 @@ export function AcceptIntoBrainDialog({
           action: `Accept “${item.title || 'Untitled'}” at ${LEVEL_LABEL[level]}.`,
           note: 'Where they land, a shared folder opens them above that: they are read at its share.',
           verb: 'Accept',
-          run: () => void accept(true),
+          run: () => {
+            setExposedOk(acceptFor);
+            void accept(true);
+          },
         });
         return;
       }

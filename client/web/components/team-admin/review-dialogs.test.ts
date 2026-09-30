@@ -59,10 +59,14 @@ describe('the accept dialog, landing in a shared folder (folder plan phase 5)', 
 
   it("shows the brain's 409 visibility list and repeats with visibilityConfirmed", () => {
     expect(flat).toMatch(
-      /const refusal = acceptVisibilityRefusal\(err\); if \(refusal\) \{ .*setExposed\(\{ refusal,.*run: \(\) => void accept\(true\),/,
+      /const refusal = acceptVisibilityRefusal\(err\); if \(refusal\) \{ .*setExposed\(\{ refusal,.*run: \(\) => \{ setExposedOk\(acceptFor\); void accept\(true\); \},/,
     );
     expect(src).toContain('...(visibilityConfirmed ? { visibilityConfirmed: true } : {}),');
     expect(src).toContain('<VisibilityConfirmDialog');
+    // Said once for this level and place, not again after a client's ticks.
+    expect(flat).toContain(
+      'const accept = async (visibilityConfirmed = exposedOk === acceptFor) => {',
+    );
   });
 
   it('toasts the level it is read at', () => {
