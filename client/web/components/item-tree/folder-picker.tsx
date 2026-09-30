@@ -15,6 +15,7 @@ import {
 import type { TreeFolder, TreeKind, TreeSort } from '@mantle/web-ui/types/tree';
 import { TREE_ROW_PAD } from '@/components/app-nav/tree-guides';
 import type { TreeKindAdapter } from './kinds/types';
+import type { TreeSource } from './tree-api';
 import type { TreeRow } from './tree-model';
 import { TreeContext, type TreeCtx } from './tree-context';
 import { FolderTile, FolderTreeRow, useFolderRows, VirtualRows } from './tree-rows';
@@ -28,6 +29,7 @@ const NO_PICKS: ReadonlySet<string> = new Set();
  */
 export function FolderPickerDialog({
   kind,
+  source = 'owner',
   adapter,
   sort,
   title,
@@ -40,6 +42,8 @@ export function FolderPickerDialog({
   onPick,
 }: {
   kind: TreeKind;
+  /** Whose tree it browses (a member picks among the folders it sees). */
+  source?: TreeSource;
   adapter: TreeKindAdapter;
   sort: TreeSort;
   title: string;
@@ -92,6 +96,7 @@ export function FolderPickerDialog({
 
   const { rows, loaders, handles } = useFolderRows({
     kind,
+    source,
     sort,
     isOpen: ctx.isOpen,
     foldersOnly: true,

@@ -40,6 +40,9 @@ function SimpleStatus({ item }: { item: TreeItem }) {
           {item.subtype}
         </span>
       )}
+      {item.author && (
+        <span className="max-w-24 truncate text-[10px] text-muted-foreground">{item.author}</span>
+      )}
     </>
   );
 }

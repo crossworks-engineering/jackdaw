@@ -20,6 +20,7 @@ import type {
   ReviewAuthorView,
 } from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
+import type { TreeCrumb, TreeKind } from '@mantle/web-ui/types/tree';
 import {
   refusalReason,
   type SpaceComment,
@@ -61,12 +62,29 @@ export type ReviewItem = {
 };
 
 export type BundleItem = { id: string; type: SpaceKind; title: string };
+/** TEMPORARY contract shim until the pin bump: where an Accept lands by
+ *  default (folder plan phase 5, AcceptPreview.place in the brain's
+ *  @crossworks/client-types). */
+export type AcceptPlace = {
+  kind: TreeKind;
+  /** The brain folder it goes in or under; null = the kind's top level. */
+  folderId: string | null;
+  /** That folder's crumbs, top-down, itself included. */
+  crumbs: TreeCrumb[];
+  /** The author's own folders that become brain folders below it. */
+  creates: string[];
+};
+
 export type Bundle = Pick<AcceptPreview, 'closure'> & {
   items: BundleItem[];
   linksStayingBehind: number;
+  /** Absent from brains before the tree, and for a page. */
+  place?: AcceptPlace;
 };
 
-export type AcceptInput = AcceptRequest & { audience: AccessLevel };
+/** `folderId` (folder plan phase 5, shim): where the item lands; left out,
+ *  in place; null, the kind's top level. */
+export type AcceptInput = AcceptRequest & { audience: AccessLevel; folderId?: string | null };
 
 export type AcceptResult = {
   id: string;

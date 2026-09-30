@@ -494,7 +494,7 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
       depth={depth}
       isLast={isLast}
       guides={guides}
-      drag={folder.system ? undefined : drag}
+      drag={folder.system || ctx.canMoveFolder?.(folder) === false ? undefined : drag}
       drop={drag}
       menu={ctx.folderMenu?.(folder, parent, siblings)}
     >
@@ -580,9 +580,10 @@ export function ItemRow({
   const where = crumbs
     ? { folderId: crumbs.at(-1)?.id ?? null, folderPath: null }
     : { folderId: parent?.id ?? null, folderPath };
-  // Private items have no folder yet: they cannot be dragged anywhere.
+  // An owner's private items have no folder yet: they cannot be dragged
+  // anywhere. A member's tree says which of its rows move.
   const drag: DragData | undefined =
-    crumbs === undefined && item.state !== 'private'
+    crumbs === undefined && (ctx.canMoveItem?.(item) ?? item.state !== 'private')
       ? { type: 'item', item, parent: parent ?? null }
       : undefined;
   const carried = picked ? ctx.picked.size : 1;

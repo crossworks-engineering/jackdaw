@@ -193,8 +193,14 @@ type MoveTarget =
   | { type: 'items'; items: TreeItem[]; from: string | null | undefined }
   | { type: 'folder'; folder: TreeFolder };
 
-/** Private items have no folder yet: they cannot be moved or picked. */
+/** An owner's private items have no folder yet: they cannot be moved or
+ *  picked. */
 const movable = (item: TreeItem) => item.state !== 'private';
+
+/** A member moves only its own drafts, and not one that is with an admin
+ *  (folder plan phase 5). */
+const memberMovable = (item: TreeItem) =>
+  item.source === 'own' && item.state !== 'submitted' && item.state !== 'with-admin';
 
 /** Where a move lands, inside a sentence. */
 const into = (dest: string | null | undefined) => (dest ? `into “${dest}”` : 'to the top level');
@@ -219,8 +225,9 @@ export function ItemTree({
   onUnsupported,
 }: {
   kind: TreeKind;
-  /** Who it is read as: the owner (default), or a member's or client's
-   *  read-only tree (always read mode; no marks, filters or live updates). */
+  /** Who it is read as: the owner (default), a member (manage mode covers
+   *  only its own folders and drafts, folder plan phase 5), or a client
+   *  (always read mode). Readers get no marks, filters or live updates. */
   source?: TreeSource;
   adapter: TreeKindAdapter;
   mode?: 'manage' | 'read';
@@ -251,7 +258,12 @@ export function ItemTree({
   const qc = useQueryClient();
   const toast = useToast();
   const owner = source === 'owner';
-  const manage = mode === 'manage' && owner;
+  const member = source === 'member';
+  const manage = mode === 'manage' && (owner || member);
+  const writer = member ? 'member' : 'owner';
+  const canMove = member ? memberMovable : movable;
+  /** A member changes only its own folders; the owner every one. */
+  const mine = (folder: TreeFolder) => !member || folder.own === true;
   const scope = treeScope(kind, source);
   const views = owner ? VIEWS : READER_VIEWS;
 
@@ -387,7 +399,8 @@ export function ItemTree({
     opts: { dest?: string | null; onDone?: () => void } = {},
   ) =>
     guarded(
-      (confirm) => patchTreeFolder(kind, folder.id, confirm ? { ...patch, confirm: true } : patch),
+      (confirm) =>
+        patchTreeFolder(kind, folder.id, confirm ? { ...patch, confirm: true } : patch, writer),
       'Could not change the folder',
       patch.share === undefined
         ? { action: `Move “${folder.name}” ${into(opts.dest)}.`, verb: 'Move' }
@@ -408,7 +421,7 @@ export function ItemTree({
   const pinsQ = useQuery({
     queryKey: marksKey(kind, 'pinned'),
     queryFn: () => fetchMarks(kind, 'pinned'),
-    enabled: manage,
+    enabled: manage && owner,
   });
   const pinned = useMemo(() => new Set(pinsQ.data?.items.map((i) => i.id)), [pinsQ.data]);
 
@@ -456,13 +469,13 @@ export function ItemTree({
   const clickItem = (item: TreeItem, where: ItemWhere, e?: MouseEvent) => {
     const toggle = e && (e.metaKey || e.ctrlKey);
     const range = e?.shiftKey && anchor.current !== null;
-    if (!manage || !movable(item) || (!toggle && !e?.shiftKey)) {
+    if (!manage || !canMove(item) || (!toggle && !e?.shiftKey)) {
       openItem(item, where);
       return;
     }
     e.preventDefault();
     if (range) {
-      const ids = rangeOfItems(allRows, anchor.current!, item.id, movable);
+      const ids = rangeOfItems(allRows, anchor.current!, item.id, canMove);
       const byId = new Map<string, TreeItem>();
       for (const r of allRows) if (r.type === 'item') byId.set(r.item.id, r.item);
       setPicked((prev) => {
@@ -493,6 +506,7 @@ export function ItemTree({
           items.map((i) => i.id),
           dest?.id ?? null,
           confirm,
+          writer,
         );
         if (items.length > 1) clearPicked();
         if (res.failed.length) {
@@ -556,15 +570,17 @@ export function ItemTree({
                 New folder inside…
               </DropdownMenuItem>
             )}
-            {!folder.system && (
+            {!folder.system && mine(folder) && (
               <DropdownMenuItem onSelect={() => setFolderDialog({ mode: 'rename', folder })}>
                 Rename…
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onSelect={() => openLook(`f:${folder.id}`, folder)}>
-              Icon and colour…
-            </DropdownMenuItem>
-            {canShareFolder(kind, folder) && (
+            {mine(folder) && (
+              <DropdownMenuItem onSelect={() => openLook(`f:${folder.id}`, folder)}>
+                Icon and colour…
+              </DropdownMenuItem>
+            )}
+            {owner && canShareFolder(kind, folder) && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Share2 />
@@ -593,25 +609,29 @@ export function ItemTree({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
-            <DropdownMenuSeparator />
-            {!folder.system && (
+            {mine(folder) && <DropdownMenuSeparator />}
+            {!folder.system && mine(folder) && (
               <DropdownMenuItem onSelect={() => setMoveTarget({ type: 'folder', folder })}>
                 Move to…
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem
-              disabled={up === undefined}
-              onSelect={() => up !== undefined && void patchFolder(folder, { after: up })}
-            >
-              Move up
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={down === undefined}
-              onSelect={() => down !== undefined && void patchFolder(folder, { after: down })}
-            >
-              Move down
-            </DropdownMenuItem>
-            {!folder.system && (
+            {owner && (
+              <>
+                <DropdownMenuItem
+                  disabled={up === undefined}
+                  onSelect={() => up !== undefined && void patchFolder(folder, { after: up })}
+                >
+                  Move up
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={down === undefined}
+                  onSelect={() => down !== undefined && void patchFolder(folder, { after: down })}
+                >
+                  Move down
+                </DropdownMenuItem>
+              </>
+            )}
+            {!folder.system && mine(folder) && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -633,12 +653,14 @@ export function ItemTree({
         return (
           <DropdownMenuContent align="start" side="right" className="w-52">
             <DropdownMenuItem onSelect={() => openItem(item, where)}>Open</DropdownMenuItem>
-            {item.state !== 'private' && (
+            {canMove(item) && (
               <>
-                <DropdownMenuItem onSelect={() => togglePin(item)}>
-                  {pinned.has(item.id) ? <PinOff /> : <Pin />}
-                  {pinned.has(item.id) ? 'Unpin' : 'Pin to top'}
-                </DropdownMenuItem>
+                {owner && (
+                  <DropdownMenuItem onSelect={() => togglePin(item)}>
+                    {pinned.has(item.id) ? <PinOff /> : <Pin />}
+                    {pinned.has(item.id) ? 'Unpin' : 'Pin to top'}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onSelect={() => {
                     const items = carried(item);
@@ -690,6 +712,9 @@ export function ItemTree({
     }
     if (a.folder.id === o.folder.id || isAtOrBelow(o.folder.path, a.folder.path)) return null;
     if (pos === 'inside') return canNestFolder(a.folder, o.folder) ? { over: overId, pos } : null;
+    // A member's folders have no manual order: a drop beside a folder does
+    // nothing there.
+    if (member) return null;
     return canNestFolder(a.folder, o.parent) ? { over: overId, pos } : null;
   };
 
@@ -732,7 +757,8 @@ export function ItemTree({
     kind,
     adapter,
     sort,
-    mode,
+    // A client's tree never manages, whatever the page asked for.
+    mode: manage ? 'manage' : 'read',
     isOpen: (id) => open.has(id),
     setOpen,
     reveal,
@@ -751,6 +777,9 @@ export function ItemTree({
     },
     hint,
     dragging,
+    ...(member
+      ? { canMoveFolder: (f: TreeFolder) => f.own === true, canMoveItem: memberMovable }
+      : {}),
   };
 
   // ── Rows by view ──────────────────────────────────────────────────────
@@ -1225,7 +1254,7 @@ export function ItemTree({
           }
           const parent = folderDialog.parent;
           void write(
-            () => createTreeFolder(kind, parent?.id ?? null, name),
+            () => createTreeFolder(kind, parent?.id ?? null, name, writer),
             'Could not create the folder',
           ).then((made) => {
             if (made && parent) setOpen(parent.id, true);
@@ -1241,7 +1270,7 @@ export function ItemTree({
           setDeleteTarget(null);
           if (!target) return;
           void guarded(
-            (confirm) => deleteTreeFolder(kind, target.id, confirm),
+            (confirm) => deleteTreeFolder(kind, target.id, confirm, writer),
             'Could not delete',
             {
               action: `Delete “${target.name}”: what it holds moves up one level, out of its share.`,
@@ -1256,6 +1285,7 @@ export function ItemTree({
       />
       <FolderPickerDialog
         kind={kind}
+        source={source}
         adapter={adapter}
         sort={sort}
         open={moveTarget !== null}

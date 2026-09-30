@@ -40,6 +40,8 @@ import { authorName } from '@/lib/item-author';
 import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { treeKey } from '@/components/item-tree/tree-api';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import { ReaderViewToggle, readerViewOf } from '@/components/item-tree/reader-view-toggle';
 import { treeKindOfItem, useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -77,6 +79,8 @@ function useSpaceEvents() {
         void qcRef.current.invalidateQueries({ queryKey: ['member-space-list'] });
         void qcRef.current.invalidateQueries({ queryKey: ['member-space-item'] });
         void qcRef.current.invalidateQueries({ queryKey: ['member-space-comments'] });
+        // The member's tree shows its drafts' states too (folder plan phase 5).
+        void qcRef.current.invalidateQueries({ queryKey: ['tree'] });
       },
       { maxAttempts: 8 },
     );
@@ -112,9 +116,10 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const openId = params.get('id') ?? params.get('selected');
   const openSource = asSource(params.get('src'));
   const [details, changeDetails] = useCardDetails(`mantle_member_${kind}_card_details_v1`);
-  // The brain's folders as a read-only tree (folder sharing), when it serves
-  // this kind to members: what the member reads there, by folder. Their own
-  // items and teammates' drafts stay in the list until they join the folders.
+  // The brain's folders as a tree, when it serves this kind to members: what
+  // the member reads there, by folder, with its own folders and drafts and
+  // teammates' shared drafts in place (folder plan phase 5). The member
+  // manages only its own folders and drafts there.
   const treeKind = treeKindOfItem(kind);
   const treeAdapter = treeKind ? readerTreeAdapter(treeKind) : null;
   const serves = useReaderTreeServes('member', treeKind);
@@ -122,7 +127,10 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const wantsFolders = readerViewOf(params) === 'folders';
   const folders = treeServed && wantsFolders;
   const [treeQuery, setTreeQuery] = useState('');
+  // The folder the tree has open: where New and Upload file a draft.
+  const [treeFolder, setTreeFolder] = useState<TreeFolder | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const treeFileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
 
@@ -162,12 +170,17 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     enabled: !folders && !(wantsFolders && serves === undefined),
   });
 
-  const create = async () => {
+  const create = async (folderId?: string | null) => {
     if (kind === 'file') return;
     setBusy(true);
     try {
-      const { item } = await memberSpace.create({ type: kind, title: '' });
+      const { item } = await memberSpace.create({
+        type: kind,
+        title: '',
+        ...(folderId ? { folderId } : {}),
+      });
       void qc.invalidateQueries({ queryKey: ['member-space-list'] });
+      if (treeKind) void qc.invalidateQueries({ queryKey: treeKey(treeKind, 'member') });
       setParams({ src: 'mine', id: item.id });
     } catch (err) {
       toast.error(spaceErrorMessage(err, `Could not create the ${meta.one}.`));
@@ -176,7 +189,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     }
   };
 
-  const upload = async (file: File) => {
+  const upload = async (file: File, folderId?: string | null) => {
     // Refused here, before a byte is sent: this upload skips the upload dock
     // and its size check, and the brain would only refuse it after the lot.
     const tooLarge = memberUploadRefusal(file.size);
@@ -187,12 +200,14 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     setBusy(true);
     try {
       const fd = new FormData();
+      if (folderId) fd.append('folderId', folderId);
       fd.append('file', file, file.name);
       const res = await apiFetch<{ row: SpaceItemRow }>('/api/member/space-files', {
         method: 'POST',
         body: fd,
       });
       void qc.invalidateQueries({ queryKey: ['member-space-list'] });
+      if (treeKind) void qc.invalidateQueries({ queryKey: treeKey(treeKind, 'member') });
       setParams({ src: 'mine', id: res.row.id });
       toast.success('Uploaded to your files.');
     } catch (err) {
@@ -354,12 +369,52 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
           <ItemTree
             kind={treeKind}
             source="member"
-            mode="read"
+            mode="manage"
             adapter={treeAdapter}
             query={treeQuery}
             onQueryChange={setTreeQuery}
-            selectedItemId={open?.source === 'library' ? open.id : null}
-            onOpenItem={(item) => setParams({ src: 'library', id: item.id })}
+            selectedItemId={open ? open.id : null}
+            selectedFolderPath={treeFolder?.path ?? null}
+            onOpenFolder={setTreeFolder}
+            onOpenItem={(item) =>
+              setParams({
+                src: item.source === 'own' ? 'mine' : item.source === 'team' ? 'team' : 'library',
+                id: item.id,
+              })
+            }
+            actions={
+              meta.create ? (
+                <NewButton
+                  onClick={() => void create(treeFolder?.id ?? null)}
+                  busy={busy}
+                  title={treeFolder ? `New ${meta.one} in “${treeFolder.name}”` : `New ${meta.one}`}
+                />
+              ) : meta.upload ? (
+                <>
+                  <Button
+                    size="icon-sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => treeFileInput.current?.click()}
+                    title={treeFolder ? `Upload a file to “${treeFolder.name}”` : 'Upload a file'}
+                    aria-label="Upload a file"
+                  >
+                    <Upload />
+                  </Button>
+                  <input
+                    ref={treeFileInput}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (f) void upload(f, treeFolder?.id ?? null);
+                    }}
+                  />
+                </>
+              ) : null
+            }
+            onChanged={() => void qc.invalidateQueries({ queryKey: ['member-space-list'] })}
             onUnsupported={() => setView('list')}
           />
         </div>

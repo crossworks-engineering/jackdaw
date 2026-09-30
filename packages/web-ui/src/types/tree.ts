@@ -187,6 +187,9 @@ export type TreeFolder = {
   system: boolean;
   folderCount: number;
   itemCount: number;
+  /** A member's tree only: the member's own private folder (folder plan
+   *  phase 5). Only they see it; they may rename, move and delete it. */
+  own?: boolean;
 };
 
 /** An item's review state, when it has one (the one-list pill vocabulary). */
@@ -223,6 +226,12 @@ export type TreeItem = {
   state: TreeItemState | null;
   updatedAt: string;
   meta?: TreeItemMeta;
+  /** A member's tree only: a draft rather than a brain item (folder plan
+   *  phase 5). `own` is the member's own; `team` a teammate's draft shared
+   *  with the team. Absent on a brain item. */
+  source?: 'own' | 'team';
+  /** A teammate's draft: who wrote it. */
+  author?: string;
 };
 
 export type TreeCrumb = { id: string; name: string };

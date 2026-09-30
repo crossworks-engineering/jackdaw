@@ -137,22 +137,43 @@ export type TreeFolderPatch = {
   confirm?: boolean;
 };
 
-export const createTreeFolder = (kind: TreeKind, parentId: string | null, name: string) =>
-  apiSend<{ folder: TreeFolder }>(`/api/tree/${kind}/folders`, 'POST', { parentId, name }).then(
-    (r) => r.folder,
-  );
+/** Who writes: the owner (/api/tree), or a member in its own folders and
+ *  drafts (/api/member/tree, folder plan phase 5: no share, order, pins or
+ *  confirm there). A client never writes. */
+export type TreeWriter = Exclude<TreeSource, 'client'>;
 
-export const patchTreeFolder = (kind: TreeKind, id: string, patch: TreeFolderPatch) =>
-  apiSend<{ folder: TreeFolder }>(`/api/tree/${kind}/folders/${id}`, 'PATCH', patch).then(
+export const createTreeFolder = (
+  kind: TreeKind,
+  parentId: string | null,
+  name: string,
+  source: TreeWriter = 'owner',
+) =>
+  apiSend<{ folder: TreeFolder }>(`${BASE[source]}/${kind}/folders`, 'POST', {
+    parentId,
+    name,
+  }).then((r) => r.folder);
+
+export const patchTreeFolder = (
+  kind: TreeKind,
+  id: string,
+  patch: TreeFolderPatch,
+  source: TreeWriter = 'owner',
+) =>
+  apiSend<{ folder: TreeFolder }>(`${BASE[source]}/${kind}/folders/${id}`, 'PATCH', patch).then(
     (r) => r.folder,
   );
 
 /** What the folder holds moves up to its parent first; a name clash there is
  *  a 409 and nothing moves, and so is a lift that changes who can see
  *  something, until it is repeated with `confirm`. */
-export const deleteTreeFolder = (kind: TreeKind, id: string, confirm = false) =>
+export const deleteTreeFolder = (
+  kind: TreeKind,
+  id: string,
+  confirm = false,
+  source: TreeWriter = 'owner',
+) =>
   apiSend<{ ok: true }>(
-    `/api/tree/${kind}/folders/${id}${confirm ? '?confirm=true' : ''}`,
+    `${BASE[source]}/${kind}/folders/${id}${confirm ? '?confirm=true' : ''}`,
     'DELETE',
   );
 
@@ -165,8 +186,9 @@ export const moveTreeItems = (
   ids: string[],
   folderId: string | null,
   confirm = false,
+  source: TreeWriter = 'owner',
 ) =>
-  apiSend<TreeMoveResult>(`/api/tree/${kind}/move`, 'POST', {
+  apiSend<TreeMoveResult>(`${BASE[source]}/${kind}/move`, 'POST', {
     ids,
     folderId,
     ...(confirm ? { confirm: true } : {}),
