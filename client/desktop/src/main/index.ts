@@ -444,6 +444,22 @@ async function openAppWindow(profile: Profile): Promise<void> {
     void session.fromPartition(partition).cookies.flushStore();
   });
 
+  // A page holding unsaved edits (the Recall card editor) cancels
+  // `beforeunload`. A browser asks the reader then; Electron asks nobody and
+  // simply refuses to close or reload the window. Ask here instead.
+  win.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['Leave', 'Stay'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Leave with unsaved changes?',
+      detail: 'This page has edits that are not saved. Leaving throws them away.',
+    });
+    // preventDefault here overrides the page's refusal, so the unload goes on.
+    if (choice === 0) event.preventDefault();
+  });
+
   // Everything that isn't the app UI opens in the system browser — share
   // links and doc links target the brain origin by design.
   win.webContents.setWindowOpenHandler(({ url }) => {

@@ -16,6 +16,7 @@ import {
   mayNotify,
   useBrowserNotifyOptIn,
 } from '@/lib/needs-you-browser-notify';
+import { guardedNavigate } from '@/lib/nav-guard';
 import { useNeedsYou, useNeedsYouSync } from './use-needs-you';
 
 /**
@@ -54,7 +55,7 @@ export function NeedsYouWatcher() {
       kind: 'info',
       message: text.body,
       durationMs: 15_000,
-      action: { label: 'Open', onClick: () => router.push(text.href) },
+      action: { label: 'Open', onClick: () => guardedNavigate(() => router.push(text.href)) },
     });
     const away = document.visibilityState !== 'visible' || !document.hasFocus();
     if (!away) return;
@@ -70,7 +71,7 @@ export function NeedsYouWatcher() {
         const n = new window.Notification(text.title, { body: text.body, tag: 'needs-you' });
         n.onclick = () => {
           window.focus();
-          router.push(text.href);
+          guardedNavigate(() => router.push(text.href));
           n.close();
         };
       } catch {
@@ -88,7 +89,10 @@ export function NeedsYouWatcher() {
   useEffect(() => () => desktopShell()?.setBadge(0), []);
 
   // A native notification click opens its item in this window.
-  useEffect(() => desktopShell()?.onNavigate?.((path) => router.push(path)), [router]);
+  useEffect(
+    () => desktopShell()?.onNavigate?.((path) => guardedNavigate(() => router.push(path))),
+    [router],
+  );
 
   useTitleCount(total);
   useFaviconDot(total > 0);

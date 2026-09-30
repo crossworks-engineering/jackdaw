@@ -16,6 +16,7 @@ import {
 } from '@mantle/web-ui/ui/command';
 import { ALL_NAV_ITEMS } from '@mantle/web-ui/layout/nav-items';
 import { nodeTypeIcon } from '@/components/search/node-type-icons';
+import { guardedNavigate } from '@/lib/nav-guard';
 import {
   displayTitle,
   filterNavItems,
@@ -105,7 +106,7 @@ export function SearchPalette({
 
   const go = (path: string) => {
     onOpenChange(false);
-    router.push(path);
+    guardedNavigate(() => router.push(path));
   };
 
   const navMatches = filterNavItems(ALL_NAV_ITEMS, query);

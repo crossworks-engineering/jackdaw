@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leavesScreen } from './use-leave-guard';
+import { guardEntryState, isGuardEntry, leavesScreen } from './use-leave-guard';
 
 describe('leavesScreen', () => {
   const here = new URL('https://brain.example/recall?selected=m1&card=fleet');
@@ -13,5 +13,17 @@ describe('leavesScreen', () => {
   });
   it('leaves another site to the browser prompt', () => {
     expect(leavesScreen('https://elsewhere.example/', here)).toBe(false);
+  });
+});
+
+describe('the Back guard entry', () => {
+  it('marks the guard entry and keeps the router state in it', () => {
+    const next = { __NA: true, tree: ['x'] };
+    const g = guardEntryState(next);
+    expect(g).toMatchObject(next);
+    expect(isGuardEntry(g)).toBe(true);
+    expect(isGuardEntry(next)).toBe(false);
+    expect(isGuardEntry(null)).toBe(false);
+    expect(isGuardEntry(guardEntryState(null))).toBe(true);
   });
 });
