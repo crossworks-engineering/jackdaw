@@ -262,7 +262,8 @@ describe('urls', () => {
 
 describe('which kinds a brain serves as the tree', () => {
   it('reads the shell, keeping only kinds this client knows', () => {
-    expect(treeKindsOf({ treeKinds: ['files', 'recall', 7] })).toEqual(['files']);
+    expect(treeKindsOf({ treeKinds: ['files', 'boards', 7] })).toEqual(['files']);
+    expect(treeKindsOf({ treeKinds: ['recall'] })).toEqual(['recall']);
     expect(treeKindsOf({})).toEqual([]);
     expect(treeKindsOf(null)).toEqual([]);
   });
