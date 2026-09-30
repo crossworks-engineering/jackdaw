@@ -549,9 +549,11 @@ test.describe('a signed-in client', () => {
     // An admin ended the sessions: the next ask is a 401, and the portal
     // goes to sign in by itself. Focus asks the list again at once (the
     // shell's own poll would too, within a minute); a reload here raced
-    // that redirect (ERR_ABORTED), so the spec waits for it instead.
+    // that redirect (ERR_ABORTED), so the spec waits for it instead. A poll
+    // may start the redirect before the focus lands, which destroys the
+    // page the focus runs in: that is the outcome this test waits for.
     api.clientSession = false;
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.evaluate(() => window.dispatchEvent(new Event('focus'))).catch(() => undefined);
     await expect(page).toHaveURL(/\/client-signin$/, { timeout: 30_000 });
     await expect(page.getByText('Open the sign-in link you were sent.')).toBeVisible();
   });
