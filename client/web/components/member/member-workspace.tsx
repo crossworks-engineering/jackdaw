@@ -41,7 +41,8 @@ import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { treeKey } from '@/components/item-tree/tree-api';
-import type { TreeFolder } from '@mantle/web-ui/types/tree';
+import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
+import { useAcceptedDraftNotice, useLiveTreeFolder } from '@/components/item-tree/use-tree-cache';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import { ReaderViewToggle, readerViewOf } from '@/components/item-tree/reader-view-toggle';
 import { treeKindOfItem, useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -127,8 +128,22 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const wantsFolders = readerViewOf(params) === 'folders';
   const folders = treeServed && wantsFolders;
   const [treeQuery, setTreeQuery] = useState('');
-  // The folder the tree has open: where New and Upload file a draft.
-  const [treeFolder, setTreeFolder] = useState<TreeFolder | null>(null);
+  // The folder the tree has open: where New and Upload file a draft (null =
+  // the top level, the tree's root row). Followed through the tree's cache:
+  // renamed or moved, it is the folder as it is now; deleted (here or in
+  // another tab), New and Upload go back to the top level.
+  const [pickedFolder, setTreeFolder] = useState<TreeFolder | null>(null);
+  const treeFolder = useLiveTreeFolder(treeKind, 'member', pickedFolder);
+  useEffect(() => {
+    if (pickedFolder && !treeFolder) setTreeFolder(null);
+  }, [pickedFolder, treeFolder]);
+  // A draft that was with an admin leaves the Folders view when it is
+  // accepted into the brain: say where it went rather than lose it quietly.
+  useAcceptedDraftNotice(folders ? treeKind : null, (d) =>
+    toast.info(
+      `“${d.title || 'Untitled'}” is no longer in your folders: an admin accepted it into the brain. The list shows it under By me.`,
+    ),
+  );
   const fileInput = useRef<HTMLInputElement>(null);
   const treeFileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -373,8 +388,11 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
             adapter={treeAdapter}
             query={treeQuery}
             onQueryChange={setTreeQuery}
+            // The root row: New and Upload back at the top level.
+            rootLabel={`All ${meta.many}`}
+            capOnNarrow={false}
             selectedItemId={open ? open.id : null}
-            selectedFolderPath={treeFolder?.path ?? null}
+            selectedFolderPath={treeFolder?.path ?? TREE_KIND_SPECS[treeKind].root}
             onOpenFolder={setTreeFolder}
             onOpenItem={(item) =>
               setParams({

@@ -24,12 +24,34 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 
+/** Whose folders these are: the brain's (every admin sees them), or a
+ *  member's own (only that member sees them until an admin accepts
+ *  something filed in one, folder plan phase 5). */
+export type FolderAudience = 'brain' | 'member';
+
+/** What the dialog says about who sees a folder. */
+export function folderNameNote(
+  who: FolderAudience,
+  renaming: boolean,
+  parentName: string | null | undefined,
+): string {
+  if (who === 'member') {
+    const own = 'Only you see this folder until an admin accepts something in it.';
+    return !renaming && parentName ? `Inside ${parentName}. ${own}` : own;
+  }
+  if (renaming) return 'Everyone on this brain sees the new name.';
+  return parentName
+    ? `Inside ${parentName}. Everyone on this brain sees it.`
+    : 'Everyone on this brain sees the same folders.';
+}
+
 /** Create or rename a folder. `initial` present = rename. */
 export function FolderNameDialog({
   open,
   onOpenChange,
   initial,
   parentName,
+  who = 'brain',
   onSubmit,
 }: {
   open: boolean;
@@ -37,6 +59,7 @@ export function FolderNameDialog({
   initial?: string;
   /** For a new subfolder: the folder it goes in, named in the description. */
   parentName?: string | null;
+  who?: FolderAudience;
   onSubmit: (name: string) => void;
 }) {
   const [name, setName] = useState(initial ?? '');
@@ -67,13 +90,7 @@ export function FolderNameDialog({
         >
           <DialogHeader>
             <DialogTitle>{renaming ? 'Rename folder' : 'New folder'}</DialogTitle>
-            <DialogDescription>
-              {renaming
-                ? 'Everyone on this brain sees the new name.'
-                : parentName
-                  ? `Inside ${parentName}. Everyone on this brain sees it.`
-                  : 'Everyone on this brain sees the same folders.'}
-            </DialogDescription>
+            <DialogDescription>{folderNameNote(who, renaming, parentName)}</DialogDescription>
           </DialogHeader>
           <Field>
             <FieldLabel htmlFor="app-folder-name">Name</FieldLabel>
@@ -108,12 +125,14 @@ export function FolderNameDialog({
 export function DeleteFolderDialog({
   folderName,
   contents = 'apps',
+  who = 'brain',
   onOpenChange,
   onConfirm,
 }: {
   folderName: string | null;
   /** What the folder holds besides folders, in the plural ("apps", "files"). */
   contents?: string;
+  who?: FolderAudience;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
@@ -123,8 +142,8 @@ export function DeleteFolderDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete “{folderName}”?</AlertDialogTitle>
           <AlertDialogDescription>
-            Only the folder goes. The {contents} and folders inside it move up one level, for
-            everyone on this brain.
+            Only the folder goes. The {contents} and folders inside it move up one level
+            {who === 'member' ? '.' : ', for everyone on this brain.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

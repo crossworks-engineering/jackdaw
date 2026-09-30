@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TreeFolder, TreeFolderPage, TreeItem } from '@mantle/web-ui/types/tree';
 import {
+  acceptedSince,
   afterFor,
   afterForStep,
   canNestFolder,
@@ -10,9 +11,13 @@ import {
   dropPosition,
   flattenTree,
   isOnTheWayTo,
+  liveFolder,
   mergeFolderPages,
+  ownDraftIds,
   pickedAfterMove,
   rangeOfItems,
+  submittedDrafts,
+  type CachedFolderPages,
   type FolderLoad,
   type TreeRow,
 } from './tree-model';
@@ -329,5 +334,87 @@ describe('pickedAfterMove', () => {
   });
   it('keeps nothing when all moved', () => {
     expect(pickedAfterMove([item('a')], []).size).toBe(0);
+  });
+});
+
+describe('liveFolder (the member tree’s New and Upload target)', () => {
+  const page = (folders: TreeFolder[], of: TreeFolder | null = null): TreeFolderPage => ({
+    kind: 'notes',
+    folder: of,
+    crumbs: [],
+    folders,
+    items: [],
+    sort: 'updated',
+    nextCursor: null,
+  });
+  const target = { ...folder('t', 'notes.a.t'), parentId: 'a' };
+
+  it('follows a rename in its parent’s listing', () => {
+    const renamed = { ...target, name: 'Renamed' };
+    const cache: CachedFolderPages[] = [
+      { folderId: 'a', ok: true, notFound: false, pages: [page([renamed])] },
+    ];
+    expect(liveFolder(cache, target)).toBe(renamed);
+  });
+  it('is gone when its parent loads without it', () => {
+    const cache: CachedFolderPages[] = [
+      { folderId: 'a', ok: true, notFound: false, pages: [page([])] },
+    ];
+    expect(liveFolder(cache, target)).toBeNull();
+  });
+  it('is gone when its own pages answer 404', () => {
+    const cache: CachedFolderPages[] = [
+      { folderId: 't', ok: false, notFound: true, pages: undefined },
+    ];
+    expect(liveFolder(cache, target)).toBeNull();
+  });
+  it('stays as it was when nothing cached says', () => {
+    expect(liveFolder([], target)).toBe(target);
+    const pending: CachedFolderPages[] = [
+      { folderId: 'a', ok: false, notFound: false, pages: undefined },
+    ];
+    expect(liveFolder(pending, target)).toBe(target);
+  });
+  it('a top-level folder’s parent is the root page', () => {
+    const top = folder('t', 'notes.t');
+    const cache: CachedFolderPages[] = [
+      { folderId: null, ok: true, notFound: false, pages: [page([])] },
+    ];
+    expect(liveFolder(cache, top)).toBeNull();
+  });
+});
+
+describe('a submitted draft that an admin accepted', () => {
+  const draft = (id: string, state: TreeItem['state'], source: TreeItem['source'] = 'own') => ({
+    ...item(id),
+    title: `T${id}`,
+    state,
+    source,
+  });
+  const page = (items: TreeItem[]): TreeFolderPage => ({
+    kind: 'notes',
+    folder: null,
+    crumbs: [],
+    folders: [],
+    items,
+    sort: 'updated',
+    nextCursor: null,
+  });
+
+  it('lists only own drafts that are with an admin', () => {
+    const p = page([draft('a', 'submitted'), draft('b', 'draft'), draft('c', 'submitted', 'team')]);
+    expect([...submittedDrafts([p])]).toEqual([['a', 'Ta']]);
+    expect([...ownDraftIds([p])].sort()).toEqual(['a', 'b']);
+  });
+
+  it('reports one that left and is no draft anywhere else', () => {
+    const before = submittedDrafts([page([draft('a', 'submitted'), draft('b', 'submitted')])]);
+    const after = submittedDrafts([page([draft('b', 'submitted')])]);
+    expect(acceptedSince(before, after, new Set())).toEqual([{ id: 'a', title: 'Ta' }]);
+  });
+
+  it('says nothing of one still a draft (recalled, or listed elsewhere)', () => {
+    const before = submittedDrafts([page([draft('a', 'submitted')])]);
+    expect(acceptedSince(before, new Map(), new Set(['a']))).toEqual([]);
   });
 });

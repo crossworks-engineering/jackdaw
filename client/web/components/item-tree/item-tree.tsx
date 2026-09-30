@@ -1276,6 +1276,7 @@ export function ItemTree({
         onOpenChange={(o) => !o && setFolderDialog(null)}
         initial={folderDialog?.mode === 'rename' ? folderDialog.folder.name : undefined}
         parentName={folderDialog?.mode === 'new' ? (folderDialog.parent?.name ?? null) : null}
+        who={member ? 'member' : 'brain'}
         onSubmit={(name) => {
           if (!folderDialog) return;
           if (folderDialog.mode === 'rename') {
@@ -1294,6 +1295,7 @@ export function ItemTree({
       <DeleteFolderDialog
         folderName={deleteTarget?.name ?? null}
         contents={adapter.noun.many}
+        who={member ? 'member' : 'brain'}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
         onConfirm={() => {
           const target = deleteTarget;
