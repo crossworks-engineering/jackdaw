@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Shapes } from 'lucide-react';
@@ -22,6 +22,10 @@ import { useUrlSearchBox } from '@/lib/url-search-box';
 import { ClientChatLauncher } from './client-chat';
 import { ClientReader } from './client-reader';
 import { ClientSharedCard } from './client-shared-card';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
+import { ReaderViewToggle, readerViewOf } from '@/components/item-tree/reader-view-toggle';
+import { treeKindOfItem, useReaderTreeKinds } from '@/components/item-tree/use-tree-kinds';
 
 const ALL = 'all';
 
@@ -62,10 +66,30 @@ export function ClientHome() {
   // a search restores the list); the page resets on a new search.
   const [searchInput, setSearchInput] = useUrlSearchBox(q, (next) => go({ q: next, page: null }));
 
+  // The brain's folders as a read-only tree (folder sharing), one kind at a
+  // time, for the kinds the brain serves to clients. The list stays the
+  // default; `view=folders` in the URL picks the tree.
+  const served = useReaderTreeKinds('client');
+  const folderKinds = MEMBER_ITEM_KINDS.filter((k) => {
+    const t = treeKindOfItem(k);
+    return t !== null && readerTreeAdapter(t) !== null && (served ?? []).includes(t);
+  });
+  const wantsFolders = readerViewOf(params) === 'folders';
+  const folders = folderKinds.length > 0 && wantsFolders;
+  const folderKind = folders ? (kind && folderKinds.includes(kind) ? kind : folderKinds[0]!) : null;
+  const treeKind = folderKind ? treeKindOfItem(folderKind) : null;
+  const treeAdapter = treeKind ? readerTreeAdapter(treeKind) : null;
+  const [treeQuery, setTreeQuery] = useState('');
+  const setView = (v: 'list' | 'folders') =>
+    go({ view: v === 'folders' ? 'folders' : null, page: null });
+
   const list = useQuery({
     queryKey: [...CLIENT_SHARED_KEY, { kind, q, page }],
     queryFn: () => apiFetch<ClientSharedPage>(sharedListPath({ kind, q, page })),
     placeholderData: (prev) => prev,
+    // Not while the folders are chosen, nor while it is not yet known whether
+    // the brain serves them (the first paint).
+    enabled: !folders && !(wantsFolders && served === undefined),
   });
 
   /** This screen's URL with the open item changed, the list's own params
@@ -104,7 +128,7 @@ export function ClientHome() {
   const data = list.data;
   const rows = data?.items ?? [];
   // A wide screen opens the first item (master-detail); a phone the list.
-  const openId = selectedId ?? (isDesktop !== false ? (rows[0]?.id ?? null) : null);
+  const openId = selectedId ?? (!folders && isDesktop !== false ? (rows[0]?.id ?? null) : null);
 
   const card = (row: ClientSharedRow) => (
     <li key={row.id}>
@@ -132,6 +156,7 @@ export function ClientHome() {
           title="Filter by kind"
           icon={<Shapes className="size-3.5" />}
         />
+        {folderKinds.length > 0 ? <ReaderViewToggle value="list" onChange={setView} /> : null}
       </ItemListHeader>
       <ItemListScroll pending={pending}>
         {!data ? (
@@ -161,6 +186,44 @@ export function ClientHome() {
     </div>
   );
 
+  const treePane =
+    folders && folderKind && treeKind && treeAdapter ? (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex flex-col gap-2 border-b border-border px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-base font-semibold">Shared with you</h1>
+            <ClientChatLauncher />
+          </div>
+          <div className="flex items-center gap-2">
+            <ChoiceFilter
+              value={folderKind}
+              options={KIND_OPTIONS.filter((o) =>
+                (folderKinds as readonly string[]).includes(o.value),
+              )}
+              onChange={(v) => go({ kind: v })}
+              title="Which kind"
+              icon={<Shapes className="size-3.5" />}
+            />
+            <ReaderViewToggle value="folders" onChange={setView} />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1">
+          <ItemTree
+            key={treeKind}
+            kind={treeKind}
+            source="client"
+            mode="read"
+            adapter={treeAdapter}
+            query={treeQuery}
+            onQueryChange={setTreeQuery}
+            selectedItemId={selectedId}
+            onOpenItem={(item) => open(item.id)}
+            onUnsupported={() => setView('list')}
+          />
+        </div>
+      </div>
+    ) : null;
+
   const detailPane = openId ? (
     <ClientReader key={openId} id={openId} onClose={close} onOpen={open} />
   ) : (
@@ -170,8 +233,10 @@ export function ClientHome() {
   );
 
   return isDesktop === false ? (
-    <div className="relative h-full min-h-0">{selectedId ? detailPane : listPane}</div>
+    <div className="relative h-full min-h-0">
+      {selectedId ? detailPane : (treePane ?? listPane)}
+    </div>
   ) : (
-    <MasterDetail id="client-shared" list={listPane} detail={detailPane} />
+    <MasterDetail id="client-shared" list={treePane ?? listPane} detail={detailPane} />
   );
 }

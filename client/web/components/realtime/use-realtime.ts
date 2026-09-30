@@ -95,15 +95,22 @@ function subscribe(sub: Subscriber): () => void {
  * self-heals on the following event. For a screen that must not miss the gap,
  * pair this with a periodic `refetchInterval` on its query as a safety net.
  */
-export function useRealtime(types: string[], onChange: (c: RealtimeChange) => void): void {
+export function useRealtime(
+  types: string[],
+  onChange: (c: RealtimeChange) => void,
+  /** `enabled: false` subscribes to nothing: the stream is the OWNER's, and a
+   *  member or client session would be refused it (and bounced). */
+  opts: { enabled?: boolean } = {},
+): void {
   // Keep the latest callback without re-registering the subscriber each render.
   const cbRef = useRef(onChange);
   cbRef.current = onChange;
 
   const key = types.join(',');
+  const enabled = opts.enabled !== false;
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !enabled) return;
     const filter = key ? key.split(',') : null; // '' ⇒ all types, as before
     return subscribe({ types: filter, cb: (c) => cbRef.current(c) });
-  }, [key]);
+  }, [key, enabled]);
 }

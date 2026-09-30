@@ -15,8 +15,8 @@ import {
   type FolderLoad,
   type TreeRow,
 } from './tree-model';
-import { folderUrl, searchUrl } from './tree-api';
-import { treeKindsOf } from './use-tree-kinds';
+import { folderKey, folderUrl, searchUrl, treeKey } from './tree-api';
+import { treeKindOfItem, treeKindsOf } from './use-tree-kinds';
 
 const folder = (id: string, path: string): TreeFolder => ({
   id,
@@ -274,6 +274,36 @@ describe('urls', () => {
     expect(searchUrl('files', 'q', null, { level: 'team', tag: 'a b' })).toBe(
       '/api/tree/files/search?q=q&level=team&tag=a+b',
     );
+  });
+
+  it('asks a member’s and a client’s own tree, whose search takes no level or tag', () => {
+    expect(folderUrl('notes', 'f1', 'name', null, 'member')).toBe(
+      '/api/member/tree/notes?folder=f1&sort=name',
+    );
+    expect(folderUrl('notes', null, 'name', null, 'client')).toBe(
+      '/api/client/tree/notes?sort=name',
+    );
+    expect(searchUrl('notes', 'q', 'x', { level: 'team', tag: 't' }, 'client')).toBe(
+      '/api/client/tree/notes/search?q=q&cursor=x',
+    );
+  });
+
+  it('keeps each reader’s cached folders apart, the owner’s keys unchanged', () => {
+    expect(treeKey('notes')).toEqual(['tree', 'notes']);
+    expect(treeKey('notes', 'client')).toEqual(['tree', 'client:notes']);
+    expect(folderKey('notes', null, 'name', 'member')).toEqual([
+      'tree',
+      'member:notes',
+      'folder',
+      'root',
+      'name',
+    ]);
+  });
+
+  it('maps a Library kind to its tree kind', () => {
+    expect(treeKindOfItem('note')).toBe('notes');
+    expect(treeKindOfItem('file')).toBe('files');
+    expect(treeKindOfItem('nope')).toBeNull();
   });
 });
 

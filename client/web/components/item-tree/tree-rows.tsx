@@ -33,7 +33,7 @@ import {
 import { AppTile } from '@/components/app-nav/app-tile';
 import { TREE_INDENT, TREE_ROW_PAD, TreeGuides } from '@/components/app-nav/tree-guides';
 import { shareTitle, shownShare } from './sharing';
-import { fetchFolderPage, folderKey } from './tree-api';
+import { fetchFolderPage, folderKey, treeScope, type TreeSource } from './tree-api';
 import {
   crumbLine,
   flattenTree,
@@ -94,20 +94,22 @@ function readFolderLoad(
 /** Keeps one folder's pages loaded and fresh; draws nothing. */
 function FolderLoader({
   kind,
+  source,
   sort,
   folderId,
   handles,
   onUnsupported,
 }: {
   kind: TreeKind;
+  source: TreeSource;
   sort: TreeSort;
   folderId: string | null;
   handles: Map<string, FolderHandle>;
   onUnsupported?: () => void;
 }) {
   const q = useInfiniteQuery({
-    queryKey: folderKey(kind, folderId, sort),
-    queryFn: ({ pageParam }) => fetchFolderPage(kind, folderId, sort, pageParam),
+    queryKey: folderKey(kind, folderId, sort, source),
+    queryFn: ({ pageParam }) => fetchFolderPage(kind, folderId, sort, pageParam, source),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     // A 404 is a brain without the tree (the root) or a folder deleted
@@ -140,21 +142,23 @@ function FolderLoader({
 }
 
 /** Re-renders when any of this kind's folder pages change in the cache. */
-function useFolderCacheVersion(kind: TreeKind): number {
+function useFolderCacheVersion(kind: TreeKind, source: TreeSource): number {
   const qc = useQueryClient();
   const version = useRef(0);
   const subscribe = useCallback(
     (onChange: () => void) =>
       qc.getQueryCache().subscribe((e) => {
         const key = e.query.queryKey;
-        if (key[0] !== 'tree' || key[1] !== kind || key[2] !== 'folder') return;
+        if (key[0] !== 'tree' || key[1] !== treeScope(kind, source) || key[2] !== 'folder') {
+          return;
+        }
         if (e.type !== 'updated' && e.type !== 'removed') return;
         version.current += 1;
         // Deferred: a loader's query can report while another component
         // renders, and a re-render must not be asked for from inside one.
         queueMicrotask(onChange);
       }),
-    [qc, kind],
+    [qc, kind, source],
   );
   return useSyncExternalStore(
     subscribe,
@@ -170,6 +174,7 @@ function useFolderCacheVersion(kind: TreeKind): number {
  */
 export function useFolderRows({
   kind,
+  source = 'owner',
   sort,
   isOpen,
   foldersOnly = false,
@@ -177,6 +182,8 @@ export function useFolderRows({
   onUnsupported,
 }: {
   kind: TreeKind;
+  /** Who the tree is read as (tree-api's TreeSource). */
+  source?: TreeSource;
   sort: TreeSort;
   isOpen: (folderId: string) => boolean;
   foldersOnly?: boolean;
@@ -184,10 +191,10 @@ export function useFolderRows({
   onUnsupported?: () => void;
 }): { rows: TreeRow[]; loaders: ReactNode; handles: Map<string, FolderHandle> } {
   const qc = useQueryClient();
-  useFolderCacheVersion(kind);
+  useFolderCacheVersion(kind, source);
   const handles = useRef(new Map<string, FolderHandle>()).current;
   const { rows, needed } = flattenTree(
-    (folderId) => readFolderLoad(qc.getQueryState(folderKey(kind, folderId, sort))),
+    (folderId) => readFolderLoad(qc.getQueryState(folderKey(kind, folderId, sort, source))),
     isOpen,
     { foldersOnly, emptyText },
   );
@@ -195,6 +202,7 @@ export function useFolderRows({
     <FolderLoader
       key={folderId ?? 'root'}
       kind={kind}
+      source={source}
       sort={sort}
       folderId={folderId}
       handles={handles}
