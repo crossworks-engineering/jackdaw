@@ -1,7 +1,18 @@
 'use client';
 
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useSyncExternalStore,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
@@ -14,13 +25,22 @@ import {
   TREE_KIND_SPECS,
   type TreeCrumb,
   type TreeFolder,
+  type TreeFolderPage,
   type TreeItem,
+  type TreeKind,
+  type TreeSort,
 } from '@mantle/web-ui/types/tree';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { TREE_INDENT, TREE_ROW_PAD, TreeGuides } from '@/components/app-nav/tree-guides';
 import { fetchFolderPage, folderKey } from './tree-api';
-import { childEntries, childGuides, crumbLine, isOnTheWayTo, mergeFolderPages } from './tree-model';
-import { useTreeCtx, type DragData, type ItemWhere } from './tree-context';
+import {
+  crumbLine,
+  flattenTree,
+  mergeFolderPages,
+  type FolderLoad,
+  type TreeRow,
+} from './tree-model';
+import { useTreeCtx, type DragData } from './tree-context';
 
 /**
  * The rows of the item tree. Every row is one line, 32px high: an optional
@@ -28,13 +48,226 @@ import { useTreeCtx, type DragData, type ItemWhere } from './tree-context';
  * a small status slot, and the "…" menu (on hover and right-click). A folder
  * row has a chevron, its tile, its name and its count.
  *
- * The root and each open folder fetch their own pages (`useInfiniteQuery`
- * per folder, 50 items a page); the last row of a folder with more to come
- * is a sentinel that asks for the next page as it scrolls into view.
+ * The tree is flattened (tree-model's `flattenTree`) and drawn through one
+ * virtual list, so only the rows near the viewport exist, however many
+ * folders are open. The root and each open folder keep their own pages
+ * (`useInfiniteQuery` per folder, 50 items a page) through an invisible
+ * loader; the last row of a folder with more to come asks for the next page
+ * as it comes into view.
  */
 
 const ROW_BUTTON =
   'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-8 text-left text-sm focus-visible:z-10';
+
+/** One slot of the list: a 32px row and the 1px gap below it. */
+const ROW_SIZE = 33;
+const SIZE: Record<TreeRow['type'], number> = {
+  folder: ROW_SIZE,
+  item: ROW_SIZE,
+  hit: ROW_SIZE,
+  root: ROW_SIZE,
+  status: ROW_SIZE,
+  more: ROW_SIZE,
+  note: 33,
+  divider: 9,
+};
+
+// ── Loading folders ─────────────────────────────────────────────────────
+
+/** What a folder's loader lends the rows: the next page, and a retry. */
+type FolderHandle = { fetchMore: () => void; retry: () => void };
+
+function readFolderLoad(
+  state: ReturnType<ReturnType<typeof useQueryClient>['getQueryState']>,
+): FolderLoad {
+  const data = state?.data as InfiniteData<TreeFolderPage> | undefined;
+  if (!data) return state?.status === 'error' ? { status: 'error' } : { status: 'pending' };
+  const fetchMore = (state?.fetchMeta as { fetchMore?: { direction?: string } } | null)?.fetchMore;
+  return {
+    status: 'ok',
+    children: mergeFolderPages(data.pages),
+    loadingMore: state?.fetchStatus === 'fetching' && fetchMore?.direction === 'forward',
+  };
+}
+
+/** Keeps one folder's pages loaded and fresh; draws nothing. */
+function FolderLoader({
+  kind,
+  sort,
+  folderId,
+  handles,
+  onUnsupported,
+}: {
+  kind: TreeKind;
+  sort: TreeSort;
+  folderId: string | null;
+  handles: Map<string, FolderHandle>;
+  onUnsupported?: () => void;
+}) {
+  const q = useInfiniteQuery({
+    queryKey: folderKey(kind, folderId, sort),
+    queryFn: ({ pageParam }) => fetchFolderPage(kind, folderId, sort, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+    // A 404 is a brain without the tree (the root) or a folder deleted
+    // elsewhere: neither gets better by asking again.
+    retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
+  });
+  const { fetchNextPage, refetch } = q;
+  const busy = useRef(false);
+  const id = folderId ?? 'root';
+  useEffect(() => {
+    handles.set(id, {
+      fetchMore: () => {
+        // Marked busy at once: two asks before the next render (a row
+        // mounting twice in dev, two sentinels) must make one request.
+        if (busy.current) return;
+        busy.current = true;
+        void fetchNextPage().finally(() => {
+          busy.current = false;
+        });
+      },
+      retry: () => void refetch(),
+    });
+    return () => void handles.delete(id);
+  }, [handles, id, fetchNextPage, refetch]);
+  const unsupported = folderId === null && q.error instanceof ApiError && q.error.status === 404;
+  useEffect(() => {
+    if (unsupported) onUnsupported?.();
+  }, [unsupported, onUnsupported]);
+  return null;
+}
+
+/** Re-renders when any of this kind's folder pages change in the cache. */
+function useFolderCacheVersion(kind: TreeKind): number {
+  const qc = useQueryClient();
+  const version = useRef(0);
+  const subscribe = useCallback(
+    (onChange: () => void) =>
+      qc.getQueryCache().subscribe((e) => {
+        const key = e.query.queryKey;
+        if (key[0] !== 'tree' || key[1] !== kind || key[2] !== 'folder') return;
+        if (e.type !== 'updated' && e.type !== 'removed') return;
+        version.current += 1;
+        // Deferred: a loader's query can report while another component
+        // renders, and a re-render must not be asked for from inside one.
+        queueMicrotask(onChange);
+      }),
+    [qc, kind],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => version.current,
+    () => 0,
+  );
+}
+
+/**
+ * The tree's rows below the root, from what the cache holds, plus the
+ * loaders that keep every folder on screen fetching. Render `loaders`
+ * anywhere; hand `handles` to the rows.
+ */
+export function useFolderRows({
+  kind,
+  sort,
+  isOpen,
+  foldersOnly = false,
+  emptyText,
+  onUnsupported,
+}: {
+  kind: TreeKind;
+  sort: TreeSort;
+  isOpen: (folderId: string) => boolean;
+  foldersOnly?: boolean;
+  emptyText: string;
+  onUnsupported?: () => void;
+}): { rows: TreeRow[]; loaders: ReactNode; handles: Map<string, FolderHandle> } {
+  const qc = useQueryClient();
+  useFolderCacheVersion(kind);
+  const handles = useRef(new Map<string, FolderHandle>()).current;
+  const { rows, needed } = flattenTree(
+    (folderId) => readFolderLoad(qc.getQueryState(folderKey(kind, folderId, sort))),
+    isOpen,
+    { foldersOnly, emptyText },
+  );
+  const loaders = needed.map((folderId) => (
+    <FolderLoader
+      key={folderId ?? 'root'}
+      kind={kind}
+      sort={sort}
+      folderId={folderId}
+      handles={handles}
+      onUnsupported={folderId === null ? onUnsupported : undefined}
+    />
+  ));
+  return { rows, loaders, handles };
+}
+
+// ── The list ────────────────────────────────────────────────────────────
+
+/**
+ * Draws `rows` through a virtual list inside `scrollRoot` (which scrolls and
+ * carries no vertical padding: the list pads itself). When `activeKey` names
+ * a row, the list scrolls to it once it exists, and again whenever the key
+ * changes.
+ */
+export function VirtualRows({
+  rows,
+  scrollRoot,
+  activeKey = null,
+  render,
+}: {
+  rows: readonly TreeRow[];
+  scrollRoot: RefObject<HTMLElement | null>;
+  activeKey?: string | null;
+  render: (row: TreeRow) => ReactNode;
+}) {
+  // The scroll element is the parent's, and a parent's ref attaches after its
+  // children's layout effects: the virtualizer's first look finds nothing.
+  // One render after mount lets it find the element even when nothing else
+  // changes (the picker over a cached tree).
+  const [, remeasure] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => remeasure(), []);
+  const v = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRoot.current,
+    estimateSize: (i) => SIZE[rows[i]!.type],
+    getItemKey: (i) => rows[i]!.key,
+    overscan: 12,
+    paddingStart: 8,
+    paddingEnd: 8,
+  });
+  const activeIndex = activeKey ? rows.findIndex((r) => r.key === activeKey) : -1;
+  const scrolledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeKey) {
+      scrolledFor.current = null;
+      return;
+    }
+    if (activeIndex < 0 || scrolledFor.current === activeKey) return;
+    scrolledFor.current = activeKey;
+    v.scrollToIndex(activeIndex, { align: 'auto' });
+  }, [activeKey, activeIndex, v]);
+  return (
+    <div className="relative w-full" style={{ height: v.getTotalSize() }}>
+      {v.getVirtualItems().map((vi) => (
+        // `top`, not a transform: a transform would make each slot its own
+        // stacking context and the dragged row could not rise above the rest.
+        <div
+          key={vi.key}
+          data-index={vi.index}
+          ref={v.measureElement}
+          className="absolute inset-x-0 pb-px"
+          style={{ top: vi.start }}
+        >
+          {render(rows[vi.index]!)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Rows ────────────────────────────────────────────────────────────────
 
 /** The shell every row shares: guides, the drag and drop wiring, the drop
  *  indicator, and the menu. The body is the row's own. */
@@ -46,7 +279,7 @@ export function TreeRowShell({
   drag,
   drop,
   menu,
-  active = false,
+  badge,
   children,
 }: {
   rowKey: string;
@@ -58,16 +291,11 @@ export function TreeRowShell({
   /** A drop target, carrying this. */
   drop?: DragData;
   menu?: ReactNode;
-  /** The row the page is about: scrolled into view when it becomes so (a
-   *  search hit opened, a folder chosen in the page). */
-  active?: boolean;
+  /** Shown on the row while it is dragged (how many go with it). */
+  badge?: ReactNode;
   children: (style: CSSProperties) => ReactNode;
 }) {
   const ctx = useTreeCtx();
-  const el = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (active) el.current?.scrollIntoView({ block: 'nearest' });
-  }, [active]);
   const manage = ctx.mode === 'manage';
   const draggable = useDraggable({ id: rowKey, data: drag, disabled: !manage || !drag });
   const droppable = useDroppable({ id: rowKey, data: drop, disabled: !manage || !drop });
@@ -81,7 +309,6 @@ export function TreeRowShell({
   return (
     <div
       ref={(node) => {
-        el.current = node;
         draggable.setNodeRef(node);
         droppable.setNodeRef(node);
         ctx.registerRow(rowKey, node);
@@ -126,6 +353,7 @@ export function TreeRowShell({
       )}
       <TreeGuides depth={depth} isLast={isLast} guides={guides} />
       {children({ paddingLeft: TREE_ROW_PAD + depth * TREE_INDENT })}
+      {isDragging && badge}
       {menu && (
         <DropdownMenu open={menuOpen} onOpenChange={(o) => ctx.setMenuFor(o ? rowKey : null)}>
           <DropdownMenuTrigger asChild>
@@ -153,195 +381,131 @@ export function FolderTile({ folder }: { folder: Pick<TreeFolder, 'icon' | 'colo
   return <AppTile icon={folder?.icon} color={folder?.color} kind="folder" size="sm" />;
 }
 
-/** The children of one folder (null = the kind's root), fetched a page at a
- *  time. */
-export function FolderChildren({
-  folder,
-  depth,
-  guides,
+/** Any row of a folder tree (not the flat lists' own rows, not the root
+ *  row: their owner draws those). */
+export function FolderTreeRow({
+  row,
+  handles,
 }: {
-  folder: TreeFolder | null;
-  depth: number;
-  guides: readonly boolean[];
+  row: TreeRow;
+  handles: Map<string, FolderHandle>;
 }) {
-  const ctx = useTreeCtx();
-  const folderId = folder?.id ?? null;
-  const q = useInfiniteQuery({
-    queryKey: folderKey(ctx.kind, folderId, ctx.sort),
-    queryFn: ({ pageParam }) => fetchFolderPage(ctx.kind, folderId, ctx.sort, pageParam),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.nextCursor,
-    // A 404 is a brain without the tree (the root) or a folder deleted
-    // elsewhere: neither gets better by asking again.
-    retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
-  });
-  const unsupported = folderId === null && q.error instanceof ApiError && q.error.status === 404;
-  const onUnsupported = ctx.onUnsupported;
-  useEffect(() => {
-    if (unsupported) onUnsupported?.();
-  }, [unsupported, onUnsupported]);
-
-  if (q.isPending) return <StatusRow depth={depth} guides={guides} busy label="Loading…" />;
-  if (q.isError && !q.data) {
-    return (
-      <StatusRow
-        depth={depth}
-        guides={guides}
-        label="Couldn’t load this folder."
-        action={{ label: 'Retry', onClick: () => void q.refetch() }}
-      />
-    );
-  }
-  const children = mergeFolderPages(q.data.pages);
-  const picker = ctx.mode === 'picker';
-  const entries = childEntries(children, picker);
-  if (!entries.length) {
-    if (picker) return null;
-    if (depth === 0) {
+  switch (row.type) {
+    case 'folder':
+      return <FolderRow row={row} />;
+    case 'item':
       return (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          No {ctx.adapter.noun.many} or folders yet.
-        </p>
+        <ItemRow
+          rowKey={row.key}
+          item={row.item}
+          parent={row.parent}
+          folderPath={row.folderPath}
+          depth={row.depth}
+          isLast={row.isLast}
+          guides={row.guides}
+          crumbs={row.crumbs}
+        />
+      );
+    case 'status': {
+      const retry = row.retry;
+      return (
+        <StatusRow
+          depth={row.depth}
+          guides={row.guides}
+          label={row.label}
+          busy={row.busy}
+          action={
+            retry !== undefined
+              ? { label: 'Retry', onClick: () => handles.get(retry ?? 'root')?.retry() }
+              : undefined
+          }
+        />
       );
     }
-    return <StatusRow depth={depth} guides={guides} label="Empty" />;
-  }
-  return (
-    <>
-      {entries.map((e) =>
-        e.type === 'folder' ? (
-          <FolderNode
-            key={e.folder.id}
-            folder={e.folder}
-            parent={folder}
-            siblings={children.folders}
-            depth={depth}
-            isLast={e.isLast}
-            guides={guides}
-          />
-        ) : (
-          <ItemRow
-            key={e.item.id}
-            rowKey={`i:${e.item.id}`}
-            item={e.item}
-            where={{ folderId, folderPath: folder?.path ?? null }}
-            parent={folder}
-            depth={depth}
-            isLast={e.isLast}
-            guides={guides}
-          />
-        ),
-      )}
-      {!picker && children.hasMore && (
+    case 'more':
+      return (
         <Sentinel
-          depth={depth}
-          guides={guides}
-          loading={q.isFetchingNextPage}
-          onVisible={() => {
-            if (!q.isFetchingNextPage) void q.fetchNextPage();
-          }}
+          depth={row.depth}
+          guides={row.guides}
+          loading={row.loading}
+          onVisible={() => handles.get(row.source ?? 'root')?.fetchMore()}
         />
-      )}
-    </>
-  );
+      );
+    case 'note':
+      return <p className="px-3 py-2 text-xs text-muted-foreground">{row.text}</p>;
+    case 'divider':
+      return <div className="mx-3 my-1 border-t border-border/60" />;
+    default:
+      return null;
+  }
 }
 
-function FolderNode({
-  folder,
-  parent,
-  siblings,
-  depth,
-  isLast,
-  guides,
-}: {
-  folder: TreeFolder;
-  parent: TreeFolder | null;
-  siblings: TreeFolder[];
-  depth: number;
-  isLast: boolean;
-  guides: readonly boolean[];
-}) {
+function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
   const ctx = useTreeCtx();
-  const open = ctx.isOpen(folder.id);
-  const { reveal, setOpen } = ctx;
-  // Unfold the way to what is on screen (the folder the page shows, or a
-  // search hit). Only when the destination changes: re-running on `open`
-  // would re-open a folder that was just folded.
-  useEffect(() => {
-    if (isOnTheWayTo(reveal, folder.path) && reveal !== folder.path) setOpen(folder.id, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reveal, folder.path]);
-  const rowKey = `f:${folder.id}`;
+  const { folder, parent, siblings, depth, isLast, guides, open, hasChildren } = row;
   const picker = ctx.mode === 'picker';
-  const hasChildren = picker ? folder.folderCount > 0 : folder.folderCount + folder.itemCount > 0;
   const selected = ctx.selectedFolderPath === folder.path;
   const disabled = ctx.folderDisabled?.(folder) ?? false;
   const drag: DragData = { type: 'folder', folder, parent, siblings };
   return (
-    <>
-      <TreeRowShell
-        rowKey={rowKey}
-        depth={depth}
-        isLast={isLast}
-        guides={guides}
-        drag={folder.system ? undefined : drag}
-        drop={drag}
-        menu={ctx.folderMenu?.(folder, parent, siblings)}
-        active={selected}
-      >
-        {(style) => (
-          <>
-            <RowButton
-              onClick={() => ctx.onFolderClick(folder)}
-              aria-current={selected ? 'true' : undefined}
-              disabled={disabled}
-              title={folder.name}
-              style={style}
-              className={cn(
-                ROW_BUTTON,
-                'pr-14',
-                selected
-                  ? 'bg-accent font-medium text-accent-foreground'
-                  : 'font-medium text-foreground/85 hover:bg-foreground/[0.06]',
-              )}
-            >
-              <FolderTile folder={folder} />
-              <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-              {!picker && folder.itemCount > 0 && (
-                <span
-                  className={cn(
-                    'text-[11px] tabular-nums',
-                    selected ? 'text-accent-foreground/70' : 'text-muted-foreground',
-                  )}
-                  title={`${folder.itemCount} ${folder.itemCount === 1 ? ctx.adapter.noun.one : ctx.adapter.noun.many}`}
-                >
-                  {folder.itemCount}
-                </span>
-              )}
-            </RowButton>
-            {hasChildren && (
-              <Button
-                variant="ghost"
-                size="icon-2xs"
-                aria-label={open ? `Fold ${folder.name}` : `Unfold ${folder.name}`}
-                aria-expanded={open}
-                onClick={() => setOpen(folder.id, !open)}
+    <TreeRowShell
+      rowKey={row.key}
+      depth={depth}
+      isLast={isLast}
+      guides={guides}
+      drag={folder.system ? undefined : drag}
+      drop={drag}
+      menu={ctx.folderMenu?.(folder, parent, siblings)}
+    >
+      {(style) => (
+        <>
+          <RowButton
+            onClick={() => ctx.onFolderClick(folder)}
+            aria-current={selected ? 'true' : undefined}
+            disabled={disabled}
+            title={folder.name}
+            style={style}
+            className={cn(
+              ROW_BUTTON,
+              'pr-14',
+              selected
+                ? 'bg-accent font-medium text-accent-foreground'
+                : 'font-medium text-foreground/85 hover:bg-foreground/[0.06]',
+            )}
+          >
+            <FolderTile folder={folder} />
+            <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+            {!picker && folder.itemCount > 0 && (
+              <span
                 className={cn(
-                  'absolute top-1/2 -translate-y-1/2 hover:text-foreground',
-                  picker ? 'right-1' : 'right-7',
+                  'text-[11px] tabular-nums',
                   selected ? 'text-accent-foreground/70' : 'text-muted-foreground',
                 )}
+                title={`${folder.itemCount} ${folder.itemCount === 1 ? ctx.adapter.noun.one : ctx.adapter.noun.many}`}
               >
-                <ChevronRight className={cn('transition-transform', open && 'rotate-90')} />
-              </Button>
+                {folder.itemCount}
+              </span>
             )}
-          </>
-        )}
-      </TreeRowShell>
-      {open && hasChildren && (
-        <FolderChildren folder={folder} depth={depth + 1} guides={childGuides(guides, isLast)} />
+          </RowButton>
+          {hasChildren && (
+            <Button
+              variant="ghost"
+              size="icon-2xs"
+              aria-label={open ? `Fold ${folder.name}` : `Unfold ${folder.name}`}
+              aria-expanded={open}
+              onClick={() => ctx.setOpen(folder.id, !open)}
+              className={cn(
+                'absolute top-1/2 -translate-y-1/2 hover:text-foreground',
+                picker ? 'right-1' : 'right-7',
+                selected ? 'text-accent-foreground/70' : 'text-muted-foreground',
+              )}
+            >
+              <ChevronRight className={cn('transition-transform', open && 'rotate-90')} />
+            </Button>
+          )}
+        </>
       )}
-    </>
+    </TreeRowShell>
   );
 }
 
@@ -350,8 +514,8 @@ function FolderNode({
 export function ItemRow({
   rowKey,
   item,
-  where,
-  parent,
+  parent = null,
+  folderPath = null,
   depth,
   isLast,
   guides,
@@ -359,8 +523,8 @@ export function ItemRow({
 }: {
   rowKey: string;
   item: TreeItem;
-  where: ItemWhere;
   parent?: TreeFolder | null;
+  folderPath?: string | null;
   depth: number;
   isLast: boolean;
   guides: readonly boolean[];
@@ -369,12 +533,17 @@ export function ItemRow({
 }) {
   const ctx = useTreeCtx();
   const selected = ctx.selectedItemId === item.id;
+  const picked = ctx.picked.has(item.id);
   const place = crumbs ? crumbLine(crumbs) : null;
+  const where = crumbs
+    ? { folderId: crumbs.at(-1)?.id ?? null, folderPath: null }
+    : { folderId: parent?.id ?? null, folderPath };
   // Private items have no folder yet: they cannot be dragged anywhere.
   const drag: DragData | undefined =
     crumbs === undefined && item.state !== 'private'
       ? { type: 'item', item, parent: parent ?? null }
       : undefined;
+  const carried = picked ? ctx.picked.size : 1;
   return (
     <TreeRowShell
       rowKey={rowKey}
@@ -383,12 +552,19 @@ export function ItemRow({
       guides={guides}
       drag={drag}
       menu={ctx.itemMenu?.(item, where)}
-      active={selected && crumbs === undefined}
+      badge={
+        carried > 1 ? (
+          <span className="absolute -right-1 -top-1.5 rounded-full bg-primary px-1.5 text-[10px] font-medium tabular-nums text-primary-foreground">
+            {carried}
+          </span>
+        ) : null
+      }
     >
       {(style) => (
         <RowButton
-          onClick={() => ctx.onItemClick(item, where)}
+          onClick={(e: MouseEvent) => ctx.onItemClick(item, where, e)}
           aria-current={selected ? 'true' : undefined}
+          aria-pressed={ctx.picked.size ? picked : undefined}
           title={place ? `${place} / ${item.title}` : item.title}
           style={style}
           data-mark-id={item.id}
@@ -398,7 +574,10 @@ export function ItemRow({
             ROW_BUTTON,
             selected
               ? 'bg-accent text-accent-foreground'
-              : 'text-foreground/90 hover:bg-foreground/[0.06]',
+              : picked
+                ? 'bg-primary/10 text-foreground ring-1 ring-inset ring-primary/30 hover:bg-primary/15'
+                : 'text-foreground/90 hover:bg-foreground/[0.06]',
+            selected && picked && 'ring-1 ring-inset ring-primary/40',
           )}
         >
           {ctx.adapter.lead(item)}
@@ -480,8 +659,12 @@ function StatusRow({
   );
 }
 
-/** The last row of a folder with more to load: fetches the next page when it
- *  scrolls into view. */
+/**
+ * The last row of a list with more to load. The list only draws rows near
+ * the viewport, so being drawn is being nearly in view: it asks for the next
+ * page when it appears, and again when a page lands while it is still drawn
+ * (its key carries the count, so a new page makes it a new row).
+ */
 export function Sentinel({
   depth,
   guides,
@@ -493,33 +676,20 @@ export function Sentinel({
   loading: boolean;
   onVisible: () => void;
 }) {
-  const ctx = useTreeCtx();
-  const el = useRef<HTMLDivElement>(null);
   const cb = useRef(onVisible);
   cb.current = onVisible;
-  const root = ctx.scrollRoot;
   useEffect(() => {
-    const node = el.current;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) cb.current();
-      },
-      { root: root.current, rootMargin: '200px 0px' },
-    );
-    io.observe(node);
-    return () => io.disconnect();
-    // Re-observed after each page lands: a sentinel still in view once the
-    // new rows are in never "enters" again, so a fresh observer asks again.
-  }, [root, loading]);
+    if (!loading) cb.current();
+    // Only on appearing: a failed page must not be asked for in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
-    <div ref={el}>
-      <StatusRow
-        depth={depth}
-        guides={guides}
-        busy={loading}
-        label={loading ? 'Loading more…' : 'More below'}
-      />
-    </div>
+    <StatusRow
+      depth={depth}
+      guides={guides}
+      busy={loading}
+      label={loading ? 'Loading more…' : ''}
+      action={loading ? undefined : { label: 'Load more', onClick: () => cb.current() }}
+    />
   );
 }

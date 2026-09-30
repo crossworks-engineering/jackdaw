@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode, type RefObject } from 'react';
+import { createContext, useContext, type MouseEvent, type ReactNode } from 'react';
 import type { TreeFolder, TreeItem, TreeKind, TreeSort } from '@mantle/web-ui/types/tree';
 import type { TreeKindAdapter } from './kinds/types';
 import type { DropPos } from './tree-model';
@@ -40,7 +40,10 @@ export type TreeCtx = {
   selectedFolderPath: string | null;
   folderDisabled?: (folder: TreeFolder) => boolean;
   onFolderClick: (folder: TreeFolder) => void;
-  onItemClick: (item: TreeItem, where: ItemWhere) => void;
+  /** A click on an item row; cmd, ctrl and shift pick items for a move. */
+  onItemClick: (item: TreeItem, where: ItemWhere, e?: MouseEvent) => void;
+  /** Items picked for a move (cmd/ctrl or shift click). */
+  picked: ReadonlySet<string>;
   folderMenu?: (folder: TreeFolder, parent: TreeFolder | null, siblings: TreeFolder[]) => ReactNode;
   itemMenu?: (item: TreeItem, where: ItemWhere) => ReactNode;
   menuFor: string | null;
@@ -48,10 +51,6 @@ export type TreeCtx = {
   registerRow: (key: string, el: HTMLElement | null) => void;
   hint: DropHint;
   dragging: string | null;
-  /** The scrolling element, for the "load more" sentinel. */
-  scrollRoot: RefObject<HTMLElement | null>;
-  /** A tree call answered 404: the brain does not serve this kind. */
-  onUnsupported?: () => void;
 };
 
 export const TreeContext = createContext<TreeCtx | null>(null);

@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -10,7 +18,7 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from '@dnd-kit/core';
-import { ArrowUpDown, FolderPlus, Pin, PinOff, Search, X } from 'lucide-react';
+import { FolderInput, FolderPlus, ListFilter, Pin, PinOff, Search, X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -31,12 +39,16 @@ import {
 import {
   TREE_KIND_SPECS,
   TREE_MAX_DEPTH,
+  type TreeCrumb,
+  type TreeFilter,
   type TreeFolder,
   type TreeItem,
   type TreeKind,
   type TreeSort,
 } from '@mantle/web-ui/types/tree';
+import type { AccessLevel } from '@mantle/client-types';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
+import { LEVEL_LABEL, LEVEL_ORDER } from '@/lib/access-levels';
 import { DeleteFolderDialog, FolderNameDialog } from '@/components/app-nav/folder-dialogs';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
@@ -46,12 +58,14 @@ import {
   deleteTreeFolder,
   fetchMarks,
   fetchSearch,
+  fetchTags,
   marksKey,
   moveTreeItems,
   patchTreeFolder,
   recordTreeItemOpened,
   searchKey,
   setTreeItemPinned,
+  tagsKey,
   treeKey,
   type TreeFolderPatch,
 } from './tree-api';
@@ -62,14 +76,24 @@ import {
   type ItemWhere,
   type TreeCtx,
 } from './tree-context';
-import { afterFor, afterForStep, canNestFolder, dropPosition, isAtOrBelow } from './tree-model';
 import {
-  FolderChildren,
+  afterFor,
+  afterForStep,
+  canNestFolder,
+  dropPosition,
+  isAtOrBelow,
+  isOnTheWayTo,
+  rangeOfItems,
+  type TreeRow,
+} from './tree-model';
+import {
   FolderHitRow,
   FolderTile,
-  ItemRow,
+  FolderTreeRow,
   Sentinel,
   TreeRowShell,
+  useFolderRows,
+  VirtualRows,
 } from './tree-rows';
 import { FolderPickerDialog } from './folder-picker';
 
@@ -149,7 +173,11 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 type MoveTarget =
-  { type: 'item'; item: TreeItem; from: string | null } | { type: 'folder'; folder: TreeFolder };
+  | { type: 'items'; items: TreeItem[]; from: string | null | undefined }
+  | { type: 'folder'; folder: TreeFolder };
+
+/** Private items have no folder yet: they cannot be moved or picked. */
+const movable = (item: TreeItem) => item.state !== 'private';
 
 export function ItemTree({
   kind,
@@ -222,6 +250,19 @@ export function ItemTree({
   const term = useDebounced(query.trim(), 250);
   const searching = query.trim().length > 0;
 
+  // The filter menu (State, Tag): a question about items, so it lists them
+  // flat by name, like A to Z. Not remembered: a filter left on from last
+  // time would quietly hide things.
+  const [filter, setFilter] = useState<TreeFilter>({});
+  const filtering = filter.level !== undefined || filter.tag !== undefined;
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const tagsQ = useQuery({
+    queryKey: tagsKey(kind),
+    queryFn: () => fetchTags(kind),
+    enabled: filterMenuOpen,
+    staleTime: 60_000,
+  });
+
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [hint, setHint] = useState<DropHint>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -235,6 +276,16 @@ export function ItemTree({
   const [lookFor, setLookFor] = useState<{ key: string; folder: TreeFolder } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
 
+  // Items picked for a move (cmd/ctrl or shift click), in pick order, and
+  // the anchor a shift-click ranges from. Kept by id, so the pick survives
+  // a refetch and a switch of view.
+  const [picked, setPicked] = useState<ReadonlyMap<string, TreeItem>>(() => new Map());
+  const anchor = useRef<string | null>(null);
+  const clearPicked = useCallback(() => {
+    setPicked((prev) => (prev.size ? new Map() : prev));
+    anchor.current = null;
+  }, []);
+  const pickedIds = useMemo(() => new Set(picked.keys()), [picked]);
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: treeKey(kind) });
   }, [qc, kind]);
@@ -285,18 +336,20 @@ export function ItemTree({
     enabled: !searching && listView !== null,
   });
 
-  // A to Z is the empty search; a search is the same query with a term.
+  // A to Z is the empty search; a search is the same query with a term; a
+  // filter narrows either.
   const flatTerm = searching ? term : '';
   const flatQ = useInfiniteQuery({
-    queryKey: searchKey(kind, flatTerm),
-    queryFn: ({ pageParam }) => fetchSearch(kind, flatTerm, pageParam),
+    queryKey: searchKey(kind, flatTerm, filter),
+    queryFn: ({ pageParam }) => fetchSearch(kind, flatTerm, pageParam, filter),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
-    enabled: searching ? term.length > 0 : view === 'az',
+    enabled: searching ? term.length > 0 : view === 'az' || filtering,
   });
 
   // ── Opening ───────────────────────────────────────────────────────────
   const openItem = (item: TreeItem, where: ItemWhere) => {
+    clearPicked();
     onOpenItem(item, where);
     if (item.state !== 'private') {
       void recordTreeItemOpened(item.id).then(() =>
@@ -313,6 +366,65 @@ export function ItemTree({
       setOpen(folder.id, !open.has(folder.id));
     }
   };
+
+  /** A plain click opens; cmd/ctrl adds or drops the item from the pick;
+   *  shift picks every movable item from the last one picked to this. */
+  const clickItem = (item: TreeItem, where: ItemWhere, e?: MouseEvent) => {
+    const toggle = e && (e.metaKey || e.ctrlKey);
+    const range = e?.shiftKey && anchor.current !== null;
+    if (!manage || !movable(item) || (!toggle && !e?.shiftKey)) {
+      openItem(item, where);
+      return;
+    }
+    e.preventDefault();
+    if (range) {
+      const ids = rangeOfItems(allRows, anchor.current!, item.id, movable);
+      const byId = new Map<string, TreeItem>();
+      for (const r of allRows) if (r.type === 'item') byId.set(r.item.id, r.item);
+      setPicked((prev) => {
+        const next = new Map(prev);
+        for (const id of ids) {
+          const it = byId.get(id);
+          if (it) next.set(id, it);
+        }
+        return next;
+      });
+      return;
+    }
+    anchor.current = item.id;
+    setPicked((prev) => {
+      const next = new Map(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.set(item.id, item);
+      return next;
+    });
+  };
+
+  /** Move items (one, or the pick) into a folder; null = the top level. */
+  const moveItems = (items: readonly TreeItem[], dest: string | null) =>
+    write(
+      async () => {
+        const res = await moveTreeItems(
+          kind,
+          items.map((i) => i.id),
+          dest,
+        );
+        if (items.length > 1) clearPicked();
+        if (res.failed.length) {
+          const what =
+            items.length === 1
+              ? `the ${adapter.noun.one}`
+              : `${res.failed.length} of ${items.length} ${adapter.noun.many}`;
+          throw new ApiError(`Could not move ${what}: ${res.failed[0]!.error}`, 409);
+        }
+        if (dest) setOpen(dest, true);
+      },
+      `Could not move the ${items.length === 1 ? adapter.noun.one : adapter.noun.many}`,
+    );
+
+  /** What a move of `item` carries: the whole pick when it is part of it. */
+  const carried = (item: TreeItem): TreeItem[] =>
+    picked.has(item.id) && picked.size > 1 ? [...picked.values()] : [item];
 
   /** A folder search hit: back to the tree, unfolded to it. */
   const openFolderHit = (folder: TreeFolder) => {
@@ -407,9 +519,19 @@ export function ItemTree({
                   {pinned.has(item.id) ? 'Unpin' : 'Pin to top'}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() => setMoveTarget({ type: 'item', item, from: where.folderId })}
+                  onSelect={() => {
+                    const items = carried(item);
+                    setMoveTarget({
+                      type: 'items',
+                      items,
+                      from: items.length > 1 ? undefined : where.folderId,
+                    });
+                  }}
                 >
-                  Move to…
+                  <FolderInput />
+                  {picked.has(item.id) && picked.size > 1
+                    ? `Move ${picked.size} ${adapter.noun.many} to…`
+                    : 'Move to…'}
                 </DropdownMenuItem>
               </>
             )}
@@ -458,12 +580,7 @@ export function ItemTree({
     const a = e.active.data.current as DragData;
     const o = e.over!.data.current as DragData;
     if (a.type === 'item') {
-      const dest = o.type === 'folder' ? o.folder.id : null;
-      void write(async () => {
-        const res = await moveTreeItems(kind, [a.item.id], dest);
-        if (res.failed.length) throw new ApiError(res.failed[0]!.error, 409);
-        if (dest) setOpen(dest, true);
-      }, `Could not move the ${adapter.noun.one}`);
+      void moveItems(carried(a.item), o.type === 'folder' ? o.folder.id : null);
       return;
     }
     if (a.type !== 'folder') return;
@@ -492,7 +609,8 @@ export function ItemTree({
     selectedItemId,
     selectedFolderPath,
     onFolderClick: openFolder,
-    onItemClick: openItem,
+    onItemClick: clickItem,
+    picked: pickedIds,
     folderMenu,
     itemMenu,
     menuFor,
@@ -503,110 +621,142 @@ export function ItemTree({
     },
     hint,
     dragging,
-    scrollRoot,
-    onUnsupported,
   };
 
-  // ── Body by view ──────────────────────────────────────────────────────
-  const where = (crumbs: readonly { id: string }[]): ItemWhere => ({
-    folderId: crumbs.at(-1)?.id ?? null,
-    folderPath: null,
+  // ── Rows by view ──────────────────────────────────────────────────────
+  // Every view is one flat list of rows drawn through the virtual list: the
+  // tree (pins, the root row, then the folders as far as they are open),
+  // Recent and Most used, and search or A to Z.
+  const flatView = searching || filtering || view === 'az';
+  const folderRows = useFolderRows({
+    kind,
+    sort,
+    isOpen: (id) => open.has(id),
+    emptyText: `No ${adapter.noun.many} or folders yet.`,
+    onUnsupported,
   });
 
-  let body: ReactNode;
-  if (searching || view === 'az') {
+  const flatRow = (it: TreeItem & { crumbs: TreeCrumb[] }, prefix: string): TreeRow => ({
+    type: 'item',
+    key: `${prefix}:${it.id}`,
+    item: it,
+    parent: null,
+    folderPath: null,
+    depth: 0,
+    isLast: false,
+    guides: [],
+    crumbs: it.crumbs,
+  });
+
+  let allRows: TreeRow[];
+  if (flatView) {
     const pages = flatQ.data?.pages ?? [];
     const folders = pages[0]?.folders ?? [];
     const items = pages.flatMap((p) => p.items);
     const pendingSearch = searching && (term !== query.trim() || flatQ.isPending);
-    body =
-      pendingSearch && !items.length && !folders.length ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>
-      ) : !folders.length && !items.length ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          {searching ? `Nothing matches “${query.trim()}”.` : `No ${adapter.noun.many} yet.`}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-px">
-          {folders.map((f) => (
-            <FolderHitRow
-              key={`sf:${f.id}`}
-              folder={f}
-              crumbs={f.crumbs}
-              onClick={() => openFolderHit(f)}
-            />
-          ))}
-          {items.map((it) => (
-            <ItemRow
-              key={`s:${it.id}`}
-              rowKey={`s:${it.id}`}
-              item={it}
-              where={where(it.crumbs)}
-              depth={0}
-              isLast={false}
-              guides={[]}
-              crumbs={it.crumbs}
-            />
-          ))}
-          {flatQ.hasNextPage && (
-            <Sentinel
-              depth={0}
-              guides={[]}
-              loading={flatQ.isFetchingNextPage}
-              onVisible={() => {
-                if (!flatQ.isFetchingNextPage) void flatQ.fetchNextPage();
-              }}
-            />
-          )}
-        </div>
-      );
+    const flatMore = flatQ.hasNextPage;
+    allRows =
+      pendingSearch && !items.length && !folders.length
+        ? [{ type: 'note', key: 'note', text: 'Searching…' }]
+        : !folders.length && !items.length
+          ? [
+              {
+                type: 'note',
+                key: 'note',
+                text: searching
+                  ? `Nothing matches “${query.trim()}”${filtering ? ' with this filter' : ''}.`
+                  : filtering
+                    ? `No ${adapter.noun.many} match this filter.`
+                    : `No ${adapter.noun.many} yet.`,
+              },
+            ]
+          : [
+              ...folders.map((f): TreeRow => ({
+                type: 'hit',
+                key: `sf:${f.id}`,
+                folder: f,
+                crumbs: f.crumbs,
+              })),
+              ...items.map((it) => flatRow(it, 's')),
+              ...(flatMore
+                ? [
+                    {
+                      type: 'more' as const,
+                      key: `m:flat:${items.length}`,
+                      source: 'flat',
+                      depth: 0,
+                      guides: [],
+                      loading: flatQ.isFetchingNextPage,
+                    },
+                  ]
+                : []),
+            ];
   } else if (listView) {
     const items = marksQ.data?.items ?? [];
-    body = marksQ.isPending ? (
-      <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>
-    ) : items.length === 0 ? (
-      <p className="px-3 py-2 text-xs text-muted-foreground">
-        {`${adapter.noun.many.charAt(0).toUpperCase()}${adapter.noun.many.slice(1)} you open show up here.`}
-      </p>
-    ) : (
-      <div className="flex flex-col gap-px">
-        {items.map((it) => (
-          <ItemRow
-            key={`l:${it.id}`}
-            rowKey={`l:${it.id}`}
-            item={it}
-            where={where(it.crumbs)}
-            depth={0}
-            isLast={false}
-            guides={[]}
-            crumbs={it.crumbs}
-          />
-        ))}
-      </div>
-    );
+    allRows = marksQ.isPending
+      ? [{ type: 'note', key: 'note', text: 'Loading…' }]
+      : items.length === 0
+        ? [
+            {
+              type: 'note',
+              key: 'note',
+              text: `${adapter.noun.many.charAt(0).toUpperCase()}${adapter.noun.many.slice(1)} you open show up here.`,
+            },
+          ]
+        : items.map((it) => flatRow(it, 'l'));
   } else {
     const pins = pinsQ.data?.items ?? [];
-    const rootSelected = selectedFolderPath === spec.root;
-    body = (
-      <div className="flex flex-col gap-px">
-        {pins.length > 0 && (
-          <>
-            {pins.map((it) => (
-              <ItemRow
-                key={`p:${it.id}`}
-                rowKey={`p:${it.id}`}
-                item={it}
-                where={where(it.crumbs)}
-                depth={0}
-                isLast={false}
-                guides={[]}
-                crumbs={it.crumbs}
-              />
-            ))}
-            <div className="mx-3 my-1 border-t border-border/60" />
-          </>
-        )}
-        {rootLabel && (
+    allRows = [
+      ...pins.map((it) => flatRow(it, 'p')),
+      ...(pins.length ? [{ type: 'divider' as const, key: 'pins-end' }] : []),
+      ...(rootLabel ? [{ type: 'root' as const, key: 'root' }] : []),
+      ...folderRows.rows,
+    ];
+  }
+
+  // Unfold the way to what is on screen: the folders above the folder the
+  // page shows (or a folder search hit), and when an item is open the
+  // folder holding it as well, so the item's row is there to see. Each folder
+  // opens once per destination, so one folded by hand afterwards stays shut.
+  const revealKey = reveal ? `${reveal}|${selectedItemId ?? ''}` : null;
+  const revealed = useRef<{ to: string | null; done: Set<string> }>({ to: null, done: new Set() });
+  useEffect(() => {
+    if (revealed.current.to !== revealKey) revealed.current = { to: revealKey, done: new Set() };
+    if (!reveal) return;
+    for (const r of folderRows.rows) {
+      if (r.type !== 'folder' || !isOnTheWayTo(reveal, r.folder.path)) continue;
+      if (r.folder.path === reveal && !selectedItemId) continue;
+      if (revealed.current.done.has(r.folder.id)) continue;
+      revealed.current.done.add(r.folder.id);
+      setOpen(r.folder.id, true);
+    }
+  });
+
+  // The row the page is about, scrolled to when it changes: the open item
+  // in its folder, else the folder the page shows.
+  const activeKey =
+    view === 'tree' && !flatView
+      ? selectedItemId && allRows.some((r) => r.key === `i:${selectedItemId}`)
+        ? `i:${selectedItemId}`
+        : selectedFolderPath
+          ? (allRows.find((r) => r.type === 'folder' && r.folder.path === selectedFolderPath)
+              ?.key ?? null)
+          : null
+      : null;
+
+  const rootSelected = selectedFolderPath === spec.root;
+  const renderRow = (row: TreeRow): ReactNode => {
+    switch (row.type) {
+      case 'hit':
+        return (
+          <FolderHitRow
+            folder={row.folder}
+            crumbs={row.crumbs}
+            onClick={() => openFolderHit(row.folder)}
+          />
+        );
+      case 'root':
+        return (
           <TreeRowShell rowKey="root" depth={0} isLast={false} guides={[]} drop={{ type: 'root' }}>
             {(style) => (
               <RowButton
@@ -625,11 +775,25 @@ export function ItemTree({
               </RowButton>
             )}
           </TreeRowShell>
-        )}
-        <FolderChildren folder={null} depth={0} guides={[]} />
-      </div>
-    );
-  }
+        );
+      case 'more':
+        if (row.source === 'flat') {
+          return (
+            <Sentinel
+              depth={0}
+              guides={[]}
+              loading={row.loading}
+              onVisible={() => {
+                if (!flatQ.isFetchingNextPage) void flatQ.fetchNextPage();
+              }}
+            />
+          );
+        }
+        return <FolderTreeRow row={row} handles={folderRows.handles} />;
+      default:
+        return <FolderTreeRow row={row} handles={folderRows.handles} />;
+    }
+  };
 
   const lookFolder = lookFor?.folder ?? null;
 
@@ -682,49 +846,136 @@ export function ItemTree({
                 type="single"
                 variant="outline"
                 size="sm"
-                value={view}
-                onValueChange={(v) => v && setView(v as View)}
+                value={filtering ? '' : view}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  setView(v as View);
+                  setFilter({});
+                }}
                 aria-label={`How to list ${adapter.noun.many}`}
-                className="grid flex-1 grid-cols-4"
+                className="flex min-w-0 flex-1"
               >
                 {VIEWS.map((v) => (
-                  <ToggleGroupItem key={v.id} value={v.id} className="h-8 px-1 text-xs">
+                  <ToggleGroupItem key={v.id} value={v.id} className="h-8 flex-auto px-1.5 text-xs">
                     {v.label}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              {view === 'tree' && spec.sorts.length > 1 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon-xs"
-                      aria-label="Sort"
-                      title={`Sort: ${SORT_LABEL[sort]}`}
-                    >
-                      <ArrowUpDown />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuLabel>Sort {adapter.noun.many}</DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={sort}
-                      onValueChange={(v) => setSort(v as TreeSort)}
-                    >
-                      {spec.sorts.map((s) => (
-                        <DropdownMenuRadioItem key={s} value={s}>
-                          {SORT_LABEL[s]}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+              <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={filtering ? 'secondary' : 'outline'}
+                    size="icon-xs"
+                    aria-label={filtering ? 'Sort and filter (filter on)' : 'Sort and filter'}
+                    title={`Sort: ${SORT_LABEL[sort]}. Filter by state or tag`}
+                  >
+                    <ListFilter />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="max-h-96 w-52 overflow-y-auto scrollbar-thin"
+                >
+                  {view === 'tree' && !filtering && spec.sorts.length > 1 && (
+                    <>
+                      <DropdownMenuLabel>Sort {adapter.noun.many}</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={sort}
+                        onValueChange={(v) => setSort(v as TreeSort)}
+                      >
+                        {spec.sorts.map((s) => (
+                          <DropdownMenuRadioItem key={s} value={s}>
+                            {SORT_LABEL[s]}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuLabel>State</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={filter.level ?? 'any'}
+                    onValueChange={(v) =>
+                      setFilter((f) => ({
+                        ...f,
+                        level: v === 'any' ? undefined : (v as AccessLevel),
+                      }))
+                    }
+                  >
+                    <DropdownMenuRadioItem value="any">Any</DropdownMenuRadioItem>
+                    {LEVEL_ORDER.map((l) => (
+                      <DropdownMenuRadioItem key={l} value={l}>
+                        {l === 'admin' ? 'Admin only' : LEVEL_LABEL[l]}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Tag</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={filter.tag ?? ''}
+                    onValueChange={(v) =>
+                      setFilter((f) => ({ ...f, tag: v === '' ? undefined : v }))
+                    }
+                  >
+                    <DropdownMenuRadioItem value="">Any</DropdownMenuRadioItem>
+                    {filter.tag && !tagsQ.data?.tags.some((t) => t.tag === filter.tag) && (
+                      <DropdownMenuRadioItem value={filter.tag}>{filter.tag}</DropdownMenuRadioItem>
+                    )}
+                    {tagsQ.data?.tags.map((t) => (
+                      <DropdownMenuRadioItem key={t.tag} value={t.tag}>
+                        <span className="min-w-0 flex-1 truncate">{t.tag}</span>
+                        <span className="text-[11px] tabular-nums text-muted-foreground">
+                          {t.count}
+                        </span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  {tagsQ.isPending && <DropdownMenuItem disabled>Loading tags…</DropdownMenuItem>}
+                  {tagsQ.isError && (
+                    <DropdownMenuItem disabled>Couldn’t load the tags.</DropdownMenuItem>
+                  )}
+                  {tagsQ.data && tagsQ.data.tags.length === 0 && (
+                    <DropdownMenuItem disabled>No tags yet.</DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+          {filtering && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ListFilter className="size-3.5 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1 truncate">
+                {[
+                  filter.level &&
+                    (filter.level === 'admin' ? 'Admin only' : LEVEL_LABEL[filter.level]),
+                  filter.tag && `tagged “${filter.tag}”`,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+              </span>
+              <Button
+                variant="link"
+                size="2xs"
+                className="h-auto p-0"
+                onClick={() => setFilter({})}
+              >
+                Clear
+              </Button>
             </div>
           )}
         </div>
 
-        <div ref={scrollRoot} className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">
+        <div
+          ref={scrollRoot}
+          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-2"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && picked.size) {
+              e.stopPropagation();
+              clearPicked();
+            }
+          }}
+        >
+          {view === 'tree' && !flatView && folderRows.loaders}
           <DndContext
             sensors={sensors}
             onDragStart={(e) => setDragging(String(e.active.id))}
@@ -735,9 +986,45 @@ export function ItemTree({
               setDragging(null);
             }}
           >
-            {body}
+            <VirtualRows
+              rows={allRows}
+              scrollRoot={scrollRoot}
+              activeKey={activeKey}
+              render={renderRow}
+            />
           </DndContext>
         </div>
+
+        {/* At the foot, so picking never moves the rows under the pointer. */}
+        {picked.size > 0 && (
+          <div
+            role="status"
+            className="flex items-center gap-1.5 border-t border-border bg-primary/5 px-3 py-1.5 text-xs"
+          >
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {picked.size} {picked.size === 1 ? adapter.noun.one : adapter.noun.many} picked
+            </span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() =>
+                setMoveTarget({ type: 'items', items: [...picked.values()], from: undefined })
+              }
+            >
+              <FolderInput />
+              Move to…
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-2xs"
+              aria-label="Clear the pick"
+              title="Clear the pick (Esc)"
+              onClick={clearPicked}
+            >
+              <X />
+            </Button>
+          </div>
+        )}
       </div>
 
       {lookFor && lookFolder && (
@@ -810,13 +1097,17 @@ export function ItemTree({
         open={moveTarget !== null}
         onOpenChange={(o) => !o && setMoveTarget(null)}
         title={
-          moveTarget
-            ? `Move “${moveTarget.type === 'item' ? moveTarget.item.title : moveTarget.folder.name}” to…`
-            : ''
+          !moveTarget
+            ? ''
+            : moveTarget.type === 'folder'
+              ? `Move “${moveTarget.folder.name}” to…`
+              : moveTarget.items.length === 1
+                ? `Move “${moveTarget.items[0]!.title}” to…`
+                : `Move ${moveTarget.items.length} ${adapter.noun.many} to…`
         }
         rootLabel={rootLabel ?? 'Top level'}
         currentFolderId={
-          moveTarget?.type === 'item'
+          moveTarget?.type === 'items'
             ? moveTarget.from
             : moveTarget?.type === 'folder'
               ? moveTarget.folder.parentId
@@ -828,15 +1119,12 @@ export function ItemTree({
         onPick={(dest) => {
           const target = moveTarget;
           if (!target) return;
-          if (target.type === 'item') {
-            void write(async () => {
-              const res = await moveTreeItems(kind, [target.item.id], dest?.id ?? null);
-              if (res.failed.length) throw new ApiError(res.failed[0]!.error, 409);
-            }, `Could not move the ${adapter.noun.one}`);
+          if (target.type === 'items') {
+            void moveItems(target.items, dest?.id ?? null);
           } else {
             void patchFolder(target.folder, { parentId: dest?.id ?? null });
+            if (dest) setOpen(dest.id, true);
           }
-          if (dest) setOpen(dest.id, true);
         }}
       />
     </TreeContext.Provider>
