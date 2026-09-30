@@ -85,6 +85,8 @@
     "./types/integrity": "./src/types/integrity.ts",
     "./types/maintenance": "./src/types/maintenance.ts",
     "./types/sanity": "./src/types/sanity.ts",
+    "./types/tree": "./src/types/tree.ts",
+    "./types/tree-path": "./src/types/tree-path.ts",
     "./ui/alert-dialog": "./src/ui/alert-dialog.tsx",
     "./ui/avatar": "./src/ui/avatar.tsx",
     "./ui/badge": "./src/ui/badge.tsx",
