@@ -204,7 +204,8 @@ export type FilesDialog =
   | { kind: 'createFolder'; parentPath?: string }
   | { kind: 'createFile'; ext: TextExt }
   | { kind: 'deleteFolder' }
-  | { kind: 'bulkDelete' }
+  /** `ids` from a tree row's Delete; none = the table's selection. */
+  | { kind: 'bulkDelete'; ids?: string[] }
   | { kind: 'cascade'; ids: string[]; counts: DerivedCounts }
   | { kind: 'rename'; target: RenameTarget }
   | null;
