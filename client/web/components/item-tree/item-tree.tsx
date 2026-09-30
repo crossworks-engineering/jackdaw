@@ -462,6 +462,8 @@ export function ItemTree({
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: searching ? term.length > 0 : view === 'az' || filtering,
+    // A reader hears of no change: back at the window, it asks again.
+    refetchOnWindowFocus: !owner,
   });
 
   // ── Opening ───────────────────────────────────────────────────────────
@@ -820,6 +822,7 @@ export function ItemTree({
     sort,
     isOpen: (id) => open.has(id),
     emptyText: `No ${adapter.noun.many} or folders yet.`,
+    goneText: owner ? 'This folder is gone.' : 'No longer shared.',
     onUnsupported,
   });
 
@@ -845,52 +848,70 @@ export function ItemTree({
     allRows =
       pendingSearch && !items.length && !folders.length
         ? [{ type: 'note', key: 'note', text: 'Searching…' }]
-        : !folders.length && !items.length
+        : flatQ.isError && !items.length && !folders.length
           ? [
               {
                 type: 'note',
                 key: 'note',
-                text: searching
-                  ? `Nothing matches “${query.trim()}”${filtering ? ' with this filter' : ''}.`
-                  : filtering
-                    ? `No ${adapter.noun.many} match this filter.`
-                    : `No ${adapter.noun.many} yet.`,
+                text: searching ? 'The search failed.' : `Couldn’t load the ${adapter.noun.many}.`,
+                retry: () => void flatQ.refetch(),
               },
             ]
-          : [
-              ...folders.map((f): TreeRow => ({
-                type: 'hit',
-                key: `sf:${f.id}`,
-                folder: f,
-                crumbs: f.crumbs,
-              })),
-              ...items.map((it) => flatRow(it, 's')),
-              ...(flatMore
-                ? [
-                    {
-                      type: 'more' as const,
-                      key: `m:flat:${items.length}`,
-                      source: 'flat',
-                      depth: 0,
-                      guides: [],
-                      loading: flatQ.isFetchingNextPage,
-                    },
-                  ]
-                : []),
-            ];
+          : !folders.length && !items.length
+            ? [
+                {
+                  type: 'note',
+                  key: 'note',
+                  text: searching
+                    ? `Nothing matches “${query.trim()}”${filtering ? ' with this filter' : ''}.`
+                    : filtering
+                      ? `No ${adapter.noun.many} match this filter.`
+                      : `No ${adapter.noun.many} yet.`,
+                },
+              ]
+            : [
+                ...folders.map((f): TreeRow => ({
+                  type: 'hit',
+                  key: `sf:${f.id}`,
+                  folder: f,
+                  crumbs: f.crumbs,
+                })),
+                ...items.map((it) => flatRow(it, 's')),
+                ...(flatMore
+                  ? [
+                      {
+                        type: 'more' as const,
+                        key: `m:flat:${items.length}`,
+                        source: 'flat',
+                        depth: 0,
+                        guides: [],
+                        loading: flatQ.isFetchingNextPage,
+                      },
+                    ]
+                  : []),
+              ];
   } else if (listView) {
     const items = marksQ.data?.items ?? [];
     allRows = marksQ.isPending
       ? [{ type: 'note', key: 'note', text: 'Loading…' }]
-      : items.length === 0
+      : marksQ.isError && !items.length
         ? [
             {
               type: 'note',
               key: 'note',
-              text: `${adapter.noun.many.charAt(0).toUpperCase()}${adapter.noun.many.slice(1)} you open show up here.`,
+              text: `Couldn’t load the ${adapter.noun.many}.`,
+              retry: () => void marksQ.refetch(),
             },
           ]
-        : items.map((it) => flatRow(it, 'l'));
+        : items.length === 0
+          ? [
+              {
+                type: 'note',
+                key: 'note',
+                text: `${adapter.noun.many.charAt(0).toUpperCase()}${adapter.noun.many.slice(1)} you open show up here.`,
+              },
+            ]
+          : items.map((it) => flatRow(it, 'l'));
   } else {
     const pins = pinsQ.data?.items ?? [];
     allRows = [

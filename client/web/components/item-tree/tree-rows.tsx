@@ -82,7 +82,10 @@ function readFolderLoad(
   state: ReturnType<ReturnType<typeof useQueryClient>['getQueryState']>,
 ): FolderLoad {
   const data = state?.data as InfiniteData<TreeFolderPage> | undefined;
-  if (!data) return state?.status === 'error' ? { status: 'error' } : { status: 'pending' };
+  if (!data) {
+    if (state?.status !== 'error') return { status: 'pending' };
+    return { status: 'error', gone: state.error instanceof ApiError && state.error.status === 404 };
+  }
   const fetchMore = (state?.fetchMeta as { fetchMore?: { direction?: string } } | null)?.fetchMore;
   return {
     status: 'ok',
@@ -107,6 +110,7 @@ function FolderLoader({
   handles: Map<string, FolderHandle>;
   onUnsupported?: () => void;
 }) {
+  const qc = useQueryClient();
   const q = useInfiniteQuery({
     queryKey: folderKey(kind, folderId, sort, source),
     queryFn: ({ pageParam }) => fetchFolderPage(kind, folderId, sort, pageParam, source),
@@ -115,6 +119,9 @@ function FolderLoader({
     // A 404 is a brain without the tree (the root) or a folder deleted
     // elsewhere: neither gets better by asking again.
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
+    // A reader's tree hears of no change (the realtime stream is the
+    // owner's): coming back to the window is when it asks again.
+    refetchOnWindowFocus: source !== 'owner',
   });
   const { fetchNextPage, refetch } = q;
   const busy = useRef(false);
@@ -134,10 +141,25 @@ function FolderLoader({
     });
     return () => void handles.delete(id);
   }, [handles, id, fetchNextPage, refetch]);
-  const unsupported = folderId === null && q.error instanceof ApiError && q.error.status === 404;
+  const notFound = q.error instanceof ApiError && q.error.status === 404;
+  const unsupported = folderId === null && notFound;
   useEffect(() => {
     if (unsupported) onUnsupported?.();
   }, [unsupported, onUnsupported]);
+  // A folder that answers 404 left the tree (deleted, or no longer shared
+  // with a reader): the folders above it are stale, so they ask again (not
+  // this one, which would only answer 404 again). Once per time it fails.
+  const goneAt = folderId !== null && notFound ? q.errorUpdatedAt : 0;
+  useEffect(() => {
+    if (!goneAt) return;
+    const scope = treeScope(kind, source);
+    void qc.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return key[0] === 'tree' && key[1] === scope && key[2] === 'folder' && key[3] !== folderId;
+      },
+    });
+  }, [goneAt, qc, kind, source, folderId]);
   return null;
 }
 
@@ -179,6 +201,7 @@ export function useFolderRows({
   isOpen,
   foldersOnly = false,
   emptyText,
+  goneText,
   onUnsupported,
 }: {
   kind: TreeKind;
@@ -188,6 +211,8 @@ export function useFolderRows({
   isOpen: (folderId: string) => boolean;
   foldersOnly?: boolean;
   emptyText: string;
+  /** What a folder the brain no longer shows says (flattenTree's). */
+  goneText?: string;
   onUnsupported?: () => void;
 }): { rows: TreeRow[]; loaders: ReactNode; handles: Map<string, FolderHandle> } {
   const qc = useQueryClient();
@@ -196,7 +221,7 @@ export function useFolderRows({
   const { rows, needed } = flattenTree(
     (folderId) => readFolderLoad(qc.getQueryState(folderKey(kind, folderId, sort, source))),
     isOpen,
-    { foldersOnly, emptyText },
+    { foldersOnly, emptyText, goneText },
   );
   const loaders = needed.map((folderId) => (
     <FolderLoader
@@ -473,7 +498,16 @@ export function FolderTreeRow({
         />
       );
     case 'note':
-      return <p className="px-3 py-2 text-xs text-muted-foreground">{row.text}</p>;
+      return (
+        <p className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+          {row.text}
+          {row.retry && (
+            <Button variant="link" size="2xs" className="h-auto p-0" onClick={row.retry}>
+              Retry
+            </Button>
+          )}
+        </p>
+      );
     case 'divider':
       return <div className="mx-3 my-1 border-t border-border/60" />;
     default:

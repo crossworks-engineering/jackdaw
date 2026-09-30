@@ -59,7 +59,9 @@ export function childGuides(guides: readonly boolean[], isLast: boolean): boolea
 /** What the cache holds for one folder's pages. */
 export type FolderLoad =
   | { status: 'pending' }
-  | { status: 'error' }
+  /** `gone`: the brain answered 404 (deleted elsewhere, or, for a reader,
+   *  no longer shared with it): asking again cannot help. */
+  | { status: 'error'; gone?: boolean }
   | { status: 'ok'; children: FolderChildren; loadingMore: boolean };
 
 /**
@@ -96,7 +98,13 @@ export type TreeRow =
   | { type: 'hit'; key: string; folder: TreeFolder; crumbs: readonly TreeCrumb[] }
   | { type: 'root'; key: string }
   | { type: 'divider'; key: string }
-  | { type: 'note'; key: string; text: string }
+  | {
+      type: 'note';
+      key: string;
+      text: string;
+      /** A failed list: a Retry beside the words. */
+      retry?: () => void;
+    }
   | {
       type: 'status';
       key: string;
@@ -129,7 +137,12 @@ export type TreeRow =
 export function flattenTree(
   load: (folderId: string | null) => FolderLoad,
   isOpen: (folderId: string) => boolean,
-  opts: { foldersOnly?: boolean; emptyText: string },
+  opts: {
+    foldersOnly?: boolean;
+    emptyText: string;
+    /** The words for a folder the brain no longer shows (a 404). */
+    goneText?: string;
+  },
 ): { rows: TreeRow[]; needed: Array<string | null> } {
   const rows: TreeRow[] = [];
   const needed: Array<string | null> = [];
@@ -149,14 +162,24 @@ export function flattenTree(
       return;
     }
     if (st.status === 'error') {
-      rows.push({
-        type: 'status',
-        key: `s:${base}`,
-        depth,
-        guides,
-        label: 'Couldn’t load this folder.',
-        retry: folderId,
-      });
+      rows.push(
+        st.gone
+          ? {
+              type: 'status',
+              key: `s:${base}`,
+              depth,
+              guides,
+              label: opts.goneText ?? 'No longer here.',
+            }
+          : {
+              type: 'status',
+              key: `s:${base}`,
+              depth,
+              guides,
+              label: 'Couldn’t load this folder.',
+              retry: folderId,
+            },
+      );
       return;
     }
     const { children } = st;

@@ -202,6 +202,23 @@ describe('flattening the tree for the virtual list', () => {
     expect(one({ status: 'error' })).toMatchObject({ type: 'status', retry: null });
     expect(one(ok([], []))).toMatchObject({ type: 'note', text: 'No files yet.' });
   });
+
+  it('says a folder the brain no longer shows is gone, with no Retry that would fail', () => {
+    const rows = (load: FolderLoad, goneText?: string) =>
+      flattenTree(
+        () => load,
+        () => false,
+        { emptyText: 'x', goneText },
+      ).rows;
+    const gone = rows({ status: 'error', gone: true }, 'No longer shared.')[0]!;
+    expect(gone).toMatchObject({ type: 'status', label: 'No longer shared.' });
+    expect(gone).not.toHaveProperty('retry');
+    expect(rows({ status: 'error', gone: true })[0]).toMatchObject({ label: 'No longer here.' });
+    expect(rows({ status: 'error' })[0]).toMatchObject({
+      label: 'Couldn’t load this folder.',
+      retry: null,
+    });
+  });
 });
 
 describe('picking a range', () => {
