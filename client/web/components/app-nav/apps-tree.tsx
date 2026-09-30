@@ -852,7 +852,7 @@ export function AppsTree({
         onOpenChange={(o) => !o && setFolderDialog(null)}
         initial={folderDialog?.mode === 'rename' ? folderDialog.folder.name : undefined}
         parentName={folderDialog?.mode === 'new' ? (folderDialog.parent?.name ?? null) : null}
-        onSubmit={(name) => {
+        onSubmit={(name, look) => {
           if (!folderDialog) return;
           if (folderDialog.mode === 'rename') {
             edit((es) => updateAppNavFolder(es, folderDialog.folder.id, { name }));
@@ -863,6 +863,8 @@ export function AppsTree({
             kind: 'folder',
             id: crypto.randomUUID(),
             name,
+            ...(look.icon ? { icon: look.icon } : {}),
+            ...(look.color ? { color: look.color } : {}),
             children: [],
           };
           edit((es) => {

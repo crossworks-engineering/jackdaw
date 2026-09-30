@@ -17,6 +17,7 @@ export const TINT_CLASSES: Record<AppTint, string> = {
   lime: 'bg-app-tint-lime text-app-tint-lime-ink',
   green: 'bg-app-tint-green text-app-tint-green-ink',
   teal: 'bg-app-tint-teal text-app-tint-teal-ink',
+  cyan: 'bg-app-tint-cyan text-app-tint-cyan-ink',
   sky: 'bg-app-tint-sky text-app-tint-sky-ink',
   blue: 'bg-app-tint-blue text-app-tint-blue-ink',
   indigo: 'bg-app-tint-indigo text-app-tint-indigo-ink',

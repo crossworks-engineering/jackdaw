@@ -1425,7 +1425,7 @@ export function ItemTree({
         initial={folderDialog?.mode === 'rename' ? folderDialog.folder.name : undefined}
         parentName={folderDialog?.mode === 'new' ? (folderDialog.parent?.name ?? null) : null}
         who={member ? 'member' : 'brain'}
-        onSubmit={(name) => {
+        onSubmit={(name, look) => {
           if (!folderDialog) return;
           if (folderDialog.mode === 'rename') {
             void patchFolder(folderDialog.folder, { name });
@@ -1433,7 +1433,7 @@ export function ItemTree({
           }
           const parent = folderDialog.parent;
           void write(
-            () => createTreeFolder(kind, parent?.id ?? null, name, writer),
+            () => createTreeFolder(kind, parent?.id ?? null, name, writer, look),
             'Could not create the folder',
           ).then((made) => {
             if (made && parent) setOpen(parent.id, true);

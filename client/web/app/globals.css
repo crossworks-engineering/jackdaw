@@ -251,6 +251,7 @@ html[data-link-code] [data-link-code-wait] {
   --app-hue-lime: oklch(76.8% 0.233 130.85);
   --app-hue-green: oklch(72.3% 0.219 149.579);
   --app-hue-teal: oklch(70.4% 0.14 182.503);
+  --app-hue-cyan: oklch(71.5% 0.143 215.221);
   --app-hue-sky: oklch(68.5% 0.169 237.323);
   --app-hue-blue: oklch(62.3% 0.214 259.815);
   --app-hue-indigo: oklch(58.5% 0.233 277.117);
@@ -273,6 +274,8 @@ html[data-link-code] [data-link-code-wait] {
   --color-app-tint-green-ink: color-mix(in oklab, var(--app-hue-green) 72%, var(--foreground));
   --color-app-tint-teal: color-mix(in oklab, var(--app-hue-teal) 18%, var(--background));
   --color-app-tint-teal-ink: color-mix(in oklab, var(--app-hue-teal) 72%, var(--foreground));
+  --color-app-tint-cyan: color-mix(in oklab, var(--app-hue-cyan) 18%, var(--background));
+  --color-app-tint-cyan-ink: color-mix(in oklab, var(--app-hue-cyan) 72%, var(--foreground));
   --color-app-tint-sky: color-mix(in oklab, var(--app-hue-sky) 18%, var(--background));
   --color-app-tint-sky-ink: color-mix(in oklab, var(--app-hue-sky) 72%, var(--foreground));
   --color-app-tint-blue: color-mix(in oklab, var(--app-hue-blue) 18%, var(--background));

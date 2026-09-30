@@ -5,6 +5,7 @@
  * flat views and the pins together.
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import type { AppTint } from '@mantle/client-types/app-nav';
 import type {
   ClientTreeFolder,
   ClientTreeFolderPage,
@@ -202,15 +203,22 @@ function refusedSeen(err: unknown): boolean {
  *  confirm there). A client never writes. */
 export type TreeWriter = Exclude<TreeSource, 'client'>;
 
+/** A new folder's look, chosen in the create dialog: only what was set. */
+export type TreeFolderLook = { icon?: string; color?: AppTint | null };
+
+/** The look goes in the same POST, so a folder with a face is one write. */
 export const createTreeFolder = (
   kind: TreeKind,
   parentId: string | null,
   name: string,
   source: TreeWriter = 'owner',
+  look: TreeFolderLook = {},
 ) =>
   apiSend<{ folder: TreeFolder }>(`${BASE[source]}/${kind}/folders`, 'POST', {
     parentId,
     name,
+    ...(look.icon ? { icon: look.icon } : {}),
+    ...(look.color ? { color: look.color } : {}),
   }).then((r) => r.folder);
 
 export const patchTreeFolder = async (
