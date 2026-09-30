@@ -66,10 +66,12 @@ const toast = (page: Page, text: string | RegExp) =>
 const threadOf = (page: Page) =>
   page.locator('section').filter({ has: page.getByRole('heading', { name: /^Comments/ }) });
 
-/** A focus back on the tab, as TanStack Query hears it. */
+/** A focus back on the tab, as TanStack Query hears it: v5 listens for
+ *  `visibilitychange` on the window only (focusManager). */
 const refocus = (page: Page) =>
   page.evaluate(() => {
     document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('focus'));
   });
 

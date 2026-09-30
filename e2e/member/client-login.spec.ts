@@ -25,10 +25,12 @@ test.afterEach(async () => {
 const portal = (page: import('@playwright/test').Page) =>
   page.getByRole('heading', { name: 'Shared with you' });
 
-/** A focus back on the tab, as TanStack Query hears it. */
+/** A focus back on the tab, as TanStack Query hears it: v5 listens for
+ *  `visibilitychange` on the window only (focusManager). */
 const refocus = (page: import('@playwright/test').Page) =>
   page.evaluate(() => {
     document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('focus'));
   });
 
