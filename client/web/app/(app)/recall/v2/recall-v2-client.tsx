@@ -3,6 +3,7 @@
 import { cn } from '@mantle/web-ui/lib/utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FileText, Map as MapIcon, Plus, Search } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -26,7 +27,13 @@ import { ItemTree } from '@/components/item-tree/item-tree';
 import { recallAdapter } from '@/components/item-tree/kinds/simple';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useListNav } from '@/lib/use-list-nav';
-import { fetchAllMaps, isPageBuilt, recallKeys, type RecallMapsPage } from '@/lib/recall-v2';
+import {
+  fetchAllMaps,
+  isPageBuilt,
+  mapToPin,
+  recallKeys,
+  type RecallMapsPage,
+} from '@/lib/recall-v2';
 import { CompileBadge } from '../compile-badge';
 import { CreateMapDialog } from './map-dialogs';
 import { MapWorkbench, type EditGuard } from './map-workbench';
@@ -167,6 +174,25 @@ function RecallV2View({
     if (showTree) return allMaps.find((m) => !isPageBuilt(m))?.id ?? null;
     return maps[0]?.id ?? null;
   }, [maps, allMaps, selected, showTree]);
+
+  // Pin the map opened by default into the URL (replace, not push), so a
+  // catalog refetch that lists another map first cannot swap the workbench,
+  // and an unsaved card with it. In the tree it waits for every map, since
+  // it picks the first native one of all of them.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const pin = mapToPin(
+    selected,
+    selectedId,
+    treeServes !== undefined && (!showTree || !allQuery.isPending),
+  );
+  useEffect(() => {
+    if (!pin) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('selected', pin);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pin, pathname, router, searchParams]);
 
   /** Open another map, asking first when the open card has unsaved edits. */
   const openMap = (id: string) => {

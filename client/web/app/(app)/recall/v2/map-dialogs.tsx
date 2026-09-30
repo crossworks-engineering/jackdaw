@@ -278,6 +278,7 @@ export function AddCardDialog({
               id="recall-card-new-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              maxLength={RECALL_TITLE_MAX}
               autoFocus
             />
           </Field>

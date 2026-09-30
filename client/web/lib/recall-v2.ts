@@ -106,23 +106,27 @@ export function normalisedEdits(e: CardEdits): CardEdits {
 
 /**
  * The PUT body for saving the editor. `base` is the card as the edit started
- * from it. `prompt` is sent only when the owner moved the switch in this
- * edit: left out, the brain keeps the card's prompt state, which is what
- * keeps an agent's pending request alive through an unrelated save.
+ * from it. The brain's PUT is field-sticky, so only what the owner changed
+ * in this edit is sent beyond the required title and body:
+ * - `prompt` only when the switch moved: left out, the brain keeps the
+ *   card's prompt state, which keeps an agent's pending request alive
+ *   through an unrelated save.
+ * - `useWhen` and `options` only when they differ from the base. A PUT that
+ *   sends options re-checks every one of them, so sending an untouched list
+ *   would block every save on a card with a stored option to a map that has
+ *   since been unpublished (only a warning while it is stored).
  */
 export function cardWriteBody(
   edits: CardEdits,
-  base: Pick<CardEdits, 'prompt'>,
+  base: Pick<CardEdits, 'prompt' | 'useWhen' | 'options'>,
   version: number,
 ): RecallCardWriteDTO {
   const e = normalisedEdits(edits);
-  const body: RecallCardWriteDTO = {
-    title: e.title,
-    bodyMd: e.bodyMd,
-    useWhen: e.useWhen,
-    options: e.options,
-    version,
-  };
+  const body: RecallCardWriteDTO = { title: e.title, bodyMd: e.bodyMd, version };
+  if (e.useWhen !== base.useWhen.trim()) body.useWhen = e.useWhen;
+  if (JSON.stringify(e.options) !== JSON.stringify(base.options.map(trimOption))) {
+    body.options = e.options;
+  }
   if (e.prompt !== base.prompt) body.prompt = e.prompt;
   return body;
 }
@@ -176,6 +180,204 @@ export function versionState(
 }
 
 /**
+ * Do the map's list row for a card and the card's own copy agree?
+ *
+ * The two are separate queries with their own cache age, and the editor
+ * pairs the card's text with the MAP's version when it saves. A card cached
+ * a few seconds ago can sit next to a map refetched after an agent edited
+ * that card: saving would then send a version that is current for text the
+ * owner never saw, and nothing would refuse it.
+ *
+ * `sourceVersion` is the map version a card was last written at, and every
+ * text edit moves it. Some writes change a card without moving it (a map
+ * rename retitles the entry card; a prompt confirm; options dropped when
+ * the card they led to is deleted), so the list row's own fields are
+ * compared too. When they differ at the same stamp, the copy fetched longer
+ * ago is the one to distrust.
+ * - `match`: they agree.
+ * - `card-behind`: the card copy is older. Do not edit or confirm on it;
+ *   refetch it.
+ * - `map-behind`: the card copy is newer than the map's list; the map will
+ *   catch up on its own refetch.
+ */
+export type CardSync = 'match' | 'card-behind' | 'map-behind';
+
+type NodeShape = Pick<
+  RecallNodeDTO,
+  'title' | 'useWhen' | 'kind' | 'promptPending' | 'options' | 'sourceVersion' | 'updatedAt'
+>;
+
+function sameShape(a: NodeShape, b: NodeShape): boolean {
+  return (
+    a.title === b.title &&
+    a.useWhen === b.useWhen &&
+    a.kind === b.kind &&
+    a.promptPending === b.promptPending &&
+    JSON.stringify(a.options.map(cleanOption)) === JSON.stringify(b.options.map(cleanOption))
+  );
+}
+
+export function cardSync(
+  node: NodeShape,
+  card: NodeShape,
+  /** When each copy was last written into the cache (dataUpdatedAt). */
+  fetched: { card: number; map: number },
+): CardSync {
+  if (card.sourceVersion < node.sourceVersion) return 'card-behind';
+  if (card.sourceVersion > node.sourceVersion) return 'map-behind';
+  if (sameShape(node, card)) return 'match';
+  const n = Date.parse(node.updatedAt);
+  const c = Date.parse(card.updatedAt);
+  if (n > c) return 'card-behind';
+  if (c > n) return 'map-behind';
+  return fetched.card < fetched.map ? 'card-behind' : 'map-behind';
+}
+
+/** What the card pane shows for the state of its card query. */
+export type CardPane = {
+  show: 'loading' | 'error' | 'editor';
+  /** Ask the brain for the card again: the cached copy is behind the map. */
+  refetch: boolean;
+  /** The last refetch failed; the pane still shows the copy it has. */
+  refreshFailed: boolean;
+};
+
+/**
+ * The card pane's gate. Before the form mounts, a copy that is behind the
+ * map's row is never shown: the form would take the map's version as its
+ * base and pair it with text the owner never saw. Once mounted, the form
+ * stays: a failed background refetch (TanStack keeps the data and sets the
+ * error) or a stale copy is a state the form shows, never a reason to drop
+ * unsaved edits.
+ */
+export function cardPane(args: {
+  hasData: boolean;
+  sync: CardSync | null;
+  isFetching: boolean;
+  isError: boolean;
+  mounted: boolean;
+}): CardPane {
+  const { hasData, sync, isFetching, isError, mounted } = args;
+  const behind = sync === 'card-behind';
+  const refetch = behind && !isFetching && !isError;
+  if (mounted && hasData) return { show: 'editor', refetch, refreshFailed: isError };
+  if (!hasData || behind) {
+    return { show: isError && !isFetching ? 'error' : 'loading', refetch, refreshFailed: false };
+  }
+  return { show: 'editor', refetch: false, refreshFailed: isError };
+}
+
+/** A detail query's pane: the error screen only when there is nothing to
+ *  show. A failed REFETCH keeps its data (TanStack Query 5 sets the error
+ *  and keeps the last copy), and that copy stays on screen with a note. */
+export function detailPane(q: { data: unknown; isError: boolean }): {
+  show: 'loading' | 'error' | 'ready';
+  refreshFailed: boolean;
+} {
+  if (q.data === undefined) return { show: q.isError ? 'error' : 'loading', refreshFailed: false };
+  return { show: 'ready', refreshFailed: q.isError };
+}
+
+/**
+ * How the open form moves with the brain on a render. Pure so the rules can
+ * be held by a test; the editor applies the answer.
+ *
+ * - `follow`: a clean form shows the brain's copy as it is now, at the
+ *   map's version.
+ * - `version`: a dirty form's base moves up to the map's version. Only for
+ *   the owner's own writes since (publish, reorder, settings), and only once
+ *   the map has been refetched after them and it shows this card unchanged:
+ *   a map rename is the owner's own write too, and it retitles the entry
+ *   card, so moving the version before the card is seen again would let a
+ *   save write the old title back.
+ * - `conflict`: why a dirty form would be refused if saved now.
+ *
+ * `settled`: no refetch of the map or the card is in flight, and the map is
+ * not waiting on one (a write marks it invalid until a refetch lands).
+ * `sameStamp`: the card's `sourceVersion` is the base's.
+ */
+export function editorSync(s: {
+  dirty: boolean;
+  saving: boolean;
+  gone: boolean;
+  sync: CardSync;
+  settled: boolean;
+  cardChanged: boolean;
+  sameStamp: boolean;
+  mapState: ReturnType<typeof versionState>;
+}): { move: 'follow' | 'version' | null; conflict: 'card' | 'map' | null } {
+  if (s.saving || s.gone) return { move: null, conflict: null };
+  const confirmed = s.sync === 'match' && s.settled;
+  if (!s.dirty) {
+    const moved = s.cardChanged || !s.sameStamp || s.mapState === 'own' || s.mapState === 'foreign';
+    return { move: confirmed && moved ? 'follow' : null, conflict: null };
+  }
+  if (s.cardChanged || !s.sameStamp || s.sync === 'card-behind') {
+    return { move: null, conflict: 'card' };
+  }
+  if (s.mapState === 'foreign') return { move: null, conflict: 'map' };
+  if (s.mapState === 'own' && confirmed && s.sameStamp) return { move: 'version', conflict: null };
+  return { move: null, conflict: null };
+}
+
+/**
+ * After a refused save: the owner's edits laid over the brain's new copy.
+ * A field the owner did not touch (still equal to the old base) takes the
+ * new copy's value, so saving again does not write back a stale title a map
+ * rename changed, or undo an agent's options on a card whose body the owner
+ * was editing. A field the owner did change keeps their text.
+ */
+export function rebaseEdits(edits: CardEdits, oldBase: CardEdits, fresh: CardEdits): CardEdits {
+  const same = <K extends keyof CardEdits>(k: K) =>
+    JSON.stringify(normalisedEdits(edits)[k]) === JSON.stringify(normalisedEdits(oldBase)[k]);
+  return {
+    title: same('title') ? fresh.title : edits.title,
+    bodyMd: same('bodyMd') ? fresh.bodyMd : edits.bodyMd,
+    useWhen: same('useWhen') ? fresh.useWhen : edits.useWhen,
+    prompt: same('prompt') ? fresh.prompt : edits.prompt,
+    options: same('options') ? fresh.options : edits.options,
+  };
+}
+
+/**
+ * The card the workbench opens. The URL's card, else the entry card, else
+ * the first. `held` is the card the editor has open while it holds unsaved
+ * text (or a refused save): if its row has left the map (deleted from
+ * another tab, or by an agent), it stays open and is reported `gone`, so
+ * the owner can copy the text out, instead of the pane falling back to the
+ * entry card and throwing the text away.
+ */
+export function openCardOf<N extends Pick<RecallNodeDTO, 'slug'>>(
+  nodes: N[],
+  cardSlug: string | null,
+  held: N | null,
+): { node: N | null; gone: boolean } {
+  const want = cardSlug ?? RECALL_ENTRY_SLUG;
+  const found = nodes.find((n) => n.slug === want);
+  if (found) return { node: found, gone: false };
+  if (held && held.slug === want) return { node: held, gone: true };
+  return {
+    node: nodes.find((n) => n.slug === RECALL_ENTRY_SLUG) ?? nodes[0] ?? null,
+    gone: false,
+  };
+}
+
+/**
+ * The map to write into the URL as `selected` when none is there. Without
+ * it the open map is "the first one listed", and a catalog refetch that
+ * lists a new map first would swap the workbench to it, unsaved card and
+ * all. `ready`: the screen knows which list it shows (tree or catalog) and
+ * has the maps it picks from.
+ */
+export function mapToPin(
+  selected: string | null,
+  resolved: string | null,
+  ready: boolean,
+): string | null {
+  return !selected && ready && resolved ? resolved : null;
+}
+
+/**
  * The brain's size caps on everything but the body (mantle recall-native.ts,
  * brain v0.232.358 and later). Not in the published contract, so mirrored
  * here; an older brain has no caps and these only hold the editor back.
@@ -190,6 +392,10 @@ export const RECALL_OPTIONS_MAX = 30;
 export function cardProblems(
   edits: CardEdits,
   budget: number,
+  /** An agent asked for this card to be a prompt. A save that leaves the
+   *  switch alone keeps the request, and the brain refuses a pending card
+   *  with no use-when line just as it refuses a prompt without one. */
+  promptPending = false,
 ): Partial<Record<'title' | 'bodyMd' | 'useWhen' | 'options', string>> {
   const out: Partial<Record<'title' | 'bodyMd' | 'useWhen' | 'options', string>> = {};
   if (!edits.title.trim()) out.title = 'A card needs a title.';
@@ -198,6 +404,9 @@ export function cardProblems(
   }
   if (edits.prompt && !edits.useWhen.trim()) {
     out.useWhen = 'A prompt needs a use-when line: it is what the prompt is matched on.';
+  } else if (promptPending && !edits.useWhen.trim()) {
+    out.useWhen =
+      'An agent asked for this card to be a prompt, so it needs a use-when line. Add one, or drop the request.';
   }
   const blank = edits.options.findIndex(
     (o) => !o.label.trim() || !o.useWhen.trim() || !o.targetSlug.trim(),

@@ -7,6 +7,7 @@ import type {
   RecallCardDetailDTO,
   RecallMapDetailDTO,
   RecallMapSummaryDTO,
+  RecallNodeDTO,
   RecallWriteResultDTO,
 } from '@mantle/web-ui/types/recall-v2';
 import { RECALL_MAX_MAP_NODES } from '@mantle/content-core/recall-compile';
@@ -30,8 +31,10 @@ import { treeKey } from '@/components/item-tree/tree-api';
 import { useListNav } from '@/lib/use-list-nav';
 import {
   RECALL_ENTRY_SLUG,
+  detailPane,
   isPageBuilt,
   linkFromBody,
+  openCardOf,
   recallKeys,
   writeErrorText,
 } from '@/lib/recall-v2';
@@ -74,26 +77,39 @@ export function MapWorkbench({
   guard: EditGuard;
 }) {
   const q = useQuery(mapQuery(mapId));
+  // A failed background refetch keeps the last copy (and the card open in
+  // it): only a map that never loaded gets the error screen.
+  const pane = detailPane(q);
 
-  if (q.isPending) {
+  if (pane.show === 'loading' || !q.data) {
+    if (pane.show === 'error') {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+          <p>Could not load this map.</p>
+          <Button variant="outline" size="sm" onClick={() => q.refetch()}>
+            Retry
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-6" />
       </div>
     );
   }
-  if (q.isError) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-        <p>Could not load this map.</p>
-        <Button variant="outline" size="sm" onClick={() => q.refetch()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
   if (isPageBuilt(q.data)) return <PageBuiltMap map={q.data} />;
-  return <Workbench map={q.data} catalog={catalog} view={view} cardSlug={cardSlug} guard={guard} />;
+  return (
+    <Workbench
+      map={q.data}
+      catalog={catalog}
+      view={view}
+      cardSlug={cardSlug}
+      guard={guard}
+      refreshFailed={pane.refreshFailed}
+      onRetry={() => void q.refetch()}
+    />
+  );
 }
 
 function Workbench({
@@ -102,12 +118,16 @@ function Workbench({
   view,
   cardSlug,
   guard,
+  refreshFailed,
+  onRetry,
 }: {
   map: RecallMapDetailDTO;
   catalog: RecallMapSummaryDTO[];
   view: RecallV2View;
   cardSlug: string | null;
   guard: EditGuard;
+  refreshFailed: boolean;
+  onRetry: () => void;
 }) {
   const { go } = useListNav();
   const qc = useQueryClient();
@@ -117,12 +137,11 @@ function Workbench({
   const [deleting, setDeleting] = useState(false);
   const [adding, setAdding] = useState(false);
   const { dirty, guarded } = guard;
-
-  const open =
-    map.nodes.find((n) => n.slug === cardSlug) ??
-    map.nodes.find((n) => n.slug === RECALL_ENTRY_SLUG) ??
-    map.nodes[0] ??
-    null;
+  // The card the editor holds text for. If it leaves the map under the edit
+  // (deleted from another tab or by an agent), it stays open, marked gone,
+  // until the owner discards it; see openCardOf.
+  const [held, setHeld] = useState<RecallNodeDTO | null>(null);
+  const { node: open, gone } = openCardOf(map.nodes, cardSlug, held);
   const pendingPrompts = map.nodes.filter((n) => n.promptPending).length;
 
   function openCard(slug: string) {
@@ -270,6 +289,15 @@ function Workbench({
         </div>
       </header>
 
+      {refreshFailed && (
+        <p className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1">Could not refresh this map; showing the last copy.</span>
+          <Button size="xs" variant="ghost" onClick={onRetry}>
+            Retry
+          </Button>
+        </p>
+      )}
+
       {!map.published && (
         <p className="border-b border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
           Draft: no agent can see this map until it is published. An agent created it, or it was
@@ -348,8 +376,13 @@ function Workbench({
                   node={open}
                   catalog={catalog}
                   write={write}
+                  gone={gone}
                   onDirtyChange={guard.onDirtyChange}
-                  onDeleted={() => openCard(RECALL_ENTRY_SLUG)}
+                  onHoldChange={setHeld}
+                  onLeave={() => {
+                    setHeld(null);
+                    openCard(RECALL_ENTRY_SLUG);
+                  }}
                 />
               ) : (
                 <p className="p-6 text-sm text-muted-foreground">This map has no cards.</p>

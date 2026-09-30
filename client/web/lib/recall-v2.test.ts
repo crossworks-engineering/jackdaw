@@ -86,7 +86,6 @@ describe('cardWriteBody', () => {
     const base = editsOf(card({ kind: 'prompt', useWhen: 'deploying' }));
     const body = cardWriteBody({ ...base, bodyMd: 'new' }, base, 7);
     expect('prompt' in body).toBe(false);
-    expect(body.useWhen).toBe('deploying');
     expect(body.version).toBe(7);
   });
   it('keeps an agent request alive: a pending card saved untouched sends no prompt', () => {
@@ -110,18 +109,58 @@ describe('cardWriteBody', () => {
     const base = editsOf(card({ slug: 'start', kind: 'index' }));
     expect('prompt' in cardWriteBody({ ...base, bodyMd: 'x' }, base, 1)).toBe(false);
   });
-  it('always sends the whole option list, without the brain-owned targetId', () => {
+  it('sends the whole option list when it changed, without the brain-owned targetId', () => {
     const c = card({
       options: [{ label: 'Boxes', useWhen: 'which box', targetSlug: 'boxes', targetId: 'id-1' }],
     });
-    const body = cardWriteBody(editsOf(c), editsOf(c), 1);
-    expect(body.options).toEqual([{ label: 'Boxes', useWhen: 'which box', targetSlug: 'boxes' }]);
+    const base = editsOf(c);
+    const more = [...base.options, { label: 'Fleet', useWhen: 'which fleet', targetSlug: 'fleet' }];
+    const body = cardWriteBody({ ...base, options: more }, base, 1);
+    expect(body.options).toEqual([
+      { label: 'Boxes', useWhen: 'which box', targetSlug: 'boxes' },
+      { label: 'Fleet', useWhen: 'which fleet', targetSlug: 'fleet' },
+    ]);
   });
   it('keeps a cross-map target', () => {
+    const base = editsOf(card());
+    const options = [{ label: 'DFM', useWhen: 'x', targetSlug: 'dfm', targetMap: 'dfm' }];
+    expect(cardWriteBody({ ...base, options }, base, 1).options?.[0]?.targetMap).toBe('dfm');
+  });
+  it('leaves untouched options and use-when out, so the brain keeps them (R7)', () => {
+    // A stored option to a map that has since been unpublished is only a
+    // warning; SENDING it is refused (cross_map_unpublished). A body edit
+    // must not send it back.
     const c = card({
-      options: [{ label: 'DFM', useWhen: '', targetSlug: 'dfm', targetMap: 'dfm' }],
+      useWhen: 'checking the fleet',
+      options: [
+        { label: 'Old', useWhen: 'x', targetSlug: 'old', targetMap: 'old', targetId: 'id-9' },
+      ],
     });
-    expect(cardWriteBody(editsOf(c), editsOf(c), 1).options?.[0]?.targetMap).toBe('dfm');
+    const base = editsOf(c);
+    const body = cardWriteBody({ ...base, bodyMd: 'new body' }, base, 4);
+    expect(body).toEqual({ title: 'Fleet', bodyMd: 'new body', version: 4 });
+  });
+  it('treats trailing spaces the save trims as untouched', () => {
+    const base = editsOf(
+      card({ useWhen: 'x', options: [{ label: 'a', useWhen: 'b', targetSlug: 'c' }] }),
+    );
+    const e = {
+      ...base,
+      useWhen: 'x  ',
+      options: [{ label: 'a ', useWhen: ' b', targetSlug: 'c' }],
+    };
+    const body = cardWriteBody(e, base, 1);
+    expect('useWhen' in body).toBe(false);
+    expect('options' in body).toBe(false);
+  });
+  it('sends a use-when the owner changed, and one they cleared', () => {
+    const base = editsOf(card({ useWhen: 'x' }));
+    expect(cardWriteBody({ ...base, useWhen: 'y' }, base, 1).useWhen).toBe('y');
+    expect(cardWriteBody({ ...base, useWhen: '' }, base, 1).useWhen).toBe('');
+  });
+  it('sends an option list the owner emptied', () => {
+    const base = editsOf(card({ options: [{ label: 'a', useWhen: 'b', targetSlug: 'c' }] }));
+    expect(cardWriteBody({ ...base, options: [] }, base, 1).options).toEqual([]);
   });
   it('trims the title, use-when and option text, and never sends a slug or after', () => {
     const base = editsOf(card());
@@ -211,6 +250,12 @@ describe('cardProblems', () => {
   });
   it('is empty for a good card', () => {
     expect(cardProblems(editsOf(card()), 6000)).toEqual({});
+  });
+  it('asks a card an agent wants as a prompt for a use-when line, as the brain does', () => {
+    const e = editsOf(card({ promptPending: true, useWhen: '' }));
+    expect(cardProblems(e, 6000, true).useWhen).toMatch(/drop the request/);
+    expect(cardProblems(e, 6000, false).useWhen).toBeUndefined();
+    expect(cardProblems({ ...e, useWhen: 'deploying' }, 6000, true)).toEqual({});
   });
 });
 
