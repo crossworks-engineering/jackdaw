@@ -52,6 +52,24 @@ const clientApp = (id: string, title: string, dataReadOnly: boolean): ClientAppC
   dataReadOnly,
 });
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Primary' });
+const toast = (page: Page, text: string) =>
+  page.locator('[role="status"], [role="alert"]').filter({ hasText: text }).first();
+/** Anything wider than the viewport, or scrolling sideways: the page and
+ *  every scroller inside it. */
+const overflow = (page: Page) =>
+  page.evaluate(() => {
+    const w = window.innerWidth;
+    const wide = [...document.querySelectorAll('body *')].filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.right > w + 1;
+    });
+    const sideways = [...document.querySelectorAll('body *')].filter((el) => {
+      const x = getComputedStyle(el).overflowX;
+      return (x === 'auto' || x === 'scroll') && el.scrollWidth > el.clientWidth + 1;
+    });
+    const scroll = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+    return wide.length + sideways.length + Math.max(0, scroll);
+  });
 const appsList = (page: Page) => page.getByRole('list', { name: 'Apps' });
 const appsAsked = () => api.clientRouteCalls.filter((c) => c === 'GET /api/client/apps').length;
 
@@ -103,6 +121,9 @@ test.describe('a client’s apps', () => {
       { timeout: 30_000 },
     );
     await expect(page.frameLocator('iframe').getByText(APP_FRAME_TEXT)).toBeAttached();
+    // Scripts only: never allow-same-origin, which would hand the app the
+    // client's cookie and every route of this origin (tier U10).
+    await expect(frame).toHaveAttribute('sandbox', 'allow-scripts');
     // (Dev mode runs the ticket effect twice; every ticket is for this app.)
     expect(new Set(api.clientApps.tickets)).toEqual(new Set([CLIENT_APP_ID]));
     expect(new Set(api.clientApps.frames)).toEqual(new Set([CLIENT_APP_ID]));
@@ -127,6 +148,54 @@ test.describe('a client’s apps', () => {
       timeout: 30_000,
     });
     expect(new Set(api.clientApps.frames)).toEqual(new Set([CLIENT_INFO_APP_ID]));
+  });
+
+  test('an app’s write and tool call go over the client routes; each refusal in client words (tier U10)', async ({
+    page,
+  }) => {
+    api.clientApps.frameCalls = true;
+    api.clientApps.apps = [
+      clientApp(CLIENT_APP_ID, CLIENT_APP_TITLE, false),
+      clientApp(CLIENT_INFO_APP_ID, CLIENT_INFO_APP_TITLE, true),
+    ];
+    const reply = (kind: 'db' | 'tool') =>
+      page.frameLocator('iframe').locator(`[data-reply="${kind}"]`).first();
+
+    // A writable app: the write lands; the tool it never declared is
+    // refused, and the client reads that in its own words.
+    await page.goto(`/?view=apps&id=${CLIENT_APP_ID}`);
+    await expect(reply('db')).toContainText('"ok":true', { timeout: 60_000 });
+    await expect(reply('tool')).toContainText('"ok":false');
+    await expect(
+      toast(page, 'This app needs something that is not available to you.'),
+    ).toBeVisible();
+    expect(await page.locator('body').innerText()).not.toMatch(/app_tools_set|Appsmith|declared/);
+    expect(api.clientApps.dbCalls).toContainEqual({ id: CLIENT_APP_ID, op: 'exec', status: 200 });
+    expect(api.clientApps.toolCalls).toContain(CLIENT_APP_ID);
+
+    // An informational app: the brain refuses the write, and the app gets
+    // the refusal (read only), not a success.
+    await page.goto(`/?view=apps&id=${CLIENT_INFO_APP_ID}`);
+    await expect(reply('db')).toContainText('"ok":false', { timeout: 60_000 });
+    await expect(reply('db')).toContainText('read-only');
+    expect(api.clientApps.dbCalls).toContainEqual({
+      id: CLIENT_INFO_APP_ID,
+      op: 'exec',
+      status: 403,
+    });
+    expect(api.clientApps.dbCalls.every((c) => c.op === 'exec')).toBe(true);
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('an ended session on the frame ticket goes to the client sign-in (tier U10)', async ({
+    page,
+  }) => {
+    api.clientApps.apps = [clientApp(CLIENT_APP_ID, CLIENT_APP_TITLE, false)];
+    api.clientApps.ticketStatus = 401;
+    await page.goto(`/?view=apps&id=${CLIENT_APP_ID}`);
+    await expect(page).toHaveURL(/\/client-signin$/, { timeout: 60_000 });
+    expect(api.clientApps.tickets).toContain(CLIENT_APP_ID);
+    expect(api.clientApps.frames).toEqual([]);
   });
 
   test('an app the client may not run says so', async ({ page }) => {
@@ -160,6 +229,36 @@ test.describe('a client’s apps', () => {
     await expect(page.getByText('Apps are not available here yet.')).toBeVisible({
       timeout: 30_000,
     });
+  });
+});
+
+test.describe('a client’s apps on a phone', () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  test.beforeEach(async ({ baseURL, context }) => {
+    api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
+    await signInAsClient(context, baseURL!);
+  });
+
+  test('Apps fits 375 px: the list, then the app, no sideways scroll (tier U10)', async ({
+    page,
+  }) => {
+    api.clientApps.apps = [
+      clientApp(CLIENT_APP_ID, CLIENT_APP_TITLE, false),
+      clientApp(CLIENT_INFO_APP_ID, CLIENT_INFO_APP_TITLE, true),
+    ];
+    await page.goto('/?view=apps');
+    await expect(appsList(page).getByRole('listitem')).toHaveCount(2, { timeout: 60_000 });
+    expect(await overflow(page)).toBe(0);
+    await appsList(page).getByRole('button', { name: CLIENT_INFO_APP_TITLE }).click();
+    await expect(page.getByRole('heading', { name: CLIENT_INFO_APP_TITLE })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.frameLocator('iframe').getByText(APP_FRAME_TEXT)).toBeAttached({
+      timeout: 30_000,
+    });
+    await expect(page.locator('iframe')).toBeInViewport();
+    expect(await overflow(page)).toBe(0);
+    expect(api.clientCalls).toEqual([]);
   });
 });
 
@@ -210,7 +309,10 @@ test.describe('an admin', () => {
     await signInAsAdmin(context, baseURL!);
   });
 
-  const detail = (dataReadOnly?: boolean): AppDetail => ({
+  const detail = (
+    dataReadOnly?: boolean,
+    audience: AppDetail['audience'] = 'client',
+  ): AppDetail => ({
     id: ADMIN_APP_ID,
     title: ADMIN_APP_TITLE,
     icon: null,
@@ -223,7 +325,7 @@ test.describe('an admin', () => {
     hasDraft: false,
     shareMode: null,
     isHub: false,
-    audience: 'client',
+    audience,
     createdAt: at,
     updatedAt: at,
     source: { entry: 'App.tsx', files: { 'App.tsx': 'export default function App() {}' } },
@@ -255,6 +357,19 @@ test.describe('an admin', () => {
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await expect.poll(() => api.admin.appPatches.at(-1)?.body).toEqual({ dataReadOnly: false });
     expect(api.admin.app?.dataReadOnly).toBe(false);
+  });
+
+  test('an admin or a public app shows no switch; a team app does (tier N1)', async ({ page }) => {
+    for (const [audience, shown] of [
+      ['admin', 0],
+      ['public', 0],
+      ['team', 1],
+    ] as const) {
+      api.admin.app = detail(false, audience);
+      await page.goto(`/apps/${ADMIN_APP_ID}`);
+      await expect(page.getByRole('tab', { name: 'Builder' })).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByRole('switch', { name: LABEL }), audience).toHaveCount(shown);
+    }
   });
 
   test('a brain before C6 shows no switch', async ({ page }) => {

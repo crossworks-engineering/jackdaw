@@ -144,8 +144,26 @@ export function clientActionConfirm(
     case 'delete':
       return {
         title: `Delete the client login for ${name}?`,
-        body: 'The login and its sign-in links are removed, and every session ends. This cannot be undone.',
+        // The brain deletes the client's comments and its chat thread with
+        // the login (client tier audit I5); Disable keeps them.
+        body:
+          'The login and its sign-in links are removed, every session ends, and the comments ' +
+          'and chat thread this client wrote are deleted. To keep their history, disable the ' +
+          'login instead. This cannot be undone.',
         action: 'Delete',
       };
   }
+}
+
+/** What Settings > Logins says before it deletes a login: a client's words
+ *  are Team admin > Clients' own (its comments and chat go with it), anyone
+ *  else keeps everything they made. */
+export function loginDeleteText(user: {
+  role: string;
+  displayName: string | null;
+  email: string;
+}): string {
+  return user.role === 'client'
+    ? clientActionConfirm('delete', user).body
+    : 'Their login stops working immediately. Nothing in the brain is removed: everything they created stays, and their past actions remain in the audit log.';
 }

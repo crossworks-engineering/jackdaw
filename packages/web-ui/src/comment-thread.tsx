@@ -35,9 +35,10 @@ export type ThreadComment = Omit<NodeComment, 'authorKind'> & {
  * reader's browser the moment the thread opens: a tracking pixel that tells
  * its author who read the thread, when, and from where. So an image is its
  * words only (the alt text, else "image"), in brackets, and nothing is
- * fetched.
+ * fetched. Exported for the staff screens that draw client-sourced markdown
+ * (client tier audit U5: a request's body, a task's, the member chats).
  */
-const NO_IMAGES: Components = {
+export const NO_IMAGES: Components = {
   img: ({ alt }) => <span className="text-muted-foreground">[{alt?.trim() || 'image'}]</span>,
 };
 

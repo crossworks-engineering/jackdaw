@@ -5,7 +5,8 @@ import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import Link from 'next/link';
 import { ChevronRight, FileText } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
-import { useIsMember } from '@/components/member/viewer-role';
+import { useViewerRole } from '@/components/member/viewer-role';
+import { childPageHref, childPageLivePath } from '@/lib/child-page-card';
 
 /**
  * Card chrome for a `childPage` block — a clickable link to a sub-page. The
@@ -25,17 +26,20 @@ export function ChildPageView({ node }: NodeViewProps) {
 
   const [title, setTitle] = useState(snapTitle);
   const [icon, setIcon] = useState<string | null>(snapIcon);
-  // A member has no route to a page by id outside their own space: the
-  // admin one refuses them, so the card keeps its snapshot.
-  const member = useIsMember();
+  // Only a confirmed admin reads the admin page route: a member or a client
+  // has none (the brain refuses them), so the card keeps its snapshot, and a
+  // client's card links nowhere (client tier audit U3).
+  const role = useViewerRole();
+  const livePath = childPageLivePath(role, pageId);
+  const href = childPageHref(role, pageId);
 
   // Refresh the live title/icon so renames of the child reflect here. Display
   // only — we don't write back into the node attrs (that would churn the
   // autosave every time the parent opens).
   useEffect(() => {
-    if (!pageId || member) return;
+    if (!livePath) return;
     let cancelled = false;
-    apiFetch<{ page?: { title?: string; icon?: string | null } }>(`/api/pages/${pageId}`)
+    apiFetch<{ page?: { title?: string; icon?: string | null } }>(livePath)
       .then((data) => {
         if (cancelled || !data?.page) return;
         if (typeof data.page.title === 'string' && data.page.title) setTitle(data.page.title);
@@ -45,24 +49,40 @@ export function ChildPageView({ node }: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [pageId, member]);
+  }, [livePath]);
+
+  const face = (
+    <>
+      <span className="flex size-6 shrink-0 items-center justify-center text-base leading-none">
+        {icon ?? <FileText className="size-4 text-muted-foreground" aria-hidden />}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
+    </>
+  );
 
   return (
     <NodeViewWrapper className="my-2" data-drag-handle>
-      <Link
-        href={pageId ? `/pages/${pageId}` : '#'}
-        contentEditable={false}
-        className="group flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 no-underline transition-colors hover:bg-accent/40"
-      >
-        <span className="flex size-6 shrink-0 items-center justify-center text-base leading-none">
-          {icon ?? <FileText className="size-4 text-muted-foreground" aria-hidden />}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
-        <ChevronRight
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-          aria-hidden
-        />
-      </Link>
+      {href || !pageId ? (
+        <Link
+          href={href ?? '#'}
+          contentEditable={false}
+          className="group flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 no-underline transition-colors hover:bg-accent/40"
+        >
+          {face}
+          <ChevronRight
+            className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+            aria-hidden
+          />
+        </Link>
+      ) : (
+        <div
+          contentEditable={false}
+          data-child-page-card=""
+          className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5"
+        >
+          {face}
+        </div>
+      )}
     </NodeViewWrapper>
   );
 }

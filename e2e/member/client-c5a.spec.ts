@@ -2,8 +2,11 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import {
   CLIENT_ACCEPTED_FILE_ID,
   CLIENT_ACCEPTED_FILE_NAME,
+  CLIENT_ACCEPTED_ID,
   CLIENT_DRAFT_ID,
   CLIENT_DRAFT_TITLE,
+  CLIENT_DRAW_COMMENT,
+  CLIENT_DRAW_ID,
   CLIENT_EMAIL,
   CLIENT_HELD_ID,
   CLIENT_HELD_TITLE,
@@ -18,6 +21,8 @@ import {
   CLIENT_SUBMITTED_TITLE,
   LIBRARY_CLIENT_ID,
   OWNER_THREAD_CLIENT_COMMENT,
+  SHARED_FILE_ID,
+  SHARED_NOTE_ID,
   SHARED_PAGE_ID,
   SHARED_PAGE_TITLE,
   SHARED_TEAM_COMMENT,
@@ -129,6 +134,165 @@ test.describe('a client’s screens', () => {
       timeout: 30_000,
     });
     expect(await readable(page)).not.toMatch(/admin/i);
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('name no staff role: a failed save, an embed refusal, the sign-in page with no link (tier U6)', async ({
+    page,
+    context,
+  }) => {
+    // Two 5xx in a row: the queue's own sentence, in client words.
+    api.clientOwn.draftAnswer = { status: 500, body: { error: 'Internal error' } };
+    await page.goto(`/?view=requests&id=${CLIENT_DRAFT_ID}`);
+    const editor = page.locator('.ProseMirror');
+    await expect(editor).toContainText('We would like a site visit.', { timeout: 60_000 });
+    await editor.locator('p').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' On Friday.');
+    // The line under the editor, and the toast: both in client words.
+    await expect(page.getByText('tell the team if it keeps happening')).toHaveCount(2, {
+      timeout: 15_000,
+    });
+    expect(await readable(page)).not.toMatch(/admin/i);
+
+    // An embed refusal the brain sent no sentence with: the fallback, in
+    // client words (a client has no Library).
+    api.clientOwn.draftAnswer = { status: 409, body: { error: 'forbidden', reason: 'embed' } };
+    await page.reload();
+    await expect(editor).toContainText('We would like a site visit.', { timeout: 60_000 });
+    await editor.locator('p').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' On Monday.');
+    await expect(page.getByText('only your own items and items shared with you')).toHaveCount(2, {
+      timeout: 15_000,
+    });
+    expect(await readable(page)).not.toMatch(/admin|Library/i);
+    expect(api.clientCalls).toEqual([]);
+
+    // Signed out, with no link: how to get one, in client words. (A tab of
+    // its own: this one holds unsaved typing, so leaving it asks first.)
+    await context.clearCookies();
+    api.clientSession = false;
+    api.clientCodes = false;
+    const signin = await context.newPage();
+    await signin.goto('/client-signin');
+    await expect(signin.getByText('Open the sign-in link you were sent.')).toBeVisible({
+      timeout: 60_000,
+    });
+    expect(await readable(signin)).not.toMatch(/admin/i);
+  });
+
+  test('a big save a reload cut off is sent again on the next open (tier U7)', async ({ page }) => {
+    // Over the 64 KB keepalive cap: the write goes out as a plain request,
+    // which dies with the page, so only the kept copy can bring it back.
+    const item = api.clientOwn.items.find((i) => i.row.id === CLIENT_DRAFT_ID)!;
+    if (item.body.type !== 'page') throw new Error('the draft is a page');
+    const long = 'Long line of the brief. '.repeat(3200);
+    item.body.page.doc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Rescue start.' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: long }] },
+      ],
+    };
+    // The brain never answers this write (the reload cuts it off).
+    let held!: () => void;
+    const sent = new Promise<void>((resolve) => (held = resolve));
+    await page.route('**/api/client/space/*/draft', () => held());
+
+    await page.goto(`/?view=requests&id=${CLIENT_DRAFT_ID}`);
+    const editor = page.locator('.ProseMirror');
+    await expect(editor).toContainText('Rescue start.', { timeout: 60_000 });
+    await editor.locator('p').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Kept words.');
+    await sent;
+    const kept = await page.evaluate(() =>
+      Object.keys(localStorage).filter((k) => k.startsWith('mantle_member_rescue:')),
+    );
+    expect(kept).toEqual([
+      `mantle_member_rescue:${encodeURIComponent(`client:${CLIENT_LOGIN_ID}`)}:/api/client/space/${CLIENT_DRAFT_ID}/draft`,
+    ]);
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await page.reload();
+    await expect(editor).toContainText('Rescue start. Kept words.', { timeout: 60_000 });
+    expect(JSON.stringify(item.body.page.draft)).toContain('Kept words.');
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('the own page editor reads pictures from the client routes; a sub-page card asks nothing (tier U2, U3)', async ({
+    page,
+  }) => {
+    const item = api.clientOwn.items.find((i) => i.row.id === CLIENT_DRAFT_ID)!;
+    if (item.body.type !== 'page') throw new Error('the draft is a page');
+    item.body.page.doc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Pictures below.' }] },
+        {
+          type: 'image',
+          attrs: { src: `/api/files/files/${SHARED_FILE_ID}?raw=1`, nodeId: SHARED_FILE_ID },
+        },
+        { type: 'childPage', attrs: { pageId: SHARED_PAGE_ID, title: SHARED_PAGE_TITLE } },
+      ],
+    };
+    const bytes = page.waitForRequest(
+      (r) => r.url().includes(`/api/client/files/${SHARED_FILE_ID}`),
+      {
+        timeout: 60_000,
+      },
+    );
+    await page.goto(`/?view=requests&id=${CLIENT_DRAFT_ID}`);
+    const editor = page.locator('.ProseMirror');
+    await expect(editor).toContainText('Pictures below.', { timeout: 60_000 });
+    await bytes;
+    await expect(editor.locator('img').first()).toHaveAttribute(
+      'src',
+      new RegExp(`/api/client/files/${SHARED_FILE_ID}`),
+    );
+    // The card keeps its title, and is no link a client could follow.
+    await expect(editor).toContainText(SHARED_PAGE_TITLE);
+    await expect(editor.locator('a[href^="/pages/"]')).toHaveCount(0);
+    await page.waitForTimeout(1000);
+    expect(api.clientCalls).toEqual([]);
+  });
+
+  test('note pictures read the client routes, and no other picture loads (tier U4)', async ({
+    page,
+  }) => {
+    const drawId = '46464646-4646-4464-8464-464646464646';
+    api.noteExtra =
+      `\n\n![plan](/api/files/files/${SHARED_FILE_ID}?raw=1) ![photo](media:${SHARED_FILE_ID})` +
+      ` ![sketch](draw:${drawId}) ![pixel](https://tracker.example/p.gif)` +
+      ` ![team](/api/member/files/${SHARED_FILE_ID})`;
+    const elsewhere: string[] = [];
+    await page.route('https://tracker.example/**', (route) => {
+      elsewhere.push(route.request().url());
+      return route.abort();
+    });
+    const pictures = (root: import('@playwright/test').Locator) =>
+      root.locator('img').evaluateAll((els) => els.map((e) => e.getAttribute('src') ?? ''));
+
+    for (const [path, done] of [
+      [`/?id=${SHARED_NOTE_ID}`, 'Agreed: ship it.'],
+      [`/?view=requests&id=${CLIENT_ACCEPTED_ID}&src=accepted`, 'The site is open 7 to 5'],
+    ] as const) {
+      await page.goto(path);
+      const note = page.locator('article').filter({ hasText: done });
+      await expect(note).toBeVisible({ timeout: 60_000 });
+      await expect(note.locator('img')).toHaveCount(3);
+      const srcs = await pictures(note);
+      expect(srcs.map((src) => new URL(src, 'http://x').pathname)).toEqual([
+        `/api/client/files/${SHARED_FILE_ID}`,
+        `/api/client/files/${SHARED_FILE_ID}`,
+        `/api/client/draws/${drawId}/svg`,
+      ]);
+      await expect(note).toContainText('[pixel]');
+      await expect(note).toContainText('[team]');
+    }
+    await page.waitForTimeout(500);
+    expect(elsewhere).toEqual([]);
     expect(api.clientCalls).toEqual([]);
   });
 
@@ -516,6 +680,23 @@ test.describe('an admin', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
     await expect(sheet).not.toContainText(OWNER_THREAD_CLIENT_COMMENT);
     expect(api.admin.commentDeletes).toHaveLength(1);
+  });
+
+  test('reads a client’s comment on a client-level drawing, on the drawing itself (tier U1)', async ({
+    page,
+  }) => {
+    await page.goto(`/draw/${CLIENT_DRAW_ID}`);
+    await page.getByRole('button', { name: 'Client comments (1)' }).click({ timeout: 60_000 });
+    const sheet = page.getByRole('dialog', { name: 'Client comments' });
+    await expect(sheet).toContainText(CLIENT_DRAW_COMMENT);
+    await expect(sheet).toContainText(CLIENT_NAME);
+    await sheet.getByRole('textbox', { name: 'Write a comment' }).fill('Fixed in the next issue.');
+    await sheet.getByRole('button', { name: 'Add comment' }).click();
+    await expect(sheet).toContainText('Fixed in the next issue.');
+    expect(api.admin.nodeComments[CLIENT_DRAW_ID]?.map((c) => c.body)).toEqual([
+      CLIENT_DRAW_COMMENT,
+      'Fixed in the next issue.',
+    ]);
   });
 
   test('Clients: the client comments card links each item; a client’s comments go after a confirm', async ({

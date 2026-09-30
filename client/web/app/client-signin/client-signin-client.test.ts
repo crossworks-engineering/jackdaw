@@ -20,7 +20,7 @@ const render = (initialCode: string, codesEnabled = false, initialSplit = false)
 const FORM_PARTS = ['<form', 'id="client-email"', 'type="email"', 'Sign in</'];
 const NO_CODE_PARTS = [
   'Open the sign-in link you were sent.',
-  'ask your admin for a new one',
+  'ask the team for a new one',
   'Staff sign in',
 ];
 const CODE_PARTS = ['id="client-code-email"', 'Email me a code', 'Staff sign in'];

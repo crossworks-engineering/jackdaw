@@ -27,6 +27,7 @@ import {
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { TagPill } from '@mantle/web-ui/tag-pill';
+import { NO_IMAGES } from '@mantle/web-ui/comment-thread';
 import { AccessControl } from '@/components/share/access-control';
 import { TaskForm, taskToForm, type TaskPayload } from './task-form';
 import { PRIORITY_BADGE, STATUSES, STATUS_BADGE, STATUS_LABEL, type Status } from './task-meta';
@@ -214,9 +215,13 @@ export function TaskDetail({
           </div>
         )}
 
+        {/* No picture loads from a body: a request's task holds a client's
+            or a member's words (client tier audit U5). */}
         {task.body && (
           <article className="prose prose-sm dark:prose-invert max-w-none prose-accent rounded-md border border-border bg-card p-4">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.body}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={NO_IMAGES}>
+              {task.body}
+            </ReactMarkdown>
           </article>
         )}
 

@@ -232,6 +232,89 @@ test.describe('the admin side of client chat', () => {
     await expect(page.getByText(/chat use/i)).toHaveCount(0);
   });
 
+  test('a client’s words load no picture on staff screens: Requests, the task, Member chats (tier U5)', async ({
+    page,
+  }) => {
+    const PIXEL = 'https://tracker.example/p.gif';
+    const elsewhere: string[] = [];
+    await page.route('https://tracker.example/**', (route) => {
+      elsewhere.push(route.request().url());
+      return route.abort();
+    });
+    const body = `Please give access.\n\n![x](${PIXEL})`;
+    api.admin.requests = [
+      {
+        taskId: 't-1',
+        title: 'Access',
+        body,
+        status: 'open',
+        priority: 'normal',
+        createdAt: '2026-09-28T08:00:00.000Z',
+        contactId: null,
+        contactName: null,
+        notifiedAt: null,
+        loginId: 'c-1',
+        fromClient: true,
+      },
+    ];
+    api.admin.tasks = [
+      {
+        id: 't-1',
+        title: 'Access',
+        body,
+        status: 'open',
+        priority: 'normal',
+        dueAt: null,
+        tags: [],
+        todos: [],
+        rank: null,
+        commentCount: 0,
+        summary: null,
+        archivedAt: null,
+        createdAt: '2026-09-28T08:00:00.000Z',
+        updatedAt: '2026-09-28T08:00:00.000Z',
+      },
+    ];
+    api.admin.memberChats = [
+      {
+        loginId: 'c-1',
+        name: CLIENT_NAME,
+        email: CLIENT_EMAIL,
+        role: 'client',
+        active: true,
+        lastMessageAt: '2026-09-28T08:00:00.000Z',
+        lastMessageText: 'Done.',
+        lastMessageDirection: 'outbound',
+        messageCount: 1,
+      },
+    ];
+    api.admin.memberChatThreads['c-1'] = [
+      {
+        id: 'o-1',
+        direction: 'outbound',
+        text: `Done, as asked.\n\n![x](${PIXEL})`,
+        status: 'complete',
+        error: null,
+        traceId: null,
+        createdAt: '2026-09-28T08:00:00.000Z',
+      },
+    ];
+
+    for (const [path, words] of [
+      ['/team-admin?view=requests', 'Please give access.'],
+      ['/tasks?selected=t-1', 'Please give access.'],
+      ['/team-admin?view=chats&login=c-1', 'Done, as asked.'],
+    ] as const) {
+      await page.goto(path);
+      const text = page.getByText(words).first();
+      await expect(text).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText('[x]').first()).toBeVisible();
+      await expect(page.locator(`img[src="${PIXEL}"]`)).toHaveCount(0);
+    }
+    await page.waitForTimeout(500);
+    expect(elsewhere).toEqual([]);
+  });
+
   test('Requests: a client’s request wears the Client badge; a member’s none', async ({ page }) => {
     const request = (over: Record<string, unknown>) => ({
       body: '',

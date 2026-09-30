@@ -9,6 +9,7 @@ import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { Button } from '@mantle/web-ui/ui/button';
 import { PageView } from '@/components/page-editor/page-view';
+import { ReaderNote } from './reader-note';
 import { readerTableView } from '@/lib/reader-table';
 
 /** One brain item as a read-only viewer gets it: a Library or accepted item
@@ -30,6 +31,9 @@ export type ReaderAssets = {
   /** When set, a page's file embeds draw as download chips pointing at this
    *  byte route (the client portal). */
   fileEmbedPath?: (id: string) => string;
+  /** When set, a note's pictures go through this: the reader's own byte
+   *  route, or null to draw none (the client portal, client tier audit U4). */
+  noteImagePath?: (src: string) => string | null;
 };
 
 /**
@@ -58,7 +62,9 @@ export function ReadOnlyItemBody({
         />
       );
     case 'note':
-      return (
+      return assets.noteImagePath ? (
+        <ReaderNote content={item.content} imagePath={assets.noteImagePath} />
+      ) : (
         <NotePresenter view={{ title: item.title, content: item.content }} chrome="embedded" />
       );
     case 'draw':

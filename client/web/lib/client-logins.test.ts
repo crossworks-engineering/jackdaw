@@ -5,6 +5,7 @@ import {
   clientLinkErrorText,
   clientName,
   clientSigninUrl,
+  loginDeleteText,
   openLinkAt,
 } from './client-logins';
 
@@ -92,5 +93,22 @@ describe('rows', () => {
     expect(openLinkAt(row, Date.parse('2026-09-30T10:00:00.000Z'))).toBe(row.openLink);
     expect(openLinkAt(row, Date.parse('2026-10-02T10:00:00.000Z'))).toBeNull();
     expect(openLinkAt({ openLink: null }, 0)).toBeNull();
+  });
+});
+
+describe('deleting a login (client tier audit I5)', () => {
+  const row = { displayName: 'Pat', email: 'pat@example.invalid' };
+
+  it('a client: its comments and chat thread go with it, and Disable keeps them', () => {
+    const text = loginDeleteText({ ...row, role: 'client' });
+    expect(text).toContain('comments and chat thread this client wrote are deleted');
+    expect(text).toContain('disable the login instead');
+    expect(text).not.toContain('Nothing in the brain is removed');
+  });
+
+  it('an admin or a member: everything they made stays', () => {
+    for (const role of ['admin', 'member']) {
+      expect(loginDeleteText({ ...row, role })).toContain('everything they created stays');
+    }
   });
 });

@@ -205,7 +205,7 @@ export function ProfileMenu({
         <RowButton
           title={primary}
           data-tour="profile"
-          aria-label={`Account — ${primary}`}
+          aria-label={`Account: ${primary}`}
           className={cn(
             'flex items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
             'hover:bg-foreground/[0.06] data-[state=open]:bg-foreground/[0.06]',

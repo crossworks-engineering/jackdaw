@@ -96,6 +96,12 @@ const REFUSAL_TEXT: Record<string, string> = {
 /** What a member reads for an item an admin has taken over (audit F07). */
 export const WITH_ADMIN_TEXT = REFUSAL_TEXT['with-admin']!;
 
+/** The embed refusal's fallback, and what a CLIENT reads in its place
+ *  (client tier audit U6): a client has no Library. */
+export const EMBED_TEXT = REFUSAL_TEXT.embed!;
+export const CLIENT_EMBED_TEXT =
+  'This uses items you cannot share: only your own items and items shared with you. Remove them, then save.';
+
 /** What a CLIENT reads for it (client logins C5 audit fix U3): a client
  *  never reads a staff role, so the one who holds it is the reviewer. */
 export const CLIENT_WITH_REVIEWER_TEXT =

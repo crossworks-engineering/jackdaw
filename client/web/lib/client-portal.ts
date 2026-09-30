@@ -60,6 +60,28 @@ export function clientAssetPath(path: string): string {
   return path;
 }
 
+const MEDIA_RE = /^media:([0-9a-f-]{36})$/i;
+const DRAW_REF_RE = /^draw:([0-9a-f-]{36})$/i;
+
+/**
+ * A picture in a client's note (client tier audit U4): a note is markdown,
+ * and the brain keeps a readable picture as it was written, so it may name
+ * the owner's file route (`/api/files/files/<id>`), a drawing's
+ * (`/api/draws/<id>/svg`) or the app's own schemes (`media:<id>`,
+ * `draw:<id>`). Each maps onto the client byte routes; anything else (an
+ * external or `data:` picture, a path this does not know) is null, and the
+ * reader draws no picture for it. A client never asks an admin route, and
+ * never loads a picture from another site.
+ */
+export function clientNoteImagePath(src: string): string | null {
+  const s = src.trim();
+  const file = FILE_RE.exec(s) ?? MEDIA_RE.exec(s);
+  if (file) return clientFileUrlPath(file[1]!);
+  const draw = DRAW_RE.exec(s) ?? DRAW_REF_RE.exec(s);
+  if (draw) return clientDrawUrlPath(draw[1]!);
+  return null;
+}
+
 // ── The client shell ────────────────────────────────────────────────────────
 
 /**

@@ -191,7 +191,10 @@ function useShellRole(seed: 'member' | 'client' | null) {
     // is about. Focus covers the one you came back to; the interval covers the
     // one that has been open in front of you for hours. It is one small
     // request, and it is the one carrying a credential with a hard expiry.
-    refetchOnWindowFocus: true,
+    // Not once the brain refused this login here (a client or a member): the
+    // answer is final, and asking on every focus only repeats the refusal
+    // (client tier audit U8).
+    refetchOnWindowFocus: (query) => !isLoginRefusal(query.state.error),
     // A member or client login is refused here for good (403): retrying only
     // delays what the shell does about it.
     retry: (count, err) => !isLoginRefusal(err) && count < 1,
@@ -203,7 +206,7 @@ function useShellRole(seed: 'member' | 'client' | null) {
     queryFn: () => apiFetch<MemberShellData>('/api/member/shell'),
     enabled: isMemberSeed,
     refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: (query) => !isLoginRefusal(query.state.error),
     retry: (count, err) => !isLoginRefusal(err) && count < 1,
   });
   // A client login is not a member: drop a stale member hint so the

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { setAssetToken } from '@mantle/web-ui/asset-url';
+import { onSignOut } from '@mantle/web-ui/sign-out';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
@@ -14,6 +15,7 @@ import {
 } from '@/components/member/role-screens';
 import { clientTabTitle } from '@/lib/brand';
 import { clientPortalView, isNewShellAnswer, refreshClientPortal } from '@/lib/client-portal';
+import { clearRescues, clientRescueOwner, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
 import type { ClientShell } from '@mantle/client-types';
 import { ClientShellFrame } from './client-shell-frame';
 
@@ -29,6 +31,7 @@ export function ClientPortal({ query }: { query: UseQueryResult<ClientShell> }) 
   const shell = query.data;
   useBrand(shell);
   useFreshList(query.dataUpdatedAt);
+  useRescueOwner(shell);
   switch (view) {
     case 'ready':
       return (
@@ -39,14 +42,40 @@ export function ClientPortal({ query }: { query: UseQueryResult<ClientShell> }) 
     case 'unavailable':
       return <ClientLoginScreen fullScreen />;
     case 'failed':
-      return <RoleProbeFailedScreen fullScreen onRetry={() => void query.refetch()} />;
+      return <RoleProbeFailedScreen fullScreen client onRetry={() => void query.refetch()} />;
     case 'offline':
       return (
-        <RoleProbeFailedScreen fullScreen failure="offline" onRetry={() => void query.refetch()} />
+        <RoleProbeFailedScreen
+          fullScreen
+          client
+          failure="offline"
+          onRetry={() => void query.refetch()}
+        />
       );
     default:
-      return <RoleLoadingScreen fullScreen />;
+      return <RoleLoadingScreen fullScreen client />;
   }
+}
+
+/**
+ * Big-save rescue copies (lib/member-rescue.ts) for a client's own items
+ * (client tier audit U7): the owner shell's frame, which sets the owner for
+ * an admin and a member, never mounts for a client, so the portal does the
+ * same here. Expired copies go at boot, the rest are kept under this client
+ * login, and all go at sign-out.
+ */
+function useRescueOwner(shell: ClientShell | undefined) {
+  useEffect(() => {
+    sweepRescues(Date.now());
+    return onSignOut(() => {
+      setRescueOwner(null);
+      clearRescues();
+    });
+  }, []);
+  const who = clientRescueOwner(shell);
+  useEffect(() => {
+    setRescueOwner(who);
+  }, [who]);
 }
 
 /**

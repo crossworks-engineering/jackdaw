@@ -2,7 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { RoleSwitch, ShellRoleGate, ViewerRoleProvider, useViewerRole } from './viewer-role';
-import { LOADING_SIGN_OUT_AFTER_MS, RoleLoadingScreen } from './role-screens';
+import { LOADING_SIGN_OUT_AFTER_MS, RoleLoadingScreen, neutralSignOutPath } from './role-screens';
 
 /**
  * The role plumbing renders (client logins C0): three roles and a neutral
@@ -167,5 +167,12 @@ describe('ShellRoleGate (the whole shell)', () => {
   it('a failed probe never overrides a role the brain gave', () => {
     expect(gateFor('client', true)).toBe('<p>CLIENT-PORTAL</p>');
     expect(gateFor('admin', true)).toContain('ADMIN-SCREEN');
+  });
+});
+
+describe('Sign out on a neutral screen (client tier audit U12)', () => {
+  it('sends a client login to the client sign-in page, anyone else to /login', () => {
+    expect(neutralSignOutPath(true)).toBe('/client-signin');
+    expect(neutralSignOutPath(false)).toBe('/login');
   });
 });

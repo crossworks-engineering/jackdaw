@@ -5,6 +5,7 @@ import {
   EVERYWHERE_CONFIRM,
   everywhereConfirmText,
   everywhereOutcome,
+  otherLoginEverywhereText,
   signLoginOutEverywhere,
   signOutEverywhere,
 } from './sign-out-everywhere';
@@ -94,6 +95,25 @@ describe('the confirm (client logins audit B14)', () => {
   it('a client hears about browsers only: it has no phone app and no connected client', () => {
     const text = everywhereConfirmText(true);
     expect(text).toMatch(/^This signs you out on every device, this one too\. Every browser/);
+    expect(text).not.toMatch(/phone app|connected client/);
+  });
+});
+
+describe('the confirm for another login (client tier audit U11)', () => {
+  const row = { displayName: 'Pat', email: 'pat@example.invalid' };
+
+  it('an admin or a member: every device, and nothing else changes', () => {
+    for (const role of ['admin', 'member']) {
+      expect(otherLoginEverywhereText({ ...row, role })).toMatch(
+        /phone app.*Nothing else about the login changes\.$/,
+      );
+    }
+  });
+
+  it('a client: its open sign-in link is revoked too, as End sessions says', () => {
+    const text = otherLoginEverywhereText({ ...row, role: 'client' });
+    expect(text).toContain('any open sign-in link is revoked');
+    expect(text).not.toContain('Nothing else about the login changes');
     expect(text).not.toMatch(/phone app|connected client/);
   });
 });

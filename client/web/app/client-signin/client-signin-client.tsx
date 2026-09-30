@@ -224,7 +224,7 @@ export function ClientSigninClient({
             <p className="text-muted-foreground">
               Open the sign-in link you were sent. A link works once, for{' '}
               {CLIENT_LINK_LIFETIME_HOURS} hours. If you have no link, or yours has been used or has
-              expired, ask your admin for a new one.
+              expired, ask the team for a new one.
             </p>
             <div className="text-center">
               <Button type="button" variant="link" size="sm" onClick={staffSignIn}>

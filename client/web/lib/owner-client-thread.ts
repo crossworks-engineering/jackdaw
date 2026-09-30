@@ -14,8 +14,14 @@ import { queryKeysForType } from './access-levels';
 /** The owner comment route's `?scope=` (C6): only the client thread. */
 export type NodeCommentScope = 'client';
 
-/** The kinds whose owner views carry the thread. */
-export type OwnerThreadKind = 'page' | 'note' | 'table' | 'file';
+/**
+ * The kinds whose owner views carry the thread: every workspace kind the
+ * brain threads at client level (its 0159 kind list), so no client comment
+ * lands where no admin screen shows it. OWNER_THREAD_KINDS lists them for
+ * the guard test that each has a mount.
+ */
+export const OWNER_THREAD_KINDS = ['page', 'note', 'table', 'file', 'draw'] as const;
+export type OwnerThreadKind = (typeof OWNER_THREAD_KINDS)[number];
 
 /** The owner's thread route for an item: where a comment is POSTed. */
 export function ownerThreadPath(id: string): string {

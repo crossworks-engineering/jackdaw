@@ -25,6 +25,22 @@ test.afterEach(async () => {
 const portal = (page: import('@playwright/test').Page) =>
   page.getByRole('heading', { name: 'Shared with you' });
 
+/** A focus back on the tab, as TanStack Query hears it. */
+const refocus = (page: import('@playwright/test').Page) =>
+  page.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+  });
+
+/** Focus the tab a few times, then let any ask it started land. */
+async function focusAFewTimes(page: import('@playwright/test').Page) {
+  for (let i = 0; i < 3; i++) {
+    await refocus(page);
+    await page.waitForTimeout(300);
+  }
+  await page.waitForTimeout(700);
+}
+
 const hasCookie = async (context: import('@playwright/test').BrowserContext, name: string) =>
   (await context.cookies()).some((c) => c.name === name && c.value === '1');
 
@@ -42,9 +58,11 @@ test.describe('a client login', () => {
     // No owner or member nav: the one screen.
     await expect(page.getByRole('link', { name: 'Pages' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
-    // The one refused route it asked is the role probe: nothing else of the
-    // owner shell (usage card, activity, banners, the page) was requested.
-    expect([...new Set(api.clientCalls)]).toEqual(['GET /api/shell']);
+    // The one refused route it asked is the role probe, once: nothing else
+    // of the owner shell (usage card, activity, banners, the page) was
+    // requested, and a focus does not ask the refused probe again (tier U8).
+    await focusAFewTimes(page);
+    expect(api.clientCalls).toEqual(['GET /api/shell']);
     // From now on the browser knows: the next load asks no owner route.
     await expect.poll(() => hasCookie(context, 'mantle_client')).toBe(true);
   });
@@ -57,7 +75,8 @@ test.describe('a client login', () => {
     await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
     await page.waitForTimeout(1500);
     await expect(page).toHaveURL(/\/$/);
-    expect([...new Set(api.clientCalls)]).toEqual(['GET /api/shell']);
+    await focusAFewTimes(page);
+    expect(api.clientCalls).toEqual(['GET /api/shell']);
   });
 
   test('signs out through /api/auth/logout and lands on the client sign-in page', async ({
@@ -87,6 +106,10 @@ test.describe('a client login with a stale member hint', () => {
     await page.goto('/pages');
     await expect(portal(page)).toBeVisible({ timeout: 60_000 });
     expect(api.clientCalls).not.toContain('GET /api/shell');
+    // The member probe the stale hint started is refused once, and a focus
+    // does not ask it again (tier U8).
+    await focusAFewTimes(page);
+    expect(api.clientCalls.filter((c) => c === 'GET /api/member/shell')).toHaveLength(1);
     await expect.poll(() => hasCookie(context, 'mantle_member')).toBe(false);
     await expect.poll(() => hasCookie(context, 'mantle_client')).toBe(true);
   });

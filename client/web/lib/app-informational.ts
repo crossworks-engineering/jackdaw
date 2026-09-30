@@ -30,10 +30,18 @@ export const APP_INFORMATIONAL_LABEL = 'Informational: members and clients only 
 export const APP_INFORMATIONAL_HINT =
   'Otherwise a team or client app is written by everyone who runs it.';
 
-/** Does this brain know the flag: its app detail carries it (C6 on). A
- *  brain before C6 sends no `dataReadOnly`, and the switch is not shown. */
-export function supportsInformational(app: { dataReadOnly?: boolean | null }): boolean {
-  return typeof app.dataReadOnly === 'boolean';
+/** Is the admin's switch shown: the brain knows the flag (its app detail
+ *  carries it, C6 on; a brain before C6 sends no `dataReadOnly`), and the
+ *  app is at a level the flag means something at (client tier audit N1).
+ *  Only a team or client app is written by the people who run it: an admin
+ *  app has no other readers, and members only ever read a public one. */
+export function supportsInformational(app: {
+  dataReadOnly?: boolean | null;
+  audience?: string | null;
+}): boolean {
+  return (
+    typeof app.dataReadOnly === 'boolean' && (app.audience === 'team' || app.audience === 'client')
+  );
 }
 
 /** The owner app PATCH body for the switch. */

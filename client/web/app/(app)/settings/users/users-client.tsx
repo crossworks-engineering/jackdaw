@@ -61,9 +61,11 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { performSignOut } from '@mantle/web-ui/sign-out';
 import {
   EVERYWHERE_CONFIRM,
+  otherLoginEverywhereText,
   signLoginOutEverywhere,
   signOutEverywhere,
 } from '@/lib/sign-out-everywhere';
+import { loginDeleteText } from '@/lib/client-logins';
 import { PairPhoneCard } from './pair-phone-card';
 
 type UserRow = {
@@ -692,9 +694,7 @@ function SignOutEverywhereButton({ user, isSelf }: { user: UserRow; isSelf: bool
               : `Sign ${user.displayName || user.email} out everywhere?`}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {isSelf
-              ? EVERYWHERE_CONFIRM
-              : 'Every browser, the phone app and any connected client they use must sign in again. Nothing else about the login changes.'}
+            {isSelf ? EVERYWHERE_CONFIRM : otherLoginEverywhereText(user)}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -1253,10 +1253,7 @@ function DeleteUserDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {user.displayName || user.email}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Their login stops working immediately. Nothing in the brain is removed — everything they
-            created stays — and their past actions remain in the audit log.
-          </AlertDialogDescription>
+          <AlertDialogDescription>{loginDeleteText(user)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>

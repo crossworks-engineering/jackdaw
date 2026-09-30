@@ -13,6 +13,17 @@ import type {
   MemberSpaceItemRow,
   NodeComment,
 } from '@mantle/client-types';
+// The C2 and C4 answers (client tier audit U9): the shell, "Shared with
+// you" and its items, and the client's chat.
+import type {
+  ClientChatMessage,
+  ClientChatQueued,
+  ClientChatThread,
+  ClientShell,
+  ClientSharedItem,
+  ClientSharedPage,
+  ClientSharedRow,
+} from '@mantle/client-types';
 import type {
   ClientCommentThread,
   ClientCommentsDeleted,
@@ -20,6 +31,7 @@ import type {
   ClientThreadActivity,
 } from '@mantle/client-types';
 // The C6 answers: client apps and the informational flag.
+import type { MemberChatArchiveMessage, TaskRow } from '@mantle/client-types';
 import type {
   AppDetail,
   ClientAppCard,
@@ -329,6 +341,11 @@ export const ADMIN_APP_TITLE = 'Site tracker';
 /** A comment in another thread on the client note (not the client scope):
  *  a C6 brain leaves it out of `?scope=client`, an older one does not. */
 export const OWNER_THREAD_TEAM_COMMENT = 'Internal: check the price floor first.';
+/** A client-level drawing, as the owner's drawing screen reads it, with a
+ *  client's comment in its client thread (client tier audit U1). */
+export const CLIENT_DRAW_ID = '45454545-4545-4454-8454-454545454545';
+export const CLIENT_DRAW_TITLE = 'North elevation';
+export const CLIENT_DRAW_COMMENT = 'The north elevation is wrong.';
 
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
@@ -369,6 +386,12 @@ export type MockMemberApi = {
   clientCalls: string[];
   /** Client role: every client route the page called (answered). */
   clientRouteCalls: string[];
+  /** Client role: markdown appended to the shared note and to the accepted
+   *  note (pictures, client tier audit U4). */
+  noteExtra: string;
+  /** Client role: GET /api/client/shell answers 500 this many more times
+   *  (the portal's Try again screen). */
+  clientShellFailures: number;
   /** Client role: the client's own chat (C4). */
   clientChat: MockClientChat;
   /** Client role: the client's own items and the shared threads (C5). */
@@ -514,6 +537,11 @@ export type MockAdminState = {
   };
   /** Member chats (B26): rows the roster answers, when set. */
   memberChats: Record<string, unknown>[] | null;
+  /** The thread `?login=` opens in Member chats, by login id. */
+  memberChatThreads: Record<string, MemberChatArchiveMessage[]>;
+  /** The owner's tasks (/tasks), as GET /api/tasks and /api/tasks/:id
+   *  answer them. */
+  tasks: TaskRow[];
   /** Clients' chat use today (C4): the answer, or null for a brain before
    *  C4 (404). */
   chatUsage: Record<string, unknown> | null;
@@ -559,6 +587,14 @@ export type MockApps<C> = {
   frames: string[];
   /** Every db-broker call: the app id, the op, and the answer's status. */
   dbCalls: { id: string; op: string; status: number }[];
+  /** The frame, once ready, sends one `db.exec` and one `tool.call` and
+   *  writes each answer it gets into its page (`[data-reply="db"]`,
+   *  `[data-reply="tool"]`). */
+  frameCalls: boolean;
+  /** Every tool-broker call, by app id (no tools here: each is refused). */
+  toolCalls: string[];
+  /** Set to have every frame ticket answer this status instead. */
+  ticketStatus: number | null;
 };
 
 /** One item of a client's own space: the member space shapes. */
@@ -601,19 +637,15 @@ export type MockClientOwn = {
   commentRefusal: { status: number; body: unknown } | null;
   /** Every own item deleted, by id. */
   deletes: string[];
+  /** Set to have every draft PUT of an own page answer this instead (a 5xx,
+   *  or a refusal with no sentence of the brain's). */
+  draftAnswer: { status: number; body: unknown } | null;
 };
 
 export type MockClientChat = {
   /** null: the chat is not open (no client-level agent). */
-  agent: { name: string } | null;
-  messages: {
-    id: string;
-    direction: 'inbound' | 'outbound';
-    text: string;
-    status: 'pending' | 'complete' | 'failed';
-    failed: boolean;
-    createdAt: string;
-  }[];
+  agent: ClientChatThread['agent'];
+  messages: ClientChatMessage[];
   /** Every send, with its Idempotency-Key and the answer's status. */
   posts: { text: string; key: string | null; status: number }[];
   /** Every GET of the thread, with when it arrived (Date.now()). */
@@ -696,6 +728,8 @@ export async function startMockMemberApi(
       refusal: null,
       replyAfter: 0,
     },
+    clientShellFailures: 0,
+    noteExtra: '',
     clientOwn: {
       routes: true,
       items: [],
@@ -714,9 +748,28 @@ export async function startMockMemberApi(
       acceptedFile: false,
       commentRefusal: null,
       deletes: [],
+      draftAnswer: null,
     },
-    clientApps: { routes: true, apps: [], tickets: [], frames: [], dbCalls: [] },
-    memberApps: { routes: true, apps: [], tickets: [], frames: [], dbCalls: [] },
+    clientApps: {
+      routes: true,
+      apps: [],
+      tickets: [],
+      frames: [],
+      dbCalls: [],
+      frameCalls: false,
+      toolCalls: [],
+      ticketStatus: null,
+    },
+    memberApps: {
+      routes: true,
+      apps: [],
+      tickets: [],
+      frames: [],
+      dbCalls: [],
+      frameCalls: false,
+      toolCalls: [],
+      ticketStatus: null,
+    },
     clientRequests: false,
     libraryComments: [],
     libraryThread: true,
@@ -781,6 +834,8 @@ export async function startMockMemberApi(
         previewCalls: [],
       },
       memberChats: null,
+      memberChatThreads: {},
+      tasks: [],
       chatUsage: null,
       requests: [],
       nodeComments: {},
@@ -1130,6 +1185,41 @@ export async function startMockMemberApi(
       json(res, 200, { note: noteRow() });
       return true;
     }
+    // A client-level drawing on the owner's drawing screen (tier U1).
+    if (path === `/api/draws/${CLIENT_DRAW_ID}` && method === 'GET') {
+      json(res, 200, {
+        draw: {
+          id: CLIENT_DRAW_ID,
+          title: CLIENT_DRAW_TITLE,
+          icon: null,
+          tags: [],
+          description: null,
+          summary: null,
+          visibility: 'private',
+          createdAt: now,
+          updatedAt: now,
+          scene: { elements: [], appState: {}, files: {} },
+          draft: null,
+          draftRev: 0,
+          fileRefs: {},
+        },
+      });
+      return true;
+    }
+    if (path === `/api/access/nodes/${CLIENT_DRAW_ID}` && method === 'GET') {
+      json(res, 200, {
+        item: { id: CLIENT_DRAW_ID, type: 'draw', title: CLIENT_DRAW_TITLE, audience: 'client' },
+        closure: [],
+        share: null,
+        childCount: 0,
+        canLower: true,
+        canLink: true,
+        embedsFollow: true,
+        openLinkLevels: ['public'],
+        oldLinksAbove: [],
+      });
+      return true;
+    }
     if (path === `/api/access/nodes/${CLIENT_NOTE_ID}` && method === 'GET') {
       json(res, 200, {
         item: { id: CLIENT_NOTE_ID, type: 'note', title: CLIENT_NOTE_TITLE, audience: 'client' },
@@ -1283,7 +1373,22 @@ export async function startMockMemberApi(
     }
     // Member chats (B26): the roster with a client row, when set.
     if (path === '/api/team-admin/member-chats' && method === 'GET' && A.memberChats) {
-      json(res, 200, { members: A.memberChats, selected: null });
+      const login = url.searchParams.get('login');
+      const thread = login ? A.memberChatThreads[login] : undefined;
+      json(res, 200, {
+        members: A.memberChats,
+        selected: login && thread ? { loginId: login, thread, windowSize: 50 } : null,
+      });
+      return true;
+    }
+    if (path === '/api/tasks' && method === 'GET') {
+      json(res, 200, { tasks: A.tasks, total: A.tasks.length, page: 1, pageSize: 50 });
+      return true;
+    }
+    const oneTask = /^\/api\/tasks\/([^/]+)$/.exec(path);
+    if (oneTask && method === 'GET') {
+      const task = A.tasks.find((t) => t.id === oneTask[1]);
+      json(res, task ? 200 : 404, task ? { task } : { error: 'Not found.' });
       return true;
     }
     // Sign-in codes by email (C2b): the sender and the day's count.
@@ -1465,12 +1570,12 @@ export async function startMockMemberApi(
   });
 
   // ── The client side (role 'client', C2) ───────────────────────────────
-  const sharedRows = () => [
+  const sharedRows = (): ClientSharedRow[] => [
     ...(state.sharedLater
       ? [
           {
             id: SHARED_LATER_ID,
-            type: 'note',
+            type: 'note' as const,
             title: SHARED_LATER_TITLE,
             icon: null,
             summary: null,
@@ -1480,7 +1585,7 @@ export async function startMockMemberApi(
       : []),
     {
       id: SHARED_PAGE_ID,
-      type: 'page',
+      type: 'page' as const,
       title: SHARED_PAGE_TITLE,
       icon: null,
       // An older brain's summary, from the unredacted text (B1).
@@ -1489,7 +1594,7 @@ export async function startMockMemberApi(
     },
     {
       id: SHARED_NOTE_ID,
-      type: 'note',
+      type: 'note' as const,
       title: SHARED_NOTE_TITLE,
       icon: null,
       summary: null,
@@ -1497,7 +1602,7 @@ export async function startMockMemberApi(
     },
     {
       id: SHARED_FILE_ID,
-      type: 'file',
+      type: 'file' as const,
       title: SHARED_FILE_TITLE,
       icon: null,
       summary: null,
@@ -1507,7 +1612,7 @@ export async function startMockMemberApi(
       ? [
           {
             id: SHARED_TABLE_ID,
-            type: 'table',
+            type: 'table' as const,
             title: SHARED_TABLE_TITLE,
             icon: null,
             summary: state.sharedTable === 'record' ? LEAKY_SUMMARY : undefined,
@@ -1524,12 +1629,13 @@ export async function startMockMemberApi(
     { id: 'r1', cells: { c1: 'Survey', c2: 1200 } },
     { id: 'r2', cells: { c1: 'Report', c2: 800 } },
   ];
-  const sharedItem = (id: string): Record<string, unknown> | null => {
+  const sharedItem = (id: string): ClientSharedItem | null => {
     const row = sharedRows().find((r) => r.id === id);
     if (!row) return null;
     if (row.type === 'page') {
       return {
         ...row,
+        type: 'page',
         doc: {
           type: 'doc',
           content: [
@@ -1589,7 +1695,7 @@ export async function startMockMemberApi(
       const { summary: _summary, ...rest } = row;
       void _summary;
       return state.sharedTable === 'record'
-        ? {
+        ? ({
             ...row,
             // The whole record an older brain sends (B13).
             table: {
@@ -1604,9 +1710,11 @@ export async function startMockMemberApi(
               draft: null,
               rowCount: TABLE_ROWS.length,
             },
-          }
+            // Off the contract on purpose: what an older brain sent.
+          } as unknown as ClientSharedItem)
         : {
             ...rest,
+            type: 'table',
             // The allowlisted shape (B13): the grid, its tabs and counts.
             table: {
               data: { columns: TABLE_COLUMNS, rows: TABLE_ROWS },
@@ -1618,9 +1726,19 @@ export async function startMockMemberApi(
           };
     }
     if (row.type === 'note') {
-      return { ...row, content: `Agreed: ship it. Background in [${PRIVATE_LABEL}]().` };
+      return {
+        ...row,
+        type: 'note',
+        content: `Agreed: ship it. Background in [${PRIVATE_LABEL}]().${state.noteExtra}`,
+      };
     }
-    return { ...row, filename: SHARED_FILE_TITLE, mimeType: 'image/png', sizeBytes: 68 };
+    return {
+      ...row,
+      type: 'file',
+      filename: SHARED_FILE_TITLE,
+      mimeType: 'image/png',
+      sizeBytes: 68,
+    };
   };
   // The client's own chat (C4): a send queues the turn, and the reply lands
   // on the second ask of the thread after it (the first still pending), as a
@@ -1638,7 +1756,7 @@ export async function startMockMemberApi(
           C.replyAfter -= 1;
         }
       }
-      return json(res, 200, { agent: C.agent, messages: C.messages });
+      return json(res, 200, { agent: C.agent, messages: C.messages } satisfies ClientChatThread);
     }
     if (method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
     const body = JSON.parse((await readBody(req)) || '{}') as { text?: string };
@@ -1674,7 +1792,7 @@ export async function startMockMemberApi(
       },
     );
     C.replyAfter = 1;
-    return answer(202, { turnId: `turn-${n}` });
+    return answer(202, { turnId: `turn-${n}` } satisfies ClientChatQueued);
   };
 
   // ── A client's submitted item, as a member reads it (C5) ──────────────
@@ -1813,6 +1931,9 @@ export async function startMockMemberApi(
   O.shared[SHARED_PAGE_ID] = [comment(SHARED_PAGE_ID, 'member', STAFF_NAME, SHARED_TEAM_COMMENT)];
   A.nodeComments[CLIENT_NOTE_ID] = [
     comment(CLIENT_NOTE_ID, 'client', CLIENT_NAME, OWNER_THREAD_CLIENT_COMMENT),
+  ];
+  A.nodeComments[CLIENT_DRAW_ID] = [
+    comment(CLIENT_DRAW_ID, 'client', CLIENT_NAME, CLIENT_DRAW_COMMENT),
   ];
   A.nodeOtherComments[CLIENT_NOTE_ID] = [
     comment(CLIENT_NOTE_ID, 'member', STAFF_NAME, OWNER_THREAD_TEAM_COMMENT),
@@ -2023,7 +2144,7 @@ export async function startMockMemberApi(
           type: 'note',
           title: CLIENT_ACCEPTED_TITLE,
           updatedAt: '2026-09-20T12:00:00.000Z',
-          content: 'The site is open 7 to 5 on weekdays.',
+          content: `The site is open 7 to 5 on weekdays.${state.noteExtra}`,
         };
       } else if (O.acceptedFile && acc[1] === CLIENT_ACCEPTED_FILE_ID) {
         item = {
@@ -2095,6 +2216,7 @@ export async function startMockMemberApi(
       }
       if (tail === '/draft' && method === 'PUT' && page) {
         const body = JSON.parse(await readBody(req)) as { doc: Doc; if_rev?: number };
+        if (O.draftAnswer) return (json(res, O.draftAnswer.status, O.draftAnswer.body), true);
         if (item.row.reviewState === 'submitted') {
           json(res, 409, {
             error: 'Submitted for review: nobody can change it now.',
@@ -2186,6 +2308,9 @@ export async function startMockMemberApi(
     const [, id, tail] = m as unknown as [string, string, string];
     if (tail === 'frame-ticket' && method === 'POST') {
       apps.tickets.push(id);
+      if (apps.ticketStatus) {
+        return (json(res, apps.ticketStatus, { error: 'Not signed in.' }), true);
+      }
       return (json(res, 200, { ticket: `ticket-${id}` }), true);
     }
     if (tail === 'frame' && method === 'GET') {
@@ -2193,16 +2318,27 @@ export async function startMockMemberApi(
         return (send(res, 401, 'text/plain', 'Bad ticket.'), true);
       }
       apps.frames.push(id);
+      // With `frameCalls`: one write and one tool call, as an app's code
+      // would send them, each answer written into the frame's page.
+      const calls = apps.frameCalls
+        ? `const put = (k, m) => { const p = document.createElement('p');` +
+          ` p.dataset.reply = k; p.textContent = JSON.stringify(m); document.body.append(p); };` +
+          `addEventListener('message', (e) => { const m = e.data || {};` +
+          ` if (m.id === 'db-1') put('db', m); if (m.id === 'tool-1') put('tool', m); });` +
+          `parent.postMessage({ v: 1, id: 'db-1', kind: 'db.exec', sql: 'insert into snags(t) values (?)', params: ['Door'] }, '*');` +
+          `parent.postMessage({ v: 1, id: 'tool-1', kind: 'tool.call', slug: 'contact_list', input: {} }, '*');`
+        : '';
       send(
         res,
         200,
         'text/html; charset=utf-8',
         `<!doctype html><html><body><p>${APP_FRAME_TEXT}</p>` +
-          `<script>parent.postMessage({ v: 1, kind: 'ready' }, '*');</script></body></html>`,
+          `<script>parent.postMessage({ v: 1, kind: 'ready' }, '*');${calls}</script></body></html>`,
       );
       return true;
     }
     if (tail === 'tool-broker' && method === 'POST') {
+      apps.toolCalls.push(id);
       return (json(res, 403, { ok: false, error: 'No such tool.' }), true);
     }
     if (tail === 'db-broker' && method === 'POST') {
@@ -2246,6 +2382,10 @@ export async function startMockMemberApi(
       return;
     }
     if (path === '/api/client/shell') {
+      if (state.clientShellFailures > 0) {
+        state.clientShellFailures -= 1;
+        return json(res, 500, { error: 'Internal error' });
+      }
       return json(res, 200, {
         role: 'client',
         loginId: CLIENT_LOGIN_ID,
@@ -2264,7 +2404,7 @@ export async function startMockMemberApi(
         fontProseSize: null,
         logoVersion: null,
         logoDarkVersion: null,
-      });
+      } satisfies ClientShell);
     }
     if (path === '/api/client/shared') {
       const kind = url.searchParams.get('kind');
@@ -2272,12 +2412,19 @@ export async function startMockMemberApi(
       const items = sharedRows().filter(
         (r) => (!kind || r.type === kind) && (!q || r.title.toLowerCase().includes(q)),
       );
-      return json(res, 200, { items, total: items.length, page: 1, pageSize: 20 });
+      return json(res, 200, {
+        items,
+        total: items.length,
+        page: 1,
+        pageSize: 20,
+      } satisfies ClientSharedPage);
     }
     const one = /^\/api\/client\/shared\/([0-9a-f-]{36})$/.exec(path);
     if (one) {
       const item = sharedItem(one[1]!);
-      return item ? json(res, 200, { item }) : json(res, 404, { error: 'Not found.' });
+      return item
+        ? json(res, 200, { item } satisfies { item: ClientSharedItem })
+        : json(res, 404, { error: 'Not found.' });
     }
     if (path.startsWith('/api/client/files/')) return send(res, 200, 'image/png', PNG_1PX);
     if (path.startsWith('/api/client/draws/')) {

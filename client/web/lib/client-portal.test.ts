@@ -16,6 +16,7 @@ import {
   clientEmailError,
   clientLinkItemId,
   clientMentionItemId,
+  clientNoteImagePath,
   clientNoteMarkdown,
   clientPortalView,
   clientShellPollMs,
@@ -51,6 +52,23 @@ describe('client routes', () => {
     expect(clientAssetPath(`/api/files/files/${ID}?raw=1`)).toBe(`/api/client/files/${ID}`);
     expect(clientAssetPath(`/api/draws/${ID}/svg`)).toBe(`/api/client/draws/${ID}/svg`);
     expect(clientAssetPath('https://example.invalid/a.png')).toBe('https://example.invalid/a.png');
+  });
+
+  it('maps a note picture onto the client byte routes, and drops any other (U4)', () => {
+    expect(clientNoteImagePath(`/api/files/files/${ID}?raw=1`)).toBe(`/api/client/files/${ID}`);
+    expect(clientNoteImagePath(`media:${ID}`)).toBe(`/api/client/files/${ID}`);
+    expect(clientNoteImagePath(`draw:${ID}`)).toBe(`/api/client/draws/${ID}/svg`);
+    expect(clientNoteImagePath(`/api/draws/${ID}/svg`)).toBe(`/api/client/draws/${ID}/svg`);
+    for (const other of [
+      'https://tracker.example/p.gif',
+      'data:image/png;base64,AAAA',
+      `/api/member/files/${ID}`,
+      `/api/pages/${ID}`,
+      `media:${ID}/../x`,
+      '',
+    ]) {
+      expect(clientNoteImagePath(other), other).toBeNull();
+    }
   });
 });
 
@@ -227,7 +245,7 @@ describe('the portal offline (audit B27)', () => {
       'utf8',
     );
     expect(portal).toMatch(
-      /case 'offline':\s*return \(\s*<RoleProbeFailedScreen\s+fullScreen\s+failure="offline"/,
+      /case 'offline':\s*return \(\s*<RoleProbeFailedScreen\s+fullScreen\s+client\s+failure="offline"/,
     );
   });
 });

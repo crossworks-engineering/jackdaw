@@ -6,7 +6,12 @@ import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { ReadOnlyItemBody, type ReaderAssets } from '@/components/member/read-only-item';
-import { clientAssetPath, clientDrawUrlPath, clientFileUrlPath } from '@/lib/client-portal';
+import {
+  clientAssetPath,
+  clientDrawUrlPath,
+  clientFileUrlPath,
+  clientNoteImagePath,
+} from '@/lib/client-portal';
 import { CLIENT_ACCEPTED_KEY, clientAcceptedPath } from '@/lib/client-requests';
 import type { ClientAcceptedItem } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
@@ -19,6 +24,7 @@ const CLIENT_ASSETS: ReaderAssets = {
   drawUrlPath: clientDrawUrlPath,
   fileUrlPath: clientFileUrlPath,
   fileEmbedPath: clientFileUrlPath,
+  noteImagePath: clientNoteImagePath,
 };
 
 /**

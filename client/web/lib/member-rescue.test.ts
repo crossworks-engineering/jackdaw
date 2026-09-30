@@ -7,6 +7,7 @@ import {
   dropRescue,
   keepRescue,
   replayRescue,
+  clientRescueOwner,
   rescueOwnerFor,
   setRescueOwner,
   sweepRescues,
@@ -124,6 +125,12 @@ describe('a kept write belongs to the login that wrote it', () => {
       'admin:a@example.com',
     );
     expect(rescueOwnerFor(false, undefined, undefined)).toBeNull();
+  });
+
+  it('a client portal names its client login (tier U7)', () => {
+    expect(clientRescueOwner({ loginId: 'C1' })).toBe('client:C1');
+    expect(clientRescueOwner({ loginId: '' })).toBeNull();
+    expect(clientRescueOwner(undefined)).toBeNull();
   });
 });
 

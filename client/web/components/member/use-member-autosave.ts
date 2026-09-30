@@ -3,7 +3,9 @@
 import { useEffect, useRef } from 'react';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { useFlushOnLeave } from '@mantle/web-ui/use-flush-on-leave';
+import { isClientSpace } from '@/lib/member-space';
 import {
+  clientSaveText,
   createAutosaveQueue,
   leaveNeedsWarning,
   trackMemberSaves,
@@ -12,6 +14,7 @@ import {
   type AutosaveState,
   type SaveFailure,
 } from '@/lib/member-autosave';
+import { useSpaceApi } from './space-api';
 
 /**
  * A member editor's autosave (member logins, Phase 2): the shared queue in
@@ -57,8 +60,10 @@ export function useMemberAutosave<T>({
   adoptConflicts?: boolean;
 }): AutosaveQueue<T> {
   const toast = useToast();
-  const latest = useRef({ read, send, keyOf, onState, onFailure, onSaved, toast });
-  latest.current = { read, send, keyOf, onState, onFailure, onSaved, toast };
+  // A client reads no staff role in the failure toast (client tier audit U6).
+  const client = isClientSpace(useSpaceApi());
+  const latest = useRef({ read, send, keyOf, onState, onFailure, onSaved, toast, client });
+  latest.current = { read, send, keyOf, onState, onFailure, onSaved, toast, client };
 
   // State callbacks stop at unmount (set again on mount: strict mode runs the
   // effect twice). A toast still shows: a leave flush the brain refused is
@@ -84,7 +89,7 @@ export function useMemberAutosave<T>({
       key: keyOf ? (doc) => (latest.current.keyOf ?? keyOf)(doc) : undefined,
       onState: (s) => {
         if (s.status !== prev && (s.status === 'stopped' || s.status === 'failed')) {
-          latest.current.toast.error(s.message);
+          latest.current.toast.error(latest.current.client ? clientSaveText(s.message) : s.message);
         }
         prev = s.status;
         if (mounted.current) latest.current.onState?.(s);

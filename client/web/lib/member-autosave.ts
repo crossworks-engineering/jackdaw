@@ -34,7 +34,14 @@
  *    server, which is what Submit and the leave hook await.
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import { refusalIds, refusalMessage } from './member-space';
+import {
+  CLIENT_EMBED_TEXT,
+  CLIENT_WITH_REVIEWER_TEXT,
+  EMBED_TEXT,
+  WITH_ADMIN_TEXT,
+  refusalIds,
+  refusalMessage,
+} from './member-space';
 
 export type AutosaveState =
   /** The server holds what the editor shows. */
@@ -100,6 +107,23 @@ export const CONFLICT_MESSAGE =
 const OFFLINE_MESSAGE = 'Could not save your changes. Check your connection.';
 export const SERVER_MESSAGE =
   'The server could not save this. Copy your text somewhere safe, and tell your admin if it keeps happening.';
+/** SERVER_MESSAGE as a CLIENT reads it: a client never reads a staff role
+ *  (client tier audit U6). */
+export const CLIENT_SERVER_MESSAGE =
+  'The server could not save this. Copy your text somewhere safe, and tell the team if it keeps happening.';
+
+/**
+ * A save's words as a CLIENT reads them (client tier audit U6): the queue's
+ * own sentences, and the fallbacks for the brain's refusals, name a staff
+ * role or the Library, which a client has neither of. Any other text (the
+ * brain's own sentence, written for the client) passes through.
+ */
+export function clientSaveText(text: string): string {
+  if (text === SERVER_MESSAGE) return CLIENT_SERVER_MESSAGE;
+  if (text === EMBED_TEXT) return CLIENT_EMBED_TEXT;
+  if (text === WITH_ADMIN_TEXT) return CLIENT_WITH_REVIEWER_TEXT;
+  return text;
+}
 
 /** A 5xx that says the brain is out of reach (the proxy answered for it),
  *  not that the brain failed on this write. */

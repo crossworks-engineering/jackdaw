@@ -60,6 +60,15 @@ export function rescueOwnerFor(
   return `admin:${adminShell.email ?? ''}`;
 }
 
+/** The owner a loaded CLIENT shell names (client tier audit U7): the client
+ *  portal never mounts the owner or member shell, so it sets this itself.
+ *  Null until the shell has loaded. */
+export function clientRescueOwner(
+  clientShell: { loginId?: string | null } | undefined,
+): string | null {
+  return clientShell?.loginId ? `client:${clientShell.loginId}` : null;
+}
+
 /** The owner, once known, or null after `timeoutMs`. */
 function ownerSoon(timeoutMs: number): Promise<string | null> {
   if (owner) return Promise.resolve(owner);

@@ -270,7 +270,7 @@ test.describe('the email sign-in code', () => {
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('link', { name: 'Sign in with an email code' })).toHaveCount(0);
     await page.goto('/client-signin');
-    await expect(page.getByText('ask your admin for a new one')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('ask the team for a new one')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('button', { name: 'Email me a code' })).toHaveCount(0);
     await page.goto(`/client-signin?code=${CLIENT_GOOD_CODE}`);
     await expect(page.getByLabel('Email', { exact: true })).toBeVisible({ timeout: 60_000 });
@@ -317,10 +317,12 @@ test.describe('a signed-in client', () => {
     const nav = page.getByRole('navigation', { name: 'Primary' });
     // Two screens since C5: what is shared, and what the client sent.
     await expect(nav.getByRole('link')).toHaveText(['Shared with you', 'My requests']);
-    await page
-      .getByRole('button', { name: /^Account/ })
-      .first()
-      .click();
+    const account = page.getByRole('button', { name: /^Account/ }).first();
+    // The house style: no em or en dash, not even in an accessible name
+    // (tier N7). Named by code point so this file carries neither.
+    const dashes = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+    expect(await account.getAttribute('aria-label')).not.toMatch(dashes);
+    await account.click();
     const menu = page.getByRole('menu');
     await expect(menu).toContainText(CLIENT_NAME);
     await expect(menu.getByRole('menuitem', { name: 'Sign out', exact: true })).toBeVisible();
@@ -475,6 +477,19 @@ test.describe('a signed-in client', () => {
     await context.unroute(shell);
     await context.setOffline(false);
     await expect(heading(page)).toBeVisible({ timeout: 60_000 });
+  });
+
+  test('Sign out on the failure card goes to the client sign-in, not the staff one (tier U12)', async ({
+    page,
+  }) => {
+    api.clientShellFailures = 1000;
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Could not load your workspace' })).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL(/\/client-signin$/, { timeout: 30_000 });
+    expect(api.logouts.map((l) => l.path)).toContain('/api/auth/logout');
   });
 
   test('the tab names the site, never the box (B27)', async ({ page }) => {

@@ -7,6 +7,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { performSignOut } from '@mantle/web-ui/sign-out';
 // Relative, not '@/': the node test runner renders these (viewer-role.test.ts)
 // and does not resolve the app's path alias.
+import { CLIENT_SIGNIN_PATH } from '../../lib/client-surface';
 import { setClientHint, setMemberHint } from '../../lib/member-destination';
 import { shellRetryDelayMs, type ShellProbeFailure } from '../../lib/shell-role';
 
@@ -64,10 +65,18 @@ function NeutralCard({
   );
 }
 
+/** Where Sign out on a neutral screen goes: a client login to the client
+ *  sign-in page (client tier audit U12: the hints are cleared first, so the
+ *  middleware can no longer send it there from /login), anyone else to
+ *  /login. */
+export function neutralSignOutPath(client: boolean): string {
+  return client ? CLIENT_SIGNIN_PATH : '/login';
+}
+
 /** Ends the session the plain way (POST /api/auth/logout, via the shared
- *  sign-out) and goes to /login. A full navigation, so nothing of this
- *  shell survives it. */
-export function NeutralSignOutButton() {
+ *  sign-out) and goes to /login, or a client to its own sign-in page. A full
+ *  navigation, so nothing of this shell survives it. */
+export function NeutralSignOutButton({ client = false }: { client?: boolean }) {
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -78,7 +87,7 @@ export function NeutralSignOutButton() {
         setMemberHint(false);
         setClientHint(false);
         await performSignOut();
-        window.location.assign('/login');
+        window.location.assign(neutralSignOutPath(client));
       }}
     >
       {busy ? <Loader2 className="animate-spin" aria-hidden /> : <LogOut aria-hidden />}
@@ -96,9 +105,12 @@ export const LOADING_SIGN_OUT_AFTER_MS = 4_000;
 export function RoleLoadingScreen({
   fullScreen,
   signOutAfterMs = LOADING_SIGN_OUT_AFTER_MS,
+  client = false,
 }: {
   fullScreen?: boolean;
   signOutAfterMs?: number;
+  /** A client login (the client portal): Sign out goes to its sign-in. */
+  client?: boolean;
 }) {
   const [slow, setSlow] = useState(signOutAfterMs <= 0);
   useEffect(() => {
@@ -113,7 +125,7 @@ export function RoleLoadingScreen({
           <Loader2 className="size-4 animate-spin" aria-hidden />
           Loading…
         </p>
-        {slow ? <NeutralSignOutButton /> : null}
+        {slow ? <NeutralSignOutButton client={client} /> : null}
       </div>
     </NeutralFrame>
   );
@@ -129,7 +141,7 @@ export function ClientLoginScreen({ fullScreen }: { fullScreen?: boolean }) {
         <p className="text-sm text-muted-foreground">
           This account is a client login. The client portal is not available yet.
         </p>
-        <NeutralSignOutButton />
+        <NeutralSignOutButton client />
       </NeutralCard>
     </NeutralFrame>
   );
@@ -168,12 +180,15 @@ export function RoleProbeFailedScreen({
   failure = 'error',
   retrying = false,
   onRetry,
+  client = false,
 }: {
   fullScreen?: boolean;
   failure?: ShellProbeFailure;
   /** A retry is in flight. */
   retrying?: boolean;
   onRetry: () => void;
+  /** A client login (the client portal): Sign out goes to its sign-in. */
+  client?: boolean;
 }) {
   const retry = useRef(onRetry);
   retry.current = onRetry;
@@ -198,7 +213,7 @@ export function RoleProbeFailedScreen({
             <RotateCw aria-hidden />
             Try again
           </Button>
-          <NeutralSignOutButton />
+          <NeutralSignOutButton client={client} />
         </div>
       </NeutralCard>
     </NeutralFrame>

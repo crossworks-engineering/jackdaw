@@ -31,10 +31,18 @@ describe('an informational app', () => {
   });
 
   it('shows the switch only to a brain that knows the flag', () => {
-    expect(supportsInformational({ dataReadOnly: false })).toBe(true);
-    expect(supportsInformational({ dataReadOnly: true })).toBe(true);
-    expect(supportsInformational({})).toBe(false);
-    expect(supportsInformational({ dataReadOnly: null })).toBe(false);
+    expect(supportsInformational({ dataReadOnly: false, audience: 'team' })).toBe(true);
+    expect(supportsInformational({ dataReadOnly: true, audience: 'client' })).toBe(true);
+    expect(supportsInformational({ audience: 'team' })).toBe(false);
+    expect(supportsInformational({ dataReadOnly: null, audience: 'client' })).toBe(false);
+  });
+
+  it('shows the switch only on a team or client app (client tier audit N1)', () => {
+    for (const audience of ['admin', 'public', null, undefined]) {
+      expect(supportsInformational({ dataReadOnly: false, audience }), String(audience)).toBe(
+        false,
+      );
+    }
   });
 
   it('sends the flag, and says what it means and what it is otherwise', () => {

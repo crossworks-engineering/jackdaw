@@ -5,7 +5,8 @@ import type { JSONContent } from '@tiptap/react';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { PageEditor } from '@/components/page-editor/page-editor';
 import { versionFailureText } from '@/lib/member-autosave';
-import { isAdminSpace } from '@/lib/member-space';
+import { clientAssetPath } from '@/lib/client-portal';
+import { isAdminSpace, isClientSpace } from '@/lib/member-space';
 import type { MemberEditorProps } from './member-editor';
 import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
@@ -37,6 +38,9 @@ export function MinePageEditor({
   // An admin's private page may embed any brain item the admin can see, so
   // it keeps the owner editor's embeds (see PageEditor `privateItem`).
   const admin = isAdminSpace(api);
+  // A client's own page reads its pictures from the client routes (client
+  // tier audit U2), as its read-only view does.
+  const client = isClientSpace(api);
   const initial = (page.draft ?? page.doc) as Doc;
   const docRef = useRef<Doc>(initial);
   // The server holds a draft the saved version does not have yet.
@@ -95,6 +99,7 @@ export function MinePageEditor({
   return (
     <PageEditor
       member={!admin}
+      mapAssetPath={client ? clientAssetPath : undefined}
       privateItem={admin}
       pageId={id}
       editable={!readOnly}

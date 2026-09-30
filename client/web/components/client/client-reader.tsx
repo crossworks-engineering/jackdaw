@@ -18,6 +18,7 @@ import {
   clientFileUrlPath,
   clientLinkItemId,
   clientMentionItemId,
+  clientNoteImagePath,
   clientNoteMarkdown,
   sharedItemPath,
 } from '@/lib/client-portal';
@@ -33,6 +34,7 @@ const CLIENT_ASSETS: ReaderAssets = {
   drawUrlPath: clientDrawUrlPath,
   fileUrlPath: clientFileUrlPath,
   fileEmbedPath: clientFileUrlPath,
+  noteImagePath: clientNoteImagePath,
 };
 
 /** Download `href` as `name` (a fresh asset URL, never a stale one). */

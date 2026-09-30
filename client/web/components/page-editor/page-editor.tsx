@@ -43,11 +43,16 @@ function isMarkdownDocPaste(text: string): boolean {
   );
 }
 
+/** The page extensions with image and drawing bytes read through `map`. */
+function pageExtensionsWithAssets(map: (path: string) => string) {
+  return pageExtensions.map((ext) =>
+    ext === PageImage ? PageImage.configure({ mapAssetPath: map }) : ext,
+  );
+}
+
 /** A member's editor loads image and drawing bytes from the member routes:
  *  the brain refuses a member on the admin byte routes. */
-const memberPageExtensions = pageExtensions.map((ext) =>
-  ext === PageImage ? PageImage.configure({ mapAssetPath: memberAssetPath }) : ext,
-);
+const memberPageExtensions = pageExtensionsWithAssets(memberAssetPath);
 
 /**
  * The "invisible" editing surface: no border, no card, no fixed toolbar — just
@@ -72,6 +77,7 @@ export function PageEditor({
   onEditorReady,
   editable = true,
   member = false,
+  mapAssetPath,
   privateItem = false,
 }: {
   /** A member login (member logins): the editor keeps to the page itself. No
@@ -79,6 +85,10 @@ export function PageEditor({
    *  drawing picker and no drag handle (its "turn into page" creates in the
    *  brain). Every one of those calls a route that refuses a member. */
   member?: boolean;
+  /** With `member`: where the image and drawing bytes are read, when not the
+   *  member routes. A client's own page reads the client routes (client tier
+   *  audit U2: the brain refuses a client on the member byte routes). */
+  mapAssetPath?: (path: string) => string;
   /** An admin's private item (member logins Phase 7): the owner editor, which
    *  may embed any brain item the admin can see, less what hangs a brain page
    *  under it (the `/page` sub-page and the drag handle's turn-into-page):
@@ -213,12 +223,17 @@ export function PageEditor({
     [],
   );
 
+  const memberExtensions = useMemo(
+    () => (mapAssetPath ? pageExtensionsWithAssets(mapAssetPath) : memberPageExtensions),
+    [mapAssetPath],
+  );
+
   const editor = useEditor({
     // SlashCommand + FocusMarks are editor-only (no schema / no doc writes), so
     // PageView stays identical. SlashCommand carries the page id so `/page`
     // parents sub-pages here.
     extensions: [
-      ...(member ? memberPageExtensions : pageExtensions),
+      ...(member ? memberExtensions : pageExtensions),
       SlashCommand.configure({ pageId: pageId ?? null, member, privateItem }),
       FocusMarks,
       DiffReview,

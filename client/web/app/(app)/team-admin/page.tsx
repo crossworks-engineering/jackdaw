@@ -38,6 +38,7 @@ import { use, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
+import { NO_IMAGES } from '@mantle/web-ui/comment-thread';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { TeamMemberActivity, MemberChatPortalThread } from '@mantle/client-types';
 // The C4 request shape (fromClient): drop to '@mantle/client-types' with the shim.
@@ -346,7 +347,9 @@ function MemberRequestList({ requests }: { requests: TeamRequest[] }) {
 }
 
 /** A chat thread, oldest first: the member's messages on the right, the
- *  agent's replies (with a trace link) on the left. */
+ *  agent's replies (with a trace link) on the left. A reply draws no
+ *  picture (client tier audit U5): a client can talk the agent into writing
+ *  one, and it would load in the admin's browser. */
 function ThreadMessages({ thread }: { thread: ArchiveMessage[] }) {
   return (
     <>
@@ -371,7 +374,9 @@ function ThreadMessages({ thread }: { thread: ArchiveMessage[] }) {
               <p className="text-sm italic text-muted-foreground">answering…</p>
             ) : (
               <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={NO_IMAGES}>
+                  {m.text}
+                </ReactMarkdown>
               </div>
             )}
             <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
@@ -891,9 +896,13 @@ function RequestsTab() {
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
                   <div className="w-full space-y-2 p-4">
+                    {/* A request body is the requester's words: no picture
+                        loads from it (client tier audit U5). */}
                     {selRequest.body ? (
                       <div className="prose prose-accent prose-sm max-w-none dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{selRequest.body}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={NO_IMAGES}>
+                          {selRequest.body}
+                        </ReactMarkdown>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">

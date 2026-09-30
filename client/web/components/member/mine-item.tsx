@@ -20,7 +20,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { holdsEditor, memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
+import {
+  clientSaveText,
+  holdsEditor,
+  memberSavesSettled,
+  type AutosaveState,
+} from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
 import {
   acceptedBrainHref,
@@ -216,11 +221,21 @@ function FrozenByNotice({ holderId, onRelease }: { holderId: string; onRelease: 
 }
 
 /** Why the working copy is not on the brain, when that needs saying. */
-function AutosaveNote({ state, onReload }: { state: AutosaveState; onReload: () => void }) {
+function AutosaveNote({
+  state,
+  onReload,
+  client,
+}: {
+  state: AutosaveState;
+  onReload: () => void;
+  client: boolean;
+}) {
   let text: string | null = null;
   if (state.status === 'retrying') text = 'Not saved yet: trying again…';
   else if (state.status === 'failed' || state.status === 'stopped') text = state.message;
   if (!text) return null;
+  // A client reads no staff role (client tier audit U6).
+  if (client) text = clientSaveText(text);
   return (
     <div
       role="status"
@@ -536,7 +551,9 @@ function MineItemLoaded({
           >
             <span className="min-w-0 flex-1">
               {autosave.status === 'stopped'
-                ? autosave.message
+                ? client
+                  ? clientSaveText(autosave.message)
+                  : autosave.message
                 : 'This item cannot be changed here any more.'}{' '}
               What you typed stays below, read-only, so you can copy it.
             </span>
@@ -545,7 +562,7 @@ function MineItemLoaded({
             </Button>
           </div>
         ) : editable ? (
-          <AutosaveNote state={autosave} onReload={onReload} />
+          <AutosaveNote state={autosave} onReload={onReload} client={client} />
         ) : null}
 
         {editor}

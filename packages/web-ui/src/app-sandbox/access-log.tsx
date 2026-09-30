@@ -21,8 +21,13 @@ type AccessEntry = {
   createdAt: string;
 };
 
-/** The row's words. A member row (`detail.via` 'member', member logins
- *  Phase 4b) opened the app through their own login, not a team token; a
+/** Did a login open the app (a member's row, member logins Phase 4b, or a
+ *  client's, client logins C6), rather than a team token or a public link. */
+const viaLogin = (detail: Record<string, unknown>) =>
+  detail.via === 'member' || detail.via === 'client';
+
+/** The row's words. A member or client row (`detail.via`) opened the app
+ *  through their own login, not a team token (client tier audit I5); a
  *  refused call says so. Exported for the test. */
 export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
   icon: typeof KeyRound;
@@ -33,7 +38,7 @@ export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
     case 'auth':
       return {
         icon: KeyRound,
-        label: e.detail.via === 'member' ? 'Opened the app' : 'Entered their team token',
+        label: viaLogin(e.detail) ? 'Opened the app' : 'Entered their team token',
       };
     case 'tool':
       return {
@@ -49,6 +54,18 @@ export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
           refused,
       };
   }
+}
+
+/** Who the row names: the brain's name for the contact or login, else what
+ *  is left of it. A login the brain no longer names was deleted: a member's
+ *  or a client's row says so, never "Anonymous" (client tier audit I5).
+ *  Exported for the test. */
+export function whoOf(e: Pick<AccessEntry, 'contactId' | 'contactName' | 'detail'>): string {
+  if (e.contactName) return e.contactName;
+  if (e.contactId) return 'Removed contact';
+  if (e.detail.via === 'member') return 'Removed member';
+  if (e.detail.via === 'client') return 'Removed client';
+  return 'Anonymous (public link)';
 }
 
 export function AppAccessLog({ appId }: { appId: string }) {
@@ -84,8 +101,7 @@ export function AppAccessLog({ appId }: { appId: string }) {
       <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
         {entries.map((e) => {
           const { icon: Icon, label } = describe(e);
-          const who =
-            e.contactName ?? (e.contactId ? 'Removed contact' : 'Anonymous (public link)');
+          const who = whoOf(e);
           return (
             <li key={e.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
               <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />

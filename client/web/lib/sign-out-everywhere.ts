@@ -14,6 +14,7 @@
  * caller decides what a 401 means. Pure outcome mapping, pinned by a test.
  */
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
+import { clientActionConfirm } from './client-logins';
 
 /** What the confirm dialog says before a login signs itself out everywhere. */
 export const EVERYWHERE_CONFIRM = 'This signs you out on every device, this one too.';
@@ -25,6 +26,20 @@ export function everywhereConfirmText(client: boolean): string {
   return client
     ? `${EVERYWHERE_CONFIRM} Every browser you signed in on must sign in again, with a new link or an email code.`
     : `${EVERYWHERE_CONFIRM} Every browser, the phone app and any connected client must sign in again.`;
+}
+
+/** The whole confirm, for an admin signing ANOTHER login out (Settings >
+ *  Logins). For a client the brain also revokes its open sign-in link and
+ *  codes, so it says what Team admin > Clients' End sessions says (client
+ *  tier audit U11). */
+export function otherLoginEverywhereText(user: {
+  role: string;
+  displayName: string | null;
+  email: string;
+}): string {
+  return user.role === 'client'
+    ? clientActionConfirm('end', user).body
+    : 'Every browser, the phone app and any connected client they use must sign in again. Nothing else about the login changes.';
 }
 
 export type EverywhereOutcome =
