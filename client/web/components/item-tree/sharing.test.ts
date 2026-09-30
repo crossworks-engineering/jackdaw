@@ -104,24 +104,32 @@ describe('visibilityRefusal', () => {
     });
     expect(visibilityRefusal(err)).toEqual({ error: 'visibility', changes: [change], total: 1 });
   });
-  it('reads what goes down with them (alsoLowered), dropping malformed rows', () => {
+  it('reads what they embed (alsoEmbeds), dropping malformed rows', () => {
     const embed = { id: 'e', title: 'Logo', from: 'admin', to: 'client' };
     const err = new ApiError('x', 409, {
       error: 'visibility',
       changes: [change],
       total: 1,
-      alsoLowered: [embed, { id: 2 }],
+      alsoEmbeds: [embed, { id: 2 }],
     });
     expect(visibilityRefusal(err)).toEqual({
       error: 'visibility',
       changes: [change],
       total: 1,
-      alsoLowered: [embed],
+      alsoEmbeds: [embed],
     });
   });
-  it('leaves alsoLowered out when a brain sends none', () => {
-    const err = new ApiError('x', 409, { error: 'visibility', changes: [change], total: 1 });
-    expect(visibilityRefusal(err)).not.toHaveProperty('alsoLowered');
+  it('leaves alsoEmbeds out when a brain sends none, and ignores the old alsoLowered', () => {
+    const embed = { id: 'e', title: 'Logo', from: 'admin', to: 'client' };
+    const err = new ApiError('x', 409, {
+      error: 'visibility',
+      changes: [change],
+      total: 1,
+      alsoLowered: [embed],
+    });
+    const out = visibilityRefusal(err);
+    expect(out).not.toHaveProperty('alsoEmbeds');
+    expect(out).not.toHaveProperty('alsoLowered');
   });
   it('words the heading for one and for many', () => {
     expect(refusalHeading({ error: 'visibility', changes: [], total: 1 })).toMatch(/one item$/);
@@ -135,11 +143,11 @@ describe('mergeRefusals', () => {
   it('adds the totals and lists each item once', () => {
     const merged = mergeRefusals([
       { error: 'visibility', changes: [c('a'), c('b')], total: 5 },
-      { error: 'visibility', changes: [c('b'), c('c')], total: 2, alsoLowered: [c('x')] },
+      { error: 'visibility', changes: [c('b'), c('c')], total: 2, alsoEmbeds: [c('x')] },
     ]);
     expect(merged.changes.map((x) => x.id)).toEqual(['a', 'b', 'c']);
     expect(merged.total).toBe(7);
-    expect(merged.alsoLowered?.map((x) => x.id)).toEqual(['x']);
+    expect(merged.alsoEmbeds?.map((x) => x.id)).toEqual(['x']);
   });
 
   it('keeps within one refusal’s list size', () => {
@@ -151,6 +159,6 @@ describe('mergeRefusals', () => {
     ]);
     expect(merged.changes).toHaveLength(100);
     expect(merged.total).toBe(160);
-    expect(merged).not.toHaveProperty('alsoLowered');
+    expect(merged).not.toHaveProperty('alsoEmbeds');
   });
 });

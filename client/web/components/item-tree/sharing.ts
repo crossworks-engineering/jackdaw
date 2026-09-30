@@ -80,13 +80,13 @@ export function visibilityRefusal(err: unknown): TreeVisibilityRefusal | null {
   const changes = body.changes.filter(isChange);
   const total =
     typeof body.total === 'number' ? Math.max(body.total, changes.length) : changes.length;
-  const alsoLowered = Array.isArray(body.alsoLowered) ? body.alsoLowered.filter(isChange) : [];
-  return { error: 'visibility', changes, total, ...(alsoLowered.length ? { alsoLowered } : {}) };
+  const alsoEmbeds = Array.isArray(body.alsoEmbeds) ? body.alsoEmbeds.filter(isChange) : [];
+  return { error: 'visibility', changes, total, ...(alsoEmbeds.length ? { alsoEmbeds } : {}) };
 }
 
 /** Several refusals (a batch where each write was refused on its own) as
- *  one list for the dialog: every change, the totals added up, and what goes
- *  down with them, each item once. The list stays within what one refusal
+ *  one list for the dialog: every change, the totals added up, and what they
+ *  embed, each item once. The list stays within what one refusal
  *  may carry. */
 export function mergeRefusals(refusals: readonly TreeVisibilityRefusal[]): TreeVisibilityRefusal {
   const once = (lists: Array<readonly TreeVisibilityChange[] | undefined>) => {
@@ -102,12 +102,12 @@ export function mergeRefusals(refusals: readonly TreeVisibilityRefusal[]): TreeV
     return out;
   };
   const changes = once(refusals.map((r) => r.changes)).slice(0, TREE_VISIBILITY_LIST_MAX);
-  const alsoLowered = once(refusals.map((r) => r.alsoLowered)).slice(0, TREE_VISIBILITY_LIST_MAX);
+  const alsoEmbeds = once(refusals.map((r) => r.alsoEmbeds)).slice(0, TREE_VISIBILITY_LIST_MAX);
   const total = Math.max(
     refusals.reduce((n, r) => n + r.total, 0),
     changes.length,
   );
-  return { error: 'visibility', changes, total, ...(alsoLowered.length ? { alsoLowered } : {}) };
+  return { error: 'visibility', changes, total, ...(alsoEmbeds.length ? { alsoEmbeds } : {}) };
 }
 
 /** The confirm dialog's heading. */

@@ -79,7 +79,7 @@ export function VisibilityConfirmDialog({
 }) {
   const refusal = pending?.refusal;
   const more = refusal ? refusal.total - refusal.changes.length : 0;
-  const lowered = refusal?.alsoLowered ?? [];
+  const embeds = refusal?.alsoEmbeds ?? [];
   return (
     <AlertDialog open={pending !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -92,14 +92,14 @@ export function VisibilityConfirmDialog({
         {refusal && (
           <ChangeList label="Who can see each item" changes={refusal.changes} more={more} />
         )}
-        {lowered.length > 0 && (
+        {embeds.length > 0 && (
           <div className="space-y-1.5">
-            <p className="text-sm font-medium">Also goes down with them</p>
+            <p className="text-sm font-medium">Also readable through them</p>
             <p className="text-xs text-muted-foreground">
-              What these embed goes down to the level they are read at, and keeps it after an
-              unshare.
+              What these embed is read wherever they are read, only while they are. Its own level
+              does not change.
             </p>
-            <ChangeList label="What goes down with them" changes={lowered} more={0} />
+            <ChangeList label="What they embed" changes={embeds} more={0} />
           </div>
         )}
         <AlertDialogFooter>
