@@ -118,11 +118,25 @@ export async function uploadChatFile(file: File, parentPath: string): Promise<Fi
   fd.set('parentPath', parentPath);
   fd.set('file', file);
   // FormData body: apiFetch (not apiSend) so the multipart boundary survives.
-  const { file: row } = await apiFetch<{ file: FileRow }>('/api/files/files', {
-    method: 'POST',
-    body: fd,
-  });
-  return row;
+  try {
+    const { file: row } = await apiFetch<{ file: FileRow }>('/api/files/files', {
+      method: 'POST',
+      body: fd,
+    });
+    return row;
+  } catch (err) {
+    // The chat folder is Mantle's own and never shared; should a folder above
+    // it ever be, say so in words, not the bare 409 code (review F6).
+    if (err instanceof ApiError && err.status === 409) {
+      throw new Error(
+        `${file.name}: the chat uploads folder is shared, so the file was not sent.`,
+        {
+          cause: err,
+        },
+      );
+    }
+    throw err;
+  }
 }
 
 export const INDEX_WAIT_POLL_MS = 2000;
