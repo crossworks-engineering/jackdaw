@@ -1,41 +1,79 @@
 'use client';
 
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@mantle/web-ui/ui/tooltip';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
-import { cn } from '@mantle/web-ui/lib/utils';
+import { BaseEdge, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
+import type { Point } from './recall-layout';
 
 /**
- * The option edge: one map node's signpost to the next.
+ * The option edge: one card's signpost to the next.
  *
- * Why a custom edge at all: React Flow's built-in `label` is an SVG `<text>`
- * painted inside the edge layer. It cannot truncate, it cannot raise itself
- * above a neighbour, and it takes raw fills rather than theme tokens, so on
- * any map with a few branches the labels collided into an unreadable pile.
+ * Two kinds. A TREE edge is the option that placed its target under its
+ * source, and it draws the route recall-layout computed for it: an
+ * orthogonal elbow from the option row's right edge, down to a crossbar above
+ * the child band, across, and down into the child's top. Orthogonal, not
+ * bezier, because a Recall map is a decision tree and a reader follows
+ * corners more easily than curves that swing across each other.
  *
- * `EdgeLabelRenderer` puts the label in a DOM layer ABOVE the SVG instead, so
- * it is an ordinary element: a fixed-width chip that truncates, and lifts on
- * hover or keyboard focus to show the label plus its "use when" line in full.
- * Truncation is what keeps chips from colliding; the tooltip is what keeps
- * them informative. The layout half of the fix lives in recall-graph.tsx,
- * which reserves LABEL_W/LABEL_H of dagre space per edge.
+ * A CROSS edge is a shortcut to a card placed elsewhere (a link sideways or
+ * back up the tree). It is dashed and faint, and the graph only draws it
+ * while its source or target card is selected or hovered, so it can use
+ * React Flow's smoothstep routing and go wherever it must without cluttering
+ * the resting map.
+ *
+ * The label is no longer here: it lives on the option row of the card the
+ * edge leaves from (recall-card-node.tsx). Every edge ends going straight
+ * down into its target, so a small arrowhead is drawn there rather than
+ * through React Flow's marker defs, which key their ids on a raw colour
+ * string and cannot take a theme token.
  */
 
-/** Must match the space recall-graph reserves in the dagre layout. */
-export const LABEL_W = 148;
-export const LABEL_H = 22;
-
-/** What the graph toolbar's toggle sets. `dots` keeps the anchor (so a dense
- *  map still says "there is a condition here") without the text. */
-export type LabelMode = 'labels' | 'dots' | 'off';
-
-export type OptionEdgeData = {
-  label: string;
-  useWhen: string;
-  mode: LabelMode;
-};
-
 export const RECALL_EDGE_TYPE = 'option';
+
+export type EdgeState = 'normal' | 'dim' | 'lit';
+
+export interface RecallEdgeData {
+  kind: 'tree' | 'cross';
+  points: Point[];
+  state: EdgeState;
+  [key: string]: unknown;
+}
+
+/** Corner radius of a tree edge's elbows. */
+const CORNER = 8;
+const ARROW_W = 4;
+const ARROW_H = 7;
+
+/** An SVG path through axis-aligned points with rounded corners. A corner
+ *  next to a zero-length segment is drawn square, so a route whose drop line
+ *  happens to sit on the child's centre still renders. */
+export function elbowPath(points: Point[], radius = CORNER): string {
+  if (points.length === 0) return '';
+  const first = points[0]!;
+  let d = `M ${first.x} ${first.y}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1]!;
+    const cur = points[i]!;
+    const next = points[i + 1]!;
+    const inLen = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+    const outLen = Math.hypot(next.x - cur.x, next.y - cur.y);
+    if (inLen === 0 || outLen === 0) {
+      d += ` L ${cur.x} ${cur.y}`;
+      continue;
+    }
+    const r = Math.min(radius, inLen / 2, outLen / 2);
+    const a = {
+      x: cur.x + ((prev.x - cur.x) / inLen) * r,
+      y: cur.y + ((prev.y - cur.y) / inLen) * r,
+    };
+    const b = {
+      x: cur.x + ((next.x - cur.x) / outLen) * r,
+      y: cur.y + ((next.y - cur.y) / outLen) * r,
+    };
+    d += ` L ${a.x} ${a.y} Q ${cur.x} ${cur.y} ${b.x} ${b.y}`;
+  }
+  const last = points[points.length - 1]!;
+  d += ` L ${last.x} ${last.y}`;
+  return d;
+}
 
 export function RecallOptionEdge({
   id,
@@ -45,93 +83,46 @@ export function RecallOptionEdge({
   targetY,
   sourcePosition,
   targetPosition,
-  markerEnd,
-  style,
   data,
 }: EdgeProps) {
-  const [path, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
+  const d = data as RecallEdgeData | undefined;
+  const kind = d?.kind ?? 'tree';
+  const state = d?.state ?? 'normal';
 
-  const d = data as OptionEdgeData | undefined;
-  const mode = d?.mode ?? 'labels';
+  const path =
+    kind === 'tree'
+      ? elbowPath([{ x: sourceX, y: sourceY }, ...(d?.points ?? []), { x: targetX, y: targetY }])
+      : getSmoothStepPath({
+          sourceX,
+          sourceY,
+          sourcePosition,
+          targetX,
+          targetY,
+          targetPosition,
+          borderRadius: CORNER,
+        })[0];
+
+  // Token, not a hardcoded slate. `--border` alone is too faint to trace
+  // across a big map, so the resting line is the muted ink held back to
+  // roughly border weight: legible in every theme, light and dark.
+  const stroke = state === 'lit' ? 'var(--primary)' : 'var(--muted-foreground)';
+  const opacity = state === 'lit' ? 1 : state === 'dim' ? 0.12 : kind === 'cross' ? 0.35 : 0.45;
+  const width = state === 'lit' ? 2 : 1.5;
+  const arrow = `M ${targetX - ARROW_W} ${targetY - ARROW_H} L ${targetX} ${targetY} L ${targetX + ARROW_W} ${targetY - ARROW_H} Z`;
 
   return (
     <>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
-      {mode !== 'off' && d && (
-        <EdgeLabelRenderer>
-          <div
-            // `nodrag nopan` so grabbing a chip does not drag the canvas out
-            // from under the pointer. pointer-events must be re-enabled: the
-            // label layer sets `none` so edges below stay clickable.
-            className={cn(
-              'nodrag nopan pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2',
-              'hover:z-50 focus-within:z-50',
-            )}
-            style={{ left: labelX, top: labelY }}
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <RowButton
-                  // A button, not a div: hover AND keyboard focus both open
-                  // the tooltip, so the full text is reachable without a mouse.
-                  //
-                  // In `dots` mode the BUTTON stays a normal-sized target and
-                  // only the painted dot inside it is small. A 10px control is
-                  // fiddly with a mouse and unusable with a finger, and the dot
-                  // is the only way to read a label in that mode.
-                  className={cn(
-                    'group/chip flex cursor-default items-center justify-center transition-colors',
-                    'focus-visible:outline-none',
-                    mode === 'dots'
-                      ? 'size-6 rounded-full'
-                      : [
-                          'truncate rounded-full border border-border bg-card px-2 py-1',
-                          'text-[10px] leading-none text-muted-foreground shadow-xs',
-                          'hover:border-primary/60 hover:text-foreground',
-                          'focus-visible:border-primary/60',
-                        ],
-                  )}
-                  // The one source of truth for the chip's width: the same
-                  // constant the dagre layout reserves space with. Tailwind v4
-                  // forbids a computed class, so it rides the style attribute
-                  // rather than drifting as a second hardcoded number.
-                  style={mode === 'dots' ? undefined : { maxWidth: LABEL_W }}
-                >
-                  {mode === 'dots' ? (
-                    <>
-                      <span
-                        aria-hidden
-                        className="size-2.5 rounded-full border border-border bg-card shadow-xs transition-colors group-hover/chip:border-primary/60 group-focus-visible/chip:border-primary/60"
-                      />
-                      <span className="sr-only">{d.label}</span>
-                    </>
-                  ) : (
-                    <span className="block truncate">{d.label}</span>
-                  )}
-                </RowButton>
-              </TooltipTrigger>
-              {/* The tooltip surface is `bg-primary`, so its second line takes
-                  the matching ink at reduced opacity, never `muted-foreground`,
-                  which is paired with `background` and would drop out here. */}
-              <TooltipContent side="top" className="max-w-xs">
-                <p className="font-medium">{d.label}</p>
-                {/* The graph strips any "use when" the author already wrote,
-                    so this prefix is added exactly once. */}
-                {d.useWhen && (
-                  <p className="mt-0.5 text-primary-foreground/80">Use when {d.useWhen}</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </EdgeLabelRenderer>
-      )}
+      <BaseEdge
+        id={id}
+        path={path}
+        style={{
+          stroke,
+          strokeOpacity: opacity,
+          strokeWidth: width,
+          strokeDasharray: kind === 'cross' ? '5 4' : undefined,
+        }}
+      />
+      <path d={arrow} fill={stroke} fillOpacity={opacity} />
     </>
   );
 }

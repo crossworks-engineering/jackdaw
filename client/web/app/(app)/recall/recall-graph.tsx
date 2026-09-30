@@ -1,31 +1,41 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ReactFlow,
   Background,
   Controls,
   Panel,
-  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  useNodesInitialized,
+  useReactFlow,
+  useStoreApi,
   type Edge,
   type Node,
-  ReactFlowProvider,
 } from '@xyflow/react';
-import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import { useFlowColorMode } from '@mantle/web-ui/hooks/use-flow-color-mode';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { Button } from '@mantle/web-ui/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { TooltipProvider } from '@mantle/web-ui/ui/tooltip';
 import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/web-ui/types/recall-v2';
 import {
-  LABEL_H,
-  LABEL_W,
+  RECALL_BAND_TYPE,
+  RECALL_CARD_TYPE,
+  RecallGraphContext,
+  recallNodeTypes,
+  type RecallCardData,
+  type RecallCardRow,
+  type RecallGraphFocus,
+} from './recall-card-node';
+import {
   RECALL_EDGE_TYPE,
   recallEdgeTypes,
-  type LabelMode,
-  type OptionEdgeData,
+  type EdgeState,
+  type RecallEdgeData,
 } from './recall-edge';
+import { NODE_W, layoutRecallMap, type LayoutEdge, type RecallLayout } from './recall-layout';
 
 /** An option line is shown without a leading "Use when", which an author
  *  sometimes types into the field themselves. */
@@ -34,23 +44,26 @@ function stripUseWhenPrefix(value: string): string {
 }
 
 /**
- * The routing overview: nodes + option edges, laid out with dagre like the
- * trace graph. The index is the entry (primary border), prompts are
- * distinguished (info border), and orphans (no option leads to them)
- * get a dashed warning border. Built once, used twice: S5's walk replay will
- * light paths up over this same component.
+ * The routing overview: the map as a tiered decision tree. recall-layout.ts
+ * decides where everything goes (and why it is a tree first, tiers second);
+ * this component draws it, fits it, and carries the focus state: which card
+ * is selected, which row is hovered, and so which lines are lit, dimmed or
+ * hidden.
  *
- * Edge labels are a custom edge (recall-edge.tsx) rather than React Flow's
- * built-in SVG `label`, which could not truncate or lift above a neighbour and
- * so piled up unreadably on any branching map. Two halves make that work: the
- * chip truncates and tooltips on hover, and the layout below RESERVES
- * LABEL_W×LABEL_H per edge so dagre routes around the label instead of
- * pretending it has no size.
+ * Fit: the old graph ran fitView once, on a container that had not settled
+ * to its final width, and the first and last cards fell off both edges. Now
+ * FitOnResize refits once the nodes are measured AND whenever the container
+ * changes size, from a ResizeObserver on the flow's own element.
+ *
+ * Full and Compact (the old Labels/Dots/Off) change card heights, so they
+ * change the layout. The flow is keyed on the mode and on the map version:
+ * a change remounts it, which is the one way an uncontrolled React Flow
+ * reliably re-measures. (Handing it a fresh `nodes` array without a remount
+ * drops its node measurements, and edges, which need both ends measured,
+ * never render again. The old graph hit exactly that on a label toggle.)
+ * Within one mount the nodes array identity is stable per map: focus rides
+ * context, never the nodes.
  */
-
-const NODE_W = 220;
-const NODE_H = 64;
-
 export function RecallGraph({
   map,
   onEditNode,
@@ -63,191 +76,248 @@ export function RecallGraph({
   const colorMode = useFlowColorMode();
   // Local, not URL state: how you like to read the graph is not worth a
   // navigation, and it must not survive into a shared deep link.
-  const [labelMode, setLabelMode] = useState<LabelMode>('labels');
+  const [mode, setMode] = useState<'full' | 'compact'>('full');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const compact = mode === 'compact';
 
-  // The layout is memoised on the MAP ALONE, deliberately, and the toggle only
-  // re-decorates the edges.
-  //
-  // This flow is uncontrolled (no `onNodesChange`), so React Flow owns node
-  // measurements internally and cannot write them back to us. Hand it a fresh
-  // `nodes` array and it drops those measurements, and edges — which need both
-  // endpoints measured to route — never render again. Toggling the labels used
-  // to blank every edge on the map, permanently, for exactly that reason.
-  //
-  // Keeping the array identity stable also means node positions never jump when
-  // you change how much label detail you want, which is the better behaviour
-  // anyway. The cost is that `dots` and `off` keep the roomier spacing a full
-  // label needs.
-  const { nodes, edgeDefs } = useMemo(() => buildGraph(map), [map]);
-  const edges = useMemo<Edge[]>(
-    () =>
-      edgeDefs.map((e, i) => ({
-        id: `${e.source}__${e.target}__${i}`,
-        source: e.source,
-        target: e.target,
-        type: RECALL_EDGE_TYPE,
-        data: { label: e.label, useWhen: e.useWhen, mode: labelMode } satisfies OptionEdgeData,
-        // Token, not the old hardcoded slate. `--border` alone is too faint to
-        // trace across a big map, so this is the muted ink held back to roughly
-        // border weight: legible in every theme, light and dark.
-        style: { stroke: 'var(--muted-foreground)', strokeOpacity: 0.45, strokeWidth: 1.5 },
-      })),
-    [edgeDefs, labelMode],
+  const layout = useMemo(() => layoutRecallMap(map, { compact }), [map, compact]);
+  const nodes = useMemo(() => buildNodes(map, layout, compact), [map, layout, compact]);
+
+  // A selection that no longer names a card (the map changed under it) is
+  // dropped rather than left pointing at nothing.
+  useEffect(() => {
+    if (selected && !map.nodes.some((n) => n.slug === selected)) setSelected(null);
+  }, [map, selected]);
+
+  const { edges, lit } = useMemo(
+    () => decorateEdges(layout.edges, compact, selected, hoveredCard, hoveredRow),
+    [layout, compact, selected, hoveredCard, hoveredRow],
   );
 
+  const focus = useMemo<RecallGraphFocus>(
+    () => ({ selected, lit, setHoveredRow }),
+    [selected, lit],
+  );
+
+  const open = useCallback(
+    (slug: string) => {
+      const row = map.nodes.find((r) => r.slug === slug);
+      if (row) onEditNode(row);
+    },
+    [map, onEditNode],
+  );
+  const selectedNode = selected ? map.nodes.find((n) => n.slug === selected) : undefined;
+
   return (
-    <div className={cn('h-[420px] rounded-md border border-border bg-muted/20', className)}>
+    <div className={cn('h-full min-h-0 rounded-md border border-border bg-muted/20', className)}>
       <ReactFlowProvider>
-        {/* The chips live in the edge-label layer, so the provider has to wrap
-            the flow itself, because this app mounts them per feature. */}
+        {/* Tooltips live inside the nodes, so the provider has to wrap the
+            flow itself, because this app mounts them per feature. */}
         <TooltipProvider delayDuration={150}>
-          <ReactFlow
-            colorMode={colorMode}
-            nodes={nodes}
-            edges={edges}
-            edgeTypes={recallEdgeTypes}
-            onNodeClick={(_e, n) => {
-              const row = map.nodes.find((r) => r.slug === n.id);
-              if (row) onEditNode(row);
-            }}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            proOptions={{ hideAttribution: true }}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable
-          >
-            <Background gap={16} size={1} />
-            <Controls />
-            <Panel position="top-right">
-              <ToggleGroup
-                type="single"
-                value={labelMode}
-                // A ToggleGroup can deselect to ''; keep the last mode rather
-                // than falling into an unlabelled graph by accident.
-                onValueChange={(v) => v && setLabelMode(v as LabelMode)}
-                variant="outline"
-                aria-label="Edge label detail"
-                className="bg-card"
-              >
-                <ToggleGroupItem value="labels" aria-label="Show option labels">
-                  Labels
-                </ToggleGroupItem>
-                <ToggleGroupItem value="dots" aria-label="Show option markers only">
-                  Dots
-                </ToggleGroupItem>
-                <ToggleGroupItem value="off" aria-label="Hide option labels">
-                  Off
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </Panel>
-          </ReactFlow>
+          <RecallGraphContext.Provider value={focus}>
+            <ReactFlow
+              key={`${map.id}:${map.version}:${mode}`}
+              colorMode={colorMode}
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={recallNodeTypes}
+              edgeTypes={recallEdgeTypes}
+              onNodeClick={(_e, n) => {
+                if (n.type === RECALL_CARD_TYPE) setSelected(n.id);
+              }}
+              // A single click selects, so the reader can see a card's lines
+              // before leaving the graph. Opening the editor is a double
+              // click or the Open button, since it navigates to the Cards
+              // view and unmounts the graph.
+              onNodeDoubleClick={(_e, n) => {
+                if (n.type === RECALL_CARD_TYPE) open(n.id);
+              }}
+              onNodeMouseEnter={(_e, n) => {
+                if (n.type === RECALL_CARD_TYPE) setHoveredCard(n.id);
+              }}
+              onNodeMouseLeave={() => {
+                setHoveredCard(null);
+                setHoveredRow(null);
+              }}
+              onPaneClick={() => setSelected(null)}
+              fitView
+              fitViewOptions={FIT}
+              minZoom={0.2}
+              proOptions={{ hideAttribution: true }}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable
+            >
+              <FitOnResize />
+              <Background gap={16} size={1} />
+              <Controls showInteractive={false} />
+              <Panel position="top-right">
+                <ToggleGroup
+                  type="single"
+                  value={mode}
+                  // A ToggleGroup can deselect to ''; keep the last mode rather
+                  // than falling into a blank state by accident.
+                  onValueChange={(v) => v && setMode(v as 'full' | 'compact')}
+                  variant="outline"
+                  aria-label="Card detail"
+                  className="bg-card"
+                >
+                  <ToggleGroupItem value="full" aria-label="Show every option on its card">
+                    Full
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="compact" aria-label="Show cards with an option count">
+                    Compact
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </Panel>
+              <Panel position="bottom-right">
+                {selectedNode ? (
+                  <div className="flex max-w-xs items-center gap-2 rounded-md border border-border bg-card px-2 py-1 text-xs shadow-xs">
+                    <span className="min-w-0 truncate">{selectedNode.title}</span>
+                    <Button size="xs" variant="outline" onClick={() => open(selectedNode.slug)}>
+                      Open card
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="rounded-md bg-card/80 px-2 py-1 text-[10px] text-muted-foreground">
+                    Click a card to see its lines. Double-click to open it.
+                  </p>
+                )}
+              </Panel>
+            </ReactFlow>
+          </RecallGraphContext.Provider>
         </TooltipProvider>
       </ReactFlowProvider>
     </div>
   );
 }
 
-type EdgeDef = { source: string; target: string; label: string; useWhen: string };
+/** A small map is not blown up past its natural size: the cards are
+ *  designed to read at 1x. */
+const FIT = { padding: 0.15, maxZoom: 1 };
 
-function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edgeDefs: EdgeDef[] } {
-  const g = new dagre.graphlib.Graph();
-  // LR, not TB: ranks run left→right, so SIBLINGS stack vertically and a map
-  // grows DOWN as options multiply — breadth scrolls, depth stays on screen.
-  // `ranksep` has to clear a label chip plus air on both sides, and `edgesep`
-  // keeps two labels between the same pair of ranks off each other. These are
-  // the numbers that stop the overlap; the chip's truncation is the backstop.
-  g.setGraph({ rankdir: 'LR', nodesep: 28, ranksep: LABEL_W + 60, edgesep: LABEL_H + 12 });
-  g.setDefaultEdgeLabel(() => ({}));
+/**
+ * Fits the view once the nodes are measured and again whenever the flow's
+ * element changes size. The observer fires once on observe, which is the
+ * "after the container settled" fit the `fitView` prop alone could not
+ * promise; the fit itself is deferred a frame so React Flow's own resize
+ * handler has written the new width and height to its store first.
+ */
+function FitOnResize() {
+  const { fitView } = useReactFlow();
+  const store = useStoreApi();
+  const initialized = useNodesInitialized();
+  useEffect(() => {
+    if (!initialized) return;
+    const el = store.getState().domNode;
+    if (!el) return;
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => void fitView({ ...FIT, duration: 0 }));
+    });
+    ro.observe(el);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [initialized, fitView, store]);
+  return null;
+}
 
-  const bySlug = new Set(map.nodes.map((n) => n.slug));
-  for (const n of map.nodes) g.setNode(n.slug, { width: NODE_W, height: NODE_H });
-
-  const targeted = new Set<string>();
-  const edgeDefs: EdgeDef[] = [];
-  for (const n of map.nodes) {
-    for (const o of n.options) {
-      // Compiled options always resolve in-map; guard anyway so a half-broken
-      // payload can never crash the layout. A v2 cross-map option leads to
-      // ANOTHER map's entry card, and its targetSlug is that map's slug, which
-      // could collide with a card slug here: it is not an edge in this graph.
-      if ('targetMap' in o && o.targetMap) continue;
-      if (!bySlug.has(o.targetSlug)) continue;
-      targeted.add(o.targetSlug);
-      edgeDefs.push({
-        source: n.slug,
-        target: o.targetSlug,
+function buildNodes(map: RecallMapDetailDTO, layout: RecallLayout, compact: boolean): Node[] {
+  const titles = new Map(map.nodes.map((n) => [n.slug, n.title]));
+  const bySlug = new Map(map.nodes.map((n) => [n.slug, n]));
+  const nodes: Node[] = layout.cards.map((card) => {
+    const node = bySlug.get(card.slug)!;
+    const rows: RecallCardRow[] = card.rows.map((r) => {
+      const o = node.options[r.index]!;
+      return {
+        ...r,
         label: o.label,
-        // An option's compiled use-when is the raw text after the dash, and
-        // the routing editor seeds every new row with the literal words "use
+        // An option's use-when is the raw text after the dash, and the
+        // routing editor seeds every new row with the literal words "use
         // when", so most real options carry the prefix already. The tooltip
         // supplies its own, so strip it here or every existing map reads
         // "Use when use when logging into a box".
         useWhen: stripUseWhenPrefix(o.useWhen),
-      });
-      // Tell dagre the edge CARRIES something. Without a width/height here the
-      // layout treats every edge as a bare line and packs ranks tight enough
-      // that the labels have nowhere to go but on top of each other.
-      // Always the FULL label box, whatever the toggle currently shows: the
-      // layout must not depend on it (see the memo note above).
-      g.setEdge(n.slug, o.targetSlug, { width: LABEL_W, height: LABEL_H, labelpos: 'c' });
-    }
-  }
-
-  dagre.layout(g);
-
-  const indexSlug = map.nodes.find((n) => n.kind === 'index')?.slug;
-  const nodes: Node[] = map.nodes.map((n) => {
-    const pos = g.node(n.slug);
-    const orphan = n.kind !== 'index' && !targeted.has(n.slug);
+        targetTitle: r.targetMap ? null : (titles.get(r.targetSlug) ?? null),
+      };
+    });
     return {
-      id: n.slug,
-      position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },
-      // LR layout: edges leave the right edge and land on the left one.
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-      data: { label: <NodeLabel node={n} orphan={orphan} isEntry={n.slug === indexSlug} /> },
-      style: {
-        width: NODE_W,
-        height: NODE_H,
-        borderRadius: 8,
-        // Status rides the BORDER; the fill stays the theme card surface so
-        // titles are readable in every theme (trace-graph convention).
-        border: orphan
-          ? '1.5px dashed var(--warning)'
-          : n.kind === 'index'
-            ? '1.5px solid var(--primary)'
-            : n.kind === 'prompt'
-              ? '1px solid var(--info)'
-              : '1px solid var(--border)',
-        background: 'var(--card)',
-        color: 'var(--card-foreground)',
-        padding: 0,
-      },
+      id: card.slug,
+      type: RECALL_CARD_TYPE,
+      position: { x: card.x, y: card.y },
+      width: card.width,
+      height: card.height,
+      data: {
+        node,
+        rows,
+        isEntry: card.slug === layout.entry,
+        orphan: card.orphan,
+        compact,
+      } satisfies RecallCardData,
     };
   });
-
-  return { nodes, edgeDefs };
+  if (layout.orphanBandY !== null) {
+    const cx =
+      layout.cards.filter((c) => !c.orphan).reduce((a, c) => Math.max(a, c.x + c.width), 0) / 2;
+    nodes.push({
+      id: '__orphan-band',
+      type: RECALL_BAND_TYPE,
+      position: { x: cx - NODE_W, y: layout.orphanBandY - 28 },
+      width: NODE_W * 2,
+      height: 20,
+      selectable: false,
+      focusable: false,
+      data: { text: 'Not reached from the entry card' },
+    });
+  }
+  return nodes;
 }
 
-function NodeLabel({
-  node,
-  orphan,
-  isEntry,
-}: {
-  node: RecallNodeDTO;
-  orphan: boolean;
-  isEntry: boolean;
-}) {
-  return (
-    <div className="flex h-full w-full flex-col justify-center gap-0.5 px-3 py-2 text-left">
-      <span className="truncate text-xs font-medium">{node.title}</span>
-      <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        {isEntry && <span className="font-medium text-primary-ink">entry</span>}
-        {node.kind === 'prompt' && <span className="text-info-ink">prompt</span>}
-        {orphan && <span className="text-warning-ink">orphan</span>}
-        <span className="truncate font-mono">{node.slug}</span>
-      </span>
-    </div>
-  );
+/**
+ * Decorates the layout's edges with the focus state and drops the ones that
+ * should not draw. A lit edge is painted last so it sits above its
+ * neighbours (React Flow paints edges in array order).
+ *
+ *  - Hovering a row lights that one line.
+ *  - Selecting or hovering a card lights its outgoing lines and shows the
+ *    line that reaches it; with a card selected, every other line dims.
+ *  - A cross-link draws only while its source or target card has focus.
+ */
+function decorateEdges(
+  all: LayoutEdge[],
+  compact: boolean,
+  selected: string | null,
+  hoveredCard: string | null,
+  hoveredRow: string | null,
+): { edges: Edge[]; lit: Set<string> } {
+  const focused = (slug: string) => slug === selected || slug === hoveredCard;
+  const lit = new Set<string>();
+  const out: { edge: Edge; order: number }[] = [];
+  for (const e of all) {
+    let state: EdgeState;
+    if (hoveredRow === e.id || focused(e.source)) state = 'lit';
+    else if (focused(e.target)) state = 'normal';
+    else if (e.kind === 'cross') continue;
+    else state = selected ? 'dim' : 'normal';
+    if (state === 'lit') lit.add(e.id);
+    out.push({
+      order: state === 'lit' ? 2 : state === 'normal' ? 1 : 0,
+      edge: {
+        id: e.id,
+        source: e.source,
+        sourceHandle: compact ? 'out' : `opt-${e.sourceRow}`,
+        target: e.target,
+        targetHandle: 'in',
+        type: RECALL_EDGE_TYPE,
+        data: { kind: e.kind, points: e.points, state } satisfies RecallEdgeData,
+      },
+    });
+  }
+  out.sort((a, b) => a.order - b.order);
+  return { edges: out.map((o) => o.edge), lit };
 }
