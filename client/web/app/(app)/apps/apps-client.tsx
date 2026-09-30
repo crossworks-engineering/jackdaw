@@ -47,6 +47,11 @@ import { appNavAppIds } from '@mantle/content-core/app-nav';
 import { AppsTree } from '@/components/app-nav/apps-tree';
 import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
+import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { appsAdapter } from '@/components/item-tree/kinds/apps';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
 
@@ -106,6 +111,14 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   // flat list, which would flash and then be replaced. Only a 404 (a brain
   // before app nav) or a failed load falls back to the flat list.
   const navLoading = navQuery.isPending;
+  // The item tree (folder plan phase 3) when the brain serves Apps as a tree
+  // kind: folders are rows and every screen organises the same way. The
+  // app-nav read above still feeds the preview (build state, the tile) and
+  // the first pick; a brain before phase 3 keeps the app-nav tree.
+  const treeServes = useTreeServes('apps');
+  const [itemTreeGone, setItemTreeGone] = useState(false);
+  const itemTree = treeServes === true && !itemTreeGone;
+  const [treeQuery, setTreeQuery] = useState('');
 
   // Everything selectable in the current mode, in the order a fresh visit
   // should pick from: pins first, then the tree, then the rest.
@@ -162,6 +175,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
     setDeleteTarget(null);
     void queryClient.invalidateQueries({ queryKey: ['apps'] });
     void queryClient.invalidateQueries({ queryKey: APP_NAV_KEY });
+    void queryClient.invalidateQueries({ queryKey: treeKey('apps') });
   }
 
   return (
@@ -178,7 +192,36 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         // prop's note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          navLoading ? (
+          itemTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="apps"
+                adapter={appsAdapter}
+                selectedItemId={selectedId}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search apps and folders…"
+                actions={createButton}
+                onOpenItem={(item) => setSelectedId(item.id)}
+                itemActions={(item) => (
+                  <DropdownMenuItem
+                    className="text-destructive-ink focus:text-destructive-ink"
+                    onSelect={() =>
+                      setDeleteTarget({
+                        id: item.id,
+                        title: item.title,
+                        hasBuild: nav?.apps.find((a) => a.id === item.id)?.hasBuild ?? false,
+                      })
+                    }
+                  >
+                    <Trash2 />
+                    Delete…
+                  </DropdownMenuItem>
+                )}
+                onUnsupported={() => setItemTreeGone(true)}
+              />
+            </aside>
+          ) : navLoading ? (
             <div className="flex h-full items-center justify-center">
               <Spinner />
             </div>
