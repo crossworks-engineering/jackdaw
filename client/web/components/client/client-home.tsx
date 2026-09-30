@@ -213,6 +213,8 @@ export function ClientHome() {
             kind={treeKind}
             source="client"
             mode="read"
+            // Below md the tree is the whole screen (list OR detail).
+            capOnNarrow={false}
             adapter={treeAdapter}
             query={treeQuery}
             onQueryChange={setTreeQuery}

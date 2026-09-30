@@ -224,6 +224,7 @@ export function ItemTree({
   itemActions,
   onChanged,
   onUnsupported,
+  capOnNarrow = true,
 }: {
   kind: TreeKind;
   /** Who it is read as: the owner (default), a member (manage mode covers
@@ -254,6 +255,15 @@ export function ItemTree({
   onChanged?: () => void;
   /** A tree call answered 404: the brain does not serve this kind. */
   onUnsupported?: () => void;
+  /**
+   * Below `md` a master-detail screen stacks its panes and gives the list no
+   * height of its own, so the list would grow to every row: the virtual list
+   * would draw them all and each folder's "load more" row would fetch the
+   * next page at once, page after page. Capped, the list scrolls in its own
+   * box there. Off for a screen that shows the tree alone at full height
+   * below `md` (the member's and client's screens: list OR detail).
+   */
+  capOnNarrow?: boolean;
 }) {
   const spec = TREE_KIND_SPECS[kind];
   const qc = useQueryClient();
@@ -1165,7 +1175,10 @@ export function ItemTree({
 
         <div
           ref={scrollRoot}
-          className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-2"
+          className={cn(
+            'min-h-0 flex-1 overflow-y-auto scrollbar-thin px-2',
+            capOnNarrow && 'max-md:max-h-[70dvh]',
+          )}
           onKeyDown={(e) => {
             if (e.key === 'Escape' && picked.size) {
               e.stopPropagation();
