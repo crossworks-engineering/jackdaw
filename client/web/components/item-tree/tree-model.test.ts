@@ -16,6 +16,7 @@ import {
   ownDraftIds,
   pickedAfterMove,
   rangeOfItems,
+  refreshFor,
   submittedDrafts,
   type CachedFolderPages,
   type FolderLoad,
@@ -433,5 +434,31 @@ describe('a submitted draft that an admin accepted', () => {
   it('says nothing of one still a draft (recalled, or listed elsewhere)', () => {
     const before = submittedDrafts([page([draft('a', 'submitted')])]);
     expect(acceptedSince(before, new Map(), new Set(['a']))).toEqual([]);
+  });
+});
+
+describe('refreshFor (a realtime ping about one item)', () => {
+  const page = (ids: string[]): TreeFolderPage => ({
+    kind: 'files',
+    folder: null,
+    crumbs: [],
+    folders: [],
+    items: ids.map(item),
+    sort: 'name',
+    nextCursor: null,
+  });
+  const loaded = [
+    { key: 'root', pages: [page(['a'])] },
+    { key: 'f1', pages: [page(['b']), page(['c'])] },
+    { key: 'f2', pages: undefined },
+  ];
+
+  it('an item a loaded folder holds refreshes only that folder (a re-index)', () => {
+    expect(refreshFor(loaded, 'c')).toEqual({ all: false, keys: ['f1'] });
+    expect(refreshFor(loaded, 'a')).toEqual({ all: false, keys: ['root'] });
+  });
+  it('an item no loaded folder holds refreshes them all (it is new)', () => {
+    expect(refreshFor(loaded, 'z')).toEqual({ all: true });
+    expect(refreshFor([], 'z')).toEqual({ all: true });
   });
 });

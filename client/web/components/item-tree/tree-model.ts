@@ -409,3 +409,21 @@ export function acceptedSince(
   }
   return out;
 }
+
+/**
+ * What a realtime ping about one item refreshes. The owner's stream says only
+ * "an item of this type changed" (an insert, or the extractor finishing with
+ * it), with its id. An item the loaded folders already hold was re-indexed or
+ * edited: only the folders holding it ask again. One they do not hold is new,
+ * somewhere: every loaded folder asks again. `folders` is each loaded
+ * folder's query key and pages.
+ */
+export function refreshFor<K>(
+  folders: ReadonlyArray<{ key: K; pages: readonly TreeFolderPage[] | undefined }>,
+  itemId: string,
+): { all: true } | { all: false; keys: K[] } {
+  const keys = folders
+    .filter((f) => f.pages?.some((p) => p.items.some((it) => it.id === itemId)))
+    .map((f) => f.key);
+  return keys.length ? { all: false, keys } : { all: true };
+}

@@ -9,7 +9,12 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import {
   DndContext,
   PointerSensor,
@@ -45,6 +50,7 @@ import {
   type TreeCrumb,
   type TreeFilter,
   type TreeFolder,
+  type TreeFolderPage,
   type TreeItem,
   type TreeKind,
   type TreeShareLevel,
@@ -91,6 +97,7 @@ import {
   isOnTheWayTo,
   pickedAfterMove,
   rangeOfItems,
+  refreshFor,
   type TreeRow,
 } from './tree-model';
 import {
@@ -342,15 +349,43 @@ export function ItemTree({
     void qc.invalidateQueries({ queryKey: treeKey(kind, source) });
   }, [qc, kind, source]);
 
-  // Another device, an agent or an upload changed the tree. Bursts (a folder
-  // of uploads) coalesce into one refetch of what is on screen.
+  // Another device, an agent or an upload changed the tree. A `tree` event
+  // (a folder or a filing changed) refreshes the kind's tree; an item event
+  // (an insert, or the extractor finishing with one) refreshes only the
+  // folders holding it when they are loaded (a re-index or an edit), else
+  // every open folder (it is new, somewhere). Bursts (a folder of uploads)
+  // coalesce into one refetch of what is on screen.
   const pendingRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingKeys = useRef<'all' | Map<string, readonly unknown[]>>(new Map());
+  const flushRefresh = useCallback(() => {
+    const keys = pendingKeys.current;
+    pendingKeys.current = new Map();
+    if (keys === 'all') {
+      refresh();
+      return;
+    }
+    for (const queryKey of keys.values()) void qc.invalidateQueries({ queryKey, exact: true });
+  }, [qc, refresh]);
   useRealtime(
-    ['tree', spec.nodeType, 'branch'],
+    ['tree', spec.nodeType],
     (c) => {
-      if (c.type === 'tree' && c.id !== kind) return;
+      if (c.type === 'tree') {
+        if (c.id !== kind) return;
+        pendingKeys.current = 'all';
+      } else if (pendingKeys.current !== 'all') {
+        const loaded = qc
+          .getQueryCache()
+          .findAll({ queryKey: [...treeKey(kind, source), 'folder'] })
+          .map((q) => ({
+            key: q,
+            pages: (q.state.data as InfiniteData<TreeFolderPage> | undefined)?.pages,
+          }));
+        const hit = refreshFor(loaded, c.id);
+        if (hit.all) pendingKeys.current = 'all';
+        else for (const q of hit.keys) pendingKeys.current.set(q.queryHash, q.queryKey);
+      }
       if (pendingRefresh.current) clearTimeout(pendingRefresh.current);
-      pendingRefresh.current = setTimeout(refresh, 300);
+      pendingRefresh.current = setTimeout(flushRefresh, 300);
     },
     // The stream is the owner's; a reader's tree refreshes as it is opened.
     { enabled: owner },
