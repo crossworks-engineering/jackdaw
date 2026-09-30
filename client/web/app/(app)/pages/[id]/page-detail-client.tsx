@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Editor, JSONContent } from '@tiptap/react';
@@ -145,6 +146,8 @@ export function PageDetailClient({ pageId }: { pageId: string }) {
 function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlinks: Backlink[] }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // The Folder index slash item needs the pages tree (folder phase 7).
+  const treeServes = useTreeServes('pages');
   const toast = useToast();
 
   const initialDoc = (initial.draft ?? initial.doc) as JSONContent;
@@ -1051,7 +1054,8 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
                       key={editorKey}
                       content={seedDoc ?? initialDoc}
                       pageId={initial.id}
-                      folderId={initial.folderId ?? null}
+                      folderId={initial.folderId}
+                      folderIndex={treeServes === true}
                       markerMode={markerMode}
                       marks={marks}
                       diff={reviewMode ? diffOverlay : null}

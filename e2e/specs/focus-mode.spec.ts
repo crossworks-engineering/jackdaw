@@ -50,7 +50,7 @@ function creates(collection: string): Screen['fixture'] {
 const SCREENS: Screen[] = [
   {
     path: '/notes',
-    search: 'Search notes…',
+    search: 'Search notes and folders…',
     fixture: creates('notes'),
     // Notes puts the toggle in the EDITOR header rather than the preview's, so
     // the mode only exists once something is being written.
@@ -60,7 +60,7 @@ const SCREENS: Screen[] = [
     },
   },
   { path: '/draw', search: 'Search drawings…', fixture: creates('draws') },
-  { path: '/pages', search: 'Search pages…', fixture: creates('pages') },
+  { path: '/pages', search: 'Search pages and folders…', fixture: creates('pages') },
 ];
 
 test.describe('focus mode', () => {

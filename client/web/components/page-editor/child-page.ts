@@ -3,7 +3,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import { ChildPageView } from './child-page-view';
 
 /**
- * childPage — the page link card: a full-width clickable card that navigates
+ * childPage, the page link card: a full-width clickable card that navigates
  * to `/pages/<pageId>`. The block-level, inline equivalent of a `PageMention`:
  * where a mention is a chip inside a paragraph, this is a card. The node
  * name is from when it linked a SUB-page; pages do not nest since folder

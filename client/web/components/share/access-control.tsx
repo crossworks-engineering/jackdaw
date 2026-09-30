@@ -84,8 +84,7 @@ import { authorBadgeText, authorName } from '@/lib/item-author';
  * create an open link, so the arrow keys (which move the selection in a kit
  * ToggleGroup) only pick; the change happens on the explicit Apply.
  *
- * API: GET/PATCH /api/access/nodes/:id (plus the share routes for pages'
- * sub-pages). Loads fresh on every open, and again when the host reuses this
+ * API: GET/PATCH /api/access/nodes/:id and the share routes. Loads fresh on every open, and again when the host reuses this
  * control for another item (list screens keep it mounted across selection);
  * a response for an item that is no longer shown is dropped.
  */
@@ -421,7 +420,7 @@ export function AccessControl({
                         askRevoke({
                           shareId: view.share!.id,
                           title: view.item.title,
-                          cascade: view.share!.cascade,
+                          cascade: false,
                           stays: STAYS_AT_CLIENT,
                         })
                     : undefined

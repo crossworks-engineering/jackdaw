@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { treeKey } from '@/components/item-tree/tree-api';
 import { createPortal } from 'react-dom';
 import type { ChainedCommands, Editor, JSONContent } from '@tiptap/core';
 import { DragHandle } from '@tiptap/extension-drag-handle-react';
@@ -71,6 +73,7 @@ const TURN_OPTIONS: {
  * shadcn DropdownMenu.
  */
 export function EditorDragHandle({ editor }: { editor: Editor }) {
+  const queryClient = useQueryClient();
   const posRef = useRef<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [turnOpen, setTurnOpen] = useState(false);
@@ -120,7 +123,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
   // Client-side mirror of the `page_extract_section` tool: split the section
   // off the live doc (same pure `extractSection` the server uses), create the
   // page via the pages API (with its body), then replace the section with a
-  // page link card. The editor change autosaves to draft like any edit — the
+  // page link card. The editor change autosaves to draft like any edit; the
   // published page is untouched.
   const extractToPage = async () => {
     const pos = posRef.current;
@@ -135,7 +138,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
     >;
     const pageId = storage.slashCommand?.pageId ?? null;
     if (!pageId) return;
-    const folderId = storage.slashCommand?.folderId ?? null;
+    const folderId = storage.slashCommand?.folderId;
     const section = extractSection(editor.getJSON() as Record<string, unknown>, headingId);
     if (!section) return;
     try {
@@ -143,7 +146,8 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
         page: { id: string; title: string; icon: string | null };
       }>('/api/pages', 'POST', {
         title: section.title || 'Untitled page',
-        folderId,
+        // Unknown (a brain before the pages tree): the brain's default place.
+        ...(folderId !== undefined ? { folderId } : {}),
         doc: {
           type: 'doc',
           content: section.childBlocks.length ? section.childBlocks : [{ type: 'paragraph' }],
@@ -165,6 +169,8 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
           content: content.length ? content : [{ type: 'paragraph' }],
         } as JSONContent)
         .run();
+      // A Folder index on this page lists the new page at once.
+      void queryClient.invalidateQueries({ queryKey: treeKey('pages') });
     } catch {
       // Best-effort; the section is left intact on failure.
     }

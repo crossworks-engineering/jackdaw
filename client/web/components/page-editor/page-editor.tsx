@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { treeKey } from '@/components/item-tree/tree-api';
 import { EditorContent, useEditor, type Editor, type JSONContent } from '@tiptap/react';
 import type { EditorProps } from '@tiptap/pm/view';
 import { pageExtensions } from './extensions';
@@ -67,6 +69,7 @@ export function PageEditor({
   content,
   pageId,
   folderId,
+  folderIndex,
   markerMode = false,
   marks,
   editedIds,
@@ -96,13 +99,17 @@ export function PageEditor({
    *  lists its folder: a private item is not a brain page. */
   privateItem?: boolean;
   content: JSONContent;
-  /** Id of the page being edited — handed to the `/page` slash command and
+  /** Id of the page being edited, handed to the `/page` slash command and
    *  the drag handle's extract, which make a page next to this one. */
   pageId?: string | null;
   /** The folder this page sits in (null at the top level; folder phase 7):
    *  where a page made from here is filed, and the Folder index block's
-   *  `here`. */
+   *  `here`. Leave it out when unknown (a brain before the pages tree): the
+   *  block then shows its label alone. */
   folderId?: string | null;
+  /** Whether this brain serves the pages tree: the Folder index slash item
+   *  is offered only then. */
+  folderIndex?: boolean;
   /** When true the left gutter becomes a focus-marker strip (and the drag
    *  handle steps aside). The marks themselves stay highlighted regardless. */
   markerMode?: boolean;
@@ -139,6 +146,7 @@ export function PageEditor({
   // Router kept in a ref so the once-bound (memoized []) click handler can
   // navigate without re-creating editorProps (which would churn the view).
   const router = useRouter();
+  const queryClient = useQueryClient();
   const routerRef = useRef(router);
   useEffect(() => {
     routerRef.current = router;
@@ -241,9 +249,11 @@ export function PageEditor({
       ...(member ? memberExtensions : pageExtensions),
       SlashCommand.configure({
         pageId: pageId ?? null,
-        folderId: folderId ?? null,
+        folderId,
+        folderIndex: folderIndex ?? false,
         member,
         privateItem,
+        onPageCreated: () => void queryClient.invalidateQueries({ queryKey: treeKey('pages') }),
       }),
       FocusMarks,
       DiffReview,

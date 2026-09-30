@@ -14,7 +14,9 @@ export function FolderIndexView({ node, editor }: NodeViewProps) {
     string,
     { folderId?: string | null } | undefined
   >;
-  const here = storage.slashCommand ? (storage.slashCommand.folderId ?? null) : undefined;
+  // Undefined when the page's folder is not known (a brain before the pages
+  // tree): the list then shows its label alone rather than the root.
+  const here = storage.slashCommand?.folderId;
   return (
     <NodeViewWrapper className="my-2" data-drag-handle>
       <FolderIndexList folderId={folderId} hereFolderId={here} />

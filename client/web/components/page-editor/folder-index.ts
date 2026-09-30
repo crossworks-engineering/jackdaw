@@ -3,7 +3,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import { FolderIndexView } from './folder-index-view';
 
 /**
- * folderIndex — the Folder index block (folder system phase 7): a live,
+ * folderIndex, the Folder index block (folder system phase 7): a live,
  * title-only list of a pages folder's pages, as the reader sees them. Pages
  * do not nest, so this is what sub-page cards used to do for navigation: a
  * folder is just a folder, and a page in it can list it.

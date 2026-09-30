@@ -104,6 +104,7 @@ import { ItemTree } from '@/components/item-tree/item-tree';
 import { pagesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useLiveTreeFolder } from '@/components/item-tree/use-tree-cache';
 import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { PageView } from '@/components/page-editor/page-view';
 import { AccessControl } from '@/components/share/access-control';
@@ -212,8 +213,15 @@ export function PagesClient() {
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
   const [treeQuery, setTreeQuery] = useState('');
-  // The folder open in the tree: where New files the page.
-  const [treeFolder, setTreeFolder] = useState<TreeFolder | null>(null);
+  // The folder open in the tree: where New files the page (null = the top
+  // level, the tree's root row). Followed through the tree's cache: renamed
+  // or moved, it is the folder as it is now; deleted (here or in another
+  // tab), New goes back to the top level.
+  const [pickedFolder, setTreeFolder] = useState<TreeFolder | null>(null);
+  const treeFolder = useLiveTreeFolder('pages', 'owner', pickedFolder);
+  useEffect(() => {
+    if (pickedFolder && !treeFolder) setTreeFolder(null);
+  }, [pickedFolder, treeFolder]);
 
   const listQuery = useQuery({
     queryKey: ['pages', { q: query, tag: activeTag, sort, page, state }],
@@ -697,7 +705,16 @@ export function PagesClient() {
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search pages and folders…"
-                actions={<NewButton onClick={() => setOpen(true)} />}
+                // The root row: New back at the top level.
+                rootLabel="All pages"
+                actions={
+                  <NewButton
+                    onClick={() => setOpen(true)}
+                    title={
+                      treeFolder ? `New page in ${treeFolder.name}` : 'New page at the top level'
+                    }
+                  />
+                }
                 onOpenFolder={(f) => setTreeFolder(f)}
                 onOpenItem={(item) => {
                   if (item.state === 'private') {

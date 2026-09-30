@@ -62,24 +62,30 @@ function pickAndUpload(editor: Editor, range: Range, accept: string) {
  * folder phase 7) and drop a page link card (`childPage`) at the cursor. The
  * folder comes from the SlashCommand extension's storage. The page row is
  * created server-side immediately, so it exists in the tree the moment the
- * card appears — the card insert itself is an editor change that autosaves
+ * card appears; the card insert itself is an editor change that autosaves
  * into this page's draft like any other edit. Rename the new page from inside
  * it; the card refreshes its title on mount.
  */
 async function insertNewPage(editor: Editor, range: Range) {
   const storage = editor.storage as unknown as Record<
     string,
-    { pageId?: string | null; folderId?: string | null } | undefined
+    | { pageId?: string | null; folderId?: string | null; onPageCreated?: (() => void) | null }
+    | undefined
   >;
   const pageId = storage.slashCommand?.pageId ?? null;
-  const folderId = storage.slashCommand?.folderId ?? null;
-  // Remove the "/page" text regardless — the menu has already committed.
+  const folderId = storage.slashCommand?.folderId;
+  // Remove the "/page" text regardless: the menu has already committed.
   editor.chain().focus().deleteRange(range).run();
   if (!pageId) return; // not inside a saved brain page
   try {
     const { page } = await apiSend<{
       page: { id: string; title: string; icon: string | null };
-    }>('/api/pages', 'POST', { title: 'Untitled page', folderId });
+    }>('/api/pages', 'POST', {
+      title: 'Untitled page',
+      // Unknown (a brain before the pages tree): the brain's default place.
+      ...(folderId !== undefined ? { folderId } : {}),
+    });
+    storage.slashCommand?.onPageCreated?.();
     editor
       .chain()
       .focus()
@@ -362,7 +368,13 @@ const ITEMS: SlashItem[] = [
 
 /** Slash items a member may not use, by id: each creates or uploads into
  *  the brain. Matched by id so renaming an item's title cannot re-show it. */
-export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'image', 'drawing', 'file']);
+export const MEMBER_HIDDEN: ReadonlySet<string> = new Set([
+  'new-page',
+  'folder-index',
+  'image',
+  'drawing',
+  'file',
+]);
 
 /** Slash items an admin's private item may not use: a new page is a brain
  *  page next to the page it sits in, and a folder index lists the folder the
@@ -372,11 +384,13 @@ export const PRIVATE_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'folder-
 /** Filter the command list by the text typed after the slash. */
 export function getSlashItems(
   query: string,
-  opts: { member?: boolean; privateItem?: boolean } = {},
+  opts: { member?: boolean; privateItem?: boolean; folderIndex?: boolean } = {},
 ): SlashItem[] {
   const q = query.trim().toLowerCase();
   const hidden = opts.member ? MEMBER_HIDDEN : opts.privateItem ? PRIVATE_HIDDEN : null;
-  const items = hidden ? ITEMS.filter((i) => !hidden.has(i.id)) : ITEMS;
+  // The Folder index needs the pages tree: a brain before it gets no item.
+  const offered = opts.folderIndex === false ? ITEMS.filter((i) => i.id !== 'folder-index') : ITEMS;
+  const items = hidden ? offered.filter((i) => !hidden.has(i.id)) : offered;
   if (!q) return items;
   return items.filter(
     (i) => i.title.toLowerCase().includes(q) || (i.keywords ?? []).some((k) => k.includes(q)),

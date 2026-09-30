@@ -26,8 +26,15 @@ export interface SlashCommandOptions {
    *  the static slash items can read it off `editor`. */
   pageId: string | null;
   /** The folder the page sits in (null at the top level; folder phase 7):
-   *  where `/page` files the page it makes, and what `folder:here` means. */
-  folderId: string | null;
+   *  where `/page` files the page it makes, and what `folder:here` means.
+   *  Undefined when unknown (a brain before the pages tree). */
+  folderId: string | null | undefined;
+  /** Whether the Folder index item is offered (the brain serves the pages
+   *  tree). */
+  folderIndex: boolean;
+  /** Called once `/page` made its page, so the screen can refresh what
+   *  lists the folder (a Folder index on this page). */
+  onPageCreated: (() => void) | null;
   /** A member login (member logins): no command that creates or uploads into
    *  the brain (sub-page, image, drawing, file); those routes refuse a member. */
   member: boolean;
@@ -41,19 +48,31 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
 
   addOptions() {
-    return { pageId: null, folderId: null, member: false, privateItem: false };
+    return {
+      pageId: null,
+      folderId: undefined,
+      folderIndex: false,
+      onPageCreated: null,
+      member: false,
+      privateItem: false,
+    };
   },
 
   // Mirror the page and folder ids into storage so a slash item's command
   // (which only receives { editor, range }) can reach them via
   // `editor.storage.slashCommand`.
   addStorage() {
-    return { pageId: this.options.pageId, folderId: this.options.folderId };
+    return {
+      pageId: this.options.pageId,
+      folderId: this.options.folderId,
+      onPageCreated: this.options.onPageCreated,
+    };
   },
 
   onBeforeCreate() {
     this.storage.pageId = this.options.pageId;
     this.storage.folderId = this.options.folderId;
+    this.storage.onPageCreated = this.options.onPageCreated;
   },
 
   addProseMirrorPlugins() {
@@ -70,6 +89,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
           getSlashItems(query, {
             member: this.options.member,
             privateItem: this.options.privateItem,
+            folderIndex: this.options.folderIndex,
           }),
         render: () => {
           let component: ReactRenderer<SlashMenuHandle, SlashMenuProps> | null = null;

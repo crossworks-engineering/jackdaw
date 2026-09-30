@@ -17,7 +17,13 @@ describe('getSlashItems for a member', () => {
   it('still hides them when their display titles change', () => {
     const all = getSlashItems('');
     const hidden = all.filter((i) => MEMBER_HIDDEN.has(i.id));
-    expect(hidden.map((i) => i.id).sort()).toEqual(['drawing', 'file', 'image', 'new-page']);
+    expect(hidden.map((i) => i.id).sort()).toEqual([
+      'drawing',
+      'file',
+      'folder-index',
+      'image',
+      'new-page',
+    ]);
     const titles = hidden.map((i) => i.title);
     try {
       for (const i of hidden) i.title = `${i.title} (renamed)`;
@@ -47,5 +53,18 @@ describe("getSlashItems for an admin's private item (Phase 7)", () => {
   it('a member stays on the member list either way', () => {
     const both = getSlashItems('', { member: true, privateItem: true }).map((i) => i.id);
     for (const id of MEMBER_HIDDEN) expect(both).not.toContain(id);
+  });
+});
+
+describe('getSlashItems and the Folder index', () => {
+  it('offers the Folder index only where the brain serves the pages tree', () => {
+    expect(getSlashItems('').map((i) => i.id)).toContain('folder-index');
+    expect(getSlashItems('', { folderIndex: true }).map((i) => i.id)).toContain('folder-index');
+    expect(getSlashItems('', { folderIndex: false }).map((i) => i.id)).not.toContain(
+      'folder-index',
+    );
+    expect(getSlashItems('folder', { folderIndex: false }).map((i) => i.id)).not.toContain(
+      'folder-index',
+    );
   });
 });
