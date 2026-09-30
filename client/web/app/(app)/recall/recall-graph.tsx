@@ -163,7 +163,10 @@ function buildGraph(map: RecallMapDetailDTO): { nodes: Node[]; edgeDefs: EdgeDef
   for (const n of map.nodes) {
     for (const o of n.options) {
       // Compiled options always resolve in-map; guard anyway so a half-broken
-      // payload can never crash the layout.
+      // payload can never crash the layout. A v2 cross-map option leads to
+      // ANOTHER map's entry card, and its targetSlug is that map's slug, which
+      // could collide with a card slug here: it is not an edge in this graph.
+      if ('targetMap' in o && o.targetMap) continue;
       if (!bySlug.has(o.targetSlug)) continue;
       targeted.add(o.targetSlug);
       edgeDefs.push({
