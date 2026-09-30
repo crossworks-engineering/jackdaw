@@ -71,7 +71,9 @@ import {
   setTreeItemPinned,
   tagsKey,
   treeKey,
+  treeScope,
   type TreeFolderPatch,
+  type TreeSource,
 } from './tree-api';
 import {
   TreeContext,
@@ -133,6 +135,9 @@ const VIEWS: Array<{ id: View; label: string }> = [
   { id: 'used', label: 'Most used' },
   { id: 'az', label: 'A to Z' },
 ];
+/** A member's or client's tree: no Recent or Most used (those are the
+ *  owner's marks). */
+const READER_VIEWS = VIEWS.filter((v) => v.id === 'tree' || v.id === 'az');
 
 const SORT_LABEL: Record<TreeSort, string> = {
   name: 'Name',
@@ -143,8 +148,8 @@ const SORT_LABEL: Record<TreeSort, string> = {
 
 /** The open-folder set for a kind, merged rather than replaced so the stored
  *  set (read after hydration) and a reveal can arrive in either order. */
-function useOpenFolders(kind: TreeKind) {
-  const key = `mantle_tree_open_v1:${kind}`;
+function useOpenFolders(scope: string) {
+  const key = `mantle_tree_open_v1:${scope}`;
   const [open, setOpenSet] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     try {
@@ -196,6 +201,7 @@ const into = (dest: string | null | undefined) => (dest ? `into “${dest}”` :
 
 export function ItemTree({
   kind,
+  source = 'owner',
   adapter,
   mode = 'manage',
   rootLabel,
@@ -213,6 +219,9 @@ export function ItemTree({
   onUnsupported,
 }: {
   kind: TreeKind;
+  /** Who it is read as: the owner (default), or a member's or client's
+   *  read-only tree (always read mode; no marks, filters or live updates). */
+  source?: TreeSource;
   adapter: TreeKindAdapter;
   mode?: 'manage' | 'read';
   /** A row for the kind's root above the folders ("All files"). */
@@ -241,19 +250,23 @@ export function ItemTree({
   const spec = TREE_KIND_SPECS[kind];
   const qc = useQueryClient();
   const toast = useToast();
-  const manage = mode === 'manage';
+  const owner = source === 'owner';
+  const manage = mode === 'manage' && owner;
+  const scope = treeScope(kind, source);
+  const views = owner ? VIEWS : READER_VIEWS;
 
-  const [view, setView] = usePersistedState<View>(
-    `mantle_tree_view_v1:${kind}`,
+  const [storedView, setView] = usePersistedState<View>(
+    `mantle_tree_view_v1:${scope}`,
     'tree',
     oneOf('tree', 'recent', 'used', 'az'),
   );
+  const view: View = views.some((v) => v.id === storedView) ? storedView : 'tree';
   const [sort, setSort] = usePersistedState<TreeSort>(
-    `mantle_tree_sort_v1:${kind}`,
+    `mantle_tree_sort_v1:${scope}`,
     spec.sorts[0]!,
     (s) => (spec.sorts.includes(s as TreeSort) ? (s as TreeSort) : null),
   );
-  const [open, setOpen] = useOpenFolders(kind);
+  const [open, setOpen] = useOpenFolders(scope);
   // Where to unfold to: the page's latest destination, or a folder search
   // hit chosen since. The latest of the two wins.
   const hostReveal = revealPath === undefined ? selectedFolderPath : revealPath;
@@ -274,7 +287,7 @@ export function ItemTree({
   const tagsQ = useQuery({
     queryKey: tagsKey(kind),
     queryFn: () => fetchTags(kind),
-    enabled: filterMenuOpen,
+    enabled: filterMenuOpen && owner,
     staleTime: 60_000,
   });
 
@@ -303,17 +316,22 @@ export function ItemTree({
   }, []);
   const pickedIds = useMemo(() => new Set(picked.keys()), [picked]);
   const refresh = useCallback(() => {
-    void qc.invalidateQueries({ queryKey: treeKey(kind) });
-  }, [qc, kind]);
+    void qc.invalidateQueries({ queryKey: treeKey(kind, source) });
+  }, [qc, kind, source]);
 
   // Another device, an agent or an upload changed the tree. Bursts (a folder
   // of uploads) coalesce into one refetch of what is on screen.
   const pendingRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useRealtime(['tree', spec.nodeType, 'branch'], (c) => {
-    if (c.type === 'tree' && c.id !== kind) return;
-    if (pendingRefresh.current) clearTimeout(pendingRefresh.current);
-    pendingRefresh.current = setTimeout(refresh, 300);
-  });
+  useRealtime(
+    ['tree', spec.nodeType, 'branch'],
+    (c) => {
+      if (c.type === 'tree' && c.id !== kind) return;
+      if (pendingRefresh.current) clearTimeout(pendingRefresh.current);
+      pendingRefresh.current = setTimeout(refresh, 300);
+    },
+    // The stream is the owner's; a reader's tree refreshes as it is opened.
+    { enabled: owner },
+  );
   useEffect(
     () => () => {
       if (pendingRefresh.current) clearTimeout(pendingRefresh.current);
@@ -398,15 +416,15 @@ export function ItemTree({
   const marksQ = useQuery({
     queryKey: marksKey(kind, listView ?? 'recent'),
     queryFn: () => fetchMarks(kind, listView ?? 'recent'),
-    enabled: !searching && listView !== null,
+    enabled: owner && !searching && listView !== null,
   });
 
   // A to Z is the empty search; a search is the same query with a term; a
   // filter narrows either.
   const flatTerm = searching ? term : '';
   const flatQ = useInfiniteQuery({
-    queryKey: searchKey(kind, flatTerm, filter),
-    queryFn: ({ pageParam }) => fetchSearch(kind, flatTerm, pageParam, filter),
+    queryKey: searchKey(kind, flatTerm, filter, source),
+    queryFn: ({ pageParam }) => fetchSearch(kind, flatTerm, pageParam, filter, source),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: searching ? term.length > 0 : view === 'az' || filtering,
@@ -416,7 +434,8 @@ export function ItemTree({
   const openItem = (item: TreeItem, where: ItemWhere) => {
     clearPicked();
     onOpenItem(item, where);
-    if (item.state !== 'private') {
+    // Recent and Most used count the owner's opens only.
+    if (owner && item.state !== 'private') {
       void recordTreeItemOpened(item.id).then(() =>
         qc.invalidateQueries({ queryKey: ['tree', kind, 'marks'] }),
       );
@@ -741,6 +760,7 @@ export function ItemTree({
   const flatView = searching || filtering || view === 'az';
   const folderRows = useFolderRows({
     kind,
+    source,
     sort,
     isOpen: (id) => open.has(id),
     emptyText: `No ${adapter.noun.many} or folders yet.`,
@@ -966,90 +986,111 @@ export function ItemTree({
                 aria-label={`How to list ${adapter.noun.many}`}
                 className="flex min-w-0 flex-1"
               >
-                {VIEWS.map((v) => (
+                {views.map((v) => (
                   <ToggleGroupItem key={v.id} value={v.id} className="h-8 flex-auto px-1.5 text-xs">
                     {v.label}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={filtering ? 'secondary' : 'outline'}
-                    size="icon-xs"
-                    aria-label={filtering ? 'Sort and filter (filter on)' : 'Sort and filter'}
-                    title={`Sort: ${SORT_LABEL[sort]}. Filter by state or tag`}
+              {(owner || (view === 'tree' && spec.sorts.length > 1)) && (
+                <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={filtering ? 'secondary' : 'outline'}
+                      size="icon-xs"
+                      aria-label={
+                        !owner
+                          ? 'Sort'
+                          : filtering
+                            ? 'Sort and filter (filter on)'
+                            : 'Sort and filter'
+                      }
+                      title={
+                        owner
+                          ? `Sort: ${SORT_LABEL[sort]}. Filter by state or tag`
+                          : `Sort: ${SORT_LABEL[sort]}`
+                      }
+                    >
+                      <ListFilter />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="max-h-96 w-52 overflow-y-auto scrollbar-thin"
                   >
-                    <ListFilter />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="max-h-96 w-52 overflow-y-auto scrollbar-thin"
-                >
-                  {view === 'tree' && !filtering && spec.sorts.length > 1 && (
-                    <>
-                      <DropdownMenuLabel>Sort {adapter.noun.many}</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={sort}
-                        onValueChange={(v) => setSort(v as TreeSort)}
-                      >
-                        {spec.sorts.map((s) => (
-                          <DropdownMenuRadioItem key={s} value={s}>
-                            {SORT_LABEL[s]}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  <DropdownMenuLabel>State</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={filter.level ?? 'any'}
-                    onValueChange={(v) =>
-                      setFilter((f) => ({
-                        ...f,
-                        level: v === 'any' ? undefined : (v as AccessLevel),
-                      }))
-                    }
-                  >
-                    <DropdownMenuRadioItem value="any">Any</DropdownMenuRadioItem>
-                    {LEVEL_ORDER.map((l) => (
-                      <DropdownMenuRadioItem key={l} value={l}>
-                        {l === 'admin' ? 'Admin only' : LEVEL_LABEL[l]}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Tag</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={filter.tag ?? ''}
-                    onValueChange={(v) =>
-                      setFilter((f) => ({ ...f, tag: v === '' ? undefined : v }))
-                    }
-                  >
-                    <DropdownMenuRadioItem value="">Any</DropdownMenuRadioItem>
-                    {filter.tag && !tagsQ.data?.tags.some((t) => t.tag === filter.tag) && (
-                      <DropdownMenuRadioItem value={filter.tag}>{filter.tag}</DropdownMenuRadioItem>
+                    {view === 'tree' && !filtering && spec.sorts.length > 1 && (
+                      <>
+                        <DropdownMenuLabel>Sort {adapter.noun.many}</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={sort}
+                          onValueChange={(v) => setSort(v as TreeSort)}
+                        >
+                          {spec.sorts.map((s) => (
+                            <DropdownMenuRadioItem key={s} value={s}>
+                              {SORT_LABEL[s]}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                        {owner && <DropdownMenuSeparator />}
+                      </>
                     )}
-                    {tagsQ.data?.tags.map((t) => (
-                      <DropdownMenuRadioItem key={t.tag} value={t.tag}>
-                        <span className="min-w-0 flex-1 truncate">{t.tag}</span>
-                        <span className="text-[11px] tabular-nums text-muted-foreground">
-                          {t.count}
-                        </span>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                  {tagsQ.isPending && <DropdownMenuItem disabled>Loading tags…</DropdownMenuItem>}
-                  {tagsQ.isError && (
-                    <DropdownMenuItem disabled>Couldn’t load the tags.</DropdownMenuItem>
-                  )}
-                  {tagsQ.data && tagsQ.data.tags.length === 0 && (
-                    <DropdownMenuItem disabled>No tags yet.</DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    {/* Levels and tags are the owner's to filter by. */}
+                    {owner && (
+                      <>
+                        <DropdownMenuLabel>State</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={filter.level ?? 'any'}
+                          onValueChange={(v) =>
+                            setFilter((f) => ({
+                              ...f,
+                              level: v === 'any' ? undefined : (v as AccessLevel),
+                            }))
+                          }
+                        >
+                          <DropdownMenuRadioItem value="any">Any</DropdownMenuRadioItem>
+                          {LEVEL_ORDER.map((l) => (
+                            <DropdownMenuRadioItem key={l} value={l}>
+                              {l === 'admin' ? 'Admin only' : LEVEL_LABEL[l]}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Tag</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={filter.tag ?? ''}
+                          onValueChange={(v) =>
+                            setFilter((f) => ({ ...f, tag: v === '' ? undefined : v }))
+                          }
+                        >
+                          <DropdownMenuRadioItem value="">Any</DropdownMenuRadioItem>
+                          {filter.tag && !tagsQ.data?.tags.some((t) => t.tag === filter.tag) && (
+                            <DropdownMenuRadioItem value={filter.tag}>
+                              {filter.tag}
+                            </DropdownMenuRadioItem>
+                          )}
+                          {tagsQ.data?.tags.map((t) => (
+                            <DropdownMenuRadioItem key={t.tag} value={t.tag}>
+                              <span className="min-w-0 flex-1 truncate">{t.tag}</span>
+                              <span className="text-[11px] tabular-nums text-muted-foreground">
+                                {t.count}
+                              </span>
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                        {tagsQ.isPending && (
+                          <DropdownMenuItem disabled>Loading tags…</DropdownMenuItem>
+                        )}
+                        {tagsQ.isError && (
+                          <DropdownMenuItem disabled>Couldn’t load the tags.</DropdownMenuItem>
+                        )}
+                        {tagsQ.data && tagsQ.data.tags.length === 0 && (
+                          <DropdownMenuItem disabled>No tags yet.</DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           )}
           {filtering && (

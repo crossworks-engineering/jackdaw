@@ -18,13 +18,43 @@ import type {
   TreeTagList,
 } from '@mantle/web-ui/types/tree';
 
-export const treeKey = (kind: TreeKind) => ['tree', kind] as const;
+/**
+ * Who the tree is read as. The owner's tree is /api/tree (read and write);
+ * a member login's and a client login's are read-only views of what they may
+ * read (/api/member/tree, /api/client/tree: the kinds their shell lists in
+ * `treeKinds`). A client's answers carry no level, share or system flag; the
+ * rows treat those as absent.
+ */
+export type TreeSource = 'owner' | 'member' | 'client';
 
-export const folderKey = (kind: TreeKind, folderId: string | null, sort: TreeSort) =>
-  ['tree', kind, 'folder', folderId ?? 'root', sort] as const;
+const BASE: Record<TreeSource, string> = {
+  owner: '/api/tree',
+  member: '/api/member/tree',
+  client: '/api/client/tree',
+};
 
-export const searchKey = (kind: TreeKind, q: string, filter: TreeFilter = {}) =>
-  ['tree', kind, 'search', q, filter.level ?? null, filter.tag ?? null] as const;
+/** The cache scope of a kind's tree: the kind for the owner, prefixed for a
+ *  reader, so the three never share a cached folder. */
+export const treeScope = (kind: TreeKind, source: TreeSource = 'owner'): string =>
+  source === 'owner' ? kind : `${source}:${kind}`;
+
+export const treeKey = (kind: TreeKind, source: TreeSource = 'owner') =>
+  ['tree', treeScope(kind, source)] as const;
+
+export const folderKey = (
+  kind: TreeKind,
+  folderId: string | null,
+  sort: TreeSort,
+  source: TreeSource = 'owner',
+) => ['tree', treeScope(kind, source), 'folder', folderId ?? 'root', sort] as const;
+
+export const searchKey = (
+  kind: TreeKind,
+  q: string,
+  filter: TreeFilter = {},
+  source: TreeSource = 'owner',
+) =>
+  ['tree', treeScope(kind, source), 'search', q, filter.level ?? null, filter.tag ?? null] as const;
 
 export const tagsKey = (kind: TreeKind) => ['tree', kind, 'tags'] as const;
 
@@ -43,8 +73,9 @@ export function folderUrl(
   folderId: string | null,
   sort: TreeSort,
   cursor: string | null,
+  source: TreeSource = 'owner',
 ): string {
-  return `/api/tree/${kind}${query({ folder: folderId, sort, cursor })}`;
+  return `${BASE[source]}/${kind}${query({ folder: folderId, sort, cursor })}`;
 }
 
 /** An empty `q` is the A to Z view: every item by name, no folders. A
@@ -54,28 +85,36 @@ export function searchUrl(
   q: string,
   cursor: string | null,
   filter: TreeFilter = {},
+  source: TreeSource = 'owner',
 ): string {
-  const rest = query({ cursor, level: filter.level, tag: filter.tag }).replace(/^\?/, '&');
-  return `/api/tree/${kind}/search?q=${encodeURIComponent(q.trim())}${rest}`;
+  // A reader's search takes no level or tag (it is not offered one).
+  const rest = query(
+    source === 'owner' ? { cursor, level: filter.level, tag: filter.tag } : { cursor },
+  ).replace(/^\?/, '&');
+  return `${BASE[source]}/${kind}/search?q=${encodeURIComponent(q.trim())}${rest}`;
 }
 
 export function marksUrl(kind: TreeKind, view: TreeMarkView): string {
   return `/api/tree/${kind}/marks?view=${view}`;
 }
 
+// A client's page is the owner's shape without its level fields: read as it,
+// those are simply absent (the rows show no level, share or state then).
 export const fetchFolderPage = (
   kind: TreeKind,
   folderId: string | null,
   sort: TreeSort,
   cursor: string | null,
-) => apiFetch<TreeFolderPage>(folderUrl(kind, folderId, sort, cursor));
+  source: TreeSource = 'owner',
+) => apiFetch<TreeFolderPage>(folderUrl(kind, folderId, sort, cursor, source));
 
 export const fetchSearch = (
   kind: TreeKind,
   q: string,
   cursor: string | null,
   filter: TreeFilter = {},
-) => apiFetch<TreeSearchResult>(searchUrl(kind, q, cursor, filter));
+  source: TreeSource = 'owner',
+) => apiFetch<TreeSearchResult>(searchUrl(kind, q, cursor, filter, source));
 
 export const fetchTags = (kind: TreeKind) => apiFetch<TreeTagList>(`/api/tree/${kind}/tags`);
 

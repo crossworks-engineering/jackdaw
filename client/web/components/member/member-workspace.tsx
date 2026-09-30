@@ -39,6 +39,10 @@ import { MEMBER_STATE_OPTIONS, fetchMemberItems, memberStateOf, srcOf } from '@/
 import { authorName } from '@/lib/item-author';
 import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
+import { ReaderViewToggle, readerViewOf } from '@/components/item-tree/reader-view-toggle';
+import { treeKindOfItem, useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useListNav } from '@/lib/use-list-nav';
 import { useUrlSearchBox } from '@/lib/url-search-box';
 import { MemberReader } from './member-reader';
@@ -108,6 +112,16 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const openId = params.get('id') ?? params.get('selected');
   const openSource = asSource(params.get('src'));
   const [details, changeDetails] = useCardDetails(`mantle_member_${kind}_card_details_v1`);
+  // The brain's folders as a read-only tree (folder sharing), when it serves
+  // this kind to members: what the member reads there, by folder. Their own
+  // items and teammates' drafts stay in the list until they join the folders.
+  const treeKind = treeKindOfItem(kind);
+  const treeAdapter = treeKind ? readerTreeAdapter(treeKind) : null;
+  const serves = useReaderTreeServes('member', treeKind);
+  const treeServed = serves === true && treeAdapter !== null;
+  const wantsFolders = readerViewOf(params) === 'folders';
+  const folders = treeServed && wantsFolders;
+  const [treeQuery, setTreeQuery] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
@@ -134,12 +148,18 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     [params, pathname, router, openId],
   );
 
+  const setView = (v: 'list' | 'folders') =>
+    go({ view: v === 'folders' ? 'folders' : null, page: null });
+
   const list = useQuery({
     // `member-space-list` so every own-item change (save, share, submit,
     // the event stream) refreshes it, as it refreshed the old source lists.
     queryKey: ['member-space-list', 'items', kind, { q, state, page }],
     queryFn: () => fetchMemberItems({ kind, q, state, page }),
     placeholderData: (prev) => prev,
+    // Not while the folders are chosen, nor while it is not yet known whether
+    // the brain serves them (the first paint).
+    enabled: !folders && !(wantsFolders && serves === undefined),
   });
 
   const create = async () => {
@@ -186,7 +206,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const rows = data?.items ?? [];
   // What the detail shows: the item the URL opens, else (on a wide screen)
   // the first card, the master-detail default. A phone opens the list first.
-  const first = !openId && isDesktop !== false ? (rows[0] ?? null) : null;
+  const first = !openId && !folders && isDesktop !== false ? (rows[0] ?? null) : null;
   const open: { id: string; source: WorkspaceSource; row: MemberItemRow | null } | null = openId
     ? {
         id: openId,
@@ -297,6 +317,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
           tourTarget="member-state"
         />
         <DetailsToggle details={details} onChange={changeDetails} />
+        {treeServed ? <ReaderViewToggle value="list" onChange={setView} /> : null}
       </ItemListHeader>
       <ItemListScroll pending={pending || (list.isFetching && !!data)}>
         {!data ? (
@@ -321,6 +342,29 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
       ) : null}
     </div>
   );
+
+  const treePane =
+    folders && treeKind && treeAdapter ? (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{meta.title}</span>
+          <ReaderViewToggle value="folders" onChange={setView} />
+        </div>
+        <div className="min-h-0 flex-1">
+          <ItemTree
+            kind={treeKind}
+            source="member"
+            mode="read"
+            adapter={treeAdapter}
+            query={treeQuery}
+            onQueryChange={setTreeQuery}
+            selectedItemId={open?.source === 'library' ? open.id : null}
+            onOpenItem={(item) => setParams({ src: 'library', id: item.id })}
+            onUnsupported={() => setView('list')}
+          />
+        </div>
+      </div>
+    ) : null;
 
   const close = () => {
     if (openId && pushedFromList.current === openId) {
@@ -367,9 +411,11 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     <>
       <SetPageTitle title={meta.title} />
       {isDesktop === false ? (
-        <div className="relative h-full min-h-0">{openId ? detailPane : listPane}</div>
+        <div className="relative h-full min-h-0">
+          {openId ? detailPane : (treePane ?? listPane)}
+        </div>
       ) : (
-        <MasterDetail id={`member-${kind}`} list={listPane} detail={detailPane} />
+        <MasterDetail id={`member-${kind}`} list={treePane ?? listPane} detail={detailPane} />
       )}
     </>
   );
