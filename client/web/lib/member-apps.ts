@@ -1,10 +1,7 @@
 import type { HubData, HubNavTarget } from '@mantle/share-ui/app-bridge-protocol';
-import type {
-  MemberAppCard,
-  MemberAppList,
-  MemberHomeData as ContractHomeData,
-} from '@mantle/client-types';
+import type { MemberHomeData as ContractHomeData } from '@mantle/client-types';
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
+import type { MemberAppCard, MemberAppList } from './contract-next';
 
 /**
  * Apps for members (member logins Phase 4b). A member RUNS team-level apps
@@ -13,7 +10,8 @@ import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
  * so nothing here reaches an owner /api/apps route.
  *
  * The wire types come from the contract (@mantle/client-types, brains from
- * 0.232.289); the hub payload is share-ui's HubData.
+ * 0.232.289; a card's `dataReadOnly` from the C6 shim, lib/contract-next.ts);
+ * the hub payload is share-ui's HubData.
  */
 
 export type { MemberAppCard, MemberAppList };

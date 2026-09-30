@@ -7,6 +7,8 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { AppTile } from '@/components/app-nav/app-tile';
+import { AppInformationalTag } from '@/components/app-nav/app-informational-note';
+import { isInformational } from '@/lib/app-informational';
 import { launcherApps, memberAppHref, type MemberAppList } from '@/lib/member-apps';
 
 /**
@@ -53,6 +55,11 @@ export function MemberApps() {
                   {app.description ? (
                     <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
                       {app.description}
+                    </span>
+                  ) : null}
+                  {isInformational(app) ? (
+                    <span className="mt-1 block">
+                      <AppInformationalTag />
                     </span>
                   ) : null}
                 </span>

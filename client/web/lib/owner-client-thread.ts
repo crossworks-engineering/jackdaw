@@ -2,8 +2,8 @@
  * The client thread on the owner's side (client logins C5 audit fix U2):
  * an item at CLIENT level carries a thread every client login reads and
  * writes (decision 8); an admin reads and answers it from the item itself,
- * on the owner's own comment routes (GET/POST /api/nodes/:id/comments,
- * DELETE /api/comments/:id). A comment an admin writes there while the item
+ * on the owner's own comment routes (GET /api/nodes/:id/comments?scope=client
+ * since C6, POST /api/nodes/:id/comments, DELETE /api/comments/:id). A comment an admin writes there while the item
  * is at client level joins the client thread under the admin's name.
  *
  * The pure half, pinned by owner-client-thread.test.ts; the button and its
@@ -11,13 +11,26 @@
  */
 import type { AccessLevel, NodeCommentAuthorKind } from '@mantle/client-types';
 import { queryKeysForType } from './access-levels';
+import type { NodeCommentScope } from './contract-next';
 
 /** The kinds whose owner views carry the thread. */
 export type OwnerThreadKind = 'page' | 'note' | 'table' | 'file';
 
-/** The owner's thread route for an item (paged: use-thread-pages.ts). */
+/** The owner's thread route for an item: where a comment is POSTed. */
 export function ownerThreadPath(id: string): string {
   return `/api/nodes/${encodeURIComponent(id)}/comments`;
+}
+
+/**
+ * Where the client thread is READ (paged: use-thread-pages.ts): the owner's
+ * route asked for the client scope only (C6), so the panel shows the client
+ * thread and nothing an item's other threads hold. A brain before C6
+ * ignores `scope` and answers every scope, as it always did: the panel then
+ * shows what it showed before.
+ */
+export function ownerClientThreadPath(id: string): string {
+  const scope: NodeCommentScope = 'client';
+  return `${ownerThreadPath(id)}?scope=${scope}`;
 }
 
 /** One comment, for its delete (any admin login may delete any comment). */

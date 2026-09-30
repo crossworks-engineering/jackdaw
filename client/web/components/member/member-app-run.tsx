@@ -12,6 +12,8 @@ import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { AppLoader } from '@/components/app-nav/app-loader';
+import { AppInformationalNote } from '@/components/app-nav/app-informational-note';
+import { isInformational } from '@/lib/app-informational';
 import { memberAppProblem, memberAppSandboxProps, type MemberAppList } from '@/lib/member-apps';
 
 /**
@@ -19,6 +21,8 @@ import { memberAppProblem, memberAppSandboxProps, type MemberAppList } from '@/l
  * sandbox, full height, over the member routes. No editor, no build, no
  * share. An app the member may not run is simply not in their list. The
  * pinned home app opens on the home page instead, where its hub data is.
+ * An informational app (C6: `dataReadOnly`) says so, quietly, beside Apps:
+ * the member reads its data and writes none.
  */
 export function MemberAppRun({ id }: { id: string }) {
   const toast = useToast();
@@ -44,6 +48,8 @@ export function MemberAppRun({ id }: { id: string }) {
           <ArrowLeft className="size-4" aria-hidden />
           Apps
         </Link>
+        {/* An informational app (or a public one): read, not written (C6). */}
+        {app && isInformational(app) ? <AppInformationalNote /> : null}
       </div>
       <div className="min-h-0 flex-1">
         {list.isPending || isHome ? (

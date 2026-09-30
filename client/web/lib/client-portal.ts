@@ -16,6 +16,7 @@ import type { MemberItemKind } from './member-kinds';
 import type { SpaceApiBase } from './member-space';
 import { clientItemIdFromPath } from './client-surface';
 import { CLIENT_ACCEPTED_KEY, CLIENT_REQUESTS_KEY } from './client-requests';
+import { CLIENT_APPS_KEY } from './client-apps';
 
 export { CLIENT_PRIVATE_LABEL };
 
@@ -110,7 +111,8 @@ export const CLIENT_OWN_ITEM_KEY = ['member-space-item'] as const;
  * portal does this on every successful shell poll and when the window gets
  * focus: an item shared or unshared since, or changed, shows without a
  * reload (audit B27); so does a request a reviewer returned or accepted
- * (C5: My requests, the own item and the accepted one).
+ * (C5: My requests, the own item and the accepted one), and an app an admin
+ * made available or took back (C6: the Apps list, which the rail follows).
  */
 export function refreshClientPortal(queryClient: {
   invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>;
@@ -121,6 +123,7 @@ export function refreshClientPortal(queryClient: {
     queryClient.invalidateQueries({ queryKey: CLIENT_REQUESTS_KEY }),
     queryClient.invalidateQueries({ queryKey: CLIENT_OWN_ITEM_KEY }),
     queryClient.invalidateQueries({ queryKey: CLIENT_ACCEPTED_KEY }),
+    queryClient.invalidateQueries({ queryKey: CLIENT_APPS_KEY }),
   ]);
 }
 

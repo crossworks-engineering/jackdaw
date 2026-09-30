@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { queryKeysForType } from './access-levels';
+import { threadPagePath } from './thread-pages';
 import {
   CLIENT_THREAD_LINE,
   OWNER_THREAD_CHIPS,
   clientThreadLabel,
+  ownerClientThreadPath,
   ownerCommentPath,
   ownerLevelKey,
   ownerThreadPath,
@@ -27,6 +29,15 @@ describe('owner client thread', () => {
     expect(ownerThreadPath('n-1')).toBe('/api/nodes/n-1/comments');
     expect(ownerThreadPath('../chat')).toBe('/api/nodes/..%2Fchat/comments');
     expect(ownerCommentPath('c/1')).toBe('/api/comments/c%2F1');
+  });
+
+  it('reads the client scope only (C6), and pages it; posts to the plain route', () => {
+    expect(ownerClientThreadPath('n-1')).toBe('/api/nodes/n-1/comments?scope=client');
+    expect(ownerClientThreadPath('../chat')).toBe('/api/nodes/..%2Fchat/comments?scope=client');
+    expect(threadPagePath(ownerClientThreadPath('n-1'), '2026-09-30T08:00:00.000Z')).toBe(
+      '/api/nodes/n-1/comments?scope=client&before=2026-09-30T08%3A00%3A00.000Z',
+    );
+    expect(ownerThreadPath('n-1')).not.toContain('scope');
   });
 
   it('keeps the level under the kind’s list key, which a change of level invalidates', () => {

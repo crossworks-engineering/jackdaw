@@ -24,22 +24,25 @@ import type { ClientItemRow, NodeCommentAuthorKind } from '@mantle/client-types'
 import { CLIENT_MAX_UPLOAD_BYTES, CLIENT_SPACE_BASE, memberUploadRefusal } from './member-space';
 import { MEMBER_KIND } from './member-kinds';
 
-// ── The client portal's two screens ─────────────────────────────────────────
+// ── The client portal's screens ─────────────────────────────────────────────
 
-/** The portal is one path (`/`); `?view=requests` is My requests, anything
- *  else "Shared with you". A query, not a path, so the middleware's one-path
- *  rule for a client (lib/client-surface.ts) stays as it is. */
-export type ClientView = 'shared' | 'requests';
+/** The portal is one path (`/`); `?view=requests` is My requests, `?view=apps`
+ *  the client's apps (C6), anything else "Shared with you". A query, not a
+ *  path, so the middleware's one-path rule for a client
+ *  (lib/client-surface.ts) stays as it is. */
+export type ClientView = 'shared' | 'requests' | 'apps';
 
 export function clientViewOf(params: Pick<URLSearchParams, 'get'> | null): ClientView {
-  return params?.get('view') === 'requests' ? 'requests' : 'shared';
+  const v = params?.get('view');
+  return v === 'requests' || v === 'apps' ? v : 'shared';
 }
 
 /** Where each screen starts: every filter, search, page and open item
- *  dropped (a screen's own state is not the other's). */
+ *  dropped (a screen's own state is not another's). */
 export const CLIENT_VIEW_HREF: Record<ClientView, string> = {
   shared: '/',
   requests: '/?view=requests',
+  apps: '/?view=apps',
 };
 
 // ── My requests ─────────────────────────────────────────────────────────────

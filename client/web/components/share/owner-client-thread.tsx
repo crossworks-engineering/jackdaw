@@ -22,6 +22,7 @@ import {
   OWNER_THREAD_CHIPS,
   OWNER_THREAD_KEY,
   clientThreadLabel,
+  ownerClientThreadPath,
   ownerCommentPath,
   ownerLevelKey,
   ownerThreadPath,
@@ -73,8 +74,12 @@ function ClientThreadButton({ nodeId, iconOnly }: { nodeId: string; iconOnly: bo
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const key = [...OWNER_THREAD_KEY, nodeId];
+  // Read the client scope only (C6); a comment is posted to the plain route.
   const path = ownerThreadPath(nodeId);
-  const thread = useThreadPages<NodeComment>({ queryKey: key, path });
+  const thread = useThreadPages<NodeComment>({
+    queryKey: key,
+    path: ownerClientThreadPath(nodeId),
+  });
   const refresh = () => void qc.invalidateQueries({ queryKey: key });
   // A client's (or a member's) comment shows while the panel is open, and
   // the count on the button follows it.

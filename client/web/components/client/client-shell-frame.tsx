@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Inbox, Send } from 'lucide-react';
+import { AppWindow, Inbox, Send } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Sheet, SheetContent, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
@@ -15,6 +15,8 @@ import { NAV_W_DEFAULT } from '@/lib/nav-width';
 import { clientRedirectFor } from '@/lib/client-surface';
 import { CLIENT_VIEW_HREF, clientViewOf, type ClientView } from '@/lib/client-requests';
 import type { ClientShell } from '@mantle/client-types';
+import { showsClientApps } from '@/lib/client-apps';
+import { ClientApps, useClientApps } from './client-apps';
 import { ClientChatDock, ClientChatProvider } from './client-chat';
 import { ClientHome } from './client-home';
 import { ClientRequests } from './client-requests';
@@ -22,19 +24,24 @@ import { ClientRequests } from './client-requests';
 /** The public paths a client may stand on; everything else is the home. */
 const CLIENT_PUBLIC: readonly string[] = [];
 
-/** The client's two screens, in the rail's order. */
+/** The client's screens, in the rail's order. */
 const CLIENT_NAV: readonly { view: ClientView; label: string; icon: typeof Inbox }[] = [
   { view: 'shared', label: 'Shared with you', icon: Inbox },
   { view: 'requests', label: 'My requests', icon: Send },
+  { view: 'apps', label: 'Apps', icon: AppWindow },
 ];
 
-/** The rail's links. `?view=` picks the screen (both live at `/`). */
+/** The rail's links. `?view=` picks the screen (all live at `/`). Apps
+ *  (C6) shows only once the brain listed at least one app for this client:
+ *  not for a brain before C6 (404), not for an empty list. */
 function ClientNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname() ?? '/';
   const current = clientViewOf(useSearchParams());
+  const apps = useClientApps();
+  const shown = CLIENT_NAV.filter(({ view }) => view !== 'apps' || showsClientApps(apps.data));
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-3" aria-label="Primary">
-      {CLIENT_NAV.map(({ view, label, icon: Icon }) => {
+      {shown.map(({ view, label, icon: Icon }) => {
         const active = pathname === '/' && current === view;
         return (
           <Link
@@ -59,17 +66,22 @@ function ClientNav({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-/** The screen the URL names: "Shared with you", or My requests (C5). */
+/** The screen the URL names: "Shared with you", My requests (C5), or Apps
+ *  (C6). */
 function ClientScreen() {
-  return clientViewOf(useSearchParams()) === 'requests' ? <ClientRequests /> : <ClientHome />;
+  const view = clientViewOf(useSearchParams());
+  if (view === 'requests') return <ClientRequests />;
+  if (view === 'apps') return <ClientApps />;
+  return <ClientHome />;
 }
 
 /**
  * The client chrome (client logins C2), the member chrome cut down to what a
  * client has: the brand (its name or logo, never a staff name or the peer
  * name), the account menu (name, theme, sign out, sign out everywhere),
- * two screens, "Shared with you" and My requests (C5, what the client wrote
- * and sent for review), and the client's own chat (C4, a dock the screens
+ * its screens, "Shared with you", My requests (C5, what the client wrote
+ * and sent for review) and Apps (C6, the client-level apps it runs, shown
+ * when there are any), and the client's own chat (C4, a dock the screens
  * open). No search, no activity, no owner assistant, no upload dock, no
  * tour. The rail is a drawer below md, as in the owner shell.
  *

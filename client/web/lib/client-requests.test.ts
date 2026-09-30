@@ -51,16 +51,21 @@ import { CLIENT_OWN_ITEM_KEY, refreshClientPortal } from './client-portal';
  */
 const ID = '11111111-1111-4111-8111-111111111111';
 
-describe('the two client screens', () => {
-  it('reads the screen from `view`, Shared with you unless it says requests', () => {
+describe('the client screens', () => {
+  it('reads the screen from `view`, Shared with you unless it says requests or apps', () => {
     expect(clientViewOf(new URLSearchParams('view=requests'))).toBe('requests');
+    expect(clientViewOf(new URLSearchParams('view=apps'))).toBe('apps');
     expect(clientViewOf(new URLSearchParams('view=other'))).toBe('shared');
     expect(clientViewOf(new URLSearchParams(''))).toBe('shared');
     expect(clientViewOf(null)).toBe('shared');
   });
 
   it('starts each screen clean, at the one client path', () => {
-    expect(CLIENT_VIEW_HREF).toEqual({ shared: '/', requests: '/?view=requests' });
+    expect(CLIENT_VIEW_HREF).toEqual({
+      shared: '/',
+      requests: '/?view=requests',
+      apps: '/?view=apps',
+    });
   });
 });
 

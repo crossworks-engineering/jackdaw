@@ -22,6 +22,7 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { AppTile } from '@/components/app-nav/app-tile';
+import { AppInformationalSwitch } from '@/components/app-nav/app-informational-switch';
 import { useAppNav } from '@/components/app-nav/use-app-nav';
 import { AccessControl } from '@/components/share/access-control';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -34,7 +35,7 @@ import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
 import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
-import type { AppDetail } from '@mantle/client-types';
+import type { AppDetail } from '@/lib/contract-next';
 
 type BuildMsg = { text: string; location: { file: string; line: number; column: number } | null };
 
@@ -323,6 +324,8 @@ function AppDetailView({ app }: { app: AppDetail }) {
           )}
         </div>
       </div>
+      {/* Informational (C6): members and clients only read its data. */}
+      <AppInformationalSwitch app={app} />
 
       <Tabs defaultValue="builder" className="flex min-h-0 flex-1 flex-col gap-0">
         <div className="border-b border-border px-3 py-2">
