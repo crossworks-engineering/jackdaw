@@ -14,7 +14,7 @@ import {
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, GripVertical, Handshake, MoreHorizontal, Users } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -32,6 +32,7 @@ import {
 } from '@mantle/web-ui/types/tree';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { TREE_INDENT, TREE_ROW_PAD, TreeGuides } from '@/components/app-nav/tree-guides';
+import { shareTitle, shownShare } from './sharing';
 import { fetchFolderPage, folderKey } from './tree-api';
 import {
   crumbLine,
@@ -376,6 +377,38 @@ export function TreeRowShell({
   );
 }
 
+/** The shared glyph on a folder row: people for the team, a handshake for
+ *  clients. A share taken from a folder above is drawn quieter. */
+export function ShareGlyph({
+  folder,
+  selected = false,
+}: {
+  folder: Pick<TreeFolder, 'share' | 'inherited'>;
+  selected?: boolean;
+}) {
+  const shown = shownShare(folder);
+  if (!shown) return null;
+  const Icon = shown.level === 'team' ? Users : Handshake;
+  const title = shareTitle(folder)!;
+  return (
+    <span
+      role="img"
+      aria-label={title}
+      title={title}
+      className={cn(
+        'flex shrink-0 items-center',
+        selected
+          ? 'text-accent-foreground/70'
+          : shown.own
+            ? 'text-foreground/70'
+            : 'text-muted-foreground/60',
+      )}
+    >
+      <Icon className="size-3.5" strokeWidth={shown.own ? 2 : 1.5} aria-hidden />
+    </span>
+  );
+}
+
 /** A folder's face: its tile, or the neutral folder glyph. */
 export function FolderTile({ folder }: { folder: Pick<TreeFolder, 'icon' | 'color'> | null }) {
   return <AppTile icon={folder?.icon} color={folder?.color} kind="folder" size="sm" />;
@@ -475,6 +508,7 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
           >
             <FolderTile folder={folder} />
             <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+            <ShareGlyph folder={folder} selected={selected} />
             {!picker && folder.itemCount > 0 && (
               <span
                 className={cn(
@@ -617,6 +651,7 @@ export function FolderHitRow({
     >
       <FolderTile folder={folder} />
       <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+      <ShareGlyph folder={folder} />
       {place && (
         <span className="max-w-[45%] shrink truncate text-[11px] font-normal text-muted-foreground">
           {place}

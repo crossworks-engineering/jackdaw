@@ -168,6 +168,23 @@ describe('flattening the tree for the virtual list', () => {
     expect(needed).toEqual([null, 'a']);
   });
 
+  it('draws an item or folder met twice (just moved, one page stale) once, where first met', () => {
+    const moved: Record<string, FolderLoad> = { ...loads, a: ok([b], [item('a1'), item('r1')]) };
+    const { rows } = flattenTree(
+      (id) => moved[id ?? 'root']!,
+      (id) => id === 'a',
+      { emptyText: 'none' },
+    );
+    expect(shape(rows).filter((k) => k.startsWith('i:r1'))).toEqual(['i:r1@1']);
+    const twice: Record<string, FolderLoad> = { ...loads, root: ok([a, c, a], []) };
+    const { rows: folders } = flattenTree(
+      (id) => twice[id ?? 'root']!,
+      () => false,
+      { emptyText: 'none' },
+    );
+    expect(shape(folders)).toEqual(['f:a@0', 'f:c@0']);
+  });
+
   it('shows the root’s own loading, failure and emptiness', () => {
     const one = (load: FolderLoad) =>
       flattenTree(
