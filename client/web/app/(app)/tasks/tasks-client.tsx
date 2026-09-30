@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ListTodo, MessageSquare, Plus, Search, SquareKanban, List } from 'lucide-react';
+import {
+  Archive,
+  Check,
+  CircleCheck,
+  ListTodo,
+  MessageSquare,
+  Plus,
+  RotateCcw,
+  Search,
+  SquareKanban,
+  List,
+} from 'lucide-react';
 import { FormShell } from '@mantle/web-ui/ui/form-shell';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -26,11 +37,16 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { ListCard, ListCardSnippet, ListCardTags } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
+import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { TaskForm, emptyTaskForm, type TaskPayload } from './task-form';
 import { TaskDetail, type TaskPatch, type TaskRow } from './task-detail';
 import { TaskBoard, type BoardMove } from './task-board';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { tasksAdapter } from '@/components/item-tree/kinds/dated';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import {
   PRIORITIES,
   STATUSES,
@@ -66,6 +82,15 @@ export function TasksClient() {
   const view: 'list' | 'board' = searchParams.get('view') === 'board' ? 'board' : 'list';
   const isBoard = view === 'board';
 
+  // The item tree when this brain serves it for tasks (docs/folder-tree.md);
+  // the paged list for a brain before it, or if a tree call 404s. The tree
+  // stands in for the LIST view only: the board keeps its own query and
+  // columns, and the tree holds no archived tasks, so Archived keeps the list.
+  const treeServes = useTreeServes('tasks');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone && !isBoard && !showingArchive;
+  const [treeQuery, setTreeQuery] = useState('');
+
   const listQuery = useQuery({
     queryKey: ['tasks', { q: query, status, priority, page, showingArchive }],
     queryFn: () => {
@@ -78,7 +103,7 @@ export function TasksClient() {
       return apiFetch<TasksListResponse>(`/api/tasks?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
-    enabled: !isBoard,
+    enabled: !isBoard && !showTree,
   });
 
   // The board loads every column in one call (server caps pageSize at 500) —
@@ -104,7 +129,24 @@ export function TasksClient() {
   const selectedTaskQuery = useQuery({
     queryKey: ['tasks', urlSelected],
     queryFn: () => apiFetch<{ task: TaskRow }>(`/api/tasks/${urlSelected}`).then((r) => r.task),
-    enabled: !!urlSelected && !(activeQuery.data?.tasks ?? []).some((t) => t.id === urlSelected),
+    enabled:
+      !!urlSelected &&
+      !showTree &&
+      !(activeQuery.data?.tasks ?? []).some((t) => t.id === urlSelected),
+  });
+
+  // null = "not yet defaulted"; the effect below picks the first task / create
+  // mode once the list loads, unless the URL deep-links a selection. The board
+  // stays unselected until you click a card — auto-selecting there would open a
+  // form beside a board you had only just switched to.
+  const [sel, setSel] = useState<Selection>(urlSelected ? { mode: 'view', id: urlSelected } : null);
+
+  // The tree's rows are not tasks, so the open one is fetched on its own.
+  const openTaskId = showTree && sel?.mode === 'view' ? sel.id : null;
+  const openTaskQuery = useQuery({
+    queryKey: ['tasks', openTaskId],
+    queryFn: () => apiFetch<{ task: TaskRow }>(`/api/tasks/${openTaskId}`).then((r) => r.task),
+    enabled: !!openTaskId,
   });
 
   const total = listQuery.data?.total ?? 0;
@@ -115,13 +157,18 @@ export function TasksClient() {
   // reconciles it whenever the server data changes (incl. after an invalidate).
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   useEffect(() => {
+    // The tree lists the tasks itself; the working copy holds just the open one.
+    if (showTree) {
+      setTasks(openTaskQuery.data ? [openTaskQuery.data] : []);
+      return;
+    }
     const base = activeQuery.data?.tasks ?? [];
     const extra =
       selectedTaskQuery.data && !base.some((t) => t.id === selectedTaskQuery.data!.id)
         ? [selectedTaskQuery.data]
         : [];
     setTasks([...extra, ...base]);
-  }, [activeQuery.data, selectedTaskQuery.data]);
+  }, [showTree, openTaskQuery.data, activeQuery.data, selectedTaskQuery.data]);
 
   // Live repaint: another tab, an agent, or a team member touching tasks or
   // comments shows up without a manual reload (events-client precedent).
@@ -138,13 +185,9 @@ export function TasksClient() {
 
   const [searchInput, setSearchInput] = useState(query);
   const [pending, startTransition] = useTransition();
-  // null = "not yet defaulted"; the effect below picks the first task / create
-  // mode once the list loads, unless the URL deep-links a selection. The board
-  // stays unselected until you click a card — auto-selecting there would open a
-  // form beside a board you had only just switched to.
-  const [sel, setSel] = useState<Selection>(urlSelected ? { mode: 'view', id: urlSelected } : null);
   useEffect(() => {
-    if (isBoard || sel !== null) return;
+    // The tree opens nothing by itself: a task opens when you pick it.
+    if (isBoard || showTree || sel !== null) return;
     // ONCE THE LIST LOADS, and not a frame before. `tasks` is a local copy
     // seeded by the effect above, so on a cold load there are two commits where
     // it is still empty while rows are on their way: the pending one, and the
@@ -155,7 +198,7 @@ export function TasksClient() {
     if (!activeQuery.isSuccess) return;
     if (tasks.length === 0 && (activeQuery.data?.tasks.length ?? 0) > 0) return;
     setSel(tasks[0] ? { mode: 'view', id: tasks[0].id } : { mode: 'create' });
-  }, [tasks, sel, isBoard, activeQuery.isSuccess, activeQuery.data]);
+  }, [tasks, sel, isBoard, showTree, activeQuery.isSuccess, activeQuery.data]);
 
   // Reflect the selected task in the URL (?selected=) as the user clicks
   // around — copy-/share-/bookmark-able, and aligned with the `/n/<id>`
@@ -207,11 +250,14 @@ export function TasksClient() {
       return;
     }
     setTasks((prev) => [task, ...prev]);
+    // Seed the by-id fetch so the tree's detail opens without a round trip.
+    queryClient.setQueryData(['tasks', task.id], task);
     setSel({ mode: 'view', id: task.id });
     toast.success(`Added “${task.title}”`);
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
+    void queryClient.invalidateQueries({ queryKey: treeKey('tasks') });
   };
 
   /** One optimistic write path for every partial update — status moves, board
@@ -234,6 +280,7 @@ export function TasksClient() {
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
+    void queryClient.invalidateQueries({ queryKey: treeKey('tasks') });
     return true;
   };
 
@@ -271,7 +318,7 @@ export function TasksClient() {
     toast.success('Task deleted');
     setTasks((prev) => {
       const nextList = prev.filter((t) => t.id !== id);
-      if (isBoard) {
+      if (isBoard || showTree) {
         setSel(null);
       } else {
         setSel(nextList[0] ? { mode: 'view', id: nextList[0].id } : { mode: 'create' });
@@ -281,16 +328,17 @@ export function TasksClient() {
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
+    void queryClient.invalidateQueries({ queryKey: treeKey('tasks') });
   };
 
-  if (activeQuery.isPending) {
+  if (!showTree && activeQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (activeQuery.isError && !activeQuery.data) {
+  if (!showTree && activeQuery.isError && !activeQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
         <p className="text-muted-foreground">
@@ -360,6 +408,10 @@ export function TasksClient() {
         onPatch={(patch) => patchTask(selected.id, patch)}
         onDelete={() => removeTask(selected.id)}
       />
+    ) : openTaskId && openTaskQuery.isPending ? (
+      <div className="flex h-full items-center justify-center">
+        <Spinner />
+      </div>
     ) : (
       <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
         Select a task, or add a new one.
@@ -443,187 +495,238 @@ export function TasksClient() {
     <MasterDetail
       id="tasks"
       list={
-        <>
-          {/* ── Left: task list ──────────────────────────────────────── */}
-          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Tasks
-            </h2>
-            <div className="flex items-center gap-2">
-              {viewToggle}
-              <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-                <Plus /> New
-              </Button>
+        showTree ? (
+          <aside className="flex h-full flex-col bg-muted/20">
+            {/* The view toggle and the way to Archived, which the tree's own
+                header has no room for (archived tasks are not in the tree). */}
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Tasks
+              </h2>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => go({ status: 'archived', page: null })}
+                >
+                  <Archive /> Archived
+                </Button>
+                {viewToggle}
+              </div>
             </div>
-          </div>
-          <div className="space-y-2 border-b border-border p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search tasks…"
-                className="h-9 pl-8"
+            <div className="min-h-0 flex-1">
+              <ItemTree
+                kind="tasks"
+                adapter={tasksAdapter}
+                selectedItemId={sel?.mode === 'view' ? sel.id : null}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search tasks and folders…"
+                actions={
+                  <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                    <Plus /> New
+                  </Button>
+                }
+                onOpenItem={(item) => selectTask(item.id)}
+                itemActions={(item) => (
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      void patchTask(item.id, { status: item.meta?.done ? 'open' : 'done' })
+                    }
+                  >
+                    {item.meta?.done ? <RotateCcw /> : <CircleCheck />}
+                    {item.meta?.done ? 'Reopen' : 'Mark done'}
+                  </DropdownMenuItem>
+                )}
+                onUnsupported={() => setTreeGone(true)}
               />
             </div>
-            <div className="flex gap-2">
-              <Select
-                value={statusParam}
-                onValueChange={(v) => go({ status: v === 'active' ? null : v, page: null })}
-              >
-                <SelectTrigger size="sm" className="flex-1" aria-label="Filter by status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {STATUS_LABEL[s]}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="all">All status</SelectItem>
-                  {/* Archive is a separate axis from status, but it belongs in
+          </aside>
+        ) : (
+          <>
+            {/* ── Left: task list ──────────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Tasks
+              </h2>
+              <div className="flex items-center gap-2">
+                {viewToggle}
+                <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                  <Plus /> New
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 border-b border-border p-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search tasks…"
+                  className="h-9 pl-8"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select
+                  value={statusParam}
+                  onValueChange={(v) => go({ status: v === 'active' ? null : v, page: null })}
+                >
+                  <SelectTrigger size="sm" className="flex-1" aria-label="Filter by status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {STATUS_LABEL[s]}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="all">All status</SelectItem>
+                    {/* Archive is a separate axis from status, but it belongs in
                       the same "what am I looking at" control rather than a
                       third dropdown in an already crowded bar. */}
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={priority}
-                onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
-              >
-                <SelectTrigger size="sm" className="flex-1" aria-label="Filter by priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
-                  {PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={priority}
+                  onValueChange={(v) => go({ priority: v === 'all' ? null : v, page: null })}
+                >
+                  <SelectTrigger size="sm" className="flex-1" aria-label="Filter by priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All priorities</SelectItem>
+                    {PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-            {tasks.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-                {filtering ? (
-                  'No tasks match your search or filters.'
-                ) : (
-                  <>
-                    No tasks yet. Click <strong>New</strong> to add one.
-                  </>
-                )}
-              </p>
-            ) : (
-              tasks.map((t) => {
-                const isSel = sel?.mode === 'view' && sel.id === t.id;
-                const done = t.status === 'done';
-                const overdue = !!t.dueAt && new Date(t.dueAt) < new Date() && !done;
-                const todosDone = t.todos.filter((x) => x.done).length;
-                return (
-                  <ListCard
-                    key={t.id}
-                    asChild
-                    selected={isSel}
-                    className={cn(
-                      'flex items-start gap-2.5',
-                      t.priority === 'high' && !isSel && 'border-destructive',
-                    )}
-                  >
-                    <div>
-                      <RowButton
-                        onClick={() => toggleStatus(t)}
-                        className={cn(
-                          'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                          done
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-input hover:bg-muted',
-                        )}
-                        aria-label={done ? 'Mark not done' : 'Mark done'}
-                        aria-pressed={done}
-                      >
-                        {done && <Check className="size-3" />}
-                      </RowButton>
-                      <RowButton
-                        onClick={() => setSel({ mode: 'view', id: t.id })}
-                        data-mark-id={t.id}
-                        data-mark-kind="task"
-                        data-mark-label={t.title}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <div className="flex items-baseline gap-2">
-                          <span
-                            className={cn(
-                              'truncate text-sm font-medium',
-                              done && 'text-muted-foreground line-through',
-                            )}
-                          >
-                            {t.title}
-                          </span>
-                          {t.dueAt && (
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {tasks.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  {filtering ? (
+                    'No tasks match your search or filters.'
+                  ) : (
+                    <>
+                      No tasks yet. Click <strong>New</strong> to add one.
+                    </>
+                  )}
+                </p>
+              ) : (
+                tasks.map((t) => {
+                  const isSel = sel?.mode === 'view' && sel.id === t.id;
+                  const done = t.status === 'done';
+                  const overdue = !!t.dueAt && new Date(t.dueAt) < new Date() && !done;
+                  const todosDone = t.todos.filter((x) => x.done).length;
+                  return (
+                    <ListCard
+                      key={t.id}
+                      asChild
+                      selected={isSel}
+                      className={cn(
+                        'flex items-start gap-2.5',
+                        t.priority === 'high' && !isSel && 'border-destructive',
+                      )}
+                    >
+                      <div>
+                        <RowButton
+                          onClick={() => toggleStatus(t)}
+                          className={cn(
+                            'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                            done
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-input hover:bg-muted',
+                          )}
+                          aria-label={done ? 'Mark not done' : 'Mark done'}
+                          aria-pressed={done}
+                        >
+                          {done && <Check className="size-3" />}
+                        </RowButton>
+                        <RowButton
+                          onClick={() => setSel({ mode: 'view', id: t.id })}
+                          data-mark-id={t.id}
+                          data-mark-kind="task"
+                          data-mark-label={t.title}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <div className="flex items-baseline gap-2">
                             <span
                               className={cn(
-                                'ml-auto shrink-0 text-xs tabular-nums',
-                                overdue
-                                  ? 'font-medium text-destructive-ink'
-                                  : 'text-muted-foreground',
+                                'truncate text-sm font-medium',
+                                done && 'text-muted-foreground line-through',
                               )}
                             >
-                              {dueLabel(t.dueAt, { todayAsTime: true })}
+                              {t.title}
                             </span>
-                          )}
-                        </div>
-                        {(t.body || t.summary) && (
-                          <ListCardSnippet className="line-clamp-1">
-                            {t.body || t.summary}
-                          </ListCardSnippet>
-                        )}
-                        {(t.status === 'in_progress' ||
-                          t.status === 'blocked' ||
-                          t.todos.length > 0 ||
-                          t.commentCount > 0) && (
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            {(t.status === 'in_progress' || t.status === 'blocked') && (
-                              <span>{STATUS_LABEL[t.status]}</span>
-                            )}
-                            {t.todos.length > 0 && (
-                              <span className="tabular-nums">
-                                {todosDone}/{t.todos.length} steps
-                              </span>
-                            )}
-                            {t.commentCount > 0 && (
-                              <span className="inline-flex items-center gap-1 tabular-nums">
-                                <MessageSquare className="size-3" />
-                                {t.commentCount}
+                            {t.dueAt && (
+                              <span
+                                className={cn(
+                                  'ml-auto shrink-0 text-xs tabular-nums',
+                                  overdue
+                                    ? 'font-medium text-destructive-ink'
+                                    : 'text-muted-foreground',
+                                )}
+                              >
+                                {dueLabel(t.dueAt, { todayAsTime: true })}
                               </span>
                             )}
                           </div>
-                        )}
-                        {t.tags.length > 0 && (
-                          <ListCardTags>
-                            {t.tags.map((tag) => (
-                              <TagPill key={tag} tag={tag} />
-                            ))}
-                          </ListCardTags>
-                        )}
-                      </RowButton>
-                    </div>
-                  </ListCard>
-                );
-              })
-            )}
-          </div>
-          <ListPager
-            page={page}
-            total={total}
-            pageSize={pageSize}
-            pending={navPending}
-            onGo={(p) => go({ page: p > 1 ? p : null })}
-          />
-        </>
+                          {(t.body || t.summary) && (
+                            <ListCardSnippet className="line-clamp-1">
+                              {t.body || t.summary}
+                            </ListCardSnippet>
+                          )}
+                          {(t.status === 'in_progress' ||
+                            t.status === 'blocked' ||
+                            t.todos.length > 0 ||
+                            t.commentCount > 0) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              {(t.status === 'in_progress' || t.status === 'blocked') && (
+                                <span>{STATUS_LABEL[t.status]}</span>
+                              )}
+                              {t.todos.length > 0 && (
+                                <span className="tabular-nums">
+                                  {todosDone}/{t.todos.length} steps
+                                </span>
+                              )}
+                              {t.commentCount > 0 && (
+                                <span className="inline-flex items-center gap-1 tabular-nums">
+                                  <MessageSquare className="size-3" />
+                                  {t.commentCount}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {t.tags.length > 0 && (
+                            <ListCardTags>
+                              {t.tags.map((tag) => (
+                                <TagPill key={tag} tag={tag} />
+                              ))}
+                            </ListCardTags>
+                          )}
+                        </RowButton>
+                      </div>
+                    </ListCard>
+                  );
+                })
+              )}
+            </div>
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p > 1 ? p : null })}
+            />
+          </>
+        )
       }
       detail={detailPane}
     />

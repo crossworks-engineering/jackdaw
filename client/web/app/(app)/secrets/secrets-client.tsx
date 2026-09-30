@@ -23,10 +23,18 @@ import { ListCard, ListCardTags, ListCardTitle } from '@mantle/web-ui/ui/list-ca
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { SecretForm, emptySecretForm, KINDS, type SecretBody } from './secret-form';
 import { SecretDetail, type SecretRow } from './secret-detail';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { secretsAdapter } from '@/components/item-tree/kinds/simple';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
 
 type SecretsPage = { secrets: SecretRow[]; total: number; page: number; pageSize: number };
+
+/** What the view gets while the tree shows (the list is not fetched then).
+ *  Module-level so its `secrets` keeps one identity for the re-seed effect. */
+const NO_PAGE: SecretsPage = { secrets: [], total: 0, page: 1, pageSize: 50 };
 
 /** Outer query-gate so the page stays data-free. The URL params (kept by
  *  `useListNav`) key the query, so navigating refetches. */
@@ -39,6 +47,12 @@ export function SecretsClient({
   query: string;
   kind: string;
 }) {
+  // The item tree when this brain serves it for secrets (docs/folder-tree.md);
+  // the paged card list for a brain before it, or if a tree call 404s.
+  const treeServes = useTreeServes('secrets');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+
   const secretsQuery = useQuery({
     queryKey: ['secrets', { query, kind, page }],
     queryFn: () => {
@@ -48,16 +62,17 @@ export function SecretsClient({
       return apiFetch<SecretsPage>(`/api/secrets?${params.toString()}`);
     },
     placeholderData: (prev) => prev,
+    enabled: !showTree,
   });
 
-  if (secretsQuery.isPending && !secretsQuery.data) {
+  if (!showTree && secretsQuery.isPending && !secretsQuery.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (secretsQuery.isError && !secretsQuery.data) {
+  if (!showTree && secretsQuery.isError && !secretsQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>Couldn&apos;t load secrets.</p>
@@ -68,10 +83,30 @@ export function SecretsClient({
     );
   }
 
-  return <SecretsView data={secretsQuery.data} query={query} kind={kind} />;
+  return (
+    <SecretsView
+      data={showTree || !secretsQuery.data ? NO_PAGE : secretsQuery.data}
+      query={query}
+      kind={kind}
+      showTree={showTree}
+      onTreeGone={() => setTreeGone(true)}
+    />
+  );
 }
 
-function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; kind: string }) {
+function SecretsView({
+  data,
+  query,
+  kind,
+  showTree,
+  onTreeGone,
+}: {
+  data: SecretsPage;
+  query: string;
+  kind: string;
+  showTree: boolean;
+  onTreeGone: () => void;
+}) {
   const { secrets: initialSecrets, total, page, pageSize } = data;
   const { pending: navPending, go } = useListNav();
   const toast = useToast();
@@ -79,13 +114,24 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
   const [secrets, setSecrets] = useState(initialSecrets);
   const [searchInput, setSearchInput] = useState(query);
   const [pending, startTransition] = useTransition();
+  const [treeQuery, setTreeQuery] = useState('');
+  // The tree has no rows to default to, so it opens on the empty pane rather
+  // than the create form.
   const [sel, setSel] = useState<Selection>(() =>
-    initialSecrets[0] ? { mode: 'view', id: initialSecrets[0].id } : { mode: 'create' },
+    initialSecrets[0]
+      ? { mode: 'view', id: initialSecrets[0].id }
+      : showTree
+        ? null
+        : { mode: 'create' },
   );
+  /** Where selection lands when the open secret goes away. */
+  const fallbackSel = (rows: SecretRow[]): Selection =>
+    showTree ? null : rows[0] ? { mode: 'view', id: rows[0].id } : { mode: 'create' };
 
   const refresh = () => {
     startTransition(() => {
       void queryClient.invalidateQueries({ queryKey: ['secrets'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('secrets') });
     });
   };
 
@@ -102,7 +148,18 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
   }, [searchInput]);
 
   const filtering = !!query || kind !== 'all';
-  const selected = sel?.mode === 'view' ? (secrets.find((s) => s.id === sel.id) ?? null) : null;
+  // A secret outside the loaded rows (every one opened from the tree) is
+  // fetched on its own; same key and shape as the /secrets/[id] deep link.
+  const viewId = sel?.mode === 'view' ? sel.id : null;
+  const selectedSecretQuery = useQuery({
+    queryKey: ['secrets', viewId],
+    queryFn: () => apiFetch<{ secret: SecretRow }>(`/api/secrets/${viewId}`),
+    enabled: !!viewId && !secrets.some((s) => s.id === viewId),
+  });
+  const selected = viewId
+    ? (secrets.find((s) => s.id === viewId) ??
+      (selectedSecretQuery.data?.secret.id === viewId ? selectedSecretQuery.data.secret : null))
+    : null;
 
   const createSecret = async (body: SecretBody) => {
     let secret: SecretRow;
@@ -118,13 +175,16 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
     refresh();
   };
 
-  const onUpdated = (s: SecretRow) =>
+  const onUpdated = (s: SecretRow) => {
     setSecrets((prev) => prev.map((x) => (x.id === s.id ? s : x)));
+    queryClient.setQueryData(['secrets', s.id], { secret: s });
+    void queryClient.invalidateQueries({ queryKey: treeKey('secrets') });
+  };
 
   const onDeleted = (id: string) => {
     setSecrets((prev) => {
       const next = prev.filter((s) => s.id !== id);
-      setSel(next[0] ? { mode: 'view', id: next[0].id } : { mode: 'create' });
+      setSel(fallbackSel(next));
       return next;
     });
     refresh();
@@ -148,9 +208,7 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
             submitLabel="Save secret"
             submitting={pending}
             onSubmit={createSecret}
-            onCancel={() =>
-              setSel(secrets[0] ? { mode: 'view', id: secrets[0].id } : { mode: 'create' })
-            }
+            onCancel={() => setSel(fallbackSel(secrets))}
           />
         </FormShell>
       </div>
@@ -171,106 +229,126 @@ function SecretsView({ data, query, kind }: { data: SecretsPage; query: string; 
     <MasterDetail
       id="secrets"
       list={
-        <>
-          {/* ── Left: secret list ────────────────────────────────── */}
-          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Secrets
-            </h2>
-            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-              <Plus /> New
-            </Button>
-          </div>
-          <div className="flex items-center gap-2 border-b border-border p-3">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search…"
-                className="h-9 pl-8"
-              />
+        showTree ? (
+          <aside className="flex h-full flex-col bg-muted/20">
+            <ItemTree
+              kind="secrets"
+              adapter={secretsAdapter}
+              selectedItemId={viewId}
+              query={treeQuery}
+              onQueryChange={setTreeQuery}
+              searchPlaceholder="Search secrets and folders…"
+              actions={
+                <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                  <Plus /> New
+                </Button>
+              }
+              onOpenItem={(item) => setSel({ mode: 'view', id: item.id })}
+              onUnsupported={onTreeGone}
+            />
+          </aside>
+        ) : (
+          <>
+            {/* ── Left: secret list ────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Secrets
+              </h2>
+              <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                <Plus /> New
+              </Button>
             </div>
-            {/* Was a raw `<select>` — no focus ring, native chevron (§6d). */}
-            <Select
-              value={kind}
-              onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
-            >
-              <SelectTrigger size="sm" className="w-28" aria-label="Filter by kind">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {KINDS.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {k}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-            {secrets.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-                {filtering ? (
-                  'No secrets match your search or filter.'
-                ) : (
-                  <>
-                    No secrets yet. Click <strong>New</strong> to add one.
-                  </>
-                )}
-              </p>
-            ) : (
-              secrets.map((s) => {
-                const isSel = sel?.mode === 'view' && sel.id === s.id;
-                return (
-                  <ListCard
-                    key={s.id}
-                    onClick={() => setSel({ mode: 'view', id: s.id })}
-                    selected={isSel}
-                  >
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <ListCardTitle>{s.title}</ListCardTitle>
-                      <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {s.kind}
-                      </span>
-                    </div>
-                    {(s.description || s.summary) && (
-                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                        {s.description || s.summary}
-                      </p>
-                    )}
-                    {(s.fieldCount > 0 || s.hasNote) && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                        {s.fieldCount > 0 && (
-                          <span>
-                            {s.fieldCount} field{s.fieldCount === 1 ? '' : 's'}
-                          </span>
-                        )}
-                        {s.hasNote && <span>· note</span>}
+            <div className="flex items-center gap-2 border-b border-border p-3">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search…"
+                  className="h-9 pl-8"
+                />
+              </div>
+              {/* Was a raw `<select>` — no focus ring, native chevron (§6d). */}
+              <Select
+                value={kind}
+                onValueChange={(v) => go({ kind: v === 'all' ? null : v, page: null })}
+              >
+                <SelectTrigger size="sm" className="w-28" aria-label="Filter by kind">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {k}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {secrets.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  {filtering ? (
+                    'No secrets match your search or filter.'
+                  ) : (
+                    <>
+                      No secrets yet. Click <strong>New</strong> to add one.
+                    </>
+                  )}
+                </p>
+              ) : (
+                secrets.map((s) => {
+                  const isSel = sel?.mode === 'view' && sel.id === s.id;
+                  return (
+                    <ListCard
+                      key={s.id}
+                      onClick={() => setSel({ mode: 'view', id: s.id })}
+                      selected={isSel}
+                    >
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <ListCardTitle>{s.title}</ListCardTitle>
+                        <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {s.kind}
+                        </span>
                       </div>
-                    )}
-                    {s.tags.length > 0 && (
-                      <ListCardTags>
-                        {s.tags.map((t) => (
-                          <TagPill key={t} tag={t} />
-                        ))}
-                      </ListCardTags>
-                    )}
-                  </ListCard>
-                );
-              })
-            )}
-          </div>
-          <ListPager
-            page={page}
-            total={total}
-            pageSize={pageSize}
-            pending={navPending}
-            onGo={(p) => go({ page: p > 1 ? p : null })}
-          />
-        </>
+                      {(s.description || s.summary) && (
+                        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                          {s.description || s.summary}
+                        </p>
+                      )}
+                      {(s.fieldCount > 0 || s.hasNote) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                          {s.fieldCount > 0 && (
+                            <span>
+                              {s.fieldCount} field{s.fieldCount === 1 ? '' : 's'}
+                            </span>
+                          )}
+                          {s.hasNote && <span>· note</span>}
+                        </div>
+                      )}
+                      {s.tags.length > 0 && (
+                        <ListCardTags>
+                          {s.tags.map((t) => (
+                            <TagPill key={t} tag={t} />
+                          ))}
+                        </ListCardTags>
+                      )}
+                    </ListCard>
+                  );
+                })
+              )}
+            </div>
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p > 1 ? p : null })}
+            />
+          </>
+        )
       }
       detail={detailPane}
     />

@@ -34,6 +34,10 @@ import {
 import { EventForm, emptyEventForm, type EventPayload } from './event-form';
 import { EventDetail, type EventRow } from './event-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { eventsAdapter } from '@/components/item-tree/kinds/dated';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
 
@@ -80,6 +84,14 @@ export function EventsClient() {
   const window: 'upcoming' | 'past' | 'all' =
     windowParam === 'past' || windowParam === 'all' ? windowParam : 'upcoming';
 
+  // The item tree when this brain serves it for events (docs/folder-tree.md);
+  // the paged list for a brain before it, or if a tree call 404s. The tree
+  // lists every event by start, so the upcoming/past window is the list's only.
+  const treeServes = useTreeServes('events');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+
   const listQuery = useQuery({
     queryKey: ['events', { q: query, window, page }],
     queryFn: () => {
@@ -91,23 +103,39 @@ export function EventsClient() {
       return apiFetch<EventsListResponse>(`/api/events${s ? `?${s}` : ''}`);
     },
     placeholderData: (prev) => prev,
+    enabled: !showTree,
   });
 
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
 
-  // Local working copy, so mutations update optimistically; seeded from the query
-  // and reconciled whenever the server data changes (incl. a mutation's invalidate).
-  const [events, setEvents] = useState<EventRow[]>([]);
-  useEffect(() => setEvents(listQuery.data?.events ?? []), [listQuery.data]);
-
-  const [searchInput, setSearchInput] = useState(query);
-  const [pending, startTransition] = useTransition();
   // null = "not yet defaulted"; the effect below selects the first event (or
   // create mode) once the list loads.
   const [sel, setSel] = useState<Selection>(null);
+
+  // The tree's rows are not events, so the open one is fetched on its own
+  // (the same call and key as the /events/[id] deep link).
+  const openEventId = showTree && sel?.mode === 'view' ? sel.id : null;
+  const openEventQuery = useQuery({
+    queryKey: ['events', openEventId],
+    queryFn: () => apiFetch<{ event: EventRow }>(`/api/events/${openEventId}`).then((r) => r.event),
+    enabled: !!openEventId,
+  });
+
+  // Local working copy, so mutations update optimistically; seeded from the query
+  // and reconciled whenever the server data changes (incl. a mutation's invalidate).
+  // With the tree it holds just the open event.
+  const [events, setEvents] = useState<EventRow[]>([]);
   useEffect(() => {
-    if (sel !== null) return;
+    if (showTree) setEvents(openEventQuery.data ? [openEventQuery.data] : []);
+    else setEvents(listQuery.data?.events ?? []);
+  }, [showTree, openEventQuery.data, listQuery.data]);
+
+  const [searchInput, setSearchInput] = useState(query);
+  const [pending, startTransition] = useTransition();
+  useEffect(() => {
+    // The tree opens nothing by itself: an event opens when you pick it.
+    if (showTree || sel !== null) return;
     // ONCE THE LIST LOADS, and not a frame before — the same trap /tasks had.
     // `events` is a local copy seeded by the effect above, so on a cold load
     // there are two commits where it is still empty while rows are on their
@@ -118,7 +146,7 @@ export function EventsClient() {
     if (!listQuery.isSuccess) return;
     if (events.length === 0 && (listQuery.data?.events.length ?? 0) > 0) return;
     setSel(events[0] ? { mode: 'view', id: events[0].id } : { mode: 'create' });
-  }, [events, sel, listQuery.isSuccess, listQuery.data]);
+  }, [events, sel, showTree, listQuery.isSuccess, listQuery.data]);
 
   // Debounced search → URL (?q=); resets to page 1.
   useEffect(() => {
@@ -172,11 +200,14 @@ export function EventsClient() {
       return;
     }
     setEvents((p) => [event, ...p]);
+    // Seed the by-id fetch so the tree's detail opens without a round trip.
+    queryClient.setQueryData(['events', event.id], event);
     setSel({ mode: 'view', id: event.id });
     toast.success(`Saved “${event.title}”`);
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['events'] });
     });
+    void queryClient.invalidateQueries({ queryKey: treeKey('events') });
   };
 
   const onUpdated = (e: EventRow) => {
@@ -184,15 +215,18 @@ export function EventsClient() {
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['events'] });
     });
+    void queryClient.invalidateQueries({ queryKey: treeKey('events') });
   };
 
   const onDeleted = (id: string) => {
     const next = all.filter((e) => e.id !== id);
     setEvents((p) => p.filter((e) => e.id !== id));
-    setSel(next[0] ? { mode: 'view', id: next[0].id } : { mode: 'create' });
+    if (showTree) setSel(null);
+    else setSel(next[0] ? { mode: 'view', id: next[0].id } : { mode: 'create' });
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['events'] });
     });
+    void queryClient.invalidateQueries({ queryKey: treeKey('events') });
   };
 
   const renderCard = (e: EventRow) => {
@@ -244,14 +278,14 @@ export function EventsClient() {
     );
   };
 
-  if (listQuery.isPending) {
+  if (!showTree && listQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (listQuery.isError && !listQuery.data) {
+  if (!showTree && listQuery.isError && !listQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
         <p className="text-muted-foreground">
@@ -284,7 +318,8 @@ export function EventsClient() {
             onSubmit={createEvent}
             onCancel={() => {
               const first = all[0];
-              setSel(first ? { mode: 'view', id: first.id } : { mode: 'create' });
+              if (showTree) setSel(null);
+              else setSel(first ? { mode: 'view', id: first.id } : { mode: 'create' });
             }}
           />
         </FormShell>
@@ -296,6 +331,10 @@ export function EventsClient() {
         onUpdated={onUpdated}
         onDeleted={() => onDeleted(selected.id)}
       />
+    ) : openEventId && openEventQuery.isPending ? (
+      <div className="flex h-full items-center justify-center">
+        <Spinner />
+      </div>
     ) : (
       <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
         Select an event, or add a new one.
@@ -306,76 +345,96 @@ export function EventsClient() {
     <MasterDetail
       id="events"
       list={
-        <>
-          {/* ── Left: event list ─────────────────────────────────────── */}
-          <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Events
-            </h2>
-            <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
-              <Plus /> New
-            </Button>
-          </div>
-          <div className="space-y-2 border-b border-border p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search events…"
-                className="h-9 pl-8"
-              />
+        showTree ? (
+          <aside className="flex h-full flex-col bg-muted/20">
+            <ItemTree
+              kind="events"
+              adapter={eventsAdapter}
+              selectedItemId={sel?.mode === 'view' ? sel.id : null}
+              query={treeQuery}
+              onQueryChange={setTreeQuery}
+              searchPlaceholder="Search events and folders…"
+              actions={
+                <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                  <Plus /> New
+                </Button>
+              }
+              onOpenItem={(item) => setSel({ mode: 'view', id: item.id })}
+              onUnsupported={() => setTreeGone(true)}
+            />
+          </aside>
+        ) : (
+          <>
+            {/* ── Left: event list ─────────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Events
+              </h2>
+              <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
+                <Plus /> New
+              </Button>
             </div>
-            {/* Was a raw `<select>` — no focus ring, native chevron, and a font
+            <div className="space-y-2 border-b border-border p-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search events…"
+                  className="h-9 pl-8"
+                />
+              </div>
+              {/* Was a raw `<select>` — no focus ring, native chevron, and a font
               that ignored the theme. §6d: the kit's Select or nothing. */}
-            <Select
-              value={window}
-              onValueChange={(v) => go({ window: v === 'upcoming' ? null : v, page: null })}
-            >
-              <SelectTrigger size="sm" aria-label="Filter events">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="upcoming">Upcoming</SelectItem>
-                <SelectItem value="past">Past</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-            {all.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-                {query || window !== 'upcoming' ? (
-                  'No events match your search or filter.'
-                ) : (
-                  <>
-                    No upcoming events. Click <strong>New</strong>, or ask Saskia (“remind me of my
-                    meeting at 10am”).
-                  </>
-                )}
-              </p>
-            ) : groups ? (
-              GROUP_ORDER.filter((g) => groups[g].length > 0).map((g) => (
-                <section key={g} className="space-y-2">
-                  <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {GROUP_LABEL[g]}
-                  </h3>
-                  <div className="space-y-2">{groups[g].map(renderCard)}</div>
-                </section>
-              ))
-            ) : (
-              // Pre-mount fallback: flat list (matches SSR order).
-              <div className="space-y-2">{all.map(renderCard)}</div>
-            )}
-          </div>
-          <ListPager
-            page={page}
-            total={total}
-            pageSize={pageSize}
-            pending={navPending}
-            onGo={(p) => go({ page: p > 1 ? p : null })}
-          />
-        </>
+              <Select
+                value={window}
+                onValueChange={(v) => go({ window: v === 'upcoming' ? null : v, page: null })}
+              >
+                <SelectTrigger size="sm" aria-label="Filter events">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="past">Past</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {all.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                  {query || window !== 'upcoming' ? (
+                    'No events match your search or filter.'
+                  ) : (
+                    <>
+                      No upcoming events. Click <strong>New</strong>, or ask Saskia (“remind me of
+                      my meeting at 10am”).
+                    </>
+                  )}
+                </p>
+              ) : groups ? (
+                GROUP_ORDER.filter((g) => groups[g].length > 0).map((g) => (
+                  <section key={g} className="space-y-2">
+                    <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {GROUP_LABEL[g]}
+                    </h3>
+                    <div className="space-y-2">{groups[g].map(renderCard)}</div>
+                  </section>
+                ))
+              ) : (
+                // Pre-mount fallback: flat list (matches SSR order).
+                <div className="space-y-2">{all.map(renderCard)}</div>
+              )}
+            </div>
+            <ListPager
+              page={page}
+              total={total}
+              pageSize={pageSize}
+              pending={navPending}
+              onGo={(p) => go({ page: p > 1 ? p : null })}
+            />
+          </>
+        )
       }
       detail={detailPane}
     />

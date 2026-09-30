@@ -59,6 +59,11 @@ import {
 } from '@/components/item-list/admin-private-rows';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
+import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { drawAdapter } from '@/components/item-tree/kinds/simple';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 
 type DrawRow = {
   id: string;
@@ -125,6 +130,13 @@ export function DrawsClient() {
   const { pid, openPrivate } = usePrivateOpen();
   const [details, changeDetails] = useCardDetails('mantle_draws_card_details_v1');
 
+  // The item tree when this brain serves it for drawings (docs/folder-tree.md);
+  // the paged card list for a brain before it, or if a tree call 404s.
+  const treeServes = useTreeServes('draw');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+
   // Selection lives in client state; `select` mirrors it to the URL with
   // replaceState (no navigation) — the param is an entry point, not truth.
   const [selectedId, setSelectedId] = useState<string | null>(urlId);
@@ -132,7 +144,7 @@ export function DrawsClient() {
     if (urlId) setSelectedId(urlId);
   }, [urlId]);
 
-  const [deleteTarget, setDeleteTarget] = useState<DrawRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Pick<DrawRow, 'id' | 'title'> | null>(null);
   const [deleting, setDeleting] = useState(false);
   // Focus mode drops the list column so a drawing can be LOOKED AT full-width,
   // not only drawn that way. The toggle lives in the preview header below.
@@ -147,6 +159,7 @@ export function DrawsClient() {
       setSelectedId(null);
       syncSelectionParam('id', null);
       await queryClient.invalidateQueries({ queryKey: ['draws'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('draw') });
       setDeleteTarget(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not delete the drawing');
@@ -179,15 +192,29 @@ export function DrawsClient() {
       return apiFetch<ListResponse>(`/api/draws?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
+    enabled: !showTree,
   });
 
-  const rows = useMemo(() => listQuery.data?.draws ?? [], [listQuery.data]);
+  const rows = useMemo(
+    () => (showTree ? [] : (listQuery.data?.draws ?? [])),
+    [showTree, listQuery.data],
+  );
   const draws = useMemo(() => rows.filter((r): r is DrawRow => !isPrivateRow(r)), [rows]);
+  // A drawing that is not among the list rows (opened from the tree, or a deep
+  // link off this page of the list) loads by id. The detail route answers the
+  // row's fields plus the scene.
+  const selectedDrawQuery = useQuery({
+    queryKey: ['draws', selectedId],
+    queryFn: () => apiFetch<{ draw: DrawRow }>(`/api/draws/${selectedId}`).then((r) => r.draw),
+    enabled: !!selectedId && !pid && !draws.some((d) => d.id === selectedId),
+  });
   // The first card when nothing is picked (auto-select), whichever kind.
   const first = !selectedId && !pid ? (rows[0] ?? null) : null;
   const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
   const activeId = privateOpen ? null : (selectedId ?? first?.id ?? null);
-  const active = draws.find((d) => d.id === activeId) ?? null;
+  const active =
+    draws.find((d) => d.id === activeId) ??
+    (activeId && selectedDrawQuery.data?.id === activeId ? selectedDrawQuery.data : null);
 
   function select(id: string) {
     setSelectedId(id);
@@ -204,6 +231,7 @@ export function DrawsClient() {
         const href = await createPrivateItem('draw', { title });
         // The private drawing lists in this screen now: refresh the list too.
         void queryClient.invalidateQueries({ queryKey: ['draws'] });
+        void queryClient.invalidateQueries({ queryKey: treeKey('draw') });
         setCreateOpen(false);
         router.push(href);
         setCreating(false);
@@ -213,6 +241,7 @@ export function DrawsClient() {
         title,
       });
       await queryClient.invalidateQueries({ queryKey: ['draws'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('draw') });
       router.push(`/draw/${draw.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create the drawing');
@@ -220,14 +249,14 @@ export function DrawsClient() {
     }
   }
 
-  if (listQuery.isLoading) {
+  if (!showTree && listQuery.isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (listQuery.isError) {
+  if (!showTree && listQuery.isError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">Could not load drawings.</p>
@@ -253,125 +282,154 @@ export function DrawsClient() {
         // note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          <>
-            <ItemListHeader
-              search={searchInput}
-              onSearch={setSearchInput}
-              placeholder="Search drawings…"
-              actions={<NewButton onClick={openCreate} busy={creating} />}
-            >
-              <SortMenu
-                value={sort}
-                labels={SORT_LABELS}
-                onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
-              />
-              <TagFilter
-                tags={listQuery.data?.tags ?? []}
-                activeTag={tag || null}
-                onSelect={(t) => go({ tag: t, page: null, pid: null })}
-                details={details}
-                onDetailsChange={changeDetails}
-                allLabel="All drawings"
-              />
-              <StateFilter
-                value={state}
-                options={ADMIN_STATE_OPTIONS}
-                onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
-              />
-              {tag ? (
-                <ClearFilter
-                  onClear={() => go({ tag: null, page: null })}
-                  title="Clear tag filter"
-                />
-              ) : null}
-            </ItemListHeader>
-
-            <ItemListScroll pending={pending}>
-              {rows.length === 0 && (query || tag || state !== 'all') ? (
-                <div className="space-y-3 px-1 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {state === 'private' && !query && !tag
-                      ? 'You have no private drawings. Only you would see them, until you accept one into the brain.'
-                      : 'Nothing matches these filters.'}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => go({ q: null, tag: null, state: null, page: null })}
-                  >
-                    Clear filters
-                  </Button>
-                </div>
-              ) : rows.length === 0 ? (
-                <div className="space-y-3 px-1 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
-                    brain like every other content type.
-                  </p>
-                  <Button variant="outline" size="sm" onClick={openCreate} disabled={creating}>
-                    {creating ? <Spinner /> : <Plus />}
-                    New drawing
-                  </Button>
-                </div>
-              ) : (
-                rows.map((d) =>
-                  isPrivateRow(d) ? (
-                    <PrivateItemCard
-                      key={d.id}
-                      row={d}
-                      selected={privateOpen === d.id}
-                      onSelect={() => openPrivate(d.id)}
-                    />
-                  ) : (
-                    <ItemCard
-                      key={d.id}
-                      id={d.id}
-                      kind="draw"
-                      title={d.title}
-                      icon={<ItemIcon emoji={d.icon} fallback={<PenTool />} />}
-                      badge={
-                        <>
-                          {/* A dot, not a word: the row is a scan target and the
-                              preview pane carries the full explanation. */}
-                          {d.hasDraft && (
-                            <span
-                              className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
-                              title="Uncommitted edits"
-                              aria-label="Uncommitted edits"
-                            />
-                          )}
-                          <AudienceBadge level={d.audience} className="mt-0.5" />
-                        </>
-                      }
-                      selected={activeId === d.id}
-                      onSelect={() => select(d.id)}
-                      updatedAt={d.updatedAt}
+          showTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="draw"
+                adapter={drawAdapter}
+                selectedItemId={privateOpen ?? activeId}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search drawings and folders…"
+                actions={<NewButton onClick={openCreate} busy={creating} />}
+                onOpenItem={(item) =>
+                  item.state === 'private' ? openPrivate(item.id) : select(item.id)
+                }
+                itemActions={(item) =>
+                  item.state === 'private' ? null : (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
                     >
-                      {details && d.summary ? (
-                        <p className="line-clamp-2 text-xs text-muted-foreground">{d.summary}</p>
-                      ) : null}
-                      {details && d.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {d.tags.map((t) => (
-                            <TagPill key={t} tag={t} />
-                          ))}
-                        </div>
-                      ) : null}
-                    </ItemCard>
-                  ),
-                )
-              )}
-            </ItemListScroll>
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  )
+                }
+                onUnsupported={() => setTreeGone(true)}
+              />
+            </aside>
+          ) : (
+            <>
+              <ItemListHeader
+                search={searchInput}
+                onSearch={setSearchInput}
+                placeholder="Search drawings…"
+                actions={<NewButton onClick={openCreate} busy={creating} />}
+              >
+                <SortMenu
+                  value={sort}
+                  labels={SORT_LABELS}
+                  onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
+                />
+                <TagFilter
+                  tags={listQuery.data?.tags ?? []}
+                  activeTag={tag || null}
+                  onSelect={(t) => go({ tag: t, page: null, pid: null })}
+                  details={details}
+                  onDetailsChange={changeDetails}
+                  allLabel="All drawings"
+                />
+                <StateFilter
+                  value={state}
+                  options={ADMIN_STATE_OPTIONS}
+                  onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
+                />
+                {tag ? (
+                  <ClearFilter
+                    onClear={() => go({ tag: null, page: null })}
+                    title="Clear tag filter"
+                  />
+                ) : null}
+              </ItemListHeader>
 
-            <ListPager
-              page={page}
-              total={listQuery.data?.total ?? 0}
-              pageSize={listQuery.data?.pageSize ?? 50}
-              pending={pending}
-              onGo={(p) => go({ page: p > 1 ? p : null })}
-              noun={{ one: 'drawing', many: 'drawings' }}
-            />
-          </>
+              <ItemListScroll pending={pending}>
+                {rows.length === 0 && (query || tag || state !== 'all') ? (
+                  <div className="space-y-3 px-1 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {state === 'private' && !query && !tag
+                        ? 'You have no private drawings. Only you would see them, until you accept one into the brain.'
+                        : 'Nothing matches these filters.'}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => go({ q: null, tag: null, state: null, page: null })}
+                    >
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : rows.length === 0 ? (
+                  <div className="space-y-3 px-1 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
+                      brain like every other content type.
+                    </p>
+                    <Button variant="outline" size="sm" onClick={openCreate} disabled={creating}>
+                      {creating ? <Spinner /> : <Plus />}
+                      New drawing
+                    </Button>
+                  </div>
+                ) : (
+                  rows.map((d) =>
+                    isPrivateRow(d) ? (
+                      <PrivateItemCard
+                        key={d.id}
+                        row={d}
+                        selected={privateOpen === d.id}
+                        onSelect={() => openPrivate(d.id)}
+                      />
+                    ) : (
+                      <ItemCard
+                        key={d.id}
+                        id={d.id}
+                        kind="draw"
+                        title={d.title}
+                        icon={<ItemIcon emoji={d.icon} fallback={<PenTool />} />}
+                        badge={
+                          <>
+                            {/* A dot, not a word: the row is a scan target and the
+                                preview pane carries the full explanation. */}
+                            {d.hasDraft && (
+                              <span
+                                className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
+                                title="Uncommitted edits"
+                                aria-label="Uncommitted edits"
+                              />
+                            )}
+                            <AudienceBadge level={d.audience} className="mt-0.5" />
+                          </>
+                        }
+                        selected={activeId === d.id}
+                        onSelect={() => select(d.id)}
+                        updatedAt={d.updatedAt}
+                      >
+                        {details && d.summary ? (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">{d.summary}</p>
+                        ) : null}
+                        {details && d.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {d.tags.map((t) => (
+                              <TagPill key={t} tag={t} />
+                            ))}
+                          </div>
+                        ) : null}
+                      </ItemCard>
+                    ),
+                  )
+                )}
+              </ItemListScroll>
+
+              <ListPager
+                page={page}
+                total={listQuery.data?.total ?? 0}
+                pageSize={listQuery.data?.pageSize ?? 50}
+                pending={pending}
+                onGo={(p) => go({ page: p > 1 ? p : null })}
+                noun={{ one: 'drawing', many: 'drawings' }}
+              />
+            </>
+          )
         }
         // No wrapper: the preview is a plain document with no pinned header of
         // its own, so `MasterDetail`'s pane is the only scroller.
@@ -391,6 +449,10 @@ export function DrawsClient() {
               onOpen={() => router.push(`/draw/${active.id}`)}
               onDelete={() => setDeleteTarget(active)}
             />
+          ) : activeId && selectedDrawQuery.isLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Spinner />
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center">
               <p className="text-sm text-muted-foreground">Select a drawing.</p>
