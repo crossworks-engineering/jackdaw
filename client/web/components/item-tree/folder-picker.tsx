@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { DndContext } from '@dnd-kit/core';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -15,8 +15,11 @@ import {
 import type { TreeFolder, TreeKind, TreeSort } from '@mantle/web-ui/types/tree';
 import { TREE_ROW_PAD } from '@/components/app-nav/tree-guides';
 import type { TreeKindAdapter } from './kinds/types';
+import type { TreeRow } from './tree-model';
 import { TreeContext, type TreeCtx } from './tree-context';
-import { FolderChildren, FolderTile } from './tree-rows';
+import { FolderTile, FolderTreeRow, useFolderRows, VirtualRows } from './tree-rows';
+
+const NO_PICKS: ReadonlySet<string> = new Set();
 
 /**
  * "Move to…": the same tree in picker mode, folders only. A click chooses a
@@ -44,8 +47,9 @@ export function FolderPickerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rootLabel: string;
-  /** Where the thing sits now (null = the root): not offered again. */
-  currentFolderId: string | null;
+  /** Where the thing sits now (null = the root): not offered again.
+   *  Undefined when that is several places (a picked set). */
+  currentFolderId?: string | null;
   /** Folders it cannot go into (itself, its own subfolders, too deep). */
   disabled?: (folder: TreeFolder) => boolean;
   onPick: (folder: TreeFolder | null) => void;
@@ -65,29 +69,35 @@ export function FolderPickerDialog({
     });
   }, []);
 
-  const ctx = useMemo<TreeCtx>(
-    () => ({
-      kind,
-      adapter,
-      sort,
-      mode: 'picker',
-      isOpen: (id) => openIds.has(id),
-      setOpen,
-      reveal: null,
-      selectedItemId: null,
-      selectedFolderPath: chosen ? chosen.path : null,
-      folderDisabled: (f) => f.id === currentFolderId || (disabled?.(f) ?? false),
-      onFolderClick: (f) => setChosen(f),
-      onItemClick: () => undefined,
-      menuFor: null,
-      setMenuFor: () => undefined,
-      registerRow: () => undefined,
-      hint: null,
-      dragging: null,
-      scrollRoot,
-    }),
-    [kind, adapter, sort, openIds, setOpen, chosen, currentFolderId, disabled],
-  );
+  const ctx: TreeCtx = {
+    kind,
+    adapter,
+    sort,
+    mode: 'picker',
+    isOpen: (id) => openIds.has(id),
+    setOpen,
+    reveal: null,
+    selectedItemId: null,
+    selectedFolderPath: chosen ? chosen.path : null,
+    folderDisabled: (f) => f.id === currentFolderId || (disabled?.(f) ?? false),
+    onFolderClick: (f) => setChosen(f),
+    onItemClick: () => undefined,
+    picked: NO_PICKS,
+    menuFor: null,
+    setMenuFor: () => undefined,
+    registerRow: () => undefined,
+    hint: null,
+    dragging: null,
+  };
+
+  const { rows, loaders, handles } = useFolderRows({
+    kind,
+    sort,
+    isOpen: ctx.isOpen,
+    foldersOnly: true,
+    emptyText: '',
+  });
+  const all: TreeRow[] = [{ type: 'root', key: 'root' }, ...rows];
 
   const close = (o: boolean) => {
     if (!o) setChosen(undefined);
@@ -103,26 +113,36 @@ export function FolderPickerDialog({
         </DialogHeader>
         <div
           ref={scrollRoot}
-          className="max-h-80 min-h-40 overflow-y-auto scrollbar-thin rounded-md border border-border p-1"
+          className="max-h-80 min-h-40 overflow-y-auto scrollbar-thin rounded-md border border-border px-1"
         >
           <TreeContext.Provider value={ctx}>
             <DndContext>
-              <RowButton
-                onClick={() => setChosen(null)}
-                disabled={currentFolderId === null}
-                aria-current={chosen === null ? 'true' : undefined}
-                style={{ paddingLeft: TREE_ROW_PAD }}
-                className={cn(
-                  'flex h-8 w-full items-center gap-2 rounded-md pr-2 text-sm font-medium',
-                  chosen === null
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-foreground/85 hover:bg-foreground/[0.06]',
-                )}
-              >
-                <FolderTile folder={null} />
-                {rootLabel}
-              </RowButton>
-              {open && <FolderChildren folder={null} depth={0} guides={[]} />}
+              {open && loaders}
+              <VirtualRows
+                rows={all}
+                scrollRoot={scrollRoot}
+                render={(row) =>
+                  row.type === 'root' ? (
+                    <RowButton
+                      onClick={() => setChosen(null)}
+                      disabled={currentFolderId === null}
+                      aria-current={chosen === null ? 'true' : undefined}
+                      style={{ paddingLeft: TREE_ROW_PAD }}
+                      className={cn(
+                        'flex h-8 w-full items-center gap-2 rounded-md pr-2 text-sm font-medium',
+                        chosen === null
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-foreground/85 hover:bg-foreground/[0.06]',
+                      )}
+                    >
+                      <FolderTile folder={null} />
+                      {rootLabel}
+                    </RowButton>
+                  ) : (
+                    <FolderTreeRow row={row} handles={handles} />
+                  )
+                }
+              />
             </DndContext>
           </TreeContext.Provider>
         </div>

@@ -6,6 +6,7 @@
  */
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type {
+  TreeFilter,
   TreeFolder,
   TreeFolderPage,
   TreeKind,
@@ -13,6 +14,7 @@ import type {
   TreeMarkView,
   TreeSearchResult,
   TreeSort,
+  TreeTagList,
 } from '@mantle/web-ui/types/tree';
 
 export const treeKey = (kind: TreeKind) => ['tree', kind] as const;
@@ -20,7 +22,10 @@ export const treeKey = (kind: TreeKind) => ['tree', kind] as const;
 export const folderKey = (kind: TreeKind, folderId: string | null, sort: TreeSort) =>
   ['tree', kind, 'folder', folderId ?? 'root', sort] as const;
 
-export const searchKey = (kind: TreeKind, q: string) => ['tree', kind, 'search', q] as const;
+export const searchKey = (kind: TreeKind, q: string, filter: TreeFilter = {}) =>
+  ['tree', kind, 'search', q, filter.level ?? null, filter.tag ?? null] as const;
+
+export const tagsKey = (kind: TreeKind) => ['tree', kind, 'tags'] as const;
 
 export const marksKey = (kind: TreeKind, view: TreeMarkView) =>
   ['tree', kind, 'marks', view] as const;
@@ -41,9 +46,16 @@ export function folderUrl(
   return `/api/tree/${kind}${query({ folder: folderId, sort, cursor })}`;
 }
 
-/** An empty `q` is the A to Z view: every item by name, no folders. */
-export function searchUrl(kind: TreeKind, q: string, cursor: string | null): string {
-  return `/api/tree/${kind}/search?q=${encodeURIComponent(q.trim())}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+/** An empty `q` is the A to Z view: every item by name, no folders. A
+ *  filter narrows the items and drops the folders. */
+export function searchUrl(
+  kind: TreeKind,
+  q: string,
+  cursor: string | null,
+  filter: TreeFilter = {},
+): string {
+  const rest = query({ cursor, level: filter.level, tag: filter.tag }).replace(/^\?/, '&');
+  return `/api/tree/${kind}/search?q=${encodeURIComponent(q.trim())}${rest}`;
 }
 
 export function marksUrl(kind: TreeKind, view: TreeMarkView): string {
@@ -57,8 +69,14 @@ export const fetchFolderPage = (
   cursor: string | null,
 ) => apiFetch<TreeFolderPage>(folderUrl(kind, folderId, sort, cursor));
 
-export const fetchSearch = (kind: TreeKind, q: string, cursor: string | null) =>
-  apiFetch<TreeSearchResult>(searchUrl(kind, q, cursor));
+export const fetchSearch = (
+  kind: TreeKind,
+  q: string,
+  cursor: string | null,
+  filter: TreeFilter = {},
+) => apiFetch<TreeSearchResult>(searchUrl(kind, q, cursor, filter));
+
+export const fetchTags = (kind: TreeKind) => apiFetch<TreeTagList>(`/api/tree/${kind}/tags`);
 
 export const fetchMarks = (kind: TreeKind, view: TreeMarkView) =>
   apiFetch<TreeMarkList>(marksUrl(kind, view));

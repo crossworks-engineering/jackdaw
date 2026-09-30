@@ -8,8 +8,12 @@ import {
   childGuides,
   crumbLine,
   dropPosition,
+  flattenTree,
   isOnTheWayTo,
   mergeFolderPages,
+  rangeOfItems,
+  type FolderLoad,
+  type TreeRow,
 } from './tree-model';
 import { folderUrl, searchUrl } from './tree-api';
 import { treeKindsOf } from './use-tree-kinds';
@@ -108,6 +112,104 @@ describe('folder pages', () => {
   });
 });
 
+describe('flattening the tree for the virtual list', () => {
+  const withCounts = (f: TreeFolder, folderCount: number, itemCount: number): TreeFolder => ({
+    ...f,
+    folderCount,
+    itemCount,
+  });
+  const a = withCounts(folder('a', 'files.a'), 1, 1);
+  // Counts that say one item, a load that finds none (moved away meanwhile).
+  const b = withCounts(folder('b', 'files.a.b'), 0, 1);
+  const c = withCounts(folder('c', 'files.c'), 0, 2);
+  const ok = (folders: TreeFolder[], items: TreeItem[], hasMore = false): FolderLoad => ({
+    status: 'ok',
+    children: { folders, items, hasMore },
+    loadingMore: false,
+  });
+  const loads: Record<string, FolderLoad> = {
+    root: ok([a, c], [item('r1')], true),
+    a: ok([b], [item('a1')]),
+    b: ok([], []),
+    c: { status: 'pending' },
+  };
+  const shape = (rows: TreeRow[]) =>
+    rows.map((r) => ('depth' in r ? `${r.key}@${r.depth}` : r.key));
+
+  it('puts each open folder’s rows below it, depth first, and names what must load', () => {
+    const open = new Set(['a', 'b', 'c']);
+    const { rows, needed } = flattenTree(
+      (id) => loads[id ?? 'root']!,
+      (id) => open.has(id),
+      { emptyText: 'none' },
+    );
+    expect(shape(rows)).toEqual([
+      'f:a@0',
+      'f:b@1',
+      's:b@2',
+      'i:a1@1',
+      'f:c@0',
+      's:c@1',
+      'i:r1@0',
+      'm:root:1@0',
+    ]);
+    expect(needed).toEqual([null, 'a', 'b', 'c']);
+    const empty = rows.find((r) => r.key === 's:b');
+    expect(empty?.type === 'status' && empty.label).toBe('Empty');
+  });
+
+  it('keeps closed folders shut and gives the picker folders only', () => {
+    const { rows, needed } = flattenTree(
+      (id) => loads[id ?? 'root']!,
+      (id) => id === 'a',
+      { foldersOnly: true, emptyText: 'none' },
+    );
+    expect(shape(rows)).toEqual(['f:a@0', 'f:b@1', 'f:c@0']);
+    expect(needed).toEqual([null, 'a']);
+  });
+
+  it('shows the root’s own loading, failure and emptiness', () => {
+    const one = (load: FolderLoad) =>
+      flattenTree(
+        () => load,
+        () => false,
+        { emptyText: 'No files yet.' },
+      ).rows[0];
+    expect(one({ status: 'pending' })).toMatchObject({ type: 'status', busy: true });
+    expect(one({ status: 'error' })).toMatchObject({ type: 'status', retry: null });
+    expect(one(ok([], []))).toMatchObject({ type: 'note', text: 'No files yet.' });
+  });
+});
+
+describe('picking a range', () => {
+  const rowOf = (id: string, state: TreeItem['state'] = null): TreeRow => ({
+    type: 'item',
+    key: `i:${id}`,
+    item: { ...item(id), state },
+    parent: null,
+    folderPath: null,
+    depth: 0,
+    isLast: false,
+    guides: [],
+  });
+  const rows: TreeRow[] = [
+    rowOf('1'),
+    { type: 'divider', key: 'd' },
+    rowOf('2', 'private'),
+    rowOf('3'),
+    rowOf('1'),
+    rowOf('4'),
+  ];
+  const movable = (i: TreeItem) => i.state !== 'private';
+
+  it('takes every movable item between the two, either way round, once each', () => {
+    expect(rangeOfItems(rows, '1', '4', movable)).toEqual(['1', '3', '4']);
+    expect(rangeOfItems(rows, '4', '3', movable)).toEqual(['3', '4']);
+    expect(rangeOfItems(rows, 'gone', '3', movable)).toEqual(['3']);
+    expect(rangeOfItems(rows, '1', '2', movable)).toEqual([]);
+  });
+});
+
 describe('dragging', () => {
   it('drops an item into a folder anywhere over it, a folder beside it at the edges', () => {
     expect(dropPosition(0.1, 'item')).toBe('inside');
@@ -152,6 +254,9 @@ describe('urls', () => {
     );
     expect(searchUrl('files', ' acme ', null)).toBe('/api/tree/files/search?q=acme');
     expect(searchUrl('files', '', 'x')).toBe('/api/tree/files/search?q=&cursor=x');
+    expect(searchUrl('files', 'q', null, { level: 'team', tag: 'a b' })).toBe(
+      '/api/tree/files/search?q=q&level=team&tag=a+b',
+    );
   });
 });
 
