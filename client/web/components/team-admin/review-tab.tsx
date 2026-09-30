@@ -264,7 +264,13 @@ function ReviewItemView({ item }: { item: ReviewItem }) {
   const mapAsset = useCallback((p: string) => reviewAssetPath(row.id, p), [row.id]);
   switch (body.type) {
     case 'page':
-      return <PageView content={body.page.doc as JSONContent} mapAssetPath={mapAsset} />;
+      return (
+        <PageView
+          content={body.page.doc as JSONContent}
+          mapAssetPath={mapAsset}
+          folderId={(body.page as { folderId?: string | null }).folderId}
+        />
+      );
     case 'note':
       return (
         <NotePresenter view={{ title: row.title, content: body.note.content }} chrome="embedded" />

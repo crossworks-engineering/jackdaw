@@ -12,12 +12,9 @@ import type {
 } from '@mantle/client-types';
 import type { AccessNodeView } from '@mantle/client-types';
 
-/** POST /api/shares/cascade: `skipped` = client sub-pages kept at client (no link). */
-type ShareCascadeResult = { ok: true; count?: number; skipped?: string[] };
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@mantle/web-ui/ui/popover';
-import { Switch } from '@mantle/web-ui/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -26,14 +23,12 @@ import {
   LEVEL_LABEL,
   LEVEL_ORDER,
   accessErrorMessage,
-  cascadeSwitch,
   closureAbove,
   closureBelow,
   effectiveOf,
   embedsSharedWith,
   isAccessLevel,
   isOldClientLink,
-  keptAtClientLine,
   levelMeaning,
   offeredUnder,
   openLinkLevelsOf,
@@ -89,7 +84,7 @@ import { authorBadgeText, authorName } from '@/lib/item-author';
  * create an open link, so the arrow keys (which move the selection in a kit
  * ToggleGroup) only pick; the change happens on the explicit Apply.
  *
- * API: GET/PATCH /api/access/nodes/:id (plus /api/shares/cascade for pages'
+ * API: GET/PATCH /api/access/nodes/:id (plus the share routes for pages'
  * sub-pages). Loads fresh on every open, and again when the host reuses this
  * control for another item (list screens keep it mounted across selection);
  * a response for an item that is no longer shown is dropped.
@@ -254,38 +249,6 @@ export function AccessControl({
     }
   };
 
-  const setCascade = async (on: boolean) => {
-    if (!view?.share) return;
-    setBusy(true);
-    try {
-      const id = nodeId;
-      const d = await apiSend<ShareCascadeResult>('/api/shares/cascade', 'POST', {
-        nodeId: id,
-        on,
-      });
-      if (current.current === id) {
-        setState({ nodeId: id, view: { ...view, share: { ...view.share, cascade: on } } });
-      }
-      const n = d.count ?? view.childCount;
-      toast.success(
-        on
-          ? `${n} sub-page${n === 1 ? '' : 's'} now match this page`
-          : isOldClientLink(view.item.audience)
-            ? 'The old link no longer opens the sub-pages'
-            : 'Sub-pages back to admin',
-      );
-      // Client sub-pages keep client and take no link (absent from older brains).
-      const kept = keptAtClientLine(d.skipped);
-      if (kept) toast.info(kept);
-      refreshScreens('page');
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) return;
-      toast.error(accessErrorMessage(e, 'Could not change the sub-pages'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const absoluteUrl = view?.share ? serverUrl(view.share.path) : '';
   const copy = async () => {
     try {
@@ -310,15 +273,6 @@ export function AccessControl({
   // (no `openLinkLevels`) made one at client too, and keeps those words.
   const openLevels = view ? openLinkLevelsOf(view) : [];
   const oldOwnLink = !!view?.share && isOldClientLink(level) && !takesLink(level, openLevels);
-  const cascade = view
-    ? cascadeSwitch({
-        type: view.item.type,
-        level,
-        open: openLevels,
-        share: view.share,
-        childCount: view.childCount,
-      })
-    : null;
   const oldLinksAbove = level === 'client' ? (view?.oldLinksAbove ?? []) : [];
   const above: AccessItemView[] = view ? closureAbove(view.closure, level) : [];
   const below: AccessItemView[] = view ? closureBelow(view.closure, level) : [];
@@ -473,31 +427,6 @@ export function AccessControl({
                     : undefined
                 }
               />
-
-              {/* Sub-pages ride the link, so only where a link lives: public. An
-                old client link cannot be extended (client-links-retired): at
-                Client the switch shows only while it is on, to turn it off. */}
-              {cascade && view.share && (
-                <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">Include sub-pages</p>
-                    <p className="text-xs text-muted-foreground">
-                      {cascade === 'toggle'
-                        ? `The ${view.childCount} page${view.childCount === 1 ? '' : 's'} nested under this one take its level. Off puts them back to admin.`
-                        : `The old link also opens the ${view.childCount} page${view.childCount === 1 ? '' : 's'} nested under this one. Turn it off to revoke their links.`}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={view.share.cascade}
-                    disabled={busy}
-                    onCheckedChange={(v) => {
-                      // At an old client link the switch only turns off.
-                      if (cascade === 'toggle' || !v) void setCascade(v);
-                    }}
-                    aria-label="Include sub-pages"
-                  />
-                </div>
-              )}
 
               {oldLinksAbove.length > 0 && (
                 <div className="space-y-2 border-t border-border pt-3">

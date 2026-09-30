@@ -9,8 +9,6 @@ import {
   sharedViaLine,
   CLIENT_MEANING_OLD_LINK,
   LEGACY_CLIENT_MEANING,
-  cascadeSwitch,
-  keptAtClientLine,
   levelMeaning,
   openLinkLevelsOf,
   takesLink,
@@ -187,42 +185,6 @@ describe('the Client meaning line (audit A30c)', () => {
     for (const l of ['admin', 'team', 'public'] as const) {
       expect(levelMeaning(l, { open, oldLink: true })).toBe(LEVEL_MEANING[l]);
     }
-  });
-});
-
-describe('the Include sub-pages switch (audit A30b)', () => {
-  const base = {
-    type: 'page',
-    open: ['public'] as const,
-    share: { cascade: false },
-    childCount: 2,
-  };
-
-  it('is a normal switch where the level makes a link', () => {
-    expect(cascadeSwitch({ ...base, level: 'public' })).toBe('toggle');
-    // A brain before C1: client made a link too.
-    expect(cascadeSwitch({ ...base, level: 'client', open: ['client', 'public'] })).toBe('toggle');
-  });
-
-  it('at an old client link, shows only while on, to turn it off', () => {
-    expect(cascadeSwitch({ ...base, level: 'client', share: { cascade: true } })).toBe('off-only');
-    expect(cascadeSwitch({ ...base, level: 'client', share: { cascade: false } })).toBeNull();
-  });
-
-  it('never without a link, sub-pages, or on anything but a page', () => {
-    expect(cascadeSwitch({ ...base, level: 'public', share: null })).toBeNull();
-    expect(cascadeSwitch({ ...base, level: 'public', childCount: 0 })).toBeNull();
-    expect(cascadeSwitch({ ...base, level: 'public', type: 'note' })).toBeNull();
-    expect(cascadeSwitch({ ...base, level: 'team', share: { cascade: true } })).toBeNull();
-  });
-});
-
-describe('Include sub-pages leaves client sub-pages alone', () => {
-  it('says how many it kept at client, and nothing when none or not said', () => {
-    expect(keptAtClientLine(['a'])).toBe('Kept at client: 1 sub-page');
-    expect(keptAtClientLine(['a', 'b'])).toBe('Kept at client: 2 sub-pages');
-    expect(keptAtClientLine([])).toBeNull();
-    expect(keptAtClientLine(undefined)).toBeNull();
   });
 });
 

@@ -16,9 +16,7 @@ import type { AccessItemView, AccessLevel } from '@mantle/client-types';
 import type { ReviewAuthorRole } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
-import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import {
@@ -58,7 +56,6 @@ import {
 } from '@/lib/access-levels';
 import { privateViewHref } from '@/lib/admin-private';
 import {
-  TOP_OF_PAGES,
   acceptVisibilityRefusal,
   acceptedLine,
   authorRoleLabel,
@@ -73,7 +70,6 @@ import {
   placeIsFor,
   placeShareLine,
   reviewErrorMessage,
-  shownParent,
   takeOverErrorMessage,
   type AcceptInput,
   type AcceptPlace,
@@ -90,10 +86,7 @@ import {
 } from '@/components/item-tree/visibility-confirm';
 import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
 
-const TOP = TOP_OF_PAGES;
-
 type FolderRow = { path: string; title: string; slug: string };
-type PageRow = { id: string; title: string };
 
 /** Back to the queue once the item is handled: its row is gone. */
 function useBackToQueue(onDone: () => void) {
@@ -197,8 +190,6 @@ export function AcceptIntoBrainDialog({
   // the top level).
   const [pick, setPick] = useState<Pick<TreeFolder, 'id' | 'name'> | null | undefined>(undefined);
   const [picking, setPicking] = useState(false);
-  const [parent, setParent] = useState<string>(TOP);
-  const [pageQuery, setPageQuery] = useState('');
   const [busy, setBusy] = useState(false);
   // The brain's 409 `visibility`: what would be read above the chosen level.
   const [exposed, setExposed] = useState<PendingConfirm | null>(null);
@@ -218,9 +209,10 @@ export function AcceptIntoBrainDialog({
     queryFn: () => bundleSource!.load(),
     enabled: open && !!bundleSource,
   });
-  // A brain with the tree says where it lands; it files every item of the
-  // bundle in place, so no separate Files folder is asked for.
-  const filed = item.type === 'page' ? undefined : bundle.data?.place;
+  // A brain with the tree says where it lands (pages too, since folder
+  // phase 7); it files every item of the bundle in place, so no separate
+  // Files folder is asked for.
+  const filed = bundle.data?.place;
   // The admin's pick, asked for again: its crumbs, the folders made below
   // it, and the share it is read at there.
   const picked = useQuery({
@@ -258,21 +250,6 @@ export function AcceptIntoBrainDialog({
     queryFn: () => apiFetch<{ folders: FolderRow[] }>('/api/files/folders?tree=true'),
     enabled: open && hasFiles,
   });
-  const q = pageQuery.trim();
-  const pages = useQuery({
-    queryKey: ['pages', { q, review: true }],
-    queryFn: () => apiFetch<{ pages: PageRow[] }>(`/api/pages?q=${encodeURIComponent(q)}`),
-    enabled: open && item.type === 'page' && q.length > 1,
-  });
-  const parentChoices = [
-    { id: TOP, title: 'Top of Pages' },
-    ...(pages.data?.pages ?? []).slice(0, 8),
-  ];
-  // What is shown is what is sent: a parent a new search hid is dropped.
-  const parentId = shownParent(
-    parent,
-    parentChoices.map((p) => p.id),
-  );
 
   // What goes down with it at this level, when it needs the admin's ticks.
   const asked = refusal?.level === level ? refusal : null;
@@ -313,7 +290,6 @@ export function AcceptIntoBrainDialog({
       if (beforeAccept && !(await beforeAccept())) return;
       const input: AcceptInput = {
         audience: chosen,
-        parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,
         folderPath: hasFiles ? folder : null,
         ...(filed && pick !== undefined ? { folderId: pick?.id ?? null } : {}),
         ...(confirmation ?? {}),
@@ -435,35 +411,6 @@ export function AcceptIntoBrainDialog({
               disabled={busy}
               onTick={tick}
             />
-          ) : null}
-
-          {item.type === 'page' ? (
-            <div className="space-y-2">
-              <Label htmlFor="review-parent">Where the page goes</Label>
-              <Input
-                id="review-parent"
-                placeholder="Search for a parent page (or leave it at the top of Pages)"
-                value={pageQuery}
-                disabled={busy}
-                onChange={(e) => setPageQuery(e.target.value)}
-              />
-              <RadioGroup
-                aria-label="Parent page"
-                className="gap-1 text-sm"
-                value={parentId}
-                disabled={busy}
-                onValueChange={setParent}
-              >
-                {parentChoices.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2">
-                    <RadioGroupItem value={p.id} id={`review-parent-${p.id}`} />
-                    <Label htmlFor={`review-parent-${p.id}`} className="truncate font-normal">
-                      {p.title || 'Untitled page'}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
           ) : null}
 
           {filed && placeAdapter ? (

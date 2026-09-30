@@ -15,7 +15,8 @@ import {
 export type RevokeTarget = {
   shareId: string;
   title: string;
-  /** Its sub-pages' links end with it. */
+  /** Always false since folder phase 7 (a link no longer shares sub-pages);
+   *  kept so older callers still type-check. */
   cascade: boolean;
   /** What happens to the item's level, when worth saying ("It stays at
    *  Client, for signed-in clients."). */
@@ -45,9 +46,7 @@ export function RevokeLinkDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Revoke this link?</AlertDialogTitle>
           <AlertDialogDescription>
-            {target?.cascade
-              ? `"${target?.title}" and its shared sub-pages stop being accessible immediately. The content itself is untouched.`
-              : `"${target?.title}" stops being accessible immediately. The content itself is untouched.`}
+            {`"${target?.title}" stops being accessible immediately. The content itself is untouched.`}
             {target?.stays ? ` ${target.stays}` : ''}
           </AlertDialogDescription>
         </AlertDialogHeader>

@@ -17,7 +17,7 @@ describe('getSlashItems for a member', () => {
   it('still hides them when their display titles change', () => {
     const all = getSlashItems('');
     const hidden = all.filter((i) => MEMBER_HIDDEN.has(i.id));
-    expect(hidden.map((i) => i.id).sort()).toEqual(['drawing', 'file', 'image', 'sub-page']);
+    expect(hidden.map((i) => i.id).sort()).toEqual(['drawing', 'file', 'image', 'new-page']);
     const titles = hidden.map((i) => i.title);
     try {
       for (const i of hidden) i.title = `${i.title} (renamed)`;
@@ -36,12 +36,12 @@ describe('getSlashItems for a member', () => {
 });
 
 describe("getSlashItems for an admin's private item (Phase 7)", () => {
-  it('hides only the sub-page: embeds of brain items stay', () => {
+  it('hides only the new page and the folder index: embeds of brain items stay', () => {
     const ids = getSlashItems('', { privateItem: true }).map((i) => i.id);
     for (const id of PRIVATE_HIDDEN) expect(ids).not.toContain(id);
-    expect([...PRIVATE_HIDDEN]).toEqual(['sub-page']);
+    expect([...PRIVATE_HIDDEN]).toEqual(['new-page', 'folder-index']);
     for (const id of ['image', 'drawing', 'file', 'text']) expect(ids).toContain(id);
-    expect(getSlashItems('page', { privateItem: true }).map((i) => i.id)).not.toContain('sub-page');
+    expect(getSlashItems('page', { privateItem: true }).map((i) => i.id)).not.toContain('new-page');
   });
 
   it('a member stays on the member list either way', () => {

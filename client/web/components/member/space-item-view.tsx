@@ -48,6 +48,9 @@ export function SpaceItemView({
         <PageView
           content={doc}
           mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}
+          // The folder the page sits in (folder phase 7), for a Folder index
+          // block set to `here`; absent from a brain before the pages tree.
+          folderId={(body.page as { folderId?: string | null }).folderId}
         />
       );
     }

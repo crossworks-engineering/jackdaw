@@ -97,12 +97,6 @@ describe('the Access control uses it', () => {
     expect(src).not.toContain('<Input');
   });
 
-  it('offers sub-pages where the link lives, and at an old client link only to turn off', () => {
-    expect(src).toContain('const cascade = view');
-    expect(src).toMatch(/\{cascade && view\.share && \(/);
-    expect(src).toContain("if (cascade === 'toggle' || !v) void setCascade(v);");
-  });
-
   it('feature-detects a brain before C1 by openLinkLevels', () => {
     expect(src).toContain('const openLevels = view ? openLinkLevelsOf(view) : [];');
     expect(src).toContain('open={openLevels}');
@@ -130,11 +124,6 @@ describe('the Access control uses it', () => {
     expect(src).toContain('Revoke that link');
   });
 
-  it('says which client sub-pages Include sub-pages kept at client', () => {
-    expect(src).toContain('const kept = keptAtClientLine(d.skipped);');
-    expect(src).toContain('if (kept) toast.info(kept);');
-  });
-
   it('a level change reloads Shared links and its levels', () => {
     const refresh = src.slice(src.indexOf('const refreshScreens'), src.indexOf('const askRevoke'));
     expect(refresh).toContain('invalidateLinkQueries(queryClient);');
@@ -144,6 +133,5 @@ describe('the Access control uses it', () => {
     expect(src).toContain(
       "toast.error(accessErrorMessage(e, 'Could not change who can see this'));",
     );
-    expect(src).toContain("toast.error(accessErrorMessage(e, 'Could not change the sub-pages'));");
   });
 });

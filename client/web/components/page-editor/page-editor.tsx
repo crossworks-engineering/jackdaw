@@ -66,6 +66,7 @@ const memberPageExtensions = pageExtensionsWithAssets(memberAssetPath);
 export function PageEditor({
   content,
   pageId,
+  folderId,
   markerMode = false,
   marks,
   editedIds,
@@ -90,14 +91,18 @@ export function PageEditor({
    *  audit U2: the brain refuses a client on the member byte routes). */
   mapAssetPath?: (path: string) => string;
   /** An admin's private item (member logins Phase 7): the owner editor, which
-   *  may embed any brain item the admin can see, less what hangs a brain page
-   *  under it (the `/page` sub-page and the drag handle's turn-into-page):
-   *  a private item is not a brain page. */
+   *  may embed any brain item the admin can see, less what makes a brain
+   *  page next to it (the `/page` item and the drag handle's extract) or
+   *  lists its folder: a private item is not a brain page. */
   privateItem?: boolean;
   content: JSONContent;
-  /** Id of the page being edited — handed to the `/page` slash command so the
-   *  sub-pages it creates get `parent_id` set to this page (Phase 4a). */
+  /** Id of the page being edited — handed to the `/page` slash command and
+   *  the drag handle's extract, which make a page next to this one. */
   pageId?: string | null;
+  /** The folder this page sits in (null at the top level; folder phase 7):
+   *  where a page made from here is filed, and the Folder index block's
+   *  `here`. */
+  folderId?: string | null;
   /** When true the left gutter becomes a focus-marker strip (and the drag
    *  handle steps aside). The marks themselves stay highlighted regardless. */
   markerMode?: boolean;
@@ -234,7 +239,12 @@ export function PageEditor({
     // parents sub-pages here.
     extensions: [
       ...(member ? memberExtensions : pageExtensions),
-      SlashCommand.configure({ pageId: pageId ?? null, member, privateItem }),
+      SlashCommand.configure({
+        pageId: pageId ?? null,
+        folderId: folderId ?? null,
+        member,
+        privateItem,
+      }),
       FocusMarks,
       DiffReview,
       // No @ menu for a member (see MemberMode).

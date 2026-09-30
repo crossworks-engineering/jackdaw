@@ -16,6 +16,7 @@ import {
   Columns3,
   Columns4,
   FilePlus2,
+  FolderOpen,
   Heading1,
   Heading2,
   Heading3,
@@ -57,26 +58,28 @@ function pickAndUpload(editor: Editor, range: Range, accept: string) {
 }
 
 /**
- * Create a sub-page (Phase 4a) and drop a `childPage` card at the cursor. The
- * parent id comes from the SlashCommand extension's storage (the page being
- * edited). The child page row is created server-side immediately, so it exists
- * in the tree the moment the card appears — the card insert itself is an editor
- * change that autosaves into the parent's draft like any other edit. Rename the
- * child from inside it; the card refreshes its title on mount.
+ * Create a page NEXT TO this one (in the same folder; pages do not nest,
+ * folder phase 7) and drop a page link card (`childPage`) at the cursor. The
+ * folder comes from the SlashCommand extension's storage. The page row is
+ * created server-side immediately, so it exists in the tree the moment the
+ * card appears — the card insert itself is an editor change that autosaves
+ * into this page's draft like any other edit. Rename the new page from inside
+ * it; the card refreshes its title on mount.
  */
-async function insertSubPage(editor: Editor, range: Range) {
+async function insertNewPage(editor: Editor, range: Range) {
   const storage = editor.storage as unknown as Record<
     string,
-    { pageId?: string | null } | undefined
+    { pageId?: string | null; folderId?: string | null } | undefined
   >;
-  const parentId = storage.slashCommand?.pageId ?? null;
+  const pageId = storage.slashCommand?.pageId ?? null;
+  const folderId = storage.slashCommand?.folderId ?? null;
   // Remove the "/page" text regardless — the menu has already committed.
   editor.chain().focus().deleteRange(range).run();
-  if (!parentId) return; // not inside a saved page; nothing to parent to
+  if (!pageId) return; // not inside a saved brain page
   try {
     const { page } = await apiSend<{
       page: { id: string; title: string; icon: string | null };
-    }>('/api/pages', 'POST', { title: 'Untitled page', parentId });
+    }>('/api/pages', 'POST', { title: 'Untitled page', folderId });
     editor
       .chain()
       .focus()
@@ -143,12 +146,27 @@ const ITEMS: SlashItem[] = [
   },
   {
     group: 'Pages',
-    id: 'sub-page',
-    title: 'Sub-page',
-    description: 'Create a nested page and link it here.',
+    id: 'new-page',
+    title: 'New page',
+    description: 'Create a page next to this one and link it here.',
     icon: FilePlus2,
-    keywords: ['page', 'subpage', 'child', 'nested', 'doc', 'document'],
-    command: ({ editor, range }) => void insertSubPage(editor, range),
+    keywords: ['page', 'new', 'link', 'doc', 'document'],
+    command: ({ editor, range }) => void insertNewPage(editor, range),
+  },
+  {
+    group: 'Pages',
+    id: 'folder-index',
+    title: 'Folder index',
+    description: "List this folder's pages, live, for whoever reads this page.",
+    icon: FolderOpen,
+    keywords: ['folder', 'index', 'list', 'pages', 'contents', 'toc'],
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({ type: 'folderIndex', attrs: { folderId: null } })
+        .run(),
   },
   {
     group: 'Lists',
@@ -344,11 +362,12 @@ const ITEMS: SlashItem[] = [
 
 /** Slash items a member may not use, by id: each creates or uploads into
  *  the brain. Matched by id so renaming an item's title cannot re-show it. */
-export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['sub-page', 'image', 'drawing', 'file']);
+export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'image', 'drawing', 'file']);
 
-/** Slash items an admin's private item may not use: a sub-page is a brain
- *  page parented to the page it sits in, and a private item is not one. */
-export const PRIVATE_HIDDEN: ReadonlySet<string> = new Set(['sub-page']);
+/** Slash items an admin's private item may not use: a new page is a brain
+ *  page next to the page it sits in, and a folder index lists the folder the
+ *  page sits in; a private item is neither in the brain nor in a folder. */
+export const PRIVATE_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'folder-index']);
 
 /** Filter the command list by the text typed after the slash. */
 export function getSlashItems(

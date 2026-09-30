@@ -16,6 +16,7 @@ import { PageMention } from './mention';
 import { PageImage } from './image';
 import { FileEmbed } from './file-embed';
 import { ChildPage } from './child-page';
+import { FolderIndex } from './folder-index';
 import { Diagram } from './diagram';
 import { TextColor } from './text-color';
 import { BlockId } from './block-id';
@@ -87,9 +88,14 @@ export const pageExtensions: Extensions = [
   Column,
   PageImage,
   FileEmbed,
-  // Inline card linking to a sub-page (Phase 4a). Shared so PageView renders
-  // the card too; created by the `/page` slash command.
+  // The page link card (Phase 4a; a link, never a parent since folder phase
+  // 7). Shared so PageView renders the card too; created by the `/page`
+  // slash command.
   ChildPage,
+  // The Folder index block (folder phase 7): a live list of a folder's pages.
+  // In the schema so every surface parses it; the editor draws it with a
+  // NodeView, StaticDoc fills it after rendering.
+  FolderIndex,
   // LEGACY diagram block (Mermaid retired 2026-08). Kept in the schema so
   // stored docs still parse; renders read-only source, never inserted new.
   Diagram,

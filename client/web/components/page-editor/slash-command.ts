@@ -21,15 +21,19 @@ import { placeCaretMenu, remToPx, type CaretMenuSide } from './caret-menu-positi
  * PageView (which omits it) renders identically.
  */
 export interface SlashCommandOptions {
-  /** Id of the page being edited. The `/page` item creates a sub-page with
-   *  `parent_id` set to this, so it needs to know "which page am I in?".
-   *  Exposed via storage so the static slash items can read it off `editor`. */
+  /** Id of the page being edited: the `/page` item makes a new page NEXT TO
+   *  it and the Folder index block lists its folder. Exposed via storage so
+   *  the static slash items can read it off `editor`. */
   pageId: string | null;
+  /** The folder the page sits in (null at the top level; folder phase 7):
+   *  where `/page` files the page it makes, and what `folder:here` means. */
+  folderId: string | null;
   /** A member login (member logins): no command that creates or uploads into
    *  the brain (sub-page, image, drawing, file); those routes refuse a member. */
   member: boolean;
-  /** An admin's private item (member logins Phase 7): it is not a brain page,
-   *  so no sub-page can hang under it. Everything else stays. */
+  /** An admin's private item (member logins Phase 7): it is not a brain page
+   *  and sits in no folder, so no new brain page or folder index. Everything
+   *  else stays. */
   privateItem: boolean;
 }
 
@@ -37,17 +41,19 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
 
   addOptions() {
-    return { pageId: null, member: false, privateItem: false };
+    return { pageId: null, folderId: null, member: false, privateItem: false };
   },
 
-  // Mirror the page id into storage so a slash item's command (which only
-  // receives { editor, range }) can reach it via `editor.storage.slashCommand`.
+  // Mirror the page and folder ids into storage so a slash item's command
+  // (which only receives { editor, range }) can reach them via
+  // `editor.storage.slashCommand`.
   addStorage() {
-    return { pageId: this.options.pageId };
+    return { pageId: this.options.pageId, folderId: this.options.folderId };
   },
 
   onBeforeCreate() {
     this.storage.pageId = this.options.pageId;
+    this.storage.folderId = this.options.folderId;
   },
 
   addProseMirrorPlugins() {

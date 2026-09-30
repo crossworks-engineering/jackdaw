@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { generateHTML, generateJSON, type JSONContent } from '@tiptap/core';
 import { assetUrl, subscribeAssetToken } from '@mantle/web-ui/asset-url';
 import { formatBytes } from '@mantle/web-ui/lib/format-bytes';
 import { stampDrawEmbeds } from './draw-embed-theme';
 import { lowlight, pageExtensions } from './extensions';
 import { ASSET_PATH_ATTR } from './image';
+import { FolderIndexList } from './folder-index-list';
 
 /**
  * A page document rendered as STATIC HTML — the same schema, without an editor.
@@ -162,6 +164,7 @@ export function StaticDoc({
   onClick,
   mapAssetPath,
   fileEmbedPath,
+  hereFolderId,
 }: {
   /** HTML to normalise through the schema (the assistant's markdown path). */
   html?: string;
@@ -174,6 +177,10 @@ export function StaticDoc({
   /** Draw each file embed as a download chip pointing here (fillFileEmbeds).
    *  Pass a stable function. */
   fileEmbedPath?: (id: string) => string;
+  /** The folder the page sits in (folder phase 7), what a Folder index block
+   *  with no folder of its own (`here`) lists; null at the top level,
+   *  undefined when unknown (the block then shows its label alone). */
+  hereFolderId?: string | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Rendered in an effect, not in a `useMemo`, so the SSR pass and the
@@ -215,15 +222,42 @@ export function StaticDoc({
     };
   }, [rendered]);
 
+  // The Folder index blocks (folder phase 7): the schema renders each as an
+  // empty `div[data-folder-index]` (the editor draws it with a NodeView), so
+  // the live list is portaled into each one once the HTML is in the DOM.
+  const [indexes, setIndexes] = useState<{ el: HTMLElement; folderId: string | null }[]>([]);
+  useEffect(() => {
+    const root = ref.current;
+    if (rendered === null || !root) {
+      setIndexes([]);
+      return;
+    }
+    setIndexes(
+      Array.from(root.querySelectorAll<HTMLElement>('div[data-folder-index]'), (el) => ({
+        el,
+        folderId: el.getAttribute('data-folder-id') || null,
+      })),
+    );
+  }, [rendered]);
+
   if (rendered === null) return null;
   return (
-    <div
-      ref={ref}
-      onClick={onClick}
-      // `ProseMirror` is load-bearing, not decoration: every chrome rule in
-      // share-ui's app.css is scoped under it.
-      className={`ProseMirror ${className ?? ''}`}
-      dangerouslySetInnerHTML={{ __html: rendered }}
-    />
+    <>
+      <div
+        ref={ref}
+        onClick={onClick}
+        // `ProseMirror` is load-bearing, not decoration: every chrome rule in
+        // share-ui's app.css is scoped under it.
+        className={`ProseMirror ${className ?? ''}`}
+        dangerouslySetInnerHTML={{ __html: rendered }}
+      />
+      {indexes.map((ix, i) =>
+        createPortal(
+          <FolderIndexList folderId={ix.folderId} hereFolderId={hereFolderId} />,
+          ix.el,
+          `folder-index-${i}`,
+        ),
+      )}
+    </>
   );
 }

@@ -100,6 +100,11 @@ import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { pagesAdapter } from '@/components/item-tree/kinds/simple';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { PageView } from '@/components/page-editor/page-view';
 import { AccessControl } from '@/components/share/access-control';
 import { PageOutline } from '@mantle/web-ui/page-outline';
@@ -199,6 +204,17 @@ export function PagesClient() {
   const state = adminStateOf(searchParams);
   const { pid, openPrivate } = usePrivateOpen();
 
+  // The item tree when this brain serves it for pages (folder phase 7,
+  // docs/folder-tree.md: pages live in folders and never nest); the card
+  // list below, with its drill-down, for a brain before it, or if a tree
+  // call 404s.
+  const treeServes = useTreeServes('pages');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+  // The folder open in the tree: where New files the page.
+  const [treeFolder, setTreeFolder] = useState<TreeFolder | null>(null);
+
   const listQuery = useQuery({
     queryKey: ['pages', { q: query, tag: activeTag, sort, page, state }],
     queryFn: () => {
@@ -211,10 +227,14 @@ export function PagesClient() {
       return apiFetch<PagesListResponse>(`/api/pages?${qs.toString()}`);
     },
     placeholderData: (prev) => prev, // keep the list visible while paging/filtering
+    enabled: !showTree,
   });
 
   const mode = listQuery.data?.mode ?? (query || activeTag ? 'list' : 'tree');
-  const rows = useMemo(() => listQuery.data?.pages ?? [], [listQuery.data?.pages]);
+  const rows = useMemo(
+    () => (showTree ? [] : (listQuery.data?.pages ?? [])),
+    [showTree, listQuery.data?.pages],
+  );
   // The brain's pages drive the tree, drag and Move to…; private pages have
   // no parent, so they list at the top level only (D3).
   const pages = useMemo(() => rows.filter((r): r is PageListRow => !isPrivateRow(r)), [rows]);
@@ -228,7 +248,7 @@ export function PagesClient() {
   // "Keep private": the new page goes into this admin's private space, not the brain.
   const [keepPrivate, setKeepPrivate] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<PageRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Pick<PageRow, 'id' | 'title'> | null>(null);
   // Authoritative descendant count for the delete warning — fetched on open so
   // it's accurate even in filtered/paginated 'list' mode (where the client
   // doesn't hold the whole tree). null = not yet loaded.
@@ -301,7 +321,19 @@ export function PagesClient() {
   // What the detail shows: the private page `?pid=` names, else the brain
   // page picked, else the first card of the list (auto-select), whichever
   // kind it is.
-  const brainPicked = pages.find((p) => p.id === selectedId) ?? null;
+  // A page opened from the tree is not among the list rows: its row loads
+  // by id (the detail route answers the row's fields plus the document;
+  // the same cache entry the editor reads).
+  const selectedPageQuery = useQuery({
+    queryKey: ['pages', selectedId],
+    queryFn: () => apiFetch<{ page: PageRow }>(`/api/pages/${selectedId}`).then((r) => r.page),
+    enabled: showTree && !!selectedId && !pid,
+  });
+  const brainPicked =
+    pages.find((p) => p.id === selectedId) ??
+    (showTree && selectedId && selectedPageQuery.data?.id === selectedId
+      ? selectedPageQuery.data
+      : null);
   const first = brainPicked ? null : (visiblePages[0] ?? null);
   const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
   const selected: PageListRow | null = privateOpen
@@ -309,7 +341,8 @@ export function PagesClient() {
     : (brainPicked ?? (first && !isPrivateRow(first) ? first : null));
   const deleteHasChildren = deleteTarget ? hasChildren(deleteTarget.id) : false;
   useEffect(() => {
-    if (!deleteTarget) {
+    // Pages do not nest on a brain with the tree: nothing to count.
+    if (!deleteTarget || showTree) {
       setDeleteDescendants(null);
       return;
     }
@@ -323,7 +356,7 @@ export function PagesClient() {
     return () => {
       cancelled = true;
     };
-  }, [deleteTarget]);
+  }, [deleteTarget, showTree]);
 
   // ── Drag-to-reparent (level mode) ────────────────────────────────────────
   // The whole hierarchy is client-side here, so re-parenting is a drag of one
@@ -472,6 +505,8 @@ export function PagesClient() {
         ({ page: created } = await apiSend<{ page: PageRow }>('/api/pages', 'POST', {
           title: form.title.trim(),
           tags: form.tags,
+          // In the tree, a new page lands in the folder that is open.
+          ...(showTree ? { folderId: treeFolder?.id ?? null } : {}),
         }));
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return;
@@ -483,6 +518,7 @@ export function PagesClient() {
       toast.success('Page created');
       // Refresh the list cache so the new page is present on navigate-back.
       void queryClient.invalidateQueries({ queryKey: ['pages'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('pages') });
       // New pages open straight into the editor.
       router.push(`/pages/${created.id}`);
     } finally {
@@ -525,6 +561,7 @@ export function PagesClient() {
     );
     if (selectedId === deleteTarget.id) setSelectedId(null);
     void queryClient.invalidateQueries({ queryKey: ['pages'] });
+    void queryClient.invalidateQueries({ queryKey: treeKey('pages') });
   };
 
   // Drilling out of a search or tag filter has to LEAVE it. `buildHref` keeps
@@ -608,14 +645,14 @@ export function PagesClient() {
     </ItemListEmpty>
   );
 
-  if (listQuery.isPending) {
+  if (!showTree && listQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (listQuery.isError && !listQuery.data) {
+  if (!showTree && listQuery.isError && !listQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
         <p className="text-muted-foreground">
@@ -651,93 +688,134 @@ export function PagesClient() {
         // note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          <>
-            <ItemListHeader
-              search={searchInput}
-              onSearch={setSearchInput}
-              placeholder="Search pages…"
-              actions={<NewButton onClick={() => setOpen(true)} />}
-            >
-              <SortMenu
-                value={sort}
-                labels={SORT_LABELS}
-                onChange={(v) => go({ sort: v, page: 1 })}
+          showTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="pages"
+                adapter={pagesAdapter}
+                selectedItemId={privateOpen ?? selected?.id ?? null}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search pages and folders…"
+                actions={<NewButton onClick={() => setOpen(true)} />}
+                onOpenFolder={(f) => setTreeFolder(f)}
+                onOpenItem={(item) => {
+                  if (item.state === 'private') {
+                    openPrivate(item.id);
+                    return;
+                  }
+                  setSelectedId(item.id);
+                  if (pid) openPrivate(null);
+                }}
+                itemActions={(item) =>
+                  item.state === 'private' ? null : (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  )
+                }
+                // A share or a move changes the level the open page is read
+                // at: its header badge, client thread and folder follow.
+                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
+                onUnsupported={() => setTreeGone(true)}
               />
-              {/* Rendered even with no tags: it also holds the density
+            </aside>
+          ) : (
+            <>
+              <ItemListHeader
+                search={searchInput}
+                onSearch={setSearchInput}
+                placeholder="Search pages…"
+                actions={<NewButton onClick={() => setOpen(true)} />}
+              >
+                <SortMenu
+                  value={sort}
+                  labels={SORT_LABELS}
+                  onChange={(v) => go({ sort: v, page: 1 })}
+                />
+                {/* Rendered even with no tags: it also holds the density
                   switch, which is not about tags and must stay reachable on
                   a brain that has never used one. */}
-              <TagFilter
-                tags={tags}
-                activeTag={activeTag}
-                onSelect={(t) => go({ tag: t, page: 1, parent: null })}
-                details={details}
-                onDetailsChange={changeDetails}
-                allLabel="All pages"
-              />
-              <StateFilter
-                value={state}
-                options={ADMIN_STATE_OPTIONS}
-                onChange={(v) => go({ state: v, page: 1, parent: null })}
-              />
-              {activeTag && (
-                <ClearFilter onClear={() => go({ tag: null, page: 1 })} title="Clear tag filter" />
-              )}
-            </ItemListHeader>
+                <TagFilter
+                  tags={tags}
+                  activeTag={activeTag}
+                  onSelect={(t) => go({ tag: t, page: 1, parent: null })}
+                  details={details}
+                  onDetailsChange={changeDetails}
+                  allLabel="All pages"
+                />
+                <StateFilter
+                  value={state}
+                  options={ADMIN_STATE_OPTIONS}
+                  onChange={(v) => go({ state: v, page: 1, parent: null })}
+                />
+                {activeTag && (
+                  <ClearFilter
+                    onClear={() => go({ tag: null, page: 1 })}
+                    title="Clear tag filter"
+                  />
+                )}
+              </ItemListHeader>
 
-            {/* One DndContext for BOTH modes so `PageCard` can call the dnd
+              {/* One DndContext for BOTH modes so `PageCard` can call the dnd
                 hooks unconditionally; drag itself is off in search mode, where
                 a cross-level hit list has no level to re-parent within. Keyed
                 on the level so `placeholderData` can't leave the previous
                 level's cards on screen mid-navigation. */}
-            <ItemListScroll key={drillId ?? 'root'} pending={navPending}>
-              {/* The breadcrumb is itself a drop target, so it has to sit
+              <ItemListScroll key={drillId ?? 'root'} pending={navPending}>
+                {/* The breadcrumb is itself a drop target, so it has to sit
                   INSIDE the context — a `useDroppable` rendered outside one
                   registers with nothing and silently never fires. */}
-              <DndContext
-                sensors={sensors}
-                collisionDetection={pointerWithin}
-                onDragStart={(e) => setActiveId(String(e.active.id))}
-                onDragEnd={onDragEnd}
-                onDragCancel={() => setActiveId(null)}
-              >
-                {drillParent && (
-                  <Breadcrumb
-                    parent={drillParent}
-                    backLabel={backParent ? backParent.title : 'all pages'}
-                    // The breadcrumb doubles as the un-nest target while
-                    // dragging — in a drilled level it is the "move up" gesture.
-                    dropActive={activeRow !== null && activeRow.parentId === drillParent.id}
-                    onBack={() => go({ parent: backParent?.id ?? null, page: 1 })}
-                  />
-                )}
-                {visiblePages.length === 0 ? (
-                  emptyState
-                ) : (
-                  <>
-                    {/* Un-nest-to-root target — only at the top level, and only
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={pointerWithin}
+                  onDragStart={(e) => setActiveId(String(e.active.id))}
+                  onDragEnd={onDragEnd}
+                  onDragCancel={() => setActiveId(null)}
+                >
+                  {drillParent && (
+                    <Breadcrumb
+                      parent={drillParent}
+                      backLabel={backParent ? backParent.title : 'all pages'}
+                      // The breadcrumb doubles as the un-nest target while
+                      // dragging — in a drilled level it is the "move up" gesture.
+                      dropActive={activeRow !== null && activeRow.parentId === drillParent.id}
+                      onBack={() => go({ parent: backParent?.id ?? null, page: 1 })}
+                    />
+                  )}
+                  {visiblePages.length === 0 ? (
+                    emptyState
+                  ) : (
+                    <>
+                      {/* Un-nest-to-root target — only at the top level, and only
                         while dragging a page that actually has a parent. Deeper
                         levels use the breadcrumb instead. */}
-                    {drillId === null && activeRow && activeRow.parentId !== null && (
-                      <TopLevelDropZone />
-                    )}
-                    {renderCards()}
-                  </>
-                )}
-                <DragOverlay dropAnimation={null}>
-                  {activeRow ? <DragGhost row={activeRow} /> : null}
-                </DragOverlay>
-              </DndContext>
-            </ItemListScroll>
+                      {drillId === null && activeRow && activeRow.parentId !== null && (
+                        <TopLevelDropZone />
+                      )}
+                      {renderCards()}
+                    </>
+                  )}
+                  <DragOverlay dropAnimation={null}>
+                    {activeRow ? <DragGhost row={activeRow} /> : null}
+                  </DragOverlay>
+                </DndContext>
+              </ItemListScroll>
 
-            <ListPager
-              page={page}
-              total={levelTotal}
-              pageSize={levelPageSize}
-              pending={navPending}
-              onGo={(p) => go({ page: p })}
-              noun={{ one: 'page', many: 'pages' }}
-            />
-          </>
+              <ListPager
+                page={page}
+                total={levelTotal}
+                pageSize={levelPageSize}
+                pending={navPending}
+                onGo={(p) => go({ page: p })}
+                noun={{ one: 'page', many: 'pages' }}
+              />
+            </>
+          )
         }
         // The measure owns the scroller: it has to sit INSIDE the centered
         // column, or the handle (pinned to the column's viewport height)
@@ -1161,6 +1239,9 @@ function TopLevelDropZone() {
 function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) {
   const [doc, setDoc] = useState<JSONContent | null>(null);
   const [isDraft, setIsDraft] = useState(false);
+  // The folder the page sits in (folder phase 7): what a Folder index block
+  // set to `here` lists. Undefined until loaded, or on a brain before it.
+  const [folderId, setFolderId] = useState<string | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -1182,11 +1263,14 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    apiFetch<{ page: { doc: JSONContent; draft: JSONContent | null } }>(`/api/pages/${row.id}`)
+    apiFetch<{
+      page: { doc: JSONContent; draft: JSONContent | null; folderId?: string | null };
+    }>(`/api/pages/${row.id}`)
       .then(({ page }) => {
         if (!cancelled) {
           setDoc(page.draft ?? page.doc);
           setIsDraft(!!page.draft);
+          setFolderId(page.folderId);
           setLoading(false);
         }
       })
@@ -1268,7 +1352,7 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
             </aside>
           )}
           <div className="min-w-0 flex-1">
-            <PageView content={doc} />
+            <PageView content={doc} folderId={folderId} />
           </div>
         </div>
       ) : (

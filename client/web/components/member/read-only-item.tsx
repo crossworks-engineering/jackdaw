@@ -15,7 +15,7 @@ import { readerTableView } from '@/lib/reader-table';
 /** One brain item as a read-only viewer gets it: a Library or accepted item
  *  (a member), or a shared item (a client). The shapes agree per kind. */
 export type ReadableItem = { id: string; title: string; icon: string | null } & (
-  | { type: 'page'; doc: unknown }
+  | { type: 'page'; doc: unknown; folderId?: string | null }
   | { type: 'note'; content: string }
   | { type: 'table'; table: unknown }
   | { type: 'draw' }
@@ -59,6 +59,7 @@ export function ReadOnlyItemBody({
           content={item.doc as JSONContent}
           mapAssetPath={assets.mapAssetPath}
           fileEmbedPath={assets.fileEmbedPath}
+          folderId={item.folderId}
         />
       );
     case 'note':

@@ -3,18 +3,20 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import { ChildPageView } from './child-page-view';
 
 /**
- * childPage — an inline card that links to a sub-page (Phase 4a sub-pages).
- * The block-level, inline equivalent of a `PageMention`: where a mention is a
- * chip inside a paragraph, a childPage is a full-width clickable card that
- * navigates to `/pages/<pageId>`.
+ * childPage — the page link card: a full-width clickable card that navigates
+ * to `/pages/<pageId>`. The block-level, inline equivalent of a `PageMention`:
+ * where a mention is a chip inside a paragraph, this is a card. The node
+ * name is from when it linked a SUB-page; pages do not nest since folder
+ * phase 7, and the card is a link, never a parent-child bond (the brain
+ * still counts it as an embed: a shared page opens what it links to).
  *
  * It's an atom (no editable content) referencing a backing `page` node by id;
  * the `title` / `icon` attrs are a snapshot for display (the card refreshes the
  * live title on mount so renames show up). The card is created by the `/page`
- * slash command, which makes the child page with `parent_id = current page`
- * (see slash-menu.tsx). Part of the shared schema so PageView renders the card
+ * slash command, which makes a page next to the current one (see
+ * slash-menu.tsx). Part of the shared schema so PageView renders the card
  * identically; the public renderer (render-page-doc.ts) emits an inert label
- * (sub-pages aren't part of a shared subtree in 4a).
+ * (the linked page is not part of what the link shares).
  */
 export const ChildPage = Node.create({
   name: 'childPage',

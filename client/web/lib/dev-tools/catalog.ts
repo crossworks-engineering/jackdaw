@@ -272,7 +272,7 @@ export const API_CATALOG: CatalogGroup[] = [
       d: 'reindex=false for the cheap autosave path.',
       b: '{\n  "title": "Updated title",\n  "tags": ["important"]\n}',
     },
-    { n: 'Delete page', m: 'DELETE', p: '/api/pages/{id}', d: 'Cascades to nested pages.' },
+    { n: 'Delete page', m: 'DELETE', p: '/api/pages/{id}', d: 'Deletes this one page.' },
     {
       n: 'Save draft',
       m: 'PUT',
@@ -289,10 +289,11 @@ export const API_CATALOG: CatalogGroup[] = [
     },
     { n: 'Discard draft', m: 'POST', p: '/api/pages/{id}/discard-draft', d: 'Idempotent.' },
     {
-      n: 'Count descendants',
-      m: 'GET',
-      p: '/api/pages/{id}/descendant-count',
-      d: 'Pre-delete check for the subtree warning.',
+      n: 'Move page',
+      m: 'POST',
+      p: '/api/pages/{id}/move',
+      d: 'File the page in a pages folder (null = the top level); 409 visibility until confirm.',
+      b: '{\n  "folderId": null,\n  "confirm": false\n}',
     },
   ]),
 

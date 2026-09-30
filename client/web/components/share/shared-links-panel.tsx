@@ -218,8 +218,7 @@ export function SharedLinksPanel({
                         </span>
                       </div>
                       <ListCardMeta>
-                        {kindLabel(row.nodeType)}
-                        {row.cascade ? ' · sub-pages included' : ''} · {row.viewCount} view
+                        {kindLabel(row.nodeType)} · {row.viewCount} view
                         {row.viewCount === 1 ? '' : 's'}
                         {row.lastViewedAt ? `, last ${formatDate(row.lastViewedAt)}` : ''}
                       </ListCardMeta>
@@ -247,9 +246,8 @@ export function SharedLinksPanel({
                       <span className="truncate">{selected.title}</span>
                     </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {kindLabel(selected.nodeType)}
-                      {selected.cascade ? ' · sub-pages included' : ''} · shared{' '}
-                      {formatDate(selected.createdAt)} · {selected.viewCount} view
+                      {kindLabel(selected.nodeType)} · shared {formatDate(selected.createdAt)} ·{' '}
+                      {selected.viewCount} view
                       {selected.viewCount === 1 ? '' : 's'}
                     </p>
                     <div className="mt-1">

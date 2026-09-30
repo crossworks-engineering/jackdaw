@@ -79,6 +79,9 @@ type PageDetail = {
    *  commit so a stale write from a second device or the Pages agent conflicts
    *  (409) instead of clobbering newer edits. */
   draftRev?: number;
+  /** The folder the page sits in (folder phase 7): null at the top level;
+   *  absent from a brain before the pages tree. */
+  folderId?: string | null;
 };
 
 // The body autosaves into a private *draft* (cheap, never rendered or indexed).
@@ -154,25 +157,8 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
   );
   const [draftSaving, setDraftSaving] = useState(false);
   const [committing, setCommitting] = useState(false);
+  // Deleting a page deletes that one page: pages do not nest (folder phase 7).
   const [deleteOpen, setDeleteOpen] = useState(false);
-  // Nested-page count for the delete warning — parent_id is ON DELETE CASCADE,
-  // so deleting this page takes its whole subtree. Fetched when the dialog opens.
-  const [deleteDescendants, setDeleteDescendants] = useState<number | null>(null);
-  useEffect(() => {
-    if (!deleteOpen) {
-      setDeleteDescendants(null);
-      return;
-    }
-    let cancelled = false;
-    apiFetch<{ count?: number }>(`/api/pages/${initial.id}/descendant-count`)
-      .then((d) => {
-        if (!cancelled && d) setDeleteDescendants(typeof d.count === 'number' ? d.count : 0);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [deleteOpen, initial.id]);
 
   const docRef = useRef<JSONContent>(initialDoc);
   const editorRef = useRef<Editor | null>(null);
@@ -1065,6 +1051,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
                       key={editorKey}
                       content={seedDoc ?? initialDoc}
                       pageId={initial.id}
+                      folderId={initial.folderId ?? null}
                       markerMode={markerMode}
                       marks={marks}
                       diff={reviewMode ? diffOverlay : null}
@@ -1108,11 +1095,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{title || 'Untitled page'}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteDescendants && deleteDescendants > 0
-                ? `This also permanently deletes ${deleteDescendants} nested page${deleteDescendants === 1 ? '' : 's'}. This can’t be undone.`
-                : 'This can’t be undone.'}
-            </AlertDialogDescription>
+            <AlertDialogDescription>This can’t be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -1173,7 +1156,8 @@ function blockSnippet(node: { textContent: string; type: { name: string } }): st
     fileEmbed: 'File embed',
     horizontalRule: 'Divider',
     table: 'Table',
-    childPage: 'Sub-page',
+    childPage: 'Page link',
+    folderIndex: 'Folder index',
     codeBlock: 'Code block',
   };
   return nice[node.type.name] ?? node.type.name;

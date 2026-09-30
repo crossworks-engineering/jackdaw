@@ -23,8 +23,13 @@ export function PageView({
   content,
   mapAssetPath,
   fileEmbedPath,
+  folderId,
 }: {
   content: JSONContent;
+  /** The folder the page sits in (folder phase 7): what a Folder index
+   *  block set to `here` lists. Null at the top level; leave it out when
+   *  unknown. */
+  folderId?: string | null;
   /** Rewrite image asset paths (the member surface reads bytes from its own
    *  routes). Pass a stable function. */
   mapAssetPath?: (path: string) => string;
@@ -41,6 +46,7 @@ export function PageView({
         json={content}
         mapAssetPath={mapAssetPath}
         fileEmbedPath={fileEmbedPath}
+        hereFolderId={folderId}
         className="prose dark:prose-invert prose-accent prose-document max-w-none focus:outline-none"
       />
     </ZoomableImages>

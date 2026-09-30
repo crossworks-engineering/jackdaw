@@ -56,6 +56,26 @@ function SimpleStatus({ item }: { item: TreeItem }) {
 }
 
 export const notesAdapter = simpleAdapter('notes', { one: 'note', many: 'notes' }, FileText);
+/** Pages (folder phase 7: they live in folders and never nest): a page's
+ *  own emoji icon when it has one, else the document glyph. */
+export const pagesAdapter: TreeKindAdapter = {
+  kind: 'pages',
+  noun: { one: 'page', many: 'pages' },
+  lead: (item) =>
+    item.icon ? (
+      <span
+        aria-hidden
+        className="inline-flex size-5 shrink-0 items-center justify-center text-base leading-none"
+      >
+        {item.icon}
+      </span>
+    ) : (
+      <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center">
+        <FileText className="size-4 text-muted-foreground" />
+      </span>
+    ),
+  status: (item) => <SimpleStatus item={item} />,
+};
 export const drawAdapter = simpleAdapter('draw', { one: 'drawing', many: 'drawings' }, PenTool);
 export const tablesAdapter = simpleAdapter('tables', { one: 'table', many: 'tables' }, Table2);
 export const formulasAdapter = simpleAdapter(

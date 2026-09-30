@@ -103,29 +103,6 @@ export function levelMeaning(
   return LEVEL_MEANING[level];
 }
 
-/** The "Include sub-pages" switch for a page with a link: a normal switch
- *  where the level makes a link, and at an old client link only a way to
- *  turn it OFF (the brain refuses to extend an old client link). */
-export function cascadeSwitch(input: {
-  type: string;
-  level: AccessLevel;
-  open: readonly AccessLevel[];
-  share: { cascade: boolean } | null;
-  childCount: number;
-}): 'toggle' | 'off-only' | null {
-  const { type, level, open, share, childCount } = input;
-  if (type !== 'page' || !share || childCount <= 0) return null;
-  if (takesLink(level, open)) return 'toggle';
-  return isOldClientLink(level) && share.cascade ? 'off-only' : null;
-}
-
-/** What "Include sub-pages" left alone: client sub-pages keep client and
- *  take no link. Null when none (or a brain that does not say). */
-export function keptAtClientLine(skipped: readonly string[] | undefined): string | null {
-  const n = skipped?.length ?? 0;
-  return n > 0 ? `Kept at client: ${n} sub-page${n === 1 ? '' : 's'}` : null;
-}
-
 /** A live link on an item at client level is an OLD client link: made when
  *  client meant "anyone with the link". Client logins C3 retired them all
  *  (brain migration 0192), so only a brain before C3 still shows one; on a

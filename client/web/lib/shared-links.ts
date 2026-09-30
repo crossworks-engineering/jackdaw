@@ -57,7 +57,7 @@ export function linkLevelLabel(level: AccessLevel): string {
 /** What the list says when the levels could not be loaded (older brains). */
 export const LEVELS_FAILED = 'Could not load the level of each link.';
 
-/** Revoke one link (and its sub-pages' links when it cascades). The item
+/** Revoke one link. The item
  *  keeps its level. */
 export async function revokeShareLink(shareId: string): Promise<void> {
   await apiSend(`/api/shares/${encodeURIComponent(shareId)}`, 'DELETE');

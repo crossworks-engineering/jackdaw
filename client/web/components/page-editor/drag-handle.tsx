@@ -75,7 +75,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [turnOpen, setTurnOpen] = useState(false);
   // Whether the block under the handle is a top-level heading with a stable id —
-  // gates the "Extract to sub-page" action (Phase 4c).
+  // gates the "Extract to a new page" action (Phase 4c).
   const [canExtract, setCanExtract] = useState(false);
 
   const openMenu = (e: React.MouseEvent<HTMLElement>) => {
@@ -115,12 +115,14 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
       .run();
   };
 
-  // Promote a heading + its body into a sub-page (Phase 4c). Client-side mirror
-  // of the `page_extract_section` tool: split the section off the live doc (same
-  // pure `extractSection` the server uses), create the child via the pages API
-  // (with its body), then replace the section with a childPage card. The editor
-  // change autosaves to draft like any edit — the published page is untouched.
-  const extractToSubPage = async () => {
+  // Lift a heading + its body into a page of its own, next to this one in
+  // the same folder (Phase 4c; pages do not nest since folder phase 7).
+  // Client-side mirror of the `page_extract_section` tool: split the section
+  // off the live doc (same pure `extractSection` the server uses), create the
+  // page via the pages API (with its body), then replace the section with a
+  // page link card. The editor change autosaves to draft like any edit — the
+  // published page is untouched.
+  const extractToPage = async () => {
     const pos = posRef.current;
     close();
     if (pos == null || pos < 0) return;
@@ -129,10 +131,11 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
     if (!node || node.type.name !== 'heading' || !headingId) return;
     const storage = editor.storage as unknown as Record<
       string,
-      { pageId?: string | null } | undefined
+      { pageId?: string | null; folderId?: string | null } | undefined
     >;
-    const parentId = storage.slashCommand?.pageId ?? null;
-    if (!parentId) return;
+    const pageId = storage.slashCommand?.pageId ?? null;
+    if (!pageId) return;
+    const folderId = storage.slashCommand?.folderId ?? null;
     const section = extractSection(editor.getJSON() as Record<string, unknown>, headingId);
     if (!section) return;
     try {
@@ -140,7 +143,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
         page: { id: string; title: string; icon: string | null };
       }>('/api/pages', 'POST', {
         title: section.title || 'Untitled page',
-        parentId,
+        folderId,
         doc: {
           type: 'doc',
           content: section.childBlocks.length ? section.childBlocks : [{ type: 'paragraph' }],
@@ -281,8 +284,8 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
                   <div className="my-1 h-px bg-border" />
                   <MenuItem
                     icon={FilePlus2}
-                    label="Extract to sub-page"
-                    onClick={() => void extractToSubPage()}
+                    label="Extract to a new page"
+                    onClick={() => void extractToPage()}
                   />
                 </>
               )}
