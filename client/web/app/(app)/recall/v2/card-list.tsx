@@ -16,6 +16,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useEffect, useRef } from 'react';
+import { RECALL_MAX_MAP_NODES } from '@mantle/content-core/recall-compile';
 import { ArrowDown, ArrowUp, GripVertical, Plus } from 'lucide-react';
 import type { RecallNodeDTO } from '@mantle/web-ui/types/recall-v2';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -68,7 +70,7 @@ export function CardList({
           variant="outline"
           onClick={onAdd}
           disabled={full}
-          title={full ? 'A map holds at most 100 cards.' : undefined}
+          title={full ? `A map holds at most ${RECALL_MAX_MAP_NODES} cards.` : undefined}
         >
           <Plus /> Card
         </Button>
@@ -76,9 +78,10 @@ export function CardList({
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={nodes.map((n) => n.slug)} strategy={verticalListSortingStrategy}>
           <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2 scrollbar-thin">
-            {nodes.map((n) => (
+            {nodes.map((n, i) => (
               <CardRow
                 key={n.id}
+                index={i}
                 node={n}
                 open={n.slug === openSlug}
                 onOpen={onOpen}
@@ -99,6 +102,7 @@ export function CardList({
 }
 
 function CardRow({
+  index,
   node,
   open,
   onOpen,
@@ -107,6 +111,7 @@ function CardRow({
   canDown,
   busy,
 }: {
+  index: number;
   node: RecallNodeDTO;
   open: boolean;
   onOpen: (slug: string) => void;
@@ -125,6 +130,27 @@ function CardRow({
     transition,
     isDragging,
   } = useSortable({ id: node.slug, disabled: entry || busy });
+
+  // Keep the keyboard where it was across a move. The row is re-ordered in
+  // the DOM, and a button that just became disabled (the card reached the
+  // top, or the bottom) drops focus to the page; the other one takes it.
+  const upRef = useRef<HTMLButtonElement>(null);
+  const downRef = useRef<HTMLButtonElement>(null);
+  const refocus = useRef<-1 | 1 | null>(null);
+  useEffect(() => {
+    const dir = refocus.current;
+    if (dir === null) return;
+    refocus.current = null;
+    const want = dir === -1 ? (canUp ? upRef : downRef) : canDown ? downRef : upRef;
+    want.current?.focus();
+  }, [index, canUp, canDown]);
+
+  function move(dir: -1 | 1) {
+    // Not `disabled` while a write runs: that would drop focus on every move.
+    if (busy) return;
+    refocus.current = dir;
+    onMove(dir);
+  }
 
   return (
     <li
@@ -165,22 +191,28 @@ function CardRow({
         </span>
       </RowButton>
       {!entry && (
-        <div className="flex shrink-0 flex-col opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+        // Shown on hover or focus where there is a pointer that hovers; always
+        // shown on touch, which has no hover to reveal them.
+        <div className="flex shrink-0 flex-col opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0">
           <Button
+            ref={upRef}
             variant="ghost"
             size="icon-2xs"
             aria-label={`Move ${node.title} up`}
-            disabled={busy || !canUp}
-            onClick={() => onMove(-1)}
+            aria-disabled={busy || undefined}
+            disabled={!canUp}
+            onClick={() => move(-1)}
           >
             <ArrowUp />
           </Button>
           <Button
+            ref={downRef}
             variant="ghost"
             size="icon-2xs"
             aria-label={`Move ${node.title} down`}
-            disabled={busy || !canDown}
-            onClick={() => onMove(1)}
+            aria-disabled={busy || undefined}
+            disabled={!canDown}
+            onClick={() => move(1)}
           >
             <ArrowDown />
           </Button>

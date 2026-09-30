@@ -25,9 +25,7 @@ import {
 } from '@mantle/web-ui/ui/dialog';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { recallKeys, writeErrorText } from '@/lib/recall-v2';
-import type { useMapWrite } from './use-map-write';
-
-type MapWrite = ReturnType<typeof useMapWrite>;
+import type { MapWrite } from './use-map-write';
 
 /** A new native map. The brain writes its entry card (`start`) with it, and
  *  an owner-created map is published at once. */
@@ -199,8 +197,10 @@ export function MapSettingsDialog({
 
 /** A new card after `fromSlug`. With "Link from" on, the card it is added
  *  from gains an option to it. The brain has no single write for both, so it
- *  is two: the card, then the option. If the second fails the card exists and
- *  is an orphan, which the brain reports as a warning, not an error. */
+ *  is two: the card, then the option. Once the card is made the dialog closes
+ *  and the new card opens, whatever happens to the option: a second click
+ *  must never make a second card. A failed option is reported by `linkFrom`,
+ *  and the card is left an orphan, which the brain warns about. */
 export function AddCardDialog({
   mapId,
   from,
@@ -220,11 +220,15 @@ export function AddCardDialog({
    *  has unsaved edits: writing its options now would overwrite them. */
   linkFrom: ((slug: string, title: string) => Promise<void>) | null;
 }) {
+  const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [link, setLink] = useState(from !== null && linkFrom !== null);
+  const [busy, setBusy] = useState(false);
   const valid = title.trim() !== '';
 
   async function onSave() {
+    if (busy) return;
+    setBusy(true);
     const t = title.trim();
     const res = await write.run(
       (version) =>
@@ -237,14 +241,21 @@ export function AddCardDialog({
         }),
       'Could not add the card.',
     );
-    if (!res?.cardSlug) return;
-    if (link && linkFrom) await linkFrom(res.cardSlug, t);
+    if (!res?.cardSlug) {
+      setBusy(false);
+      return;
+    }
+    const slug = res.cardSlug;
+    // Wait for the map to list the new card, so opening it does not land on
+    // the entry card for a moment. A failed reload only costs that moment.
+    await qc.refetchQueries({ queryKey: recallKeys.map(mapId), exact: true }).catch(() => {});
     onOpenChange(false);
-    onAdded(res.cardSlug);
+    onAdded(slug);
+    if (link && linkFrom) void linkFrom(slug, t);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (!write.pending ? onOpenChange(o) : undefined)}>
+    <Dialog open={open} onOpenChange={(o) => (!busy ? onOpenChange(o) : undefined)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>New card</DialogTitle>
@@ -282,10 +293,10 @@ export function AddCardDialog({
           )}
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={write.pending}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <SubmitButton pending={write.pending} disabled={!valid} onClick={onSave} type="button">
+          <SubmitButton pending={busy} disabled={!valid || busy} onClick={onSave} type="button">
             Add card
           </SubmitButton>
         </div>

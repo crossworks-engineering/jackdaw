@@ -6,9 +6,12 @@
  * The brain's rules this encodes (mantle docs/recall.md, v2 section):
  * - Every write carries the map `version` it was made against; a stale one
  *   is refused with 409 `version_stale`, never merged.
- * - A card PUT REPLACES the card. Leave `prompt` out on a prompt card and it
- *   is demoted to knowledge; leave `options` out and they are wiped. So a
- *   write is always built from the whole card, never from the edited fields.
+ * - A card PUT is FIELD-STICKY. `title` and `bodyMd` are required and
+ *   replace. `useWhen`, `options` and `prompt` keep their current value when
+ *   left out. From the owner, `prompt: true` makes the card a prompt (and
+ *   confirms an agent's pending request) and `prompt: false` makes it
+ *   knowledge (demoting a prompt, or dropping a pending request). So the
+ *   editor sends `prompt` only when the owner moved the switch.
  * - The entry card (`start`) is always first and cannot be deleted.
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
@@ -26,9 +29,12 @@ import type {
 export const RECALL_ENTRY_SLUG = 'start';
 
 /** Query keys. The catalog and a map's detail share v1's keys on purpose:
- *  the routes are the same, and a write must refresh both screens' caches. */
+ *  the routes are the same, and a write must refresh both screens' caches.
+ *  Everything sits under `maps`, so invalidating it refreshes the lot. */
 export const recallKeys = {
   maps: ['recall', 'maps'] as const,
+  /** Every page of the catalog at once (option targets, page-built maps). */
+  allMaps: ['recall', 'maps', { all: true }] as const,
   map: (mapId: string) => ['recall', 'maps', mapId] as const,
   card: (mapId: string, slug: string) => ['recall', 'maps', mapId, 'card', slug] as const,
   revisions: (mapId: string) => ['recall', 'maps', mapId, 'revisions'] as const,
@@ -78,30 +84,95 @@ export function cleanOption(o: RecallOptionDTO): RecallOptionDTO {
   return out;
 }
 
-/** The whole-card body for PUT (replace) or POST (create). */
+/** An option with its text fields trimmed, as the write sends it. */
+function trimOption(o: RecallOptionDTO): RecallOptionDTO {
+  const out = cleanOption(o);
+  out.label = out.label.trim();
+  out.useWhen = out.useWhen.trim();
+  return out;
+}
+
+/** The form as a save sends it: trimmed where the brain trims. After a save
+ *  the form is set to this, so trailing spaces do not leave it dirty. */
+export function normalisedEdits(e: CardEdits): CardEdits {
+  return {
+    title: e.title.trim(),
+    bodyMd: e.bodyMd,
+    useWhen: e.useWhen.trim(),
+    prompt: e.prompt,
+    options: e.options.map(trimOption),
+  };
+}
+
+/**
+ * The PUT body for saving the editor. `base` is the card as the edit started
+ * from it. `prompt` is sent only when the owner moved the switch in this
+ * edit: left out, the brain keeps the card's prompt state, which is what
+ * keeps an agent's pending request alive through an unrelated save.
+ */
 export function cardWriteBody(
   edits: CardEdits,
+  base: Pick<CardEdits, 'prompt'>,
   version: number,
-  after?: string,
 ): RecallCardWriteDTO {
+  const e = normalisedEdits(edits);
   const body: RecallCardWriteDTO = {
-    title: edits.title.trim(),
-    bodyMd: edits.bodyMd,
-    useWhen: edits.useWhen.trim(),
-    prompt: edits.prompt,
-    options: edits.options.map(cleanOption),
+    title: e.title,
+    bodyMd: e.bodyMd,
+    useWhen: e.useWhen,
+    options: e.options,
     version,
   };
-  if (after) body.after = after;
+  if (e.prompt !== base.prompt) body.prompt = e.prompt;
   return body;
 }
 
-export function sameEdits(a: CardEdits, b: CardEdits): boolean {
-  return JSON.stringify(normalise(a)) === JSON.stringify(normalise(b));
+/** The PUT that adds one option to a card ("add a card from here"): the
+ *  title and body it must send, and the options. Nothing else, so the
+ *  card's use-when, its prompt state and any pending request stay as the
+ *  brain has them. */
+export function linkFromBody(
+  card: Pick<RecallCardDetailDTO, 'title' | 'bodyMd' | 'options'>,
+  option: RecallOptionDTO,
+  version: number,
+): RecallCardWriteDTO {
+  return {
+    title: card.title,
+    bodyMd: card.bodyMd,
+    options: [...card.options.map(cleanOption), cleanOption(option)],
+    version,
+  };
 }
 
-function normalise(e: CardEdits) {
-  return { ...e, options: e.options.map(cleanOption) };
+export function sameEdits(a: CardEdits, b: CardEdits): boolean {
+  return JSON.stringify(normalisedEdits(a)) === JSON.stringify(normalisedEdits(b));
+}
+
+/**
+ * Where the map's version stands against the one an edit started from.
+ * `chain` maps each version the owner's own writes were sent at to the one
+ * they got back, so a run of the owner's own writes (publish, reorder, a new
+ * card) is told apart from someone else's.
+ * - `same`: nothing was written since.
+ * - `own`: only the owner's own writes, from this tab.
+ * - `foreign`: something else wrote the map (an agent, another tab).
+ * - `behind`: the cached map is older than the edit (a late refetch); wait.
+ */
+export function versionState(
+  from: number,
+  current: number,
+  chain: Readonly<Record<number, number>>,
+): 'same' | 'own' | 'foreign' | 'behind' {
+  if (current === from) return 'same';
+  if (current < from) return 'behind';
+  let v = from;
+  for (let i = 0; i < 1000; i++) {
+    const next = chain[v];
+    if (next === undefined || next <= v) break;
+    v = next;
+    if (v === current) return 'own';
+  }
+  return 'foreign';
 }
 
 /** What the editor can tell before it sends: the brain would refuse these,
@@ -171,11 +242,6 @@ export function dropCard(
   return out;
 }
 
-/** A card's options with one more appended, for "add a card from here". */
-export function withOption(edits: CardEdits, option: RecallOptionDTO): CardEdits {
-  return { ...edits, options: [...edits.options, cleanOption(option)] };
-}
-
 /** The error body the brain sends on a refused write, when it sent one. */
 export function writeErrorOf(err: unknown): RecallWriteErrorDTO | null {
   if (!(err instanceof ApiError)) return null;
@@ -200,19 +266,90 @@ export function writeErrorText(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
-/** Revisions whose restore would change nothing, so the editor does not
- *  offer it: the brain would still bump the version and log a "no change"
- *  revision. Keyed by the revision's summary, the only thing that says what
- *  kind of write it was. (Restoring a prompt confirm or drop, and restoring a
- *  card that is a prompt, were blocked here until the brain learned to keep
- *  a card's prompt state on restore.) */
+/** Revisions with nothing before them to put back, so the editor does not
+ *  offer a restore. Keyed by the revision's summary, the only thing that
+ *  says what kind of write it was. An old "cards reordered" row (logged
+ *  before the brain kept the old order) is refused by the brain with a
+ *  sentence of its own, which the editor shows as it comes. */
 const UNRESTORABLE: Record<string, string> = {
-  'map created': 'There is nothing before a map was created.',
-  'cards reordered': 'Order is not restored. Move the cards instead.',
+  'map created': 'There is nothing before a map was created. To remove the map, delete it.',
 };
 
 export function restoreBlockedReason(rev: Pick<RecallRevisionDTO, 'summary'>): string | null {
   return UNRESTORABLE[rev.summary] ?? null;
+}
+
+/** What restoring this revision will do, in the confirm dialog. Keyed by
+ *  the summary, like the guard above; an unknown one gets the general line. */
+export function restoreCopy(rev: Pick<RecallRevisionDTO, 'summary' | 'cardSlug'>): string {
+  const card = rev.cardSlug ? `the card ${rev.cardSlug}` : 'the card';
+  switch (rev.summary) {
+    case 'card added':
+      return `Deletes ${card} again. Options on other cards that lead to it are removed with it.`;
+    case 'card edited':
+      return `Puts ${card} back as it was before that edit: title, body, use-when, options and prompt state. Anything written to it since is replaced.`;
+    case 'card deleted':
+      return `Brings ${card} back with its text, its old link name and its old place, and puts back the options other cards had to it. A card deleted before the brain kept those comes back at the end, without them.`;
+    case 'prompt confirmed':
+    case 'prompt request dropped':
+    case 'prompt state restored':
+      return `Puts back only whether ${card} is a prompt, as it was before that write. Its text is not touched.`;
+    case 'cards reordered':
+      return 'Puts the cards back in the order they had before that move. Cards added since stay, after them.';
+    case 'published':
+      return 'Unpublishes the map again. No agent can see it until it is published.';
+    case 'unpublished':
+      return 'Publishes the map again, so agents can find it.';
+  }
+  if (!rev.cardSlug) {
+    return 'Puts back the map settings that write changed (title, enter-when, slug, published), as they were before it.';
+  }
+  return 'Puts back what that write replaced.';
+}
+
+/** Who made a revision, as the log shows it. */
+export function actorLabel(rev: Pick<RecallRevisionDTO, 'actorKind' | 'actorName'>): string {
+  if (rev.actorKind === 'agent') {
+    if (rev.actorName === 'mcp') return 'An MCP client';
+    return rev.actorName ? `Agent ${rev.actorName}` : 'An agent';
+  }
+  return rev.actorName ?? 'Owner';
+}
+
+/** The line for options a write removed along with the card they led to
+ *  (a card delete, or restoring a "card added" revision). */
+export function droppedText(dropped: readonly { cardSlug: string; label: string }[]): string {
+  if (dropped.length === 0) return '';
+  const parts = dropped.map((d) => `"${d.label}" on ${d.cardSlug}`);
+  return `Removed ${dropped.length === 1 ? 'the option' : 'the options'} to it: ${parts.join(', ')}.`;
+}
+
+/** One page of the catalog, as `GET /api/recall/maps` sends it. */
+export type RecallMapsPage = {
+  maps: RecallMapSummaryDTO[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+/** Every map in the catalog, page by page. The catalog pages at 20, and
+ *  option targets and the page-built list need all of them. Stops at
+ *  `maxPages` so a brain that misreports its total cannot loop forever. */
+export async function fetchAllMaps(
+  fetchPage: (page: number) => Promise<RecallMapsPage>,
+  maxPages = 50,
+): Promise<RecallMapSummaryDTO[]> {
+  const first = await fetchPage(1);
+  const out = [...first.maps];
+  const total = first.total ?? out.length;
+  const size = first.pageSize ?? Math.max(1, first.maps.length);
+  const pages = Math.min(maxPages, Math.ceil(total / size));
+  for (let p = 2; p <= pages; p++) {
+    const next = await fetchPage(p);
+    if (next.maps.length === 0) break;
+    out.push(...next.maps);
+  }
+  return out;
 }
 
 /** Where an option can lead: every other card in this map, and the entry of

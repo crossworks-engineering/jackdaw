@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Map as MapIcon, Plus, Search } from 'lucide-react';
-import type { RecallMapSummaryDTO } from '@mantle/web-ui/types/recall-v2';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -11,25 +10,28 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
 import { StatePill } from '@/components/item-list/state-pill';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { recallAdapter } from '@/components/item-tree/kinds/simple';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useListNav } from '@/lib/use-list-nav';
-import { isPageBuilt } from '@/lib/recall-v2';
+import { fetchAllMaps, isPageBuilt, recallKeys, type RecallMapsPage } from '@/lib/recall-v2';
 import { CompileBadge } from '../compile-badge';
 import { CreateMapDialog } from './map-dialogs';
-import { MapWorkbench } from './map-workbench';
-import { PageBuiltMap } from './page-built-map';
+import { MapWorkbench, type EditGuard } from './map-workbench';
+import { useLeaveGuard } from './use-leave-guard';
 
 export type RecallV2View = 'cards' | 'graph' | 'revisions';
-
-type MapsPage = {
-  maps: RecallMapSummaryDTO[];
-  total?: number;
-  page?: number;
-  pageSize?: number;
-};
 
 /**
  * Recall v2: the native map editor. A map is one `recall` item and its cards
@@ -62,7 +64,7 @@ export function RecallV2Client({
       if (q) params.set('q', q);
       if (page > 1) params.set('page', String(page));
       const qs = params.toString();
-      return apiFetch<MapsPage>(`/api/recall/maps${qs ? `?${qs}` : ''}`);
+      return apiFetch<RecallMapsPage>(`/api/recall/maps${qs ? `?${qs}` : ''}`);
     },
     placeholderData: (prev) => prev,
   });
@@ -104,7 +106,7 @@ function RecallV2View({
   q,
   page,
 }: {
-  data: MapsPage;
+  data: RecallMapsPage;
   selected: string | null;
   view: RecallV2View;
   card: string | null;
@@ -112,8 +114,37 @@ function RecallV2View({
   page: number;
 }) {
   const { pending: navPending, go } = useListNav();
+  const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
   const maps = data.maps;
+
+  // Every map, not just this page of the catalog: option targets can lead to
+  // any published map, and the tree's page-built list must reach all of
+  // them. The page itself still drives the list mode's cards and pager.
+  const allQuery = useQuery({
+    queryKey: recallKeys.allMaps,
+    queryFn: () =>
+      fetchAllMaps((p) => apiFetch<RecallMapsPage>(`/api/recall/maps${p > 1 ? `?page=${p}` : ''}`)),
+  });
+  const allMaps = allQuery.data ?? maps;
+
+  // The unsaved-edit guard. The card editor reports whether it holds unsaved
+  // edits; anything here that would unmount it (another map, a new map, a
+  // link off the screen, closing the tab) asks first.
+  const [dirty, setDirty] = useState(false);
+  const [held, setHeld] = useState<(() => void) | null>(null);
+  const guarded = useCallback(
+    (nav: () => void) => {
+      if (dirty) setHeld(() => nav);
+      else nav();
+    },
+    [dirty],
+  );
+  useLeaveGuard(dirty, guarded);
+  const guard: EditGuard = useMemo(
+    () => ({ dirty, onDirtyChange: setDirty, guarded }),
+    [dirty, guarded],
+  );
   const total = data.total ?? maps.length;
   const pageSize = data.pageSize ?? Math.max(1, maps.length);
 
@@ -125,14 +156,21 @@ function RecallV2View({
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
   const [treeQuery, setTreeQuery] = useState('');
-  const pageBuilt = maps.filter((m) => isPageBuilt(m));
+  const pageBuilt = allMaps.filter((m) => isPageBuilt(m));
 
+  // The URL's map when it names one, even off this page of the catalog (the
+  // workbench loads it by id); else the first map shown.
   const selectedId = useMemo(() => {
-    if (showTree) return selected ?? maps.find((m) => !isPageBuilt(m))?.id ?? null;
-    if (selected && maps.some((m) => m.id === selected)) return selected;
+    if (selected) return selected;
+    if (showTree) return allMaps.find((m) => !isPageBuilt(m))?.id ?? null;
     return maps[0]?.id ?? null;
-  }, [maps, selected, showTree]);
-  const selectedMap = maps.find((m) => m.id === selectedId) ?? null;
+  }, [maps, allMaps, selected, showTree]);
+
+  /** Open another map, asking first when the open card has unsaved edits. */
+  const openMap = (id: string) => {
+    if (id === selectedId) return;
+    guarded(() => go({ selected: id, card: null }));
+  };
 
   const [searchInput, setSearchInput] = useState(q);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -142,16 +180,22 @@ function RecallV2View({
   }, [q]);
   useEffect(() => {
     const h = setTimeout(() => {
-      if (searchInput.trim() !== q) go({ q: searchInput.trim() || null, page: null });
+      // Pin the open map, so a search that no longer lists it does not
+      // swap it out (and throw away an edit in progress).
+      if (searchInput.trim() !== q) {
+        go({ q: searchInput.trim() || null, page: null, selected: selected ?? selectedId });
+      }
     }, 350);
     return () => clearTimeout(h);
-  }, [searchInput, q, go]);
+  }, [searchInput, q, go, selected, selectedId]);
 
   const createDialog = creating && (
     <CreateMapDialog
       open
       onOpenChange={setCreating}
-      onCreated={(mapId) => go({ selected: mapId, view: null, card: null, q: null, page: null })}
+      onCreated={(mapId) =>
+        guarded(() => go({ selected: mapId, view: null, card: null, q: null, page: null }))
+      }
     />
   );
 
@@ -205,11 +249,7 @@ function RecallV2View({
           </p>
         ) : (
           maps.map((m) => (
-            <ListCard
-              key={m.id}
-              selected={m.id === selectedId}
-              onClick={() => go({ selected: m.id, card: null })}
-            >
+            <ListCard key={m.id} selected={m.id === selectedId} onClick={() => openMap(m.id)}>
               <ListCardTitle className="flex items-center gap-2">
                 <span className="min-w-0 truncate">{m.title}</span>
                 {isPageBuilt(m) ? (
@@ -255,25 +295,23 @@ function RecallV2View({
         total={total}
         pageSize={pageSize}
         pending={navPending}
-        onGo={(p) => go({ page: p > 1 ? p : null })}
+        onGo={(p) => go({ page: p > 1 ? p : null, selected: selected ?? selectedId })}
       />
     </div>
   );
 
-  let detail = null;
-  if (selectedMap && isPageBuilt(selectedMap)) {
-    detail = <PageBuiltMap map={selectedMap} />;
-  } else if (selectedId) {
-    detail = (
-      <MapWorkbench
-        key={selectedId}
-        mapId={selectedId}
-        catalog={maps}
-        view={view}
-        cardSlug={card}
-      />
-    );
-  }
+  // The workbench decides page-built or native from the map itself, so a
+  // map opened by id (the URL, the tree) is never edited as the wrong kind.
+  const detail = selectedId ? (
+    <MapWorkbench
+      key={selectedId}
+      mapId={selectedId}
+      catalog={allMaps}
+      view={view}
+      cardSlug={card}
+      guard={guard}
+    />
+  ) : null;
 
   const newMapButton = (
     <Button size="sm" onClick={() => setCreating(true)}>
@@ -291,8 +329,11 @@ function RecallV2View({
           onQueryChange={setTreeQuery}
           searchPlaceholder="Search maps and folders…"
           actions={newMapButton}
-          onOpenItem={(item) => go({ selected: item.id, card: null })}
+          onOpenItem={(item) => openMap(item.id)}
           onUnsupported={() => setTreeGone(true)}
+          // A move changes a map's folder, which the catalog and the map's
+          // header show; the tree refreshes itself.
+          onChanged={() => void qc.invalidateQueries({ queryKey: recallKeys.maps })}
         />
       </div>
       {pageBuilt.length > 0 && (
@@ -303,11 +344,7 @@ function RecallV2View({
             Page-built maps
           </h3>
           {pageBuilt.map((m) => (
-            <ListCard
-              key={m.id}
-              selected={m.id === selectedId}
-              onClick={() => go({ selected: m.id, card: null })}
-            >
+            <ListCard key={m.id} selected={m.id === selectedId} onClick={() => openMap(m.id)}>
               <ListCardTitle className="flex items-center gap-2">
                 <span className="min-w-0 truncate">{m.title}</span>
                 <CompileBadge ok={m.lastCompileOk} compiled={m.nodeCount > 0} />
@@ -325,6 +362,35 @@ function RecallV2View({
         <MasterDetail id="recall-v2" list={showTree ? tree : list} detail={detail} detailFills />
       </div>
       {createDialog}
+      <AlertDialog
+        open={held !== null}
+        onOpenChange={(o) => {
+          if (!o) setHeld(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The open card has edits that are not saved. Leaving it throws them away.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const nav = held;
+                setHeld(null);
+                setDirty(false);
+                nav?.();
+              }}
+            >
+              Discard changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

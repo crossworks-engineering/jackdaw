@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Settings2, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import type {
   RecallCardDetailDTO,
   RecallMapDetailDTO,
   RecallMapSummaryDTO,
   RecallWriteResultDTO,
 } from '@mantle/web-ui/types/recall-v2';
-import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { RECALL_MAX_MAP_NODES } from '@mantle/content-core/recall-compile';
+import { apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
@@ -29,60 +30,70 @@ import { treeKey } from '@/components/item-tree/tree-api';
 import { useListNav } from '@/lib/use-list-nav';
 import {
   RECALL_ENTRY_SLUG,
-  editsOf,
-  cardWriteBody,
+  isPageBuilt,
+  linkFromBody,
   recallKeys,
-  withOption,
   writeErrorText,
 } from '@/lib/recall-v2';
 import { RecallGraph } from '../recall-graph';
 import { CardEditor } from './card-editor';
 import { CardList } from './card-list';
 import { AddCardDialog, MapSettingsDialog } from './map-dialogs';
+import { PageBuiltMap } from './page-built-map';
 import { RevisionsPanel } from './revisions-panel';
-import { useMapWrite } from './use-map-write';
+import { cardQuery, mapQuery, useMapWrite } from './use-map-write';
 import type { RecallV2View } from './recall-v2-client';
 
+/** What the screen hands the workbench for its unsaved-edit guard: whether
+ *  the open card has unsaved edits, and a way to run a navigation that would
+ *  lose them (it asks first). */
+export type EditGuard = {
+  dirty: boolean;
+  onDirtyChange: (dirty: boolean) => void;
+  guarded: (nav: () => void) => void;
+};
+
 /**
- * One native map: its header (publish, settings, delete) and three views of
- * it. Cards is the editor; Graph draws the same rows; Revisions is the log
- * of every write, agents' included, with restore.
+ * One map. A native map gets its header (publish, settings, delete) and three
+ * views of it: Cards is the editor; Graph draws the same rows; Revisions is
+ * the log of every write, agents' included, with restore. A page-built (v1)
+ * map opens read-only, whatever route led here: every v2 write to it would be
+ * refused.
  */
 export function MapWorkbench({
   mapId,
   catalog,
   view,
   cardSlug,
+  guard,
 }: {
   mapId: string;
   catalog: RecallMapSummaryDTO[];
   view: RecallV2View;
   cardSlug: string | null;
+  guard: EditGuard;
 }) {
-  const mapQuery = useQuery({
-    queryKey: recallKeys.map(mapId),
-    queryFn: () =>
-      apiFetch<{ map: RecallMapDetailDTO }>(`/api/recall/maps/${mapId}`).then((r) => r.map),
-  });
+  const q = useQuery(mapQuery(mapId));
 
-  if (mapQuery.isPending) {
+  if (q.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-6" />
       </div>
     );
   }
-  if (mapQuery.isError) {
+  if (q.isError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>Could not load this map.</p>
-        <Button variant="outline" size="sm" onClick={() => mapQuery.refetch()}>
+        <Button variant="outline" size="sm" onClick={() => q.refetch()}>
           Retry
         </Button>
       </div>
     );
   }
-  return <Workbench map={mapQuery.data} catalog={catalog} view={view} cardSlug={cardSlug} />;
+  if (isPageBuilt(q.data)) return <PageBuiltMap map={q.data} />;
+  return <Workbench map={q.data} catalog={catalog} view={view} cardSlug={cardSlug} guard={guard} />;
 }
 
 function Workbench({
@@ -90,11 +101,13 @@ function Workbench({
   catalog,
   view,
   cardSlug,
+  guard,
 }: {
   map: RecallMapDetailDTO;
   catalog: RecallMapSummaryDTO[];
   view: RecallV2View;
   cardSlug: string | null;
+  guard: EditGuard;
 }) {
   const { go } = useListNav();
   const qc = useQueryClient();
@@ -103,18 +116,7 @@ function Workbench({
   const [settings, setSettings] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adding, setAdding] = useState(false);
-  // Whether the open card has unsaved edits. Lifted here because adding a
-  // card "from" it must not rewrite its options underneath those edits.
-  const [dirty, setDirty] = useState(false);
-  // A navigation held back because the open card has unsaved edits.
-  const [held, setHeld] = useState<(() => void) | null>(null);
-
-  /** Run a navigation that would unmount the card editor, asking first when
-   *  it holds unsaved edits. */
-  function guarded(nav: () => void) {
-    if (dirty) setHeld(() => nav);
-    else nav();
-  }
+  const { dirty, guarded } = guard;
 
   const open =
     map.nodes.find((n) => n.slug === cardSlug) ??
@@ -156,16 +158,19 @@ function Workbench({
     }
   }
 
-  // Shows the new order at once, then writes it. A refused write refreshes
-  // the map, which puts the brain's order back.
+  // Shows the new order at once, then writes it. Any refusal puts the old
+  // order back straight away and reloads the map, so the list never shows
+  // an order the brain does not hold.
   async function reorder(slugs: string[]) {
-    qc.setQueryData<RecallMapDetailDTO>(recallKeys.map(map.id), (m) => {
+    const key = recallKeys.map(map.id);
+    const before = qc.getQueryData<RecallMapDetailDTO>(key);
+    qc.setQueryData<RecallMapDetailDTO>(key, (m) => {
       if (!m) return m;
       const bySlug = new Map(m.nodes.map((n) => [n.slug, n]));
       const nodes = slugs.flatMap((s) => bySlug.get(s) ?? []);
       return nodes.length === m.nodes.length ? { ...m, nodes } : m;
     });
-    await write.run(
+    const res = await write.run(
       (version) =>
         apiSend<RecallWriteResultDTO>(`/api/recall/maps/${map.id}/cards/reorder`, 'POST', {
           slugs,
@@ -173,23 +178,44 @@ function Workbench({
         }),
       'Could not move the card.',
     );
+    if (!res) {
+      if (before) {
+        qc.setQueryData<RecallMapDetailDTO>(key, (m) =>
+          m ? { ...m, nodes: before.nodes } : before,
+        );
+      }
+      void qc.invalidateQueries({ queryKey: key, exact: true });
+    }
   }
 
-  // "Link from" for a new card: read the open card fresh (the list shape has
-  // no body) and write it back whole, with one more option.
-  async function linkFrom(fromSlug: string, targetSlug: string, label: string) {
-    const card = await apiFetch<{ card: RecallCardDetailDTO }>(
-      `/api/recall/maps/${map.id}/cards/${fromSlug}`,
-    ).then((r) => r.card);
-    const edits = withOption(editsOf(card), { label, useWhen: '', targetSlug });
+  // "Link from" for a new card: read the card it was added from fresh (the
+  // list shape has no body) and give it one more option. The card is already
+  // made by now, so a failure here is reported, never retried.
+  async function linkFrom(
+    from: { slug: string; title: string },
+    targetSlug: string,
+    label: string,
+  ) {
+    const failed = (why: string) =>
+      toast.error(
+        `The card was added, but the option to it from ${from.title} was not: ${why} Add it from that card's options.`,
+      );
+    let card: RecallCardDetailDTO;
+    try {
+      card = await qc.fetchQuery({ ...cardQuery(map.id, from.slug), staleTime: 0 });
+    } catch (err) {
+      failed(writeErrorText(err, 'the card could not be read.'));
+      return;
+    }
     await write.run(
       (version) =>
         apiSend<RecallWriteResultDTO>(
-          `/api/recall/maps/${map.id}/cards/${fromSlug}`,
+          `/api/recall/maps/${map.id}/cards/${from.slug}`,
           'PUT',
-          cardWriteBody(edits, version),
+          linkFromBody(card, { label, useWhen: '', targetSlug }, version),
         ),
-      'The card was added, but the option to it was not. Add it from the options list.',
+      'Could not add the option.',
+      { onError: (err) => failed(writeErrorText(err, 'the write was refused.')) },
     );
   }
 
@@ -269,6 +295,30 @@ function Workbench({
         )}
       </div>
 
+      {/* The last write's advisory warnings. They are about the map (an
+          orphan card, an entry card with no options), so they sit above
+          every view rather than inside one card. */}
+      {write.warnings.length > 0 && (
+        <div className="flex items-start gap-2 border-b border-border bg-warning/5 px-4 py-2 text-xs">
+          <ul className="min-w-0 flex-1 space-y-1">
+            {write.warnings.map((w, i) => (
+              <li key={`${w.code}-${i}`} className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning-ink" aria-hidden />
+                <span>{w.message}</span>
+              </li>
+            ))}
+          </ul>
+          <Button
+            variant="ghost"
+            size="icon-2xs"
+            aria-label="Dismiss the warnings"
+            onClick={write.clearWarnings}
+          >
+            <X />
+          </Button>
+        </div>
+      )}
+
       <div className="relative min-h-0 flex-1">
         {view === 'graph' ? (
           <RecallGraph
@@ -287,7 +337,7 @@ function Workbench({
               onReorder={reorder}
               onAdd={() => setAdding(true)}
               busy={write.pending}
-              full={map.nodes.length >= 100}
+              full={map.nodes.length >= RECALL_MAX_MAP_NODES}
             />
             <div className="min-h-0 min-w-0 flex-1">
               {open ? (
@@ -297,7 +347,7 @@ function Workbench({
                   node={open}
                   catalog={catalog}
                   write={write}
-                  onDirtyChange={setDirty}
+                  onDirtyChange={guard.onDirtyChange}
                   onDeleted={() => openCard(RECALL_ENTRY_SLUG)}
                 />
               ) : (
@@ -317,37 +367,9 @@ function Workbench({
           open
           onOpenChange={setAdding}
           onAdded={(slug) => openCardGuarded(slug)}
-          linkFrom={open && !dirty ? (slug, title) => linkFrom(open.slug, slug, title) : null}
+          linkFrom={open && !dirty ? (slug, title) => linkFrom(open, slug, title) : null}
         />
       )}
-      <AlertDialog
-        open={held !== null}
-        onOpenChange={(o) => {
-          if (!o) setHeld(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The open card has edits that are not saved. Leaving it throws them away.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const nav = held;
-                setHeld(null);
-                setDirty(false);
-                nav?.();
-              }}
-            >
-              Discard changes
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       <AlertDialog open={deleting} onOpenChange={setDeleting}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -360,7 +382,12 @@ function Workbench({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteMap}>Delete map</AlertDialogAction>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={deleteMap}
+            >
+              Delete map
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

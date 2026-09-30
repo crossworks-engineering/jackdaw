@@ -23,8 +23,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { recallKeys, restoreBlockedReason } from '@/lib/recall-v2';
-import type { useMapWrite } from './use-map-write';
+import {
+  actorLabel,
+  droppedText,
+  recallKeys,
+  restoreBlockedReason,
+  restoreCopy,
+} from '@/lib/recall-v2';
+import type { MapWrite } from './use-map-write';
 
 /**
  * The map's write log, newest first: the last 50 writes, the owner's and
@@ -32,16 +38,12 @@ import type { useMapWrite } from './use-map-write';
  * agent's card edit the moment it is written.
  *
  * Restore puts back what a write replaced, as a new write of its own (so it
- * is logged too, and can itself be undone). For two kinds of write a restore
- * would change nothing, and those rows say why instead of offering it.
+ * is logged too). What that means differs by kind of write, so the confirm
+ * says it for the row at hand. "map created" has nothing before it and is
+ * not offered; anything else the brain cannot restore (an old reorder that
+ * kept no order) is refused with a sentence, shown as it comes.
  */
-export function RevisionsPanel({
-  map,
-  write,
-}: {
-  map: RecallMapDetailDTO;
-  write: ReturnType<typeof useMapWrite>;
-}) {
+export function RevisionsPanel({ map, write }: { map: RecallMapDetailDTO; write: MapWrite }) {
   const toast = useToast();
   const [confirming, setConfirming] = useState<RecallRevisionDTO | null>(null);
   const revQuery = useQuery({
@@ -55,12 +57,16 @@ export function RevisionsPanel({
   async function restore(rev: RecallRevisionDTO) {
     setConfirming(null);
     // Restore reads the map's version itself; `run` is still the path, for
-    // the refresh and the error handling.
+    // the refresh and the error handling. Not tracked as this tab's own
+    // write, since it did not send the version it was given.
     const res = await write.run(
       () => apiSend<RecallWriteResultDTO>(`/api/recall/revisions/${rev.id}/restore`, 'POST'),
       'Could not restore that revision.',
+      { track: false },
     );
-    if (res) toast.success('Restored.');
+    if (!res) return;
+    const dropped = droppedText(res.optionsDropped ?? []);
+    toast.success(dropped ? `Restored. ${dropped}` : 'Restored.');
   }
 
   if (revQuery.isPending) {
@@ -100,9 +106,13 @@ export function RevisionsPanel({
           return (
             <li key={rev.id} className="flex items-center gap-3 py-2.5">
               {agent ? (
-                <Bot className="size-4 shrink-0 text-info-ink" aria-label="An agent" />
+                <Bot role="img" aria-label="Agent" className="size-4 shrink-0 text-info-ink" />
               ) : (
-                <User className="size-4 shrink-0 text-muted-foreground" aria-label="You" />
+                <User
+                  role="img"
+                  aria-label="Owner"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">
@@ -114,7 +124,7 @@ export function RevisionsPanel({
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground" title={formatDateTime(rev.createdAt)}>
-                  {rev.actorName ?? (agent ? 'An agent' : 'Owner')} · {updatedAgo(rev.createdAt)}
+                  {actorLabel(rev)} · {updatedAgo(rev.createdAt)}
                 </p>
               </div>
               <Button
@@ -141,8 +151,8 @@ export function RevisionsPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>Restore “{confirming?.summary}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              This puts back what that write replaced, as a new write. The current version is kept
-              in the log, so this can be undone the same way.
+              {confirming && restoreCopy(confirming)} The restore is a write of its own and shows in
+              this log.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

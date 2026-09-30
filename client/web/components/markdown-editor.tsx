@@ -35,11 +35,14 @@ export function MarkdownEditor({
   className,
   height = 'h-[30rem]',
   defaultMode = 'split',
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** The textarea's id, so a `<FieldLabel htmlFor>` can name it. */
+  id?: string;
   /** Tailwind height class for the editor body. */
   height?: string;
   defaultMode?: Mode;
@@ -146,6 +149,7 @@ export function MarkdownEditor({
         {showEditor && (
           <Textarea
             ref={ref}
+            id={id}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}

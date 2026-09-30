@@ -2,20 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { RecallCardDetailDTO, RecallMapSummaryDTO } from '@mantle/web-ui/types/recall-v2';
 import {
+  actorLabel,
   budgetState,
   cardProblems,
   cardWriteBody,
+  droppedText,
   dropCard,
   editsOf,
+  fetchAllMaps,
   isPageBuilt,
   isStale,
+  linkFromBody,
   moveCard,
+  normalisedEdits,
   optionTargets,
   optionTargetValue,
   recallV2Of,
   restoreBlockedReason,
+  restoreCopy,
   sameEdits,
-  withOption,
+  versionState,
   writeErrorText,
 } from './recall-v2';
 
@@ -75,32 +81,82 @@ describe('isPageBuilt', () => {
 });
 
 describe('cardWriteBody', () => {
-  it('keeps a prompt a prompt: a PUT without prompt:true demotes it', () => {
-    const body = cardWriteBody(editsOf(card({ kind: 'prompt', useWhen: 'deploying' })), 7);
-    expect(body.prompt).toBe(true);
+  it('leaves prompt out when the switch was not moved, so the brain keeps the state', () => {
+    const base = editsOf(card({ kind: 'prompt', useWhen: 'deploying' }));
+    const body = cardWriteBody({ ...base, bodyMd: 'new' }, base, 7);
+    expect('prompt' in body).toBe(false);
     expect(body.useWhen).toBe('deploying');
     expect(body.version).toBe(7);
+  });
+  it('keeps an agent request alive: a pending card saved untouched sends no prompt', () => {
+    const base = editsOf(card({ kind: 'knowledge', promptPending: true }));
+    expect(base.prompt).toBe(false);
+    const body = cardWriteBody({ ...base, title: 'Renamed' }, base, 2);
+    expect('prompt' in body).toBe(false);
+  });
+  it('sends prompt when the owner moved the switch, either way', () => {
+    const knowledge = editsOf(card());
+    expect(cardWriteBody({ ...knowledge, prompt: true }, knowledge, 1).prompt).toBe(true);
+    const prompt = editsOf(card({ kind: 'prompt', useWhen: 'x' }));
+    expect(cardWriteBody({ ...prompt, prompt: false }, prompt, 1).prompt).toBe(false);
+  });
+  it('treats a switch moved and moved back as untouched', () => {
+    const base = editsOf(card({ promptPending: true }));
+    const body = cardWriteBody({ ...base, prompt: false }, base, 1);
+    expect('prompt' in body).toBe(false);
+  });
+  it('never sends prompt for the entry card, which has no switch', () => {
+    const base = editsOf(card({ slug: 'start', kind: 'index' }));
+    expect('prompt' in cardWriteBody({ ...base, bodyMd: 'x' }, base, 1)).toBe(false);
   });
   it('always sends the whole option list, without the brain-owned targetId', () => {
     const c = card({
       options: [{ label: 'Boxes', useWhen: 'which box', targetSlug: 'boxes', targetId: 'id-1' }],
     });
-    const body = cardWriteBody(editsOf(c), 1);
+    const body = cardWriteBody(editsOf(c), editsOf(c), 1);
     expect(body.options).toEqual([{ label: 'Boxes', useWhen: 'which box', targetSlug: 'boxes' }]);
   });
   it('keeps a cross-map target', () => {
     const c = card({
       options: [{ label: 'DFM', useWhen: '', targetSlug: 'dfm', targetMap: 'dfm' }],
     });
-    expect(cardWriteBody(editsOf(c), 1).options?.[0]?.targetMap).toBe('dfm');
+    expect(cardWriteBody(editsOf(c), editsOf(c), 1).options?.[0]?.targetMap).toBe('dfm');
   });
-  it('trims the title and use-when, and adds `after` only for a new card', () => {
-    const e = { ...editsOf(card()), title: '  Fleet  ', useWhen: ' x ' };
-    const body = cardWriteBody(e, 1);
+  it('trims the title, use-when and option text, and never sends a slug or after', () => {
+    const base = editsOf(card());
+    const e = {
+      ...base,
+      title: '  Fleet  ',
+      useWhen: ' x ',
+      options: [{ label: ' a ', useWhen: ' b ', targetSlug: 'c' }],
+    };
+    const body = cardWriteBody(e, base, 1);
     expect(body.title).toBe('Fleet');
     expect(body.useWhen).toBe('x');
+    expect(body.options).toEqual([{ label: 'a', useWhen: 'b', targetSlug: 'c' }]);
     expect('after' in body).toBe(false);
-    expect(cardWriteBody(e, 1, 'start').after).toBe('start');
+    expect('slug' in body).toBe(false);
+  });
+});
+
+describe('linkFromBody', () => {
+  it('sends only title, body and the options, so use-when and prompt state are kept', () => {
+    const parent = card({
+      kind: 'knowledge',
+      promptPending: true,
+      useWhen: 'asked about fleet',
+      options: [{ label: 'a', useWhen: '', targetSlug: 'x', targetId: 'drop-me' }],
+    });
+    const body = linkFromBody(parent, { label: 'New', useWhen: '', targetSlug: 'new' }, 9);
+    expect(body).toEqual({
+      title: 'Fleet',
+      bodyMd: 'body',
+      options: [
+        { label: 'a', useWhen: '', targetSlug: 'x' },
+        { label: 'New', useWhen: '', targetSlug: 'new' },
+      ],
+      version: 9,
+    });
   });
 });
 
@@ -112,6 +168,29 @@ describe('sameEdits', () => {
     const b = { ...a, options: [{ label: 'a', useWhen: '', targetSlug: 'b' }] };
     expect(sameEdits(a, b)).toBe(true);
     expect(sameEdits(a, { ...a, bodyMd: 'changed' })).toBe(false);
+  });
+  it('ignores trailing spaces the save trims, so a saved card is not left dirty', () => {
+    const a = editsOf(card());
+    expect(sameEdits(a, { ...a, title: 'Fleet ', useWhen: ' ' })).toBe(true);
+    expect(normalisedEdits({ ...a, title: ' Fleet ' }).title).toBe('Fleet');
+  });
+});
+
+describe('versionState', () => {
+  it('is same when nothing was written', () => {
+    expect(versionState(4, 4, {})).toBe('same');
+  });
+  it('follows a run of the tab own writes', () => {
+    expect(versionState(4, 6, { 4: 5, 5: 6 })).toBe('own');
+    expect(versionState(4, 5, { 4: 5, 5: 6 })).toBe('own');
+  });
+  it('calls anything else foreign, including an own write made from a newer version', () => {
+    expect(versionState(4, 5, {})).toBe('foreign');
+    // An agent wrote 5; the owner then published from 5 to 6.
+    expect(versionState(4, 6, { 5: 6 })).toBe('foreign');
+  });
+  it('waits on a cached map older than the edit', () => {
+    expect(versionState(6, 5, {})).toBe('behind');
   });
 });
 
@@ -174,18 +253,6 @@ describe('dropCard', () => {
   });
 });
 
-describe('withOption', () => {
-  it('appends without touching the existing options', () => {
-    const e = editsOf(card({ options: [{ label: 'a', useWhen: '', targetSlug: 'x' }] }));
-    const next = withOption(e, { label: 'b', useWhen: '', targetSlug: 'y', targetId: 'drop-me' });
-    expect(next.options).toEqual([
-      { label: 'a', useWhen: '', targetSlug: 'x' },
-      { label: 'b', useWhen: '', targetSlug: 'y' },
-    ]);
-    expect(e.options).toHaveLength(1);
-  });
-});
-
 describe('write errors', () => {
   const stale = new ApiError('changed', 409, { error: 'changed', code: 'version_stale' });
   it('recognises a stale version by its code', () => {
@@ -206,13 +273,100 @@ describe('write errors', () => {
 });
 
 describe('restore guards', () => {
-  it('blocks only the revisions whose restore would change nothing', () => {
-    for (const s of ['map created', 'cards reordered']) {
-      expect(restoreBlockedReason({ summary: s })).not.toBeNull();
-    }
-    for (const s of ['card edited', 'card deleted', 'prompt confirmed', 'prompt request dropped']) {
+  it('blocks only a map create, which has nothing before it', () => {
+    expect(restoreBlockedReason({ summary: 'map created' })).not.toBeNull();
+    for (const s of [
+      'cards reordered',
+      'card added',
+      'card edited',
+      'card deleted',
+      'prompt confirmed',
+      'prompt request dropped',
+      'renamed, slug changed',
+    ]) {
       expect(restoreBlockedReason({ summary: s })).toBeNull();
     }
+  });
+});
+
+describe('restoreCopy', () => {
+  it('says a card add is undone by deleting the card', () => {
+    expect(restoreCopy({ summary: 'card added', cardSlug: 'fleet' })).toMatch(
+      /^Deletes the card fleet again\./,
+    );
+  });
+  it('says a delete comes back with its old slug, place and inbound options', () => {
+    const t = restoreCopy({ summary: 'card deleted', cardSlug: 'fleet' });
+    expect(t).toMatch(/old link name/);
+    expect(t).toMatch(/options other cards had to it/);
+  });
+  it('keeps a prompt restore to the prompt state', () => {
+    expect(restoreCopy({ summary: 'prompt confirmed', cardSlug: 'x' })).toMatch(
+      /only whether the card x is a prompt/,
+    );
+  });
+  it('covers reorders, publish flips and other map changes', () => {
+    expect(restoreCopy({ summary: 'cards reordered', cardSlug: null })).toMatch(/order/);
+    expect(restoreCopy({ summary: 'published', cardSlug: null })).toMatch(/^Unpublishes/);
+    expect(restoreCopy({ summary: 'renamed, slug changed', cardSlug: null })).toMatch(
+      /map settings/,
+    );
+  });
+  it('never uses a dash as a sentence break', () => {
+    for (const summary of ['card added', 'card edited', 'card deleted', 'cards reordered', 'x']) {
+      expect(restoreCopy({ summary, cardSlug: 'a' })).not.toMatch(/[\u2013\u2014]/);
+    }
+  });
+});
+
+describe('actorLabel', () => {
+  it('names the agent, an MCP client and the admin, and falls back on old rows', () => {
+    expect(actorLabel({ actorKind: 'agent', actorName: 'rea' })).toBe('Agent rea');
+    expect(actorLabel({ actorKind: 'agent', actorName: 'mcp' })).toBe('An MCP client');
+    expect(actorLabel({ actorKind: 'agent', actorName: null })).toBe('An agent');
+    expect(actorLabel({ actorKind: 'owner', actorName: 'Jason' })).toBe('Jason');
+    expect(actorLabel({ actorKind: 'owner', actorName: null })).toBe('Owner');
+  });
+});
+
+describe('droppedText', () => {
+  it('names each removed option by its label and card', () => {
+    expect(droppedText([])).toBe('');
+    expect(droppedText([{ cardSlug: 'start', label: 'Fleet' }])).toBe(
+      'Removed the option to it: "Fleet" on start.',
+    );
+    expect(
+      droppedText([
+        { cardSlug: 'start', label: 'Fleet' },
+        { cardSlug: 'boxes', label: 'Back' },
+      ]),
+    ).toBe('Removed the options to it: "Fleet" on start, "Back" on boxes.');
+  });
+});
+
+describe('fetchAllMaps', () => {
+  const many = Array.from({ length: 45 }, (_, i) => summary({ id: `m${i}`, slug: `m${i}` }));
+  it('reads every page of the catalog', async () => {
+    const pages: number[] = [];
+    const out = await fetchAllMaps(async (p) => {
+      pages.push(p);
+      return { maps: many.slice((p - 1) * 20, p * 20), total: 45, page: p, pageSize: 20 };
+    });
+    expect(pages).toEqual([1, 2, 3]);
+    expect(out).toHaveLength(45);
+  });
+  it('stops at an empty page and at the page cap', async () => {
+    const out = await fetchAllMaps(
+      async (p) => ({ maps: p === 1 ? many.slice(0, 20) : [], total: 999, pageSize: 20 }),
+      10,
+    );
+    expect(out).toHaveLength(20);
+    let calls = 0;
+    await fetchAllMaps(async () => {
+      calls++;
+      return { maps: many.slice(0, 20), total: 10_000, pageSize: 20 };
+    }, 3);
+    expect(calls).toBe(3);
   });
 });
 

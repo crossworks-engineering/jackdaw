@@ -24,12 +24,10 @@ export function OptionsEditor({
   options,
   targets,
   onChange,
-  disabled,
 }: {
   options: RecallOptionDTO[];
   targets: OptionTarget[];
   onChange: (options: RecallOptionDTO[]) => void;
-  disabled?: boolean;
 }) {
   function update(i: number, patch: Partial<RecallOptionDTO>) {
     onChange(options.map((o, j) => (j === i ? { ...o, ...patch } : o)));
@@ -64,11 +62,7 @@ export function OptionsEditor({
             key={i}
             className="grid grid-cols-1 gap-2 rounded-md border border-border bg-card p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
           >
-            <Select
-              value={o.targetSlug ? value : undefined}
-              onValueChange={(v) => setTarget(i, v)}
-              disabled={disabled}
-            >
+            <Select value={o.targetSlug ? value : undefined} onValueChange={(v) => setTarget(i, v)}>
               <SelectTrigger aria-label={`Option ${i + 1} target`} className="h-9">
                 <SelectValue placeholder="Go to…" />
               </SelectTrigger>
@@ -89,14 +83,12 @@ export function OptionsEditor({
               onChange={(e) => update(i, { label: e.target.value })}
               placeholder="Label"
               className="h-9"
-              disabled={disabled}
             />
             <Button
               variant="ghost"
               size="icon-sm"
               aria-label={`Remove option ${i + 1}`}
               onClick={() => onChange(options.filter((_, j) => j !== i))}
-              disabled={disabled}
             >
               <X />
             </Button>
@@ -106,7 +98,6 @@ export function OptionsEditor({
               onChange={(e) => update(i, { useWhen: e.target.value })}
               placeholder="Use when… (optional)"
               className="h-9 sm:col-span-3"
-              disabled={disabled}
             />
           </div>
         );
@@ -115,7 +106,7 @@ export function OptionsEditor({
         variant="outline"
         size="xs"
         onClick={() => onChange([...options, { label: '', useWhen: '', targetSlug: '' }])}
-        disabled={disabled || targets.length === 0}
+        disabled={targets.length === 0}
       >
         <Plus /> Option
       </Button>

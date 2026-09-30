@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Sparkles, Trash2 } from 'lucide-react';
 import type {
   RecallCardDetailDTO,
@@ -11,7 +11,7 @@ import type {
   RecallWriteResultDTO,
 } from '@mantle/web-ui/types/recall-v2';
 import { RECALL_BODY_CHAR_BUDGET } from '@mantle/content-core/recall-compile';
-import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -36,19 +36,23 @@ import {
   budgetState,
   cardProblems,
   cardWriteBody,
+  droppedText,
   editsOf,
+  isStale,
+  normalisedEdits,
   optionTargets,
   recallKeys,
   sameEdits,
+  versionState,
+  writeErrorText,
   type CardEdits,
 } from '@/lib/recall-v2';
 import { OptionsEditor } from './options-editor';
-import type { useMapWrite } from './use-map-write';
+import { cardQuery, mapQuery, type MapWrite } from './use-map-write';
 
 /**
  * One card: title, use-when, the Prompt switch, the markdown body with its
- * character budget, and its options. Saving writes the WHOLE card (the brain
- * replaces it), built from what the brain last sent plus these edits.
+ * character budget, and its options.
  *
  * The body is fetched per card: the map's list shape carries only its size,
  * so a 100-card map does not ship every body to draw a sidebar.
@@ -64,30 +68,24 @@ export function CardEditor({
   map: RecallMapDetailDTO;
   node: RecallNodeDTO;
   catalog: RecallMapSummaryDTO[];
-  write: ReturnType<typeof useMapWrite>;
+  write: MapWrite;
   onDirtyChange: (dirty: boolean) => void;
   onDeleted: () => void;
 }) {
-  const cardQuery = useQuery({
-    queryKey: recallKeys.card(map.id, node.slug),
-    queryFn: () =>
-      apiFetch<{ card: RecallCardDetailDTO }>(`/api/recall/maps/${map.id}/cards/${node.slug}`).then(
-        (r) => r.card,
-      ),
-  });
+  const q = useQuery(cardQuery(map.id, node.slug));
 
-  if (cardQuery.isPending) {
+  if (q.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-6" />
       </div>
     );
   }
-  if (cardQuery.isError) {
+  if (q.isError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>Could not load this card.</p>
-        <Button variant="outline" size="sm" onClick={() => cardQuery.refetch()}>
+        <Button variant="outline" size="sm" onClick={() => q.refetch()}>
           Retry
         </Button>
       </div>
@@ -96,7 +94,7 @@ export function CardEditor({
   return (
     <Editor
       map={map}
-      card={cardQuery.data}
+      card={q.data}
       catalog={catalog}
       write={write}
       onDirtyChange={onDirtyChange}
@@ -104,6 +102,10 @@ export function CardEditor({
     />
   );
 }
+
+/** Why the last save did not happen, when it was refused as stale. `gone`:
+ *  the card could not even be reloaded (deleted under the edit). */
+type Refused = 'card' | 'map' | 'gone' | null;
 
 function Editor({
   map,
@@ -116,33 +118,56 @@ function Editor({
   map: RecallMapDetailDTO;
   card: RecallCardDetailDTO;
   catalog: RecallMapSummaryDTO[];
-  write: ReturnType<typeof useMapWrite>;
+  write: MapWrite;
   onDirtyChange: (dirty: boolean) => void;
   onDeleted: () => void;
 }) {
   const toast = useToast();
-  // `baseline` is the card as the brain last sent it; `edits` is the form.
-  const [baseline, setBaseline] = useState<CardEdits>(() => editsOf(card));
-  const [edits, setEdits] = useState<CardEdits>(baseline);
+  const qc = useQueryClient();
+  const fresh = useMemo(() => editsOf(card), [card]);
+  // `base` is the copy the edit started from, and the map version it was
+  // read at: a save sends THAT version, so a change made under the edit is
+  // refused by the brain instead of being overwritten. `edits` is the form.
+  const [base, setBase] = useState<{ edits: CardEdits; version: number }>(() => ({
+    edits: fresh,
+    version: map.version,
+  }));
+  const [edits, setEdits] = useState<CardEdits>(fresh);
+  const [saving, setSaving] = useState(false);
+  const [refused, setRefused] = useState<Refused>(null);
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const dirty = !sameEdits(edits, baseline);
+  const dirty = !sameEdits(edits, base.edits);
 
-  // A fresh copy from the brain (after a save, a restore, or an agent's
-  // edit) replaces the form, unless the owner was mid-edit against the OLD
-  // copy: then their edits stay, and a save is checked against the new
-  // version rather than silently discarding what they typed. After the
-  // owner's own save the form already equals the new copy, so it is clean.
-  const [seen, setSeen] = useState(card.updatedAt);
-  if (card.updatedAt !== seen) {
-    const fresh = editsOf(card);
-    setSeen(card.updatedAt);
-    setBaseline(fresh);
-    if (!dirty) setEdits(fresh);
+  // Has the brain's copy moved away from the base? The card's own content,
+  // or the map version by a write that was not this tab's own.
+  const cardChanged = !sameEdits(fresh, base.edits);
+  const mapState = versionState(base.version, map.version, write.chain);
+  if (!saving) {
+    if (!dirty) {
+      // A clean form follows the brain freely: after a save, a restore, or
+      // an agent's edit, it simply shows the new copy.
+      if (cardChanged || mapState === 'own' || mapState === 'foreign') {
+        setBase({ edits: fresh, version: map.version });
+        setEdits(fresh);
+        if (refused) setRefused(null);
+      }
+    } else if (!cardChanged && mapState === 'own') {
+      // Only the owner's own writes since (publish, reorder, settings): the
+      // edit is still against the card as it is, so it moves up with them.
+      setBase({ edits: base.edits, version: map.version });
+    }
   }
+  // A dirty form is never re-based silently. It says what happened instead.
+  const conflict: 'card' | 'map' | null =
+    !dirty || saving ? null : cardChanged ? 'card' : mapState === 'foreign' ? 'map' : null;
+  const conflictKey = `${map.version}:${card.updatedAt}`;
 
+  // A save in flight is not "unsaved": leaving then must not ask to discard.
+  const unsaved = dirty && !saving;
   useEffect(() => {
-    onDirtyChange(dirty);
-  }, [dirty, onDirtyChange]);
+    onDirtyChange(unsaved);
+  }, [unsaved, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
   const entry = card.slug === RECALL_ENTRY_SLUG;
@@ -151,22 +176,86 @@ function Editor({
   const chars = edits.bodyMd.length;
   const budget = budgetState(chars, RECALL_BODY_CHAR_BUDGET);
   const targets = useMemo(() => optionTargets(map, card.slug, catalog), [map, card.slug, catalog]);
-  const warnings = write.warnings;
 
   function set<K extends keyof CardEdits>(key: K, value: CardEdits[K]) {
     setEdits((e) => ({ ...e, [key]: value }));
   }
 
+  /** Throw the edits away and show the brain's copy as it is now. */
+  function showNewCopy() {
+    setBase({ edits: fresh, version: map.version });
+    setEdits(fresh);
+    setRefused(null);
+  }
+
+  /** After a stale refusal: reload the card and the map, keep the owner's
+   *  text, and make the reloaded copy the base, so the next save is an
+   *  informed one. */
+  async function reloadAfterRefusal() {
+    try {
+      const [m, c] = await Promise.all([
+        qc.fetchQuery({ ...mapQuery(map.id), staleTime: 0 }),
+        qc.fetchQuery({ ...cardQuery(map.id, card.slug), staleTime: 0 }),
+      ]);
+      const reloaded = editsOf(c);
+      setRefused(sameEdits(reloaded, base.edits) ? 'map' : 'card');
+      setBase({ edits: reloaded, version: m.version });
+    } catch {
+      setRefused('gone');
+    }
+  }
+
   async function save() {
-    await write.run(
-      (version) =>
-        apiSend<RecallWriteResultDTO>(
-          `/api/recall/maps/${map.id}/cards/${card.slug}`,
-          'PUT',
-          cardWriteBody(edits, version),
-        ),
-      'Could not save the card.',
-    );
+    const sent = normalisedEdits(edits);
+    let stale = false;
+    setSaving(true);
+    try {
+      const res = await write.run(
+        (version) =>
+          apiSend<RecallWriteResultDTO>(
+            `/api/recall/maps/${map.id}/cards/${card.slug}`,
+            'PUT',
+            cardWriteBody(sent, base.edits, version),
+          ),
+        'Could not save the card.',
+        {
+          version: base.version,
+          onError: (err) => {
+            if (isStale(err)) stale = true;
+            else toast.error(writeErrorText(err, 'Could not save the card.'));
+          },
+        },
+      );
+      if (res) {
+        // Show the saved copy now rather than wait for the refetch: until it
+        // lands, the cached card is the old one, and a clean form would
+        // otherwise follow it back for a moment.
+        const promptMoved = sent.prompt !== base.edits.prompt;
+        qc.setQueryData<RecallCardDetailDTO>(recallKeys.card(map.id, card.slug), (c) =>
+          c
+            ? {
+                ...c,
+                title: sent.title,
+                bodyMd: sent.bodyMd,
+                useWhen: sent.useWhen,
+                options: sent.options,
+                ...(promptMoved
+                  ? { kind: sent.prompt ? 'prompt' : 'knowledge', promptPending: false }
+                  : {}),
+              }
+            : c,
+        );
+        setBase({ edits: sent, version: res.version });
+        // Typed more while it saved: keep that, it is a new edit.
+        setEdits((cur) => (sameEdits(cur, sent) ? sent : cur));
+        setRefused(null);
+      } else if (stale) {
+        toast.error('Not saved: this card or its map changed since you started editing.');
+        await reloadAfterRefusal();
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function answerPrompt(confirm: boolean) {
@@ -193,12 +282,8 @@ function Editor({
     );
     setDeleting(false);
     if (!res) return;
-    const dropped = res.optionsDropped ?? [];
-    toast.success(
-      dropped.length === 0
-        ? 'Card deleted.'
-        : `Card deleted. Removed the options to it on: ${dropped.map((d) => d.cardSlug).join(', ')}.`,
-    );
+    const dropped = droppedText(res.optionsDropped ?? []);
+    toast.success(dropped ? `Card deleted. ${dropped}` : 'Card deleted.');
     onDeleted();
   }
 
@@ -223,6 +308,59 @@ function Editor({
             </Button>
           )}
         </div>
+
+        {refused ? (
+          <div
+            role="alert"
+            className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+          >
+            <p className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive-ink" aria-hidden />
+              <span>
+                {refused === 'card' &&
+                  'Your save did not happen: this card changed since you started editing. The new copy is loaded under your edits. Save again to replace it with yours, or show the new copy and lose your edits.'}
+                {refused === 'map' &&
+                  'Your save did not happen: the map changed since you started editing (another card or its settings). This card is as you last saw it, and your edits are still here. Save again to write them.'}
+                {refused === 'gone' &&
+                  'Your save did not happen, and this card could not be reloaded. It may have been deleted. Copy your text somewhere safe before you leave it.'}
+              </span>
+            </p>
+            {refused === 'card' && (
+              <div className="flex justify-end">
+                <Button size="xs" variant="outline" onClick={showNewCopy}>
+                  Show the new copy
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          conflict &&
+          dismissed !== conflictKey && (
+            <div
+              role="status"
+              className="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm"
+            >
+              <p className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-ink" aria-hidden />
+                <span>
+                  {conflict === 'card'
+                    ? 'This card changed since you started editing, maybe by an agent.'
+                    : 'This map changed since you started editing (another card or its settings, maybe by an agent).'}{' '}
+                  A save now is refused rather than overwrite it; the next save after that writes
+                  your version.
+                </span>
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button size="xs" variant="outline" onClick={() => setDismissed(conflictKey)}>
+                  Keep editing
+                </Button>
+                <Button size="xs" variant="outline" onClick={showNewCopy}>
+                  Show the new copy (discard mine)
+                </Button>
+              </div>
+            </div>
+          )
+        )}
 
         {card.promptPending && (
           <div className="flex flex-wrap items-center gap-3 rounded-md border border-info/40 bg-info/5 px-3 py-2 text-sm">
@@ -304,8 +442,9 @@ function Editor({
         </Field>
 
         <Field data-invalid={problems.bodyMd ? true : undefined}>
-          <FieldLabel>Body</FieldLabel>
+          <FieldLabel htmlFor="recall-card-body">Body</FieldLabel>
           <MarkdownEditor
+            id="recall-card-body"
             value={edits.bodyMd}
             onChange={(v) => set('bodyMd', v)}
             placeholder="What an agent should know when it opens this card."
@@ -326,7 +465,9 @@ function Editor({
         </Field>
 
         <Field data-invalid={problems.options ? true : undefined}>
-          <FieldLabel>Options</FieldLabel>
+          <FieldLabel asChild>
+            <span>Options</span>
+          </FieldLabel>
           <OptionsEditor
             options={edits.options}
             targets={targets}
@@ -335,26 +476,15 @@ function Editor({
           <FieldError>{problems.options}</FieldError>
         </Field>
 
-        {warnings.length > 0 && (
-          <ul className="space-y-1 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
-            {warnings.map((w, i) => (
-              <li key={`${w.code}-${i}`} className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning-ink" aria-hidden />
-                <span>{w.message}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-
         <div className="flex items-center justify-end gap-2">
           {dirty && (
-            <Button variant="outline" onClick={() => setEdits(baseline)} disabled={write.pending}>
+            <Button variant="outline" onClick={() => setEdits(base.edits)} disabled={saving}>
               Discard changes
             </Button>
           )}
           <SubmitButton
-            pending={write.pending}
-            disabled={!dirty || !valid}
+            pending={saving}
+            disabled={!dirty || !valid || (write.pending && !saving)}
             onClick={save}
             type="button"
           >
@@ -368,13 +498,18 @@ function Editor({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {card.title}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Options on other cards that lead here are removed with it. You can restore the card
-              from Revisions, but those options do not come back.
+              Options on other cards that lead here are removed with it. Restoring the card from
+              Revisions brings it back with those options, under its old link name.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteCard}>Delete card</AlertDialogAction>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={deleteCard}
+            >
+              Delete card
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

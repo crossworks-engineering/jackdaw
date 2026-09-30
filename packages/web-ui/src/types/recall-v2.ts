@@ -193,8 +193,10 @@ export interface RecallMapCreateResultDTO {
 /** The body of every refused Recall write. `error` is a sentence written to be
  *  shown as is: what failed and what to do. `code` is stable and absent only on
  *  a malformed request (a body that failed validation). A stale `version` is
- *  409 with code `version_stale`; any code ending `_not_found` is 404; every
- *  other refusal is 400. */
+ *  409 with code `version_stale`. Only `map_not_found`, `card_not_found` and
+ *  `revision_not_found` are 404; every other refusal is 400, including
+ *  `cross_map_not_found` and `folder_not_found` (a bad target in the body, not
+ *  a missing route) and `revision_not_restorable`. */
 export interface RecallWriteErrorDTO {
   error: string;
   code?: string;
@@ -214,18 +216,28 @@ export interface RecallMapPatchDTO {
 }
 
 /** `PUT /api/recall/maps/:id/cards/:cardId` — create or replace one card.
- *  `options` replaces the card's whole list, so read-modify-write it. */
+ *  FIELD-STICKY: `title` and `bodyMd` are required and replace; `useWhen`,
+ *  `options` and `prompt` keep the card's current value when left out.
+ *  `options`, when sent, replaces the card's whole list, so read-modify-write
+ *  it. */
 export interface RecallCardWriteDTO {
   title: string;
   /** Markdown, at most RECALL_BODY_CHAR_BUDGET characters. */
   bodyMd: string;
-  /** The matcher line. Required when `prompt` is true: a prompt without one
-   *  cannot be matched by meaning, which is the only thing prompts are for. */
+  /** The matcher line. Required when the card is (or becomes) a prompt: a
+   *  prompt without one cannot be matched by meaning, which is the only thing
+   *  prompts are for. Kept when left out. */
   useWhen?: string;
-  /** Ask for this card to be a prompt. From the OWNER this makes it one; from
-   *  an agent it only records the request (`promptPending`). */
+  /** From the OWNER: `true` makes the card a prompt (and confirms an agent's
+   *  pending request), `false` makes it knowledge (demotes a prompt, or drops
+   *  a pending request). From an agent, `true` only records the request
+   *  (`promptPending`). Left out, the prompt state is kept. */
   prompt?: boolean;
+  /** Kept when left out. */
   options?: RecallOptionDTO[];
+  /** Owner only: an explicit change of the card's slug. The old slug keeps
+   *  resolving. */
+  slug?: string;
   /** Slug of the card to place this one after, for a new card. */
   after?: string;
   version: number;
@@ -250,8 +262,9 @@ export interface RecallWriteResultDTO {
    *  not echoed back: GET the card if the editor needs it again. */
   cardSlug?: string;
   warnings: RecallWarningDTO[];
-  /** Cards whose options pointed at a card this write deleted, and so had
-   *  that option removed in the same transaction. */
+  /** Cards whose options pointed at a card this write deleted (a card delete,
+   *  or restoring a "card added" revision), and so had that option removed in
+   *  the same transaction. `label` is the removed option's label. */
   optionsDropped?: { cardSlug: string; label: string }[];
 }
 
@@ -264,7 +277,8 @@ export interface RecallRevisionDTO {
   /** The card's slug at the time, for display when the card is gone. */
   cardSlug: string | null;
   actorKind: RecallActorKind;
-  /** The agent's slug or the admin's display name, when known. */
+  /** The agent's slug, `mcp` for an external MCP client, or the admin's
+   *  display name. Null on rows written before the brain recorded it. */
   actorName: string | null;
   /** One line on what changed ("body edited", "card added", "published"). */
   summary: string;
