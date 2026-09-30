@@ -53,6 +53,10 @@ import {
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { contactsAdapter } from '@/components/item-tree/kinds/simple';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 
 type ContactsListResponse = {
   contacts: ContactRow[];
@@ -70,6 +74,13 @@ export function ContactsClient() {
   const query = searchParams.get('q')?.trim() ?? '';
   const requestedId = searchParams.get('id')?.trim() || null;
 
+  // The item tree when this brain serves it for contacts (docs/folder-tree.md);
+  // the paged card list for a brain before it, or if a tree call 404s.
+  const treeServes = useTreeServes('contacts');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+
   const listQuery = useQuery({
     queryKey: ['contacts', { q: query, page }],
     queryFn: () => {
@@ -80,14 +91,16 @@ export function ContactsClient() {
       return apiFetch<ContactsListResponse>(`/api/contacts${s ? `?${s}` : ''}`);
     },
     placeholderData: (prev) => prev,
+    enabled: !showTree,
   });
 
-  const contacts = listQuery.data?.contacts ?? [];
+  const contacts = (showTree ? undefined : listQuery.data?.contacts) ?? [];
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
 
   // Selection defaults to the first row (master-detail convention); ?id wins. A
-  // deep-linked id outside the current slice is fetched directly.
+  // deep-linked id outside the current slice is fetched directly, as is every
+  // contact opened from the tree (it has no rows, so no first-row default).
   const selectedId = requestedId ?? contacts[0]?.id ?? null;
   const selectedContactQuery = useQuery({
     queryKey: ['contacts', selectedId],
@@ -109,14 +122,14 @@ export function ContactsClient() {
 
   const [q, setQ] = useState(query);
 
-  if (listQuery.isPending) {
+  if (!showTree && listQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (listQuery.isError && !listQuery.data) {
+  if (!showTree && listQuery.isError && !listQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
         <p className="text-muted-foreground">
@@ -136,82 +149,100 @@ export function ContactsClient() {
     <MasterDetail
       id="contacts"
       list={
-        <>
-          {/* ─── LIST ─────────────────────────────────────────────────── */}
-          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-            <div className="relative flex-1">
-              <Search
-                className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') go({ q: q || null, page: null });
-                }}
-                onBlur={() => {
-                  if (q !== query) go({ q: q || null, page: null });
-                }}
-                placeholder="Search contacts…"
-                className="pl-8"
+        showTree ? (
+          <aside className="flex h-full flex-col bg-muted/20">
+            <ItemTree
+              kind="contacts"
+              adapter={contactsAdapter}
+              selectedItemId={selectedId}
+              query={treeQuery}
+              onQueryChange={setTreeQuery}
+              searchPlaceholder="Search contacts and folders…"
+              actions={<NewContactButton />}
+              onOpenItem={(item) => go({ id: item.id })}
+              onUnsupported={() => setTreeGone(true)}
+            />
+          </aside>
+        ) : (
+          <>
+            {/* ─── LIST ─────────────────────────────────────────────────── */}
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <div className="relative flex-1">
+                <Search
+                  className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') go({ q: q || null, page: null });
+                  }}
+                  onBlur={() => {
+                    if (q !== query) go({ q: q || null, page: null });
+                  }}
+                  placeholder="Search contacts…"
+                  className="pl-8"
+                />
+              </div>
+              <NewContactButton />
+            </div>
+            <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+              {contacts.length === 0 ? (
+                <li className="px-2 py-8 text-center text-sm text-muted-foreground">
+                  {query ? `No contacts match "${query}".` : 'No contacts yet. Click + to add one.'}
+                </li>
+              ) : (
+                contacts.map((c) => (
+                  <li key={c.id}>
+                    <ListCard
+                      onClick={() => go({ id: c.id })}
+                      disabled={pending}
+                      selected={selected?.id === c.id}
+                      className="text-sm"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <ListCardTitle>{c.title}</ListCardTitle>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {/* Surface company on the secondary line — but only when
+                          it's not already the title (i.e. a company-only contact
+                          whose title IS the company). For person@company contacts
+                          the title is the person and we show the company here. */}
+                        {c.company && c.company !== c.title ? (
+                          <span className="truncate">{c.company}</span>
+                        ) : c.email ? (
+                          <span className="truncate">{c.email}</span>
+                        ) : null}
+                        {c.contactCounts.email && c.contactCounts.email > 0 ? (
+                          <span className="ml-auto whitespace-nowrap">
+                            ✉ {c.contactCounts.email}
+                          </span>
+                        ) : null}
+                      </div>
+                    </ListCard>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="border-t border-border px-3 py-2">
+              <ListPager
+                total={total}
+                page={page}
+                pageSize={pageSize}
+                pending={pending}
+                onGo={(p) => go({ page: p === 1 ? null : p })}
               />
             </div>
-            <NewContactButton />
-          </div>
-          <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-            {contacts.length === 0 ? (
-              <li className="px-2 py-8 text-center text-sm text-muted-foreground">
-                {query ? `No contacts match "${query}".` : 'No contacts yet. Click + to add one.'}
-              </li>
-            ) : (
-              contacts.map((c) => (
-                <li key={c.id}>
-                  <ListCard
-                    onClick={() => go({ id: c.id })}
-                    disabled={pending}
-                    selected={selected?.id === c.id}
-                    className="text-sm"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <ListCardTitle>{c.title}</ListCardTitle>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      {/* Surface company on the secondary line — but only when
-                        it's not already the title (i.e. a company-only contact
-                        whose title IS the company). For person@company contacts
-                        the title is the person and we show the company here. */}
-                      {c.company && c.company !== c.title ? (
-                        <span className="truncate">{c.company}</span>
-                      ) : c.email ? (
-                        <span className="truncate">{c.email}</span>
-                      ) : null}
-                      {c.contactCounts.email && c.contactCounts.email > 0 ? (
-                        <span className="ml-auto whitespace-nowrap">✉ {c.contactCounts.email}</span>
-                      ) : null}
-                    </div>
-                  </ListCard>
-                </li>
-              ))
-            )}
-          </ul>
-          <div className="border-t border-border px-3 py-2">
-            <ListPager
-              total={total}
-              page={page}
-              pageSize={pageSize}
-              pending={pending}
-              onGo={(p) => go({ page: p === 1 ? null : p })}
-            />
-          </div>
-        </>
+          </>
+        )
       }
       detail={
         selected ? (
           <ContactForm key={selected.id} contact={selected} />
         ) : (
           <div className="flex h-full items-center justify-center px-8 text-center text-sm text-muted-foreground">
-            {contacts.length === 0
+            {!showTree && contacts.length === 0
               ? 'Add your first contact. Saskia will then be able to email them.'
               : 'Pick a contact on the left.'}
           </div>
@@ -240,6 +271,7 @@ function NewContactButton() {
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('contacts') });
       go({ id: contact.id, page: null });
     });
   };
@@ -319,6 +351,7 @@ function ContactForm({ contact }: { contact: ContactRow }) {
       // Refetch the list so the row's display name updates if it changed (and
       // the selected-detail row, which is read from the list).
       void queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('contacts') });
     });
   };
 
@@ -336,6 +369,7 @@ function ContactForm({ contact }: { contact: ContactRow }) {
       // Refetch so the deleted row is gone, then drop the id so selection
       // falls back to the first contact (or empty).
       await queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('contacts') });
       go({ id: null });
     });
   };

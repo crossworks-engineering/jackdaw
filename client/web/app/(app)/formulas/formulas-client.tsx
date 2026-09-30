@@ -39,6 +39,10 @@ import type { CoverageGap } from '@mantle/content-core/formula-spec';
 import type { DimensionIssue } from '@mantle/content-core/formula-dimensions';
 import type { TargetSignature } from '@mantle/content-core/formula-signature';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { formulasAdapter } from '@/components/item-tree/kinds/simple';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { FormulaDetail, type FormulaRow } from './formula-detail';
 
 type ListResponse = {
@@ -78,6 +82,13 @@ export function FormulasClient() {
   const tag = searchParams.get('tag')?.trim() ?? '';
   const urlId = searchParams.get('id')?.trim() || null;
 
+  // The item tree when this brain serves it for formulas (docs/folder-tree.md);
+  // the paged list for a brain before it, or if a tree call 404s.
+  const treeServes = useTreeServes('formulas');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+
   // Selection lives in client state, NOT read back off the URL. `select` mirrors
   // it to the address bar with history.replaceState, which deliberately performs
   // no navigation — so `useSearchParams` would never observe the change and the
@@ -116,10 +127,17 @@ export function FormulasClient() {
       const suffix = qs.toString();
       return apiFetch<ListResponse>(`/api/formulas${suffix ? `?${suffix}` : ''}`);
     },
+    enabled: !showTree,
   });
 
-  const formulas = useMemo(() => listQuery.data?.formulas ?? [], [listQuery.data]);
-  const standards = useMemo(() => listQuery.data?.standards ?? [], [listQuery.data]);
+  const formulas = useMemo(
+    () => (showTree ? [] : (listQuery.data?.formulas ?? [])),
+    [showTree, listQuery.data],
+  );
+  const standards = useMemo(
+    () => (showTree ? [] : (listQuery.data?.standards ?? [])),
+    [showTree, listQuery.data],
+  );
 
   // Auto-select the first row, matching every other master-detail screen.
   const activeId = selectedId ?? formulas[0]?.id ?? null;
@@ -165,6 +183,7 @@ export function FormulasClient() {
     try {
       const res = await apiSend<{ created: string[] }>('/api/formulas/seed', 'POST');
       await queryClient.invalidateQueries({ queryKey: ['formulas'] });
+      void queryClient.invalidateQueries({ queryKey: treeKey('formulas') });
       toast.success(
         res.created.length > 0
           ? `Added ${res.created.length} example formula${res.created.length === 1 ? '' : 's'}`
@@ -181,10 +200,11 @@ export function FormulasClient() {
     setEditor(null);
     await queryClient.invalidateQueries({ queryKey: ['formulas'] });
     await queryClient.invalidateQueries({ queryKey: ['formula'] });
+    void queryClient.invalidateQueries({ queryKey: treeKey('formulas') });
     select(id);
   }
 
-  if (listQuery.isLoading) {
+  if (!showTree && listQuery.isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
@@ -192,7 +212,7 @@ export function FormulasClient() {
     );
   }
 
-  if (listQuery.isError) {
+  if (!showTree && listQuery.isError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">Could not load formulas.</p>
@@ -229,6 +249,13 @@ export function FormulasClient() {
       />
     );
   }
+
+  const newButton = (
+    <Button size="sm" onClick={() => setPicking(true)}>
+      <Plus />
+      New
+    </Button>
+  );
 
   return (
     <>
@@ -289,152 +316,167 @@ export function FormulasClient() {
         id="formulas"
         defaultListSize="360px"
         list={
-          <>
-            {/* ── Left: list ───────────────────────────────────────── */}
-            <div className="space-y-2 border-b border-border p-4">
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    ref={searchRef}
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search formulas…"
-                    className="pl-8"
-                  />
-                </div>
-                <Button size="sm" onClick={() => setPicking(true)}>
-                  <Plus />
-                  New
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={standard || ANY}
-                  onValueChange={(v) => go({ standard: v === ANY ? null : v, page: null })}
-                >
-                  <SelectTrigger size="sm" className="flex-1 text-xs">
-                    <SelectValue placeholder="Any standard" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ANY}>Any standard</SelectItem>
-                    {standards.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {tag ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => go({ tag: null, page: null })}
-                    title="Clear the tag filter"
-                  >
-                    <X />
-                    {tag}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-              {formulas.length === 0 && (query || standard || tag) ? (
-                // A FILTERED nothing is not an empty collection — "no formulas
-                // yet" plus a seed button here would be a lie with a call to action.
-                <div className="space-y-3 px-1 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => go({ q: null, standard: null, tag: null, page: null })}
-                  >
-                    Clear filters
-                  </Button>
-                </div>
-              ) : formulas.length === 0 ? (
-                <div className="space-y-3 px-1 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    No formulas yet. Write one from a standard, or ask the assistant to transcribe
-                    one.
-                  </p>
-                  <div className="flex flex-col items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
-                      <Plus />
-                      New formula
-                    </Button>
-                    <Button variant="ghost" size="sm" disabled={seeding} onClick={addSeedSet}>
-                      {seeding ? <Spinner /> : null}
-                      Add 5 example formulas
-                    </Button>
-                    <p className="max-w-[260px] text-xs text-muted-foreground">
-                      Widely-known models — gas density, Reynolds number, head loss, orifice flow,
-                      pump power — that show how each part of the format is written. Delete them any
-                      time.
-                    </p>
+          showTree ? (
+            // No private formulas, and delete lives in the detail pane: the
+            // tree's own item menu is all a row needs.
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="formulas"
+                adapter={formulasAdapter}
+                selectedItemId={activeId}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search formulas and folders…"
+                actions={newButton}
+                onOpenItem={(item) => select(item.id)}
+                onUnsupported={() => setTreeGone(true)}
+              />
+            </aside>
+          ) : (
+            <>
+              {/* ── Left: list ───────────────────────────────────────── */}
+              <div className="space-y-2 border-b border-border p-4">
+                <div className="flex items-center gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      ref={searchRef}
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      placeholder="Search formulas…"
+                      className="pl-8"
+                    />
                   </div>
+                  {newButton}
                 </div>
-              ) : (
-                formulas.map((f) => (
-                  // The tags are filter buttons, so they sit OUTSIDE the row button
-                  // rather than inside it — a button nested in a button is invalid
-                  // and swallows the inner click in some browsers.
-                  <ListCard key={f.id} asChild selected={activeId === f.id} className="p-0">
-                    <div>
-                      <RowButton
-                        onClick={() => select(f.id)}
-                        data-mark-id={f.id}
-                        data-mark-kind="formula"
-                        data-mark-label={f.title}
-                        className="block w-full rounded-lg p-2.5 text-left"
-                      >
-                        <div className="flex items-start gap-2">
-                          <Sigma className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <ListCardTitle className="min-w-0">{f.title}</ListCardTitle>
-                              <AudienceBadge level={f.audience} />
-                            </div>
-                            {f.spec?.source?.standard ? (
-                              <ListCardMeta>{f.spec.source.standard}</ListCardMeta>
-                            ) : null}
-                          </div>
-                        </div>
-                      </RowButton>
-                      {f.tags.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
-                          {f.tags.map((t) => (
-                            <RowButton
-                              key={t}
-                              onClick={() => go({ tag: t === tag ? null : t, page: null })}
-                              title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
-                            >
-                              <TagPill
-                                tag={t}
-                                className={cn(
-                                  'transition-opacity hover:opacity-80',
-                                  t === tag && 'ring-1 ring-primary',
-                                )}
-                              />
-                            </RowButton>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </ListCard>
-                ))
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={standard || ANY}
+                    onValueChange={(v) => go({ standard: v === ANY ? null : v, page: null })}
+                  >
+                    <SelectTrigger size="sm" className="flex-1 text-xs">
+                      <SelectValue placeholder="Any standard" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ANY}>Any standard</SelectItem>
+                      {standards.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {tag ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => go({ tag: null, page: null })}
+                      title="Clear the tag filter"
+                    >
+                      <X />
+                      {tag}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
 
-            <ListPager
-              page={page}
-              total={listQuery.data?.total ?? 0}
-              pageSize={listQuery.data?.pageSize ?? 50}
-              pending={pending}
-              onGo={(p) => go({ page: p > 1 ? p : null })}
-            />
-          </>
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+                {formulas.length === 0 && (query || standard || tag) ? (
+                  // A FILTERED nothing is not an empty collection — "no formulas
+                  // yet" plus a seed button here would be a lie with a call to action.
+                  <div className="space-y-3 px-1 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">Nothing matches these filters.</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => go({ q: null, standard: null, tag: null, page: null })}
+                    >
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : formulas.length === 0 ? (
+                  <div className="space-y-3 px-1 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No formulas yet. Write one from a standard, or ask the assistant to transcribe
+                      one.
+                    </p>
+                    <div className="flex flex-col items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
+                        <Plus />
+                        New formula
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={seeding} onClick={addSeedSet}>
+                        {seeding ? <Spinner /> : null}
+                        Add 5 example formulas
+                      </Button>
+                      <p className="max-w-[260px] text-xs text-muted-foreground">
+                        Widely-known models — gas density, Reynolds number, head loss, orifice flow,
+                        pump power — that show how each part of the format is written. Delete them
+                        any time.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  formulas.map((f) => (
+                    // The tags are filter buttons, so they sit OUTSIDE the row button
+                    // rather than inside it — a button nested in a button is invalid
+                    // and swallows the inner click in some browsers.
+                    <ListCard key={f.id} asChild selected={activeId === f.id} className="p-0">
+                      <div>
+                        <RowButton
+                          onClick={() => select(f.id)}
+                          data-mark-id={f.id}
+                          data-mark-kind="formula"
+                          data-mark-label={f.title}
+                          className="block w-full rounded-lg p-2.5 text-left"
+                        >
+                          <div className="flex items-start gap-2">
+                            <Sigma className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <ListCardTitle className="min-w-0">{f.title}</ListCardTitle>
+                                <AudienceBadge level={f.audience} />
+                              </div>
+                              {f.spec?.source?.standard ? (
+                                <ListCardMeta>{f.spec.source.standard}</ListCardMeta>
+                              ) : null}
+                            </div>
+                          </div>
+                        </RowButton>
+                        {f.tags.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2.5 pl-[34px]">
+                            {f.tags.map((t) => (
+                              <RowButton
+                                key={t}
+                                onClick={() => go({ tag: t === tag ? null : t, page: null })}
+                                title={t === tag ? `Clear the ${t} filter` : `Show only ${t}`}
+                              >
+                                <TagPill
+                                  tag={t}
+                                  className={cn(
+                                    'transition-opacity hover:opacity-80',
+                                    t === tag && 'ring-1 ring-primary',
+                                  )}
+                                />
+                              </RowButton>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </ListCard>
+                  ))
+                )}
+              </div>
+
+              <ListPager
+                page={page}
+                total={listQuery.data?.total ?? 0}
+                pageSize={listQuery.data?.pageSize ?? 50}
+                pending={pending}
+                onGo={(p) => go({ page: p > 1 ? p : null })}
+              />
+            </>
+          )
         }
         detail={
           /* ── Right: detail ────────────────────────────────────── */
@@ -459,6 +501,7 @@ export function FormulasClient() {
               onDeleted={async () => {
                 setSelectedId(null);
                 syncSelectionParam('id', null);
+                void queryClient.invalidateQueries({ queryKey: treeKey('formulas') });
                 await queryClient.invalidateQueries({ queryKey: ['formulas'] });
               }}
             />
