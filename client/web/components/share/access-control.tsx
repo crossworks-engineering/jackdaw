@@ -29,14 +29,18 @@ import {
   cascadeSwitch,
   closureAbove,
   closureBelow,
+  effectiveOf,
   embedsSharedWith,
   isAccessLevel,
   isOldClientLink,
   keptAtClientLine,
   levelMeaning,
+  offeredUnder,
   openLinkLevelsOf,
   queryKeysForType,
+  sharedViaLine,
   takesLink,
+  type AccessViewShared,
 } from '@/lib/access-levels';
 import { oldLinkAboveLine, sharedLinkHref } from '@/lib/client-report';
 import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
@@ -109,7 +113,10 @@ export function AccessControl({
   // Every piece of loaded state carries the item it belongs to, so a host that
   // swaps `nodeId` under a mounted control can never show (or copy the link
   // of) the previous item: a view for another id reads as "not loaded".
-  const [state, setState] = useState<{ nodeId: string; view: AccessNodeView | null } | null>(null);
+  const [state, setState] = useState<{
+    nodeId: string;
+    view: (AccessNodeView & AccessViewShared) | null;
+  } | null>(null);
   const view = state?.nodeId === nodeId ? state.view : null;
   const loaded = state?.nodeId === nodeId;
   // The level the owner has picked but not applied yet (null = none).
@@ -134,11 +141,14 @@ export function AccessControl({
 
   const load = useCallback(async () => {
     const id = nodeId;
-    let next: AccessNodeView | null = null;
+    let next: (AccessNodeView & AccessViewShared) | null = null;
     try {
-      next = await apiFetch<AccessNodeView>(`/api/access/nodes/${encodeURIComponent(id)}`, {
-        cache: 'no-store',
-      });
+      next = await apiFetch<AccessNodeView & AccessViewShared>(
+        `/api/access/nodes/${encodeURIComponent(id)}`,
+        {
+          cache: 'no-store',
+        },
+      );
     } catch (e) {
       if (current.current === id && !(e instanceof ApiError && e.status === 401)) {
         // A brain older than 0.232.257 has no /api/access route at all: say
@@ -286,7 +296,12 @@ export function AccessControl({
   };
 
   const level = view?.item.audience ?? 'admin';
-  const picked = choice ?? level;
+  // In a shared folder it is read at least at the folder's share: the
+  // control shows the level it is read at and offers nothing above it.
+  const via = view?.sharedVia ?? null;
+  const floor = via?.level ?? null;
+  const shown = effectiveOf(level, floor);
+  const picked = choice ?? shown;
   // Where this brain makes an open link: public since C1; a brain before C1
   // (no `openLinkLevels`) made one at client too, and keeps those words.
   const openLevels = view ? openLinkLevelsOf(view) : [];
@@ -362,7 +377,7 @@ export function AccessControl({
                   onValueChange={(v) => {
                     // Empty = a press on the picked item: keep the pick.
                     if (isAccessLevel(v)) {
-                      setChoice(v === level ? null : v);
+                      setChoice(v === shown ? null : v);
                       setLastLowered(null);
                     }
                   }}
@@ -373,6 +388,7 @@ export function AccessControl({
                       value={l}
                       className="flex-1"
                       aria-label={LEVEL_LABEL[l]}
+                      disabled={!offeredUnder(l, floor)}
                     >
                       {LEVEL_LABEL[l]}
                     </ToggleGroupItem>
@@ -386,6 +402,12 @@ export function AccessControl({
                       })
                     : 'Admin only. Only pages, notes, drawings, tables, files, folders, apps and formulas can be shared.'}
                 </p>
+                {via && (
+                  <p className="flex gap-1.5 text-xs text-muted-foreground">
+                    <FolderOpen className="mt-px size-3.5 shrink-0" aria-hidden />
+                    <span>{sharedViaLine(via)}</span>
+                  </p>
+                )}
                 {choice && willShare.length > 0 && (
                   <ItemList
                     summary={`${willShare.length} embedded item${willShare.length === 1 ? '' : 's'} will be shared too`}
