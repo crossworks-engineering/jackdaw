@@ -50,6 +50,11 @@ import {
   usePrivateOpen,
   type AdminListState,
 } from '@/components/item-list/admin-private-rows';
+import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { notesAdapter } from '@/components/item-tree/kinds/simple';
+import { treeKey } from '@/components/item-tree/tree-api';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
@@ -89,6 +94,13 @@ export function NotesClient() {
   const state = adminStateOf(searchParams);
   const { pid, openPrivate } = usePrivateOpen();
 
+  // The item tree when this brain serves it for notes (docs/folder-tree.md);
+  // the paged card list for a brain before it, or if a tree call 404s.
+  const treeServes = useTreeServes('notes');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+
   const listQuery = useQuery({
     queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, state }],
     queryFn: () => {
@@ -101,9 +113,13 @@ export function NotesClient() {
       return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
+    enabled: !showTree,
   });
 
-  const rows = useMemo(() => listQuery.data?.notes ?? [], [listQuery.data?.notes]);
+  const rows = useMemo(
+    () => (showTree ? [] : (listQuery.data?.notes ?? [])),
+    [showTree, listQuery.data?.notes],
+  );
   const notes = useMemo(() => rows.filter((r): r is NoteRow => !isPrivateRow(r)), [rows]);
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
@@ -126,7 +142,7 @@ export function NotesClient() {
   const [creating, setCreating] = useState(false);
   const [focus, setFocus] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<NoteRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Pick<NoteRow, 'id' | 'title'> | null>(null);
   /** Pending action held back by the unsaved-changes guard. */
   const [discard, setDiscard] = useState<{ run: () => void } | null>(null);
 
@@ -211,6 +227,7 @@ export function NotesClient() {
     setSelectedId(saved.id);
     syncSelectionParam('selected', saved.id);
     void queryClient.invalidateQueries({ queryKey: ['notes'] });
+    void queryClient.invalidateQueries({ queryKey: treeKey('notes') });
   };
 
   const buildHref = (over: {
@@ -263,16 +280,17 @@ export function NotesClient() {
     }
     setDeleteTarget(null);
     void queryClient.invalidateQueries({ queryKey: ['notes'] });
+    void queryClient.invalidateQueries({ queryKey: treeKey('notes') });
   };
 
-  if (listQuery.isPending) {
+  if (!showTree && listQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
       </div>
     );
   }
-  if (listQuery.isError && !listQuery.data) {
+  if (!showTree && listQuery.isError && !listQuery.data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
         <p className="text-muted-foreground">
@@ -318,113 +336,145 @@ export function NotesClient() {
         // note in master-detail.tsx.
         listCollapsed={focus}
         list={
-          <>
-            <ItemListHeader
-              search={searchInput}
-              onSearch={setSearchInput}
-              placeholder="Search notes…"
-              actions={<NewButton onClick={startCreate} />}
-            >
-              <TagFilter
-                tags={tags}
-                activeTag={activeTag}
-                onSelect={(t) => go({ tag: t, page: 1 })}
-                details={details}
-                onDetailsChange={changeDetails}
-                allLabel="All notes"
-              />
-              <StateFilter
-                value={state}
-                options={ADMIN_STATE_OPTIONS}
-                onChange={(v) => go({ state: v, page: 1 })}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  'h-7 gap-1 px-2',
-                  showDigests ? 'text-foreground' : 'text-muted-foreground',
-                )}
-                aria-pressed={showDigests}
-                onClick={() =>
-                  go({
-                    digests: !showDigests,
-                    page: 1,
-                    // Hiding digests while filtered on a digest tag would show an
-                    // empty list — drop the tag along with them.
-                    ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
-                  })
+          showTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="notes"
+                adapter={notesAdapter}
+                selectedItemId={privateOpen ?? (creating ? null : (selected?.id ?? null))}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search notes and folders…"
+                actions={<NewButton onClick={startCreate} />}
+                onOpenItem={(item) =>
+                  item.state === 'private' ? selectPrivate(item.id) : selectNote(item.id)
                 }
-                title={
-                  showDigests
-                    ? 'Hide agent conversation digests'
-                    : 'Show agent conversation digests'
-                }
-              >
-                <Sparkles className="size-3.5" /> Digests
-              </Button>
-              {activeTag && (
-                <ClearFilter onClear={() => go({ tag: null, page: 1 })} title="Clear tag filter" />
-              )}
-            </ItemListHeader>
-
-            <ItemListScroll pending={navPending}>
-              {rows.length === 0 ? (
-                <ItemListEmpty>
-                  {state === 'private' && !query
-                    ? 'You have no private notes. Only you would see them, until you accept one into the brain.'
-                    : query || activeTag
-                      ? 'No notes match your search or filter.'
-                      : 'No notes yet. Click “New” or ask your assistant to add one.'}
-                </ItemListEmpty>
-              ) : (
-                rows.map((n) =>
-                  isPrivateRow(n) ? (
-                    <PrivateItemCard
-                      key={n.id}
-                      row={n}
-                      selected={privateOpen === n.id}
-                      onSelect={() => selectPrivate(n.id)}
-                    />
-                  ) : (
-                    <ItemCard
-                      key={n.id}
-                      id={n.id}
-                      kind="note"
-                      title={n.title}
-                      icon={<ItemIcon fallback={<FileText />} />}
-                      badge={<AudienceBadge level={n.audience} className="mt-0.5" />}
-                      selected={!privateOpen && selected?.id === n.id && !creating}
-                      onSelect={() => selectNote(n.id)}
-                      updatedAt={n.updatedAt}
+                itemActions={(item) =>
+                  item.state === 'private' ? null : (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
                     >
-                      {details && (n.summary || n.content) && (
-                        <p className="line-clamp-2 text-xs text-muted-foreground">
-                          {n.summary ?? n.content.slice(0, 200)}
-                        </p>
-                      )}
-                      {details && n.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {n.tags.map((t) => (
-                            <TagPill key={t} tag={t} />
-                          ))}
-                        </div>
-                      )}
-                    </ItemCard>
-                  ),
-                )
-              )}
-            </ItemListScroll>
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  )
+                }
+                onUnsupported={() => setTreeGone(true)}
+              />
+            </aside>
+          ) : (
+            <>
+              <ItemListHeader
+                search={searchInput}
+                onSearch={setSearchInput}
+                placeholder="Search notes…"
+                actions={<NewButton onClick={startCreate} />}
+              >
+                <TagFilter
+                  tags={tags}
+                  activeTag={activeTag}
+                  onSelect={(t) => go({ tag: t, page: 1 })}
+                  details={details}
+                  onDetailsChange={changeDetails}
+                  allLabel="All notes"
+                />
+                <StateFilter
+                  value={state}
+                  options={ADMIN_STATE_OPTIONS}
+                  onChange={(v) => go({ state: v, page: 1 })}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={cn(
+                    'h-7 gap-1 px-2',
+                    showDigests ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                  aria-pressed={showDigests}
+                  onClick={() =>
+                    go({
+                      digests: !showDigests,
+                      page: 1,
+                      // Hiding digests while filtered on a digest tag would show an
+                      // empty list — drop the tag along with them.
+                      ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
+                    })
+                  }
+                  title={
+                    showDigests
+                      ? 'Hide agent conversation digests'
+                      : 'Show agent conversation digests'
+                  }
+                >
+                  <Sparkles className="size-3.5" /> Digests
+                </Button>
+                {activeTag && (
+                  <ClearFilter
+                    onClear={() => go({ tag: null, page: 1 })}
+                    title="Clear tag filter"
+                  />
+                )}
+              </ItemListHeader>
 
-            <ListPager
-              page={page}
-              total={total}
-              pageSize={pageSize}
-              pending={navPending}
-              onGo={(p) => go({ page: p })}
-              noun={{ one: 'note', many: 'notes' }}
-            />
-          </>
+              <ItemListScroll pending={navPending}>
+                {rows.length === 0 ? (
+                  <ItemListEmpty>
+                    {state === 'private' && !query
+                      ? 'You have no private notes. Only you would see them, until you accept one into the brain.'
+                      : query || activeTag
+                        ? 'No notes match your search or filter.'
+                        : 'No notes yet. Click “New” or ask your assistant to add one.'}
+                  </ItemListEmpty>
+                ) : (
+                  rows.map((n) =>
+                    isPrivateRow(n) ? (
+                      <PrivateItemCard
+                        key={n.id}
+                        row={n}
+                        selected={privateOpen === n.id}
+                        onSelect={() => selectPrivate(n.id)}
+                      />
+                    ) : (
+                      <ItemCard
+                        key={n.id}
+                        id={n.id}
+                        kind="note"
+                        title={n.title}
+                        icon={<ItemIcon fallback={<FileText />} />}
+                        badge={<AudienceBadge level={n.audience} className="mt-0.5" />}
+                        selected={!privateOpen && selected?.id === n.id && !creating}
+                        onSelect={() => selectNote(n.id)}
+                        updatedAt={n.updatedAt}
+                      >
+                        {details && (n.summary || n.content) && (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            {n.summary ?? n.content.slice(0, 200)}
+                          </p>
+                        )}
+                        {details && n.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {n.tags.map((t) => (
+                              <TagPill key={t} tag={t} />
+                            ))}
+                          </div>
+                        )}
+                      </ItemCard>
+                    ),
+                  )
+                )}
+              </ItemListScroll>
+
+              <ListPager
+                page={page}
+                total={total}
+                pageSize={pageSize}
+                pending={navPending}
+                onGo={(p) => go({ page: p })}
+                noun={{ one: 'note', many: 'notes' }}
+              />
+            </>
+          )
         }
         // Both the editor and the preview open with their own sticky header
         // above a scrolling body, so each keeps its own scroller.
