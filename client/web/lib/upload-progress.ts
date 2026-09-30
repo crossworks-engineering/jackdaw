@@ -38,6 +38,25 @@ export function overLimitMessage(size: number, limit: number): string {
   return `File is ${formatBytes(size)}. The limit is ${formatBytes(limit)}.`;
 }
 
+/**
+ * The upload's form, in the order the brain reads it: the folder, then
+ * `confirm` (a yes to a folder shared with the team or clients, which the
+ * brain reads before it streams the file), then the file itself. A field
+ * after the file part would reach the brain only once the bytes had.
+ */
+export function uploadForm(parentPath: string, file: Blob, confirm = false): FormData {
+  const form = new FormData();
+  form.set('parentPath', parentPath);
+  if (confirm) form.set('confirm', 'true');
+  form.set('file', file);
+  return form;
+}
+
+/** The brain's 409 on an upload into a shared folder it was not told of
+ *  (the screen's view of the folder was stale): what the dock says. */
+export const SHARED_UPLOAD_REFUSED =
+  'The folder is shared now, so everyone it is shared with would read this. Upload it again from Files to confirm.';
+
 /** Exponential moving average of the transfer rate, so the ETA does not
  *  jitter with every progress event. `prev` null seeds it. */
 export function updateRate(

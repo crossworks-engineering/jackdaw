@@ -1,5 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { describeDerivedCounts, dismissDialog, slugify, sumDerivedCounts } from './files-shared';
+import {
+  describeDerivedCounts,
+  dismissDialog,
+  folderShareOf,
+  sharedUploadLine,
+  slugify,
+  sumDerivedCounts,
+} from './files-shared';
 import type { DerivedCounts, FilesDialog } from './files-shared';
 
 /**
@@ -84,5 +93,54 @@ describe('derived counts', () => {
     expect(text).toMatch(/page/i);
     expect(text).toMatch(/note/i);
     expect(typeof describeDerivedCounts(counts())).toBe('string');
+  });
+});
+
+describe('a shared folder on the Files screen', () => {
+  it('is read at the more open of its own share and the one above it', () => {
+    expect(folderShareOf({ share: 'team', inherited: 'client' })).toBe('client');
+    expect(folderShareOf({ share: null, inherited: 'team' })).toBe('team');
+    expect(folderShareOf({ share: 'client', inherited: null })).toBe('client');
+    expect(folderShareOf({ share: null, inherited: null })).toBeNull();
+    // A brain before folder sharing sends neither.
+    expect(folderShareOf({})).toBeNull();
+    expect(folderShareOf(null)).toBeNull();
+  });
+  it('asks before an upload says who reads it', () => {
+    expect(sharedUploadLine('client', 1)).toBe(
+      'Clients read everything in this folder, so they read this file as soon as it lands.',
+    );
+    expect(sharedUploadLine('team', 3)).toMatch(
+      /^The team reads .* these 3 files as soon as they land\.$/,
+    );
+  });
+});
+
+/** The Files writes into a shared folder, pinned where the node runner
+ *  cannot render them. */
+describe('Files asks before a shared folder exposes what lands in it', () => {
+  const read = (f: string) =>
+    readFileSync(fileURLToPath(new URL(f, import.meta.url)), 'utf8').replace(/\s+/g, ' ');
+
+  it('an upload into a shared folder asks once, then sends confirm', () => {
+    const src = read('./files-client.tsx');
+    expect(src).toContain('if (share) setSharedUpload({ files: picked, path: currentPath });');
+    expect(src).toContain('enqueue(sharedUpload.files, sharedUpload.path, { confirm: true });');
+    expect(src).toContain('if (e.dataTransfer.files?.length) upload(e.dataTransfer.files);');
+  });
+
+  it('a new file in a shared folder shows the brain’s list and repeats with confirm', () => {
+    const src = read('./files-dialogs.tsx');
+    expect(src).toContain('const refusal = visibilityRefusal(err);');
+    expect(src).toContain('run: () => void create(true),');
+  });
+
+  it('the dual pane sets refused items aside and repeats them with confirm and seen', () => {
+    const src = read('./files-panes.tsx');
+    expect(src).toContain(
+      'const yes = seen?.has(key) ? { confirm: true, seen: seen.get(key) } : {};',
+    );
+    expect(src).toContain('refusal: mergeRefusals(refused.map((r) => r.refusal)),');
+    expect(src).toContain('new Map(refused.map((r) => [r.key, r.refusal.total])),');
   });
 });

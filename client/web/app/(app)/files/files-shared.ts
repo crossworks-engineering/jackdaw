@@ -237,3 +237,23 @@ export type FilesDialogKind = NonNullable<FilesDialog>['kind'];
 export function dismissDialog(current: FilesDialog, kind: FilesDialogKind): FilesDialog {
   return current?.kind === kind ? null : current;
 }
+
+/** The share everything in a folder is read at: its own or the one it takes
+ *  from a folder above, the more open of the two (clients over the team).
+ *  Null: not shared, or a brain before folder sharing said. */
+export function folderShareOf(
+  f: Pick<FolderRow, 'share' | 'inherited'> | null | undefined,
+): 'team' | 'client' | null {
+  if (!f) return null;
+  if (f.share === 'client' || f.inherited === 'client') return 'client';
+  if (f.share === 'team' || f.inherited === 'team') return 'team';
+  return null;
+}
+
+/** The question before an upload into a shared folder. */
+export function sharedUploadLine(share: 'team' | 'client', count: number): string {
+  const what = count === 1 ? 'this file' : `these ${count} files`;
+  return share === 'client'
+    ? `Clients read everything in this folder, so they read ${what} as soon as ${count === 1 ? 'it lands' : 'they land'}.`
+    : `The team reads everything in this folder, so members read ${what} as soon as ${count === 1 ? 'it lands' : 'they land'}.`;
+}

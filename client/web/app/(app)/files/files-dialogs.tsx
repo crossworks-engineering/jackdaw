@@ -27,6 +27,11 @@ import {
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { privateTextFile, uploadPrivateFile } from '@/lib/admin-private';
 import { refusalMessage } from '@/lib/member-space';
+import { visibilityRefusal } from '@/components/item-tree/sharing';
+import {
+  VisibilityConfirmDialog,
+  type PendingConfirm,
+} from '@/components/item-tree/visibility-confirm';
 import { defaultBodyFor, slugify } from './files-shared';
 import type { FileRow, RenameTarget, TextExt } from './files-shared';
 
@@ -243,6 +248,9 @@ export function CreateFileDialog({
   // "Keep private": the file goes into this admin's private space, not the brain.
   const [keepPrivate, setKeepPrivate] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The brain's 409 `visibility`: the folder is shared, so the new file is
+  // read by the team or clients at once. Asked, then created with `confirm`.
+  const [exposed, setExposed] = useState<PendingConfirm | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -280,15 +288,33 @@ export function CreateFileDialog({
       router.push(href);
       return;
     }
+    await create(false);
+  };
+
+  const create = async (confirm: boolean) => {
+    setBusy(true);
+    const filename = `${cleanStem}.${type}`;
     let file: FileRow;
     try {
       ({ file } = await apiSend<{ file: FileRow }>('/api/files/files', 'POST', {
         parentPath,
-        filename: `${cleanStem}.${type}`,
+        filename,
         content: defaultBodyFor(type),
+        ...(confirm ? { confirm: true } : {}),
       }));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not create file');
+      const refusal = visibilityRefusal(err);
+      if (refusal) {
+        setExposed({
+          refusal,
+          action: `Create “${filename}” in ${parentPath}.`,
+          note: 'The folder is shared: a file in it is read at the folder’s share.',
+          verb: 'Create file',
+          run: () => void create(true),
+        });
+      } else {
+        toast.error(err instanceof ApiError ? err.message : 'Could not create file');
+      }
       setBusy(false);
       return;
     }
@@ -344,6 +370,7 @@ export function CreateFileDialog({
             </SubmitButton>
           </div>
         </form>
+        <VisibilityConfirmDialog pending={exposed} onOpenChange={(o) => !o && setExposed(null)} />
       </DialogContent>
     </Dialog>
   );

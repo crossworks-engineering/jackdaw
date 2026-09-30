@@ -7,6 +7,7 @@ import {
   formatRate,
   overLimitMessage,
   updateRate,
+  uploadForm,
 } from './upload-progress';
 
 describe('formatting', () => {
@@ -70,5 +71,17 @@ describe('aggregateProgress', () => {
       rate: null,
       etaSec: null,
     });
+  });
+});
+
+describe('uploadForm', () => {
+  it('sends confirm before the file part, so the brain reads it first', () => {
+    const form = uploadForm('files.shared', new Blob(['x']), true);
+    expect([...form.keys()]).toEqual(['parentPath', 'confirm', 'file']);
+    expect(form.get('confirm')).toBe('true');
+    expect(form.get('parentPath')).toBe('files.shared');
+  });
+  it('sends no confirm unless asked', () => {
+    expect([...uploadForm('files', new Blob(['x'])).keys()]).toEqual(['parentPath', 'file']);
   });
 });

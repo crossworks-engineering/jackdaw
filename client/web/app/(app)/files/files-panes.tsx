@@ -22,6 +22,12 @@ import { AppTile } from '@/components/app-nav/app-tile';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { FILES_ROOT, fmtSize } from './files-shared';
+import { mergeRefusals, visibilityRefusal } from '@/components/item-tree/sharing';
+import {
+  VisibilityConfirmDialog,
+  type PendingConfirm,
+} from '@/components/item-tree/visibility-confirm';
+import type { TreeVisibilityRefusal } from '@mantle/web-ui/types/tree';
 import type { FileRow, FolderRow } from './files-shared';
 
 export function ChildFolders({
@@ -125,6 +131,10 @@ export function DualPane({
   const [active, setActive] = useState<0 | 1>(0);
   const [selected, setSelected] = useState<[Set<string>, Set<string>]>([new Set(), new Set()]);
   const [busy, setBusy] = useState(false);
+  // Moves and copies the brain refused because they change who can see
+  // something (into or out of a shared folder): listed together, then
+  // repeated with `confirm` and each one's `seen`.
+  const [exposed, setExposed] = useState<PendingConfirm | null>(null);
 
   const setPaneState = (i: 0 | 1, path: string) => {
     setPaths((prev) => (i === 0 ? [path, prev[1]] : [prev[0], path]));
@@ -146,7 +156,10 @@ export function DualPane({
   /**
    * Run copy/move for the active pane's selection toward the other pane.
    * Sequential, first error stops the batch — a half-applied bulk op with a
-   * clear "stopped at X: why" beats a parallel scatter of failures.
+   * clear "stopped at X: why" beats a parallel scatter of failures. One the
+   * brain refuses because it changes who can see something (a shared folder
+   * on either side) is set aside, not a stop: the rest go on, and those are
+   * listed together once the batch is through.
    */
   const transfer = async (op: 'copy' | 'move') => {
     const src = active;
@@ -157,24 +170,42 @@ export function DualPane({
       toast.error('Both panes show the same folder — nothing to do');
       return;
     }
+    await runBatch(op, sel, dest);
+  };
+
+  /** `seen` (a confirmed repeat): each item's `total` as the dialog showed
+   *  it; a different change by now is refused again, with its new list. */
+  const runBatch = async (
+    op: 'copy' | 'move',
+    keys: readonly string[],
+    dest: string,
+    seen?: ReadonlyMap<string, number>,
+  ) => {
     setBusy(true);
     let done = 0;
+    const refused: Array<{ key: string; refusal: TreeVisibilityRefusal }> = [];
     try {
-      for (const key of sel) {
+      for (const key of keys) {
         const [kind, id] = key.split(':', 2) as ['file' | 'folder', string];
-        if (kind === 'file') {
-          if (op === 'move') await apiSend(`/api/files/files/${id}`, 'PATCH', { move: dest });
-          else await apiSend(`/api/files/files/${id}`, 'POST', { copy_to: dest });
-        } else {
-          if (op === 'move') await apiSend(`/api/files/folders/${id}`, 'PATCH', { move: dest });
-          else await apiSend(`/api/files/folders/${id}`, 'POST', { copy_to: dest });
+        const base = `/api/files/${kind === 'file' ? 'files' : 'folders'}/${id}`;
+        const yes = seen?.has(key) ? { confirm: true, seen: seen.get(key) } : {};
+        try {
+          if (op === 'move') await apiSend(base, 'PATCH', { move: dest, ...yes });
+          else await apiSend(base, 'POST', { copy_to: dest, ...yes });
+        } catch (err) {
+          const refusal = visibilityRefusal(err);
+          if (!refusal) throw err;
+          refused.push({ key, refusal });
+          continue;
         }
         done++;
       }
-      toast.success(`${op === 'move' ? 'Moved' : 'Copied'} ${done} item${done === 1 ? '' : 's'}`);
+      if (done) {
+        toast.success(`${op === 'move' ? 'Moved' : 'Copied'} ${done} item${done === 1 ? '' : 's'}`);
+      }
     } catch (err) {
       toast.error(
-        `${op === 'move' ? 'Move' : 'Copy'} stopped after ${done} of ${sel.length}: ` +
+        `${op === 'move' ? 'Move' : 'Copy'} stopped after ${done} of ${keys.length}: ` +
           (err instanceof ApiError ? err.message : 'request failed'),
       );
     } finally {
@@ -182,68 +213,88 @@ export function DualPane({
       setSelected([new Set(), new Set()]);
       onChanged();
     }
+    if (refused.length) {
+      const n = refused.length;
+      setExposed({
+        refusal: mergeRefusals(refused.map((r) => r.refusal)),
+        action: `${op === 'move' ? 'Move' : 'Copy'} ${n === 1 ? 'one item' : `${n} items`} into ${dest}.`,
+        verb: op === 'move' ? 'Move' : 'Copy',
+        run: () =>
+          void runBatch(
+            op,
+            refused.map((r) => r.key),
+            dest,
+            new Map(refused.map((r) => [r.key, r.refusal.total])),
+          ),
+      });
+    }
   };
 
   return (
-    <div
-      className="flex h-full flex-col outline-none"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        // The classics. Tab is intercepted only here, inside the manager —
-        // everywhere else it stays the browser's.
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          setActive((a) => (a === 0 ? 1 : 0));
-        } else if (e.key === 'F5') {
-          e.preventDefault();
-          void transfer('copy');
-        } else if (e.key === 'F6') {
-          e.preventDefault();
-          void transfer('move');
-        }
-      }}
-    >
-      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
-        {([0, 1] as const).map((i) => (
-          <FilePane
-            key={i}
-            tree={tree}
-            path={paths[i]}
-            active={active === i}
-            selected={selected[i]}
-            onActivate={() => setActive(i)}
-            onNavigate={(p) => setPaneState(i, p)}
-            onToggleSelect={(k) => toggleSelect(i, k)}
-            onOpenFile={onOpenFile}
-          />
-        ))}
-      </div>
-      <div className="flex items-center gap-2 border-t border-border px-4 py-2 text-sm">
-        <span className="text-xs text-muted-foreground">
-          {selected[active].size} selected in the {active === 0 ? 'left' : 'right'} pane
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy || selected[active].size === 0}
-            onClick={() => void transfer('copy')}
-            title="F5"
-          >
-            Copy {active === 0 ? '→' : '←'}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy || selected[active].size === 0}
-            onClick={() => void transfer('move')}
-            title="F6"
-          >
-            Move {active === 0 ? '→' : '←'}
-          </Button>
+    <>
+      <div
+        className="flex h-full flex-col outline-none"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          // The classics. Tab is intercepted only here, inside the manager —
+          // everywhere else it stays the browser's.
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            setActive((a) => (a === 0 ? 1 : 0));
+          } else if (e.key === 'F5') {
+            e.preventDefault();
+            void transfer('copy');
+          } else if (e.key === 'F6') {
+            e.preventDefault();
+            void transfer('move');
+          }
+        }}
+      >
+        <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
+          {([0, 1] as const).map((i) => (
+            <FilePane
+              key={i}
+              tree={tree}
+              path={paths[i]}
+              active={active === i}
+              selected={selected[i]}
+              onActivate={() => setActive(i)}
+              onNavigate={(p) => setPaneState(i, p)}
+              onToggleSelect={(k) => toggleSelect(i, k)}
+              onOpenFile={onOpenFile}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 border-t border-border px-4 py-2 text-sm">
+          <span className="text-xs text-muted-foreground">
+            {selected[active].size} selected in the {active === 0 ? 'left' : 'right'} pane
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || selected[active].size === 0}
+              onClick={() => void transfer('copy')}
+              title="F5"
+            >
+              Copy {active === 0 ? '→' : '←'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || selected[active].size === 0}
+              onClick={() => void transfer('move')}
+              title="F6"
+            >
+              Move {active === 0 ? '→' : '←'}
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+      {/* Outside the manager: its Tab, F5 and F6 keys (React events bubble
+        out of a portal to its React parent) must not reach the dialog. */}
+      <VisibilityConfirmDialog pending={exposed} onOpenChange={(o) => !o && setExposed(null)} />
+    </>
   );
 }
 

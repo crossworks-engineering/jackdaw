@@ -30,6 +30,8 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { ShareGlyph } from '@/components/item-tree/tree-rows';
+import { shareTitle } from '@/components/item-tree/sharing';
 import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { FileEditor } from './file-editor';
@@ -49,6 +51,8 @@ import {
   fmtSize,
   sumDerivedCounts,
   dismissDialog,
+  folderShareOf,
+  sharedUploadLine,
 } from './files-shared';
 import type {
   BulkDeleteResponse,
@@ -344,9 +348,20 @@ function FilesView({
   const { enqueue } = useUploads();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const triggerUpload = () => fileInputRef.current?.click();
+  // Into a folder shared with the team or clients, what lands is read by
+  // them at once: asked once per upload, then sent with `confirm` (the brain
+  // refuses it without, 409).
+  const share = folderShareOf(currentFolder);
+  const [sharedUpload, setSharedUpload] = useState<{ files: File[]; path: string } | null>(null);
+  const upload = (list: FileList | File[]) => {
+    const picked = Array.from(list);
+    if (!picked.length) return;
+    if (share) setSharedUpload({ files: picked, path: currentPath });
+    else enqueue(picked, currentPath);
+  };
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    enqueue(e.target.files, currentPath);
+    upload(e.target.files);
     e.target.value = '';
   };
 
@@ -375,7 +390,7 @@ function FilesView({
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(false);
-    if (e.dataTransfer.files?.length) enqueue(e.dataTransfer.files, currentPath);
+    if (e.dataTransfer.files?.length) upload(e.dataTransfer.files);
   };
 
   // ─── Delete folder ───────────────────────────────────────────────
@@ -877,6 +892,21 @@ function FilesView({
                     )}
                   </nav>
 
+                  {currentFolder && (currentFolder.share || currentFolder.inherited) ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <ShareGlyph
+                        folder={{
+                          share: currentFolder.share ?? null,
+                          inherited: currentFolder.inherited ?? null,
+                        }}
+                      />
+                      {shareTitle({
+                        share: currentFolder.share ?? null,
+                        inherited: currentFolder.inherited ?? null,
+                      })}
+                    </p>
+                  ) : null}
+
                   {currentFolder && currentFolder.path !== FILES_ROOT && (
                     <div className="mt-1 flex items-center justify-end gap-1">
                       <AccessControl
@@ -1100,8 +1130,17 @@ function FilesView({
                     gets a fat bar and nothing warns you. */}
                 <div className="relative flex-1 overflow-y-auto scrollbar-thin">
                   {dragOver && (
-                    <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary/50 bg-primary/5 text-sm font-medium text-primary-ink">
-                      Drop to upload to <code className="ml-1 font-mono">{currentPath}</code>
+                    <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-primary/50 bg-primary/5 text-sm font-medium text-primary-ink">
+                      <span>
+                        Drop to upload to <code className="ml-1 font-mono">{currentPath}</code>
+                      </span>
+                      {share ? (
+                        <span className="text-xs font-normal">
+                          {share === 'client'
+                            ? 'Clients read everything in this folder.'
+                            : 'The team reads everything in this folder.'}
+                        </span>
+                      ) : null}
                     </div>
                   )}
 
@@ -1440,6 +1479,38 @@ function FilesView({
         parentPath={(dialog?.kind === 'createFolder' && dialog.parentPath) || currentPath}
         onCreated={refresh}
       />
+
+      {/* ── Upload into a shared folder ───────────────────────────── */}
+      <AlertDialog
+        open={sharedUpload !== null}
+        onOpenChange={(open) => !open && setSharedUpload(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Upload{' '}
+              {sharedUpload?.files.length === 1
+                ? 'a file'
+                : `${sharedUpload?.files.length ?? 0} files`}{' '}
+              to a shared folder?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {share && sharedUpload ? sharedUploadLine(share, sharedUpload.files.length) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (sharedUpload) enqueue(sharedUpload.files, sharedUpload.path, { confirm: true });
+                setSharedUpload(null);
+              }}
+            >
+              Upload
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Create file dialog ────────────────────────────────────── */}
       <CreateFileDialog

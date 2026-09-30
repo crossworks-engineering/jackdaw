@@ -26,14 +26,16 @@ import { isCrossOrigin, runtimeApiBase } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
+  SHARED_UPLOAD_REFUSED,
   aggregateProgress,
   formatBytes,
   formatEta,
   formatRate,
   overLimitMessage,
   updateRate,
+  uploadForm,
 } from '@/lib/upload-progress';
-import { UploadAbortedError, xhrUpload } from '@/lib/xhr-upload';
+import { UploadAbortedError, UploadHttpError, xhrUpload } from '@/lib/xhr-upload';
 
 /**
  * App-wide background file uploader. Lives in the persistent app shell so a
@@ -73,7 +75,9 @@ type UploadApi = {
   /** The server's per-file cap (from /api/shell); null until known. */
   maxUploadBytes: number | null;
   setMaxUploadBytes: (bytes: number | null) => void;
-  enqueue: (input: FileList | File[], parentPath: string) => void;
+  /** `confirm`: the owner said yes to a folder shared with the team or
+   *  clients (the brain refuses such an upload without it, 409). */
+  enqueue: (input: FileList | File[], parentPath: string, opts?: { confirm?: boolean }) => void;
   cancel: (id: string) => void;
   retry: (id: string) => void;
   clearFinished: () => void;
@@ -89,7 +93,13 @@ const PROGRESS_TICK_MS = 150;
 /** What an old server (no `maxUploadBytes` in /api/shell) accepts. */
 const LEGACY_LIMIT_BYTES = 64 * 1024 * 1024;
 
-type Pending = { file: File; parentPath: string; controller?: AbortController };
+type Pending = {
+  file: File;
+  parentPath: string;
+  /** A yes to a shared folder, kept for a retry. */
+  confirm?: boolean;
+  controller?: AbortController;
+};
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<UploadTask[]>([]);
@@ -144,9 +154,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      const form = new FormData();
-      form.set('parentPath', entry.parentPath);
-      form.set('file', entry.file);
+      const form = uploadForm(entry.parentPath, entry.file, entry.confirm === true);
       const token = tokenStore.get();
       await xhrUpload({
         url: `${runtimeApiBase()}/api/files/files`,
@@ -164,13 +172,22 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         update(id, { status: 'cancelled', rate: null });
         pendingRef.current.delete(id);
       } else {
+        // A folder shared since the screen last looked: the yes is asked
+        // for on the Files screen, not by a retry here.
+        const unasked =
+          err instanceof UploadHttpError && err.status === 409 && err.body?.error === 'visibility';
         // Keep the File so "retry" can resend it without a new picker round.
         update(id, {
           status: 'error',
           rate: null,
-          error: err instanceof Error ? err.message : 'Upload failed.',
-          retryable: true,
+          error: unasked
+            ? SHARED_UPLOAD_REFUSED
+            : err instanceof Error
+              ? err.message
+              : 'Upload failed.',
+          retryable: !unasked,
         });
+        if (unasked) pendingRef.current.delete(id);
       }
     } finally {
       entry.controller = undefined;
@@ -180,7 +197,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   };
 
   const enqueue = useCallback(
-    (input: FileList | File[], parentPath: string) => {
+    (input: FileList | File[], parentPath: string, opts: { confirm?: boolean } = {}) => {
       const files = Array.from(input).filter((f) => f.size > 0);
       if (files.length === 0) return;
       const limit = limitRef.current ?? LEGACY_LIMIT_BYTES;
@@ -208,7 +225,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           refused.push(file.name);
           continue;
         }
-        pendingRef.current.set(id, { file, parentPath });
+        pendingRef.current.set(id, { file, parentPath, confirm: opts.confirm });
         queueRef.current.push(id);
         fresh.push({ ...base, status: 'pending' });
       }
