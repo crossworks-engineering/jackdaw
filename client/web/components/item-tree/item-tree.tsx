@@ -1443,6 +1443,8 @@ export function ItemTree({
         folderName={deleteTarget?.name ?? null}
         contents={adapter.noun.many}
         who={member ? 'member' : 'brain'}
+        merges={!member}
+        renamesFiles={!member && kind === 'files'}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
         onConfirm={() => {
           const target = deleteTarget;
@@ -1452,7 +1454,7 @@ export function ItemTree({
             (confirm, seen) => deleteTreeFolder(kind, target.id, confirm, writer, seen),
             'Could not delete',
             {
-              action: `Delete “${target.name}”: what it holds moves up one level, out of its share.`,
+              action: `Delete “${target.name}”: what it holds moves up one level and takes the share of where it lands.`,
               verb: 'Delete folder',
             },
           );

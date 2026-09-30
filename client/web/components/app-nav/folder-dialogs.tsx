@@ -126,6 +126,8 @@ export function DeleteFolderDialog({
   folderName,
   contents = 'apps',
   who = 'brain',
+  merges = false,
+  renamesFiles = false,
   onOpenChange,
   onConfirm,
 }: {
@@ -133,6 +135,11 @@ export function DeleteFolderDialog({
   /** What the folder holds besides folders, in the plural ("apps", "files"). */
   contents?: string;
   who?: FolderAudience;
+  /** The brain merges a subfolder into a folder of the same name one level
+   *  up (the item tree's delete). */
+  merges?: boolean;
+  /** And gives a file whose name is taken there a new one (Files). */
+  renamesFiles?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
@@ -144,6 +151,10 @@ export function DeleteFolderDialog({
           <AlertDialogDescription>
             Only the folder goes. The {contents} and folders inside it move up one level
             {who === 'member' ? '.' : ', for everyone on this brain.'}
+            {merges &&
+              ' A folder with the same name already there takes in what the one inside held.'}
+            {renamesFiles &&
+              ' A file whose name is already taken there gets a new one, like report-2.pdf.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
