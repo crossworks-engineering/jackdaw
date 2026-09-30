@@ -57,12 +57,17 @@ function stripUseWhenPrefix(value: string): string {
  *
  * Full and Compact (the old Labels/Dots/Off) change card heights, so they
  * change the layout. The flow is keyed on the mode and on the map version:
- * a change remounts it, which is the one way an uncontrolled React Flow
- * reliably re-measures. (Handing it a fresh `nodes` array without a remount
- * drops its node measurements, and edges, which need both ends measured,
- * never render again. The old graph hit exactly that on a label toggle.)
- * Within one mount the nodes array identity is stable per map: focus rides
- * context, never the nodes.
+ * a change remounts it, so an uncontrolled React Flow measures the new
+ * boxes from scratch and fits once, rather than re-measuring a fresh
+ * `nodes` array in place (which it does, since 12.x, at the cost of the
+ * edges vanishing for a frame and several fits; the old graph's note that
+ * edges never came back described an older build). Within one mount the
+ * nodes array identity is stable per map: focus rides context, never the
+ * nodes.
+ *
+ * Selection is React Flow's own, mirrored into `selected` through
+ * onSelectionChange, so a keyboard user gets the same thing a pointer does:
+ * Tab to a card, Enter selects it, Enter again opens it.
  */
 export function RecallGraph({
   map,
@@ -110,8 +115,36 @@ export function RecallGraph({
   );
   const selectedNode = selected ? map.nodes.find((n) => n.slug === selected) : undefined;
 
+  // React Flow owns selection (click, and Enter or Space on a focused
+  // card); this mirrors it. The band caption is not selectable, so the
+  // first selected node is always a card.
+  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[] }) => {
+    setSelected(sel[0]?.id ?? null);
+  }, []);
+
+  // Enter on a card that is ALREADY selected opens it. React Flow handles
+  // the same key first (bubbling order): on an unselected card it selects,
+  // and the closure still holds the previous `selected`, so the first
+  // press selects and the second opens.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' || !selected) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.react-flow__node');
+    if (el?.dataset.id === selected) open(selected);
+  };
+
+  if (map.nodes.length === 0) {
+    return (
+      <div className={cn('h-full min-h-0 rounded-md border border-border bg-muted/20', className)}>
+        <p className="p-6 text-sm text-muted-foreground">This map has no cards.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn('h-full min-h-0 rounded-md border border-border bg-muted/20', className)}>
+    <div
+      className={cn('h-full min-h-0 rounded-md border border-border bg-muted/20', className)}
+      onKeyDown={onKeyDown}
+    >
       <ReactFlowProvider>
         {/* Tooltips live inside the nodes, so the provider has to wrap the
             flow itself, because this app mounts them per feature. */}
@@ -124,16 +157,16 @@ export function RecallGraph({
               edges={edges}
               nodeTypes={recallNodeTypes}
               edgeTypes={recallEdgeTypes}
-              onNodeClick={(_e, n) => {
-                if (n.type === RECALL_CARD_TYPE) setSelected(n.id);
-              }}
+              onSelectionChange={onSelectionChange}
               // A single click selects, so the reader can see a card's lines
               // before leaving the graph. Opening the editor is a double
-              // click or the Open button, since it navigates to the Cards
-              // view and unmounts the graph.
+              // click, Enter on the selected card, or the Open button, since
+              // it navigates to the Cards view and unmounts the graph.
               onNodeDoubleClick={(_e, n) => {
                 if (n.type === RECALL_CARD_TYPE) open(n.id);
               }}
+              // Double-click opens a card; it must not also zoom the canvas.
+              zoomOnDoubleClick={false}
               onNodeMouseEnter={(_e, n) => {
                 if (n.type === RECALL_CARD_TYPE) setHoveredCard(n.id);
               }}
@@ -141,7 +174,6 @@ export function RecallGraph({
                 setHoveredCard(null);
                 setHoveredRow(null);
               }}
-              onPaneClick={() => setSelected(null)}
               fitView
               fitViewOptions={FIT}
               minZoom={0.2}
@@ -149,6 +181,10 @@ export function RecallGraph({
               nodesDraggable={false}
               nodesConnectable={false}
               elementsSelectable
+              // Lines are read, not edited: no tab stop per edge, and no
+              // delete key.
+              edgesFocusable={false}
+              deleteKeyCode={null}
             >
               <FitOnResize />
               <Background gap={16} size={1} />
@@ -252,6 +288,7 @@ function buildNodes(map: RecallMapDetailDTO, layout: RecallLayout, compact: bool
       position: { x: card.x, y: card.y },
       width: card.width,
       height: card.height,
+      ariaLabel: node.title,
       data: {
         node,
         rows,
@@ -283,7 +320,9 @@ function buildNodes(map: RecallMapDetailDTO, layout: RecallLayout, compact: bool
  * should not draw. A lit edge is painted last so it sits above its
  * neighbours (React Flow paints edges in array order).
  *
- *  - Hovering a row lights that one line.
+ *  - Hovering a row lights that one line and nothing else: a row sits
+ *    inside its card, so the card counts as hovered too, and the row has
+ *    to win or every row on the card would light with it.
  *  - Selecting or hovering a card lights its outgoing lines and shows the
  *    line that reaches it; with a card selected, every other line dims.
  *  - A cross-link draws only while its source or target card has focus.
@@ -300,7 +339,8 @@ function decorateEdges(
   const out: { edge: Edge; order: number }[] = [];
   for (const e of all) {
     let state: EdgeState;
-    if (hoveredRow === e.id || focused(e.source)) state = 'lit';
+    if (hoveredRow === e.id) state = 'lit';
+    else if (focused(e.source)) state = hoveredRow ? 'normal' : 'lit';
     else if (focused(e.target)) state = 'normal';
     else if (e.kind === 'cross') continue;
     else state = selected ? 'dim' : 'normal';
