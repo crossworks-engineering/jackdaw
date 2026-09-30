@@ -19,6 +19,16 @@ import type {
   ClientStorageUsage,
   ClientThreadActivity,
 } from '@mantle/client-types';
+// The C6 answers the published contract does not carry yet (client apps,
+// the informational flag): typed against the app's shim, which the C6
+// release replaces with the contract itself.
+import type {
+  AppDetail,
+  ClientAppCard,
+  ClientAppList,
+  MemberAppCard,
+  MemberAppList,
+} from '../../client/web/lib/contract-next';
 
 /**
  * An in-memory member API for the member specs: a real HTTP server in the
@@ -74,6 +84,14 @@ import type {
  * client note (/api/nodes/:id/comments), and Team admin > Clients' client
  * comments and storage cards (`admin.clientComments`, `admin.clientStorage`;
  * null answers 404, an older brain).
+ *
+ * Since C6 it answers a client's apps (/api/client/apps: the list, a frame
+ * ticket, the frame document, the brokers; `clientApps.routes` false answers
+ * 404, as a brain before C6 does), a member's launcher apps with their
+ * informational flag and the same run routes under /api/member/apps, and,
+ * for an admin, one app's detail and its PATCH (`admin.app`: the informational
+ * switch) and the owner thread read by scope (`admin.threadScopes` false: a
+ * brain before C6, which ignores `?scope=` and answers every scope).
  *
  * Since C2b it answers the public email sign-in code routes for every role,
  * as the brain does (`clientCodes` says whether this brain sends codes; the
@@ -297,6 +315,23 @@ export const PUBLIC_PAGE_ID = '26262626-2626-4262-8262-262626262626';
 export const PUBLIC_PAGE_TITLE = 'Price list';
 export const RETIRED_SHARE_ID = '27272727-2727-4272-8272-272727272727';
 
+/** Client apps (C6): one a client writes, one informational. */
+export const CLIENT_APP_ID = '41414141-4141-4414-8414-414141414141';
+export const CLIENT_APP_TITLE = 'Snag list';
+export const CLIENT_INFO_APP_ID = '42424242-4242-4424-8424-424242424242';
+export const CLIENT_INFO_APP_TITLE = 'Programme';
+/** What every mock app frame says, so a spec sees the frame loaded. */
+export const APP_FRAME_TEXT = 'Mock app frame';
+/** A member's informational app (C6). */
+export const MEMBER_INFO_APP_ID = '43434343-4343-4434-8434-434343434343';
+export const MEMBER_INFO_APP_TITLE = 'Price list app';
+/** The admin's app (C6: the informational switch). */
+export const ADMIN_APP_ID = '44444444-4444-4444-8444-444444444445';
+export const ADMIN_APP_TITLE = 'Site tracker';
+/** A comment in another thread on the client note (not the client scope):
+ *  a C6 brain leaves it out of `?scope=client`, an older one does not. */
+export const OWNER_THREAD_TEAM_COMMENT = 'Internal: check the price floor first.';
+
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
 
@@ -340,6 +375,10 @@ export type MockMemberApi = {
   clientChat: MockClientChat;
   /** Client role: the client's own items and the shared threads (C5). */
   clientOwn: MockClientOwn;
+  /** Client role: the client's apps (C6). */
+  clientApps: MockApps<ClientAppCard>;
+  /** Member role: the launcher's apps (C6 cards carry `dataReadOnly`). */
+  memberApps: MockApps<MemberAppCard>;
   /** Member role: the one list carries CLIENT_REQUEST_ID (C5). */
   clientRequests: boolean;
   /** Member role: the thread on the client-level Library page (C5). */
@@ -487,6 +526,17 @@ export type MockAdminState = {
   nodeComments: Record<string, MockComment[]>;
   /** Every comment the owner deleted (/api/comments/:id). */
   commentDeletes: string[];
+  /** Comments in the item's OTHER threads (not the client scope), by node
+   *  id: a brain before C6 answers them with the client thread. */
+  nodeOtherComments: Record<string, MockComment[]>;
+  /** The brain reads `?scope=client` (C6); false: it ignores it. */
+  threadScopes: boolean;
+  /** The `scope=` of every owner thread read (null: none), in order. */
+  nodeCommentScopes: (string | null)[];
+  /** GET /api/apps/:id answers this app (null: 404), and every PATCH of it,
+   *  as sent. */
+  app: AppDetail | null;
+  appPatches: { id: string; body: unknown }[];
   /** The review talk on a queue item, by id. */
   reviewComments: Record<string, MockComment[]>;
   /** Team admin > Clients > Client comments; null answers 404 (a brain
@@ -499,6 +549,19 @@ export type MockAdminState = {
 };
 
 export type MockComment = NodeComment;
+
+/** The apps a login runs, and what its run routes saw. */
+export type MockApps<C> = {
+  /** false: every app route answers 404 (a brain before C6). */
+  routes: boolean;
+  apps: C[];
+  /** Every frame ticket minted, by app id. */
+  tickets: string[];
+  /** Every frame document served, by app id. */
+  frames: string[];
+  /** Every db-broker call: the app id, the op, and the answer's status. */
+  dbCalls: { id: string; op: string; status: number }[];
+};
 
 /** One item of a client's own space: the member space shapes. */
 export type MockClientItem = {
@@ -654,6 +717,8 @@ export async function startMockMemberApi(
       commentRefusal: null,
       deletes: [],
     },
+    clientApps: { routes: true, apps: [], tickets: [], frames: [], dbCalls: [] },
+    memberApps: { routes: true, apps: [], tickets: [], frames: [], dbCalls: [] },
     clientRequests: false,
     libraryComments: [],
     libraryThread: true,
@@ -722,6 +787,11 @@ export async function startMockMemberApi(
       requests: [],
       nodeComments: {},
       commentDeletes: [],
+      nodeOtherComments: {},
+      threadScopes: true,
+      nodeCommentScopes: [],
+      app: null,
+      appPatches: [],
       reviewComments: {},
       clientComments: null,
       clientCommentDeletes: [],
@@ -989,11 +1059,37 @@ export async function startMockMemberApi(
     if (nodeThread) {
       const id = nodeThread[1]!;
       A.nodeComments[id] ??= [];
-      await thread(req, res, url, A.nodeComments[id]!, id, undefined, method, {
+      // A read asks one scope (C6) or every one; a brain before C6 ignores
+      // `scope` and answers every thread, as it always did. A post joins the
+      // client thread (the item is at client level).
+      let list = A.nodeComments[id]!;
+      if (method === 'GET') {
+        const scope = url.searchParams.get('scope');
+        A.nodeCommentScopes.push(scope);
+        if (!(A.threadScopes && scope === 'client')) {
+          list = [...(A.nodeOtherComments[id] ?? []), ...list].sort((a, b) =>
+            a.createdAt.localeCompare(b.createdAt),
+          );
+        }
+      }
+      await thread(req, res, url, list, id, undefined, method, {
         kind: 'owner',
         name: 'Ada Admin',
       });
       return true;
+    }
+    // One app (C6): its detail, and the informational switch's PATCH.
+    const ownerApp = /^\/api\/apps\/([0-9a-f-]{36})$/.exec(path);
+    if (ownerApp) {
+      const id = ownerApp[1]!;
+      if (!A.app || A.app.id !== id) return (json(res, 404, { error: 'Not found.' }), true);
+      if (method === 'GET') return (json(res, 200, { app: A.app }), true);
+      if (method === 'PATCH') {
+        const body = JSON.parse((await readBody(req)) || '{}') as { dataReadOnly?: unknown };
+        A.appPatches.push({ id, body });
+        if (typeof body.dataReadOnly === 'boolean') A.app.dataReadOnly = body.dataReadOnly;
+        return (json(res, 200, { app: A.app }), true);
+      }
     }
     const oneComment = /^\/api\/comments\/([^/]+)$/.exec(path);
     if (oneComment && method === 'DELETE') {
@@ -1720,6 +1816,9 @@ export async function startMockMemberApi(
   A.nodeComments[CLIENT_NOTE_ID] = [
     comment(CLIENT_NOTE_ID, 'client', CLIENT_NAME, OWNER_THREAD_CLIENT_COMMENT),
   ];
+  A.nodeOtherComments[CLIENT_NOTE_ID] = [
+    comment(CLIENT_NOTE_ID, 'member', STAFF_NAME, OWNER_THREAD_TEAM_COMMENT),
+  ];
   const acceptedNoteRow = (): ClientItemRow => ({
     id: CLIENT_ACCEPTED_ID,
     type: 'note',
@@ -2063,6 +2162,67 @@ export async function startMockMemberApi(
     return true;
   };
 
+  /**
+   * The app run routes under `prefix` (C6: /api/client/apps for a client,
+   * /api/member/apps for a member), as the brain has them: the list, a frame
+   * ticket, the frame document (its ticket checked), the tool broker (no
+   * tools here) and the db broker, which refuses a write to an informational
+   * app (403 `read-only`). True when it answered.
+   */
+  const handleApps = async <C extends { id: string; dataReadOnly?: boolean }>(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    path: string,
+    method: string,
+    prefix: string,
+    apps: MockApps<C>,
+    list: () => unknown,
+  ): Promise<boolean> => {
+    if (path !== prefix && !path.startsWith(`${prefix}/`)) return false;
+    if (!apps.routes) return (json(res, 404, { error: 'Not found.' }), true);
+    if (path === prefix && method === 'GET') return (json(res, 200, list()), true);
+    const m = new RegExp(`^${prefix}/([0-9a-f-]{36})/([a-z-]+)$`).exec(path);
+    const app = m ? apps.apps.find((a) => a.id === m[1]) : undefined;
+    if (!m || !app) return (json(res, 404, { error: 'Not found.' }), true);
+    const [, id, tail] = m as unknown as [string, string, string];
+    if (tail === 'frame-ticket' && method === 'POST') {
+      apps.tickets.push(id);
+      return (json(res, 200, { ticket: `ticket-${id}` }), true);
+    }
+    if (tail === 'frame' && method === 'GET') {
+      if (url.searchParams.get('t') !== `ticket-${id}`) {
+        return (send(res, 401, 'text/plain', 'Bad ticket.'), true);
+      }
+      apps.frames.push(id);
+      send(
+        res,
+        200,
+        'text/html; charset=utf-8',
+        `<!doctype html><html><body><p>${APP_FRAME_TEXT}</p>` +
+          `<script>parent.postMessage({ v: 1, kind: 'ready' }, '*');</script></body></html>`,
+      );
+      return true;
+    }
+    if (tail === 'tool-broker' && method === 'POST') {
+      return (json(res, 403, { ok: false, error: 'No such tool.' }), true);
+    }
+    if (tail === 'db-broker' && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as { op?: string };
+      const op = body.op ?? '';
+      const refused = op === 'exec' && app.dataReadOnly === true;
+      apps.dbCalls.push({ id, op, status: refused ? 403 : 200 });
+      if (refused) {
+        return (
+          json(res, 403, { ok: false, error: 'This app is read only.', reason: 'read-only' }),
+          true
+        );
+      }
+      return (json(res, 200, { ok: true, output: op === 'query' ? [] : { changes: 1 } }), true);
+    }
+    return (json(res, 404, { error: 'Not found.' }), true);
+  };
+
   const handleClient = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -2072,6 +2232,21 @@ export async function startMockMemberApi(
   ) => {
     if (path === '/api/client/chat') return handleClientChat(req, res, method);
     if (await handleClientOwn(req, res, url, path, method)) return;
+    const clientAppList = (): ClientAppList => ({ apps: state.clientApps.apps });
+    if (
+      await handleApps(
+        req,
+        res,
+        url,
+        path,
+        method,
+        '/api/client/apps',
+        state.clientApps,
+        clientAppList,
+      )
+    ) {
+      return;
+    }
     if (path === '/api/client/shell') {
       return json(res, 200, {
         role: 'client',
@@ -2232,7 +2407,21 @@ export async function startMockMemberApi(
     }
     if (path === '/api/member/realtime') return send(res, 200, 'text/event-stream', ':\n\n');
     if (path === '/api/member/home') return json(res, 200, { homeApp: null, hub: null });
-    if (path === '/api/member/apps') return json(res, 200, { apps: [], homeAppId: null });
+    const memberAppList = (): MemberAppList => ({ apps: state.memberApps.apps, homeAppId: null });
+    if (
+      await handleApps(
+        req,
+        res,
+        url,
+        path,
+        method,
+        '/api/member/apps',
+        state.memberApps,
+        memberAppList,
+      )
+    ) {
+      return;
+    }
     if (path === '/api/auth/change-password' && method === 'POST') {
       // The brain's own answers (server/web/app/api/auth/change-password).
       const body = JSON.parse(await readBody(req)) as { oldPassword: string; newPassword: string };
