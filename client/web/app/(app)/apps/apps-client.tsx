@@ -1,5 +1,6 @@
 'use client';
 
+import { inheritedOf } from '@/lib/access-levels';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -265,7 +266,11 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                             <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
                             <span className="ml-auto flex shrink-0 items-center gap-1">
                               {app.hasDraft && <Badge variant="secondary">draft</Badge>}
-                              <AudienceBadge level={app.audience} hub={app.isHub} />
+                              <AudienceBadge
+                                level={app.audience}
+                                inherited={inheritedOf(app)}
+                                hub={app.isHub}
+                              />
                             </span>
                           </span>
                           {app.description && (

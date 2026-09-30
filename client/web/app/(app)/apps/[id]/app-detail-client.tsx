@@ -1,5 +1,6 @@
 'use client';
 
+import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -283,7 +284,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
             />
             {app.title}
             {app.hasDraft && <Badge variant="secondary">unpublished draft</Badge>}
-            <AudienceBadge level={app.audience} hub={app.isHub} />
+            <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
           </span>
         </div>
         <div className="flex items-center gap-2">

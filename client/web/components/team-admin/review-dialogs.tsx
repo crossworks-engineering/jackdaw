@@ -6,7 +6,7 @@
  * with a note, and Discard for an item a deactivated login left behind. The
  * accept dialog also serves an admin's own private items (Phase 7).
  */
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useRouter } from 'next/navigation';
@@ -205,6 +205,13 @@ export function AcceptIntoBrainDialog({
   // What the admin said yes to (the level and the place it was for), so a
   // later ask on the same accept (a client's ticks) does not ask it again.
   const [exposedOk, setExposedOk] = useState<string | null>(null);
+  // That yes holds for this opening of the dialog only.
+  useEffect(() => {
+    if (!open) {
+      setExposedOk(null);
+      setExposed(null);
+    }
+  }, [open]);
 
   const bundle = useQuery({
     queryKey: [...(bundleSource?.key ?? ['accept-bundle', 'none']), 'filed'],
@@ -230,9 +237,15 @@ export function AcceptIntoBrainDialog({
     pick === undefined ? filed : pickPlace && placeIsFor(pickPlace, pick) ? pickPlace : undefined;
   // Still asking where the pick lands: its share is not known yet.
   const placing = pick !== undefined && !!filed && picked.isPending;
+  // The pick's preview failed: its share is unknown, so Accept waits for a
+  // retry (the brain would still ask, but the dialog would say nothing).
+  const pickFailed = pick !== undefined && !!filed && picked.isError;
   const placeAdapter = filed ? readerTreeAdapter(filed.kind) : null;
   // What it is read at there, at least (null: no shared folder, or a brain
-  // that does not say).
+  // that does not say). DISPLAY only: the level sent is the one chosen, so
+  // the item's own level stays the admin's and moving it out of the folder
+  // later drops the folder's share. The brain asks (409 `visibility`) and
+  // tells (`readAt`) about the folder.
   const share = place?.share ?? null;
   const level = effectiveOf(chosen, share);
   const hasFiles =
@@ -293,13 +306,13 @@ export function AcceptIntoBrainDialog({
       return next;
     });
 
-  const acceptFor = `${level}|${pick === undefined ? 'filed' : (pick?.id ?? 'root')}`;
+  const acceptFor = `${chosen}|${pick === undefined ? 'filed' : (pick?.id ?? 'root')}`;
   const accept = async (visibilityConfirmed = exposedOk === acceptFor) => {
     setBusy(true);
     try {
       if (beforeAccept && !(await beforeAccept())) return;
       const input: AcceptInput = {
-        audience: level,
+        audience: chosen,
         parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,
         folderPath: hasFiles ? folder : null,
         ...(filed && pick !== undefined ? { folderId: pick?.id ?? null } : {}),
@@ -469,6 +482,18 @@ export function AcceptIntoBrainDialog({
                   </p>
                   {placing ? (
                     <p className="text-xs text-muted-foreground">Working out who reads it there…</p>
+                  ) : pickFailed ? (
+                    <p className="flex items-center gap-1.5 text-xs text-destructive-ink">
+                      Could not work out who reads it there.
+                      <Button
+                        size="sm"
+                        variant="link"
+                        className="h-auto p-0 text-xs"
+                        onClick={() => void picked.refetch()}
+                      >
+                        Retry
+                      </Button>
+                    </p>
                   ) : placeShareLine(share) ? (
                     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       {share === 'team' ? (
@@ -591,7 +616,11 @@ export function AcceptIntoBrainDialog({
             </Button>
             <Button
               disabled={
-                busy || (!!bundleSource && !bundle.data) || placing || (confirming && !confirmation)
+                busy ||
+                (!!bundleSource && !bundle.data) ||
+                placing ||
+                pickFailed ||
+                (confirming && !confirmation)
               }
               onClick={() => void accept()}
             >

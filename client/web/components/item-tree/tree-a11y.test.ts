@@ -50,4 +50,9 @@ describe('the rows are a tree', () => {
     // 24px to look at, 32px to hit.
     expect(rows).toContain('after:-inset-1');
   });
+
+  it('a folder gone for a reader asks its parents again, not other gone folders (review F2)', () => {
+    expect(rows).toContain('return !(err instanceof ApiError && err.status === 404);');
+    expect(rows).toContain('{ cancelRefetch: false },');
+  });
 });

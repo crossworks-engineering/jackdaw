@@ -1,5 +1,6 @@
 'use client';
 
+import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -449,7 +450,13 @@ export function TablesShell() {
                             <ItemIcon emoji={t.icon || '📊'} fallback={null} />
                           )
                         }
-                        badge={<AudienceBadge level={t.audience} className="mt-0.5" />}
+                        badge={
+                          <AudienceBadge
+                            level={t.audience}
+                            inherited={inheritedOf(t)}
+                            className="mt-0.5"
+                          />
+                        }
                         selected={selectedId === t.id || pendingId === t.id}
                         onSelect={() => selectTable(t.id)}
                         footerStart={

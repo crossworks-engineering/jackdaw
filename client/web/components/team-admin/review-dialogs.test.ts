@@ -72,4 +72,18 @@ describe('the accept dialog, landing in a shared folder (folder plan phase 5)', 
   it('toasts the level it is read at', () => {
     expect(src).toContain('toast.success(acceptedLine(item.title, res));');
   });
+
+  it('sends the level chosen, never the folder share as its own level', () => {
+    // The floor is display only: stored at the share, the item would keep it
+    // after it moved out of the folder (audit review F1).
+    expect(src).toContain('audience: chosen,');
+    expect(src).not.toContain('audience: level,');
+    expect(flat).toContain('const acceptFor = `${chosen}|');
+  });
+
+  it('forgets a yes when the dialog closes, and waits on a failed pick preview', () => {
+    expect(flat).toMatch(/useEffect\(\(\) => \{ if \(!open\) \{ setExposedOk\(null\);/);
+    expect(src).toContain('const pickFailed = pick !== undefined && !!filed && picked.isError;');
+    expect(src).toContain('onClick={() => void picked.refetch()}');
+  });
 });

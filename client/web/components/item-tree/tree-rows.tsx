@@ -153,12 +153,22 @@ function FolderLoader({
   useEffect(() => {
     if (!goneAt) return;
     const scope = treeScope(kind, source);
-    void qc.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey;
-        return key[0] === 'tree' && key[1] === scope && key[2] === 'folder' && key[3] !== folderId;
+    void qc.invalidateQueries(
+      {
+        // Not other folders that are gone too: they would answer 404 again,
+        // with a new errorUpdatedAt, and ask this one again, in a loop.
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (key[0] !== 'tree' || key[1] !== scope || key[2] !== 'folder') return false;
+          if (key[3] === folderId) return false;
+          const err = query.state.error;
+          return !(err instanceof ApiError && err.status === 404);
+        },
       },
-    });
+      // Never cancel a refetch already under way (the parent's is what
+      // removes this row).
+      { cancelRefetch: false },
+    );
   }, [goneAt, qc, kind, source, folderId]);
   return null;
 }

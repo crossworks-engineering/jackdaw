@@ -1,5 +1,6 @@
 'use client';
 
+import { inheritedOf } from '@/lib/access-levels';
 import { Fragment, useMemo, useState } from 'react';
 import type { AccessLevel } from '@mantle/client-types';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -297,7 +298,7 @@ export function FormulaDetail({
                 {spec.unitSystem}
               </Badge>
             ) : null}
-            <AudienceBadge level={formula.audience} />
+            <AudienceBadge level={formula.audience} inherited={inheritedOf(formula)} />
           </h2>
           {cite ? <p className="mt-1 text-xs text-muted-foreground">{cite}</p> : null}
         </div>

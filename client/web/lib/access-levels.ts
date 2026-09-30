@@ -295,6 +295,14 @@ export function readLevel(
   return { level, viaFolder: level !== own };
 }
 
+/** The share a row inherits from a folder above (`inherited`), on rows whose
+ *  contract type may not name it yet (a brain before it, or a type pinned
+ *  from an older contract): null when absent. */
+export function inheritedOf(row: object): 'team' | 'client' | null {
+  const v = (row as { inherited?: unknown }).inherited;
+  return v === 'team' || v === 'client' ? v : null;
+}
+
 /** The badge's tooltip for a level a folder above opened. */
 export function viaFolderTitle(level: Exclude<AccessLevel, 'admin'>): string {
   return `${AUDIENCE_TITLE[level]}. Shared through a folder above it.`;
