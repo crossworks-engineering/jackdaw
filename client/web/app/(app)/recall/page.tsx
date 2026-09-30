@@ -3,10 +3,9 @@ import { RecallScreen } from './recall-screen';
 
 /**
  * Recall, the map workshop. Data-free: the page parses the URL state
- * (`selected` map id, deep-linked from the editor lint badge; `view`; `card`,
- * the v2 editor's open card; the search and page) and hands it to
- * RecallScreen, which picks the v2 editor or the v1 screen by what the brain
- * says it can do.
+ * (`selected` map id; `view`; `card`, the editor's open card; the search and
+ * page) and hands it to RecallScreen, which shows the editor, or a "needs an
+ * update" state on a brain older than Recall v2.
  */
 export default async function RecallPage({
   searchParams,

@@ -17,8 +17,7 @@ import { useFlowColorMode } from '@mantle/web-ui/hooks/use-flow-color-mode';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { TooltipProvider } from '@mantle/web-ui/ui/tooltip';
-import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/client-types';
-import { stripUseWhenPrefix } from './recall-doc';
+import type { RecallMapDetailDTO, RecallNodeDTO } from '@mantle/web-ui/types/recall-v2';
 import {
   LABEL_H,
   LABEL_W,
@@ -28,10 +27,16 @@ import {
   type OptionEdgeData,
 } from './recall-edge';
 
+/** An option line is shown without a leading "Use when", which an author
+ *  sometimes types into the field themselves. */
+function stripUseWhenPrefix(value: string): string {
+  return value.replace(/^use when\b[:\s—–-]*/i, '').trim();
+}
+
 /**
  * The routing overview: nodes + option edges, laid out with dagre like the
  * trace graph. The index is the entry (primary border), prompts are
- * distinguished (info border), and orphans — the lint's warning made spatial —
+ * distinguished (info border), and orphans (no option leads to them)
  * get a dashed warning border. Built once, used twice: S5's walk replay will
  * light paths up over this same component.
  *

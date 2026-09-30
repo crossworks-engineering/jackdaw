@@ -642,7 +642,7 @@ nothing moves:
 dialog's `px-5`, so children, dividers and text sit where they always did; only
 the clipping stops. The same recipe applies to any scroller holding focusable
 children — a `<ul>` of rows, a settings pane, a picker list — not just dialogs.
-See `recall/create-recall-dialog.tsx` and `avatar-builder.tsx`.
+See `components/avatar-builder.tsx`.
 
 ---
 

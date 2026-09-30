@@ -26,18 +26,6 @@ import { EmojiPicker } from '@/components/emoji-picker';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AccessControl } from '@/components/share/access-control';
 import { OwnerClientThread } from '@/components/share/owner-client-thread';
-import { RecallBadge } from './recall-badge';
-
-/** The two tags that DO something. Everything else on a page is a label; these
- *  turn the page into memory a brain serves to agents, and they are owner-only
- *  precisely because of that. Explaining them on the pill is the cheapest
- *  possible fix for "how was I supposed to know?". */
-const RECALL_TAG_HINTS: Record<string, string> = {
-  recall:
-    'Recall: this page is the root of a memory map agents walk. Compiled and served on every commit.',
-  prompt:
-    'Recall: agents find this page by MEANING via recall_match. It must open with a “Use when: …” line.',
-};
 import { ExportMenu } from '@/components/export/export-menu';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
@@ -882,7 +870,6 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
         value={tags}
         onChange={setTags}
         placeholder="Add tags…"
-        hints={RECALL_TAG_HINTS}
         className="ml-auto min-h-8 w-auto max-w-full basis-auto justify-end border-transparent bg-transparent px-0 py-0 sm:max-w-[45%]"
       />
     </header>
@@ -906,7 +893,6 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         <BackLink href="/pages">All pages</BackLink>
         <div className="flex flex-wrap items-center gap-2 gap-y-1.5">
-          <RecallBadge pageId={initial.id} />
           <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={docDirty} />
           <Button size="sm" onClick={() => void commit()} disabled={!docDirty || committing}>
             <GitCommitHorizontal /> Commit

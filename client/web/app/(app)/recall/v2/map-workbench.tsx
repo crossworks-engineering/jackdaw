@@ -32,7 +32,7 @@ import { useListNav } from '@/lib/use-list-nav';
 import {
   RECALL_ENTRY_SLUG,
   detailPane,
-  isPageBuilt,
+  isNativeMap,
   linkFromBody,
   openCardOf,
   recallKeys,
@@ -42,7 +42,6 @@ import { RecallGraph } from '../recall-graph';
 import { CardEditor } from './card-editor';
 import { CardList } from './card-list';
 import { AddCardDialog, MapSettingsDialog } from './map-dialogs';
-import { PageBuiltMap } from './page-built-map';
 import { RevisionsPanel } from './revisions-panel';
 import { cardQuery, mapQuery, useMapWrite } from './use-map-write';
 import type { RecallV2View } from './recall-v2-client';
@@ -59,9 +58,7 @@ export type EditGuard = {
 /**
  * One map. A native map gets its header (publish, settings, delete) and three
  * views of it: Cards is the editor; Graph draws the same rows; Revisions is
- * the log of every write, agents' included, with restore. A page-built (v1)
- * map opens read-only, whatever route led here: every v2 write to it would be
- * refused.
+ * the log of every write, agents' included, with restore.
  */
 export function MapWorkbench({
   mapId,
@@ -98,7 +95,19 @@ export function MapWorkbench({
       </div>
     );
   }
-  if (isPageBuilt(q.data)) return <PageBuiltMap map={q.data} />;
+  if (!isNativeMap(q.data)) {
+    // A page-built (v1) map, from a brain just before mantle R5 retired
+    // them. Nothing here can write it.
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">This map is built from pages</p>
+        <p className="max-w-md">
+          Page-built maps are retired. Update the brain, and re-create this map in Recall if it is
+          still needed.
+        </p>
+      </div>
+    );
+  }
   return (
     <Workbench
       map={q.data}

@@ -28,12 +28,11 @@ import type {
 /** The entry card's slug on every native map. */
 export const RECALL_ENTRY_SLUG = 'start';
 
-/** Query keys. The catalog and a map's detail share v1's keys on purpose:
- *  the routes are the same, and a write must refresh both screens' caches.
- *  Everything sits under `maps`, so invalidating it refreshes the lot. */
+/** Query keys. Everything sits under `maps`, so invalidating it refreshes
+ *  the lot. */
 export const recallKeys = {
   maps: ['recall', 'maps'] as const,
-  /** Every page of the catalog at once (option targets, page-built maps). */
+  /** Every page of the catalog at once (option targets, the tree's default). */
   allMaps: ['recall', 'maps', { all: true }] as const,
   map: (mapId: string) => ['recall', 'maps', mapId] as const,
   card: (mapId: string, slug: string) => ['recall', 'maps', mapId, 'card', slug] as const,
@@ -41,8 +40,9 @@ export const recallKeys = {
 };
 
 /** `features.recallV2` from the shell: true or false once the shell has
- *  answered, undefined before. An older brain sends no `features` object,
- *  which reads as false: it keeps the v1 screen. */
+ *  answered, undefined before. A brain older than Recall v2 sends no
+ *  `features` object, which reads as false: it gets the "needs an update"
+ *  state. */
 export function recallV2Of(shell: unknown): boolean | undefined {
   if (shell === undefined || shell === null) return undefined;
   const features = (shell as { features?: { recallV2?: unknown } }).features;
@@ -62,10 +62,13 @@ export function recallScreenOf(shell: { data?: boolean; isError: boolean }): boo
   return shell.data ?? (shell.isError ? false : undefined);
 }
 
-/** A map the page editor authors (v1): its cards are pages, and nothing in
- *  the v2 editor may write it. */
-export function isPageBuilt(map: Pick<RecallMapSummaryDTO, 'nodeId'>): boolean {
-  return map.nodeId === null || map.nodeId === undefined;
+/** A map this editor can open: one with its tree item. Page-built (v1)
+ *  maps were retired in mantle R5, and a brain on R5 never lists one; a
+ *  brain from just before it still could, with `nodeId` null, and every
+ *  write to it would be refused. So they are left out, not shown as maps
+ *  that refuse every save. Can go once no brain is older than R5. */
+export function isNativeMap(map: { nodeId?: string | null }): boolean {
+  return typeof map.nodeId === 'string' && map.nodeId !== '';
 }
 
 /** The fields the card editor owns. Everything else on the card is carried
@@ -575,7 +578,7 @@ export type RecallMapsPage = {
 };
 
 /** Every map in the catalog, page by page. The catalog pages at 20, and
- *  option targets and the page-built list need all of them. Stops at
+ *  option targets and the tree's default map need all of them. Stops at
  *  `maxPages` so a brain that misreports its total cannot loop forever. */
 export async function fetchAllMaps(
   fetchPage: (page: number) => Promise<RecallMapsPage>,
@@ -607,7 +610,7 @@ export function optionTargets(
     .filter((n) => n.slug !== selfSlug)
     .map((n) => ({ value: `card:${n.slug}`, label: n.title, targetSlug: n.slug }));
   const other = maps
-    .filter((m) => m.slug !== map.slug && m.published && !isPageBuilt(m))
+    .filter((m) => m.slug !== map.slug && m.published && isNativeMap(m))
     .map((m) => ({
       value: `map:${m.slug}`,
       label: `${m.title} (another map)`,

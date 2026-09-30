@@ -11,7 +11,7 @@ import {
   dropCard,
   editsOf,
   fetchAllMaps,
-  isPageBuilt,
+  isNativeMap,
   isStale,
   linkFromBody,
   moveCard,
@@ -51,7 +51,6 @@ function summary(over: Partial<RecallMapSummaryDTO> = {}): RecallMapSummaryDTO {
     title: 'Mantle',
     enterWhen: 'working on mantle',
     nodeCount: 2,
-    lastCompileOk: true,
     nodeId: 'm1',
     folder: null,
     published: true,
@@ -74,10 +73,12 @@ describe('recallV2Of', () => {
   });
 });
 
-describe('isPageBuilt', () => {
-  it('is the nodeId null test', () => {
-    expect(isPageBuilt({ nodeId: null })).toBe(true);
-    expect(isPageBuilt({ nodeId: 'x' })).toBe(false);
+describe('isNativeMap', () => {
+  it('keeps a map with its tree item and drops a page-built row a brain before R5 could list', () => {
+    expect(isNativeMap({ nodeId: 'x' })).toBe(true);
+    expect(isNativeMap({ nodeId: null })).toBe(false);
+    expect(isNativeMap({})).toBe(false);
+    expect(isNativeMap({ nodeId: '' })).toBe(false);
   });
 });
 
@@ -431,7 +432,8 @@ describe('optionTargets', () => {
       summary(),
       summary({ id: 'd', slug: 'dfm', title: 'DFM' }),
       summary({ id: 'u', slug: 'draft', title: 'Draft', published: false }),
-      summary({ id: 'v', slug: 'old', title: 'Old', nodeId: null }),
+      // A page-built row, as a brain from before mantle R5 could still list.
+      summary({ id: 'v', slug: 'old', title: 'Old', nodeId: null as unknown as string }),
     ];
     const t = optionTargets(map, 'fleet', maps);
     expect(t.map((x) => x.value)).toEqual(['card:start', 'map:dfm']);

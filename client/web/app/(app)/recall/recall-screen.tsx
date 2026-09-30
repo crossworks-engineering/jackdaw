@@ -1,24 +1,24 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { Map as MapIcon } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { recallScreenOf, recallV2Of } from '@/lib/recall-v2';
-import { RecallClient, type RecallTab } from './recall-client';
 import { RecallV2Client, type RecallV2View } from './v2/recall-v2-client';
 
 /**
- * Which Recall screen this brain gets. A brain that says `features.recallV2`
- * in /api/shell can author native maps, and gets the v2 editor; an older one
- * sends no `features` at all and keeps the v1 page-built screen unchanged.
- * Branch on the capability, never on a version number.
+ * The Recall screen, for a brain that says `features.recallV2` in /api/shell.
+ * A brain older than that sends no `features` at all and gets a plain "needs
+ * an update" state: the page-built (v1) screen it used to get was retired
+ * with mantle R5. Branch on the capability, never on a version number.
  *
  * Reads the shell the app shell already fetched (same key; `staleTime:
  * Infinity` so this never adds a request of its own, but it still fetches if
  * the cache is somehow empty rather than spinning forever). It waits for the
- * answer rather than guessing: rendering v1 first and then swapping to v2
- * would flash the wrong screen. A shell that never answered reads as an older
- * brain; a failed refetch keeps the answer it had (see recallScreenOf).
+ * answer rather than guessing, so the wrong state never flashes. A shell that
+ * never answered reads as an older brain; a failed refetch keeps the answer it
+ * had (see recallScreenOf).
  */
 export function RecallScreen({
   selected,
@@ -52,6 +52,14 @@ export function RecallScreen({
     const v: RecallV2View = view === 'graph' || view === 'revisions' ? view : 'cards';
     return <RecallV2Client selected={selected} view={v} card={card} q={q} page={page} />;
   }
-  const v1: RecallTab = view === 'nodes' ? 'nodes' : 'map';
-  return <RecallClient selected={selected} view={v1} q={q} page={page} />;
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
+      <MapIcon className="size-8 opacity-50" aria-hidden />
+      <p className="font-medium text-foreground">This brain needs an update to use Recall</p>
+      <p className="max-w-md">
+        This version of the app edits Recall maps on brains with the current Recall. Update the
+        brain, then open Recall again.
+      </p>
+    </div>
+  );
 }

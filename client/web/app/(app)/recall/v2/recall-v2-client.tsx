@@ -1,10 +1,9 @@
 'use client';
 
-import { cn } from '@mantle/web-ui/lib/utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FileText, Map as MapIcon, Plus, Search } from 'lucide-react';
+import { Map as MapIcon, Plus, Search } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -29,12 +28,11 @@ import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useListNav } from '@/lib/use-list-nav';
 import {
   fetchAllMaps,
-  isPageBuilt,
+  isNativeMap,
   mapToPin,
   recallKeys,
   type RecallMapsPage,
 } from '@/lib/recall-v2';
-import { CompileBadge } from '../compile-badge';
 import { CreateMapDialog } from './map-dialogs';
 import { MapWorkbench, type EditGuard } from './map-workbench';
 import { useLeaveGuard } from './use-leave-guard';
@@ -45,9 +43,6 @@ export type RecallV2View = 'cards' | 'graph' | 'revisions';
  * Recall v2: the native map editor. A map is one `recall` item and its cards
  * are rows the brain checks as they are written, so there is no compile step
  * and nothing here ever shows a stale map.
- *
- * The catalog still lists page-built (v1) maps until they are re-authored:
- * they open read-only, with their pages as the way to edit them.
  *
  * URL state: `selected` (map id), `view` (cards, graph, revisions), `card`
  * (the open card's slug), `q` and `page`.
@@ -124,17 +119,22 @@ function RecallV2View({
   const { pending: navPending, go } = useListNav();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
-  const maps = data.maps;
+  // `isNativeMap` drops a page-built row a brain from before mantle R5 could
+  // still list (see lib/recall-v2).
+  const maps = useMemo(() => data.maps.filter(isNativeMap), [data.maps]);
 
   // Every map, not just this page of the catalog: option targets can lead to
-  // any published map, and the tree's page-built list must reach all of
-  // them. The page itself still drives the list mode's cards and pager.
+  // any published map, and the tree opens the first of all of them. The page
+  // itself still drives the list mode's cards and pager.
   const allQuery = useQuery({
     queryKey: recallKeys.allMaps,
     queryFn: () =>
       fetchAllMaps((p) => apiFetch<RecallMapsPage>(`/api/recall/maps${p > 1 ? `?page=${p}` : ''}`)),
   });
-  const allMaps = allQuery.data ?? maps;
+  const allMaps = useMemo(
+    () => (allQuery.data ? allQuery.data.filter(isNativeMap) : maps),
+    [allQuery.data, maps],
+  );
 
   // The unsaved-edit guard. The card editor reports whether it holds unsaved
   // edits; anything here that would unmount it (another map, a new map, a
@@ -159,19 +159,17 @@ function RecallV2View({
   // The item tree when this brain serves it for Recall (folders, then maps);
   // the paged catalog for a brain before it, or if a tree call 404s. In the
   // tree, a selected map need not be on the catalog page, so the id alone
-  // opens it; the catalog still says whether a map is page-built.
+  // opens it.
   const treeServes = useTreeServes('recall');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
   const [treeQuery, setTreeQuery] = useState('');
-  const pageBuilt = allMaps.filter((m) => isPageBuilt(m));
-  const hasNative = allMaps.some((m) => !isPageBuilt(m));
 
   // The URL's map when it names one, even off this page of the catalog (the
   // workbench loads it by id); else the first map shown.
   const selectedId = useMemo(() => {
     if (selected) return selected;
-    if (showTree) return allMaps.find((m) => !isPageBuilt(m))?.id ?? null;
+    if (showTree) return allMaps[0]?.id ?? null;
     return maps[0]?.id ?? null;
   }, [maps, allMaps, selected, showTree]);
 
@@ -280,23 +278,10 @@ function RecallV2View({
             <ListCard key={m.id} selected={m.id === selectedId} onClick={() => openMap(m.id)}>
               <ListCardTitle className="flex items-center gap-2">
                 <span className="min-w-0 truncate">{m.title}</span>
-                {isPageBuilt(m) ? (
-                  <CompileBadge ok={m.lastCompileOk} compiled={m.nodeCount > 0} />
-                ) : (
-                  !m.published && <StatePill state="draft" />
-                )}
+                {!m.published && <StatePill state="draft" />}
               </ListCardTitle>
               <ListCardMeta className="flex min-w-0 items-center gap-1.5">
                 {[
-                  isPageBuilt(m) && (
-                    <span
-                      key="pages"
-                      className="flex items-center gap-1"
-                      title="Page-built map (v1)"
-                    >
-                      <FileText className="size-3" aria-hidden /> pages
-                    </span>
-                  ),
                   m.folder && (
                     <span key="folder" className="truncate">
                       {m.folder}
@@ -328,8 +313,8 @@ function RecallV2View({
     </div>
   );
 
-  // The workbench decides page-built or native from the map itself, so a
-  // map opened by id (the URL, the tree) is never edited as the wrong kind.
+  // The workbench loads the map by id, so one opened from the URL or the
+  // tree need not be on this page of the catalog.
   const detail = selectedId ? (
     <MapWorkbench
       key={selectedId}
@@ -348,10 +333,6 @@ function RecallV2View({
   );
   const tree = (
     <aside className="flex h-full flex-col bg-muted/20">
-      {/* The tree and the page-built list share the column. The tree keeps
-          room for its toolbar and a few rows; the list takes its natural
-          height, up to a share of the column that is larger while the tree
-          is still empty (a brain whose maps are all page-built). */}
       <div className="min-h-40 flex-1">
         <ItemTree
           kind="recall"
@@ -368,28 +349,6 @@ function RecallV2View({
           onChanged={() => void qc.invalidateQueries({ queryKey: recallKeys.maps })}
         />
       </div>
-      {pageBuilt.length > 0 && (
-        // Page-built (v1) maps have no tree item: they are pages. They stay
-        // reachable here until they are re-authored and retired.
-        <div
-          className={cn(
-            'min-h-0 space-y-1 overflow-y-auto border-t border-border p-3 scrollbar-thin',
-            hasNative ? 'max-h-[45%]' : 'max-h-[70%]',
-          )}
-        >
-          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Page-built maps
-          </h3>
-          {pageBuilt.map((m) => (
-            <ListCard key={m.id} selected={m.id === selectedId} onClick={() => openMap(m.id)}>
-              <ListCardTitle className="flex items-center gap-2">
-                <span className="min-w-0 truncate">{m.title}</span>
-                <CompileBadge ok={m.lastCompileOk} compiled={m.nodeCount > 0} />
-              </ListCardTitle>
-            </ListCard>
-          ))}
-        </div>
-      )}
     </aside>
   );
 

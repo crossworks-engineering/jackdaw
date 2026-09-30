@@ -57,13 +57,11 @@ function map(nodes: RecallNodeDTO[], version: number): RecallMapDetailDTO {
     title: 'Mantle',
     enterWhen: 'working on mantle',
     nodeCount: nodes.length,
-    lastCompileOk: true,
     nodeId: 'm1',
     folder: null,
     published: true,
     version,
     updatedAt: T0,
-    report: null,
     nodes,
   };
 }
