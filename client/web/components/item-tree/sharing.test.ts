@@ -35,8 +35,8 @@ describe('shareLevelsOf', () => {
     expect(shareLevelsOf('secrets')).toEqual([]);
     expect(shareLevelsOf('tasks')).toEqual([]);
   });
-  it('keeps Recall to the team', () => {
-    expect(shareLevelsOf('recall')).toEqual(['team']);
+  it('offers nothing on Recall until the brain shares its folders', () => {
+    expect(shareLevelsOf('recall')).toEqual([]);
   });
 });
 
@@ -49,6 +49,9 @@ describe('canShareFolder', () => {
   });
   it('never shares an admin-only kind', () => {
     expect(canShareFolder('contacts', folder())).toBe(false);
+  });
+  it('does not offer a share on a Recall folder yet', () => {
+    expect(canShareFolder('recall', folder({ path: 'recall.f' }))).toBe(false);
   });
   it('does not offer it on a brain before folder sharing (no inherited field)', () => {
     const old = folder();

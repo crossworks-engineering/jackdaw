@@ -155,11 +155,13 @@ export const TREE_KIND_SPECS: Readonly<Record<TreeKind, TreeKindSpec>> = {
   },
   // The tree lists maps only; a map's cards are recall_nodes rows, never
   // nodes, so they never appear as items.
+  // Not shareable yet: the brain refuses a share on a Recall folder (a 400
+  // TreeError) until the phase that lets team agents read shared maps.
   recall: {
     kind: 'recall',
     root: 'recall',
     nodeType: 'recall',
-    shareable: true,
+    shareable: false,
     shareLevels: ['team'],
     sorts: ['name', 'updated'],
   },

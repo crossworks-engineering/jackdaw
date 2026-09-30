@@ -17,7 +17,8 @@ import {
   type TreeVisibilityRefusal,
 } from '@mantle/web-ui/types/tree';
 
-/** The levels a folder of this kind may be shared at (Recall: team only). */
+/** The levels a folder of this kind may be shared at. None on a kind that is
+ *  not shareable (Recall, for now: the brain refuses its folder shares). */
 export function shareLevelsOf(kind: TreeKind): readonly TreeShareLevel[] {
   const spec = TREE_KIND_SPECS[kind];
   return spec.shareable ? (spec.shareLevels ?? TREE_SHARE_LEVELS) : [];
