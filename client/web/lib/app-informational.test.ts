@@ -13,6 +13,9 @@ import {
  * so, an older brain's silence does not, and the admin's switch sends the
  * flag the owner app route takes.
  */
+/** An en or an em dash, named by code point so this file carries neither. */
+const DASHES = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+
 describe('an informational app', () => {
   it('is informational only when the brain says so', () => {
     expect(isInformational({ dataReadOnly: true })).toBe(true);
@@ -43,7 +46,7 @@ describe('an informational app', () => {
 
   it('writes no em or en dash in what a reader sees', () => {
     for (const s of [APP_INFORMATIONAL_NOTE, APP_INFORMATIONAL_LABEL, APP_INFORMATIONAL_HINT]) {
-      expect(s).not.toMatch(/[–—]/);
+      expect(s).not.toMatch(DASHES);
     }
   });
 });
