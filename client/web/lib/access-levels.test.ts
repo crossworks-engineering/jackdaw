@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { AccessItemView } from '@mantle/client-types';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  effectiveOf,
+  offeredUnder,
+  sharedViaLine,
   CLIENT_MEANING_OLD_LINK,
   LEGACY_CLIENT_MEANING,
   cascadeSwitch,
@@ -215,5 +218,28 @@ describe('Include sub-pages leaves client sub-pages alone', () => {
     expect(keptAtClientLine(['a', 'b'])).toBe('Kept at client: 2 sub-pages');
     expect(keptAtClientLine([])).toBeNull();
     expect(keptAtClientLine(undefined)).toBeNull();
+  });
+});
+
+describe('folder sharing in the Access control', () => {
+  it('shows the level an item is read at: the folder’s share when more open', () => {
+    expect(effectiveOf('admin', 'client')).toBe('client');
+    expect(effectiveOf('team', 'client')).toBe('client');
+    expect(effectiveOf('public', 'client')).toBe('public');
+    expect(effectiveOf('admin', null)).toBe('admin');
+  });
+  it('offers nothing above the folder’s share, and everything below it', () => {
+    expect(LEVEL_ORDER.filter((l) => offeredUnder(l, 'client'))).toEqual(['client', 'public']);
+    expect(LEVEL_ORDER.filter((l) => offeredUnder(l, 'team'))).toEqual([
+      'team',
+      'client',
+      'public',
+    ]);
+    expect(LEVEL_ORDER.filter((l) => offeredUnder(l, null))).toEqual(LEVEL_ORDER);
+  });
+  it('names the folder and how to hide the item', () => {
+    expect(sharedViaLine({ folderId: 'f', trail: ['Clients', 'Acme'], level: 'client' })).toBe(
+      'Shared with clients via Clients / Acme. Move it out of that folder to hide it.',
+    );
   });
 });

@@ -244,3 +244,40 @@ export function queryKeysForType(type: string): string[][] {
       return [];
   }
 }
+
+// ── Folder sharing (the brain's folder plan, phase 4) ──────────────────────
+// An item in a shared folder is read at least at the folder's share, whatever
+// its own level says. The Access control shows the level it is READ at, names
+// the folder ("Shared via Clients / Acme"), and offers nothing above it:
+// moving it out of the folder is how to hide it. Lowering further is fine.
+
+/** TEMPORARY contract shim: `AccessSharedVia` and `AccessNodeView.sharedVia`
+ *  from the brain's `@crossworks/client-types` (mantle
+ *  packages/client-types/src/dto/access.ts), which the pinned contract
+ *  predates. Absent from brains before folder sharing. At the pin bump these
+ *  become imports. */
+export type AccessSharedVia = {
+  folderId: string;
+  /** Folder names from the kind's top level down to the shared folder. */
+  trail: string[];
+  level: 'team' | 'client';
+};
+export type AccessViewShared = { sharedVia?: AccessSharedVia | null };
+
+/** The level an item is read at: its own, or its folder's share when that is
+ *  more open. */
+export function effectiveOf(own: AccessLevel, floor: AccessLevel | null | undefined): AccessLevel {
+  return floor && isAbove(own, floor) ? floor : own;
+}
+
+/** Whether the control offers `level` under a shared folder's share: never
+ *  above it. */
+export function offeredUnder(level: AccessLevel, floor: AccessLevel | null | undefined): boolean {
+  return !floor || !isAbove(level, floor);
+}
+
+/** The line under the control for an item in a shared folder. */
+export function sharedViaLine(via: AccessSharedVia): string {
+  const who = via.level === 'team' ? 'the team' : 'clients';
+  return `Shared with ${who} via ${via.trail.join(' / ')}. Move it out of that folder to hide it.`;
+}
