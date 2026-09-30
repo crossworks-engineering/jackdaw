@@ -118,6 +118,8 @@ export function FolderPickerDialog({
         </DialogHeader>
         <div
           ref={scrollRoot}
+          role="tree"
+          aria-label="Folders"
           className="max-h-80 min-h-40 overflow-y-auto scrollbar-thin rounded-md border border-border px-1"
         >
           <TreeContext.Provider value={ctx}>
@@ -130,6 +132,9 @@ export function FolderPickerDialog({
                   row.type === 'root' ? (
                     <RowButton
                       onClick={() => setChosen(null)}
+                      role="treeitem"
+                      aria-level={1}
+                      aria-selected={chosen === null}
                       disabled={currentFolderId === null}
                       aria-current={chosen === null ? 'true' : undefined}
                       style={{ paddingLeft: TREE_ROW_PAD }}

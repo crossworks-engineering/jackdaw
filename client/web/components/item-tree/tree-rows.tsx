@@ -12,7 +12,7 @@ import {
   type RefObject,
 } from 'react';
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ChevronRight, GripVertical, Handshake, MoreHorizontal, Users } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
@@ -41,7 +41,7 @@ import {
   type FolderLoad,
   type TreeRow,
 } from './tree-model';
-import { useTreeCtx, type DragData } from './tree-context';
+import { rowTabIndex, useTreeCtx, type DragData } from './tree-context';
 
 /**
  * The rows of the item tree. Every row is one line, 32px high: an optional
@@ -243,17 +243,23 @@ export function useFolderRows({
  * Draws `rows` through a virtual list inside `scrollRoot` (which scrolls and
  * carries no vertical padding: the list pads itself). When `activeKey` names
  * a row, the list scrolls to it once it exists, and again whenever the key
- * changes.
+ * changes. `keepKey` names a row that is always drawn, near the viewport or
+ * not: the keyboard's tab stop, so Tab always has a row to land on.
+ * `scrollTo` receives the list's own scroll, for the keyboard's moves.
  */
 export function VirtualRows({
   rows,
   scrollRoot,
   activeKey = null,
+  keepKey = null,
+  scrollTo,
   render,
 }: {
   rows: readonly TreeRow[];
   scrollRoot: RefObject<HTMLElement | null>;
   activeKey?: string | null;
+  keepKey?: string | null;
+  scrollTo?: RefObject<((key: string) => void) | null>;
   render: (row: TreeRow) => ReactNode;
 }) {
   // The scroll element is the parent's, and a parent's ref attaches after its
@@ -262,6 +268,15 @@ export function VirtualRows({
   // changes (the picker over a cached tree).
   const [, remeasure] = useReducer((n: number) => n + 1, 0);
   useEffect(() => remeasure(), []);
+  const keepIndex = keepKey ? rows.findIndex((r) => r.key === keepKey) : -1;
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      const out = defaultRangeExtractor(range);
+      if (keepIndex < 0 || out.includes(keepIndex)) return out;
+      return [...out, keepIndex].sort((a, b) => a - b);
+    },
+    [keepIndex],
+  );
   const v = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRoot.current,
@@ -270,6 +285,14 @@ export function VirtualRows({
     overscan: 12,
     paddingStart: 8,
     paddingEnd: 8,
+    rangeExtractor,
+  });
+  useEffect(() => {
+    if (!scrollTo) return;
+    scrollTo.current = (key) => {
+      const i = rows.findIndex((r) => r.key === key);
+      if (i >= 0) v.scrollToIndex(i, { align: 'auto' });
+    };
   });
   const activeIndex = activeKey ? rows.findIndex((r) => r.key === activeKey) : -1;
   const scrolledFor = useRef<string | null>(null);
@@ -313,6 +336,7 @@ export function TreeRowShell({
   drag,
   drop,
   menu,
+  label,
   badge,
   children,
 }: {
@@ -325,6 +349,8 @@ export function TreeRowShell({
   /** A drop target, carrying this. */
   drop?: DragData;
   menu?: ReactNode;
+  /** What the row is, for its menu button's name ("More actions for Plan"). */
+  label?: string;
   /** Shown on the row while it is dragged (how many go with it). */
   badge?: ReactNode;
   children: (style: CSSProperties) => ReactNode;
@@ -391,12 +417,16 @@ export function TreeRowShell({
       {menu && (
         <DropdownMenu open={menuOpen} onOpenChange={(o) => ctx.setMenuFor(o ? rowKey : null)}>
           <DropdownMenuTrigger asChild>
+            {/* 24px to look at, 32px to hit (the ::after). Shown on hover, on
+                a row that holds focus, and always where nothing hovers (a
+                touch screen). Only the tab stop's is reached by Tab. */}
             <Button
               variant="ghost"
               size="icon-2xs"
-              aria-label="More actions"
+              aria-label={label ? `More actions for ${label}` : 'More actions'}
+              tabIndex={rowTabIndex(ctx, rowKey)}
               className={cn(
-                'absolute right-0.5 top-1/2 -translate-y-1/2 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/tree-row:opacity-100',
+                'absolute right-0.5 top-1/2 -translate-y-1/2 text-muted-foreground opacity-0 after:absolute after:-inset-1 hover:text-foreground focus-visible:opacity-100 group-focus-within/tree-row:opacity-100 group-hover/tree-row:opacity-100 [@media(hover:none)]:opacity-100',
                 menuOpen && 'opacity-100',
               )}
             >
@@ -531,12 +561,20 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
       drag={folder.system || ctx.canMoveFolder?.(folder) === false ? undefined : drag}
       drop={drag}
       menu={ctx.folderMenu?.(folder, parent, siblings)}
+      label={folder.name}
     >
       {(style) => (
         <>
           <RowButton
             onClick={() => ctx.onFolderClick(folder)}
+            role="treeitem"
+            aria-level={depth + 1}
+            aria-expanded={hasChildren ? open : undefined}
+            aria-selected={selected}
             aria-current={selected ? 'true' : undefined}
+            data-row-key={row.key}
+            tabIndex={rowTabIndex(ctx, row.key)}
+            onFocus={() => ctx.onRowFocus?.(row.key)}
             disabled={disabled}
             title={folder.name}
             style={style}
@@ -569,6 +607,9 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
               size="icon-2xs"
               aria-label={open ? `Fold ${folder.name}` : `Unfold ${folder.name}`}
               aria-expanded={open}
+              // The arrow keys fold and unfold the row itself; the chevron
+              // is for the pointer.
+              tabIndex={ctx.tabStop === undefined ? undefined : -1}
               onClick={() => ctx.setOpen(folder.id, !open)}
               className={cn(
                 'absolute top-1/2 -translate-y-1/2 hover:text-foreground',
@@ -632,6 +673,7 @@ export function ItemRow({
       guides={guides}
       drag={drag}
       menu={ctx.itemMenu?.(item, where)}
+      label={item.title || 'Untitled'}
       badge={
         carried > 1 ? (
           <span className="absolute -right-1 -top-1.5 rounded-full bg-primary px-1.5 text-[10px] font-medium tabular-nums text-primary-foreground">
@@ -643,8 +685,14 @@ export function ItemRow({
       {(style) => (
         <RowButton
           onClick={(e: MouseEvent) => ctx.onItemClick(item, where, e)}
+          role="treeitem"
+          aria-level={depth + 1}
+          // Selected: the item open beside the tree, or one picked for a move.
+          aria-selected={selected || picked}
           aria-current={selected ? 'true' : undefined}
-          aria-pressed={ctx.picked.size ? picked : undefined}
+          data-row-key={rowKey}
+          tabIndex={rowTabIndex(ctx, rowKey)}
+          onFocus={() => ctx.onRowFocus?.(rowKey)}
           title={place ? `${place} / ${item.title}` : item.title}
           style={style}
           data-mark-id={item.id}
@@ -679,18 +727,27 @@ export function ItemRow({
 
 /** A search hit that is a folder: its tile, name and where it lives. */
 export function FolderHitRow({
+  rowKey,
   folder,
   crumbs,
   onClick,
 }: {
+  rowKey: string;
   folder: TreeFolder;
   crumbs: readonly TreeCrumb[];
   onClick: () => void;
 }) {
+  const ctx = useTreeCtx();
   const place = crumbLine(crumbs);
   return (
     <RowButton
       onClick={onClick}
+      role="treeitem"
+      aria-level={1}
+      aria-selected={false}
+      data-row-key={rowKey}
+      tabIndex={rowTabIndex(ctx, rowKey)}
+      onFocus={() => ctx.onRowFocus?.(rowKey)}
       title={place ? `${place} / ${folder.name}` : folder.name}
       style={{ paddingLeft: TREE_ROW_PAD }}
       className={cn(ROW_BUTTON, 'pr-2 font-medium text-foreground/85 hover:bg-foreground/[0.06]')}

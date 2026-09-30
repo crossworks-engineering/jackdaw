@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
 } from 'react';
@@ -326,6 +327,10 @@ export function ItemTree({
   const [dragging, setDragging] = useState<string | null>(null);
   const rowEls = useRef(new Map<string, HTMLElement>());
   const scrollRoot = useRef<HTMLDivElement>(null);
+  // The keyboard's place in the rows (the roving tab stop), and the list's
+  // own scroll, to bring a row the arrows move to into view.
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const scrollTo = useRef<((key: string) => void) | null>(null);
 
   const [folderDialog, setFolderDialog] = useState<
     { mode: 'new'; parent: TreeFolder | null } | { mode: 'rename'; folder: TreeFolder } | null
@@ -987,12 +992,88 @@ export function ItemTree({
           : null
       : null;
 
+  // ── The keyboard (a tree: roving tab stop, arrow keys) ───────────────
+  // Tab reaches one row, the tab stop: the last row focused while it is still
+  // listed, else the row the page is about, else the first. The arrows move
+  // it (Up, Down, Home, End), Right unfolds a folder or steps into it, Left
+  // folds it or steps out to the folder above; Enter opens, as a click does;
+  // Shift+F10 or the menu key opens the row's menu.
+  const navRows = allRows.filter(
+    (r) => r.type === 'folder' || r.type === 'item' || r.type === 'root' || r.type === 'hit',
+  );
+  const listed = (key: string | null) => !!key && navRows.some((r) => r.key === key);
+  const tabStop = listed(focusKey)
+    ? focusKey
+    : listed(activeKey)
+      ? activeKey
+      : (navRows[0]?.key ?? null);
+  ctx.tabStop = tabStop;
+  ctx.onRowFocus = (key) => setFocusKey((cur) => (cur === key ? cur : key));
+
+  const focusRow = (key: string) => {
+    setFocusKey(key);
+    scrollTo.current?.(key);
+    // The row may only be drawn once the list has scrolled to it.
+    let tries = 0;
+    const attempt = () => {
+      const el = scrollRoot.current?.querySelector<HTMLElement>(
+        `[data-row-key="${CSS.escape(key)}"]`,
+      );
+      if (el) el.focus();
+      else if (tries++ < 6) requestAnimationFrame(attempt);
+    };
+    requestAnimationFrame(attempt);
+  };
+
+  const onTreeKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && picked.size) {
+      e.stopPropagation();
+      clearPicked();
+      return;
+    }
+    const target = e.target as HTMLElement;
+    if (target.getAttribute('role') !== 'treeitem') return;
+    const key = target.dataset.rowKey;
+    const at = key ? navRows.findIndex((r) => r.key === key) : -1;
+    if (!key || at < 0) return;
+    const row = navRows[at]!;
+    const go = (to: TreeRow | undefined) => {
+      e.preventDefault();
+      if (to) focusRow(to.key);
+    };
+    if (e.key === 'ArrowDown') go(navRows[at + 1]);
+    else if (e.key === 'ArrowUp') go(navRows[at - 1]);
+    else if (e.key === 'Home') go(navRows[0]);
+    else if (e.key === 'End') go(navRows.at(-1));
+    else if (e.key === 'ArrowRight') {
+      if (row.type !== 'folder' || !row.hasChildren) return;
+      if (row.open) go(navRows[at + 1]);
+      else {
+        e.preventDefault();
+        setOpen(row.folder.id, true);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      if (row.type === 'folder' && row.open) {
+        e.preventDefault();
+        setOpen(row.folder.id, false);
+        return;
+      }
+      const parent = row.type === 'folder' || row.type === 'item' ? row.parent : null;
+      if (parent) go(navRows.find((r) => r.key === `f:${parent.id}`));
+    } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      if (row.type !== 'folder' && row.type !== 'item') return;
+      e.preventDefault();
+      setMenuFor(key);
+    }
+  };
+
   const rootSelected = selectedFolderPath === spec.root;
   const renderRow = (row: TreeRow): ReactNode => {
     switch (row.type) {
       case 'hit':
         return (
           <FolderHitRow
+            rowKey={row.key}
             folder={row.folder}
             crumbs={row.crumbs}
             onClick={() => openFolderHit(row.folder)}
@@ -1004,7 +1085,13 @@ export function ItemTree({
             {(style) => (
               <RowButton
                 onClick={() => onOpenFolder?.(null)}
+                role="treeitem"
+                aria-level={1}
+                aria-selected={rootSelected}
                 aria-current={rootSelected ? 'true' : undefined}
+                data-row-key="root"
+                tabIndex={tabStop === 'root' ? 0 : -1}
+                onFocus={() => ctx.onRowFocus?.('root')}
                 style={style}
                 className={cn(
                   'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm',
@@ -1235,12 +1322,14 @@ export function ItemTree({
             'min-h-0 flex-1 overflow-y-auto scrollbar-thin px-2',
             capOnNarrow && 'max-md:max-h-[70dvh]',
           )}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && picked.size) {
-              e.stopPropagation();
-              clearPicked();
-            }
-          }}
+          role="tree"
+          aria-label={
+            flatView
+              ? `${adapter.noun.many.charAt(0).toUpperCase()}${adapter.noun.many.slice(1)} found`
+              : `${adapter.noun.many.charAt(0).toUpperCase()}${adapter.noun.many.slice(1)} and folders`
+          }
+          aria-multiselectable={manage || undefined}
+          onKeyDown={onTreeKey}
         >
           {view === 'tree' && !flatView && folderRows.loaders}
           <DndContext
@@ -1257,6 +1346,8 @@ export function ItemTree({
               rows={allRows}
               scrollRoot={scrollRoot}
               activeKey={activeKey}
+              keepKey={tabStop}
+              scrollTo={scrollTo}
               render={renderRow}
             />
           </DndContext>

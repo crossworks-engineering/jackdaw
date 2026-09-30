@@ -55,7 +55,21 @@ export type TreeCtx = {
    *  folders and drafts, folder plan phase 5). Absent: the owner's rules. */
   canMoveFolder?: (folder: TreeFolder) => boolean;
   canMoveItem?: (item: TreeItem) => boolean;
+  /**
+   * The roving tab stop (the item tree's keyboard model): the one row Tab
+   * reaches; the arrow keys move it. Absent (the picker): every row is a tab
+   * stop of its own, as buttons are.
+   */
+  tabStop?: string | null;
+  /** A row took focus (by the keyboard or a click): it is the tab stop now. */
+  onRowFocus?: (key: string) => void;
 };
+
+/** A row's `tabIndex` under the roving tab stop, when the tree has one. */
+export function rowTabIndex(ctx: Pick<TreeCtx, 'tabStop'>, key: string): number | undefined {
+  if (ctx.tabStop === undefined) return undefined;
+  return ctx.tabStop === key ? 0 : -1;
+}
 
 export const TreeContext = createContext<TreeCtx | null>(null);
 
