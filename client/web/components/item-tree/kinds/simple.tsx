@@ -1,5 +1,13 @@
 import type { LucideIcon } from 'lucide-react';
-import { FileText, KeyRound, PenTool, Sigma, Table2, UserRound } from 'lucide-react';
+import {
+  FileText,
+  KeyRound,
+  Map as MapIcon,
+  PenTool,
+  Sigma,
+  Table2,
+  UserRound,
+} from 'lucide-react';
 import type { TreeItem, TreeKind } from '@mantle/web-ui/types/tree';
 import { StatePill } from '@/components/item-list/state-pill';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -65,3 +73,7 @@ export const secretsAdapter = simpleAdapter(
   { one: 'secret', many: 'secrets' },
   KeyRound,
 );
+/** Recall maps: the tree lists maps, never their cards (a card is a row of
+ *  its map, not a node). The status slot shows `draft` for a map an agent
+ *  created and the owner has not published yet. */
+export const recallAdapter = simpleAdapter('recall', { one: 'map', many: 'maps' }, MapIcon);

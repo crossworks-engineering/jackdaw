@@ -8,6 +8,7 @@ import type {
   RecallWriteResultDTO,
 } from '@mantle/web-ui/types/recall-v2';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { treeKey } from '@/components/item-tree/tree-api';
 import { isStale, recallKeys, writeErrorText } from '@/lib/recall-v2';
 
 /**
@@ -36,8 +37,11 @@ export function useMapWrite(mapId: string) {
     return qc.getQueryData<RecallMapDetailDTO>(recallKeys.map(mapId))?.version ?? null;
   }, [qc, mapId]);
 
+  // The catalog, the map, its cards and log, and the item tree (a publish
+  // changes a row's draft pill, a rename its title).
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: recallKeys.maps });
+    void qc.invalidateQueries({ queryKey: treeKey('recall') });
   }, [qc]);
 
   /** Run one write. Resolves to the result, or null when it was refused (the

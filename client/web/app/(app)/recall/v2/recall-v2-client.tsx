@@ -12,6 +12,9 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { StatePill } from '@/components/item-list/state-pill';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { recallAdapter } from '@/components/item-tree/kinds/simple';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useListNav } from '@/lib/use-list-nav';
 import { isPageBuilt } from '@/lib/recall-v2';
 import { CompileBadge } from '../compile-badge';
@@ -114,10 +117,21 @@ function RecallV2View({
   const total = data.total ?? maps.length;
   const pageSize = data.pageSize ?? Math.max(1, maps.length);
 
+  // The item tree when this brain serves it for Recall (folders, then maps);
+  // the paged catalog for a brain before it, or if a tree call 404s. In the
+  // tree, a selected map need not be on the catalog page, so the id alone
+  // opens it; the catalog still says whether a map is page-built.
+  const treeServes = useTreeServes('recall');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
+  const [treeQuery, setTreeQuery] = useState('');
+  const pageBuilt = maps.filter((m) => isPageBuilt(m));
+
   const selectedId = useMemo(() => {
+    if (showTree) return selected ?? maps.find((m) => !isPageBuilt(m))?.id ?? null;
     if (selected && maps.some((m) => m.id === selected)) return selected;
     return maps[0]?.id ?? null;
-  }, [maps, selected]);
+  }, [maps, selected, showTree]);
   const selectedMap = maps.find((m) => m.id === selectedId) ?? null;
 
   const [searchInput, setSearchInput] = useState(q);
@@ -247,13 +261,13 @@ function RecallV2View({
   );
 
   let detail = null;
-  if (selectedMap) {
-    detail = isPageBuilt(selectedMap) ? (
-      <PageBuiltMap map={selectedMap} />
-    ) : (
+  if (selectedMap && isPageBuilt(selectedMap)) {
+    detail = <PageBuiltMap map={selectedMap} />;
+  } else if (selectedId) {
+    detail = (
       <MapWorkbench
-        key={selectedMap.id}
-        mapId={selectedMap.id}
+        key={selectedId}
+        mapId={selectedId}
         catalog={maps}
         view={view}
         cardSlug={card}
@@ -261,10 +275,54 @@ function RecallV2View({
     );
   }
 
+  const newMapButton = (
+    <Button size="sm" onClick={() => setCreating(true)}>
+      <Plus /> New map
+    </Button>
+  );
+  const tree = (
+    <aside className="flex h-full flex-col bg-muted/20">
+      <div className="min-h-0 flex-1">
+        <ItemTree
+          kind="recall"
+          adapter={recallAdapter}
+          selectedItemId={selectedId}
+          query={treeQuery}
+          onQueryChange={setTreeQuery}
+          searchPlaceholder="Search maps and folders…"
+          actions={newMapButton}
+          onOpenItem={(item) => go({ selected: item.id, card: null })}
+          onUnsupported={() => setTreeGone(true)}
+        />
+      </div>
+      {pageBuilt.length > 0 && (
+        // Page-built (v1) maps have no tree item: they are pages. They stay
+        // reachable here until they are re-authored and retired.
+        <div className="max-h-48 shrink-0 space-y-1 overflow-y-auto border-t border-border p-3 scrollbar-thin">
+          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+            Page-built maps
+          </h3>
+          {pageBuilt.map((m) => (
+            <ListCard
+              key={m.id}
+              selected={m.id === selectedId}
+              onClick={() => go({ selected: m.id, card: null })}
+            >
+              <ListCardTitle className="flex items-center gap-2">
+                <span className="min-w-0 truncate">{m.title}</span>
+                <CompileBadge ok={m.lastCompileOk} compiled={m.nodeCount > 0} />
+              </ListCardTitle>
+            </ListCard>
+          ))}
+        </div>
+      )}
+    </aside>
+  );
+
   return (
     <>
       <div className="relative h-full min-h-0">
-        <MasterDetail id="recall-v2" list={list} detail={detail} detailFills />
+        <MasterDetail id="recall-v2" list={showTree ? tree : list} detail={detail} detailFills />
       </div>
       {createDialog}
     </>

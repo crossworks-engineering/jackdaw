@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { StatePill } from '@/components/item-list/state-pill';
+import { treeKey } from '@/components/item-tree/tree-api';
 import { useListNav } from '@/lib/use-list-nav';
 import {
   RECALL_ENTRY_SLUG,
@@ -147,6 +148,7 @@ function Workbench({
       await apiSend(`/api/recall/maps/${map.id}`, 'DELETE');
       setDeleting(false);
       await qc.invalidateQueries({ queryKey: recallKeys.maps });
+      void qc.invalidateQueries({ queryKey: treeKey('recall') });
       toast.success('Map deleted.');
       go({ selected: null, card: null, view: null });
     } catch (err) {

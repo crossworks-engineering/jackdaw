@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
+import { treeKey } from '@/components/item-tree/tree-api';
 import { recallKeys, writeErrorText } from '@/lib/recall-v2';
 import type { useMapWrite } from './use-map-write';
 
@@ -52,6 +53,7 @@ export function CreateMapDialog({
       const body: RecallMapCreateDTO = { title: title.trim(), enterWhen: enterWhen.trim() };
       const res = await apiSend<RecallMapCreateResultDTO>('/api/recall/maps', 'POST', body);
       await qc.invalidateQueries({ queryKey: recallKeys.maps });
+      void qc.invalidateQueries({ queryKey: treeKey('recall') });
       toast.success(`Map created. Agents open it as ${res.slug}.`);
       onOpenChange(false);
       onCreated(res.mapId);
