@@ -38,6 +38,9 @@ import { useFileSearch } from './use-file-search';
 import { CreateFileDialog, CreateFolderDialog, RenameDialog } from './files-dialogs';
 import { ChildFolders, DualPane } from './files-panes';
 import { FolderTreeRail } from './folder-tree-rail';
+import { ItemTree } from '@/components/item-tree/item-tree';
+import { filesAdapter } from '@/components/item-tree/kinds/files';
+import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import {
   FILES_ROOT,
   describeDerivedCounts,
@@ -182,6 +185,14 @@ function FilesView({
   // Effective brain-indexing mode for the folder being viewed — what the
   // header toggle displays and what un-flagged file rows badge under.
   const foldersByPath = useMemo(() => new Map(tree.map((f) => [f.path, f])), [tree]);
+  const foldersById = useMemo(() => new Map(tree.map((f) => [f.id, f])), [tree]);
+
+  // The left pane is the item tree when this brain serves it (its shell names
+  // `files` in `treeKinds`); an older brain, or a tree call that 404s, keeps
+  // the folder rail below.
+  const treeServes = useTreeServes('files');
+  const [treeGone, setTreeGone] = useState(false);
+  const showTree = treeServes === true && !treeGone;
   const folderIndexing = effectiveFolderIndexing(currentPath, foldersByPath);
 
   // ── View + sort ────────────────────────────────────────────────
@@ -303,6 +314,8 @@ function FilesView({
   const refresh = useCallback(() => {
     startTransition(() => {
       void queryClient.invalidateQueries({ queryKey: ['files'] });
+      // The tree shows the same folders and files.
+      void queryClient.invalidateQueries({ queryKey: ['tree', 'files'] });
     });
   }, [queryClient]);
 
@@ -383,9 +396,11 @@ function FilesView({
   };
 
   // ─── Bulk delete files ───────────────────────────────────────────
+  const deleteIds =
+    dialog?.kind === 'bulkDelete' && dialog.ids ? dialog.ids : Array.from(selectedFileIds);
   const confirmBulkDelete = async () => {
-    if (selectedFileIds.size === 0) return;
-    const ids = Array.from(selectedFileIds);
+    const ids = deleteIds;
+    if (ids.length === 0) return;
     let res: BulkDeleteResponse;
     try {
       res = await apiSend<BulkDeleteResponse>('/api/files/files', 'DELETE', { ids });
@@ -511,53 +526,122 @@ function FilesView({
              `h-full` because a grid item stretched to the row and a flex item
              does not — without it the tinted background stops wherever the
              tree happens to end. */
-          <aside className="flex h-full flex-col bg-muted/20">
-            <div className="space-y-2 border-b border-border p-2">
-              <div className="relative">
-                <Search
-                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-                  placeholder="Filter folders, search files…"
-                  aria-label="Filter folders and search files"
-                  className="h-9 pl-8 pr-8"
-                />
-                {query && (
-                  <Button
-                    variant="ghost"
-                    size="icon-2xs"
-                    aria-label="Clear search"
-                    onClick={() => setQuery('')}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  >
-                    <X aria-hidden />
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">
-              <FolderTreeRail
-                tree={tree}
-                currentPath={recentView ? '' : currentPath}
-                onNavigate={(p) => {
+          showTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="files"
+                adapter={filesAdapter}
+                rootLabel="All files"
+                selectedItemId={pid ?? openFileId}
+                selectedFolderPath={pid || openFileId || searchActive ? null : currentPath}
+                revealPath={currentPath}
+                query={query}
+                onQueryChange={setQuery}
+                searchPlaceholder="Search files and folders…"
+                onOpenFolder={(f) => {
                   setRecentView(false);
-                  setQuery('');
-                  navigateFolder(p);
+                  navigateFolder(f?.path ?? FILES_ROOT);
                 }}
-                filter={query.trim()}
-                recentActive={recentView}
-                onRecent={() => setRecentView(true)}
-                onNewFolder={(parentPath) => setDialog({ kind: 'createFolder', parentPath })}
-                onRename={(f) =>
-                  setDialog({ kind: 'rename', target: { kind: 'folder', id: f.id, slug: f.slug } })
+                onOpenItem={(item, where) => {
+                  if (item.state === 'private') {
+                    openPrivate(item.id);
+                    return;
+                  }
+                  const sp = new URLSearchParams();
+                  sp.set(
+                    'path',
+                    where.folderPath ??
+                      (where.folderId ? foldersById.get(where.folderId)?.path : null) ??
+                      FILES_ROOT,
+                  );
+                  sp.set('file', item.id);
+                  router.push(`/files?${sp.toString()}`);
+                }}
+                itemActions={(item) =>
+                  item.state === 'private' ? null : (
+                    <>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setDialog({
+                            kind: 'rename',
+                            target: {
+                              kind: 'file',
+                              id: item.id,
+                              filename: item.title,
+                              extension: item.subtype ?? '',
+                            },
+                          })
+                        }
+                      >
+                        <Pencil />
+                        Rename…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive-ink focus:text-destructive-ink"
+                        onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
+                      >
+                        <Trash2 />
+                        Delete…
+                      </DropdownMenuItem>
+                    </>
+                  )
                 }
+                onChanged={refresh}
+                onUnsupported={() => setTreeGone(true)}
               />
-            </div>
-          </aside>
+            </aside>
+          ) : (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <div className="space-y-2 border-b border-border p-2">
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+                    placeholder="Filter folders, search files…"
+                    aria-label="Filter folders and search files"
+                    className="h-9 pl-8 pr-8"
+                  />
+                  {query && (
+                    <Button
+                      variant="ghost"
+                      size="icon-2xs"
+                      aria-label="Clear search"
+                      onClick={() => setQuery('')}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    >
+                      <X aria-hidden />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">
+                <FolderTreeRail
+                  tree={tree}
+                  currentPath={recentView ? '' : currentPath}
+                  onNavigate={(p) => {
+                    setRecentView(false);
+                    setQuery('');
+                    navigateFolder(p);
+                  }}
+                  filter={query.trim()}
+                  recentActive={recentView}
+                  onRecent={() => setRecentView(true)}
+                  onNewFolder={(parentPath) => setDialog({ kind: 'createFolder', parentPath })}
+                  onRename={(f) =>
+                    setDialog({
+                      kind: 'rename',
+                      target: { kind: 'folder', id: f.id, slug: f.slug },
+                    })
+                  }
+                />
+              </div>
+            </aside>
+          )
         }
         detail={
           /* ── Main pane ─────────────────────────────────────────
@@ -1407,7 +1491,7 @@ function FilesView({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {selectedFileIds.size} file{selectedFileIds.size === 1 ? '' : 's'}?
+              Delete {deleteIds.length} file{deleteIds.length === 1 ? '' : 's'}?
             </AlertDialogTitle>
             <AlertDialogDescription>This can’t be undone.</AlertDialogDescription>
           </AlertDialogHeader>

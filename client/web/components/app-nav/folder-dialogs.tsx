@@ -107,10 +107,13 @@ export function FolderNameDialog({
 /** Deleting a folder keeps its contents: they move up one level. */
 export function DeleteFolderDialog({
   folderName,
+  contents = 'apps',
   onOpenChange,
   onConfirm,
 }: {
   folderName: string | null;
+  /** What the folder holds besides folders, in the plural ("apps", "files"). */
+  contents?: string;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
@@ -120,8 +123,8 @@ export function DeleteFolderDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete “{folderName}”?</AlertDialogTitle>
           <AlertDialogDescription>
-            Only the folder goes. The apps and folders inside it move up one level, for everyone on
-            this brain.
+            Only the folder goes. The {contents} and folders inside it move up one level, for
+            everyone on this brain.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
