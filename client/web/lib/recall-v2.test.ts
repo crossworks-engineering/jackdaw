@@ -14,7 +14,6 @@ import {
   optionTargetValue,
   recallV2Of,
   restoreBlockedReason,
-  restoreCaveat,
   sameEdits,
   withOption,
   writeErrorText,
@@ -207,26 +206,13 @@ describe('write errors', () => {
 });
 
 describe('restore guards', () => {
-  it('blocks the revisions the brain cannot restore faithfully', () => {
-    for (const s of [
-      'prompt confirmed',
-      'prompt request dropped',
-      'map created',
-      'cards reordered',
-    ]) {
+  it('blocks only the revisions whose restore would change nothing', () => {
+    for (const s of ['map created', 'cards reordered']) {
       expect(restoreBlockedReason({ summary: s })).not.toBeNull();
     }
-    expect(restoreBlockedReason({ summary: 'card edited' })).toBeNull();
-    expect(restoreBlockedReason({ summary: 'renamed, published' })).toBeNull();
-  });
-  it('warns that restoring a card that is a prompt now demotes it', () => {
-    const nodes = [
-      { id: 'p', kind: 'prompt' as const },
-      { id: 'k', kind: 'knowledge' as const },
-    ];
-    expect(restoreCaveat({ cardId: 'p' }, nodes)).toMatch(/prompt now/);
-    expect(restoreCaveat({ cardId: 'k' }, nodes)).toBeNull();
-    expect(restoreCaveat({ cardId: null }, nodes)).toBeNull();
+    for (const s of ['card edited', 'card deleted', 'prompt confirmed', 'prompt request dropped']) {
+      expect(restoreBlockedReason({ summary: s })).toBeNull();
+    }
   });
 });
 

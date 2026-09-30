@@ -200,38 +200,19 @@ export function writeErrorText(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
-/** Revisions whose restore the brain cannot do faithfully today, so the
- *  editor does not offer it. Keyed by the revision's summary, the only thing
- *  that says what kind of write it was.
- *
- * - `prompt confirmed` / `prompt request dropped`: the revision's `before`
- *   holds only the prompt flags, and restore writes it as a whole card, so
- *   the card comes back with its slug as its title and an empty body.
- * - `map created` / `cards reordered`: restore changes nothing but still
- *   bumps the version and logs a "no change" revision. */
+/** Revisions whose restore would change nothing, so the editor does not
+ *  offer it: the brain would still bump the version and log a "no change"
+ *  revision. Keyed by the revision's summary, the only thing that says what
+ *  kind of write it was. (Restoring a prompt confirm or drop, and restoring a
+ *  card that is a prompt, were blocked here until the brain learned to keep
+ *  a card's prompt state on restore.) */
 const UNRESTORABLE: Record<string, string> = {
-  'prompt confirmed':
-    'Restoring a prompt confirmation would blank the card. Use the Prompt switch instead.',
-  'prompt request dropped': 'Restoring this would blank the card. Use the Prompt switch instead.',
   'map created': 'There is nothing before a map was created.',
   'cards reordered': 'Order is not restored. Move the cards instead.',
 };
 
 export function restoreBlockedReason(rev: Pick<RecallRevisionDTO, 'summary'>): string | null {
   return UNRESTORABLE[rev.summary] ?? null;
-}
-
-/** Restore never re-sends the prompt flag, so restoring a card that is a
- *  prompt NOW demotes it to knowledge. Say so before the owner confirms. */
-export function restoreCaveat(
-  rev: Pick<RecallRevisionDTO, 'cardId'>,
-  nodes: Pick<RecallNodeDTO, 'id' | 'kind'>[],
-): string | null {
-  if (!rev.cardId) return null;
-  const card = nodes.find((n) => n.id === rev.cardId);
-  return card?.kind === 'prompt'
-    ? 'This card is a prompt now. Restoring puts back its text but makes it an ordinary card; switch Prompt back on afterwards.'
-    : null;
 }
 
 /** Where an option can lead: every other card in this map, and the entry of

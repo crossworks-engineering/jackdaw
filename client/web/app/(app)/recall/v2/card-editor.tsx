@@ -268,19 +268,23 @@ function Editor({
           <FieldError>{problems.title}</FieldError>
         </Field>
 
-        <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
-          <div className="min-w-0">
-            <FieldLabel htmlFor="recall-card-prompt">Prompt</FieldLabel>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              A prompt is also found by meaning (recall_match), not only by walking the map.
-            </p>
+        {/* Not on the entry card: it is where every walk of the map starts, and
+            the brain refuses to make it a prompt. */}
+        {!entry && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
+            <div className="min-w-0">
+              <FieldLabel htmlFor="recall-card-prompt">Prompt</FieldLabel>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                A prompt is also found by meaning (recall_match), not only by walking the map.
+              </p>
+            </div>
+            <Switch
+              id="recall-card-prompt"
+              checked={edits.prompt}
+              onCheckedChange={(v) => set('prompt', v)}
+            />
           </div>
-          <Switch
-            id="recall-card-prompt"
-            checked={edits.prompt}
-            onCheckedChange={(v) => set('prompt', v)}
-          />
-        </div>
+        )}
 
         <Field data-invalid={problems.useWhen ? true : undefined}>
           <FieldLabel htmlFor="recall-card-use-when">Use when</FieldLabel>

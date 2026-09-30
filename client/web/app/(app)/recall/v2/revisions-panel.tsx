@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { recallKeys, restoreBlockedReason, restoreCaveat } from '@/lib/recall-v2';
+import { recallKeys, restoreBlockedReason } from '@/lib/recall-v2';
 import type { useMapWrite } from './use-map-write';
 
 /**
@@ -32,8 +32,8 @@ import type { useMapWrite } from './use-map-write';
  * agent's card edit the moment it is written.
  *
  * Restore puts back what a write replaced, as a new write of its own (so it
- * is logged too, and can itself be undone). A few kinds of write cannot be
- * restored faithfully yet, and those rows say why instead of offering it.
+ * is logged too, and can itself be undone). For two kinds of write a restore
+ * would change nothing, and those rows say why instead of offering it.
  */
 export function RevisionsPanel({
   map,
@@ -91,8 +91,6 @@ export function RevisionsPanel({
     );
   }
 
-  const caveat = confirming ? restoreCaveat(confirming, map.nodes) : null;
-
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
       <ul className="max-w-3xl divide-y divide-border p-4">
@@ -145,7 +143,6 @@ export function RevisionsPanel({
             <AlertDialogDescription>
               This puts back what that write replaced, as a new write. The current version is kept
               in the log, so this can be undone the same way.
-              {caveat && <span className="mt-2 block text-warning-ink">{caveat}</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
