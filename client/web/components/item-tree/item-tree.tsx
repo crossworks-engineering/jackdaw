@@ -18,7 +18,7 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from '@dnd-kit/core';
-import { FolderInput, FolderPlus, ListFilter, Pin, PinOff, Search, X } from 'lucide-react';
+import { FolderInput, FolderPlus, ListFilter, Pin, PinOff, Search, Share2, X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -34,6 +34,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
 import {
@@ -44,6 +47,7 @@ import {
   type TreeFolder,
   type TreeItem,
   type TreeKind,
+  type TreeShareLevel,
   type TreeSort,
 } from '@mantle/web-ui/types/tree';
 import type { AccessLevel } from '@mantle/client-types';
@@ -96,6 +100,14 @@ import {
   VirtualRows,
 } from './tree-rows';
 import { FolderPickerDialog } from './folder-picker';
+import {
+  canShareFolder,
+  SHARE_LABEL,
+  SHARE_WHO,
+  shareLevelsOf,
+  visibilityRefusal,
+} from './sharing';
+import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confirm';
 
 /**
  * The item tree: one navigation for every kind (the brain's
@@ -178,6 +190,9 @@ type MoveTarget =
 
 /** Private items have no folder yet: they cannot be moved or picked. */
 const movable = (item: TreeItem) => item.state !== 'private';
+
+/** Where a move lands, inside a sentence. */
+const into = (dest: string | null | undefined) => (dest ? `into “${dest}”` : 'to the top level');
 
 export function ItemTree({
   kind,
@@ -275,6 +290,7 @@ export function ItemTree({
   const [deleteTarget, setDeleteTarget] = useState<TreeFolder | null>(null);
   const [lookFor, setLookFor] = useState<{ key: string; folder: TreeFolder } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   // Items picked for a move (cmd/ctrl or shift click), in pick order, and
   // the anchor a shift-click ranges from. Kept by id, so the pick survives
@@ -318,8 +334,57 @@ export function ItemTree({
     }
   };
 
-  const patchFolder = (folder: TreeFolder, patch: TreeFolderPatch) =>
-    write(() => patchTreeFolder(kind, folder.id, patch), 'Could not change the folder');
+  /**
+   * A write that can change who sees items (a share, a move, a delete that
+   * lifts): tried as it is, and when the brain refuses it for that, the
+   * changes are shown and it is repeated with `confirm`. Nothing is written
+   * until then. Any other refusal is a toast.
+   */
+  const guarded = <T,>(
+    run: (confirm: boolean) => Promise<T>,
+    failure: string,
+    ask: { action: string; verb: string },
+    onDone?: (out: T) => void,
+  ): Promise<void> => {
+    const attempt = async (confirm: boolean) => {
+      try {
+        const out = await run(confirm);
+        refresh();
+        onChanged?.();
+        onDone?.(out);
+      } catch (err) {
+        const refusal = confirm ? null : visibilityRefusal(err);
+        if (refusal) setPendingConfirm({ refusal, ...ask, run: () => void attempt(true) });
+        else toast.error(err instanceof ApiError ? err.message : failure);
+      }
+    };
+    return attempt(false);
+  };
+
+  /** Any folder change. A rename or a new look never asks; a move or a share
+   *  may (`dest` names where a move lands, for the question). */
+  const patchFolder = (
+    folder: TreeFolder,
+    patch: TreeFolderPatch,
+    opts: { dest?: string | null; onDone?: () => void } = {},
+  ) =>
+    guarded(
+      (confirm) => patchTreeFolder(kind, folder.id, confirm ? { ...patch, confirm: true } : patch),
+      'Could not change the folder',
+      patch.share === undefined
+        ? { action: `Move “${folder.name}” ${into(opts.dest)}.`, verb: 'Move' }
+        : patch.share
+          ? {
+              action: `Share “${folder.name}” and everything in it with ${SHARE_WHO[patch.share]}.`,
+              verb: 'Share',
+            }
+          : { action: `Stop sharing “${folder.name}”.`, verb: 'Stop sharing' },
+      opts.onDone,
+    );
+
+  const shareFolder = (folder: TreeFolder, share: TreeShareLevel | null) => {
+    if (share !== folder.share) void patchFolder(folder, { share });
+  };
 
   // ── Queries beside the tree ───────────────────────────────────────────
   const pinsQ = useQuery({
@@ -401,13 +466,14 @@ export function ItemTree({
   };
 
   /** Move items (one, or the pick) into a folder; null = the top level. */
-  const moveItems = (items: readonly TreeItem[], dest: string | null) =>
-    write(
-      async () => {
+  const moveItems = (items: readonly TreeItem[], dest: Pick<TreeFolder, 'id' | 'name'> | null) =>
+    guarded(
+      async (confirm) => {
         const res = await moveTreeItems(
           kind,
           items.map((i) => i.id),
-          dest,
+          dest?.id ?? null,
+          confirm,
         );
         if (items.length > 1) clearPicked();
         if (res.failed.length) {
@@ -417,9 +483,16 @@ export function ItemTree({
               : `${res.failed.length} of ${items.length} ${adapter.noun.many}`;
           throw new ApiError(`Could not move ${what}: ${res.failed[0]!.error}`, 409);
         }
-        if (dest) setOpen(dest, true);
+        if (dest) setOpen(dest.id, true);
       },
       `Could not move the ${items.length === 1 ? adapter.noun.one : adapter.noun.many}`,
+      {
+        action:
+          items.length === 1
+            ? `Move “${items[0]!.title}” ${into(dest?.name)}.`
+            : `Move ${items.length} ${adapter.noun.many} ${into(dest?.name)}.`,
+        verb: 'Move',
+      },
     );
 
   /** What a move of `item` carries: the whole pick when it is part of it. */
@@ -472,6 +545,35 @@ export function ItemTree({
             <DropdownMenuItem onSelect={() => openLook(`f:${folder.id}`, folder)}>
               Icon and colour…
             </DropdownMenuItem>
+            {canShareFolder(kind, folder) && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Share2 />
+                  Share
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-60">
+                  <DropdownMenuRadioGroup
+                    value={folder.share ?? 'none'}
+                    onValueChange={(v) =>
+                      shareFolder(folder, v === 'none' ? null : (v as TreeShareLevel))
+                    }
+                  >
+                    <DropdownMenuRadioItem value="none">Not shared</DropdownMenuRadioItem>
+                    {shareLevelsOf(kind).map((l) => (
+                      <DropdownMenuRadioItem key={l} value={l}>
+                        {SHARE_LABEL[l]}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                    {folder.inherited
+                      ? `A folder above already shares it with ${SHARE_WHO[folder.inherited]}.`
+                      : 'Everything in it, now and later.'}
+                  </p>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuSeparator />
             {!folder.system && (
               <DropdownMenuItem onSelect={() => setMoveTarget({ type: 'folder', folder })}>
@@ -580,20 +682,29 @@ export function ItemTree({
     const a = e.active.data.current as DragData;
     const o = e.over!.data.current as DragData;
     if (a.type === 'item') {
-      void moveItems(carried(a.item), o.type === 'folder' ? o.folder.id : null);
+      void moveItems(carried(a.item), o.type === 'folder' ? o.folder : null);
       return;
     }
     if (a.type !== 'folder') return;
     if (o.type === 'root') {
-      void patchFolder(a.folder, { parentId: null });
+      void patchFolder(a.folder, { parentId: null }, { dest: null });
     } else if (o.type === 'folder' && h.pos === 'inside') {
-      void patchFolder(a.folder, { parentId: o.folder.id }).then(() => setOpen(o.folder.id, true));
+      const dest = o.folder;
+      void patchFolder(
+        a.folder,
+        { parentId: dest.id },
+        { dest: dest.name, onDone: () => setOpen(dest.id, true) },
+      );
     } else if (o.type === 'folder') {
       const parentId = o.parent?.id ?? null;
-      void patchFolder(a.folder, {
-        ...(parentId !== (a.parent?.id ?? null) ? { parentId } : {}),
-        after: afterFor(o.siblings, a.folder.id, o.folder.id, h.pos as 'before' | 'after'),
-      });
+      void patchFolder(
+        a.folder,
+        {
+          ...(parentId !== (a.parent?.id ?? null) ? { parentId } : {}),
+          after: afterFor(o.siblings, a.folder.id, o.folder.id, h.pos as 'before' | 'after'),
+        },
+        { dest: o.parent?.name ?? null },
+      );
     }
   };
 
@@ -1087,8 +1198,20 @@ export function ItemTree({
         onConfirm={() => {
           const target = deleteTarget;
           setDeleteTarget(null);
-          if (target) void write(() => deleteTreeFolder(kind, target.id), 'Could not delete');
+          if (!target) return;
+          void guarded(
+            (confirm) => deleteTreeFolder(kind, target.id, confirm),
+            'Could not delete',
+            {
+              action: `Delete “${target.name}”: what it holds moves up one level, out of its share.`,
+              verb: 'Delete folder',
+            },
+          );
         }}
+      />
+      <VisibilityConfirmDialog
+        pending={pendingConfirm}
+        onOpenChange={(o) => !o && setPendingConfirm(null)}
       />
       <FolderPickerDialog
         kind={kind}
@@ -1120,10 +1243,13 @@ export function ItemTree({
           const target = moveTarget;
           if (!target) return;
           if (target.type === 'items') {
-            void moveItems(target.items, dest?.id ?? null);
+            void moveItems(target.items, dest);
           } else {
-            void patchFolder(target.folder, { parentId: dest?.id ?? null });
-            if (dest) setOpen(dest.id, true);
+            void patchFolder(
+              target.folder,
+              { parentId: dest?.id ?? null },
+              { dest: dest?.name ?? null, onDone: () => dest && setOpen(dest.id, true) },
+            );
           }
         }}
       />

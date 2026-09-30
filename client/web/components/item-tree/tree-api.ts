@@ -13,6 +13,7 @@ import type {
   TreeMarkList,
   TreeMarkView,
   TreeSearchResult,
+  TreeShareLevel,
   TreeSort,
   TreeTagList,
 } from '@mantle/web-ui/types/tree';
@@ -89,6 +90,12 @@ export type TreeFolderPatch = {
   parentId?: string | null;
   /** Place directly after this sibling; null = first. */
   after?: string | null;
+  /** Share it, and everything below it, with the team or clients; null
+   *  stops sharing it. */
+  share?: TreeShareLevel | null;
+  /** Go ahead although it changes who can see items (else a visibility
+   *  refusal, 409). */
+  confirm?: boolean;
 };
 
 export const createTreeFolder = (kind: TreeKind, parentId: string | null, name: string) =>
@@ -102,14 +109,29 @@ export const patchTreeFolder = (kind: TreeKind, id: string, patch: TreeFolderPat
   );
 
 /** What the folder holds moves up to its parent first; a name clash there is
- *  a 409 and nothing moves. */
-export const deleteTreeFolder = (kind: TreeKind, id: string) =>
-  apiSend<{ ok: true }>(`/api/tree/${kind}/folders/${id}`, 'DELETE');
+ *  a 409 and nothing moves, and so is a lift that changes who can see
+ *  something, until it is repeated with `confirm`. */
+export const deleteTreeFolder = (kind: TreeKind, id: string, confirm = false) =>
+  apiSend<{ ok: true }>(
+    `/api/tree/${kind}/folders/${id}${confirm ? '?confirm=true' : ''}`,
+    'DELETE',
+  );
 
 export type TreeMoveResult = { moved: number; failed: Array<{ id: string; error: string }> };
 
-export const moveTreeItems = (kind: TreeKind, ids: string[], folderId: string | null) =>
-  apiSend<TreeMoveResult>(`/api/tree/${kind}/move`, 'POST', { ids, folderId });
+/** Refused whole (nothing moves) when it changes who can see any of them,
+ *  until it is repeated with `confirm`. */
+export const moveTreeItems = (
+  kind: TreeKind,
+  ids: string[],
+  folderId: string | null,
+  confirm = false,
+) =>
+  apiSend<TreeMoveResult>(`/api/tree/${kind}/move`, 'POST', {
+    ids,
+    folderId,
+    ...(confirm ? { confirm: true } : {}),
+  });
 
 export const setTreeItemPinned = (id: string, pinned: boolean) =>
   apiSend<{ ok: true }>(`/api/tree/items/${id}/pin`, 'PUT', { pinned });

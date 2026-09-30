@@ -134,6 +134,10 @@ export function flattenTree(
   const rows: TreeRow[] = [];
   const needed: Array<string | null> = [];
   const foldersOnly = opts.foldersOnly ?? false;
+  // Just after a move, the page it left and the page it joined refetch on
+  // their own, so for a moment both may hold it. It is drawn once, where it
+  // is met first.
+  const seen = new Set<string>();
 
   const walk = (folder: TreeFolder | null, depth: number, guides: readonly boolean[]) => {
     const folderId = folder?.id ?? null;
@@ -167,6 +171,9 @@ export function flattenTree(
       return;
     }
     for (const e of entries) {
+      const id = e.type === 'item' ? e.item.id : e.folder.id;
+      if (seen.has(id)) continue;
+      seen.add(id);
       if (e.type === 'item') {
         rows.push({
           type: 'item',
