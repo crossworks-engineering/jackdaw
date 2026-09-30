@@ -4,11 +4,17 @@
  * `['tree', kind]`, so one invalidation refreshes every open folder, the
  * flat views and the pins together.
  */
-import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type {
+  ClientTreeFolder,
+  ClientTreeFolderPage,
+  ClientTreeItem,
+  ClientTreeSearchResult,
+  TreeCrumb,
   TreeFilter,
   TreeFolder,
   TreeFolderPage,
+  TreeItem,
   TreeKind,
   TreeMarkList,
   TreeMarkView,
@@ -98,15 +104,54 @@ export function marksUrl(kind: TreeKind, view: TreeMarkView): string {
   return `/api/tree/${kind}/marks?view=${view}`;
 }
 
-// A client's page is the owner's shape without its level fields: read as it,
-// those are simply absent (the rows show no level, share or state then).
+// A client's answers are their own shapes (ClientTreeFolderPage,
+// ClientTreeSearchResult): no level, share, state or system flag, which are
+// staff information. The rows draw one shape, so a client's is carried into
+// it here, and only here: a folder shares nothing and is no system folder as
+// far as a client's rows go, an item has no review state, and no level is
+// made up (the rows show none where it is absent).
+
+function clientFolder<F extends ClientTreeFolder>(f: F): F & TreeFolder {
+  return { ...f, share: null, system: false };
+}
+
+function clientItem<I extends ClientTreeItem>(it: I): I & TreeItem {
+  // `level` stays absent: a client is never told an item's level, and the
+  // status slot draws nothing without one.
+  return { ...it, state: null } as I & TreeItem;
+}
+
+/** A client login's folder page in the rows' shape. */
+export function clientPageAsTree(p: ClientTreeFolderPage): TreeFolderPage {
+  return {
+    ...p,
+    folder: p.folder ? clientFolder(p.folder) : null,
+    folders: p.folders.map(clientFolder),
+    items: p.items.map(clientItem),
+  };
+}
+
+/** A client login's search answer in the rows' shape. */
+export function clientSearchAsTree(r: ClientTreeSearchResult): TreeSearchResult {
+  return {
+    ...r,
+    folders: r.folders.map((f): TreeFolder & { crumbs: TreeCrumb[] } => clientFolder(f)),
+    items: r.items.map((it): TreeItem & { crumbs: TreeCrumb[] } => clientItem(it)),
+  };
+}
+
 export const fetchFolderPage = (
   kind: TreeKind,
   folderId: string | null,
   sort: TreeSort,
   cursor: string | null,
   source: TreeSource = 'owner',
-) => apiFetch<TreeFolderPage>(folderUrl(kind, folderId, sort, cursor, source));
+): Promise<TreeFolderPage> => {
+  const url = folderUrl(kind, folderId, sort, cursor, source);
+  return source === 'client'
+    ? apiFetch<ClientTreeFolderPage>(url).then(clientPageAsTree)
+    : apiFetch<TreeFolderPage>(url);
+};
 
 export const fetchSearch = (
   kind: TreeKind,
@@ -114,7 +159,12 @@ export const fetchSearch = (
   cursor: string | null,
   filter: TreeFilter = {},
   source: TreeSource = 'owner',
-) => apiFetch<TreeSearchResult>(searchUrl(kind, q, cursor, filter, source));
+): Promise<TreeSearchResult> => {
+  const url = searchUrl(kind, q, cursor, filter, source);
+  return source === 'client'
+    ? apiFetch<ClientTreeSearchResult>(url).then(clientSearchAsTree)
+    : apiFetch<TreeSearchResult>(url);
+};
 
 export const fetchTags = (kind: TreeKind) => apiFetch<TreeTagList>(`/api/tree/${kind}/tags`);
 
@@ -135,7 +185,17 @@ export type TreeFolderPatch = {
   /** Go ahead although it changes who can see items (else a visibility
    *  refusal, 409). */
   confirm?: boolean;
+  /** With `confirm`: the `total` the dialog showed; a different change now is
+   *  refused again with the new list. */
+  seen?: number;
 };
+
+/** A brain before `seen` checks the folder PATCH strictly and refuses the
+ *  field by name (400); the write is then repeated without it, as that brain
+ *  would have taken it. */
+function refusedSeen(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 400 && /\bseen\b/.test(err.message);
+}
 
 /** Who writes: the owner (/api/tree), or a member in its own folders and
  *  drafts (/api/member/tree, folder plan phase 5: no share, order, pins or
@@ -153,45 +213,56 @@ export const createTreeFolder = (
     name,
   }).then((r) => r.folder);
 
-export const patchTreeFolder = (
+export const patchTreeFolder = async (
   kind: TreeKind,
   id: string,
   patch: TreeFolderPatch,
   source: TreeWriter = 'owner',
-) =>
-  apiSend<{ folder: TreeFolder }>(`${BASE[source]}/${kind}/folders/${id}`, 'PATCH', patch).then(
-    (r) => r.folder,
-  );
+): Promise<TreeFolder> => {
+  const url = `${BASE[source]}/${kind}/folders/${id}`;
+  try {
+    return (await apiSend<{ folder: TreeFolder }>(url, 'PATCH', patch)).folder;
+  } catch (err) {
+    if (patch.seen === undefined || !refusedSeen(err)) throw err;
+    const { seen: _seen, ...older } = patch;
+    return (await apiSend<{ folder: TreeFolder }>(url, 'PATCH', older)).folder;
+  }
+};
 
 /** What the folder holds moves up to its parent first; a name clash there is
  *  a 409 and nothing moves, and so is a lift that changes who can see
- *  something, until it is repeated with `confirm`. */
+ *  something, until it is repeated with `confirm` (and `seen`, the total the
+ *  dialog showed). */
 export const deleteTreeFolder = (
   kind: TreeKind,
   id: string,
   confirm = false,
   source: TreeWriter = 'owner',
+  seen?: number,
 ) =>
   apiSend<{ ok: true }>(
-    `${BASE[source]}/${kind}/folders/${id}${confirm ? '?confirm=true' : ''}`,
+    `${BASE[source]}/${kind}/folders/${id}${
+      confirm ? `?confirm=true${seen !== undefined ? `&seen=${seen}` : ''}` : ''
+    }`,
     'DELETE',
   );
 
 export type TreeMoveResult = { moved: number; failed: Array<{ id: string; error: string }> };
 
 /** Refused whole (nothing moves) when it changes who can see any of them,
- *  until it is repeated with `confirm`. */
+ *  until it is repeated with `confirm` (and `seen`, the total shown). */
 export const moveTreeItems = (
   kind: TreeKind,
   ids: string[],
   folderId: string | null,
   confirm = false,
   source: TreeWriter = 'owner',
+  seen?: number,
 ) =>
   apiSend<TreeMoveResult>(`${BASE[source]}/${kind}/move`, 'POST', {
     ids,
     folderId,
-    ...(confirm ? { confirm: true } : {}),
+    ...(confirm ? { confirm: true, ...(seen !== undefined ? { seen } : {}) } : {}),
   });
 
 export const setTreeItemPinned = (id: string, pinned: boolean) =>

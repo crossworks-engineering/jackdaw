@@ -89,6 +89,7 @@ import {
   dropPosition,
   isAtOrBelow,
   isOnTheWayTo,
+  pickedAfterMove,
   rangeOfItems,
   type TreeRow,
 } from './tree-model';
@@ -367,25 +368,30 @@ export function ItemTree({
   /**
    * A write that can change who sees items (a share, a move, a delete that
    * lifts): tried as it is, and when the brain refuses it for that, the
-   * changes are shown and it is repeated with `confirm`. Nothing is written
-   * until then. Any other refusal is a toast.
+   * changes are shown and it is repeated with `confirm` and `seen` (the total
+   * the dialog showed). Nothing is written until then. When what it changes
+   * differs by then, the brain refuses again with the new list, which is
+   * shown again. Any other refusal is a toast.
    */
   const guarded = <T,>(
-    run: (confirm: boolean) => Promise<T>,
+    run: (confirm: boolean, seen?: number) => Promise<T>,
     failure: string,
     ask: { action: string; verb: string },
     onDone?: (out: T) => void,
   ): Promise<void> => {
-    const attempt = async (confirm: boolean) => {
+    const attempt = async (confirm: boolean, seen?: number) => {
       try {
-        const out = await run(confirm);
+        const out = await run(confirm, seen);
         refresh();
         onChanged?.();
         onDone?.(out);
       } catch (err) {
-        const refusal = confirm ? null : visibilityRefusal(err);
-        if (refusal) setPendingConfirm({ refusal, ...ask, run: () => void attempt(true) });
-        else toast.error(err instanceof ApiError ? err.message : failure);
+        const refusal = visibilityRefusal(err);
+        if (refusal) {
+          setPendingConfirm({ refusal, ...ask, run: () => void attempt(true, refusal.total) });
+        } else {
+          toast.error(err instanceof ApiError ? err.message : failure);
+        }
       }
     };
     return attempt(false);
@@ -399,8 +405,13 @@ export function ItemTree({
     opts: { dest?: string | null; onDone?: () => void } = {},
   ) =>
     guarded(
-      (confirm) =>
-        patchTreeFolder(kind, folder.id, confirm ? { ...patch, confirm: true } : patch, writer),
+      (confirm, seen) =>
+        patchTreeFolder(
+          kind,
+          folder.id,
+          confirm ? { ...patch, confirm: true, ...(seen !== undefined ? { seen } : {}) } : patch,
+          writer,
+        ),
       'Could not change the folder',
       patch.share === undefined
         ? { action: `Move “${folder.name}” ${into(opts.dest)}.`, verb: 'Move' }
@@ -497,25 +508,31 @@ export function ItemTree({
     });
   };
 
-  /** Move items (one, or the pick) into a folder; null = the top level. */
+  /** Move items (one, or the pick) into a folder; null = the top level. A
+   *  move that partly failed still shows what did move, and keeps the ones
+   *  that did not picked, to try again. */
   const moveItems = (items: readonly TreeItem[], dest: Pick<TreeFolder, 'id' | 'name'> | null) =>
     guarded(
-      async (confirm) => {
+      async (confirm, seen) => {
         const res = await moveTreeItems(
           kind,
           items.map((i) => i.id),
           dest?.id ?? null,
           confirm,
           writer,
+          seen,
         );
-        if (items.length > 1) clearPicked();
         if (res.failed.length) {
+          refresh();
+          onChanged?.();
+          if (items.length > 1) setPicked(pickedAfterMove(items, res.failed));
           const what =
             items.length === 1
               ? `the ${adapter.noun.one}`
               : `${res.failed.length} of ${items.length} ${adapter.noun.many}`;
           throw new ApiError(`Could not move ${what}: ${res.failed[0]!.error}`, 409);
         }
+        if (items.length > 1) clearPicked();
         if (dest) setOpen(dest.id, true);
       },
       `Could not move the ${items.length === 1 ? adapter.noun.one : adapter.noun.many}`,
@@ -1270,7 +1287,7 @@ export function ItemTree({
           setDeleteTarget(null);
           if (!target) return;
           void guarded(
-            (confirm) => deleteTreeFolder(kind, target.id, confirm, writer),
+            (confirm, seen) => deleteTreeFolder(kind, target.id, confirm, writer, seen),
             'Could not delete',
             {
               action: `Delete “${target.name}”: what it holds moves up one level, out of its share.`,

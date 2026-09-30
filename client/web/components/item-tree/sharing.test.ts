@@ -3,6 +3,7 @@ import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import {
   canShareFolder,
+  mergeRefusals,
   refusalHeading,
   shareLevelsOf,
   shareTitle,
@@ -103,8 +104,53 @@ describe('visibilityRefusal', () => {
     });
     expect(visibilityRefusal(err)).toEqual({ error: 'visibility', changes: [change], total: 1 });
   });
+  it('reads what goes down with them (alsoLowered), dropping malformed rows', () => {
+    const embed = { id: 'e', title: 'Logo', from: 'admin', to: 'client' };
+    const err = new ApiError('x', 409, {
+      error: 'visibility',
+      changes: [change],
+      total: 1,
+      alsoLowered: [embed, { id: 2 }],
+    });
+    expect(visibilityRefusal(err)).toEqual({
+      error: 'visibility',
+      changes: [change],
+      total: 1,
+      alsoLowered: [embed],
+    });
+  });
+  it('leaves alsoLowered out when a brain sends none', () => {
+    const err = new ApiError('x', 409, { error: 'visibility', changes: [change], total: 1 });
+    expect(visibilityRefusal(err)).not.toHaveProperty('alsoLowered');
+  });
   it('words the heading for one and for many', () => {
     expect(refusalHeading({ error: 'visibility', changes: [], total: 1 })).toMatch(/one item$/);
     expect(refusalHeading({ error: 'visibility', changes: [], total: 12 })).toMatch(/12 items$/);
+  });
+});
+
+describe('mergeRefusals', () => {
+  const c = (id: string) => ({ id, title: id, from: 'admin' as const, to: 'team' as const });
+
+  it('adds the totals and lists each item once', () => {
+    const merged = mergeRefusals([
+      { error: 'visibility', changes: [c('a'), c('b')], total: 5 },
+      { error: 'visibility', changes: [c('b'), c('c')], total: 2, alsoLowered: [c('x')] },
+    ]);
+    expect(merged.changes.map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(merged.total).toBe(7);
+    expect(merged.alsoLowered?.map((x) => x.id)).toEqual(['x']);
+  });
+
+  it('keeps within one refusal’s list size', () => {
+    const many = Array.from({ length: 80 }, (_, i) => c(`a${i}`));
+    const more = Array.from({ length: 80 }, (_, i) => c(`b${i}`));
+    const merged = mergeRefusals([
+      { error: 'visibility', changes: many, total: 80 },
+      { error: 'visibility', changes: more, total: 80 },
+    ]);
+    expect(merged.changes).toHaveLength(100);
+    expect(merged.total).toBe(160);
+    expect(merged).not.toHaveProperty('alsoLowered');
   });
 });

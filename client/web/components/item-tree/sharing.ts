@@ -10,6 +10,7 @@ import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   TREE_KIND_SPECS,
   TREE_SHARE_LEVELS,
+  TREE_VISIBILITY_LIST_MAX,
   type TreeFolder,
   type TreeKind,
   type TreeShareLevel,
@@ -79,7 +80,34 @@ export function visibilityRefusal(err: unknown): TreeVisibilityRefusal | null {
   const changes = body.changes.filter(isChange);
   const total =
     typeof body.total === 'number' ? Math.max(body.total, changes.length) : changes.length;
-  return { error: 'visibility', changes, total };
+  const alsoLowered = Array.isArray(body.alsoLowered) ? body.alsoLowered.filter(isChange) : [];
+  return { error: 'visibility', changes, total, ...(alsoLowered.length ? { alsoLowered } : {}) };
+}
+
+/** Several refusals (a batch where each write was refused on its own) as
+ *  one list for the dialog: every change, the totals added up, and what goes
+ *  down with them, each item once. The list stays within what one refusal
+ *  may carry. */
+export function mergeRefusals(refusals: readonly TreeVisibilityRefusal[]): TreeVisibilityRefusal {
+  const once = (lists: Array<readonly TreeVisibilityChange[] | undefined>) => {
+    const seen = new Set<string>();
+    const out: TreeVisibilityChange[] = [];
+    for (const list of lists) {
+      for (const c of list ?? []) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        out.push(c);
+      }
+    }
+    return out;
+  };
+  const changes = once(refusals.map((r) => r.changes)).slice(0, TREE_VISIBILITY_LIST_MAX);
+  const alsoLowered = once(refusals.map((r) => r.alsoLowered)).slice(0, TREE_VISIBILITY_LIST_MAX);
+  const total = Math.max(
+    refusals.reduce((n, r) => n + r.total, 0),
+    changes.length,
+  );
+  return { error: 'visibility', changes, total, ...(alsoLowered.length ? { alsoLowered } : {}) };
 }
 
 /** The confirm dialog's heading. */

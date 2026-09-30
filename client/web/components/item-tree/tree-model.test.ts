@@ -11,6 +11,7 @@ import {
   flattenTree,
   isOnTheWayTo,
   mergeFolderPages,
+  pickedAfterMove,
   rangeOfItems,
   type FolderLoad,
   type TreeRow,
@@ -313,5 +314,20 @@ describe('which kinds a brain serves as the tree', () => {
     expect(treeKindsOf({ treeKinds: ['recall'] })).toEqual(['recall']);
     expect(treeKindsOf({})).toEqual([]);
     expect(treeKindsOf(null)).toEqual([]);
+  });
+});
+
+describe('pickedAfterMove', () => {
+  it('keeps the items that did not move picked, in pick order', () => {
+    const items = [item('a'), item('b'), item('c')];
+    const failed: Array<{ id: string; error: string }> = [
+      { id: 'c', error: 'x' },
+      { id: 'a', error: 'y' },
+    ];
+    const left = pickedAfterMove(items, failed);
+    expect([...left.keys()]).toEqual(['a', 'c']);
+  });
+  it('keeps nothing when all moved', () => {
+    expect(pickedAfterMove([item('a')], []).size).toBe(0);
   });
 });

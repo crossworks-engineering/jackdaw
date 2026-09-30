@@ -580,10 +580,13 @@ export function ItemRow({
   const where = crumbs
     ? { folderId: crumbs.at(-1)?.id ?? null, folderPath: null }
     : { folderId: parent?.id ?? null, folderPath };
-  // An owner's private items have no folder yet: they cannot be dragged
-  // anywhere. A member's tree says which of its rows move.
+  // Only a tree that manages drags (never a client's). An owner's private
+  // items have no folder yet: they cannot be dragged anywhere. A member's
+  // tree says which of its rows move.
   const drag: DragData | undefined =
-    crumbs === undefined && (ctx.canMoveItem?.(item) ?? item.state !== 'private')
+    ctx.mode === 'manage' &&
+    crumbs === undefined &&
+    (ctx.canMoveItem?.(item) ?? item.state !== 'private')
       ? { type: 'item', item, parent: parent ?? null }
       : undefined;
   const carried = picked ? ctx.picked.size : 1;

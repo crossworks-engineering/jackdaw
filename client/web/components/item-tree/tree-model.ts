@@ -238,6 +238,16 @@ export function rangeOfItems(
   return ids.slice(Math.min(a, b), Math.max(a, b) + 1);
 }
 
+/** What stays picked after a move of `items` that partly failed: the ones
+ *  that did not move, in pick order, so they can be tried again. */
+export function pickedAfterMove(
+  items: readonly TreeItem[],
+  failed: readonly { id: string }[],
+): Map<string, TreeItem> {
+  const left = new Set(failed.map((f) => f.id));
+  return new Map(items.filter((i) => left.has(i.id)).map((i) => [i.id, i]));
+}
+
 /** Where a folder, item or search hit lives, as one line. */
 export function crumbLine(crumbs: readonly TreeCrumb[]): string {
   return crumbs.map((c) => c.name).join(' / ');

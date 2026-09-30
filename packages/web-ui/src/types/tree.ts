@@ -303,5 +303,38 @@ export type TreeVisibilityRefusal = {
   changes: TreeVisibilityChange[];
   /** How many items change in all. */
   total: number;
+  /** Items elsewhere that pages, drawings and notes in `changes` embed, and
+   *  that would go down with them to the level those are read at (embedding
+   *  means sharing). They keep that level after an unshare: nothing is ever
+   *  raised again by itself. Absent when there are none, and from brains
+   *  before it was listed. */
+  alsoLowered?: TreeVisibilityChange[];
 };
 export const TREE_VISIBILITY_LIST_MAX = 100;
+
+// ── The member and client trees ──────────────────────────────────────────
+// A member (team) or client login browses the kinds its Library holds as a
+// read-only tree: GET /api/member/tree/:kind and /api/client/tree/:kind (with
+// /search), the kinds its shell lists in `treeKinds`. A member receives the
+// shapes above (levels are staff information); a client receives these,
+// which carry no level, share or system flag (clients see the brand, not the
+// staff view). Folders show where the reader reads something below them or
+// where a folder's share covers the reader; counts are the reader's.
+
+/** A folder as a client login's tree shows it. */
+export type ClientTreeFolder = Omit<TreeFolder, 'share' | 'inherited' | 'system' | 'own'>;
+/** An item as a client login's tree shows it. */
+export type ClientTreeItem = Omit<TreeItem, 'level' | 'inherited' | 'state' | 'source' | 'author'>;
+
+export type ClientTreeFolderPage = Omit<TreeFolderPage, 'folder' | 'folders' | 'items'> & {
+  folder: ClientTreeFolder | null;
+  folders: ClientTreeFolder[];
+  items: ClientTreeItem[];
+};
+
+export type ClientTreeSearchResult = {
+  kind: TreeKind;
+  folders: Array<ClientTreeFolder & { crumbs: TreeCrumb[] }>;
+  items: Array<ClientTreeItem & { crumbs: TreeCrumb[] }>;
+  nextCursor: string | null;
+};
