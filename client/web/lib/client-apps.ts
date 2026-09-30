@@ -14,7 +14,7 @@
  */
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 import { CLIENT_VIEW_HREF } from './client-requests';
-import type { ClientAppCard, ClientAppList } from './contract-next';
+import type { ClientAppCard, ClientAppList } from '@mantle/client-types';
 
 export type { ClientAppCard, ClientAppList };
 

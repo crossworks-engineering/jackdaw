@@ -12,7 +12,7 @@ import {
   informationalPatch,
   supportsInformational,
 } from '@/lib/app-informational';
-import type { AppDetail } from '@/lib/contract-next';
+import type { AppDetail } from '@mantle/client-types';
 
 /**
  * The admin's informational switch on an app (client logins C6): on, members

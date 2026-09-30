@@ -35,7 +35,7 @@ import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
 import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
-import type { AppDetail } from '@/lib/contract-next';
+import type { AppDetail } from '@mantle/client-types';
 
 type BuildMsg = { text: string; location: { file: string; line: number; column: number } | null };
 

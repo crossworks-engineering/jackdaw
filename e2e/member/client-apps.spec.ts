@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import type { AppDetail, ClientAppCard, MemberAppCard } from '../../client/web/lib/contract-next';
+import type { AppDetail, ClientAppCard, MemberAppCard } from '@mantle/client-types';
 import {
   ADMIN_APP_ID,
   ADMIN_APP_TITLE,

@@ -19,16 +19,14 @@ import type {
   ClientStorageUsage,
   ClientThreadActivity,
 } from '@mantle/client-types';
-// The C6 answers the published contract does not carry yet (client apps,
-// the informational flag): typed against the app's shim, which the C6
-// release replaces with the contract itself.
+// The C6 answers: client apps and the informational flag.
 import type {
   AppDetail,
   ClientAppCard,
   ClientAppList,
   MemberAppCard,
   MemberAppList,
-} from '../../client/web/lib/contract-next';
+} from '@mantle/client-types';
 
 /**
  * An in-memory member API for the member specs: a real HTTP server in the

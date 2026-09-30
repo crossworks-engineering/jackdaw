@@ -11,7 +11,8 @@
  */
 import type { AccessLevel, NodeCommentAuthorKind } from '@mantle/client-types';
 import { queryKeysForType } from './access-levels';
-import type { NodeCommentScope } from './contract-next';
+/** The owner comment route's `?scope=` (C6): only the client thread. */
+export type NodeCommentScope = 'client';
 
 /** The kinds whose owner views carry the thread. */
 export type OwnerThreadKind = 'page' | 'note' | 'table' | 'file';

@@ -9,7 +9,8 @@
  * The pure half, pinned by app-informational.test.ts: the words the member
  * and client views show, and what the admin's switch reads and sends.
  */
-import type { AppDataReadOnlyPatch } from './contract-next';
+/** The owner's PATCH /api/apps/:id body that sets the informational flag. */
+export type AppDataReadOnlyPatch = { dataReadOnly: boolean };
 
 /** Is the app informational for this reader: only when the brain says so.
  *  Absent (a brain before C6) is not. */
