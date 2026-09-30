@@ -38,6 +38,15 @@ export function storageTotalLine(u: Pick<ClientStorageUsage, 'totalUsedBytes' | 
   return `${formatBytes(u.totalUsedBytes)} of ${formatBytes(u.limits.totalBytes)} used by all client spaces`;
 }
 
+/** What the databases of the brain's client-level apps hold (clients write
+ *  them), or null when the brain does not say (an older brain) or there are
+ *  none. They do not count toward the client limits: each app file has its
+ *  own cap. */
+export function clientAppDbLine(u: Pick<ClientStorageUsage, 'clientAppDbBytes'>): string | null {
+  if (!u.clientAppDbBytes) return null;
+  return `Client apps' databases hold ${formatBytes(u.clientAppDbBytes)} (not counted above; each app has its own cap).`;
+}
+
 /** The card's line under the total: each client's caps, in words. */
 export function storageLimitsText(limits: ClientStorageUsage['limits']): string {
   return (
@@ -69,7 +78,8 @@ export function storageRowName(row: Pick<ClientStorageUsage['rows'][number], 'na
 }
 
 /** What a deleted client's row adds: it still counts until the purge. */
-export const FORMER_CLIENT_NOTE = 'deleted: its space counts until it is purged after 30 days';
+export const FORMER_CLIENT_NOTE =
+  'deleted: its private items are purged after 30 days, its submitted items count until you accept or discard them';
 
 /** Each cap a refusal names, in an admin's words. */
 const REFUSAL_LABEL: Record<string, string> = {

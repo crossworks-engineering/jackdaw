@@ -24,6 +24,7 @@ import {
   storageRowLine,
   storageRowName,
   storageTotalLine,
+  clientAppDbLine,
 } from '../../lib/client-spaces-admin';
 import type { ClientStorageUsage } from '@mantle/client-types';
 
@@ -57,6 +58,7 @@ export function ClientStoragePanel() {
 /** The card as markup: no state and no requests (the tests render it). */
 export function ClientStorageView({ usage }: { usage: ClientStorageUsage }) {
   const { limits } = usage;
+  const appDbLine = clientAppDbLine(usage);
   return (
     <section
       className="rounded-lg border border-border bg-card text-card-foreground"
@@ -78,6 +80,7 @@ export function ClientStorageView({ usage }: { usage: ClientStorageUsage }) {
           {storageTotalLine(usage)}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">{storageLimitsText(limits)}</p>
+        {appDbLine ? <p className="mt-0.5 text-xs text-muted-foreground">{appDbLine}</p> : null}
       </div>
       {usage.rows.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">No client has stored anything yet.</p>

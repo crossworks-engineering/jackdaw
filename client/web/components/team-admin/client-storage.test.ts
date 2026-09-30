@@ -46,6 +46,15 @@ const usage: ClientStorageUsage = {
 };
 
 describe('ClientStorageView', () => {
+  it("shows what client apps' databases hold, apart from the client limits", () => {
+    const html = renderToStaticMarkup(
+      createElement(ClientStorageView, { usage: { ...usage, clientAppDbBytes: 3 * MB } }),
+    );
+    expect(html).toContain(
+      'Client apps&#x27; databases hold 3.0 MB (not counted above; each app has its own cap).',
+    );
+  });
+
   it('shows the total against the limit, each client, and the refusals', () => {
     const html = renderToStaticMarkup(createElement(ClientStorageView, { usage }));
     expect(html).toContain('Client storage');
@@ -53,7 +62,11 @@ describe('ClientStorageView', () => {
     expect(html).toContain('Pat Client');
     expect(html).toContain('190 MB of 200 MB · 3 of 500 items · 1 waiting for review');
     expect(html).toContain('Former client (2)');
-    expect(html).toContain('(deleted: its space counts until it is purged after 30 days)');
+    expect(html).toContain(
+      '(deleted: its private items are purged after 30 days, its submitted items count until you accept or discard them)',
+    );
+    // No app database line when the brain sends none (an older brain).
+    expect(html).not.toContain("Client apps' databases");
     // A deleted client is no login: nothing on its row acts on one.
     expect(html).not.toMatch(/<(button|a)\b/);
     expect(html).toContain('Refused in the last 7 days');
