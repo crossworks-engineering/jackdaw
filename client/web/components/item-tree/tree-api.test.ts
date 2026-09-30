@@ -62,6 +62,24 @@ describe('tree writes', () => {
     ]);
   });
 
+  it('sends a new folder’s icon and colour in the same POST, and nothing for none', async () => {
+    await createTreeFolder('notes', null, 'A', 'owner', {
+      icon: 'lucide:briefcase',
+      color: 'cyan',
+    });
+    expect(sent.at(-1)).toEqual({
+      url: '/api/tree/notes/folders',
+      method: 'POST',
+      body: { parentId: null, name: 'A', icon: 'lucide:briefcase', color: 'cyan' },
+    });
+    await createTreeFolder('notes', 'p1', 'B', 'member', { icon: '', color: null });
+    expect(sent.at(-1)).toEqual({
+      url: '/api/member/tree/notes/folders',
+      method: 'POST',
+      body: { parentId: 'p1', name: 'B' },
+    });
+  });
+
   it('a member writes to its own tree routes (folder plan phase 5)', async () => {
     await createTreeFolder('files', 'p1', 'Mine', 'member');
     await patchTreeFolder('files', 'f1', { name: 'Ours' }, 'member');

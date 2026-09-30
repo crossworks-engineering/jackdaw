@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { folderNameNote } from './folder-dialogs';
+import { chosenLook, folderNameNote } from './folder-dialogs';
+
+describe('what a new folder submits of its look', () => {
+  it('only what was chosen: a cleared icon and no colour are left out', () => {
+    expect(chosenLook({})).toEqual({});
+    expect(chosenLook({ icon: '', color: null })).toEqual({});
+    expect(chosenLook({ icon: 'lucide:briefcase', color: 'cyan' })).toEqual({
+      icon: 'lucide:briefcase',
+      color: 'cyan',
+    });
+    expect(chosenLook({ icon: '🎉' })).toEqual({ icon: '🎉' });
+    expect(chosenLook({ color: 'pink' })).toEqual({ color: 'pink' });
+  });
+});
 
 describe('who the folder dialog says sees a folder', () => {
   it('the brain’s folders: everyone on this brain', () => {

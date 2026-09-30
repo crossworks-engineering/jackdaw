@@ -47,6 +47,16 @@ export function folderNameNote(
     : 'Everyone on this brain sees the same folders.';
 }
 
+/** What a new folder submits of its picked look: only what was chosen (a
+ *  cleared icon, '', and a null colour are left out), so the create sends
+ *  nothing for the defaults. */
+export function chosenLook(look: AppLook): AppLook {
+  return {
+    ...(look.icon ? { icon: look.icon } : {}),
+    ...(look.color ? { color: look.color } : {}),
+  };
+}
+
 /**
  * Create or rename a folder. `initial` present = rename. A new folder also
  * picks its colour and icon here (the same fields the look popover shows
@@ -93,10 +103,7 @@ export function FolderNameDialog({
               setError('Give the folder a name.');
               return;
             }
-            onSubmit(trimmed, {
-              ...(look.icon ? { icon: look.icon } : {}),
-              ...(look.color ? { color: look.color } : {}),
-            });
+            onSubmit(trimmed, renaming ? {} : chosenLook(look));
             onOpenChange(false);
           }}
           className="flex flex-col gap-4"
