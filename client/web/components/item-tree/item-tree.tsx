@@ -115,6 +115,7 @@ import {
   canShareFolder,
   SHARE_LABEL,
   SHARE_WHO,
+  seenOf,
   shareLevelsOf,
   visibilityRefusal,
 } from './sharing';
@@ -438,7 +439,7 @@ export function ItemTree({
       } catch (err) {
         const refusal = visibilityRefusal(err);
         if (refusal) {
-          setPendingConfirm({ refusal, ...ask, run: () => void attempt(true, refusal.total) });
+          setPendingConfirm({ refusal, ...ask, run: () => void attempt(true, seenOf(refusal)) });
         } else {
           toast.error(err instanceof ApiError ? err.message : failure);
         }

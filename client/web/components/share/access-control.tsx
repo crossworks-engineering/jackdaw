@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { FolderOpen, Loader2, Share2 } from 'lucide-react';
+import { FolderOpen, Link2, Loader2, Share2 } from 'lucide-react';
 import type {
   AccessItemView,
   AccessLevel,
@@ -38,6 +38,8 @@ import {
   offeredUnder,
   openLinkLevelsOf,
   queryKeysForType,
+  readFloor,
+  readThroughLine,
   sharedViaLine,
   takesLink,
   type AccessViewShared,
@@ -299,7 +301,9 @@ export function AccessControl({
   // In a shared folder it is read at least at the folder's share: the
   // control shows the level it is read at and offers nothing above it.
   const via = view?.sharedVia ?? null;
-  const floor = via?.level ?? null;
+  // Read through what embeds it too (a shared note's image): a floor as well.
+  const through = view?.readThrough ?? null;
+  const floor = readFloor(view);
   const shown = effectiveOf(level, floor);
   const picked = choice ?? shown;
   // Where this brain makes an open link: public since C1; a brain before C1
@@ -406,6 +410,12 @@ export function AccessControl({
                   <p className="flex gap-1.5 text-xs text-muted-foreground">
                     <FolderOpen className="mt-px size-3.5 shrink-0" aria-hidden />
                     <span>{sharedViaLine(via)}</span>
+                  </p>
+                )}
+                {through && (
+                  <p className="flex gap-1.5 text-xs text-muted-foreground">
+                    <Link2 className="mt-px size-3.5 shrink-0" aria-hidden />
+                    <span>{readThroughLine(through)}</span>
                   </p>
                 )}
                 {choice && willShare.length > 0 && (

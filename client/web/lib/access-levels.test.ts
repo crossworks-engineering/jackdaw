@@ -29,6 +29,9 @@ import {
   isAccessLevel,
   queryKeysForType,
   showsLink,
+  inheritedOf,
+  readFloor,
+  readThroughLine,
 } from './access-levels';
 
 const item = (id: string, audience: AccessItemView['audience']): AccessItemView => ({
@@ -262,6 +265,41 @@ describe('the badge shows the level an item is read at', () => {
     expect(readLevel(null, null)).toBeNull();
   });
   it('names the folder in the tooltip', () => {
-    expect(viaFolderTitle('client')).toMatch(/^Client: .*Shared through a folder above it\.$/);
+    expect(viaFolderTitle('client')).toMatch(
+      /^Client: .*Shared through a folder above it, or an item that embeds it\.$/,
+    );
+  });
+});
+
+describe('read through embeds (mantle 0208)', () => {
+  const via = { folderId: 'f', trail: ['Clients'], level: 'team' as const };
+  const rt = {
+    level: 'client' as const,
+    via: [
+      {
+        id: 'n',
+        title: 'Kickoff',
+        type: 'note',
+        level: 'client' as const,
+        through: 'folder' as const,
+      },
+    ],
+  };
+  it('floors the control at the most open of the folder and the embedders', () => {
+    expect(readFloor({ sharedVia: via })).toBe('team');
+    expect(readFloor({ sharedVia: via, readThrough: rt })).toBe('client');
+    expect(readFloor({ readThrough: { ...rt, level: 'team' } })).toBe('team');
+    expect(readFloor(null)).toBeNull();
+  });
+  it('names what it is read through, and how to hide it', () => {
+    expect(readThroughLine(rt)).toBe(
+      'Read by clients through the note “Kickoff”, which embeds it. Take it out of that, or move that out of the shared folder, to hide it.',
+    );
+  });
+  it('a badge counts the embedded share like the inherited one', () => {
+    expect(inheritedOf({ embedded: 'client' })).toBe('client');
+    expect(inheritedOf({ inherited: 'team', embedded: 'client' })).toBe('client');
+    expect(inheritedOf({ inherited: 'team' })).toBe('team');
+    expect(inheritedOf({})).toBeNull();
   });
 });

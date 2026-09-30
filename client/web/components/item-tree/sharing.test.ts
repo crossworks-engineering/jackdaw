@@ -5,6 +5,7 @@ import {
   canShareFolder,
   mergeRefusals,
   refusalHeading,
+  seenOf,
   shareLevelsOf,
   shareTitle,
   shownShare,
@@ -117,6 +118,7 @@ describe('visibilityRefusal', () => {
       changes: [change],
       total: 1,
       alsoEmbeds: [embed],
+      embedsTotal: 1,
     });
   });
   it('leaves alsoEmbeds out when a brain sends none, and ignores the old alsoLowered', () => {
@@ -130,6 +132,21 @@ describe('visibilityRefusal', () => {
     const out = visibilityRefusal(err);
     expect(out).not.toHaveProperty('alsoEmbeds');
     expect(out).not.toHaveProperty('alsoLowered');
+  });
+  it('counts embeds in seen, and words an embeds-only change', () => {
+    const embed = { id: 'e', title: 'Logo', from: 'admin', to: 'client' };
+    const err = new ApiError('x', 409, {
+      error: 'visibility',
+      changes: [],
+      total: 0,
+      alsoEmbeds: [embed],
+      embedsTotal: 3,
+    });
+    const r = visibilityRefusal(err)!;
+    expect(r.embedsTotal).toBe(3);
+    expect(seenOf(r)).toBe(3);
+    expect(refusalHeading(r)).toBe('This changes who can see what they embed');
+    expect(seenOf({ error: 'visibility', changes: [], total: 4 })).toBe(4);
   });
   it('words the heading for one and for many', () => {
     expect(refusalHeading({ error: 'visibility', changes: [], total: 1 })).toMatch(/one item$/);

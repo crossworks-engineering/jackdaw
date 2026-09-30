@@ -81,7 +81,22 @@ export function visibilityRefusal(err: unknown): TreeVisibilityRefusal | null {
   const total =
     typeof body.total === 'number' ? Math.max(body.total, changes.length) : changes.length;
   const alsoEmbeds = Array.isArray(body.alsoEmbeds) ? body.alsoEmbeds.filter(isChange) : [];
-  return { error: 'visibility', changes, total, ...(alsoEmbeds.length ? { alsoEmbeds } : {}) };
+  const embedsTotal =
+    typeof body.embedsTotal === 'number'
+      ? Math.max(body.embedsTotal, alsoEmbeds.length)
+      : alsoEmbeds.length;
+  return {
+    error: 'visibility',
+    changes,
+    total,
+    ...(alsoEmbeds.length ? { alsoEmbeds, embedsTotal } : {}),
+  };
+}
+
+/** What a confirm says it saw (`seen`): the items and what they embed. The
+ *  brain asks again when the change differs by then. */
+export function seenOf(refusal: TreeVisibilityRefusal): number {
+  return refusal.total + (refusal.embedsTotal ?? 0);
 }
 
 /** Several refusals (a batch where each write was refused on its own) as
@@ -107,12 +122,24 @@ export function mergeRefusals(refusals: readonly TreeVisibilityRefusal[]): TreeV
     refusals.reduce((n, r) => n + r.total, 0),
     changes.length,
   );
-  return { error: 'visibility', changes, total, ...(alsoEmbeds.length ? { alsoEmbeds } : {}) };
+  const embedsTotal = Math.max(
+    refusals.reduce((n, r) => n + (r.embedsTotal ?? r.alsoEmbeds?.length ?? 0), 0),
+    alsoEmbeds.length,
+  );
+  return {
+    error: 'visibility',
+    changes,
+    total,
+    ...(alsoEmbeds.length ? { alsoEmbeds, embedsTotal } : {}),
+  };
 }
 
 /** The confirm dialog's heading. */
 export function refusalHeading(refusal: TreeVisibilityRefusal): string {
   const n = refusal.total;
+  // Only what the items embed changes (a note already read at the folder's
+  // share still opens its images there).
+  if (n === 0 && refusal.alsoEmbeds?.length) return 'This changes who can see what they embed';
   return `This changes who can see ${n === 1 ? 'one item' : `${n} items`}`;
 }
 

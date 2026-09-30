@@ -262,7 +262,55 @@ export type AccessSharedVia = {
   trail: string[];
   level: 'team' | 'client';
 };
-export type AccessViewShared = { sharedVia?: AccessSharedVia | null };
+/** What an item is read through by embeds (mantle 0208,
+ *  `AccessNodeView.readThrough`): a shared note makes its image readable
+ *  wherever the image lives. Absent from brains before it. */
+export type AccessReadThrough = {
+  level: 'team' | 'client';
+  via: Array<{
+    id: string;
+    title: string;
+    type: string;
+    level: 'team' | 'client';
+    through: 'folder' | 'embed';
+  }>;
+};
+export type AccessViewShared = {
+  sharedVia?: AccessSharedVia | null;
+  readThrough?: AccessReadThrough | null;
+};
+
+/** The control's floor: the most open of the folder's share and what embeds
+ *  the item. Nothing above it is offered. */
+export function readFloor(view: AccessViewShared | null | undefined): 'team' | 'client' | null {
+  const levels = [view?.sharedVia?.level, view?.readThrough?.level];
+  if (levels.includes('client')) return 'client';
+  if (levels.includes('team')) return 'team';
+  return null;
+}
+
+const KIND_WORD: Record<string, string> = {
+  note: 'note',
+  page: 'page',
+  draw: 'drawing',
+  file: 'file',
+  table: 'table',
+  app: 'app',
+  formula: 'formula',
+  branch: 'folder',
+};
+
+/** The line under the control for an item read through what embeds it. */
+export function readThroughLine(rt: AccessReadThrough): string {
+  const who = rt.level === 'team' ? 'the team' : 'clients';
+  if (!rt.via.length) return `Read by ${who} through something that embeds it.`;
+  const names = rt.via.map((v) => `the ${KIND_WORD[v.type] ?? v.type} “${v.title}”`).join(', ');
+  const one = rt.via.length === 1;
+  return (
+    `Read by ${who} through ${names}, which ${one ? 'embeds' : 'embed'} it. ` +
+    `Take it out of ${one ? 'that' : 'them'}, or move ${one ? 'that' : 'them'} out of the shared folder, to hide it.`
+  );
+}
 
 /** The level an item is read at: its own, or its folder's share when that is
  *  more open. */
@@ -299,11 +347,17 @@ export function readLevel(
  *  contract type may not name it yet (a brain before it, or a type pinned
  *  from an older contract): null when absent. */
 export function inheritedOf(row: object): 'team' | 'client' | null {
-  const v = (row as { inherited?: unknown }).inherited;
-  return v === 'team' || v === 'client' ? v : null;
+  // The share that opens it beyond its own level: a folder above
+  // (`inherited`) or something that embeds it (`embedded`, mantle 0208),
+  // the more open.
+  const r = row as { inherited?: unknown; embedded?: unknown };
+  const shares = [r.inherited, r.embedded];
+  if (shares.includes('client')) return 'client';
+  if (shares.includes('team')) return 'team';
+  return null;
 }
 
 /** The badge's tooltip for a level a folder above opened. */
 export function viaFolderTitle(level: Exclude<AccessLevel, 'admin'>): string {
-  return `${AUDIENCE_TITLE[level]}. Shared through a folder above it.`;
+  return `${AUDIENCE_TITLE[level]}. Shared through a folder above it, or an item that embeds it.`;
 }
