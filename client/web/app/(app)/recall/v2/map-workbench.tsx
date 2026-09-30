@@ -2,21 +2,18 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Plus, Settings2, Sparkles, Trash2 } from 'lucide-react';
+import { Settings2, Sparkles, Trash2 } from 'lucide-react';
 import type {
   RecallCardDetailDTO,
   RecallMapDetailDTO,
   RecallMapSummaryDTO,
-  RecallNodeDTO,
   RecallWriteResultDTO,
 } from '@mantle/web-ui/types/recall-v2';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { cn } from '@mantle/web-ui/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,13 +30,13 @@ import {
   RECALL_ENTRY_SLUG,
   editsOf,
   cardWriteBody,
-  moveCard,
   recallKeys,
   withOption,
   writeErrorText,
 } from '@/lib/recall-v2';
 import { RecallGraph } from '../recall-graph';
 import { CardEditor } from './card-editor';
+import { CardList } from './card-list';
 import { AddCardDialog, MapSettingsDialog } from './map-dialogs';
 import { RevisionsPanel } from './revisions-panel';
 import { useMapWrite } from './use-map-write';
@@ -157,9 +154,15 @@ function Workbench({
     }
   }
 
-  async function move(slug: string, dir: -1 | 1) {
-    const slugs = moveCard(map.nodes, slug, dir);
-    if (!slugs) return;
+  // Shows the new order at once, then writes it. A refused write refreshes
+  // the map, which puts the brain's order back.
+  async function reorder(slugs: string[]) {
+    qc.setQueryData<RecallMapDetailDTO>(recallKeys.map(map.id), (m) => {
+      if (!m) return m;
+      const bySlug = new Map(m.nodes.map((n) => [n.slug, n]));
+      const nodes = slugs.flatMap((s) => bySlug.get(s) ?? []);
+      return nodes.length === m.nodes.length ? { ...m, nodes } : m;
+    });
     await write.run(
       (version) =>
         apiSend<RecallWriteResultDTO>(`/api/recall/maps/${map.id}/cards/reorder`, 'POST', {
@@ -279,7 +282,7 @@ function Workbench({
               nodes={map.nodes}
               openSlug={open?.slug ?? null}
               onOpen={openCardGuarded}
-              onMove={move}
+              onReorder={reorder}
               onAdd={() => setAdding(true)}
               busy={write.pending}
               full={map.nodes.length >= 100}
@@ -359,92 +362,6 @@ function Workbench({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-/** The card column: in order, entry first. Up and down move one step; the
- *  entry card never moves. */
-function CardList({
-  nodes,
-  openSlug,
-  onOpen,
-  onMove,
-  onAdd,
-  busy,
-  full,
-}: {
-  nodes: RecallNodeDTO[];
-  openSlug: string | null;
-  onOpen: (slug: string) => void;
-  onMove: (slug: string, dir: -1 | 1) => void;
-  onAdd: () => void;
-  busy: boolean;
-  full: boolean;
-}) {
-  return (
-    <div className="flex max-h-64 shrink-0 flex-col border-b border-border md:max-h-none md:w-64 md:border-r md:border-b-0">
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-          {nodes.length} {nodes.length === 1 ? 'card' : 'cards'}
-        </span>
-        <Button
-          size="2xs"
-          variant="outline"
-          onClick={onAdd}
-          disabled={full}
-          title={full ? 'A map holds at most 100 cards.' : undefined}
-        >
-          <Plus /> Card
-        </Button>
-      </div>
-      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2 scrollbar-thin">
-        {nodes.map((n, i) => {
-          const entry = n.slug === RECALL_ENTRY_SLUG;
-          return (
-            <li key={n.id} className="group flex items-center gap-1">
-              <RowButton
-                onClick={() => onOpen(n.slug)}
-                aria-current={n.slug === openSlug ? 'true' : undefined}
-                className={cn(
-                  'min-w-0 flex-1 rounded-md px-2 py-1.5 text-left hover:bg-muted',
-                  n.slug === openSlug && 'bg-muted',
-                )}
-              >
-                <span className="block truncate text-sm">{n.title}</span>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {entry && <span className="font-medium text-primary-ink">entry</span>}
-                  {n.kind === 'prompt' && <span className="text-info-ink">prompt</span>}
-                  {n.promptPending && <span className="text-info-ink">prompt requested</span>}
-                  <span className="truncate font-mono">{n.slug}</span>
-                </span>
-              </RowButton>
-              {!entry && (
-                <div className="flex shrink-0 flex-col opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-                  <Button
-                    variant="ghost"
-                    size="icon-2xs"
-                    aria-label={`Move ${n.title} up`}
-                    disabled={busy || i <= 1}
-                    onClick={() => onMove(n.slug, -1)}
-                  >
-                    <ArrowUp />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-2xs"
-                    aria-label={`Move ${n.title} down`}
-                    disabled={busy || i >= nodes.length - 1}
-                    onClick={() => onMove(n.slug, 1)}
-                  >
-                    <ArrowDown />
-                  </Button>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 }

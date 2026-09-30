@@ -5,6 +5,7 @@ import {
   budgetState,
   cardProblems,
   cardWriteBody,
+  dropCard,
   editsOf,
   isPageBuilt,
   isStale,
@@ -154,6 +155,23 @@ describe('moveCard', () => {
   it('is null off either end or for an unknown slug', () => {
     expect(moveCard(nodes, 'b', 1)).toBeNull();
     expect(moveCard(nodes, 'zz', 1)).toBeNull();
+  });
+});
+
+describe('dropCard', () => {
+  const nodes = [{ slug: 'start' }, { slug: 'a' }, { slug: 'b' }, { slug: 'c' }];
+  it('moves a card to where it was dropped, returning the FULL order', () => {
+    expect(dropCard(nodes, 'c', 'a')).toEqual(['start', 'c', 'a', 'b']);
+    expect(dropCard(nodes, 'a', 'c')).toEqual(['start', 'b', 'c', 'a']);
+  });
+  it('lands a card dropped on the entry card just below it', () => {
+    expect(dropCard(nodes, 'c', 'start')).toEqual(['start', 'c', 'a', 'b']);
+    expect(dropCard(nodes, 'a', 'start')).toBeNull();
+  });
+  it('never moves the entry card, and a drop in place is a no-op', () => {
+    expect(dropCard(nodes, 'start', 'b')).toBeNull();
+    expect(dropCard(nodes, 'b', 'b')).toBeNull();
+    expect(dropCard(nodes, 'zz', 'b')).toBeNull();
   });
 });
 

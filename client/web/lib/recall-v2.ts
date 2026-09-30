@@ -150,6 +150,27 @@ export function moveCard(
   return out;
 }
 
+/** The slug order after dragging `active` onto `over`'s place (dnd-kit's
+ *  arrayMove semantics). Same rules as moveCard: the entry card never moves
+ *  and nothing lands above it, and the result is always the FULL order.
+ *  Null when the drop changes nothing or breaks a rule. */
+export function dropCard(
+  nodes: Pick<RecallNodeDTO, 'slug'>[],
+  active: string,
+  over: string,
+): string[] | null {
+  const slugs = nodes.map((n) => n.slug);
+  const from = slugs.indexOf(active);
+  let to = slugs.indexOf(over);
+  if (from < 0 || to < 0 || from === to || active === RECALL_ENTRY_SLUG) return null;
+  if (slugs[0] === RECALL_ENTRY_SLUG && to === 0) to = 1;
+  if (from === to) return null;
+  const out = [...slugs];
+  const [moved] = out.splice(from, 1);
+  out.splice(to, 0, moved!);
+  return out;
+}
+
 /** A card's options with one more appended, for "add a card from here". */
 export function withOption(edits: CardEdits, option: RecallOptionDTO): CardEdits {
   return { ...edits, options: [...edits.options, cleanOption(option)] };
