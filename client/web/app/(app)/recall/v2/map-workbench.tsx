@@ -195,6 +195,7 @@ function Workbench({
     from: { slug: string; title: string },
     targetSlug: string,
     label: string,
+    useWhen: string,
   ) {
     const failed = (why: string) =>
       toast.error(
@@ -212,7 +213,7 @@ function Workbench({
         apiSend<RecallWriteResultDTO>(
           `/api/recall/maps/${map.id}/cards/${from.slug}`,
           'PUT',
-          linkFromBody(card, { label, useWhen: '', targetSlug }, version),
+          linkFromBody(card, { label, useWhen, targetSlug }, version),
         ),
       'Could not add the option.',
       { onError: (err) => failed(writeErrorText(err, 'the write was refused.')) },
@@ -367,7 +368,9 @@ function Workbench({
           open
           onOpenChange={setAdding}
           onAdded={(slug) => openCardGuarded(slug)}
-          linkFrom={open && !dirty ? (slug, title) => linkFrom(open, slug, title) : null}
+          linkFrom={
+            open && !dirty ? (slug, title, useWhen) => linkFrom(open, slug, title, useWhen) : null
+          }
         />
       )}
       <AlertDialog open={deleting} onOpenChange={setDeleting}>

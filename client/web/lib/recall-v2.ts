@@ -175,6 +175,16 @@ export function versionState(
   return 'foreign';
 }
 
+/**
+ * The brain's size caps on everything but the body (mantle recall-native.ts,
+ * brain v0.232.358 and later). Not in the published contract, so mirrored
+ * here; an older brain has no caps and these only hold the editor back.
+ */
+export const RECALL_TITLE_MAX = 200;
+export const RECALL_LINE_MAX = 500;
+export const RECALL_LABEL_MAX = 200;
+export const RECALL_OPTIONS_MAX = 30;
+
 /** What the editor can tell before it sends: the brain would refuse these,
  *  and saying so next to the field beats a round trip. Keyed by field. */
 export function cardProblems(
@@ -189,8 +199,14 @@ export function cardProblems(
   if (edits.prompt && !edits.useWhen.trim()) {
     out.useWhen = 'A prompt needs a use-when line: it is what the prompt is matched on.';
   }
-  const blank = edits.options.findIndex((o) => !o.label.trim() || !o.targetSlug.trim());
-  if (blank >= 0) out.options = `Option ${blank + 1} needs a label and a target.`;
+  const blank = edits.options.findIndex(
+    (o) => !o.label.trim() || !o.useWhen.trim() || !o.targetSlug.trim(),
+  );
+  if (blank >= 0) {
+    out.options = `Option ${blank + 1} needs a label, a use-when line and a target.`;
+  } else if (edits.options.length > RECALL_OPTIONS_MAX) {
+    out.options = `A card can have at most ${RECALL_OPTIONS_MAX} options. Group the rest behind a card of their own.`;
+  }
   return out;
 }
 

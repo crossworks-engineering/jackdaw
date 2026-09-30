@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@mantle/web-ui/lib/utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Map as MapIcon, Plus, Search } from 'lucide-react';
@@ -157,6 +158,7 @@ function RecallV2View({
   const showTree = treeServes === true && !treeGone;
   const [treeQuery, setTreeQuery] = useState('');
   const pageBuilt = allMaps.filter((m) => isPageBuilt(m));
+  const hasNative = allMaps.some((m) => !isPageBuilt(m));
 
   // The URL's map when it names one, even off this page of the catalog (the
   // workbench loads it by id); else the first map shown.
@@ -320,7 +322,11 @@ function RecallV2View({
   );
   const tree = (
     <aside className="flex h-full flex-col bg-muted/20">
-      <div className="min-h-0 flex-1">
+      {/* The tree and the page-built list share the column. The tree keeps
+          room for its toolbar and a few rows; the list takes its natural
+          height, up to a share of the column that is larger while the tree
+          is still empty (a brain whose maps are all page-built). */}
+      <div className="min-h-40 flex-1">
         <ItemTree
           kind="recall"
           adapter={recallAdapter}
@@ -339,7 +345,12 @@ function RecallV2View({
       {pageBuilt.length > 0 && (
         // Page-built (v1) maps have no tree item: they are pages. They stay
         // reachable here until they are re-authored and retired.
-        <div className="max-h-48 shrink-0 space-y-1 overflow-y-auto border-t border-border p-3 scrollbar-thin">
+        <div
+          className={cn(
+            'min-h-0 space-y-1 overflow-y-auto border-t border-border p-3 scrollbar-thin',
+            hasNative ? 'max-h-[45%]' : 'max-h-[70%]',
+          )}
+        >
           <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Page-built maps
           </h3>

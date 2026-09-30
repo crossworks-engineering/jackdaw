@@ -33,6 +33,8 @@ import {
 import { MarkdownEditor } from '@/components/markdown-editor';
 import {
   RECALL_ENTRY_SLUG,
+  RECALL_LINE_MAX,
+  RECALL_TITLE_MAX,
   budgetState,
   cardProblems,
   cardWriteBody,
@@ -395,6 +397,7 @@ function Editor({
             id="recall-card-title"
             value={edits.title}
             onChange={(e) => set('title', e.target.value)}
+            maxLength={RECALL_TITLE_MAX}
             aria-invalid={problems.title ? true : undefined}
           />
           {entry && (
@@ -430,6 +433,7 @@ function Editor({
             id="recall-card-use-when"
             value={edits.useWhen}
             onChange={(e) => set('useWhen', e.target.value)}
+            maxLength={RECALL_LINE_MAX}
             placeholder={edits.prompt ? 'deploying a release to the fleet' : 'Optional'}
             aria-invalid={problems.useWhen ? true : undefined}
           />

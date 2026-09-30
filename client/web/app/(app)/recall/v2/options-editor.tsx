@@ -11,7 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
-import { optionTargetValue, type OptionTarget } from '@/lib/recall-v2';
+import {
+  RECALL_LABEL_MAX,
+  RECALL_LINE_MAX,
+  optionTargetValue,
+  type OptionTarget,
+} from '@/lib/recall-v2';
 
 /**
  * A card's options: where an agent can go next, and when. Each one is an
@@ -82,6 +87,7 @@ export function OptionsEditor({
               value={o.label}
               onChange={(e) => update(i, { label: e.target.value })}
               placeholder="Label"
+              maxLength={RECALL_LABEL_MAX}
               className="h-9"
             />
             <Button
@@ -96,7 +102,8 @@ export function OptionsEditor({
               aria-label={`Option ${i + 1} use when`}
               value={o.useWhen}
               onChange={(e) => update(i, { useWhen: e.target.value })}
-              placeholder="Use when… (optional)"
+              placeholder="Use when…"
+              maxLength={RECALL_LINE_MAX}
               className="h-9 sm:col-span-3"
             />
           </div>

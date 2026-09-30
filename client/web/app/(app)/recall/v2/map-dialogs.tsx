@@ -24,7 +24,7 @@ import {
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
 import { treeKey } from '@/components/item-tree/tree-api';
-import { recallKeys, writeErrorText } from '@/lib/recall-v2';
+import { RECALL_LINE_MAX, RECALL_TITLE_MAX, recallKeys, writeErrorText } from '@/lib/recall-v2';
 import type { MapWrite } from './use-map-write';
 
 /** A new native map. The brain writes its entry card (`start`) with it, and
@@ -79,6 +79,7 @@ export function CreateMapDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Mantle fleet"
+              maxLength={RECALL_TITLE_MAX}
               autoFocus
             />
           </Field>
@@ -89,6 +90,7 @@ export function CreateMapDialog({
               value={enterWhen}
               onChange={(e) => setEnterWhen(e.target.value)}
               placeholder="working on any Mantle server or box"
+              maxLength={RECALL_LINE_MAX}
             />
             <FieldDescription>
               The catalog line. Agents read it to decide whether this map is for them.
@@ -159,6 +161,7 @@ export function MapSettingsDialog({
               id="recall-map-settings-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              maxLength={RECALL_TITLE_MAX}
             />
           </Field>
           <Field>
@@ -167,6 +170,7 @@ export function MapSettingsDialog({
               id="recall-map-settings-enter"
               value={enterWhen}
               onChange={(e) => setEnterWhen(e.target.value)}
+              maxLength={RECALL_LINE_MAX}
             />
           </Field>
           <Field>
@@ -218,13 +222,17 @@ export function AddCardDialog({
   onAdded: (slug: string) => void;
   /** Adds the option from `from` to the new card. Null when the open card
    *  has unsaved edits: writing its options now would overwrite them. */
-  linkFrom: ((slug: string, title: string) => Promise<void>) | null;
+  linkFrom: ((slug: string, title: string, useWhen: string) => Promise<void>) | null;
 }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [link, setLink] = useState(from !== null && linkFrom !== null);
+  const [useWhen, setUseWhen] = useState('');
   const [busy, setBusy] = useState(false);
-  const valid = title.trim() !== '';
+  const linking = from !== null && link && linkFrom !== null;
+  // The brain refuses an option without a use-when line: it is what an agent
+  // reads to decide whether to follow it.
+  const valid = title.trim() !== '' && (!linking || useWhen.trim() !== '');
 
   async function onSave() {
     if (busy) return;
@@ -251,7 +259,7 @@ export function AddCardDialog({
     await qc.refetchQueries({ queryKey: recallKeys.map(mapId), exact: true }).catch(() => {});
     onOpenChange(false);
     onAdded(slug);
-    if (link && linkFrom) void linkFrom(slug, t);
+    if (linking && linkFrom) void linkFrom(slug, t, useWhen.trim());
   }
 
   return (
@@ -290,6 +298,21 @@ export function AddCardDialog({
                 disabled={linkFrom === null}
               />
             </div>
+          )}
+          {linking && (
+            <Field>
+              <FieldLabel htmlFor="recall-card-new-use-when">Use when</FieldLabel>
+              <Input
+                id="recall-card-new-use-when"
+                value={useWhen}
+                onChange={(e) => setUseWhen(e.target.value)}
+                maxLength={RECALL_LINE_MAX}
+                placeholder="you need the detail for one box"
+              />
+              <FieldDescription>
+                When an agent on {from.title} should follow the option to this card.
+              </FieldDescription>
+            </Field>
           )}
         </div>
         <div className="flex justify-end gap-2">

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { RecallCardDetailDTO, RecallMapSummaryDTO } from '@mantle/web-ui/types/recall-v2';
 import {
+  RECALL_OPTIONS_MAX,
   actorLabel,
   budgetState,
   cardProblems,
@@ -202,9 +203,11 @@ describe('cardProblems', () => {
     expect(p.bodyMd).toMatch(/^1 characters over the 10 budget/);
     expect(p.useWhen).toBeDefined();
   });
-  it('flags an option with no label or no target', () => {
+  it('flags an option with no label, use-when line or target', () => {
     const e = { ...editsOf(card()), options: [{ label: 'a', useWhen: '', targetSlug: '' }] };
-    expect(cardProblems(e, 6000).options).toBe('Option 1 needs a label and a target.');
+    expect(cardProblems(e, 6000).options).toBe(
+      'Option 1 needs a label, a use-when line and a target.',
+    );
   });
   it('is empty for a good card', () => {
     expect(cardProblems(editsOf(card()), 6000)).toEqual({});
@@ -392,5 +395,32 @@ describe('optionTargets', () => {
   it('round-trips an option to its select value', () => {
     expect(optionTargetValue({ targetSlug: 'fleet' })).toBe('card:fleet');
     expect(optionTargetValue({ targetSlug: 'dfm', targetMap: 'dfm' })).toBe('map:dfm');
+  });
+});
+
+describe('cardProblems: the brain caps (brain v0.232.358)', () => {
+  const base = {
+    title: 'Card',
+    bodyMd: '',
+    useWhen: '',
+    prompt: false,
+    options: [] as { label: string; useWhen: string; targetSlug: string }[],
+  };
+
+  it('asks for a use-when line on every option', () => {
+    const got = cardProblems(
+      { ...base, options: [{ label: 'Go', useWhen: ' ', targetSlug: 'two' }] },
+      6000,
+    );
+    expect(got.options).toMatch(/use-when/);
+  });
+
+  it('refuses more options than the brain allows', () => {
+    const options = Array.from({ length: RECALL_OPTIONS_MAX + 1 }, (_, i) => ({
+      label: `Go ${i}`,
+      useWhen: 'x',
+      targetSlug: 'two',
+    }));
+    expect(cardProblems({ ...base, options }, 6000).options).toMatch(/at most/);
   });
 });
