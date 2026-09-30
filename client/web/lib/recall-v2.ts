@@ -306,8 +306,11 @@ export function restoreCopy(rev: Pick<RecallRevisionDTO, 'summary' | 'cardSlug'>
       return `Puts ${card} back as it was before that edit: title, body, use-when, options and prompt state. Anything written to it since is replaced.`;
     case 'card deleted':
       return `Brings ${card} back with its text, its old link name and its old place, and puts back the options other cards had to it. A card deleted before the brain kept those comes back at the end, without them.`;
+    case 'prompt edited by agent, awaits confirm':
+      return `Puts back the text ${card} had before the agent changed it, as a confirmed prompt again.`;
     case 'prompt confirmed':
     case 'prompt request dropped':
+    case 'prompt demoted':
     case 'prompt state restored':
       return `Puts back only whether ${card} is a prompt, as it was before that write. Its text is not touched.`;
     case 'cards reordered':
@@ -329,6 +332,7 @@ export function actorLabel(rev: Pick<RecallRevisionDTO, 'actorKind' | 'actorName
     if (rev.actorName === 'mcp') return 'An MCP client';
     return rev.actorName ? `Agent ${rev.actorName}` : 'An agent';
   }
+  if (rev.actorName === 'mcp') return 'Owner, via MCP';
   return rev.actorName ?? 'Owner';
 }
 

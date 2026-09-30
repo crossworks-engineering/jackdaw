@@ -424,3 +424,17 @@ describe('cardProblems: the brain caps (brain v0.232.358)', () => {
     expect(cardProblems({ ...base, options }, 6000).options).toMatch(/at most/);
   });
 });
+
+describe('the N8 revisions and the owner over MCP (brain v0.232.359)', () => {
+  it('says what restoring an agent edit of a confirmed prompt does', () => {
+    expect(
+      restoreCopy({ summary: 'prompt edited by agent, awaits confirm', cardSlug: 'deploy' }),
+    ).toMatch(/as a confirmed prompt again/);
+    expect(restoreCopy({ summary: 'prompt demoted', cardSlug: 'deploy' })).toMatch(/only whether/);
+  });
+
+  it('names the owner acting through an MCP client', () => {
+    expect(actorLabel({ actorKind: 'owner', actorName: 'mcp' })).toBe('Owner, via MCP');
+    expect(actorLabel({ actorKind: 'agent', actorName: 'mcp' })).toBe('An MCP client');
+  });
+});

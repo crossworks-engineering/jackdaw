@@ -368,7 +368,8 @@ function Editor({
           <div className="flex flex-wrap items-center gap-3 rounded-md border border-info/40 bg-info/5 px-3 py-2 text-sm">
             <Sparkles className="size-4 shrink-0 text-info-ink" aria-hidden />
             <span className="min-w-0 flex-1">
-              An agent asked for this card to be a prompt. Until you confirm, it is never matched.
+              An agent asked for this card to be a prompt, or changed the text of a prompt you had
+              confirmed. Until you confirm it again, it is never matched.
             </span>
             <div className="flex shrink-0 gap-2">
               <Button
