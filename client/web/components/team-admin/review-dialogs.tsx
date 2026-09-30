@@ -70,6 +70,9 @@ import {
   type ReviewItemRow,
 } from '@/lib/member-review';
 import type { SpaceKind } from '@/lib/member-space';
+import { FolderPickerDialog } from '@/components/item-tree/folder-picker';
+import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
+import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
 
 const TOP = TOP_OF_PAGES;
 
@@ -163,6 +166,11 @@ export function AcceptIntoBrainDialog({
     goingDown: AccessItemView[] | null;
   } | null>(null);
   const [folder, setFolder] = useState('files');
+  // Where the item lands (folder plan phase 5): undefined = where the author
+  // filed it (the brain's default), else the folder the admin picked (null =
+  // the top level).
+  const [pick, setPick] = useState<Pick<TreeFolder, 'id' | 'name'> | null | undefined>(undefined);
+  const [picking, setPicking] = useState(false);
   const [parent, setParent] = useState<string>(TOP);
   const [pageQuery, setPageQuery] = useState('');
   const [busy, setBusy] = useState(false);
@@ -172,9 +180,15 @@ export function AcceptIntoBrainDialog({
     queryFn: () => bundleSource!.load(),
     enabled: open && !!bundleSource,
   });
-  const hasFiles = bundleSource
-    ? (bundle.data?.items.some((i) => i.type === 'file') ?? false)
-    : item.type === 'file';
+  // A brain with the tree says where it lands; it files every item of the
+  // bundle in place, so no separate Files folder is asked for.
+  const place = item.type === 'page' ? undefined : bundle.data?.place;
+  const placeAdapter = place ? readerTreeAdapter(place.kind) : null;
+  const hasFiles =
+    !place &&
+    (bundleSource
+      ? (bundle.data?.items.some((i) => i.type === 'file') ?? false)
+      : item.type === 'file');
   const folders = useQuery({
     queryKey: ['files', 'tree'],
     queryFn: () => apiFetch<{ folders: FolderRow[] }>('/api/files/folders?tree=true'),
@@ -236,6 +250,7 @@ export function AcceptIntoBrainDialog({
         audience: level,
         parentPageId: item.type === 'page' && parentId !== TOP ? parentId : null,
         folderPath: hasFiles ? folder : null,
+        ...(place && pick !== undefined ? { folderId: pick?.id ?? null } : {}),
         ...(confirmation ?? {}),
       };
       const res = await send(input);
@@ -363,6 +378,62 @@ export function AcceptIntoBrainDialog({
             </div>
           ) : null}
 
+          {place && placeAdapter ? (
+            <div className="space-y-2">
+              <Label>Where it goes</Label>
+              <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                <p className="min-w-0 truncate">
+                  {placeLine(place, pick)}
+                  {place.creates.length ? (
+                    <span className="text-muted-foreground">
+                      {' '}
+                      / {place.creates.join(' / ')} (new)
+                    </span>
+                  ) : null}
+                </p>
+                <div className="flex shrink-0 gap-1">
+                  {pick !== undefined ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => setPick(undefined)}
+                    >
+                      Where filed
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => setPicking(true)}
+                  >
+                    Change…
+                  </Button>
+                </div>
+              </div>
+              <FolderPickerDialog
+                kind={place.kind}
+                adapter={placeAdapter}
+                sort={TREE_KIND_SPECS[place.kind].sorts[0]!}
+                open={picking}
+                onOpenChange={setPicking}
+                title={`Accept “${item.title || 'Untitled'}” into…`}
+                description={
+                  place.creates.length
+                    ? `The author’s folders (${place.creates.join(' / ')}) go below the folder you pick.`
+                    : undefined
+                }
+                rootLabel="Top level"
+                currentFolderId={pick === undefined ? place.folderId : (pick?.id ?? null)}
+                onPick={(f) => {
+                  setPick(f ? { id: f.id, name: f.name } : null);
+                  setPicking(false);
+                }}
+              />
+            </div>
+          ) : null}
+
           {hasFiles ? (
             <div className="space-y-2">
               <Label>Files go to</Label>
@@ -441,6 +512,18 @@ export function AcceptIntoBrainDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Where an Accept lands, in words: where the author filed it, or the
+ *  folder the admin picked (null = the top level). */
+function placeLine(
+  place: { crumbs: { name: string }[] },
+  pick: Pick<TreeFolder, 'name'> | null | undefined,
+): string {
+  if (pick === undefined) {
+    return place.crumbs.length ? place.crumbs.map((c) => c.name).join(' / ') : 'Top level';
+  }
+  return pick ? pick.name : 'Top level';
 }
 
 /** The id of the one tick a brain without a list asks for (the level). */

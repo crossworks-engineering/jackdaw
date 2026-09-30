@@ -366,7 +366,14 @@ export function spaceClient(base: SpaceApiBase = MEMBER_API_BASE) {
   return {
     base,
     /** A note may take its text in the same call. */
-    create: (body: { type: 'page' | 'note' | 'draw' | 'table'; title: string; content?: string }) =>
+    /** `folderId`: a folder the member's tree shows, to file it in (folder
+     *  plan phase 5; notes, drawings and tables). */
+    create: (body: {
+      type: 'page' | 'note' | 'draw' | 'table';
+      title: string;
+      content?: string;
+      folderId?: string | null;
+    }) =>
       apiFetch<{ item: SpaceItemRow }>(`${base}/space`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

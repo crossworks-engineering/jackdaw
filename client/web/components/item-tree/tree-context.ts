@@ -51,6 +51,10 @@ export type TreeCtx = {
   registerRow: (key: string, el: HTMLElement | null) => void;
   hint: DropHint;
   dragging: string | null;
+  /** Which rows may be dragged in manage mode (a member moves only its own
+   *  folders and drafts, folder plan phase 5). Absent: the owner's rules. */
+  canMoveFolder?: (folder: TreeFolder) => boolean;
+  canMoveItem?: (item: TreeItem) => boolean;
 };
 
 export const TreeContext = createContext<TreeCtx | null>(null);
