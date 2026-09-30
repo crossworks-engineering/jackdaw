@@ -46,6 +46,7 @@ export function TreeRowShell({
   drag,
   drop,
   menu,
+  active = false,
   children,
 }: {
   rowKey: string;
@@ -57,9 +58,16 @@ export function TreeRowShell({
   /** A drop target, carrying this. */
   drop?: DragData;
   menu?: ReactNode;
+  /** The row the page is about: scrolled into view when it becomes so (a
+   *  search hit opened, a folder chosen in the page). */
+  active?: boolean;
   children: (style: CSSProperties) => ReactNode;
 }) {
   const ctx = useTreeCtx();
+  const el = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (active) el.current?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
   const manage = ctx.mode === 'manage';
   const draggable = useDraggable({ id: rowKey, data: drag, disabled: !manage || !drag });
   const droppable = useDroppable({ id: rowKey, data: drop, disabled: !manage || !drop });
@@ -72,10 +80,11 @@ export function TreeRowShell({
   const menuOpen = ctx.menuFor === rowKey;
   return (
     <div
-      ref={(el) => {
-        draggable.setNodeRef(el);
-        droppable.setNodeRef(el);
-        ctx.registerRow(rowKey, el);
+      ref={(node) => {
+        el.current = node;
+        draggable.setNodeRef(node);
+        droppable.setNodeRef(node);
+        ctx.registerRow(rowKey, node);
       }}
       className={cn(
         'group/tree-row relative flex items-center rounded-md',
@@ -278,6 +287,7 @@ function FolderNode({
         drag={folder.system ? undefined : drag}
         drop={drag}
         menu={ctx.folderMenu?.(folder, parent, siblings)}
+        active={selected}
       >
         {(style) => (
           <>
@@ -373,6 +383,7 @@ export function ItemRow({
       guides={guides}
       drag={drag}
       menu={ctx.itemMenu?.(item, where)}
+      active={selected && crumbs === undefined}
     >
       {(style) => (
         <RowButton
