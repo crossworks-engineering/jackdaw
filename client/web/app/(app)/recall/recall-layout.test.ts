@@ -7,6 +7,8 @@ import {
   layoutRecallMap,
   rowCenterY,
   type LayoutCard,
+  type Point,
+  type RecallLayout,
   type LayoutMap,
   type LayoutNode,
 } from './recall-layout';
@@ -35,6 +37,114 @@ function expectNoOverlap(cards: LayoutCard[]) {
 
 function centreX(c: LayoutCard): number {
   return c.x + c.width / 2;
+}
+
+/** Whether an axis-aligned segment crosses the INSIDE of a card box. A
+ *  segment that only touches the edge (a route leaving its own card, or
+ *  landing on its target's top) does not count. */
+function crossesInside(a: Point, b: Point, c: LayoutCard): boolean {
+  const x1 = Math.min(a.x, b.x);
+  const x2 = Math.max(a.x, b.x);
+  const y1 = Math.min(a.y, b.y);
+  const y2 = Math.max(a.y, b.y);
+  return x2 > c.x && x1 < c.x + c.width && y2 > c.y && y1 < c.y + c.height;
+}
+
+/** Every tree route, from the row's right edge (or the card's bottom centre
+ *  in compact mode) through its waypoints into the child's top, must clear
+ *  every card that is not its own source or target. */
+function expectRoutesClear(out: RecallLayout, compact: boolean) {
+  const bySlug = new Map(out.cards.map((c) => [c.slug, c]));
+  for (const e of out.edges) {
+    if (e.kind !== 'tree') continue;
+    const P = bySlug.get(e.source)!;
+    const C = bySlug.get(e.target)!;
+    const start = compact
+      ? { x: centreX(P), y: P.y + P.height }
+      : { x: P.x + P.width, y: P.y + rowCenterY(e.sourceRow) };
+    const pts = [start, ...e.points, { x: centreX(C), y: C.y }];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!;
+      const b = pts[i]!;
+      expect(a.x === b.x || a.y === b.y, `${e.id} segment ${i} is not axis-aligned`).toBe(true);
+      for (const c of out.cards) {
+        if (c.slug === e.source || c.slug === e.target) continue;
+        expect(crossesInside(a, b, c), `${e.id} segment ${i} crosses ${c.slug}`).toBe(false);
+      }
+    }
+  }
+}
+
+/** The shapes every structural check runs over, in both modes. */
+function shapes(): [string, LayoutMap][] {
+  const leaves = (n: number, prefix: string) =>
+    Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+  const deep: LayoutNode[] = [
+    card('start', ['hub1', 'x1', 'x2', 'hub2', 'x3', 'x4', 'x5', 'x6'], 'index'),
+  ];
+  deep.push(card('hub1', ['h1a', 'h1b', 'h1c']), card('h1a', ['deep']), card('h1b'), card('h1c'));
+  deep.push(card('deep', ['start', 'hub2']));
+  deep.push(card('hub2', leaves(7, 'h2')));
+  for (const l of leaves(7, 'h2')) deep.push(card(l, ['start']));
+  for (const l of ['x1', 'x2', 'x3', 'x4', 'x5', 'x6']) deep.push(card(l));
+  deep.push(card('orphan-a', ['hub1']), card('orphan-b'));
+
+  // A card with many rows, most of them back to the entry, ONE placing a
+  // child, with a sibling block to its right: the outermost drop line must
+  // stay out of that sibling.
+  const wide: LayoutNode[] = [
+    card('start', ['p', 'q'], 'index'),
+    card('p', ['p1', ...Array.from({ length: 11 }, () => 'start')]),
+    card('q', ['start']),
+    card('p1'),
+  ];
+  // The reviewer's shape: nine rows.
+  const nine: LayoutNode[] = [
+    card('start', ['p', 'q'], 'index'),
+    card('p', ['p1', ...Array.from({ length: 8 }, () => 'start')]),
+    card('q', ['start']),
+    card('p1'),
+  ];
+  // Both drop directions: the many-row card on the RIGHT of its sibling.
+  const wideLeft: LayoutNode[] = [
+    card('start', ['q', 'p'], 'index'),
+    card('q', ['q1']),
+    card('q1'),
+    card('p', ['p1', ...Array.from({ length: 11 }, () => 'start')]),
+    card('p1'),
+  ];
+  // A run of 52 leaves (11 wrapped rows) beside a subtree on each side.
+  const many = leaves(52, 'm');
+  const bigRun: LayoutNode[] = [
+    card('start', ['sub1', ...many, 'sub2'], 'index'),
+    card('sub1', ['s1a']),
+    card('s1a'),
+    ...many.map((m) => card(m)),
+    card('sub2', ['s2a']),
+    card('s2a'),
+  ];
+  return [
+    [
+      'architecture',
+      mapOf(
+        card('start', ['a', 'b', 'c', 'd'], 'index'),
+        card('a'),
+        card('b'),
+        card('c'),
+        card('d'),
+      ),
+    ],
+    ['wrap', mapOf(card('start', leaves(7, 'l'), 'index'), ...leaves(7, 'l').map((l) => card(l)))],
+    [
+      'orphans',
+      mapOf(card('start', ['a'], 'index'), card('a'), card('lost1', ['a']), card('lost2')),
+    ],
+    ['deep', { nodes: deep }],
+    ['wide', { nodes: wide }],
+    ['nine', { nodes: nine }],
+    ['wideLeft', { nodes: wideLeft }],
+    ['bigRun', { nodes: bigRun }],
+  ];
 }
 
 describe('layoutRecallMap', () => {
@@ -208,6 +318,44 @@ describe('layoutRecallMap', () => {
         }
       }
     }
+  });
+
+  it('keeps every route clear of every card, on every shape, in both modes', () => {
+    for (const [name, map] of shapes()) {
+      for (const compact of [false, true]) {
+        const out = layoutRecallMap(map, { compact });
+        expectNoOverlap(out.cards);
+        expectRoutesClear(out, compact);
+        expect(out.cards.length, name).toBe(map.nodes.length);
+      }
+    }
+  });
+
+  it('marks the first option to a target as the tree edge and a repeat as a cross-link', () => {
+    const out = layoutRecallMap(mapOf(card('start', ['a', 'a'], 'index'), card('a')));
+    const entry = out.cards.find((c) => c.slug === 'start')!;
+    expect(entry.rows.map((r) => r.kind)).toEqual(['tree', 'cross']);
+    expect(out.edges.map((e) => `${e.kind}:${e.id}`)).toEqual(['tree:start#0', 'cross:start#1']);
+    expectRoutesClear(out, false);
+  });
+
+  it('keeps the first of two cards that share a slug', () => {
+    const out = layoutRecallMap(
+      mapOf(card('start', ['a'], 'index'), card('a', ['start']), card('a', ['gone'])),
+    );
+    expect(out.cards.map((c) => c.slug)).toEqual(['start', 'a']);
+    expect(out.cards[1]!.rows[0]).toMatchObject({ kind: 'entry' });
+    expect(new Set(out.edges.map((e) => e.id)).size).toBe(out.edges.length);
+  });
+
+  it('starts at x = 0 even when the orphan row is wider than the tree', () => {
+    const lost = Array.from({ length: 4 }, (_, i) => `lost${i}`);
+    const out = layoutRecallMap(
+      mapOf(card('start', ['a'], 'index'), card('a'), ...lost.map((l) => card(l))),
+    );
+    expect(Math.min(...out.cards.map((c) => c.x))).toBe(0);
+    expect(out.width).toBe(Math.max(...out.cards.map((c) => c.x + c.width)));
+    expectNoOverlap(out.cards);
   });
 
   it('sizes cards from their option count, smaller in compact mode', () => {

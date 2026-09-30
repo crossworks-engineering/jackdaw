@@ -103,14 +103,18 @@ function RecallCardNode({ data }: NodeProps) {
       className={cn(
         'flex h-full w-full flex-col overflow-hidden rounded-lg bg-card text-card-foreground',
         // Status rides the BORDER; the fill stays the card surface so titles
-        // are readable in every theme (trace-graph convention).
+        // are readable in every theme (trace-graph convention). It is an
+        // inset outline, not a CSS border, so the box stays exactly the size
+        // the layout computed: a border would push the rows down by its
+        // width and pull the row handles in, and every route's first
+        // segment would slant by that much.
         orphan
-          ? 'border-[1.5px] border-dashed border-warning'
+          ? 'outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-warning'
           : isEntry
-            ? 'border-[1.5px] border-primary'
+            ? 'outline outline-[1.5px] -outline-offset-[1.5px] outline-primary'
             : node.kind === 'prompt'
-              ? 'border border-info'
-              : 'border border-border',
+              ? 'outline outline-1 -outline-offset-1 outline-info'
+              : 'outline outline-1 -outline-offset-1 outline-border',
         selected && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
       )}
     >

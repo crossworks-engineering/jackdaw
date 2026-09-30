@@ -85,6 +85,38 @@ const AISLE_STEP = 6;
 const ROW_AISLE_Y = 6;
 const ROW_AISLE_STEP = 4;
 
+/** Air kept between the outermost route and the neighbouring block. */
+const ROUTE_CLEARANCE = 8;
+
+/**
+ * The drop-line stagger for a card with `n` option rows. STAGGER when it
+ * fits; smaller when the card has so many rows that the outermost drop
+ * (ELBOW_X + stagger * (n - 1)) would step past BLOCK_GAP_X into the next
+ * block. A card with children is never in a run, so BLOCK_GAP_X is the
+ * least free space to its right. With a dozen rows the lines sit 4px
+ * apart; with fifty they overlap, which is the honest answer to a card
+ * that no reader can follow anyway.
+ */
+export function dropStagger(n: number): number {
+  if (n <= 1) return STAGGER;
+  return Math.max(
+    0,
+    Math.min(STAGGER, Math.floor((BLOCK_GAP_X - ELBOW_X - ROUTE_CLEARANCE) / (n - 1))),
+  );
+}
+
+/**
+ * The aisle step for a run of `rows` wrapped rows, bounded the same way:
+ * each neighbouring run may take half of BLOCK_GAP_X for its aisle.
+ */
+export function aisleStep(rows: number): number {
+  if (rows <= 1) return AISLE_STEP;
+  return Math.max(
+    0,
+    Math.min(AISLE_STEP, Math.floor((BLOCK_GAP_X / 2 - AISLE_X - ROUTE_CLEARANCE) / (rows - 1))),
+  );
+}
+
 /** What the layout needs of a map: the wire shape carries far more. */
 export interface LayoutMap {
   nodes: LayoutNode[];
@@ -192,6 +224,7 @@ type RunInfo = {
   row: number;
   col: number;
   cols: number;
+  rows: number;
   left: number;
   right: number;
   /** Which side of the run the aisle is on: the side nearer the parent's
@@ -217,7 +250,11 @@ function chunkRows<T>(items: T[]): T[][] {
 
 export function layoutRecallMap(map: LayoutMap, options: LayoutOptions = {}): RecallLayout {
   const compact = options.compact === true;
-  const nodes = map.nodes;
+  // The server never serves two cards with one slug; a half-broken payload
+  // could, and two cards on one spot with one edge id would be worse than
+  // dropping the second. First wins.
+  const seen = new Set<string>();
+  const nodes = map.nodes.filter((n) => !seen.has(n.slug) && (seen.add(n.slug), true));
   if (nodes.length === 0) {
     return { entry: null, cards: [], edges: [], width: 0, height: 0, orphanBandY: null };
   }
@@ -339,6 +376,7 @@ export function layoutRecallMap(map: LayoutMap, options: LayoutOptions = {}): Re
               row: r,
               col: c,
               cols: row.length,
+              rows: rows.length,
               left: bx,
               right: bx + bw,
               side,
@@ -429,7 +467,7 @@ export function layoutRecallMap(map: LayoutMap, options: LayoutOptions = {}): Re
     const k = compact ? 0 : n - 1 - e.sourceRow;
     const sx = compact ? P.x + NODE_W / 2 : P.x + NODE_W;
     const sy = compact ? P.y + P.h : P.y + rowCenterY(e.sourceRow);
-    const dropX = compact ? sx : P.x + NODE_W + ELBOW_X + STAGGER * k;
+    const dropX = compact ? sx : P.x + NODE_W + ELBOW_X + dropStagger(n) * k;
     const bar = bandY[depthOf.get(e.target)!]! - ELBOW_Y - STAGGER * k;
     const tcx = C.x + NODE_W / 2;
     const pts: Point[] = compact
@@ -440,10 +478,11 @@ export function layoutRecallMap(map: LayoutMap, options: LayoutOptions = {}): Re
         ];
     const run = runOf.get(e.target);
     if (run && run.row > 0) {
+      const step = aisleStep(run.rows);
       const aisleX =
         run.side === 'right'
-          ? run.right + AISLE_X + AISLE_STEP * run.row
-          : run.left - AISLE_X - AISLE_STEP * run.row;
+          ? run.right + AISLE_X + step * run.row
+          : run.left - AISLE_X - step * run.row;
       const dist = run.side === 'right' ? run.cols - 1 - run.col : run.col;
       const rowBar = C.y - ROW_AISLE_Y - ROW_AISLE_STEP * dist;
       pts.push({ x: aisleX, y: bar }, { x: aisleX, y: rowBar }, { x: tcx, y: rowBar });
@@ -453,6 +492,13 @@ export function layoutRecallMap(map: LayoutMap, options: LayoutOptions = {}): Re
     e.points = pts;
   }
 
+  // The orphan band can be wider than the tree and start left of it: shift
+  // everything so the leftmost card sits at x = 0 and `width` is the extent.
+  const minX = Math.min(...[...placed.values()].map((p) => p.x));
+  if (minX !== 0) {
+    for (const p of placed.values()) p.x -= minX;
+    for (const e of edges) for (const pt of e.points) pt.x -= minX;
+  }
   const cards: LayoutCard[] = nodes.map((n) => {
     const p = placed.get(n.slug)!;
     const d = depthOf.get(n.slug);
