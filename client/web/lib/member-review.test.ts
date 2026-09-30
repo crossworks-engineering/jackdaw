@@ -234,6 +234,23 @@ describe('the accept dialog: a shared folder where it lands (folder plan phase 5
     });
   });
 
+  it('carries what the bundle embeds, with its kind', () => {
+    const change = { id: F, title: 'Plan', from: 'admin', to: 'client' };
+    const embed = { id: 'e', title: 'Prices', from: 'team', to: 'client', type: 'table' };
+    const err = new ApiError('It lands in a shared folder', 409, {
+      reason: 'visibility',
+      changes: [change],
+      total: 1,
+      alsoEmbeds: [embed, { id: 2 }],
+    });
+    expect(acceptVisibilityRefusal(err)).toEqual({
+      error: 'visibility',
+      changes: [change],
+      total: 1,
+      alsoEmbeds: [embed],
+    });
+  });
+
   it('ignores the other refusals', () => {
     expect(
       acceptVisibilityRefusal(new ApiError('x', 409, { reason: 'confirm-level', goingDown: [] })),

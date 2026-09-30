@@ -36,6 +36,22 @@ export type PendingConfirm = {
 export const TREE_CONFIRM_NOTE =
   'Items take the share of the folder they sit in, for everyone on this brain.';
 
+/** A node type as people say it, for the embed list (an embed may open
+ *  any workspace item, so the kind matters). */
+function kindWord(type: string): string {
+  const words: Record<string, string> = {
+    file: 'file',
+    draw: 'drawing',
+    page: 'page',
+    note: 'note',
+    table: 'table',
+    app: 'app',
+    formula: 'formula',
+    branch: 'folder',
+  };
+  return words[type] ?? type;
+}
+
 function ChangeList({
   label,
   changes,
@@ -58,6 +74,11 @@ function ChangeList({
           <span className="min-w-0 flex-1 truncate" title={c.title}>
             {c.title || 'Untitled'}
           </span>
+          {c.type && (
+            <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] text-muted-foreground">
+              {kindWord(c.type)}
+            </span>
+          )}
           <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             {levelWord(c.from)}
             <ArrowRight className="size-3" aria-label="becomes" />

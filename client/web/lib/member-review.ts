@@ -114,6 +114,9 @@ export type AcceptVisibilityRefusal = {
    *  chosen level, `to` the level it would be read at. */
   changes: TreeVisibilityChange[];
   total: number;
+  /** Brain items the bundle embeds that would be read through it at the
+   *  folder's share (brains with 0208). */
+  alsoEmbeds?: TreeVisibilityChange[];
 };
 
 export type AcceptResult = {
@@ -385,7 +388,8 @@ export function acceptVisibilityRefusal(err: unknown): TreeVisibilityRefusal | n
   const changes = body.changes.filter(isChange);
   const total =
     typeof body.total === 'number' ? Math.max(body.total, changes.length) : changes.length;
-  return { error: 'visibility', changes, total };
+  const alsoEmbeds = Array.isArray(body.alsoEmbeds) ? body.alsoEmbeds.filter(isChange) : [];
+  return { error: 'visibility', changes, total, ...(alsoEmbeds.length ? { alsoEmbeds } : {}) };
 }
 
 /** The toast after an Accept: the level it is READ at, which a shared folder
