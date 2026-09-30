@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { recallV2Of } from '@/lib/recall-v2';
+import { recallScreenOf, recallV2Of } from '@/lib/recall-v2';
 import { RecallClient, type RecallTab } from './recall-client';
 import { RecallV2Client, type RecallV2View } from './v2/recall-v2-client';
 
@@ -17,7 +17,8 @@ import { RecallV2Client, type RecallV2View } from './v2/recall-v2-client';
  * Infinity` so this never adds a request of its own, but it still fetches if
  * the cache is somehow empty rather than spinning forever). It waits for the
  * answer rather than guessing: rendering v1 first and then swapping to v2
- * would flash the wrong screen. A shell that errors reads as an older brain.
+ * would flash the wrong screen. A shell that never answered reads as an older
+ * brain; a failed refetch keeps the answer it had (see recallScreenOf).
  */
 export function RecallScreen({
   selected,
@@ -38,7 +39,7 @@ export function RecallScreen({
     staleTime: Infinity,
     select: recallV2Of,
   });
-  const v2 = shell.isError ? false : shell.data;
+  const v2 = recallScreenOf(shell);
 
   if (v2 === undefined) {
     return (

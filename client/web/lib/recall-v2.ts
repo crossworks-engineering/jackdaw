@@ -49,6 +49,19 @@ export function recallV2Of(shell: unknown): boolean | undefined {
   return features?.recallV2 === true;
 }
 
+/**
+ * Which Recall screen the shell answer picks: true for v2, false for an older
+ * brain, undefined while waiting. Only a shell that NEVER answered reads as an
+ * older brain. A failed REFETCH keeps its data (TanStack Query 5 sets the
+ * error and keeps the last answer), and reading that as "older brain" swapped
+ * the screen under an open card and dropped its unsaved text, with no leave
+ * guard: the brain restarting during a roll, or a laptop waking before the
+ * network, was enough.
+ */
+export function recallScreenOf(shell: { data?: boolean; isError: boolean }): boolean | undefined {
+  return shell.data ?? (shell.isError ? false : undefined);
+}
+
 /** A map the page editor authors (v1): its cards are pages, and nothing in
  *  the v2 editor may write it. */
 export function isPageBuilt(map: Pick<RecallMapSummaryDTO, 'nodeId'>): boolean {

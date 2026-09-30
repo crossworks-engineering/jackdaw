@@ -20,6 +20,8 @@ import {
   openCardOf,
   rebaseEdits,
   recallKeys,
+  recallScreenOf,
+  recallV2Of,
   type CardSync,
 } from './recall-v2';
 import { guardedNavigate, setNavHold } from './nav-guard';
@@ -439,5 +441,34 @@ describe('R5: guarded navigation', () => {
     guardedNavigate(() => undefined);
     expect(held).toEqual(['second']);
     second();
+  });
+});
+
+describe('the Recall screen choice survives a failed shell refetch', () => {
+  it('keeps v2 when a refetch of /api/shell rejects after a good answer', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await qc.fetchQuery({
+      queryKey: ['shell'],
+      queryFn: async () => ({ features: { recallV2: true } }),
+    });
+    // The brain restarts mid-roll: the next refetch fails.
+    await qc
+      .fetchQuery({
+        queryKey: ['shell'],
+        queryFn: async () => {
+          throw new Error('502');
+        },
+        staleTime: 0,
+      })
+      .catch(() => {});
+    const state = qc.getQueryState(['shell'])!;
+    expect(state.status).toBe('error');
+    expect(recallScreenOf({ data: recallV2Of(state.data), isError: true })).toBe(true);
+  });
+
+  it('reads a shell that never answered as an older brain, and waits before an answer', () => {
+    expect(recallScreenOf({ data: undefined, isError: true })).toBe(false);
+    expect(recallScreenOf({ data: undefined, isError: false })).toBeUndefined();
+    expect(recallScreenOf({ data: false, isError: false })).toBe(false);
   });
 });
