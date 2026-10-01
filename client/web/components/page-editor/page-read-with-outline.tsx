@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { type JSONContent } from '@tiptap/core';
 import { ChevronDown, FileText, ListTree } from 'lucide-react';
 import { buildPageToc, type TocEntry } from '@mantle/content-core/page-toc';
@@ -29,7 +30,9 @@ import { PageView } from './page-view';
  * Narrower than that the admin screens show no outline at all. Members and
  * clients read on phones, so here a compact "On this page" disclosure sits
  * at the top of the document instead: closed until asked for, the same
- * entries, the same jump.
+ * entries, the same jump. It closes again after a jump (the reader asked to
+ * go somewhere; an open list above the text is in the way on the way back
+ * up). The rail stays as it is.
  *
  * The outline reads the SAME doc the view renders (pass the draft when the
  * view shows the draft). A page with no headings and no sub-page cards gets
@@ -104,9 +107,21 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
 }
 
 /**
+ * A jump from the disclosure: close the list, THEN jump. The order matters:
+ * the list sits above every heading, so the jump has to measure the page as
+ * it is once the list is gone, or it lands short by the list's height.
+ * `close` must have reached the DOM when it returns (flushSync below).
+ */
+export function closeThenJump(close: () => void, jump: (id: string) => void, id: string): void {
+  close();
+  jump(id);
+}
+
+/**
  * The outline where the rail does not fit: one row that opens the list. The
  * PageOutline rail's words and entry styles, in a box the width of the
- * document; the list scrolls by itself when a page has many headings.
+ * document; the list scrolls by itself when a page has many headings, and
+ * closes after a jump (closeThenJump).
  */
 function OutlineDisclosure({
   entries,
@@ -119,6 +134,7 @@ function OutlineDisclosure({
 }) {
   const [open, setOpen] = useState(false);
   const listId = useId();
+  const close = () => flushSync(() => setOpen(false));
   return (
     <nav
       aria-label="On this page"
@@ -150,7 +166,7 @@ function OutlineDisclosure({
         {entries.map((e) => (
           <li key={e.id}>
             <RowButton
-              onClick={() => onJump(e.id)}
+              onClick={() => closeThenJump(close, onJump, e.id)}
               style={{ paddingLeft: 8 + e.depth * 12 }}
               className={cn(
                 'flex min-h-9 w-full items-center gap-1.5 rounded-sm py-1.5 pr-2 leading-snug hover:bg-accent hover:text-accent-foreground',

@@ -10,7 +10,7 @@ import { SpaceItemView } from '@/components/member/space-item-view';
 import { ReviewItemView } from '@/components/team-admin/review-tab';
 import type { ReviewItem } from '@/lib/member-review';
 import type { SpaceItem } from '@/lib/member-space';
-import { PageReadWithOutline, readerToc } from './page-read-with-outline';
+import { PageReadWithOutline, closeThenJump, readerToc } from './page-read-with-outline';
 
 /**
  * The heading outline for the READERS of a page (a member, a client, a
@@ -120,6 +120,31 @@ describe('PageReadWithOutline', () => {
     // 3 entries in each list, the rail's Hide button and the disclosure's row.
     expect(html.match(/<button type="button"/g)).toHaveLength(8);
     expect(html).not.toContain('<a ');
+  });
+});
+
+describe('a jump from the narrow disclosure closes it', () => {
+  it('closes the list first, then jumps to the entry asked for', () => {
+    const calls: string[] = [];
+    closeThenJump(
+      () => calls.push('close'),
+      (id) => calls.push(`jump:${id}`),
+      'h-scope',
+    );
+    expect(calls).toEqual(['close', 'jump:h-scope']);
+  });
+
+  it('the disclosure entries go through it, with a close that reaches the DOM at once', () => {
+    const src = readFileSync(new URL('./page-read-with-outline.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('const close = () => flushSync(() => setOpen(false));');
+    expect(src).toContain('onClick={() => closeThenJump(close, onJump, e.id)}');
+    // One use: the entries. The row that opens the list only toggles it.
+    expect(src.match(/closeThenJump\(close,/g)).toHaveLength(1);
+  });
+
+  it('the rail jumps without it: PageOutline gets the plain jump', () => {
+    const src = readFileSync(new URL('./page-read-with-outline.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('<PageOutline entries={toc} onJump={jump} />');
   });
 });
 
