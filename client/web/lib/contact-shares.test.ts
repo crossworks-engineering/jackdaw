@@ -70,8 +70,10 @@ describe('contact shares in the owner UI (brain migration 0214)', () => {
     expect(revokeAllLine('Ann', 1)).toBe(
       "1 item shared with Ann will stop opening. Their code still works for anything you share later. No item's level changes.",
     );
-    expect(lastUsedLine(sharing, (s) => s)).toBe('Code not used yet');
-    expect(lastUsedLine({ ...sharing, lastUsedAt: 'then' }, (s) => s)).toBe('Code last used then');
+    expect(lastUsedLine(sharing, (s) => s)).toBe('Their code is not used yet');
+    expect(lastUsedLine({ ...sharing, lastUsedAt: 'then' }, (s) => s)).toBe(
+      'Their code was last used then',
+    );
     expect(contactHref('a b')).toBe('/contacts?id=a%20b');
   });
 });

@@ -89,9 +89,11 @@ export function revokeAllLine(name: string, shareCount: number): string {
   return `${shareCount} item${shareCount === 1 ? '' : 's'} shared with ${name} will stop opening. Their code still works for anything you share later. No item's level changes.`;
 }
 
-/** "Last used ..." in words, or the never-used line. */
+/** When the contact last used their code, in words. */
 export function lastUsedLine(sharing: ContactSharing, format: (iso: string) => string): string {
-  return sharing.lastUsedAt ? `Code last used ${format(sharing.lastUsedAt)}` : 'Code not used yet';
+  return sharing.lastUsedAt
+    ? `Their code was last used ${format(sharing.lastUsedAt)}`
+    : 'Their code is not used yet';
 }
 
 // ── Calls ──────────────────────────────────────────────────────────────────

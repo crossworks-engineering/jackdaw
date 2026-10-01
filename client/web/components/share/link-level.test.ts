@@ -83,8 +83,10 @@ describe('the Shared links panel shows it', () => {
 
   it('confirms a revoke in the shared dialog, saying an old client link stays at Client', () => {
     expect(src).toContain('<RevokeLinkDialog');
-    expect(src).toContain(
-      'stays: isOldClientLink(levelOf(confirmRevoke)) ? STAYS_AT_CLIENT : null,',
+    // A contact share (brain migration 0214) says only that contact loses it;
+    // an old client link still says it stays at Client.
+    expect(src).toMatch(
+      /stays: confirmRevoke\.contactId\s*\?[\s\S]*?: isOldClientLink\(levelOf\(confirmRevoke\)\)\s*\? STAYS_AT_CLIENT\s*: null,/,
     );
   });
 });
