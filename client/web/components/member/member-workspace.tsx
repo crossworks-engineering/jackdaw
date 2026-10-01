@@ -489,8 +489,13 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     <>
       <SetPageTitle title={meta.title} />
       {isDesktop === false ? (
+        // List OR detail. The list is hidden, not unmounted, while an item
+        // is open (MasterDetail's contract on a wide screen too), so the
+        // tree keeps the view chosen for this visit, its search and its
+        // open folders when the item closes.
         <div className="relative h-full min-h-0">
-          {openId ? detailPane : (treePane ?? listPane)}
+          <div className={openId ? 'hidden' : 'h-full min-h-0'}>{treePane ?? listPane}</div>
+          {openId ? detailPane : null}
         </div>
       ) : (
         <MasterDetail id={`member-${kind}`} list={treePane ?? listPane} detail={detailPane} />

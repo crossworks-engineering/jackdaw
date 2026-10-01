@@ -62,7 +62,7 @@ import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { LEVEL_LABEL, LEVEL_ORDER } from '@/lib/access-levels';
 import { DeleteFolderDialog, FolderNameDialog } from '@/components/app-nav/folder-dialogs';
 import { useRealtime } from '@/components/realtime/use-realtime';
-import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
+import { usePersistedState } from '@/lib/use-persisted-state';
 import type { TreeKindAdapter } from './kinds/types';
 import {
   createTreeFolder,
@@ -131,8 +131,10 @@ import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confi
  *  - folders, their names, looks and order, and where items sit are the
  *    BRAIN's (every admin, every device);
  *  - pins, Recent and Most used are this LOGIN's (item marks);
- *  - which folders are open, the chosen view and the sort are this
- *    BROWSER's (localStorage, a convenience only).
+ *  - which folders are open and the sort are this BROWSER's (localStorage,
+ *    a convenience only);
+ *  - the chosen view is this VISIT's: every tree opens on Folders, and
+ *    Recent, Most used and A to Z hold only while the screen stays up.
  *
  * The search box searches the brain (folders first, then items, each with
  * where it lives). The chips list items flat: Recent, Most used, A to Z.
@@ -287,12 +289,12 @@ export function ItemTree({
   const scope = treeScope(kind, source);
   const views = owner ? VIEWS : READER_VIEWS;
 
-  const [storedView, setView] = usePersistedState<View>(
-    `mantle_tree_view_v1:${scope}`,
-    'tree',
-    oneOf('tree', 'recent', 'used', 'az'),
-  );
-  const view: View = views.some((v) => v.id === storedView) ? storedView : 'tree';
+  // Plain state, never stored: a tree opens on Folders every time its
+  // screen is opened (Jason, 2026-10-01). The other views are one click away
+  // and hold for the visit: a selection, a refetch and a cleared search keep
+  // the tree mounted, so they keep the view.
+  const [chosenView, setView] = useState<View>('tree');
+  const view: View = views.some((v) => v.id === chosenView) ? chosenView : 'tree';
   const [sort, setSort] = usePersistedState<TreeSort>(
     `mantle_tree_sort_v1:${scope}`,
     spec.sorts[0]!,

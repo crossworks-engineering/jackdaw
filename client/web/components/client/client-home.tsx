@@ -235,8 +235,12 @@ export function ClientHome() {
   );
 
   return isDesktop === false ? (
+    // List OR detail. The list is hidden, not unmounted, while an item is
+    // open (MasterDetail's contract on a wide screen too), so the tree keeps
+    // the view chosen for this visit when the item closes.
     <div className="relative h-full min-h-0">
-      {selectedId ? detailPane : (treePane ?? listPane)}
+      <div className={selectedId ? 'hidden' : 'h-full min-h-0'}>{treePane ?? listPane}</div>
+      {selectedId ? detailPane : null}
     </div>
   ) : (
     <MasterDetail id="client-shared" list={treePane ?? listPane} detail={detailPane} />
