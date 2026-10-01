@@ -6,8 +6,16 @@ import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SetPageTitle } from '@/components/layout/page-title';
-import { launcherLevel, type MemberAppListWire } from '@/lib/member-apps';
-import { MemberAppsLevel } from './member-apps-level';
+import { AppLauncherLevel } from '@/components/app-nav/app-launcher-level';
+import {
+  memberAppHref,
+  memberAppsHref,
+  memberLauncherLevel,
+  type MemberAppListWire,
+} from '@/lib/member-apps';
+
+/** What the launcher says with nothing to run. */
+export const MEMBER_APPS_EMPTY = 'No apps yet. An admin can make an app available to the team.';
 
 /**
  * The member app launcher (member logins Phase 4b): the apps an admin set to
@@ -27,7 +35,7 @@ export function MemberApps() {
   // A folder that is gone (or was never the member's to see) is the top
   // level, never an error: the same screen as no `?folder=` at all.
   const level = list.data
-    ? (launcherLevel(list.data, folderId) ?? launcherLevel(list.data, null))
+    ? (memberLauncherLevel(list.data, folderId) ?? memberLauncherLevel(list.data, null))
     : null;
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-8">
@@ -44,7 +52,12 @@ export function MemberApps() {
           </Button>
         </div>
       ) : (
-        <MemberAppsLevel level={level} />
+        <AppLauncherLevel
+          level={level}
+          appHref={memberAppHref}
+          folderHref={memberAppsHref}
+          empty={<p className="text-sm text-muted-foreground">{MEMBER_APPS_EMPTY}</p>}
+        />
       )}
     </div>
   );

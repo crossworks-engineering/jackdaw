@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
@@ -10,13 +10,9 @@ import { apiFetch, bounceToLogin } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { AppLauncherLevel } from '@/components/app-nav/app-launcher-level';
 import { AppLoader } from '@/components/app-nav/app-loader';
-import { AppTile } from '@/components/app-nav/app-tile';
-import {
-  AppInformationalNote,
-  AppInformationalTag,
-} from '@/components/app-nav/app-informational-note';
-import { ItemCard, UpdatedStamp } from '@/components/item-list/item-card';
+import { AppInformationalNote } from '@/components/app-nav/app-informational-note';
 import {
   ItemListEmpty,
   ItemListHeader,
@@ -31,10 +27,10 @@ import {
   clientAppProblem,
   clientAppSandboxProps,
   clientAppsEmpty,
-  filterClientApps,
+  clientAppsHref,
+  clientLauncherLevel,
   findClientApp,
-  type ClientAppCard,
-  type ClientAppList,
+  type ClientAppListWire,
 } from '@/lib/client-apps';
 import { CLIENT_VIEW_HREF, askUnlessMissing, isMissingRoute } from '@/lib/client-requests';
 import { ClientChatLauncher } from './client-chat';
@@ -48,7 +44,7 @@ export function useClientApps() {
   return useQuery({
     queryKey: CLIENT_APPS_KEY,
     queryFn: () =>
-      askUnlessMissing(CLIENT_APPS_ROUTE, () => apiFetch<ClientAppList>(CLIENT_APPS_ROUTE)),
+      askUnlessMissing(CLIENT_APPS_ROUTE, () => apiFetch<ClientAppListWire>(CLIENT_APPS_ROUTE)),
     retry: (count, err) => !isMissingRoute(err) && count < 1,
   });
 }
@@ -56,47 +52,30 @@ export function useClientApps() {
 /**
  * "Apps" (client logins C6), the portal's third screen beside "Shared with
  * you" and My requests: the apps an admin set to CLIENT level and published,
- * as cards from the item list kit, and one app running (`&id=`) in the
- * share-ui sandbox over the client routes (/api/client/apps/:id). A client
- * runs an app and nothing more: no editor, no build, no share. An
+ * in the admin's Apps folders (read only: a folder tile opens at `&folder=`,
+ * crumbs lead back), and one app running (`&id=`) in the share-ui sandbox
+ * over the client routes (/api/client/apps/:id). A client runs an app and
+ * nothing more: no editor, no build, no share, no folder to make or move. An
  * informational app says so, quietly: the client reads its data and writes
- * none. A brain before C6 has no such screen, and says so.
+ * none. A brain before C6 has no such screen, and says so; a brain that
+ * sends no folders shows the apps as one flat grid.
  */
 export function ClientApps() {
-  const id = useSearchParams().get('id');
+  const params = useSearchParams();
+  const id = params.get('id');
   const list = useClientApps();
-  return id ? <ClientAppRun id={id} list={list} /> : <ClientAppLauncher list={list} />;
+  return id ? (
+    <ClientAppRun id={id} list={list} />
+  ) : (
+    <ClientAppLauncher list={list} folderId={params.get('folder')} />
+  );
 }
 
 type AppsQuery = ReturnType<typeof useClientApps>;
 
-function ClientAppLauncher({ list }: { list: AppsQuery }) {
-  const router = useRouter();
+function ClientAppLauncher({ list, folderId }: { list: AppsQuery; folderId: string | null }) {
   const [search, setSearch] = useState('');
   const unavailable = isMissingRoute(list.error);
-  const apps = list.data ? filterClientApps(list.data.apps, search) : [];
-
-  const card = (app: ClientAppCard) => (
-    <li key={app.id}>
-      <ItemCard
-        id={app.id}
-        kind="app"
-        title={app.title}
-        icon={<AppTile icon={app.icon} color={app.color} size="sm" className="mt-px" />}
-        onSelect={() => router.push(clientAppHref(app.id))}
-        footerStart={
-          <>
-            <UpdatedStamp at={app.updatedAt} />
-            {isInformational(app) ? <AppInformationalTag /> : null}
-          </>
-        }
-      >
-        {app.description ? (
-          <p className="line-clamp-2 text-xs text-muted-foreground">{app.description}</p>
-        ) : null}
-      </ItemCard>
-    </li>
-  );
 
   return (
     <div className="mx-auto flex h-full min-h-0 max-w-3xl flex-col">
@@ -111,7 +90,8 @@ function ClientAppLauncher({ list }: { list: AppsQuery }) {
         onSearch={setSearch}
         placeholder="Search apps…"
       />
-      <ItemListScroll>
+      {/* The launcher's own 16px gutter, as the member's. */}
+      <ItemListScroll className="space-y-4 p-4">
         {unavailable ? (
           <ItemListEmpty>{CLIENT_APPS_UNAVAILABLE}</ItemListEmpty>
         ) : !list.data ? (
@@ -125,12 +105,13 @@ function ClientAppLauncher({ list }: { list: AppsQuery }) {
               </Button>
             ) : null}
           </div>
-        ) : apps.length === 0 ? (
-          <ItemListEmpty>{clientAppsEmpty(search)}</ItemListEmpty>
         ) : (
-          <ul className="space-y-2" aria-label="Apps">
-            {apps.map(card)}
-          </ul>
+          <AppLauncherLevel
+            level={clientLauncherLevel(list.data, folderId, search)}
+            appHref={clientAppHref}
+            folderHref={clientAppsHref}
+            empty={<ItemListEmpty>{clientAppsEmpty(search)}</ItemListEmpty>}
+          />
         )}
       </ItemListScroll>
     </div>

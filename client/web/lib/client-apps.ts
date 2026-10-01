@@ -5,8 +5,9 @@
  * brokers). A client never creates, edits or shares an app, and never runs a
  * team, admin or public one (decision 3): the brain lists only what it may.
  *
- * The screen is the portal's third, `?view=apps` (`&id=` the app running),
- * beside "Shared with you" and My requests. A brain before C6 has no such
+ * The screen is the portal's third, `?view=apps` (`&id=` the app running,
+ * `&folder=` a folder of the admin's Apps folders open, read only), beside
+ * "Shared with you" and My requests. A brain before C6 has no such
  * route (404): no Apps in the rail, and nothing asks it again in this page
  * load (askUnlessMissing).
  *
@@ -15,8 +16,19 @@
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 import { CLIENT_VIEW_HREF } from './client-requests';
 import type { ClientAppCard, ClientAppList } from '@mantle/client-types';
+import {
+  flatLauncherLevel,
+  launcherLevel,
+  type AppLauncherFolder,
+  type LauncherLevel,
+} from './app-launcher';
 
 export type { ClientAppCard, ClientAppList };
+
+/** GET /api/client/apps as a brain may answer it: `folders` (the admin's
+ *  Apps folders that lead to one of these apps, brains from 0.232.368) is
+ *  absent from an older brain, and the launcher is then one flat list. */
+export type ClientAppListWire = ClientAppList & { folders?: AppLauncherFolder[] | null };
 
 /** The list route: what a 404 marks missing. */
 export const CLIENT_APPS_ROUTE = '/api/client/apps';
@@ -49,6 +61,13 @@ export function clientAppHref(appId: string): string {
   return `${CLIENT_VIEW_HREF.apps}&id=${encodeURIComponent(appId)}`;
 }
 
+/** Where the Apps screen shows a folder (null = the top level). */
+export function clientAppsHref(folderId: string | null): string {
+  return folderId
+    ? `${CLIENT_VIEW_HREF.apps}&folder=${encodeURIComponent(folderId)}`
+    : CLIENT_VIEW_HREF.apps;
+}
+
 /** Does the rail show Apps: only for a brain that answered with at least
  *  one app. Not while asking, not for a brain before C6 (404), not for an
  *  empty list. */
@@ -75,6 +94,22 @@ export function filterClientApps(apps: readonly ClientAppCard[], q: string): Cli
     const text = `${a.title} ${a.description ?? ''}`.toLowerCase();
     return words.every((w) => text.includes(w));
   });
+}
+
+/**
+ * What the client launcher shows, read only. A search is a question about
+ * apps, not about where they sit: the matching apps, flat, from every
+ * folder. Without one, the folder at `folderId` (null = the top level) by
+ * the launcher's rules (./app-launcher.ts); a folder that is gone, or was
+ * never the client's to see, is the top level.
+ */
+export function clientLauncherLevel(
+  list: ClientAppListWire,
+  folderId: string | null,
+  q: string,
+): LauncherLevel<ClientAppCard> {
+  if (q.trim()) return flatLauncherLevel(filterClientApps(list.apps, q));
+  return launcherLevel(list, folderId) ?? launcherLevel(list, null) ?? flatLauncherLevel(list.apps);
 }
 
 /** What the launcher says with no cards. */
