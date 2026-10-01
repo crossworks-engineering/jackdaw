@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
-import type { ToolDTO, ToolHandler, ToolSettings } from '@mantle/client-types';
+import type { ToolHandler, ToolSettings } from '@mantle/client-types';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -38,8 +38,9 @@ import { ListCard, ListCardSnippet } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
+import { TeamAppsSection, type ToolWithTeamApps } from './team-apps-section';
 
-type ToolSummary = ToolDTO;
+type ToolSummary = ToolWithTeamApps;
 
 type FormKind = 'http' | 'shell';
 
@@ -962,6 +963,16 @@ export function ToolsClient() {
                   </SubmitButton>
                 </div>
               </form>
+
+              {editing.mode === 'edit' && (
+                <TeamAppsSection
+                  tool={editing.tool}
+                  onChanged={(t) => {
+                    queryClient.invalidateQueries({ queryKey: ['tools'] });
+                    setEditing({ mode: 'edit', tool: t });
+                  }}
+                />
+              )}
             </div>
           )
         }
@@ -1007,6 +1018,14 @@ function ToolCard({
         {!tool.enabled && (
           <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             off
+          </span>
+        )}
+        {tool.teamApps?.on && (
+          <span
+            className="shrink-0 rounded-sm bg-warning/15 px-1 text-[10px] uppercase tracking-wider text-warning-ink"
+            title="Team apps may use this tool"
+          >
+            team apps
           </span>
         )}
         {tool.requiresConfirm && (
