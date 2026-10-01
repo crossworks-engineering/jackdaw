@@ -2,7 +2,9 @@
 
 import { Info } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { APP_INFORMATIONAL_NOTE, APP_INFORMATIONAL_TAG } from '@/lib/app-informational';
+// Relative: the member launcher's render test loads this file, and the node
+// runner does not resolve the app's `@/` alias.
+import { APP_INFORMATIONAL_NOTE, APP_INFORMATIONAL_TAG } from '../../lib/app-informational';
 
 /**
  * The quiet line on an informational app (client logins C6): a member or a
