@@ -43,6 +43,16 @@ type ToolSummary = ToolDTO;
 
 type FormKind = 'http' | 'shell';
 
+/**
+ * Handlers this form cannot edit: builtins are code-backed, recipes are step
+ * chains the Toolsmith authors, and mcp rows mirror a connector's remote tool
+ * (the server refuses a handler patch on them). For all three, Save sends only
+ * Enabled and Requires-confirm.
+ */
+function isLockedHandler(h: ToolHandler): boolean {
+  return h.kind === 'builtin' || h.kind === 'recipe' || h.kind === 'mcp';
+}
+
 type FormState = {
   slug: string;
   name: string;
@@ -139,12 +149,9 @@ function validateTool(
   editing: { mode: 'create' } | { mode: 'edit'; tool: ToolSummary },
 ): ToolErrors {
   const errs: ToolErrors = {};
-  const isBuiltinLike =
-    editing.mode === 'edit' &&
-    (editing.tool.handler.kind === 'builtin' || editing.tool.handler.kind === 'recipe');
-  // Built-ins send only their editable metadata, so none of the rules below
-  // apply — their handler, slug and schema are code-backed and immutable.
-  if (isBuiltinLike) return errs;
+  // Locked handlers send only their editable metadata, so none of the rules
+  // below apply: their handler, slug and schema are not this form's to write.
+  if (editing.mode === 'edit' && isLockedHandler(editing.tool.handler)) return errs;
 
   if (!form.name.trim()) errs.name = 'A name is required.';
   if (!form.description.trim()) errs.description = 'A description is required.';
@@ -302,11 +309,15 @@ export function ToolsClient() {
   const editTool = editing?.mode === 'edit' ? editing.tool : null;
   const isBuiltin = editTool?.handler.kind === 'builtin';
   const isRecipe = editTool?.handler.kind === 'recipe';
-  // Recipe + builtin handlers aren't editable via this form (a recipe is a
-  // step chain authored by the Toolsmith — delete + recreate to change it);
-  // only Enabled / Requires-confirm toggle. Recipes stay deletable (they're
-  // user-defined), so the Delete button keys off !isBuiltin, not !isReadOnly.
-  const isReadOnly = isBuiltin || isRecipe;
+  const isMcp = editTool?.handler.kind === 'mcp';
+  // Recipe, mcp and builtin handlers aren't editable via this form (a recipe
+  // is a step chain authored by the Toolsmith, delete + recreate to change it;
+  // an mcp row mirrors a connector's remote tool and its sync owns it); only
+  // Enabled / Requires-confirm toggle. Recipes stay deletable (they're
+  // user-defined); builtins and mcp rows don't (the server refuses deleting a
+  // connector-mirrored tool), so Delete keys off canDelete, not !isReadOnly.
+  const isReadOnly = editTool ? isLockedHandler(editTool.handler) : false;
+  const canDelete = !isBuiltin && !isMcp;
   const selectedId = editTool?.id ?? null;
   const settingsBusy = settingsQuery.isPending || settingsMutation.isPending;
 
@@ -358,13 +369,10 @@ export function ToolsClient() {
     setSubmitted(true);
     setErrors({});
 
-    // Built-in: only the editable metadata is sent (handler/slug/schema are
-    // code-backed and immutable). Everything else uses the full body.
+    // Locked handlers (builtin, recipe, mcp): only the editable metadata is
+    // sent. Everything else uses the full body.
     let body: Record<string, unknown>;
-    if (
-      editing.mode === 'edit' &&
-      (editing.tool.handler.kind === 'builtin' || editing.tool.handler.kind === 'recipe')
-    ) {
+    if (editing.mode === 'edit' && isLockedHandler(editing.tool.handler)) {
       body = {
         requiresConfirm: form.requiresConfirm,
         enabled: form.enabled,
@@ -584,9 +592,11 @@ export function ToolsClient() {
                       ? 'Built-in (code-backed). Name, description, and schema are defined in code (read-only) — toggle Enabled and Requires-confirm here.'
                       : isRecipe
                         ? 'Recipe (a chain of existing tools, authored by the Toolsmith). Read-only here — delete and recreate to change the steps; toggle Enabled and Requires-confirm.'
-                        : editing.mode === 'create'
-                          ? 'A new HTTP or shell tool. Slug is immutable after creation.'
-                          : 'Update the tool. Slug + kind are immutable.'}
+                        : isMcp
+                          ? "Connector tool (mirrored from an MCP connector's remote server). Read-only here; its sync owns the definition. Toggle Enabled and Requires-confirm."
+                          : editing.mode === 'create'
+                            ? 'A new HTTP or shell tool. Slug is immutable after creation.'
+                            : 'Update the tool. Slug + kind are immutable.'}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -597,7 +607,7 @@ export function ToolsClient() {
                     />
                     Enabled
                   </label>
-                  {editing.mode === 'edit' && !isBuiltin && (
+                  {editing.mode === 'edit' && canDelete && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -702,6 +712,19 @@ export function ToolsClient() {
                           A chain of {editTool.handler.steps.length} existing tools; data flows
                           between steps server-side. Delete and recreate via the Toolsmith to change
                           it.
+                        </p>
+                      </>
+                    ) : editTool.handler.kind === 'mcp' ? (
+                      <>
+                        <div className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs">
+                          mcp · {editTool.handler.group} · {editTool.handler.toolName}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {editTool.handler.vanishedAt
+                            ? 'The remote server no longer lists this tool; its sync disabled it. '
+                            : ''}
+                          Mirrored from the connector&apos;s remote server. Change the connector and
+                          re-run its sync to change it; delete the connector to remove it.
                         </p>
                       </>
                     ) : (
