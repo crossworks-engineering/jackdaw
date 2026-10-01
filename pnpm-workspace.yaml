@@ -25,7 +25,8 @@ allowBuilds:
 overrides:
   # TEMPORARY (contact shares, unpublished contract): the mantle branch's
   # client-types until @crossworks/client-types with dto/contact-shares is
-  # published; then back to the npm pin (all three places).
+  # published; then back to the npm pin (all three places). The steps:
+  # docs/landing-contact-shares.md.
   "@mantle/client-types": "file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types"
   "@mantle/content-core": "npm:@crossworks/content-core@0.232.365"
   "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.365"
