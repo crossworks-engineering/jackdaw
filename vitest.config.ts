@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -35,4 +36,12 @@ export default defineConfig({
   // scope. Tests that render an app component (renderToStaticMarkup) need
   // the automatic runtime the kit's own tsconfig already asks for.
   esbuild: { jsx: 'automatic' },
+  // The app's own `@/` alias (client/web/tsconfig.json `paths`), so a test can
+  // render an app component that imports its siblings that way. Anchored on
+  // the slash: `@mantle/...` and every other scoped package are untouched.
+  resolve: {
+    alias: [
+      { find: /^@\//, replacement: fileURLToPath(new URL('./client/web/', import.meta.url)) },
+    ],
+  },
 });

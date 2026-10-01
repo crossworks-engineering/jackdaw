@@ -28,7 +28,7 @@ import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
 import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
-import { PageView } from '@/components/page-editor/page-view';
+import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
 import {
   QUEUE_KEY,
   authorRoleLabel,
@@ -258,14 +258,14 @@ function ReviewDetail({ row }: { row: ReviewItemRow }) {
 
 /** The saved version, read-only, through the same presenters the member
  *  reader uses; every byte comes from the submission's own routes. */
-function ReviewItemView({ item }: { item: ReviewItem }) {
+export function ReviewItemView({ item }: { item: ReviewItem }) {
   const asset = useAssetUrl();
   const { row, body } = item;
   const mapAsset = useCallback((p: string) => reviewAssetPath(row.id, p), [row.id]);
   switch (body.type) {
     case 'page':
       return (
-        <PageView
+        <PageReadWithOutline
           content={body.page.doc as JSONContent}
           mapAssetPath={mapAsset}
           folderId={(body.page as { folderId?: string | null }).folderId}

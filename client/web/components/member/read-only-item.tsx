@@ -8,7 +8,7 @@ import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
 import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { Button } from '@mantle/web-ui/ui/button';
-import { PageView } from '@/components/page-editor/page-view';
+import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
 import { ReaderNote } from './reader-note';
 import { readerTableView } from '@/lib/reader-table';
 
@@ -55,7 +55,7 @@ export function ReadOnlyItemBody({
   switch (item.type) {
     case 'page':
       return (
-        <PageView
+        <PageReadWithOutline
           content={item.doc as JSONContent}
           mapAssetPath={assets.mapAssetPath}
           fileEmbedPath={assets.fileEmbedPath}

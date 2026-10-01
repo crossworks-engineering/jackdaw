@@ -6,7 +6,7 @@ import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
 import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
-import { PageView } from '@/components/page-editor/page-view';
+import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
 import { clientAssetPath } from '@/lib/client-portal';
 import { bytesPath, isAdminSpace, isClientSpace, type SpaceItem } from '@/lib/member-space';
@@ -61,8 +61,10 @@ export function SpaceItemView({
         folderId: (body.page as { folderId?: string | null }).folderId,
         noFolder,
       });
+      // The outline reads `doc`, the same version the view renders (the
+      // draft when `working`).
       return (
-        <PageView
+        <PageReadWithOutline
           content={doc}
           mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}
           folderId={here.folderId}
