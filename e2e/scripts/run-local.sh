@@ -112,6 +112,7 @@ up() {
     # topology depends on is actually being served, and it needs no session.
     if curl -sf "$client_url/env.js" >/dev/null 2>&1; then
       echo "→ owner UI ready at $client_url"
+      warm
       return 0
     fi
     sleep 1
@@ -119,6 +120,26 @@ up() {
   echo "✗ the owner UI did not become ready in 120s — tail of $client_log:" >&2
   tail -30 "$client_log" >&2
   return 1
+}
+
+# Compile every screen once before the suite runs. `next dev` compiles a route
+# the first time it is asked for, and a spec that lands on a cold route races
+# that compile: the page snapshot of such a failure shows Next's "Compiling"
+# badge, and the same spec passes on the next run. Seen as one or two
+# different failures per full run (a MasterDetail width that did not come back
+# after a reload, a ToggleGroup not yet on screen), never the same one twice.
+# GET only, no session; the static routes are derived from client/web/app so a
+# new screen is warmed without a list to keep. E2E_WARM=0 skips it.
+warm() {
+  [ "${E2E_WARM:-1}" = "0" ] && return 0
+  local routes n=0
+  routes="$(cd "$root/client/web/app" && find . -name page.tsx -not -path '*[[]*' \
+    | sed -e 's#/page\.tsx$##' -e 's#^\.##' -e 's#/([^/]*)##g' -e 's#^$#/#' | sort -u)"
+  echo "→ compiling $(echo "$routes" | wc -l | tr -d ' ') screens before the suite (E2E_WARM=0 skips)"
+  for r in $routes; do
+    curl -s -o /dev/null --max-time 120 "$client_url$r" && n=$((n + 1))
+  done
+  echo "→ warmed $n screens"
 }
 
 run_tests() {

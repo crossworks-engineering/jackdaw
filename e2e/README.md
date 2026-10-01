@@ -170,7 +170,9 @@ signup → onboarding saveKey (dummy OpenRouter key — saved regardless of prob
 On a brain that already has one, set `E2E_EMAIL` / `E2E_PASSWORD` to match.
 
 `E2E_SKIP_PDF=1` skips the PDF spec on brains without the browserless sidecar.
-`E2E_CLIENT_PORT` moves the owner UI off `:3901`.
+`E2E_CLIENT_PORT` moves the owner UI off `:3901`. Before the suite, `up`
+requests every static screen once, so `next dev` has compiled them all and no
+spec races a first compile (a minute or two; `E2E_WARM=0` skips it).
 
 ### What used to be here, and where it is NOT
 
