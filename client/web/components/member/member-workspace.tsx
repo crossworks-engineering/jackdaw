@@ -432,7 +432,12 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
                 </>
               ) : null
             }
-            onChanged={() => void qc.invalidateQueries({ queryKey: ['member-space-list'] })}
+            onChanged={() => {
+              void qc.invalidateQueries({ queryKey: ['member-space-list'] });
+              // The open draft may have been filed elsewhere: its read names
+              // its folder (a Folder index block set to `here` lists it).
+              void qc.invalidateQueries({ queryKey: ['member-space-item'] });
+            }}
             onUnsupported={() => setView('list')}
           />
         </div>

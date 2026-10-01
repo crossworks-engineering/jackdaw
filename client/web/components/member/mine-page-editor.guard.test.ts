@@ -36,3 +36,22 @@ describe("a member's draft editor and the Folder index", () => {
     );
   });
 });
+
+describe('a draft moved while its editor is open', () => {
+  it("the member's tree refreshes the open item's read, which names the folder", () => {
+    const workspace = src('./member-workspace.tsx');
+    expect(workspace).toMatch(
+      /onChanged=\{\(\) => \{\s*void qc\.invalidateQueries\(\{ queryKey: \['member-space-list'\] \}\);[\s\S]{0,240}void qc\.invalidateQueries\(\{ queryKey: \['member-space-item'\] \}\);/,
+    );
+  });
+
+  it('PageEditor gives the block the live folder and keeps the storage in step', () => {
+    const pageEditor = src('../page-editor/page-editor.tsx');
+    expect(pageEditor).toContain('<HereFolderProvider value={hereFolder}>');
+    expect(pageEditor).toContain('const hereFolder = useMemo(() => ({ folderId }), [folderId]);');
+    expect(pageEditor).toContain('storage.slashCommand.folderId = folderId;');
+    expect(src('../page-editor/folder-index-view.tsx')).toContain(
+      'const here = hereFolderOf(live, storage.slashCommand?.folderId);',
+    );
+  });
+});

@@ -21,6 +21,7 @@ import { handleDroppedFiles } from './upload';
 import { MemberMode } from './mention';
 import { PageImage } from './image';
 import { memberAssetPath } from '@/lib/member-assets';
+import { HereFolderProvider } from './here-folder';
 import { markdownToDoc } from '@mantle/content-core/markdown';
 import type { DiffOverlay } from '@mantle/content-core/page-diff';
 import type { JSONContent as TipTapJSON } from '@tiptap/react';
@@ -314,6 +315,19 @@ export function PageEditor({
     return () => dom.removeEventListener(DIFF_ACTION_EVENT, onAction);
   }, [editor]);
 
+  // The page's folder can change under an open editor (it is moved from the
+  // tree beside it): the extension's storage follows, for `/page`, and the
+  // Folder index block reads the live value through HereFolderProvider.
+  useEffect(() => {
+    if (!editor) return;
+    const storage = editor.storage as unknown as Record<
+      string,
+      { folderId?: string | null } | undefined
+    >;
+    if (storage.slashCommand) storage.slashCommand.folderId = folderId;
+  }, [editor, folderId]);
+  const hereFolder = useMemo(() => ({ folderId }), [folderId]);
+
   // Embedded drawings follow the app theme like the /draw previews do.
   useDrawEmbedTheme(editor);
 
@@ -331,7 +345,9 @@ export function PageEditor({
         {markerMode && onMarksChange && (
           <FocusGutter editor={editor} marks={marks ?? []} onChange={onMarksChange} />
         )}
-        <EditorContent editor={editor} />
+        <HereFolderProvider value={hereFolder}>
+          <EditorContent editor={editor} />
+        </HereFolderProvider>
       </div>
     </>
   );
