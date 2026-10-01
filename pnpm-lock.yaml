@@ -5,10 +5,10 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@mantle/client-types': file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
-  '@mantle/content-core': npm:@crossworks/content-core@0.232.365
-  '@mantle/voice-client': npm:@crossworks/voice-client@0.232.365
-  '@mantle/share-ui': npm:@crossworks/share-ui@0.232.365
+  '@mantle/client-types': npm:@crossworks/client-types@0.232.380
+  '@mantle/content-core': npm:@crossworks/content-core@0.232.380
+  '@mantle/voice-client': npm:@crossworks/voice-client@0.232.380
+  '@mantle/share-ui': npm:@crossworks/share-ui@0.232.380
   '@excalidraw/mermaid-to-excalidraw': link:./stubs/mermaid-to-excalidraw
   fast-uri: 3.1.6
   '@xmldom/xmldom': 0.8.15
@@ -95,17 +95,17 @@ importers:
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(immer@11.1.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@mantle/client-types':
-        specifier: file:../../../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
-        version: file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
+        specifier: npm:@crossworks/client-types@0.232.380
+        version: '@crossworks/client-types@0.232.380'
       '@mantle/content-core':
-        specifier: npm:@crossworks/content-core@0.232.365
-        version: '@crossworks/content-core@0.232.365'
+        specifier: npm:@crossworks/content-core@0.232.380
+        version: '@crossworks/content-core@0.232.380'
       '@mantle/share-ui':
-        specifier: npm:@crossworks/share-ui@0.232.365
-        version: '@crossworks/share-ui@0.232.365(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@crossworks/share-ui@0.232.380
+        version: '@crossworks/share-ui@0.232.380(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       '@mantle/voice-client':
-        specifier: npm:@crossworks/voice-client@0.232.365
-        version: '@crossworks/voice-client@0.232.365'
+        specifier: npm:@crossworks/voice-client@0.232.380
+        version: '@crossworks/voice-client@0.232.380'
       '@mantle/web-ui':
         specifier: workspace:*
         version: link:../../packages/web-ui
@@ -270,8 +270,8 @@ importers:
   e2e:
     devDependencies:
       '@mantle/client-types':
-        specifier: file:../../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
-        version: file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
+        specifier: npm:@crossworks/client-types@0.232.380
+        version: '@crossworks/client-types@0.232.380'
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
@@ -288,11 +288,11 @@ importers:
         specifier: ^10.7.0
         version: 10.7.0
       '@mantle/client-types':
-        specifier: file:../../../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
-        version: file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
+        specifier: npm:@crossworks/client-types@0.232.380
+        version: '@crossworks/client-types@0.232.380'
       '@mantle/share-ui':
-        specifier: npm:@crossworks/share-ui@0.232.365
-        version: '@crossworks/share-ui@0.232.365(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@crossworks/share-ui@0.232.380
+        version: '@crossworks/share-ui@0.232.380(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.23
         version: 1.1.23(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -511,17 +511,20 @@ packages:
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
 
-  '@crossworks/content-core@0.232.365':
-    resolution: {integrity: sha512-RIsw6S4qwKglO31mmp7N8zR1YQSyyTEJMyg73FhS/VkrjC/p3vnQJl7Zqqahx2PTvqSLOBIsTZZZ+vhQ1eyOEA==}
+  '@crossworks/client-types@0.232.380':
+    resolution: {integrity: sha512-C9VPfMYl97b6VoJ8G2oQJzn4PUPP2hY10u7/LJFs/dtxwlmJeYExHIruH7cxTd0gTpYy569RtwUMcoYe0+oRFg==}
 
-  '@crossworks/share-ui@0.232.365':
-    resolution: {integrity: sha512-6V9s4sgduraMEjtC3+ONB6hlvzalQNHC1CM3X7EjsO4P1pQCGKeb7OkRJqtpBuYQyV0CKzeqwXOig+V30HGXmg==}
+  '@crossworks/content-core@0.232.380':
+    resolution: {integrity: sha512-lbZn3/dXraFZdO6Gkg9p1xIq2tZI8ubyk+yv1b6xh+rRPZ/phW9rKR/4ReQS8QAzaP4f0G7dK0zqGEiO4VfWog==}
+
+  '@crossworks/share-ui@0.232.380':
+    resolution: {integrity: sha512-/3W5PUflmxpNwgxt//BS+9W8BE44XC7pSYa/KzYK1kW3UWAJwX9C3PEnbMvGALPj9nTts8T1dVHVDFWck/RI9A==}
     peerDependencies:
       react: ^19.2.7
       react-dom: ^19.2.7
 
-  '@crossworks/voice-client@0.232.365':
-    resolution: {integrity: sha512-XBo4UB7nE3kucQC2AjlBOKk0SGPTYlWd+AtTYBRwhClaaH+9s3z1OWzRqt4G7pdaSMQU5Uf+55CilzpD1YNgjA==}
+  '@crossworks/voice-client@0.232.380':
+    resolution: {integrity: sha512-fTXs5mYqfZF4X7WVtg2LkX+aX5gDW9Kkti+A5P0RzVTM545a4vQ+1LRTd77RLS/gUx4Sxoz6WmMPLKuFKVMllg==}
 
   '@date-fns/tz@1.5.0':
     resolution: {integrity: sha512-lwYN/vDPeNRULcepoE/LO2Pgx+7/RV+S9ARfbc9lr2DtGkOD7pAiruHvbR1RX3Qyf6ja47EWJDMsNK5vK08DJg==}
@@ -1208,9 +1211,6 @@ packages:
   '@malept/flatpak-bundler@0.4.0':
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
-
-  '@mantle/client-types@file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types':
-    resolution: {directory: ../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types, type: directory}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -5737,19 +5737,21 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@crossworks/content-core@0.232.365':
+  '@crossworks/client-types@0.232.380': {}
+
+  '@crossworks/content-core@0.232.380':
     dependencies:
-      '@mantle/client-types': file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
+      '@mantle/client-types': '@crossworks/client-types@0.232.380'
       marked: 18.0.11
       mathjs: 15.2.0
 
-  '@crossworks/share-ui@0.232.365(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@crossworks/share-ui@0.232.380(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@dicebear/core': 10.7.0
       '@dicebear/styles': 10.6.0
       '@firecms/neat': 1.0.2
-      '@mantle/client-types': file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types
-      '@mantle/content-core': '@crossworks/content-core@0.232.365'
+      '@mantle/client-types': '@crossworks/client-types@0.232.380'
+      '@mantle/content-core': '@crossworks/content-core@0.232.380'
       '@radix-ui/react-label': 2.1.15(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-slot': 1.3.3(@types/react@19.2.18)(react@19.2.8)
       class-variance-authority: 0.7.1
@@ -5766,7 +5768,7 @@ snapshots:
       - '@types/react-dom'
       - supports-color
 
-  '@crossworks/voice-client@0.232.365': {}
+  '@crossworks/voice-client@0.232.380': {}
 
   '@date-fns/tz@1.5.0': {}
 
@@ -6322,8 +6324,6 @@ snapshots:
       tmp-promise: 3.0.3
     transitivePeerDependencies:
       - supports-color
-
-  '@mantle/client-types@file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@mantle/client-types": "npm:@crossworks/client-types@0.232.365",
+    "@mantle/client-types": "npm:@crossworks/client-types@0.232.380",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.4.1",
     "typescript": "^5.9.3"
