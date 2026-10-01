@@ -85,7 +85,7 @@ export function PageEditor({
   privateItem = false,
 }: {
   /** A member login (member logins): the editor keeps to the page itself. No
-   *  file drop/paste uploads, no sub-page / image / drawing / file commands, no
+   *  file drop/paste uploads, no new page / image / drawing / file commands, no
    *  drawing picker and no drag handle (its "turn into page" creates in the
    *  brain). Every one of those calls a route that refuses a member. */
   member?: boolean;
@@ -108,7 +108,8 @@ export function PageEditor({
    *  block then shows its label alone. */
   folderId?: string | null;
   /** Whether this brain serves the pages tree: the Folder index slash item
-   *  is offered only then. */
+   *  is offered only then. A member's editor passes true only when the
+   *  member tree serves pages and the draft's folder is known. */
   folderIndex?: boolean;
   /** When true the left gutter becomes a focus-marker strip (and the drag
    *  handle steps aside). The marks themselves stay highlighted regardless. */

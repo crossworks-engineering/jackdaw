@@ -30,13 +30,14 @@ export interface SlashCommandOptions {
    *  Undefined when unknown (a brain before the pages tree). */
   folderId: string | null | undefined;
   /** Whether the Folder index item is offered (the brain serves the pages
-   *  tree). */
+   *  tree; for a member, its own tree does and the draft's folder is
+   *  known). */
   folderIndex: boolean;
   /** Called once `/page` made its page, so the screen can refresh what
    *  lists the folder (a Folder index on this page). */
   onPageCreated: (() => void) | null;
   /** A member login (member logins): no command that creates or uploads into
-   *  the brain (sub-page, image, drawing, file); those routes refuse a member. */
+   *  the brain (new page, image, drawing, file); those routes refuse a member. */
   member: boolean;
   /** An admin's private item (member logins Phase 7): it is not a brain page
    *  and sits in no folder, so no new brain page or folder index. Everything

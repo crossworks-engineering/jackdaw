@@ -367,14 +367,11 @@ const ITEMS: SlashItem[] = [
 ];
 
 /** Slash items a member may not use, by id: each creates or uploads into
- *  the brain. Matched by id so renaming an item's title cannot re-show it. */
-export const MEMBER_HIDDEN: ReadonlySet<string> = new Set([
-  'new-page',
-  'folder-index',
-  'image',
-  'drawing',
-  'file',
-]);
+ *  the brain. Matched by id so renaming an item's title cannot re-show it.
+ *  The Folder index is not one of them (it only reads the member's own
+ *  tree), but a member gets it only when the editor says so (see
+ *  `getSlashItems`). */
+export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'image', 'drawing', 'file']);
 
 /** Slash items an admin's private item may not use: a new page is a brain
  *  page next to the page it sits in, and a folder index lists the folder the
@@ -389,7 +386,10 @@ export function getSlashItems(
   const q = query.trim().toLowerCase();
   const hidden = opts.member ? MEMBER_HIDDEN : opts.privateItem ? PRIVATE_HIDDEN : null;
   // The Folder index needs the pages tree: a brain before it gets no item.
-  const offered = opts.folderIndex === false ? ITEMS.filter((i) => i.id !== 'folder-index') : ITEMS;
+  // A member's editor must say yes (its tree serves pages and the draft's
+  // folder is known); the owner's editor only has to not say no.
+  const folderIndex = opts.member ? opts.folderIndex === true : opts.folderIndex !== false;
+  const offered = folderIndex ? ITEMS : ITEMS.filter((i) => i.id !== 'folder-index');
   const items = hidden ? offered.filter((i) => !hidden.has(i.id)) : offered;
   if (!q) return items;
   return items.filter(

@@ -17,13 +17,7 @@ describe('getSlashItems for a member', () => {
   it('still hides them when their display titles change', () => {
     const all = getSlashItems('');
     const hidden = all.filter((i) => MEMBER_HIDDEN.has(i.id));
-    expect(hidden.map((i) => i.id).sort()).toEqual([
-      'drawing',
-      'file',
-      'folder-index',
-      'image',
-      'new-page',
-    ]);
+    expect(hidden.map((i) => i.id).sort()).toEqual(['drawing', 'file', 'image', 'new-page']);
     const titles = hidden.map((i) => i.title);
     try {
       for (const i of hidden) i.title = `${i.title} (renamed)`;
@@ -53,6 +47,37 @@ describe("getSlashItems for an admin's private item (Phase 7)", () => {
   it('a member stays on the member list either way', () => {
     const both = getSlashItems('', { member: true, privateItem: true }).map((i) => i.id);
     for (const id of MEMBER_HIDDEN) expect(both).not.toContain(id);
+  });
+});
+
+describe('getSlashItems and the Folder index for a member', () => {
+  const ids = (q: string, opts: Parameters<typeof getSlashItems>[1]) =>
+    getSlashItems(q, opts).map((i) => i.id);
+
+  it('is not one of the hidden ids: it creates nothing in the brain', () => {
+    expect(MEMBER_HIDDEN.has('folder-index')).toBe(false);
+  });
+
+  it('a member sees it only when the editor says yes', () => {
+    expect(ids('', { member: true, folderIndex: true })).toContain('folder-index');
+    expect(ids('folder', { member: true, folderIndex: true })).toContain('folder-index');
+    // Not said, or said no: no item, and search does not bring it back.
+    expect(ids('', { member: true })).not.toContain('folder-index');
+    expect(ids('', { member: true, folderIndex: false })).not.toContain('folder-index');
+    for (const q of ['folder', 'index', 'pages', 'toc']) {
+      expect(ids(q, { member: true }), q).not.toContain('folder-index');
+      expect(ids(q, { member: true, folderIndex: false }), q).not.toContain('folder-index');
+    }
+  });
+
+  it('turning it on for a member brings back nothing else', () => {
+    const on = ids('', { member: true, folderIndex: true });
+    for (const id of MEMBER_HIDDEN) expect(on).not.toContain(id);
+    expect(on.filter((id) => id !== 'folder-index')).toEqual(ids('', { member: true }));
+  });
+
+  it("an admin's private item never gets it, whatever the editor says", () => {
+    expect(ids('', { privateItem: true, folderIndex: true })).not.toContain('folder-index');
   });
 });
 

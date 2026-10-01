@@ -7,6 +7,8 @@ import { PageEditor } from '@/components/page-editor/page-editor';
 import { versionFailureText } from '@/lib/member-autosave';
 import { clientAssetPath } from '@/lib/client-portal';
 import { isAdminSpace, isClientSpace } from '@/lib/member-space';
+import { memberFolderIndex } from '@/lib/member-folder-index';
+import { useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import type { MemberEditorProps } from './member-editor';
 import { useSpaceApi } from './space-api';
 import { useMemberAutosave } from './use-member-autosave';
@@ -31,7 +33,11 @@ export function MinePageEditor({
   onStatus,
   readOnly = false,
 }: MemberEditorProps & {
-  page: { doc: Doc; draft: Doc | null; draftRev?: number };
+  /** `folderId`: the folder the draft sits in (null at the member's top
+   *  level; folder phase 7). Read as a local optional: the pinned contract
+   *  does not name it yet, and a brain before the pages tree does not send
+   *  it (undefined = not known). */
+  page: { doc: Doc; draft: Doc | null; draftRev?: number; folderId?: string | null };
 }) {
   const toast = useToast();
   const api = useSpaceApi();
@@ -41,6 +47,15 @@ export function MinePageEditor({
   // A client's own page reads its pictures from the client routes (client
   // tier audit U2), as its read-only view does.
   const client = isClientSpace(api);
+  // The Folder index block: `here` is the draft's own folder in the
+  // member's tree, and the slash item shows only when that tree serves
+  // pages and the folder is known (lib/member-folder-index.ts).
+  const treeServesPages = useReaderTreeServes('member', 'pages');
+  const folder = memberFolderIndex({
+    space: admin ? 'admin' : client ? 'client' : 'member',
+    treeServesPages,
+    folderId: page.folderId,
+  });
   const initial = (page.draft ?? page.doc) as Doc;
   const docRef = useRef<Doc>(initial);
   // The server holds a draft the saved version does not have yet.
@@ -102,6 +117,8 @@ export function MinePageEditor({
       mapAssetPath={client ? clientAssetPath : undefined}
       privateItem={admin}
       pageId={id}
+      folderId={folder.folderId}
+      folderIndex={folder.folderIndex}
       editable={!readOnly}
       content={initial as JSONContent}
       onChange={(doc) => {
