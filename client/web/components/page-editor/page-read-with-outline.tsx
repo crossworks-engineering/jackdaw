@@ -15,14 +15,21 @@ import { PageView } from './page-view';
  * gets (the member Library and personal items, the client portal, the admin
  * Review pane), so the readers cannot drift from each other.
  *
- * Wide screens: the admin preview's layout (pages-client.tsx, PagePreview),
- * class for class. A 224px rail on the left, sticky in the reader's own
- * scroller, and the document fills the rest.
+ * Where it fits: the admin preview's layout (pages-client.tsx, PagePreview).
+ * A 224px rail on the left, sticky in the reader's own scroller, and the
+ * document fills the rest.
  *
- * Below `xl` the admin screens show no outline at all. Members and clients
- * read on phones, so here a compact "On this page" disclosure sits at the top
- * of the document instead: closed until asked for, the same entries, the same
- * jump.
+ * ONE difference from the admin preview, the trigger. The admin preview fills
+ * the window beside its list, so it asks the WINDOW (`xl`). A reader sits in
+ * a pane that opens at 672px whatever the window is, where the rail would
+ * leave the text a 365px column. So this asks the reader's own width (a
+ * container query): the rail shows from 672px of reader, which keeps at
+ * least 424px of text, and a pane dragged wider gets it.
+ *
+ * Narrower than that the admin screens show no outline at all. Members and
+ * clients read on phones, so here a compact "On this page" disclosure sits
+ * at the top of the document instead: closed until asked for, the same
+ * entries, the same jump.
  *
  * The outline reads the SAME doc the view renders (pass the draft when the
  * view shows the draft). A page with no headings and no sub-page cards gets
@@ -33,16 +40,18 @@ export function PageReadWithOutline({ content, ...view }: React.ComponentProps<t
   const bodyRef = useRef<HTMLDivElement>(null);
   const jump = useCallback((id: string) => jumpToBlock(bodyRef.current, id), []);
   return (
-    <div className="flex w-full gap-6" ref={bodyRef}>
+    <div className="@container/page-read flex w-full gap-6" ref={bodyRef}>
       {toc.length > 0 && (
-        <aside className="hidden w-56 shrink-0 xl:block">
+        <aside className="hidden w-56 shrink-0 @2xl/page-read:block">
           <div className="sticky top-6 max-h-[calc(100vh-9rem)] overflow-y-auto scrollbar-thin">
             <PageOutline entries={toc} onJump={jump} />
           </div>
         </aside>
       )}
       <div className="min-w-0 flex-1">
-        {toc.length > 0 && <OutlineDisclosure entries={toc} onJump={jump} className="xl:hidden" />}
+        {toc.length > 0 && (
+          <OutlineDisclosure entries={toc} onJump={jump} className="@2xl/page-read:hidden" />
+        )}
         <PageView content={content} {...view} />
       </div>
     </div>

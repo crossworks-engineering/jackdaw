@@ -100,11 +100,13 @@ describe('PageReadWithOutline', () => {
   it('draws the rail and the narrow disclosure for a page with headings', () => {
     const html = render(createElement(PageReadWithOutline, { content: LONG }));
     expectOutline(html);
-    // The admin preview's rail: hidden below `xl`, 224px wide, sticky.
-    expect(html).toContain('hidden w-56 shrink-0 xl:block');
+    // The admin preview's rail (224px wide, sticky), shown when the READER
+    // is wide enough for it, not the window.
+    expect(html).toContain('@container/page-read');
+    expect(html).toContain('hidden w-56 shrink-0 @2xl/page-read:block');
     expect(html).toContain('sticky top-6');
-    // The disclosure: only below `xl`, closed until asked for.
-    expect(html).toMatch(/<nav aria-label="On this page" class="[^"]*xl:hidden/);
+    // The disclosure: only where the rail is not, closed until asked for.
+    expect(html).toMatch(/<nav aria-label="On this page" class="[^"]*@2xl\/page-read:hidden/);
     expect(html).toContain('aria-expanded="false"');
     expect(html).toMatch(/<ul[^>]*hidden=""/);
   });

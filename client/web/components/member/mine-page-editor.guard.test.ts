@@ -69,7 +69,14 @@ describe('read-only views pass the folder only where the reader can list it', ()
 
   it("a client's submitted item is in no folder, and the review view is quiet", () => {
     expect(src('./client-request-item.tsx')).toMatch(/<SpaceItemView[\s\S]{0,400}noFolder\s/);
-    expect(src('../team-admin/review-tab.tsx')).toMatch(/<PageView[\s\S]{0,500}quietHere\s/);
+    // The review view draws the page through the outline wrapper, which hands
+    // every PageView prop on (page-read-with-outline.tsx).
+    expect(src('../team-admin/review-tab.tsx')).toMatch(
+      /<PageReadWithOutline[\s\S]{0,500}quietHere\s/,
+    );
+    expect(src('../page-editor/page-read-with-outline.tsx')).toContain(
+      '<PageView content={content} {...view} />',
+    );
   });
 });
 

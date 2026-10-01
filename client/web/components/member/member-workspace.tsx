@@ -498,7 +498,16 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
           {openId ? detailPane : null}
         </div>
       ) : (
-        <MasterDetail id={`member-${kind}`} list={treePane ?? listPane} detail={detailPane} />
+        <MasterDetail
+          id={`member-${kind}`}
+          list={treePane ?? listPane}
+          detail={detailPane}
+          // A page opens at the admin preview's 900px measure, not the 672px
+          // form measure: room for the outline rail beside the text
+          // (PageReadWithOutline shows it from 672px of reader). A width the
+          // member already dragged is kept (the layout is saved per id).
+          defaultDetailSize={kind === 'page' ? '900px' : undefined}
+        />
       )}
     </>
   );
