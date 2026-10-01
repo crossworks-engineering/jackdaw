@@ -33,9 +33,12 @@ test.describe('field primitives', () => {
 
     try {
       await ownerPage.setViewportSize({ width: 375, height: 812 });
-      await ownerPage.goto(`/tasks?q=${encodeURIComponent(marker)}`);
+      // `?selected=` is the screen's deep link to one task: the item tree opens
+      // nothing by itself, and a phone has no room to pick from it beside the
+      // detail.
+      await ownerPage.goto(`/tasks?selected=${task.id}`);
 
-      const input = ownerPage.getByPlaceholder('Search tasks…');
+      const input = ownerPage.getByRole('textbox', { name: 'Search tasks' });
       const textarea = ownerPage.getByPlaceholder(/Write a comment/);
       await expect(input).toBeVisible();
       await expect(textarea).toBeVisible();

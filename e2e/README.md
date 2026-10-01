@@ -4,10 +4,10 @@ Playwright suite that drives a LIVE stack end-to-end. Written before the
 server/client split (v0.200.0) so every phase of it lands against a green net.
 One spec set, two topologies:
 
-| Project       | Meaning                                                                                            | When it runs                                                          |
-| ------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `same-origin` | client and server are one origin (the monolith, or the server app's own share/print surfaces)      | CI on every PR + locally                                              |
-| `split`       | client (owner UI) on its own origin, server on the canonical origin                                | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
+| Project       | Meaning                                                                                       | When it runs                                                          |
+| ------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `same-origin` | client and server are one origin (the monolith, or the server app's own share/print surfaces) | CI on every PR + locally                                              |
+| `split`       | client (owner UI) on its own origin, server on the canonical origin                           | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
 the Team admin tabs, a member login end to end (`member-smoke.spec.ts`: invite,
@@ -120,7 +120,7 @@ DATABASE_URL="$DATABASE_URL" S3_BUCKET=mantle-e2e PORT=3900 \
 Then, back here: `E2E_SERVER_URL=http://localhost:3900 pnpm e2e`. The brain has
 no owner, so global-setup creates one through the real signup path.
 
-Three things that are easy to get wrong:
+Things that are easy to get wrong:
 
 - **The init SQL must be applied by hand.** The Postgres image runs
   `/docker-entrypoint-initdb.d/*.sql` once, at first cluster init, for the
@@ -138,6 +138,17 @@ Three things that are easy to get wrong:
   the `/n/<id>` links it builds (they live in the client app). No spec depends
   on it any more; the `/team` redirect spec that did went with the retired
   team portal.
+- **Do not bind the brain to `127.0.0.1`** (`HOST`). The PDF and drawing
+  render sidecar (`mantle_dev_browser`) is a container, and it reaches the
+  brain at `host.docker.internal:<PORT>`. On loopback only, `pdf-export` fails
+  with a 500 and the draws `snapshot cache` spec gets a null SVG, both from
+  `ERR_CONNECTION_REFUSED` in the brain's log. Leave `HOST` unset (the server
+  defaults to `0.0.0.0`) and keep the port closed to the network.
+- **Migrate and the server must use the same `MANTLE_MASTER_KEY`**, and it must
+  be a base64 32-byte key (`openssl rand -base64 32`). The read-only database
+  roles get their passwords from it at migrate time, and the first owner's
+  onboarding seals a key with it: any other string fails global-setup with an
+  onboarding 500 ("must decode to 32 bytes").
 
 Tear down with `DROP DATABASE mantle_e2e`, then delete the `mantle-e2e` bucket in
 the dev RustFS console (http://localhost:9001, `minio` / `minio12345`) or with

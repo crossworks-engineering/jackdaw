@@ -43,16 +43,16 @@ test.describe('apps', () => {
       await ownerPage.goto('/apps');
 
       const list = ownerPage.locator('[data-testid="list"]');
-      // The folder tree's search box (a brain with /api/app-nav, which the
-      // e2e brain always is). The flat list's "Search apps…" box is only the
-      // fallback for a brain before app nav.
-      const search = ownerPage.getByRole('searchbox', { name: 'Search apps' });
+      // The item tree's search box (a brain that serves the tree for apps,
+      // which the e2e brain always is). It is a plain textbox named "Search
+      // apps" since Apps moved onto the item tree (a43663ca); the app-nav
+      // tree before it was a `type="search"` box.
+      const search = list.getByRole('textbox', { name: 'Search apps' });
       await expect(list).toBeVisible();
       await expect(search).toBeVisible();
 
-      // State the user would lose if the column were unmounted. Typed, not
-      // submitted, so it lives only in the component — exactly the kind of
-      // thing a remount discards.
+      // Something typed into the column, so the column can be counted while it
+      // is collapsed and its text checked when it comes back.
       await search.fill('half-typed query');
       const widthOf = () => list.evaluate((el) => (el as HTMLElement).offsetWidth);
       const expanded = await widthOf();
@@ -65,10 +65,12 @@ test.describe('apps', () => {
       // ...but STILL THERE, with what the user typed. `count()` rather than
       // `toBeVisible()`: zero-width is correctly not visible, and that is the
       // whole distinction this test exists to draw.
+      // `count()` is the guard. The tree's query is held by the SCREEN, not
+      // inside the column, so a remounted column would get the same text back
+      // and `inputValue()` alone would pass with `{zen ? null : list}` put back
+      // (focus-mode.spec.ts says the same of Notes, Draw and Pages).
       expect(await search.count(), 'the list was UNMOUNTED, not collapsed').toBe(1);
-      expect(await search.inputValue(), 'the search box lost its text — the column remounted').toBe(
-        'half-typed query',
-      );
+      expect(await search.inputValue(), 'the search box lost its text').toBe('half-typed query');
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-focus-collapsed.png` });
 
       await ownerPage.getByRole('button', { name: 'Exit focus mode' }).click();

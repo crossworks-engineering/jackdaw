@@ -1,5 +1,6 @@
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { openFromTree, treeRow } from '../lib/tree';
 
 /**
  * The pages/draw editor header is ONE compact row: icon + title left, tags
@@ -123,12 +124,13 @@ test.describe('editor header layout', () => {
       await expect(ownerPage.getByRole('button', { name: 'Change drawing icon' })).toHaveText('🎨');
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}editor-header-draw.png` });
 
-      // …and so does the list row (rowOf carries data.icon). The preview pane
-      // is the pages-style shell now: description line + Edit/export/delete
-      // actions, with the snapshot area unboxed.
-      await ownerPage.goto(`/draw?q=${encodeURIComponent(title)}`);
-      await expect(ownerPage.locator(`[data-mark-label="${title}"]`).getByText('🎨')).toBeVisible();
-      await expect(ownerPage.getByText('A canary description')).toBeVisible();
+      // …and so does the list row: the tree's item carries the drawing's own
+      // icon, as a page's does. The preview pane is the pages-style shell:
+      // description line + Edit/export/delete actions, the snapshot unboxed.
+      await ownerPage.goto('/draw');
+      const detail = ownerPage.locator('[data-testid="detail"]');
+      await openFromTree(ownerPage, title, detail.getByText('A canary description'));
+      await expect(treeRow(ownerPage, title).getByText('🎨')).toBeVisible();
       await expect(ownerPage.getByRole('link', { name: 'Edit' })).toBeVisible();
       await expect(ownerPage.getByRole('button', { name: 'Delete drawing' })).toBeVisible();
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}draw-list-preview.png` });
@@ -137,14 +139,14 @@ test.describe('editor header layout', () => {
     }
   });
 
-  test('an uncommitted draft is announced in the list, not silently invisible', async ({
+  test('an uncommitted draft is announced, not silently invisible', async ({
     ownerApi,
     ownerPage,
   }) => {
     // A draft is never rendered anywhere (rendering happens at commit), so
     // without a marker the preview shows the last commit — or nothing at all —
     // and the user reasonably concludes their work was lost. It wasn't; the
-    // list has to SAY so.
+    // screen has to SAY so.
     const title = `E2E draft badge ${Date.now()}`;
     const created = await ownerApi.post('/api/draws', { data: { title } });
     const { draw } = (await created.json()) as { draw: { id: string } };
@@ -164,9 +166,12 @@ test.describe('editor header layout', () => {
       const { draws } = (await list.json()) as { draws: { id: string; hasDraft: boolean }[] };
       expect(draws.find((d) => d.id === draw.id)?.hasDraft).toBe(true);
 
-      await ownerPage.goto(`/draw?q=${encodeURIComponent(title)}`);
-      await expect(ownerPage.getByText('Draft · uncommitted')).toBeVisible();
-      await expect(ownerPage.getByText(/uncommitted edits are saved/i)).toBeVisible();
+      // Announced where the drawing is opened: the preview's title row, and
+      // the note in place of the snapshot that is not there yet.
+      await ownerPage.goto('/draw');
+      const detail = ownerPage.locator('[data-testid="detail"]');
+      await openFromTree(ownerPage, title, detail.getByText('Draft · uncommitted'));
+      await expect(detail.getByText(/uncommitted edits are saved/i)).toBeVisible();
 
       // Committing clears it — the badge tracks state, it isn't sticky.
       const committed = await ownerApi.post(`/api/draws/${draw.id}/commit`, {

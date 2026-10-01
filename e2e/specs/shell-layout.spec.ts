@@ -83,19 +83,14 @@ test.describe('shell layout', () => {
       shell.evaluate((el) => getComputedStyle(el).getPropertyValue('--nav-w').trim());
     expect(await navWidth()).toBe('256px');
 
-    // Let `/tasks` finish taking focus BEFORE reaching for the handle. Its
-    // composer mounts once the list lands and carries `autoFocus`, so focus
-    // moves a beat after the screen looks ready — and it moved mid-sequence,
-    // putting arrow presses two, three and four into a text field. That is the
-    // whole of this test's flake: the rail was never at fault, and the widths
-    // it reported (280px, 272px) are three presses landing, then two.
-    //
-    // On `/models` and `/settings/profile` — no autofocusing composer — all
-    // four land every time.
-    await expect(
-      ownerPage.locator('#task-title'),
-      'the tasks composer never took focus, so it may still steal it',
-    ).toBeFocused();
+    // Let `/tasks` finish loading BEFORE reaching for the handle. Its paged
+    // list used to open an autofocusing composer a beat after the screen
+    // looked ready, which moved focus mid-sequence and put arrow presses two,
+    // three and four into a text field (the widths it reported, 280px and
+    // 272px, were three presses landing, then two). The item tree that replaced
+    // the list opens nothing by itself, so no composer takes focus now; what is
+    // left to wait for is the tree itself.
+    await expect(ownerPage.getByRole('tree', { name: 'Tasks and folders' })).toBeVisible();
 
     // Keyboard, not a drag: the handle is arrow-operable on purpose (a
     // drag-only control is unusable without a mouse), and it writes the same

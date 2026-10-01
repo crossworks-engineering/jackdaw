@@ -1,5 +1,6 @@
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { openFromTree, treeRow } from '../lib/tree';
 import type { APIRequestContext, Page } from '@playwright/test';
 
 /**
@@ -24,9 +25,11 @@ import type { APIRequestContext, Page } from '@playwright/test';
  * moved into `packages/web-ui` and now serves the member surface too, so this is
  * the only place either copy is exercised in a browser.
  *
- * Every spec tags its fixtures with a unique marker and drives the screen with
- * `?q=<marker>`, so the suite's other content (and a box's real tasks) cannot
- * change what the assertions see. Fixtures are deleted in a `finally`.
+ * Every spec tags its fixtures with a unique marker and narrows the screen to
+ * it, so the suite's other content (and a box's real tasks) cannot change what
+ * the assertions see: `?q=<marker>` on the board and the Archived list, a
+ * search of the item tree on the List view (which ignores `?q=`, see
+ * lib/tree.ts). Fixtures are deleted in a `finally`.
  */
 
 type Task = { id: string; status: string; rank: string | null; archivedAt: string | null };
@@ -146,10 +149,10 @@ test.describe('tasks', () => {
     const task = await createTask(ownerApi, { title });
 
     try {
-      await ownerPage.goto(`/tasks?q=${encodeURIComponent(marker)}`);
+      await ownerPage.goto('/tasks');
       const detail = ownerPage.locator('[data-testid="detail"]');
       const heading = detail.getByRole('heading', { name: title });
-      await expect(heading).toBeVisible();
+      await openFromTree(ownerPage, marker, heading);
 
       // Truncated, not wrapped: one line, clipped.
       const clipped = await heading.evaluate(
@@ -195,14 +198,15 @@ test.describe('tasks', () => {
       await ownerPage.goto(`/tasks?view=board&q=${encodeURIComponent(marker)}`);
       await expect(card(ownerPage, title)).toBeVisible();
 
-      // Archive from the detail pane (list view, where the task auto-selects).
-      await ownerPage.goto(`/tasks?status=all&q=${encodeURIComponent(marker)}`);
+      // Archive from the detail pane, opened from the List view's tree.
+      await ownerPage.goto('/tasks');
       const detail = ownerPage.locator('[data-testid="detail"]');
-      await expect(detail.getByRole('heading', { name: title })).toBeVisible();
+      await openFromTree(ownerPage, marker, detail.getByRole('heading', { name: title }));
       await detail.getByRole('button', { name: 'Archive task' }).click();
 
-      // Gone from the list, and the API stamped it.
-      await expect(card(ownerPage, title)).toBeHidden();
+      // Gone from the tree (which holds no archived tasks), and the API
+      // stamped it.
+      await expect(treeRow(ownerPage, title)).toBeHidden();
       await expect.poll(async () => (await readTask(ownerApi, task.id)).archivedAt).not.toBeNull();
       // Status is a separate axis — archiving must not rewrite it.
       expect((await readTask(ownerApi, task.id)).status).toBe('done');
@@ -212,17 +216,24 @@ test.describe('tasks', () => {
       await ownerPage.goto(`/tasks?view=board&q=${encodeURIComponent(marker)}`);
       await expect(card(ownerPage, title)).toBeHidden();
 
-      // The Archived option in the status filter is where it went.
-      await ownerPage.goto(`/tasks?q=${encodeURIComponent(marker)}`);
-      await expect(card(ownerPage, title)).toBeHidden();
-      await ownerPage.getByRole('combobox', { name: 'Filter by status' }).click();
-      await ownerPage.getByRole('option', { name: 'Archived' }).click();
+      // The List view's Archived button is where it went. (The status filter
+      // that used to hold an Archived option belongs to the paged list, which
+      // the tree replaced; Archived itself still is that list.)
+      await ownerPage.goto('/tasks');
+      const list = ownerPage.locator('[data-testid="list"]');
+      // Typed until the answer shows: a fill a beat before hydration is reset.
+      await expect(async () => {
+        await list.getByRole('textbox', { name: 'Search tasks' }).fill(marker);
+        await expect(list.getByText(/^Nothing matches/)).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
+      await list.getByRole('button', { name: 'Archived', exact: true }).click();
+      await expect(ownerPage).toHaveURL(/status=archived/);
       await expect(card(ownerPage, title)).toBeVisible();
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}tasks-archived.png` });
 
       // Restore, from the same button in the same place. Click the row first:
-      // the pane is holding a composer (the list was empty when this view
-      // loaded), and a filter change deliberately does not steal it.
+      // a change of view deliberately does not steal the pane, so it may still
+      // hold whatever it held before.
       await card(ownerPage, title).click();
       const archivedDetail = ownerPage.locator('[data-testid="detail"]');
       await expect(archivedDetail.getByRole('heading', { name: title })).toBeVisible();
@@ -251,19 +262,20 @@ test.describe('tasks', () => {
     const task = await createTask(ownerApi, { title, status: 'blocked' });
 
     try {
-      // `status=all`, not the default `active`: ticking the task done would
-      // otherwise filter it out of its own list mid-test.
-      await ownerPage.goto(`/tasks?status=all&q=${encodeURIComponent(marker)}`);
-      const list = ownerPage.locator('[data-testid="list"]');
+      // The tick is the detail header's now: the tree's done box shows state
+      // only (a control inside the row would be a button in a button), and
+      // both ticks call the same undo-aware toggle.
+      await ownerPage.goto('/tasks');
       const detail = ownerPage.locator('[data-testid="detail"]');
       const status = detail.getByRole('combobox', { name: 'Status' });
+      await openFromTree(ownerPage, marker, status);
       await expect(status).toHaveText('Blocked');
 
-      await list.getByRole('button', { name: 'Mark done' }).click();
+      await detail.getByRole('button', { name: 'Mark done' }).click();
       await expect(status).toHaveText('Done');
       await expect.poll(async () => (await readTask(ownerApi, task.id)).status).toBe('done');
 
-      await list.getByRole('button', { name: 'Mark not done' }).click();
+      await detail.getByRole('button', { name: 'Mark not done' }).click();
       await expect(status, 'unticking should restore Blocked, not fall back to To do').toHaveText(
         'Blocked',
       );
@@ -287,10 +299,10 @@ test.describe('tasks', () => {
     const task = await createTask(ownerApi, { title });
 
     try {
-      await ownerPage.goto(`/tasks?q=${encodeURIComponent(marker)}`);
+      await ownerPage.goto('/tasks');
       const detail = ownerPage.locator('[data-testid="detail"]');
       const composer = detail.getByPlaceholder(/Write a comment/);
-      await expect(composer).toBeVisible();
+      await openFromTree(ownerPage, marker, composer);
       await expect(detail.getByText('No comments yet. Start the discussion above.')).toBeVisible();
 
       const post = async (body: string) => {

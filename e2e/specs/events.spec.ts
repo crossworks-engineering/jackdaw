@@ -1,5 +1,7 @@
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { clickUntilOpen } from '../lib/hydration';
+import { openFromTree, treeRow } from '../lib/tree';
 import type { APIRequestContext } from '@playwright/test';
 
 /**
@@ -43,12 +45,15 @@ test.describe('events', () => {
     await expect(list).toBeVisible();
     await expect(detail).toBeVisible();
 
-    // Fresh load with nothing selected opens the composer, and §6c says it is a
-    // boxed card pinned to the pane's leading edge. The old layout centred it,
-    // which on a draggable pane meant the form drifted away from the list the
-    // wider you pulled it.
+    // The tree opens nothing by itself (a84d10ab), so the composer is New's.
+    // §6c says it is a boxed card pinned to the pane's leading edge. The old
+    // layout centred it, which on a draggable pane meant the form drifted away
+    // from the list the wider you pulled it.
     const card = detail.locator('[data-slot="form-shell"]').first();
-    await expect(detail.getByRole('heading', { name: 'New event' })).toBeVisible();
+    await clickUntilOpen(
+      list.getByRole('button', { name: 'New', exact: true }),
+      detail.getByRole('heading', { name: 'New event' }),
+    );
     const paneBox = (await detail.boundingBox())!;
     const cardBox = (await card.boundingBox())!;
     const leftGap = cardBox.x - paneBox.x;
@@ -59,13 +64,10 @@ test.describe('events', () => {
       'equal gaps mean it is still centred, not left-aligned in a full-width pane',
     ).toBeLessThan(8);
 
-    // The window filter is the kit's Select now, not a raw `<select>` (§6d).
-    const filter = list.getByRole('combobox', { name: 'Filter events' });
-    await expect(filter).toHaveText('Upcoming');
-    await filter.click();
-    await ownerPage.getByRole('option', { name: 'All' }).click();
-    await expect(ownerPage).toHaveURL(/window=all/);
-    await expect(filter).toHaveText('All');
+    // The tree lists every event by start, so the Upcoming / Past / All window
+    // filter is hidden while it shows (a84d10ab). It lives on only in the
+    // paged list a brain before the tree gets.
+    await expect(list.getByRole('combobox', { name: 'Filter events' })).toHaveCount(0);
     await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}events-master-detail.png` });
   });
 
@@ -77,6 +79,10 @@ test.describe('events', () => {
     const detail = ownerPage.locator('[data-testid="detail"]');
     const title = detail.getByLabel('Title');
     const save = detail.getByRole('button', { name: 'Save event' });
+    await clickUntilOpen(
+      ownerPage.locator('[data-testid="list"]').getByRole('button', { name: 'New', exact: true }),
+      save,
+    );
 
     // Empty title → the title is the invalid control.
     await save.click();
@@ -110,10 +116,10 @@ test.describe('events', () => {
     const event = await createEvent(ownerApi, { title, startsAt: soon(3) });
 
     try {
-      await ownerPage.goto(`/events?q=${encodeURIComponent(marker)}`);
+      await ownerPage.goto('/events');
       const detail = ownerPage.locator('[data-testid="detail"]');
       const heading = detail.getByRole('heading', { name: title });
-      await expect(heading).toBeVisible();
+      await openFromTree(ownerPage, marker, heading);
 
       const clipped = await heading
         .locator('span')
@@ -158,12 +164,12 @@ test.describe('events', () => {
     let deleted = false;
 
     try {
-      await ownerPage.goto(`/events?q=${encodeURIComponent(marker)}`);
-      const row = ownerPage.locator(`[data-mark-kind="event"][data-mark-label="${title}"]`);
-      await expect(row).toBeVisible();
-
+      await ownerPage.goto('/events');
+      const row = treeRow(ownerPage, title);
       const detail = ownerPage.locator('[data-testid="detail"]');
-      await detail.getByRole('button', { name: 'Delete event' }).click();
+      const del = detail.getByRole('button', { name: 'Delete event' });
+      await openFromTree(ownerPage, marker, del);
+      await del.click();
       // Always through an AlertDialog (§8) — and the dialog says what is lost.
       const dialog = ownerPage.getByRole('alertdialog');
       await expect(dialog).toContainText(title);

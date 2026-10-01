@@ -1,5 +1,6 @@
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { openFromTree } from '../lib/tree';
 
 /**
  * `/formulas`, ported to the Tasks standard (phase 2a) — the last unblocked 2a
@@ -36,10 +37,11 @@ test.describe('formulas', () => {
   }) => {
     await seedFormulas(ownerApi);
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
-    await ownerPage.goto('/formulas?q=Ideal gas density');
+    await ownerPage.goto('/formulas');
 
     const detail = ownerPage.locator('[data-testid="detail"]');
     const heading = detail.getByRole('heading', { level: 2 });
+    await openFromTree(ownerPage, 'Ideal gas density', heading);
     await expect(heading).toContainText('Ideal gas density');
 
     // The glyph belongs INSIDE the h2 — parked outside it drifts the moment
@@ -82,9 +84,10 @@ test.describe('formulas', () => {
   }) => {
     await seedFormulas(ownerApi);
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
-    await ownerPage.goto('/formulas?q=Ideal gas density');
+    await ownerPage.goto('/formulas');
 
     const detail = ownerPage.locator('[data-testid="detail"]');
+    await openFromTree(ownerPage, 'Ideal gas density', detail.getByRole('heading', { level: 2 }));
     await expect(detail.getByRole('heading', { level: 2 })).toContainText('Ideal gas density');
 
     // P, M and T are the required inputs of the `density` target. Located by
@@ -135,8 +138,10 @@ test.describe('formulas', () => {
   }) => {
     await seedFormulas(ownerApi);
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
-    await ownerPage.goto('/formulas?q=Ideal gas density');
-    await ownerPage.getByRole('button', { name: 'Edit' }).click();
+    await ownerPage.goto('/formulas');
+    const edit = ownerPage.locator('[data-testid="detail"]').getByRole('button', { name: 'Edit' });
+    await openFromTree(ownerPage, 'Ideal gas density', edit);
+    await edit.click();
 
     await expect(ownerPage.getByRole('heading', { name: 'Edit formula' })).toBeVisible();
     await ownerPage.getByRole('tab', { name: 'YAML' }).click();

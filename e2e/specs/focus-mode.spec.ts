@@ -2,6 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { openFromTree } from '../lib/tree';
 
 /**
  * Focus mode on the three list screens that have it — Notes, Draw and Pages.
@@ -26,26 +27,33 @@ type Screen = {
   path: string;
   /** The list column's search box — a thing that lives INSIDE the column. */
   search: string;
-  /** Create the row the preview needs, and return a cleanup. */
-  fixture: (api: APIRequestContext) => Promise<() => Promise<void>>;
-  /** Some screens hide the toggle until the detail is in the right state. */
-  reveal?: (page: Page) => Promise<void>;
+  /** Create the row the preview needs; hand back its title and a cleanup. */
+  fixture: (api: APIRequestContext) => Promise<{ title: string; cleanup: () => Promise<void> }>;
+  /** Put the toggle on screen. The default opens the fixture from the item
+   *  tree, which opens nothing by itself, and the toggle lives in the
+   *  preview's header. */
+  reveal?: (page: Page, title: string) => Promise<void>;
 };
 
-/** POST a row, hand back a deleter. Every one of these takes `{ title }`. */
+/** POST a row, hand back its title and a deleter. Every one takes `{ title }`. */
 function creates(collection: string): Screen['fixture'] {
   return async (api) => {
-    const res = await api.post(`/api/${collection}`, {
-      data: { title: `E2E focus ${Date.now()}` },
-    });
+    const title = `E2E focus ${Date.now()}`;
+    const res = await api.post(`/api/${collection}`, { data: { title } });
     expect(res.status(), `could not create the ${collection} fixture`).toBeLessThan(300);
     const body = (await res.json()) as Record<string, { id: string }>;
     const id = Object.values(body)[0]?.id;
-    return async () => {
-      if (id) await api.delete(`/api/${collection}/${id}`);
+    return {
+      title,
+      cleanup: async () => {
+        if (id) await api.delete(`/api/${collection}/${id}`);
+      },
     };
   };
 }
+
+const openFixture: NonNullable<Screen['reveal']> = (page, title) =>
+  openFromTree(page, title, page.getByRole('button', { name: 'Focus mode' }).first());
 
 const SCREENS: Screen[] = [
   {
@@ -59,8 +67,18 @@ const SCREENS: Screen[] = [
       await expect(page.getByPlaceholder('Untitled note')).toBeVisible();
     },
   },
-  { path: '/draw', search: 'Search drawings…', fixture: creates('draws') },
-  { path: '/pages', search: 'Search pages and folders…', fixture: creates('pages') },
+  {
+    path: '/draw',
+    search: 'Search drawings and folders…',
+    fixture: creates('draws'),
+    reveal: openFixture,
+  },
+  {
+    path: '/pages',
+    search: 'Search pages and folders…',
+    fixture: creates('pages'),
+    reveal: openFixture,
+  },
 ];
 
 test.describe('focus mode', () => {
@@ -71,14 +89,14 @@ test.describe('focus mode', () => {
       ownerApi,
       ownerPage,
     }) => {
-      const cleanup = await screen.fixture(ownerApi);
+      const { title, cleanup } = await screen.fixture(ownerApi);
       try {
         await ownerPage.setViewportSize({ width: 1600, height: 900 });
         await ownerPage.goto(screen.path);
 
         const list = ownerPage.locator('[data-testid="list"]');
         await expect(list, 'no list panel — still a hand-written grid?').toBeVisible();
-        await screen.reveal?.(ownerPage);
+        await screen.reveal?.(ownerPage, title);
 
         // A handle on something that lives INSIDE the list column, so "is it
         // still there" is a question about the column and not about the screen
