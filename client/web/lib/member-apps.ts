@@ -61,7 +61,7 @@ export function memberHubNav(
 
 /** The launcher's apps: every app the member may run except the home app,
  *  which lives on the home page (it needs the home's hub data). */
-export function launcherApps(list: MemberAppList): MemberAppCard[] {
+export function launcherApps(list: Pick<MemberAppList, 'apps' | 'homeAppId'>): MemberAppCard[] {
   return list.apps.filter((a) => a.id !== list.homeAppId);
 }
 
@@ -69,7 +69,9 @@ export function launcherApps(list: MemberAppList): MemberAppCard[] {
 
 /** GET /api/member/apps as a brain may answer it: an older brain sends no
  *  `folders`, and the launcher is then one flat list, as before. */
-export type MemberAppListWire = MemberAppList & { folders?: AppLauncherFolder[] | null };
+export type MemberAppListWire = Omit<MemberAppList, 'folders'> & {
+  folders?: AppLauncherFolder[] | null;
+};
 
 /**
  * What the member launcher shows at `folderId` (null = the top level; null

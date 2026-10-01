@@ -23,7 +23,10 @@ allowBuilds:
 # latest release) with known advisories; fast-uri / @xmldom/xmldom under
 # electron-builder (build-time only).
 overrides:
-  "@mantle/client-types": "npm:@crossworks/client-types@0.232.365"
+  # TEMPORARY (contact shares, unpublished contract): the mantle branch's
+  # client-types until @crossworks/client-types with dto/contact-shares is
+  # published; then back to the npm pin (all three places).
+  "@mantle/client-types": "file:../../../../mantle/.claude/worktrees/nice-murdock-5391c6/packages/client-types"
   "@mantle/content-core": "npm:@crossworks/content-core@0.232.365"
   "@mantle/voice-client": "npm:@crossworks/voice-client@0.232.365"
   "@mantle/share-ui": "npm:@crossworks/share-ui@0.232.365"
