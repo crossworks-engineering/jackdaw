@@ -56,28 +56,38 @@ function SimpleStatus({ item }: { item: TreeItem }) {
 }
 
 export const notesAdapter = simpleAdapter('notes', { one: 'note', many: 'notes' }, FileText);
-/** Pages (folder phase 7: they live in folders and never nest): a page's
- *  own emoji icon when it has one, else the document glyph. */
-export const pagesAdapter: TreeKindAdapter = {
-  kind: 'pages',
-  noun: { one: 'page', many: 'pages' },
-  lead: (item) =>
-    item.icon ? (
-      <span
-        aria-hidden
-        className="inline-flex size-5 shrink-0 items-center justify-center text-base leading-none"
-      >
-        {item.icon}
-      </span>
-    ) : (
-      <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center">
-        <FileText className="size-4 text-muted-foreground" />
-      </span>
-    ),
-  status: (item) => <SimpleStatus item={item} />,
-};
-export const drawAdapter = simpleAdapter('draw', { one: 'drawing', many: 'drawings' }, PenTool);
-export const tablesAdapter = simpleAdapter('tables', { one: 'table', many: 'tables' }, Table2);
+/**
+ * The kinds whose items carry an emoji icon of their own, picked in the
+ * editor's header: the item's icon when it has one, else the kind's glyph.
+ */
+function ownIconAdapter(
+  kind: TreeKind,
+  noun: TreeKindAdapter['noun'],
+  Icon: LucideIcon,
+): TreeKindAdapter {
+  const base = simpleAdapter(kind, noun, Icon);
+  return {
+    ...base,
+    lead: (item) =>
+      item.icon ? (
+        <span
+          aria-hidden
+          className="inline-flex size-5 shrink-0 items-center justify-center text-base leading-none"
+        >
+          {item.icon}
+        </span>
+      ) : (
+        base.lead(item)
+      ),
+  };
+}
+
+/** Pages (folder phase 7: they live in folders and never nest). */
+export const pagesAdapter = ownIconAdapter('pages', { one: 'page', many: 'pages' }, FileText);
+/** Drawings and tables: their paged lists showed the item's icon on its row,
+ *  so the tree does too. */
+export const drawAdapter = ownIconAdapter('draw', { one: 'drawing', many: 'drawings' }, PenTool);
+export const tablesAdapter = ownIconAdapter('tables', { one: 'table', many: 'tables' }, Table2);
 export const formulasAdapter = simpleAdapter(
   'formulas',
   { one: 'formula', many: 'formulas' },
