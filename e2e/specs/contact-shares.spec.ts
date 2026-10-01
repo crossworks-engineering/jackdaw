@@ -34,7 +34,9 @@ async function shareInUi(page: Page, search: string, names: string[]) {
   await add.click();
   await page.getByRole('textbox', { name: 'Search contacts' }).fill(search);
   for (const name of names) {
-    await page.getByRole('checkbox', { name: new RegExp(name) }).check();
+    // The exact contact: the list may still show other rows while the
+    // search settles.
+    await page.getByRole('checkbox', { name: new RegExp(`^${name} ${search}\\b`) }).check();
   }
   await page.getByRole('button', { name: `Add ${names.length}` }).click();
   await expect(page.getByRole('list', { name: 'Contacts it is shared with' })).toContainText(
@@ -78,9 +80,20 @@ test.describe('contact shares', () => {
     );
 
     try {
-      // A published app: a link serves the published build only.
-      expect((await ownerApi.post(`/api/apps/${app.id}/build`)).ok()).toBeTruthy();
-      expect((await ownerApi.post(`/api/apps/${app.id}/publish`)).ok()).toBeTruthy();
+      // A published app: a link serves the published build only. A new app
+      // has no source, so it gets a one-file draft, then publish builds it.
+      await json(
+        await ownerApi.put(`/api/apps/${app.id}/draft`, {
+          data: {
+            entry: 'App.tsx',
+            files: { 'App.tsx': 'export default function App() { return <p>Orders</p>; }\n' },
+          },
+        }),
+      );
+      const published = await json<{ app: { hasBuild?: boolean } }>(
+        await ownerApi.post(`/api/apps/${app.id}/publish`),
+      );
+      expect(published.app.hasBuild, 'the app did not publish').toBe(true);
 
       // 1. Enable sharing on Ann in the UI: the code shows once, with Copy.
       await ownerPage.goto(`/contacts?id=${ann}`);
