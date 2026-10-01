@@ -3,6 +3,12 @@
 **The data-aware workspace**: the web + desktop interface for
 [Mantle](https://github.com/crossworks-engineering/mantle) brains.
 
+> **Jackdaw and Mantle.** Jackdaw is the app: what you see and click, on the
+> web and the desktop. Mantle is the engine underneath it: the memory, the
+> agents, and the API. This repo is Jackdaw. It holds no data of its own; every
+> brain it shows you is a Mantle server. If you only use it, think "Jackdaw".
+> If you self-host it or build on it, you work with Mantle.
+
 Jackdaw is a zero-secret client: it holds no database, no session secret, and
 no server code. Every byte of data comes from a Mantle brain's HTTP API
 (bearer + CORS), configured by a single value, the server origin. One running
