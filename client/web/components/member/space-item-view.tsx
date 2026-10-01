@@ -10,6 +10,8 @@ import { PageView } from '@/components/page-editor/page-view';
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
 import { clientAssetPath } from '@/lib/client-portal';
 import { bytesPath, isAdminSpace, isClientSpace, type SpaceItem } from '@/lib/member-space';
+import { spaceViewHere } from '@/lib/member-folder-index';
+import { useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useSpaceApi } from './space-api';
 
 /**
@@ -22,6 +24,7 @@ export function SpaceItemView({
   item,
   working = false,
   fileBytesPath,
+  noFolder = false,
 }: {
   source: 'mine' | 'team';
   item: SpaceItem;
@@ -32,6 +35,9 @@ export function SpaceItemView({
    *  there is one). A drawing always shows its saved SVG and a note has no
    *  draft, so for those two this changes nothing. */
   working?: boolean;
+  /** The page is in no folder a tree lists (a client wrote it): a Folder
+   *  index block set to `here` shows its label alone. */
+  noFolder?: boolean;
 }) {
   const asset = useAssetUrl();
   const api = useSpaceApi();
@@ -40,17 +46,27 @@ export function SpaceItemView({
   const admin = isAdminSpace(api);
   // A client's own item reads its bytes from the client routes (C5).
   const client = isClientSpace(api);
+  const treeServesPages = useReaderTreeServes('member', 'pages');
   const { row, body } = item;
   switch (body.type) {
     case 'page': {
       const doc = (working ? (body.page.draft ?? body.page.doc) : body.page.doc) as JSONContent;
+      // The folder the page sits in (folder phase 7), for a Folder index
+      // block set to `here`: only where a member's tree can list it
+      // (lib/member-folder-index.ts). Absent from a brain before the pages tree.
+      const here = spaceViewHere({
+        space: admin ? 'admin' : client ? 'client' : 'member',
+        source,
+        treeServesPages,
+        folderId: (body.page as { folderId?: string | null }).folderId,
+        noFolder,
+      });
       return (
         <PageView
           content={doc}
           mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}
-          // The folder the page sits in (folder phase 7), for a Folder index
-          // block set to `here`; absent from a brain before the pages tree.
-          folderId={(body.page as { folderId?: string | null }).folderId}
+          folderId={here.folderId}
+          quietHere={here.quietHere}
         />
       );
     }

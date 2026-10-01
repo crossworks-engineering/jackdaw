@@ -165,6 +165,7 @@ export function StaticDoc({
   mapAssetPath,
   fileEmbedPath,
   hereFolderId,
+  quietHere,
 }: {
   /** HTML to normalise through the schema (the assistant's markdown path). */
   html?: string;
@@ -181,6 +182,9 @@ export function StaticDoc({
    *  with no folder of its own (`here`) lists; null at the top level,
    *  undefined when unknown (the block then shows its label alone). */
   hereFolderId?: string | null;
+  /** The reader may not hold that folder: a 404 on `here` shows the block's
+   *  label alone (folder-index-face.ts). */
+  quietHere?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Rendered in an effect, not in a `useMemo`, so the SSR pass and the
@@ -253,7 +257,11 @@ export function StaticDoc({
       />
       {indexes.map((ix, i) =>
         createPortal(
-          <FolderIndexList folderId={ix.folderId} hereFolderId={hereFolderId} />,
+          <FolderIndexList
+            folderId={ix.folderId}
+            hereFolderId={hereFolderId}
+            quietHere={quietHere}
+          />,
           ix.el,
           `folder-index-${i}`,
         ),

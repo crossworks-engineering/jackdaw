@@ -7,6 +7,26 @@
  * `exports`. */
 @import '../node_modules/@mantle/share-ui/styles/themes.css';
 @import '../node_modules/@mantle/share-ui/styles/app.css';
+/* Folder index block, filled (folder phase 7). share-ui's app.css styles
+ * every `.ProseMirror [data-folder-index]` as the inert label of the public
+ * render (border, card, padding, capitals), and the read view portals the
+ * live card into that same div: a card inside a card, titles in capitals.
+ * A filled block drops the label's chrome; the unfilled one keeps it.
+ * LOCAL OVERRIDE, deliberately outside any @layer and after the import: the
+ * same fix is at the source in mantle (packages/share-ui/styles/app.css
+ * scopes the chrome to the empty and the labelled block). Remove this rule
+ * once the pinned @crossworks/share-ui carries that. */
+.ProseMirror [data-folder-index]:has(> [data-folder-index-card]) {
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  color: inherit;
+}
 /* Scan the shared component package for utilities. An @import pulls in CSS but
  * does NOT add source files, and Tailwind's auto-detection stops at this app's
  * own root — so any class used ONLY in packages/web-ui generated no CSS at all.

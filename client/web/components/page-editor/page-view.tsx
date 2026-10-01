@@ -24,12 +24,17 @@ export function PageView({
   mapAssetPath,
   fileEmbedPath,
   folderId,
+  quietHere,
 }: {
   content: JSONContent;
   /** The folder the page sits in (folder phase 7): what a Folder index
    *  block set to `here` lists. Null at the top level; leave it out when
    *  unknown. */
   folderId?: string | null;
+  /** The reader may not hold that folder (a reviewer or a teammate reading
+   *  a draft in its author's own folder): a Folder index set to `here`
+   *  then shows its label alone instead of "not shared with you". */
+  quietHere?: boolean;
   /** Rewrite image asset paths (the member surface reads bytes from its own
    *  routes). Pass a stable function. */
   mapAssetPath?: (path: string) => string;
@@ -47,6 +52,7 @@ export function PageView({
         mapAssetPath={mapAssetPath}
         fileEmbedPath={fileEmbedPath}
         hereFolderId={folderId}
+        quietHere={quietHere}
         className="prose dark:prose-invert prose-accent prose-document max-w-none focus:outline-none"
       />
     </ZoomableImages>

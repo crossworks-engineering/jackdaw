@@ -14,6 +14,7 @@ import { TableControls } from './table-controls';
 import { DrawPicker } from './draw-picker';
 import { useDrawEmbedTheme } from './draw-embed-theme';
 import { SlashCommand } from './slash-command';
+import { folderIndexGate } from './slash-menu';
 import { FocusMarks, focusMarksKey } from './focus-marks';
 import { FocusGutter } from './focus-gutter';
 import { DiffReview, diffReviewKey, DIFF_ACTION_EVENT } from './diff-review';
@@ -252,7 +253,7 @@ export function PageEditor({
       SlashCommand.configure({
         pageId: pageId ?? null,
         folderId,
-        folderIndex: folderIndex ?? false,
+        folderIndex: folderIndexGate(folderIndex),
         member,
         privateItem,
         onPageCreated: () => void queryClient.invalidateQueries({ queryKey: treeKey('pages') }),
@@ -316,16 +317,21 @@ export function PageEditor({
   }, [editor]);
 
   // The page's folder can change under an open editor (it is moved from the
-  // tree beside it): the extension's storage follows, for `/page`, and the
-  // Folder index block reads the live value through HereFolderProvider.
+  // tree beside it), and so can the Folder index gate (the shell that says
+  // the tree serves pages arrives after the first paint). The extension's
+  // options are fixed once made, so its storage follows: the folder for
+  // `/page`, the gate for the slash list. The Folder index block reads the
+  // live folder through HereFolderProvider.
   useEffect(() => {
     if (!editor) return;
     const storage = editor.storage as unknown as Record<
       string,
-      { folderId?: string | null } | undefined
+      { folderId?: string | null; folderIndex?: boolean } | undefined
     >;
-    if (storage.slashCommand) storage.slashCommand.folderId = folderId;
-  }, [editor, folderId]);
+    if (!storage.slashCommand) return;
+    storage.slashCommand.folderId = folderId;
+    storage.slashCommand.folderIndex = folderIndexGate(folderIndex);
+  }, [editor, folderId, folderIndex]);
   const hereFolder = useMemo(() => ({ folderId }), [folderId]);
 
   // Embedded drawings follow the app theme like the /draw previews do.

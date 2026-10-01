@@ -61,11 +61,16 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
   // Mirror the page and folder ids into storage so a slash item's command
   // (which only receives { editor, range }) can reach them via
-  // `editor.storage.slashCommand`.
+  // `editor.storage.slashCommand`. The folder and the Folder index gate can
+  // change under a mounted editor (the page is moved; the shell that says
+  // whether the tree serves pages arrives after the first paint), and an
+  // extension's options are fixed once it is made: PageEditor keeps these
+  // two in step, and the list below reads the gate from here.
   addStorage() {
     return {
       pageId: this.options.pageId,
       folderId: this.options.folderId,
+      folderIndex: this.options.folderIndex,
       onPageCreated: this.options.onPageCreated,
     };
   },
@@ -73,6 +78,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
   onBeforeCreate() {
     this.storage.pageId = this.options.pageId;
     this.storage.folderId = this.options.folderId;
+    this.storage.folderIndex = this.options.folderIndex;
     this.storage.onPageCreated = this.options.onPageCreated;
   },
 
@@ -90,7 +96,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
           getSlashItems(query, {
             member: this.options.member,
             privateItem: this.options.privateItem,
-            folderIndex: this.options.folderIndex,
+            folderIndex: this.storage.folderIndex,
           }),
         render: () => {
           let component: ReactRenderer<SlashMenuHandle, SlashMenuProps> | null = null;

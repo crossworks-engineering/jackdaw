@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MEMBER_HIDDEN, PRIVATE_HIDDEN, getSlashItems } from './slash-menu';
+import { MEMBER_HIDDEN, PRIVATE_HIDDEN, folderIndexGate, getSlashItems } from './slash-menu';
+import { memberFolderIndex } from '../../lib/member-folder-index';
 
 describe('getSlashItems for a member', () => {
   it('hides the items that create or upload into the brain, by id', () => {
@@ -89,6 +90,49 @@ describe('getSlashItems and the Folder index', () => {
       'folder-index',
     );
     expect(getSlashItems('folder', { folderIndex: false }).map((i) => i.id)).not.toContain(
+      'folder-index',
+    );
+  });
+});
+
+describe('folderIndexGate: what an editor hands the slash command by default', () => {
+  const ids = (opts: Parameters<typeof getSlashItems>[1]) =>
+    getSlashItems('', opts).map((i) => i.id);
+
+  it('is on only when the caller said so: left out is off', () => {
+    expect(folderIndexGate(true)).toBe(true);
+    expect(folderIndexGate(false)).toBe(false);
+    expect(folderIndexGate(undefined)).toBe(false);
+  });
+
+  it('an editor given no gate offers no Folder index, member or owner', () => {
+    // A client's own page editor is a member editor that passes no gate.
+    expect(ids({ member: true, folderIndex: folderIndexGate(undefined) })).not.toContain(
+      'folder-index',
+    );
+    // The owner editor on a brain before the pages tree.
+    expect(ids({ folderIndex: folderIndexGate(undefined) })).not.toContain('folder-index');
+  });
+
+  it('a client, and a member on an older brain, get no item through the whole chain', () => {
+    const through = (args: Parameters<typeof memberFolderIndex>[0]) =>
+      ids({ member: true, folderIndex: folderIndexGate(memberFolderIndex(args).folderIndex) });
+    expect(through({ space: 'client', treeServesPages: true, folderId: 'f1' })).not.toContain(
+      'folder-index',
+    );
+    // No pages tree for members.
+    expect(through({ space: 'member', treeServesPages: false, folderId: 'f1' })).not.toContain(
+      'folder-index',
+    );
+    expect(through({ space: 'member', treeServesPages: undefined, folderId: 'f1' })).not.toContain(
+      'folder-index',
+    );
+    // No `folderId` on the draft body.
+    expect(through({ space: 'member', treeServesPages: true, folderId: undefined })).not.toContain(
+      'folder-index',
+    );
+    // And the one case that does.
+    expect(through({ space: 'member', treeServesPages: true, folderId: null })).toContain(
       'folder-index',
     );
   });

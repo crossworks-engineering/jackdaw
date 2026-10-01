@@ -93,6 +93,8 @@ export function ClientRequestItem({
           source="team"
           item={item satisfies SpaceItem}
           fileBytesPath={row.type === 'file' ? clientRequestBytesPath(row.id) : undefined}
+          // A client's page is in no folder a tree lists.
+          noFolder
         />
       </div>
     </div>

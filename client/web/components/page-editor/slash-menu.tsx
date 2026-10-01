@@ -378,6 +378,13 @@ export const MEMBER_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'image', 
  *  page sits in; a private item is neither in the brain nor in a folder. */
 export const PRIVATE_HIDDEN: ReadonlySet<string> = new Set(['new-page', 'folder-index']);
 
+/** The Folder index gate an editor hands the slash command (its option at
+ *  creation, its storage after): on only when the editor's caller said so.
+ *  Left out is off: a client's editor, a brain before the pages tree. */
+export function folderIndexGate(prop: boolean | undefined): boolean {
+  return prop === true;
+}
+
 /** Filter the command list by the text typed after the slash. */
 export function getSlashItems(
   query: string,

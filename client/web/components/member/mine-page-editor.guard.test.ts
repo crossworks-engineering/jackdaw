@@ -37,6 +37,42 @@ describe("a member's draft editor and the Folder index", () => {
   });
 });
 
+describe('the Folder index gate follows the editor, not its first render', () => {
+  const pageEditor = src('../page-editor/page-editor.tsx');
+  const slash = src('../page-editor/slash-command.ts');
+
+  it('PageEditor makes the extension with the shared gate and keeps its storage in step', () => {
+    expect(pageEditor).toContain('folderIndex: folderIndexGate(folderIndex),');
+    expect(pageEditor).toContain(
+      'storage.slashCommand.folderIndex = folderIndexGate(folderIndex);',
+    );
+    expect(pageEditor).toContain('}, [editor, folderId, folderIndex]);');
+    // No other default for the gate.
+    expect(pageEditor).not.toMatch(/folderIndex: (true|folderIndex \?\? )/);
+  });
+
+  it('the slash list reads the gate from the storage, not the frozen option', () => {
+    expect(slash).toContain('folderIndex: this.storage.folderIndex,');
+    expect(slash).not.toContain('folderIndex: this.options.folderIndex,\n          }),');
+    expect(slash).toContain('this.storage.folderIndex = this.options.folderIndex;');
+  });
+});
+
+describe('read-only views pass the folder only where the reader can list it', () => {
+  it('SpaceItemView goes through the shared rule', () => {
+    const view = src('./space-item-view.tsx');
+    expect(view).toContain('const here = spaceViewHere({');
+    expect(view).toContain('folderId={here.folderId}');
+    expect(view).toContain('quietHere={here.quietHere}');
+    expect(view).not.toContain('folderId={(body.page as');
+  });
+
+  it("a client's submitted item is in no folder, and the review view is quiet", () => {
+    expect(src('./client-request-item.tsx')).toMatch(/<SpaceItemView[\s\S]{0,400}noFolder\s/);
+    expect(src('../team-admin/review-tab.tsx')).toMatch(/<PageView[\s\S]{0,500}quietHere\s/);
+  });
+});
+
 describe('a draft moved while its editor is open', () => {
   it("the member's tree refreshes the open item's read, which names the folder", () => {
     const workspace = src('./member-workspace.tsx');

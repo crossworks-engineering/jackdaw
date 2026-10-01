@@ -30,13 +30,17 @@ async function readFolderIndex(
 }
 import { useViewerRole } from '@/components/member/viewer-role';
 import { childPageHref } from '@/lib/child-page-card';
+import { folderIndexFace } from './folder-index-face';
 
 /**
  * The body of a Folder index block (folder phase 7): the pages of one
- * folder, title only, in the folder's name order, read from the reader's own
- * tree route so it is always what THIS reader may see. An admin reads the
- * owner tree, a member its tree, a client its tree; a role not known yet, or
- * a folder the reader cannot see (404), shows nothing but the label.
+ * folder, title only, read from the reader's own tree route so it is always
+ * what THIS reader may see, in the order that tree gives them: by name for
+ * an admin and a client; for a member its own drafts first (newest first),
+ * then what it reads of the brain's by name. An admin reads the owner tree,
+ * a member its tree, a client its tree; a role not known yet shows nothing
+ * but the label, and a folder the reader cannot see (404) says it is not
+ * shared (folder-index-face.ts has the one exception, `quietHere`).
  *
  * `folderId` null is "the folder this page sits in", resolved by the caller
  * (`here`): undefined here means the caller does not know it (a private
@@ -47,9 +51,14 @@ import { childPageHref } from '@/lib/child-page-card';
 export function FolderIndexList({
   folderId,
   hereFolderId,
+  quietHere = false,
 }: {
   folderId: string | null;
   hereFolderId: string | null | undefined;
+  /** The reader may well not hold the page's folder (a reviewer or a
+   *  teammate reading a draft in its author's own folder): a 404 on `here`
+   *  shows the label alone instead of "not shared with you". */
+  quietHere?: boolean;
 }) {
   const role = useViewerRole();
   const source: TreeSource | null =
@@ -66,7 +75,15 @@ export function FolderIndexList({
   });
   const items: TreeItem[] = page.data?.items ?? [];
   const name = page.data?.folder?.name ?? (target === null ? 'Pages' : null);
-  const hidden = page.error instanceof ApiError && page.error.status === 404;
+  const face = folderIndexFace({
+    known,
+    pending: page.isPending,
+    failed: page.isError,
+    notFound: page.error instanceof ApiError && page.error.status === 404,
+    fromHere: folderId === null,
+    quietHere,
+    count: items.length,
+  });
 
   return (
     <div
@@ -78,13 +95,15 @@ export function FolderIndexList({
         <FolderOpen className="size-3.5" aria-hidden />
         <span>{name ? `In ${name}` : 'Folder index'}</span>
       </div>
-      {!known ? null : page.isPending ? (
+      {face === 'label' ? null : face === 'loading' ? (
         <p className="mt-1.5 text-sm text-muted-foreground">Loading…</p>
-      ) : page.isError ? (
+      ) : face === 'not-shared' || face === 'failed' ? (
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {hidden ? 'This folder is not shared with you.' : 'Could not load this folder.'}
+          {face === 'not-shared'
+            ? 'This folder is not shared with you.'
+            : 'Could not load this folder.'}
         </p>
-      ) : items.length === 0 ? (
+      ) : face === 'empty' ? (
         <p className="mt-1.5 text-sm text-muted-foreground">No pages here yet.</p>
       ) : (
         <ul className="mt-1.5 space-y-0.5">

@@ -269,6 +269,9 @@ function ReviewItemView({ item }: { item: ReviewItem }) {
           content={body.page.doc as JSONContent}
           mapAssetPath={mapAsset}
           folderId={(body.page as { folderId?: string | null }).folderId}
+          // Before Accept the draft may sit in its author's own folder, which
+          // the owner tree does not hold: the block then shows its label alone.
+          quietHere
         />
       );
     case 'note':
