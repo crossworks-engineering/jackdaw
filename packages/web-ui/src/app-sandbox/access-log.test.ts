@@ -42,3 +42,11 @@ suite('access log row names (client tier audit I5)', () => {
     expect(whoOf(row(null))).toBe('Anonymous (public link)');
   });
 });
+
+suite('access log row names: contact shares (brain migration 0214)', () => {
+  it('names the contact a contact share was for, and a deleted one as removed', () => {
+    const contact = { contactId: 'c-1', contactName: 'Ann', detail: { via: 'contact' } };
+    expect(whoOf(contact)).toBe('Ann (contact share)');
+    expect(whoOf({ ...contact, contactId: null, contactName: null })).toBe('Removed contact');
+  });
+});

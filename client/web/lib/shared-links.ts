@@ -63,10 +63,13 @@ export async function revokeShareLink(shareId: string): Promise<void> {
   await apiSend(`/api/shares/${encodeURIComponent(shareId)}`, 'DELETE');
 }
 
-/** After a revoke or a level change: Shared links and its levels reload. */
+/** After a revoke or a level change: Shared links and its levels reload,
+ *  and the contacts (a contact share's revoke shows on the contact's
+ *  "Shared" tab and share count, brain migration 0214). */
 export function invalidateLinkQueries(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: SHARES_KEY });
   void queryClient.invalidateQueries({ queryKey: SHARE_LEVELS_KEY });
+  void queryClient.invalidateQueries({ queryKey: ['contacts'] });
 }
 
 // ── Retired client links (client logins C3) ─────────────────────────────────

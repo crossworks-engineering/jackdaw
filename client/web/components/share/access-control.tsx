@@ -44,6 +44,8 @@ import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import { AccessLinkBox } from './access-link-box';
 import { RevokeLinkDialog, STAYS_AT_CLIENT, type RevokeTarget } from './revoke-link-dialog';
 import { authorBadgeText, authorName } from '@/lib/item-author';
+import { canShareWithContact, contactSharesHint } from '@/lib/contact-shares';
+import { ContactShareSection } from './contact-share-section';
 
 /**
  * The owner's Access control for one item: who can see it, as one level
@@ -83,6 +85,12 @@ import { authorBadgeText, authorName } from '@/lib/item-author';
  * Picking a level does not change it. The level is a server write that can
  * create an open link, so the arrow keys (which move the selection in a kit
  * ToggleGroup) only pick; the change happens on the explicit Apply.
+ *
+ * Contact shares (brain migration 0214): under the level, "Share with
+ * contact" shares the item with one or more contacts, each with their own
+ * link and code (ContactShareSection). They change no level, so the level
+ * line says the team does not see it. A brain before 0214 sends no
+ * `contactShares` and the section does not show.
  *
  * API: GET/PATCH /api/access/nodes/:id and the share routes. Loads fresh on every open, and again when the host reuses this
  * control for another item (list screens keep it mounted across selection);
@@ -359,6 +367,11 @@ export function AccessControl({
                       })
                     : 'Admin only. Only pages, notes, drawings, tables, files, folders, apps and formulas can be shared.'}
                 </p>
+                {contactSharesHint(view.contactShares) && (
+                  <p className="text-xs text-muted-foreground">
+                    {contactSharesHint(view.contactShares)}
+                  </p>
+                )}
                 {via && (
                   <p className="flex gap-1.5 text-xs text-muted-foreground">
                     <FolderOpen className="mt-px size-3.5 shrink-0" aria-hidden />
@@ -426,6 +439,26 @@ export function AccessControl({
                     : undefined
                 }
               />
+
+              {view.contactShares && canShareWithContact(view) && (
+                <ContactShareSection
+                  nodeId={nodeId}
+                  itemType={view.item.type}
+                  shares={view.contactShares}
+                  onChanged={() => {
+                    void load();
+                    invalidateLinkQueries(queryClient);
+                  }}
+                  onRemove={(s) =>
+                    askRevoke({
+                      shareId: s.shareId,
+                      title: view.item.title,
+                      cascade: false,
+                      stays: `Only ${s.name || 'this contact'} loses it. The item keeps its level.`,
+                    })
+                  }
+                />
+              )}
 
               {oldLinksAbove.length > 0 && (
                 <div className="space-y-2 border-t border-border pt-3">

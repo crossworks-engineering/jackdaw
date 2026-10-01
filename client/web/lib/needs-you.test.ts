@@ -109,3 +109,26 @@ describe('arrivals', () => {
     expect(arrivals(before, after).map((a) => a.kind)).toEqual(['request', 'review']);
   });
 });
+
+describe('needs-you: locked contact sharing (brain migration 0214)', () => {
+  const withLocked = (base: NeedsYou, locked: number, id = 'c-1'): NeedsYou => ({
+    ...base,
+    sharing: { locked, newest: locked ? item(id, '2026-10-01T10:00:00Z', 'Ann', '') : null },
+    total: base.total + locked,
+  });
+
+  it('counts and names a locked contact, and opens it when nothing else waits', () => {
+    const only = withLocked(ny({}), 1);
+    expect(totalWaiting(only)).toBe(1);
+    expect(needsYouLabel(only)).toBe('1 contact locked');
+    expect(needsYouHref(only)).toBe('/contacts?id=c-1');
+    const both = withLocked(ny({ submitted: 2 }), 2);
+    expect(needsYouLabel(both)).toBe('2 waiting for review · 2 contacts locked');
+    expect(needsYouHref(both)).toBe('/team-admin?view=review');
+  });
+
+  it('a brain before 0214 sends no sharing: nothing changes', () => {
+    expect(totalWaiting(ny({ open: 1 }))).toBe(1);
+    expect(needsYouLabel(ny({ open: 1 }))).toBe('1 open request');
+  });
+});

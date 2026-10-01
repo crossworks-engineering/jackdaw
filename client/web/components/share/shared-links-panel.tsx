@@ -47,7 +47,20 @@ export type SharedLinkRow = {
   viewCount: number;
   lastViewedAt: string | null;
   level?: AccessLevel;
+  /** A contact share (brain migration 0214): the contact it is for, and
+   *  whether that contact may write the app. Absent on an open link and on
+   *  older brains. */
+  contactId?: string | null;
+  contactName?: string | null;
+  canWrite?: boolean;
 };
+
+/** The contact line of a contact share's card, or null for an open link. */
+function contactLine(row: SharedLinkRow): string | null {
+  if (!row.contactId) return null;
+  const who = row.contactName || 'a removed contact';
+  return `For ${who} only${row.canWrite ? ', can write' : ''}`;
+}
 
 type SharesData = { shares: SharedLinkRow[] };
 
@@ -222,7 +235,11 @@ export function SharedLinksPanel({
                         {row.viewCount === 1 ? '' : 's'}
                         {row.lastViewedAt ? `, last ${formatDate(row.lastViewedAt)}` : ''}
                       </ListCardMeta>
-                      <LinkLevel level={levelOf(row)} />
+                      {contactLine(row) ? (
+                        <ListCardMeta>{contactLine(row)}</ListCardMeta>
+                      ) : (
+                        <LinkLevel level={levelOf(row)} />
+                      )}
                     </ListCard>
                   </li>
                 ))}
@@ -251,7 +268,14 @@ export function SharedLinksPanel({
                       {selected.viewCount === 1 ? '' : 's'}
                     </p>
                     <div className="mt-1">
-                      <LinkLevel level={levelOf(selected)} />
+                      {contactLine(selected) ? (
+                        <p className="text-xs text-muted-foreground">
+                          {contactLine(selected)}. It opens with their code; the item keeps its
+                          level.
+                        </p>
+                      ) : (
+                        <LinkLevel level={levelOf(selected)} />
+                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
@@ -319,7 +343,11 @@ export function SharedLinksPanel({
                 shareId: confirmRevoke.id,
                 title: confirmRevoke.title,
                 cascade: confirmRevoke.cascade,
-                stays: isOldClientLink(levelOf(confirmRevoke)) ? STAYS_AT_CLIENT : null,
+                stays: confirmRevoke.contactId
+                  ? `Only ${confirmRevoke.contactName || 'that contact'} loses it. The item keeps its level.`
+                  : isOldClientLink(levelOf(confirmRevoke))
+                    ? STAYS_AT_CLIENT
+                    : null,
               }
             : null
         }

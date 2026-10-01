@@ -25,22 +25,35 @@ export const reviewWaiting = (n: NeedsYou | null | undefined): number =>
 
 export const requestsOpen = (n: NeedsYou | null | undefined): number => (n ? n.requests.open : 0);
 
-export const totalWaiting = (n: NeedsYou | null | undefined): number =>
-  reviewWaiting(n) + requestsOpen(n);
+/** Contacts whose sharing locked after too many wrong codes (contact
+ *  shares, brain migration 0214). A brain before 0214 sends no `sharing`. */
+export const sharingLocked = (n: NeedsYou | null | undefined): number => n?.sharing?.locked ?? 0;
 
-/** The rail notice: "2 waiting for review", "1 open request", or both. */
+export const totalWaiting = (n: NeedsYou | null | undefined): number =>
+  reviewWaiting(n) + requestsOpen(n) + sharingLocked(n);
+
+/** The rail notice: "2 waiting for review", "1 open request", "1 contact
+ *  locked", or several. */
 export function needsYouLabel(n: NeedsYou | null | undefined): string | null {
   const review = reviewWaiting(n);
   const requests = requestsOpen(n);
+  const locked = sharingLocked(n);
   const parts: string[] = [];
   if (review > 0) parts.push(`${review} waiting for review`);
   if (requests > 0) parts.push(`${requests} open request${requests === 1 ? '' : 's'}`);
+  if (locked > 0) parts.push(`${locked} contact${locked === 1 ? '' : 's'} locked`);
   return parts.length ? parts.join(' · ') : null;
 }
 
-/** Where the notice goes: Review first, since members wait on it. */
-export const needsYouHref = (n: NeedsYou | null | undefined): string =>
-  reviewWaiting(n) > 0 || requestsOpen(n) === 0 ? REVIEW_HREF : REQUESTS_HREF;
+/** Where the notice goes: Review first, since members wait on it; then
+ *  Requests; a locked contact alone opens that contact. */
+export function needsYouHref(n: NeedsYou | null | undefined): string {
+  if (reviewWaiting(n) > 0) return REVIEW_HREF;
+  if (requestsOpen(n) > 0) return REQUESTS_HREF;
+  const locked = n?.sharing?.newest;
+  if (sharingLocked(n) > 0 && locked) return `/contacts?id=${encodeURIComponent(locked.id)}`;
+  return REVIEW_HREF;
+}
 
 export type Arrival = { kind: 'review' | 'request'; item: NeedsYouItem };
 

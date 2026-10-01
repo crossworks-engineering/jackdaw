@@ -61,8 +61,11 @@ export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
  *  or a client's row says so, never "Anonymous" (client tier audit I5).
  *  Exported for the test. */
 export function whoOf(e: Pick<AccessEntry, 'contactId' | 'contactName' | 'detail'>): string {
-  if (e.contactName) return e.contactName;
-  if (e.contactId) return 'Removed contact';
+  // A contact share's row (brain migration 0214): the contact the share
+  // named, and how they got in.
+  const viaContact = e.detail.via === 'contact';
+  if (e.contactName) return viaContact ? `${e.contactName} (contact share)` : e.contactName;
+  if (e.contactId || viaContact) return 'Removed contact';
   if (e.detail.via === 'member') return 'Removed member';
   if (e.detail.via === 'client') return 'Removed client';
   return 'Anonymous (public link)';
