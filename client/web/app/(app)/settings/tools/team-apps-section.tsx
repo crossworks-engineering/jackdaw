@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
-import type { ToolDTO } from '@mantle/client-types';
+import type { ToolDTO, ToolTeamAppsDTO } from '@mantle/client-types';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
@@ -21,20 +21,11 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 
-/**
- * "Team apps may use" as the server reports it (`ToolDTO.teamApps`, mantle
- * docs/member-logins.md "Outside tools in team apps"). Typed here as an
- * optional extra until the contract that carries it is published and pinned;
- * then this becomes `ToolTeamAppsDTO` from `@mantle/client-types`.
- */
-export type ToolTeamApps = {
-  /** False when the tool's handler changed after an admin confirmed it. */
-  on: boolean;
-  confirmedReadOnlyAt: string;
-  by: { via: 'web' | 'mcp' | 'dev-tools'; actorId?: string; actorEmail?: string };
-};
+/** "Team apps may use" as the server reports it (`ToolDTO.teamApps`, mantle
+ *  docs/member-logins.md "Outside tools in team apps"). */
+export type ToolTeamApps = ToolTeamAppsDTO;
 
-export type ToolWithTeamApps = ToolDTO & { teamApps?: ToolTeamApps | null };
+export type ToolWithTeamApps = ToolDTO;
 
 /** Why this tool can't be opened to team apps as it stands, else null. Mirrors
  *  the server's rule; the server refuses anyway. */
