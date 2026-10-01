@@ -112,7 +112,7 @@ export function TeamAppsSection({
           <FieldHint
             id="team-apps-switch"
             className="mt-1 leading-relaxed"
-            warn="Every team member can call this tool, with any input, through any team app that declares it."
+            warn="Every team member can call this tool by hand, with any input, not only what an app's screens send. If it takes free SQL, a member can read anything the connector can read."
           >
             Lets team members&apos; apps call this tool. It must also be in an enabled team-level
             tool group, and the app must declare it. Client apps and public links never use it.
@@ -150,9 +150,14 @@ export function TeamAppsSection({
                 <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-warning-ink">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span>
-                    Every team member can call this tool, with any input, through any team app that
-                    declares it. No model checks the calls.
+                    Every team member can call this tool through any team app that declares it. They
+                    can also call it by hand, from their browser with their own login, with ANY
+                    input, not only what the app&apos;s screens send. No model checks the calls.
                   </span>
+                </p>
+                <p>
+                  If the tool takes free SQL or a free query, a member can read anything the
+                  connector can read.
                 </p>
                 <p>
                   The brain can&apos;t see what an outside tool does. Switch this on only for a tool
