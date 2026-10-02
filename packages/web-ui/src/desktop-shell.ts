@@ -24,15 +24,15 @@ export type DesktopShellApi = {
     get(): string | null;
     set(token: string): void;
     clear(): void;
-    /** One bearer per login (shells from v0.6.125). Optional as a group: a
-     *  shell without them holds one login per brain window. */
+    /** One bearer per login. Optional as a group: an older shell without
+     *  them holds one login per brain window. */
     getFor?(sessionId: string): string | null;
     setFor?(sessionId: string, token: string): void;
     clearFor?(sessionId: string): void;
     /** Move the one-slot bearer to a login that has none yet; returns it. */
     adopt?(sessionId: string): string | null;
   };
-  /** Other brains, from inside a brain window (shells from v0.6.125). The
+  /** Other brains, from inside a brain window (newer shells only). The
    *  shell opens the named brain in ITS OWN window on its sign-in screen; the
    *  page hands over an address and an email, never a password. */
   brains?: {

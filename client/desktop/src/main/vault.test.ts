@@ -142,7 +142,7 @@ describe('the update from one slot per brain', () => {
   });
 
   it('reads a file written before this build, byte for byte the old format', () => {
-    // What index.ts wrote up to v0.6.124.
+    // What index.ts wrote before per-login slots: one file per brain.
     const vault = createVault(dir, codec);
     vault.write(BRAIN_A, 'legacy.bearer');
     const raw = JSON.parse(readFileSync(join(dir, 'vault', `${BRAIN_A}.tok`), 'utf8'));
