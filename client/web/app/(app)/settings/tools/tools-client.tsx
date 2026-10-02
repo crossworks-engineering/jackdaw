@@ -38,6 +38,8 @@ import { ListCard, ListCardSnippet } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
+import { ListSearchBar, ListSearchEmpty, useListQuery } from '@/components/list-search';
+import { filterTools } from '@/lib/tool-search';
 import { TeamAppsSection, type ToolWithTeamApps } from './team-apps-section';
 
 type ToolSummary = ToolWithTeamApps;
@@ -304,8 +306,28 @@ export function ToolsClient() {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Delete failed.'),
   });
 
-  const builtins = tools.filter((t) => t.handler.kind === 'builtin');
-  const userDefined = tools.filter((t) => t.handler.kind !== 'builtin');
+  // Search. A connector tool also matches its group's display name; the
+  // ['tool-groups'] cache is the one the Tool groups screen reads.
+  const groupsQuery = useQuery({
+    queryKey: ['tool-groups'],
+    queryFn: () =>
+      apiFetch<{ groups: { slug: string; name: string }[] }>('/api/tool-groups').then(
+        (r) => r.groups,
+      ),
+  });
+  const groupNames = useMemo(
+    () => new Map((groupsQuery.data ?? []).map((g) => [g.slug, g.name])),
+    [groupsQuery.data],
+  );
+  const search = useListQuery();
+  const shown = useMemo(
+    () => filterTools(tools, search.query, groupNames),
+    [tools, search.query, groupNames],
+  );
+  const filtering = search.query.trim() !== '';
+
+  const builtins = shown.filter((t) => t.handler.kind === 'builtin');
+  const userDefined = shown.filter((t) => t.handler.kind !== 'builtin');
 
   const editTool = editing?.mode === 'edit' ? editing.tool : null;
   const isBuiltin = editTool?.handler.kind === 'builtin';
@@ -442,6 +464,15 @@ export function ToolsClient() {
         // is what keeps it off 1200px line lengths (§8).
         list={
           <>
+            <ListSearchBar
+              query={search.query}
+              onQuery={search.setQuery}
+              inputRef={search.inputRef}
+              placeholder="Search tools…"
+              shown={shown.length}
+              total={toolsQuery.isSuccess ? tools.length : undefined}
+              noun={['tool', 'tools']}
+            />
             <div className="space-y-4 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
               {toolsQuery.isPending ? (
                 <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
@@ -460,6 +491,8 @@ export function ToolsClient() {
                     Retry
                   </Button>
                 </div>
+              ) : filtering && shown.length === 0 ? (
+                <ListSearchEmpty noun="tools" onClear={search.clear} />
               ) : (
                 <>
                   <section className="space-y-1.5">
@@ -478,7 +511,9 @@ export function ToolsClient() {
                       </Button>
                     </div>
                     {userDefined.length === 0 ? (
-                      <p className="px-1 text-xs text-muted-foreground/60">None yet.</p>
+                      <p className="px-1 text-xs text-muted-foreground/60">
+                        {filtering ? 'None match.' : 'None yet.'}
+                      </p>
                     ) : (
                       userDefined.map((t) => (
                         <ToolCard
@@ -491,19 +526,21 @@ export function ToolsClient() {
                     )}
                   </section>
 
-                  <section className="space-y-1.5">
-                    <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Built-in ({builtins.length})
-                    </h3>
-                    {builtins.map((t) => (
-                      <ToolCard
-                        key={t.id}
-                        tool={t}
-                        selected={selectedId === t.id}
-                        onClick={() => openEdit(t)}
-                      />
-                    ))}
-                  </section>
+                  {(builtins.length > 0 || !filtering) && (
+                    <section className="space-y-1.5">
+                      <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Built-in ({builtins.length})
+                      </h3>
+                      {builtins.map((t) => (
+                        <ToolCard
+                          key={t.id}
+                          tool={t}
+                          selected={selectedId === t.id}
+                          onClick={() => openEdit(t)}
+                        />
+                      ))}
+                    </section>
+                  )}
                 </>
               )}
 

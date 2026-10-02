@@ -31,6 +31,8 @@ import {
 } from '@mantle/web-ui/ui/field';
 import { FieldHint } from '@mantle/web-ui/ui/field-hint';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { ListSearchBar, ListSearchEmpty, useListQuery } from '@/components/list-search';
+import { filterToolGroups } from '@/lib/tool-search';
 import { ToolPicker, type ToolOption } from '@/components/tool-picker';
 import {
   ToolGroupIntegrationSection,
@@ -171,6 +173,9 @@ export function ToolGroupsClient() {
   };
   const close = () => setEditing(null);
 
+  const search = useListQuery();
+  const shownGroups = useMemo(() => filterToolGroups(groups, search.query), [groups, search.query]);
+
   // Deep link: /settings/tool-groups?selected=<id-or-slug> opens that group's
   // editor once the list arrives (one-shot; selection stays client-state).
   const searchParams = useSearchParams();
@@ -251,6 +256,15 @@ export function ToolGroupsClient() {
                 <Plus /> New
               </Button>
             </div>
+            <ListSearchBar
+              query={search.query}
+              onQuery={search.setQuery}
+              inputRef={search.inputRef}
+              placeholder="Search tool groups…"
+              shown={shownGroups.length}
+              total={groupsQuery.isSuccess ? groups.length : undefined}
+              noun={['tool group', 'tool groups']}
+            />
             <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
               {groupsQuery.isPending ? (
                 <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
@@ -273,8 +287,10 @@ export function ToolGroupsClient() {
                 <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
                   No tool groups yet. Click <strong>New</strong> to bundle some tools.
                 </p>
+              ) : shownGroups.length === 0 ? (
+                <ListSearchEmpty noun="tool groups" onClear={search.clear} />
               ) : (
-                groups.map((g) => {
+                shownGroups.map((g) => {
                   const selected = editing?.mode === 'edit' && editing.group.id === g.id;
                   const agents = g.grantedTo ?? [];
                   return (
