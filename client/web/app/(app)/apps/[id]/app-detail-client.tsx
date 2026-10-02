@@ -3,17 +3,8 @@
 import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Eye,
-  GitCommitHorizontal,
-  Undo2,
-  SquareDashedMousePointer,
-  X,
-  Save,
-  WandSparkles,
-} from 'lucide-react';
+import { Eye, GitCommitHorizontal, Undo2, Save, WandSparkles } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -129,10 +120,6 @@ function AppDetailView({ app }: { app: AppDetail }) {
     null,
   );
   const [buildErrors, setBuildErrors] = useState<BuildMsg[]>([]);
-  // Inspect-to-focus: the region the user locked in the preview, and whether
-  // select mode is active. Both reset whenever the app reloads (rebuild/publish).
-  const [inspect, setInspect] = useState(false);
-  const [focusRegion, setFocusRegion] = useState<string | null>(null);
   // Discard throws away the whole draft, the assistant's work included, and
   // cannot be undone: it asks first (apps audit U2).
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -166,11 +153,6 @@ function AppDetailView({ app }: { app: AppDetail }) {
 
   const activeContent = files[activePath] ?? files[source.entry] ?? '';
   const canFormat = FORMATTABLE.has(extOf(activePath));
-
-  useEffect(() => {
-    setInspect(false);
-    setFocusRegion(null);
-  }, [reloadKey]);
 
   // Re-sync the editable copy whenever the server source changes (a build,
   // publish, discard, or an Appsmith edit). With unsaved edits in the editor
@@ -263,25 +245,15 @@ function AppDetailView({ app }: { app: AppDetail }) {
   }
 
   // Wire the global assistant overlay to this app: arm the Appsmith specialist,
-  // pin this app as context, fold the inspect-selected region into a focus
-  // directive, and rebuild the preview when Appsmith edits the draft. Replaces
-  // the old in-builder Appsmith panel; the draft/Commit flow is unchanged.
-  const focusDirective = useMemo(
-    () =>
-      focusRegion
-        ? `FOCUS REGION — the user selected the region "${focusRegion}" in the live ` +
-          `preview. Scope your change to that region and leave the rest of the app ` +
-          `unchanged unless explicitly asked.`
-        : null,
-    [focusRegion],
-  );
+  // pin this app as context, and rebuild the preview when Appsmith edits the
+  // draft. Replaces the old in-builder Appsmith panel; the draft/Commit flow is
+  // unchanged.
   const onAppEdited = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: APPS_KEY });
     setReloadKey((k) => k + 1);
   }, [queryClient]);
   useSurfaceAssist({
     node: { id: app.id, kind: 'app', label: app.title },
-    focusDirective,
     onEdited: onAppEdited,
   });
 
@@ -428,8 +400,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         </div>
 
         {/* Builder — the live preview. Ask Appsmith to edit the app via the
-            global assistant (⌘I), auto-armed for this app; "Select element"
-            focuses it on one region. */}
+            global assistant (⌘I), auto-armed for this app. */}
         {/* forceMount: the running app stays mounted while another tab is
             open (apps audit P8). Unmounting it on every switch minted a new
             frame ticket, reloaded the app and lost its state. */}
@@ -442,42 +413,11 @@ function AppDetailView({ app }: { app: AppDetail }) {
               fills the pane and the app handles its own scrolling, exactly as
               it will on the shared /s/ surface. */}
           <div className="flex min-h-0 flex-1 flex-col p-3">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant={inspect ? 'default' : 'outline'}
-                onClick={() => setInspect((v) => !v)}
-                title="Click a region in the preview to focus Appsmith on it"
-              >
-                <SquareDashedMousePointer />
-                {inspect ? 'Selecting… (Esc)' : 'Select element'}
-              </Button>
-              {inspect && (
-                <span className="text-xs text-muted-foreground">
-                  Hover a region, click to focus it.
-                </span>
-              )}
-              {focusRegion && (
-                <span className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground">
-                  <SquareDashedMousePointer className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 max-w-[16rem] truncate">
-                    Focusing <span className="font-medium">{focusRegion}</span>
-                  </span>
-                  <RowButton
-                    onClick={() => setFocusRegion(null)}
-                    className="shrink-0 rounded text-muted-foreground hover:text-foreground"
-                    aria-label="Clear focus"
-                  >
-                    <X className="size-3.5" />
-                  </RowButton>
-                </span>
-              )}
-            </div>
             <div className="min-h-0 flex-1">
               {/* `onError` above is the app's own build failing, which the
                   sandbox reports and handles. This is the other kind: the
-                  sandbox host itself throwing, which took the toolbar, the
-                  build errors pane and the inspector down with it. */}
+                  sandbox host itself throwing, which took the build errors
+                  pane down with it. */}
               <SurfaceErrorBoundary label="this app" resetKeys={[app.id, reloadKey]}>
                 <AppSandbox
                   appId={app.id}
@@ -487,10 +427,6 @@ function AppDetailView({ app }: { app: AppDetail }) {
                   frame="viewport"
                   reloadKey={reloadKey}
                   onError={(m) => toast.error(m)}
-                  inspect={inspect}
-                  selectedRegionId={focusRegion}
-                  onSelect={setFocusRegion}
-                  onInspectChange={setInspect}
                 />
               </SurfaceErrorBoundary>
             </div>

@@ -16,8 +16,8 @@ import {
  *
  *   1. pins the open node as context so it rides every turn (the responder
  *      always knows what you're editing, and which specialist to hand it to);
- *   2. folds an optional focus directive (Pages gutter marks, the Apps inspect
- *      region) into the sent text;
+ *   2. folds an optional focus directive (Pages gutter marks) into the
+ *      sent text;
  *   3. publishes the in-node selection (marked blocks with snippets) so the
  *      composer shows it as chips — the user SEES what the assistant sees;
  *   4. publishes the pending draft-change count for the panel's context strip;

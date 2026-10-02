@@ -830,7 +830,7 @@ export function AssistantClient({
     // Context — the screen-pinned node + any picked nodes ride along as a
     // reference preamble appended to the SENT text (the bubble still shows what
     // was typed). The agent reads them with its tools (file_read / page_get / …).
-    // A surface focus directive (Pages marks, the Apps inspect region) follows,
+    // A surface focus directive (Pages marks) follows,
     // so the specialist narrows the same way the old in-screen panels did.
     const compose = (body: string, picked: ContextRef[]) =>
       body +

@@ -210,8 +210,8 @@ type AssistantDockApi = {
    *  so it drops from the chips, the preamble, and the sent turn — for a general
    *  question. Navigating to another item re-pins that one. */
   dismissPinnedContext: (id: string) => void;
-  /** An extra directive (e.g. Pages focus marks, the Apps inspect region) folded
-   *  into the sent text after the context preamble. Null when nothing's focused. */
+  /** An extra directive (e.g. Pages focus marks) folded into the
+   *  sent text after the context preamble. Null when nothing's focused. */
   extraDirective: string | null;
   setExtraDirective: (directive: string | null) => void;
   /** The current screen's in-node selection (Pages gutter marks…), published so
