@@ -50,6 +50,7 @@ import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { appsAdapter } from '@/components/item-tree/kinds/apps';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -119,7 +120,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   const treeServes = useTreeServes('apps');
   const [itemTreeGone, setItemTreeGone] = useState(false);
   const itemTree = treeServes === true && !itemTreeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   // Everything selectable in the current mode, in the order a fresh visit
   // should pick from: pins first, then the tree, then the rest.

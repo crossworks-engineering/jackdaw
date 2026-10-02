@@ -101,6 +101,7 @@ import { TagInput } from '@/components/tag-input';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { pagesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -212,7 +213,7 @@ export function PagesClient() {
   const treeServes = useTreeServes('pages');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
   // The folder open in the tree: where New files the page (null = the top
   // level, the tree's root row). Followed through the tree's cache: renamed
   // or moved, it is the folder as it is now; deleted (here or in another

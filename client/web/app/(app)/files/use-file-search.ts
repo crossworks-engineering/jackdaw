@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import type { FileSearchHit } from './files-shared';
 
 /**
@@ -44,7 +45,8 @@ export type FileSearch = {
 };
 
 export function useFileSearch(): FileSearch {
-  const [query, setQuery] = useState('');
+  // In the URL (?q=), as on every tree screen: a link, a reload or Back keeps it.
+  const [query, setQuery] = useTreeSearch();
   const [hits, setHits] = useState<FileSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   // Which search is current. Clearing the debounce timer cancels a request

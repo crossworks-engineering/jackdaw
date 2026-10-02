@@ -58,6 +58,7 @@ import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { tablesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -108,7 +109,7 @@ export function TablesShell() {
   const treeServes = useTreeServes('tables');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   const listQuery = useQuery({
     queryKey: ['tables', { q: query, tag: activeTag, sort, page, state }],

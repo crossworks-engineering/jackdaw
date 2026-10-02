@@ -40,6 +40,7 @@ import { authorName } from '@/lib/item-author';
 import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
 import { useAcceptedDraftNotice, useLiveTreeFolder } from '@/components/item-tree/use-tree-cache';
@@ -127,7 +128,7 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const treeServed = serves === true && treeAdapter !== null;
   const wantsFolders = readerViewOf(params) === 'folders';
   const folders = treeServed && wantsFolders;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
   // The folder the tree has open: where New and Upload file a draft (null =
   // the top level, the tree's root row). Followed through the tree's cache:
   // renamed or moved, it is the folder as it is now; deleted (here or in

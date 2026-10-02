@@ -41,6 +41,7 @@ import type { DimensionIssue } from '@mantle/content-core/formula-dimensions';
 import type { TargetSignature } from '@mantle/content-core/formula-signature';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { formulasAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -88,7 +89,7 @@ export function FormulasClient() {
   const treeServes = useTreeServes('formulas');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   // Selection lives in client state, NOT read back off the URL. `select` mirrors
   // it to the address bar with history.replaceState, which deliberately performs

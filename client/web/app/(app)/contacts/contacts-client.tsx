@@ -58,6 +58,7 @@ import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { contactsAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -86,7 +87,7 @@ export function ContactsClient() {
   const treeServes = useTreeServes('contacts');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   const listQuery = useQuery({
     queryKey: ['contacts', { q: query, page }],

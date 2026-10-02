@@ -23,6 +23,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { StatePill } from '@/components/item-list/state-pill';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { recallAdapter } from '@/components/item-tree/kinds/simple';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useListNav } from '@/lib/use-list-nav';
@@ -163,7 +164,7 @@ function RecallV2View({
   const treeServes = useTreeServes('recall');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   // The URL's map when it names one, even off this page of the catalog (the
   // workbench loads it by id); else the first map shown.

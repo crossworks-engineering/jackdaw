@@ -52,6 +52,7 @@ import {
 } from '@/components/item-list/admin-private-rows';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { notesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -99,7 +100,7 @@ export function NotesClient() {
   const treeServes = useTreeServes('notes');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   const listQuery = useQuery({
     queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, state }],

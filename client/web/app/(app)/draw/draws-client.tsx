@@ -61,6 +61,7 @@ import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { drawAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -139,7 +140,7 @@ export function DrawsClient() {
   const treeServes = useTreeServes('draw');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   // Selection lives in client state; `select` mirrors it to the URL with
   // replaceState (no navigation) — the param is an entry point, not truth.

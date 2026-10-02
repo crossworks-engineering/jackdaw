@@ -24,6 +24,7 @@ import { TagPill } from '@mantle/web-ui/tag-pill';
 import { SecretForm, emptySecretForm, KINDS, type SecretBody } from './secret-form';
 import { SecretDetail, type SecretRow } from './secret-detail';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { secretsAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -114,7 +115,7 @@ function SecretsView({
   const [secrets, setSecrets] = useState(initialSecrets);
   const [searchInput, setSearchInput] = useState(query);
   const [pending, startTransition] = useTransition();
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
   // The tree has no rows to default to, so it opens on the empty pane rather
   // than the create form.
   const [sel, setSel] = useState<Selection>(() =>

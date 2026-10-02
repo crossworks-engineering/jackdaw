@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Shapes } from 'lucide-react';
@@ -23,6 +23,7 @@ import { ClientChatLauncher } from './client-chat';
 import { ClientReader } from './client-reader';
 import { ClientSharedCard } from './client-shared-card';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import { ReaderViewToggle, readerViewOf } from '@/components/item-tree/reader-view-toggle';
 import { treeKindOfItem, useReaderTreeKinds } from '@/components/item-tree/use-tree-kinds';
@@ -79,7 +80,7 @@ export function ClientHome() {
   const folderKind = folders ? (kind && folderKinds.includes(kind) ? kind : folderKinds[0]!) : null;
   const treeKind = folderKind ? treeKindOfItem(folderKind) : null;
   const treeAdapter = treeKind ? readerTreeAdapter(treeKind) : null;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
   const setView = (v: 'list' | 'folders') =>
     go({ view: v === 'folders' ? 'folders' : null, page: null });
 

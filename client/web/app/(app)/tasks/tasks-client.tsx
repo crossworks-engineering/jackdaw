@@ -30,6 +30,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
+import { useUrlSearchBox } from '@/lib/url-search-box';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -44,6 +45,7 @@ import { TaskDetail, type TaskPatch, type TaskRow } from './task-detail';
 import { TaskBoard, type BoardMove } from './task-board';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { tasksAdapter } from '@/components/item-tree/kinds/dated';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -89,7 +91,7 @@ export function TasksClient() {
   const treeServes = useTreeServes('tasks');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone && !isBoard && !showingArchive;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   const listQuery = useQuery({
     queryKey: ['tasks', { q: query, status, priority, page, showingArchive }],
@@ -183,7 +185,12 @@ export function TasksClient() {
     }, 400);
   });
 
-  const [searchInput, setSearchInput] = useState(query);
+  // The Board and Archived box: the URL q, which the tree writes too, so a
+  // switch between them and the tree keeps the text both ways. A new search
+  // goes back to page 1.
+  const [searchInput, setSearchInput] = useUrlSearchBox(query, (next) =>
+    go({ q: next, page: null }),
+  );
   const [pending, startTransition] = useTransition();
   useEffect(() => {
     // The tree opens nothing by itself: a task opens when you pick it.
@@ -212,15 +219,6 @@ export function TasksClient() {
     }
     syncSelectionParam('selected', sel?.mode === 'view' ? sel.id : null);
   }, [sel]);
-
-  // Debounced search → URL (?q=); resets to page 1.
-  useEffect(() => {
-    const h = setTimeout(() => {
-      if (searchInput.trim() !== query) go({ q: searchInput.trim() || null, page: null });
-    }, 350);
-    return () => clearTimeout(h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchInput]);
 
   const filtering = !!query || statusParam !== 'active' || priority !== 'all';
   // Stable so the board's memoised cards actually skip: an inline arrow here

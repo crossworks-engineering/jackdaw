@@ -35,6 +35,7 @@ import { EventForm, emptyEventForm, type EventPayload } from './event-form';
 import { EventDetail, type EventRow } from './event-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { eventsAdapter } from '@/components/item-tree/kinds/dated';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
@@ -90,7 +91,7 @@ export function EventsClient() {
   const treeServes = useTreeServes('events');
   const [treeGone, setTreeGone] = useState(false);
   const showTree = treeServes === true && !treeGone;
-  const [treeQuery, setTreeQuery] = useState('');
+  const [treeQuery, setTreeQuery] = useTreeSearch();
 
   const listQuery = useQuery({
     queryKey: ['events', { q: query, window, page }],
