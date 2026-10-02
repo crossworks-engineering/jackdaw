@@ -66,12 +66,12 @@ async function fetchPreview(code: string): Promise<Preview> {
  * valid code (a link carries one); the password step greets the person by
  * the invite's name and email.
  *
- * Accepting signs the person in as a MEMBER the way the sign-in form does:
- * same-origin the accept answer sets the session cookie and the client sets
- * the presence cookie; split (the API on another origin) it exchanges the new
- * email and password for a bearer at /api/auth/token. Either way the member
- * hint is set (an invite only ever makes a member login) and the browser
- * loads the member home.
+ * Accepting signs the person in as a MEMBER the way the sign-in form does: it
+ * exchanges the new email and password for a bearer at /api/auth/token and
+ * holds it as one of the device's logins (same-origin the accept answer has
+ * also set this login's session cookie; if the exchange fails there, that
+ * cookie alone signs the browser in). The member hint is set (an invite only
+ * ever makes a member login) and the browser loads the member home.
  */
 export function InviteClient({
   mark,
@@ -158,23 +158,27 @@ export function InviteClient({
       }
       const email = outcome.email || preview.invite.email;
 
-      if (split) {
-        // The accept answer's cookie is on the API origin, which a split
-        // client never uses: sign in for a bearer with what was just set.
-        const tokenRes = await fetch(apiUrl('/api/auth/token'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, password, deviceName: 'Web client' }),
-        });
-        const token = tokenRes.ok ? await readBearer(tokenRes) : null;
-        if (!token) {
-          setFormError(`Your login is ready. Sign in at /login with ${email} and your password.`);
-          return;
-        }
-        tokenStore.set(token);
+      // Sign in for a bearer with what was just set, as the sign-in form does
+      // in both topologies: the new member login is then one of the logins
+      // this device holds, and any other login held here stays as it was.
+      // Split, the accept answer's cookie is on the API origin, which a split
+      // client never uses; same-origin it is this very login's, so it stays.
+      const tokenRes = await fetch(apiUrl('/api/auth/token'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password, deviceName: 'Web client' }),
+        credentials: 'omit',
+      }).catch(() => null);
+      const token = tokenRes?.ok ? await readBearer(tokenRes) : null;
+      if (token) {
+        tokenStore.signIn({ email, token });
+      } else if (split) {
+        setFormError(`Your login is ready. Sign in at /login with ${email} and your password.`);
+        return;
       } else {
-        // A bearer left by an earlier session on this browser would ride
-        // along with every request; the new cookie is the session now.
+        // No bearer, but the accept's cookie signs this browser in. A bearer
+        // left by an earlier session would ride along with every request and
+        // answer for the wrong login, so it goes; the cookie is the session.
         tokenStore.clear();
         tokenStore.markPresence();
       }
