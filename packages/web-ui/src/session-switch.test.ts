@@ -134,6 +134,66 @@ describe('switchSession · same-origin box', () => {
     expect(registry.sessionToken(b.id)).toBe('b.sig');
   });
 
+  it("a member login's 403 from /api/shell is a live bearer, not a brain that is down", async () => {
+    const { registry, switcher } = await fresh();
+    const m = registry.signInSession({ email: 'm@example.com', token: 'm.sig' })!;
+    registry.signInSession({ email: 'a@example.com', token: 'a.sig' });
+    respond = (call) =>
+      call.url.endsWith('/api/shell')
+        ? ({
+            ok: false,
+            status: 403,
+            json: () => Promise.resolve({ reason: 'member-login' }),
+          } as unknown as { ok: boolean; status: number })
+        : { ok: true, status: 200 };
+
+    expect(await switcher.switchSession(m.id)).toBe('switched');
+    expect(registry.activeSession()?.id).toBe(m.id);
+  });
+
+  it('a 403 that names no login role (a proxy, a WAF) changes nothing', async () => {
+    const { registry, switcher } = await fresh();
+    const b = registry.signInSession({ email: 'b@example.com', token: 'b.sig' })!;
+    const a = registry.signInSession({ email: 'a@example.com', token: 'a.sig' })!;
+    respond = () =>
+      ({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ error: 'Forbidden' }),
+      }) as unknown as { ok: boolean; status: number };
+
+    expect(await switcher.switchSession(b.id)).toBe('unreachable');
+    expect(registry.activeSession()?.id).toBe(a.id);
+    expect(registry.sessionToken(b.id)).toBe('b.sig');
+    expect(assigned).toEqual([]);
+  });
+
+  it("lands where the app's landing says, after the credential has moved", async () => {
+    const { registry, switcher } = await fresh();
+    const b = registry.signInSession({ email: 'b@example.com', token: 'b.sig' })!;
+    registry.signInSession({ email: 'a@example.com', token: 'a.sig' });
+    const seen: { to: string; token: string | undefined }[] = [];
+    switcher.setSwitchLanding(async (to) => {
+      seen.push({ to, token: map.get('mantle_token') });
+      return '/home-for-b';
+    });
+
+    expect(await switcher.switchSession(b.id)).toBe('switched');
+    expect(seen).toEqual([{ to: '/', token: 'b.sig' }]);
+    expect(assigned).toEqual(['/home-for-b']);
+  });
+
+  it('a landing that throws still lands, on the path asked for', async () => {
+    const { registry, switcher } = await fresh();
+    const b = registry.signInSession({ email: 'b@example.com', token: 'b.sig' })!;
+    registry.signInSession({ email: 'a@example.com', token: 'a.sig' });
+    const off = switcher.setSwitchLanding(() => Promise.reject(new Error('offline')));
+
+    expect(await switcher.switchSession(b.id)).toBe('switched');
+    expect(assigned).toEqual(['/']);
+    off();
+  });
+
   it('will not switch to a login held for a different brain', async () => {
     const { registry, switcher } = await fresh();
     const far = registry.signInSession({

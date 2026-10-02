@@ -69,6 +69,19 @@ export function switchableSessions(): Session[] {
     .sort((a, b) => b.lastUsedAt - a.lastUsedAt);
 }
 
+/** The brain's "not this kind of login" refusal: /api/shell answers a member
+ *  or client login 403 with the caller's role as the reason. The bearer is
+ *  alive; it is only not an admin's. */
+async function isRoleRefusal(res: Response): Promise<boolean> {
+  if (res.status !== 403) return false;
+  try {
+    const body = (await res.json()) as { reason?: unknown } | null;
+    return body?.reason === 'member-login' || body?.reason === 'client-login';
+  } catch {
+    return false;
+  }
+}
+
 async function probe(token: string): Promise<'ok' | 'refused' | 'unreachable'> {
   try {
     const res = await fetch(apiUrl('/api/shell'), {
@@ -78,9 +91,41 @@ async function probe(token: string): Promise<'ok' | 'refused' | 'unreachable'> {
       credentials: 'omit',
     });
     if (res.status === 401) return 'refused';
-    return res.ok ? 'ok' : 'unreachable';
+    if (res.ok || (await isRoleRefusal(res))) return 'ok';
+    return 'unreachable';
   } catch {
     return 'unreachable';
+  }
+}
+
+/**
+ * Where a switch lands, as the app sees it. The kit knows nothing of roles,
+ * but the app keeps UX-only hint cookies saying whether this browser's login
+ * is a member or a client, and its middleware routes page loads by them. A
+ * switch that left the last login's hints behind would land in the wrong
+ * surface first and reload its way out. So the app registers its own
+ * after-sign-in destination here (it asks the brain, with the new credential,
+ * what this login is, and sets the hints to match), and every switch runs it
+ * just before the page load. Null: land on the path asked for.
+ */
+type SwitchLanding = (to: string) => Promise<string>;
+let landing: SwitchLanding | null = null;
+
+/** Register (or, with null, drop) the app's say in where a switch lands.
+ *  Returns the unregister function, for an effect's cleanup. */
+export function setSwitchLanding(fn: SwitchLanding | null): () => void {
+  landing = fn;
+  return () => {
+    if (landing === fn) landing = null;
+  };
+}
+
+async function landingFor(to: string): Promise<string> {
+  if (!landing) return to;
+  try {
+    return await landing(to);
+  } catch {
+    return to;
   }
 }
 
@@ -121,23 +166,22 @@ export async function switchSession(id: string, to: string = '/'): Promise<Switc
   resetCookieUpgrade();
   runSignOutResets();
   await moveCookieTo(token);
-  window.location.assign(to);
+  window.location.assign(await landingFor(to));
   return 'switched';
 }
 
 /**
  * Sign out of the login in use, and land somewhere sensible: on the most
- * recently used other login this device holds, or on the sign-in screen
- * (`signInPath`: a client login's is its own page). "Sign out" keeps its
- * meaning, this login only; the others are why the landing differs. Always
- * ends in a page load.
+ * recently used other login this device holds, or on the sign-in screen.
+ * "Sign out" keeps its meaning, this login only; the others are why the
+ * landing differs. Always ends in a page load.
  */
-export async function signOutActive(signInPath: string = '/login'): Promise<void> {
+export async function signOutActive(): Promise<void> {
   await performSignOut();
   for (const next of switchableSessions()) {
     if ((await switchSession(next.id)) === 'switched') return;
   }
-  window.location.assign(signInPath);
+  window.location.assign('/login');
 }
 
 /**

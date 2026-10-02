@@ -15,6 +15,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { currentBrainOrigin } from '@mantle/web-ui/session-registry';
+import { performSignOut } from '@mantle/web-ui/sign-out';
 import { signInAgainPath, signOutActive, switchSession } from '@mantle/web-ui/session-switch';
 import { useSessions, type HeldSession } from '@mantle/web-ui/use-sessions';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
@@ -158,21 +159,31 @@ export function ProfileMenu({
 
   // The other logins this device holds for THIS brain. One that its brain has
   // signed out stays in the list on purpose: it leads to signing back in.
+  // None of this for a client login: it signs in with a link and holds no
+  // bearer, so it is not one of the device's logins, and its menu does not
+  // offer the staff logins this browser may also hold.
   const held = useSessions();
+  const holdsLogins = held.canHoldSeveral && !client;
   const others =
-    held.ready && held.canHoldSeveral
+    held.ready && holdsLogins
       ? held.sessions.filter((s) => !s.active && s.origin === currentBrainOrigin())
       : [];
 
   // Ends in a page load either way: on the next login held here, or on the
   // sign-in screen. The router is not used because a client navigation would
-  // carry this login's cache into whoever comes next (sign-out.ts).
+  // carry this login's cache into whoever comes next (sign-out.ts). A client
+  // signs out the plain way and lands on its own sign-in page: never on a
+  // staff login this browser holds.
   async function signOut() {
     setBusy(true);
     if (member) setMemberHint(false);
-    if (client) setClientHint(false);
-    // With no other login to land on: a client's own sign-in page, else /login.
-    await signOutActive(client ? CLIENT_SIGNIN_PATH : '/login');
+    if (client) {
+      setClientHint(false);
+      await performSignOut();
+      window.location.assign(CLIENT_SIGNIN_PATH);
+      return;
+    }
+    await signOutActive();
   }
 
   async function switchTo(s: HeldSession) {
@@ -354,7 +365,7 @@ export function ProfileMenu({
         {/* The logins this device holds. Plain anchors for the two links, not
             <Link>: adding a login ends in a page load, and the list screen is
             reached from a menu that has just closed over a sheet on mobile. */}
-        {held.canHoldSeveral && (
+        {holdsLogins && (
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
             Switch login
           </DropdownMenuLabel>
@@ -381,19 +392,22 @@ export function ProfileMenu({
             </span>
           </DropdownMenuItem>
         ))}
-        {held.canHoldSeveral && (
+        {holdsLogins && (
           <DropdownMenuItem asChild>
             <a href="/login?add=1" className="cursor-pointer">
               <Plus className="size-4" /> Add login…
             </a>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem asChild>
-          <Link href="/settings/sessions" onClick={onNavigate} className="cursor-pointer">
-            <KeyRound className="size-4" /> Manage logins…
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {/* /settings is an admin's: the middleware sends a member home from it. */}
+        {member || client ? null : (
+          <DropdownMenuItem asChild>
+            <Link href="/settings/sessions" onClick={onNavigate} className="cursor-pointer">
+              <KeyRound className="size-4" /> Manage logins…
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {holdsLogins || !(member || client) ? <DropdownMenuSeparator /> : null}
 
         <DropdownMenuItem
           onClick={signOut}

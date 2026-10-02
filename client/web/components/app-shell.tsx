@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  destinationAfterSignIn,
   isAdminLoginRefusal,
   isClientLoginRefusal,
   isLoginRefusal,
@@ -33,6 +34,7 @@ import {
   NAV_W_MIN,
 } from '@/lib/nav-width';
 import { recordActiveIdentity } from '@mantle/web-ui/session-registry';
+import { setSwitchLanding } from '@mantle/web-ui/session-switch';
 import { refreshAllSessions } from '@mantle/web-ui/token-refresh';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { NeatSurface } from '@/components/neat-surface';
@@ -559,6 +561,12 @@ function ShellFrame({
     });
     void refreshAllSessions();
   }, [brand]);
+
+  // A switch to another login held here lands the way a sign-in does: the
+  // brain is asked, with the new credential, whether it is a member or a
+  // client, and the role hints follow, so the page load after the switch
+  // opens the right surface instead of reloading its way there.
+  useEffect(() => setSwitchLanding(destinationAfterSignIn), []);
 
   // Close the drawer on navigation.
   useEffect(() => {
