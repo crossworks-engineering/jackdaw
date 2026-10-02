@@ -41,6 +41,7 @@ import { AudienceBadge } from '@/components/share/audience-badge';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { useAppToolConfirm } from '@/components/app-nav/use-app-tool-confirm';
+import { AppHistory } from '@/components/app-nav/app-history';
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { AppAccessLog } from '@mantle/web-ui/app-sandbox/access-log';
@@ -158,6 +159,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
   const [conflict, setConflict] = useState(false);
+  const [tab, setTab] = useState('builder');
 
   const activeContent = files[activePath] ?? files[source.entry] ?? '';
   const canFormat = FORMATTABLE.has(extOf(activePath));
@@ -408,11 +410,12 @@ function AppDetailView({ app }: { app: AppDetail }) {
       {/* Informational (C6): members and clients only read its data. */}
       <AppInformationalSwitch app={app} />
 
-      <Tabs defaultValue="builder" className="flex min-h-0 flex-1 flex-col gap-0">
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
         <div className="border-b border-border px-3 py-2">
           <TabsList>
             <TabsTrigger value="builder">Builder</TabsTrigger>
             <TabsTrigger value="code">Code</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
         </div>
@@ -570,6 +573,25 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 />
               </div>
             }
+          />
+        </TabsContent>
+
+        {/* History — versions (each commit) and snapshots (code + data);
+            restore any of them. */}
+        <TabsContent value="history" className="mt-0 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+          <AppHistory
+            appId={app.id}
+            appTitle={app.title}
+            hasDraft={app.hasDraft}
+            dirty={dirty}
+            onRestored={() => {
+              // The restore replaced the draft or the data: take the server's
+              // files and reload the running app, then show it.
+              setDirty(false);
+              dirtyRef.current = false;
+              setReloadKey((k) => k + 1);
+              setTab('builder');
+            }}
           />
         </TabsContent>
 
