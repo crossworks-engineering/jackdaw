@@ -59,10 +59,9 @@ export type SwitchOutcome =
    *  logout ends every session it holds (its phone too). Nothing changed. */
   | 'client-signed-in';
 
-/** Where to send someone to sign back in to a login the device still lists. */
-export function signInAgainPath(id: string): string {
-  return `/login?add=1&session=${encodeURIComponent(id)}`;
-}
+/** Where to send someone to sign back in to a login the device still lists
+ *  (session-registry.ts, re-exported here where the screens import it). */
+export { signInAgainPath } from './session-registry';
 
 /** The held logins that can be switched to right now, most recently used first. */
 export function switchableSessions(): Session[] {

@@ -200,6 +200,20 @@ describe('landing with the bearer alone (desktop)', () => {
   });
 });
 
+describe('signing back in to a held client login (desktop)', () => {
+  const read = (rel: string) =>
+    readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8').replace(/\s+/g, ' ');
+
+  it('the Add login screen opens the client form for a client row, its email filled in', () => {
+    const src = read('../app/login/login-client.tsx');
+    expect(src).toContain(
+      'const target = sessionId ? held.sessions.find((s) => s.id === sessionId) : undefined;',
+    );
+    expect(src).toContain("if (target?.role === 'client') setKind('client');");
+    expect(src).toContain('<ClientDeviceAdd initialEmail={target?.email} />');
+  });
+});
+
 describe('the browser keeps clients cookie-only', () => {
   beforeEach(() => stub({ desktop: false }));
 

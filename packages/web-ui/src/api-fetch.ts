@@ -15,6 +15,7 @@
 
 import { isCrossOrigin, runtimeApiBase } from './runtime-env';
 import { runSessionFlushes } from './session-flush';
+import { activeSession, signInAgainPath } from './session-registry';
 import { tokenStore } from './token-store';
 
 /** API base + bearer are GETTERS, not module constants: the split client
@@ -180,10 +181,20 @@ export function bounceToLogin(): void {
   // the client middleware can't redirect-loop a logged-out page load. Before
   // the flush, deliberately: a draft PUT with a dead credential will 401 too,
   // and must not recurse back into here.
-  tokenStore.clear();
+  //
+  // Where to: /login, back to here afterwards. Except a CLIENT login the
+  // desktop app holds as a session (a bearer from an emailed code): /login is
+  // not its way in (the middleware sends a client to the client sign-in page,
+  // which has no form on the desktop), so it goes to the Add login screen for
+  // its own row, the client form open and its email filled in. Read before the
+  // clear, which forgets which login was active (the row itself is kept).
+  const held = activeSession();
   const next = window.location.pathname + window.location.search;
+  const to =
+    held?.role === 'client' ? signInAgainPath(held.id) : `/login?next=${encodeURIComponent(next)}`;
+  tokenStore.clear();
   const go = () => {
-    window.location.href = `/login?next=${encodeURIComponent(next)}`;
+    window.location.href = to;
   };
   void runSessionFlushes().then(go, go);
 }

@@ -159,6 +159,14 @@ function bearerRemove(ls: Storage, id: string, isActive: boolean): void {
   if (isActive) safeRemove(ls, TOKEN_STORAGE_KEY);
 }
 
+/** Where to send someone to sign back in to a login the device still lists:
+ *  the Add login screen, which finds the row by id, fills in its email, opens
+ *  the right form for its role, and signs in INTO that row (`signInSession`
+ *  matches the same brain and email) rather than listing the login twice. */
+export function signInAgainPath(id: string): string {
+  return `/login?add=1&session=${encodeURIComponent(id)}`;
+}
+
 /** Can this client hold more than one login? Not inside a desktop shell from
  *  before per-login vault slots: its vault backs one bearer per brain window,
  *  so a second sign-in there REPLACES the first. Screens hide "add" and "switch" on a false rather than
