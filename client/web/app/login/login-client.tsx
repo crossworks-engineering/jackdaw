@@ -125,8 +125,11 @@ export function LoginClient({
           add={add}
           initialEmail={target?.email ?? hintEmail}
         />
-        {/* No client exists on a brain that is still being set up. */}
-        <ClientCodeLink enabled={clientCodes && !firstRun} />
+        {/* No client exists on a brain that is still being set up. Not while
+            adding a login either: a client signs in with a cookie and no
+            bearer, so it cannot be one of the logins this device holds, and
+            its sign-in would drop the login in use. */}
+        <ClientCodeLink enabled={clientCodes && !firstRun && !add} />
         {/* Only when there is an app to go back to: a brain window opened just
             to sign in has nobody signed in behind this screen. */}
         {add && (held.active || replacesCurrent) && (
