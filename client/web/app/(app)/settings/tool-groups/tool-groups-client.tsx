@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
@@ -49,6 +50,7 @@ import {
 } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { slugify } from '@mantle/web-ui/slugify';
+import { connectorKind, toolGroupSaveBody } from './tool-group-save';
 
 // List items carry the agent-grant fan-out from GET /api/tool-groups.
 type ToolGroupSummary = ToolGroupWithRefs;
@@ -172,6 +174,8 @@ export function ToolGroupsClient() {
     setEditing({ mode: 'edit', group: g });
   };
   const close = () => setEditing(null);
+  // The connector owns a connector group's binding and tool list.
+  const connector = editing?.mode === 'edit' ? connectorKind(editing.group) : null;
 
   const search = useListQuery();
   const shownGroups = useMemo(() => filterToolGroups(groups, search.query), [groups, search.query]);
@@ -203,7 +207,7 @@ export function ToolGroupsClient() {
     }
     // `undefined` means "enabled, but no service" — the one case the payload
     // builder refuses to encode.
-    if (integration === undefined)
+    if (integration === undefined && connector === null)
       next.service = 'An integration needs a service — e.g. openweathermap.';
 
     if (next.name || next.slug || next.service) {
@@ -214,16 +218,13 @@ export function ToolGroupsClient() {
     }
     setErrors({});
 
-    const body = {
-      name: form.name.trim(),
-      description: form.description.trim(),
-      toolSlugs: form.toolSlugs,
-      // PATCH takes the whole binding (null = plain capability bundle). POST
-      // ignores it — a new group starts unbound and is edited into one.
-      ...(editing.mode === 'edit' ? { integration } : {}),
-      enabled: form.enabled,
-      ...(editing.mode === 'create' ? { slug: form.slug.trim() } : {}),
-    };
+    // PATCH takes the whole binding (null = plain capability bundle); a
+    // connector group's PATCH takes neither binding nor tools.
+    const body = toolGroupSaveBody(
+      editing.mode,
+      { ...form, integration: integration ?? null },
+      connector,
+    );
     saveMutation.mutate(
       editing.mode === 'create'
         ? { mode: 'create', body }
@@ -434,7 +435,7 @@ export function ToolGroupsClient() {
                     </FieldDescription>
                   </Field>
 
-                  {editing.mode === 'edit' ? (
+                  {connector !== null ? null : editing.mode === 'edit' ? (
                     <ToolGroupIntegrationSection
                       value={form.integration}
                       onChange={(next) => {
@@ -463,7 +464,13 @@ export function ToolGroupsClient() {
                     <FieldHint warn="Granting this bundle grants every tool in it.">
                       Everything an agent gets when you give it this group.
                     </FieldHint>
-                    {toolsQuery.isError ? (
+                    {connector !== null ? (
+                      <ConnectorToolList
+                        kind={connector}
+                        toolSlugs={form.toolSlugs}
+                        names={availableTools}
+                      />
+                    ) : toolsQuery.isError ? (
                       <p className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
                         <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
                         Couldn’t load the tool list.
@@ -539,5 +546,48 @@ export function ToolGroupsClient() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * A connector group's tools, read-only. The connector's sync writes this list
+ * and the brain refuses changes to it here, so there is no picker to try.
+ */
+function ConnectorToolList({
+  kind,
+  toolSlugs,
+  names,
+}: {
+  kind: 'mcp' | 'openapi';
+  toolSlugs: string[];
+  names: ToolOption[];
+}) {
+  const byName = new Map(names.map((t) => [t.slug, t.name]));
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        The connector manages this list. Change it in{' '}
+        <Link href="/settings/connectors" className="underline underline-offset-2">
+          Settings &gt; Connectors
+        </Link>
+        .
+      </p>
+      {toolSlugs.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No tools yet. The {kind === 'mcp' ? 'MCP' : 'OpenAPI'} connector adds them when it syncs.
+        </p>
+      ) : (
+        <ul className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2 scrollbar-thin">
+          {toolSlugs.map((slug) => (
+            <li key={slug} className="flex min-w-0 items-baseline gap-2 text-sm">
+              <span className="truncate font-mono text-xs">{slug}</span>
+              {byName.get(slug) && byName.get(slug) !== slug && (
+                <span className="truncate text-xs text-muted-foreground">{byName.get(slug)}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
