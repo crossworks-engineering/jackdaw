@@ -11,7 +11,7 @@
  * Tab-to-indent + the parent's Format/Save is the whole feature. Pass
  * `readOnly` to render the same highlighted surface without the textarea.
  */
-import { useMemo } from 'react';
+import { useDeferredValue, useMemo } from 'react';
 import { cn } from '../lib/utils';
 import { highlightToReact } from './highlight';
 
@@ -33,7 +33,12 @@ export function CodeEditor({
   readOnly?: boolean;
   className?: string;
 }) {
-  const highlighted = useMemo(() => highlightToReact(path, value), [path, value]);
+  // Highlighting a whole file (up to 256 KB) on every key press made typing
+  // lag on big files (apps audit P9). The textarea shows the live text; the
+  // highlight layer under it follows the deferred value, so React renders the
+  // keystroke first and re-highlights when it has a moment.
+  const deferred = useDeferredValue(value);
+  const highlighted = useMemo(() => highlightToReact(path, deferred), [path, deferred]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key !== 'Tab' || !onChange) return;

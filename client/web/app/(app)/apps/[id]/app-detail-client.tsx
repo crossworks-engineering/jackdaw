@@ -71,6 +71,11 @@ const FORMATTABLE = new Set([
 ]);
 const extOf = (p: string) => p.slice(p.lastIndexOf('.') + 1).toLowerCase();
 
+/** Every app query: this app's AND the list's. A commit, discard or save
+ *  changes the list's draft and build badges too (apps audit U7); inactive
+ *  list pages are only marked stale, not refetched. */
+const APPS_KEY = ['apps'] as const;
+
 /** Outer query-gate so the page stays data-free. */
 export function AppDetailClient({ id }: { id: string }) {
   const appQuery = useQuery({
@@ -171,7 +176,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
       setBuildErrors(data.errors ?? []);
       if (data.buildOk) {
         toast.success('Preview updated.');
-        await queryClient.invalidateQueries({ queryKey: ['apps', app.id] });
+        await queryClient.invalidateQueries({ queryKey: APPS_KEY });
         setReloadKey((k) => k + 1);
       } else {
         toast.error(`${data.errors?.length ?? 0} error(s) — preview not updated.`);
@@ -192,7 +197,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
     try {
       await apiSend(`/api/apps/${app.id}/publish`, 'POST');
       toast.success('Committed — the live app is updated.');
-      await queryClient.invalidateQueries({ queryKey: ['apps', app.id] });
+      await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       setReloadKey((k) => k + 1);
     } catch (err) {
       // 422 = the commit's own build failed; surface the errors in the panel
@@ -214,7 +219,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
     try {
       await apiSend(`/api/apps/${app.id}/draft`, 'DELETE');
       toast.success('Draft discarded.');
-      await queryClient.invalidateQueries({ queryKey: ['apps', app.id] });
+      await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       setReloadKey((k) => k + 1);
     } catch {
       toast.error('Could not discard the draft.');
@@ -237,9 +242,9 @@ function AppDetailView({ app }: { app: AppDetail }) {
     [focusRegion],
   );
   const onAppEdited = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['apps', app.id] });
+    await queryClient.invalidateQueries({ queryKey: APPS_KEY });
     setReloadKey((k) => k + 1);
-  }, [queryClient, app.id]);
+  }, [queryClient]);
   useSurfaceAssist({
     node: { id: app.id, kind: 'app', label: app.title },
     focusDirective,
@@ -254,7 +259,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
       await apiSend(`/api/apps/${app.id}/draft`, 'PUT', { entry: source.entry, files });
       setDirty(false);
       toast.success('Saved to draft.');
-      await queryClient.invalidateQueries({ queryKey: ['apps', app.id] });
+      await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save.');
@@ -370,7 +375,14 @@ function AppDetailView({ app }: { app: AppDetail }) {
         {/* Builder — the live preview. Ask Appsmith to edit the app via the
             global assistant (⌘I), auto-armed for this app; "Select element"
             focuses it on one region. */}
-        <TabsContent value="builder" className="mt-0 flex min-h-0 flex-1 flex-col">
+        {/* forceMount: the running app stays mounted while another tab is
+            open (apps audit P8). Unmounting it on every switch minted a new
+            frame ticket, reloaded the app and lost its state. */}
+        <TabsContent
+          value="builder"
+          forceMount
+          className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+        >
           {/* The preview is a real viewport (frame="viewport"): the sandbox
               fills the pane and the app handles its own scrolling, exactly as
               it will on the shared /s/ surface. */}
