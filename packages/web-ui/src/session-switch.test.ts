@@ -326,6 +326,171 @@ describe('leaving a login', () => {
   });
 });
 
+/** A desktop shell with one keychain slot per login (client/desktop vault.ts). */
+function scopedVault() {
+  const slots = new Map<string, string>();
+  return {
+    slots,
+    get: () => null,
+    set: () => {},
+    clear: () => {},
+    getFor: (id: string) => slots.get(id) ?? null,
+    setFor: (id: string, t: string) => void slots.set(id, t),
+    clearFor: (id: string) => void slots.delete(id),
+    adopt: () => null,
+  };
+}
+
+function stubDesktop(vault: ReturnType<typeof scopedVault>) {
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+    },
+    // The desktop renders from a loopback UI server; the brain is elsewhere.
+    location: {
+      protocol: 'http:',
+      origin: 'http://127.0.0.1:4173',
+      href: 'http://127.0.0.1:4173/',
+      assign: (to: string) => void assigned.push(to),
+    },
+    __MANTLE_ENV__: { apiBase: 'https://brain.example' },
+    mantleDesktop: { tokenVault: vault },
+  });
+}
+
+describe('desktop: admin, then a client login, then back', () => {
+  it('nothing of either login is left for the other', async () => {
+    const vault = scopedVault();
+    stubDesktop(vault);
+    vi.resetModules();
+    const registry = await import('./session-registry');
+    const switcher = await import('./session-switch');
+    const assets = await import('./asset-url');
+    const api = await import('./api-fetch');
+    const { onSignOut } = await import('./session-reset');
+    const { tokenStore } = await import('./token-store');
+
+    expect(registry.canHoldClientLogins()).toBe(true);
+    const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
+    const client = registry.signInSession({
+      email: 'client@example.com',
+      token: 'client.sig',
+      role: 'client',
+      loginId: 'login-c',
+    })!;
+    // Bearers live in the keychain slots, never in localStorage.
+    expect([...map.keys()].some((k) => k.startsWith('mantle_token'))).toBe(false);
+    expect(vault.slots.get(client.id)).toBe('client.sig');
+    expect(registry.listSessions().find((s) => s.id === client.id)).toMatchObject({
+      role: 'client',
+      loginId: 'login-c',
+    });
+
+    // The query cache stands in for every per-login thing on the sign-out
+    // registry; the landing for the app's role hints.
+    const cacheCleared = vi.fn();
+    onSignOut(cacheCleared);
+    const landings: (string | null)[] = [];
+    switcher.setSwitchLanding(async (to) => {
+      landings.push(tokenStore.get());
+      return to;
+    });
+    // /api/shell answers a client bearer with its role refusal.
+    respond = (call) =>
+      bearerOf(call) === 'Bearer client.sig' && call.url.endsWith('/api/shell')
+        ? ({
+            ok: false,
+            status: 403,
+            json: () => Promise.resolve({ reason: 'client-login' }),
+          } as unknown as { ok: boolean; status: number })
+        : { ok: true, status: 200 };
+
+    // Admin in use, as the client is reached: the admin's asset token is out.
+    expect(registry.setActiveSession(admin.id)).toBe(true);
+    assets.setAssetToken('admin-asset');
+    expect(assets.assetUrl('/api/files/f')).toContain('at=admin-asset');
+
+    expect(await switcher.switchSession(client.id)).toBe('switched');
+    // No cookie route at all: cross-origin, the bearer is the whole credential,
+    // so no logout (which a client cookie would turn into ending the client
+    // everywhere) and no sso.
+    expect(paths()).toEqual(['/api/shell']);
+    expect(calls[0]!.init?.credentials).toBe('omit');
+    // On the client surface: the client's bearer, no cookie, no admin asset
+    // token, the admin's cache dropped, and the landing saw the client's bearer.
+    expect(tokenStore.get()).toBe('client.sig');
+    const init = api.withAuth();
+    expect(init.credentials).toBe('omit');
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer client.sig');
+    expect(assets.assetUrl('/api/files/f')).not.toContain('at=');
+    expect(cacheCleared).toHaveBeenCalledTimes(1);
+    expect(landings).toEqual(['client.sig']);
+    // The admin is still held, untouched.
+    expect(vault.slots.get(admin.id)).toBe('admin.sig');
+
+    // And back: the client's asset token and cache do not carry over.
+    calls.length = 0;
+    assets.setAssetToken('client-asset');
+    expect(await switcher.switchSession(admin.id)).toBe('switched');
+    expect(paths()).toEqual(['/api/shell']);
+    expect(tokenStore.get()).toBe('admin.sig');
+    expect(new Headers(api.withAuth().headers).get('Authorization')).toBe('Bearer admin.sig');
+    expect(assets.assetUrl('/api/files/f')).not.toContain('at=');
+    expect(cacheCleared).toHaveBeenCalledTimes(2);
+    expect(landings).toEqual(['client.sig', 'admin.sig']);
+    expect(vault.slots.get(client.id)).toBe('client.sig');
+    expect(assigned).toEqual(['/', '/']);
+  });
+
+  it("a held client's Sign out ends it on the brain with its own bearer, then lands on the next login", async () => {
+    const vault = scopedVault();
+    stubDesktop(vault);
+    vi.resetModules();
+    const registry = await import('./session-registry');
+    const switcher = await import('./session-switch');
+    const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
+    const client = registry.signInSession({
+      email: 'client@example.com',
+      token: 'client.sig',
+      role: 'client',
+    })!;
+
+    await switcher.signOutActive();
+
+    // mobile-logout with a client's bearer ends every session of that client
+    // (the brain's contract), which is what a client's Sign out means.
+    const revoked = calls.filter((c) => c.url.endsWith('/api/auth/mobile-logout')).map(bearerOf);
+    expect(revoked).toEqual(['Bearer client.sig']);
+    expect(calls.every((c) => c.init?.credentials !== 'include')).toBe(true);
+    expect(registry.listSessions().map((s) => s.id)).toEqual([admin.id]);
+    expect(vault.slots.has(client.id)).toBe(false);
+    expect(registry.activeSession()?.id).toBe(admin.id);
+    expect(assigned).toEqual(['/']);
+  });
+});
+
+describe('who can hold a client login', () => {
+  it('a browser cannot: its clients stay cookie-only', async () => {
+    const { registry } = await fresh();
+    expect(registry.canHoldSeveralLogins()).toBe(true);
+    expect(registry.canHoldClientLogins()).toBe(false);
+  });
+
+  it('a desktop shell from before per-login slots cannot', async () => {
+    stubWindow({ vault: true });
+    const { registry } = await fresh();
+    expect(registry.canHoldClientLogins()).toBe(false);
+  });
+
+  it('a desktop shell with per-login slots can', async () => {
+    stubDesktop(scopedVault());
+    const { registry } = await fresh();
+    expect(registry.canHoldClientLogins()).toBe(true);
+  });
+});
+
 describe('the desktop shell', () => {
   it('cannot hold several logins yet, and says so', async () => {
     stubWindow({ vault: true });

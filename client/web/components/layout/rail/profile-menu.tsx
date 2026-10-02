@@ -159,11 +159,15 @@ export function ProfileMenu({
 
   // The other logins this device holds for THIS brain. One that its brain has
   // signed out stays in the list on purpose: it leads to signing back in.
-  // None of this for a client login: it signs in with a link and holds no
-  // bearer, so it is not one of the device's logins, and its menu does not
-  // offer the staff logins this browser may also hold.
+  //
+  // A client login is one of them only where it holds a bearer: the desktop
+  // app adds one by emailed code (lib/client-device-signin.ts), and then its
+  // menu switches and adds like anyone's. A browser's client is a cookie (the
+  // browser keeps client credentials out of page script on purpose): no
+  // session of its own, so no Switch and no Add, as before.
   const held = useSessions();
-  const holdsLogins = held.canHoldSeveral && !client;
+  const clientHeld = client && held.active?.role === 'client';
+  const holdsLogins = held.canHoldSeveral && (!client || clientHeld);
   const others =
     held.ready && holdsLogins
       ? held.sessions.filter((s) => !s.active && s.origin === currentBrainOrigin())
@@ -171,14 +175,17 @@ export function ProfileMenu({
 
   // Ends in a page load either way: on the next login held here, or on the
   // sign-in screen. The router is not used because a client navigation would
-  // carry this login's cache into whoever comes next (sign-out.ts). A client
-  // signs out the plain way and lands on its own sign-in page: never on a
-  // staff login this browser holds.
+  // carry this login's cache into whoever comes next (sign-out.ts).
+  //
+  // A client's Sign out ends every session it holds on the brain (audit B23):
+  // a held client's through its own bearer (mobile-logout, which for a client
+  // ends them all), then on to the next login held here. A cookie client signs
+  // out the plain way onto its own sign-in page, never onto a staff login.
   async function signOut() {
     setBusy(true);
     if (member) setMemberHint(false);
-    if (client) {
-      setClientHint(false);
+    if (client) setClientHint(false);
+    if (client && !clientHeld) {
       await performSignOut();
       window.location.assign(CLIENT_SIGNIN_PATH);
       return;

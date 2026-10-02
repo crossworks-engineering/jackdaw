@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { MEMBER_HINT_COOKIE, sendsMemberHome } from './lib/member-surface';
-import { CLIENT_HINT_COOKIE, CLIENT_SIGNIN_PATH, clientRedirectFor } from './lib/client-surface';
+import {
+  CLIENT_HINT_COOKIE,
+  CLIENT_SIGNIN_PATH,
+  clientLoginPageRedirect,
+  clientRedirectFor,
+} from './lib/client-surface';
 
 /**
  * ZERO-SECRET client middleware. This app holds no SESSION_SECRET, so it can
@@ -56,8 +61,13 @@ export function middleware(req: NextRequest): NextResponse {
   // session ended (the shell's 401 bounces to /login) lands on the client
   // sign-in page instead, which says to open their link and offers staff
   // sign-in (clearing the hint) for anyone else on this browser.
-  if (hintedClient && under(pathname, ['/login'])) {
-    return NextResponse.redirect(new URL(CLIENT_SIGNIN_PATH, req.nextUrl.origin), 307);
+  // Adding a login (`add=1`) is let through: see clientLoginPageRedirect.
+  const clientLoginTo =
+    hintedClient && under(pathname, ['/login'])
+      ? clientLoginPageRedirect(req.nextUrl.searchParams)
+      : null;
+  if (clientLoginTo) {
+    return NextResponse.redirect(new URL(clientLoginTo, req.nextUrl.origin), 307);
   }
   if (under(pathname, PUBLIC_PREFIXES)) return pass();
   if (req.cookies.get(PRESENCE_COOKIE)?.value === '1') {

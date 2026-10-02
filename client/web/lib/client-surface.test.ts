@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { clientHomeHref, clientItemIdFromPath, clientRedirectFor } from './client-surface';
+import {
+  CLIENT_SIGNIN_PATH,
+  clientHomeHref,
+  clientItemIdFromPath,
+  clientLoginPageRedirect,
+  clientRedirectFor,
+} from './client-surface';
 
 /**
  * The client portal's routing (client logins C2): a client has one screen,
@@ -55,5 +61,20 @@ describe('clientRedirectFor', () => {
   it('opens a named item in the portal', () => {
     expect(clientRedirectFor(`/n/${ID}`, PUBLIC)).toBe(`/?id=${ID}`);
     expect(clientRedirectFor(`/pages/${ID}`, PUBLIC)).toBe(`/?id=${ID}`);
+  });
+});
+
+describe('clientLoginPageRedirect (a hinted client on /login)', () => {
+  const q = (s: string) => new URLSearchParams(s);
+
+  it('goes to the client sign-in page, whatever else the query says', () => {
+    expect(clientLoginPageRedirect(q(''))).toBe(CLIENT_SIGNIN_PATH);
+    expect(clientLoginPageRedirect(q('next=/settings'))).toBe(CLIENT_SIGNIN_PATH);
+    expect(clientLoginPageRedirect(q('add=0'))).toBe(CLIENT_SIGNIN_PATH);
+  });
+
+  it('except Add login, which a held client login opens from its own menu', () => {
+    expect(clientLoginPageRedirect(q('add=1'))).toBeNull();
+    expect(clientLoginPageRedirect(q('add=1&session=abc'))).toBeNull();
   });
 });

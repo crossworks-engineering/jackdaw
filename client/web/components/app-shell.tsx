@@ -317,6 +317,12 @@ export function AppShell(props: {
   children: React.ReactNode;
 }) {
   const { role, probeFailed, failure, retrying, retry, probes } = useShellRole(props.role);
+  // A switch to another login held here lands the way a sign-in does: the
+  // brain is asked, with the new credential, whether it is a member or a
+  // client, and the role hints follow, so the page load after the switch
+  // opens the right surface instead of reloading its way there. Registered
+  // here, above the role gate, so the client portal's menu has it too.
+  useEffect(() => setSwitchLanding(destinationAfterSignIn), []);
   // Providers only — the frame itself lives in <ShellFrame/>, which sits INSIDE
   // AssistantDockProvider and HelpRailProvider so it can read both dock states
   // (each open column publishes its width to the frame's CSS vars). None of it
@@ -558,15 +564,11 @@ function ShellFrame({
       email: brand.email,
       displayName: brand.displayName,
       siteName: brand.siteName,
+      // The role the brain confirmed for this frame (never assumed).
+      role,
     });
     void refreshAllSessions();
-  }, [brand]);
-
-  // A switch to another login held here lands the way a sign-in does: the
-  // brain is asked, with the new credential, whether it is a member or a
-  // client, and the role hints follow, so the page load after the switch
-  // opens the right surface instead of reloading its way there.
-  useEffect(() => setSwitchLanding(destinationAfterSignIn), []);
+  }, [brand, role]);
 
   // Close the drawer on navigation.
   useEffect(() => {

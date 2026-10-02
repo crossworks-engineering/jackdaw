@@ -49,7 +49,15 @@ export type Session = {
   /** Epoch SECONDS from the bearer's own `exp`; null when it cannot be read;
    *  0 when the brain has refused the bearer and the session needs a sign-in. */
   tokenExpiresAt?: number | null;
+  /** What the brain said this login is, when the sign-in said: a client
+   *  login's code sign-in names it (`role: "client"`), the password sign-in
+   *  does not. Absent means "ask the brain" (the shells do on every load). */
+  role?: SessionRole | null;
+  /** The brain's id for the login, when the sign-in said. Not a secret. */
+  loginId?: string | null;
 };
+
+export type SessionRole = 'admin' | 'member' | 'client';
 
 export const SESSIONS_STORAGE_KEY = 'mantle_sessions';
 export const ACTIVE_SESSION_STORAGE_KEY = 'mantle_active_session';
@@ -157,6 +165,20 @@ function bearerRemove(ls: Storage, id: string, isActive: boolean): void {
  *  offer something that quietly costs the person the login they had. */
 export function canHoldSeveralLogins(): boolean {
   return typeof window !== 'undefined' && oneSlotVault() === null;
+}
+
+/**
+ * Can this client hold a CLIENT login as one of its logins? Only the desktop
+ * shell with per-login vault slots. A client login has no password; its
+ * bearer comes from the brain's device sign-in (an emailed code), which the
+ * brain refuses to any web page (it answers 403 `device-only` to a request
+ * carrying `Origin` or `Sec-Fetch-*`), so a client's credential never sits
+ * where page script in a browser could read it. The desktop shell talks to
+ * its brain as a native client (it drops those headers, brain-fence.ts) and
+ * keeps the bearer in the OS keychain. A browser keeps clients cookie-only.
+ */
+export function canHoldClientLogins(): boolean {
+  return scopedVault() !== null;
 }
 
 /** The origin of the brain this page talks to: the configured API base, or the
@@ -364,6 +386,8 @@ export function signInSession(input: {
   origin?: string;
   displayName?: string | null;
   siteName?: string | null;
+  role?: SessionRole | null;
+  loginId?: string | null;
 }): Session | null {
   const ls = storage();
   if (!ls) return null;
@@ -379,6 +403,8 @@ export function signInSession(input: {
   }
   if (input.displayName !== undefined) session.displayName = input.displayName;
   if (input.siteName !== undefined) session.siteName = input.siteName;
+  if (input.role !== undefined) session.role = input.role;
+  if (input.loginId !== undefined) session.loginId = input.loginId;
   if (oneSlotVault()) {
     // The one slot is about to hold this bearer and no other, so any other row
     // is a login this window can no longer back. Dropping it is honest; keeping
@@ -441,6 +467,8 @@ export function recordActiveIdentity(identity: {
   email?: string | null;
   displayName?: string | null;
   siteName?: string | null;
+  /** Which shell answered for it: the role, as the brain sees this login. */
+  role?: SessionRole | null;
 }): void {
   const ls = storage();
   if (!ls) return;
@@ -455,6 +483,7 @@ export function recordActiveIdentity(identity: {
     if (identity.email) session.email = identity.email;
     if (identity.displayName !== undefined) session.displayName = identity.displayName;
     if (identity.siteName !== undefined) session.siteName = identity.siteName;
+    if (identity.role) session.role = identity.role;
     // A migrated session can turn out to be a login already listed without a
     // bearer (it was refused, then the person signed in on an older build).
     // Fold the dead row into this one instead of listing the login twice.

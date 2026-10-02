@@ -8,8 +8,11 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { useSessions } from '@mantle/web-ui/use-sessions';
+import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
+import { clientLoginAddable } from '@/lib/client-device-signin';
 import { LoginForm } from './login-form';
 import { ClientCodeLink } from './client-code-link';
+import { ClientDeviceAdd } from './client-device-add';
 
 /**
  * Everything on the sign-in screen that has to run in the browser: the
@@ -93,6 +96,26 @@ export function LoginClient({
       .catch(() => undefined);
   }, [add]);
 
+  // Desktop only: a CLIENT login can be added too, by emailed code, as one
+  // more login this window holds (lib/client-device-signin.ts). Asked after
+  // mount; a browser always answers no, and keeps its clients cookie-only.
+  const [clientAddable, setClientAddable] = useState(false);
+  useEffect(() => {
+    if (!add) return;
+    let live = true;
+    void clientLoginAddable().then((ok) => live && setClientAddable(ok));
+    return () => {
+      live = false;
+    };
+  }, [add]);
+  const [kind, setKind] = useState<'staff' | 'client'>('staff');
+  // Signing back in to a client login the brain signed out: its own form.
+  useEffect(() => {
+    if (target?.role === 'client') setKind('client');
+  }, [target?.role]);
+  const offerClient = add && !firstRun && clientAddable;
+  const asClient = offerClient && kind === 'client';
+
   const strapline = firstRun
     ? 'Create your login to begin.'
     : target
@@ -117,14 +140,35 @@ export function LoginClient({
             both.
           </p>
         )}
-        <LoginForm
-          mode={firstRun ? 'signup' : 'login'}
-          next={next}
-          error={error}
-          setupCodeRequired={setupCodeRequired}
-          add={add}
-          initialEmail={target?.email ?? hintEmail}
-        />
+        {offerClient && (
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="default"
+            className="w-full"
+            value={kind}
+            onValueChange={(v) => v && setKind(v as 'staff' | 'client')}
+          >
+            <ToggleGroupItem value="staff" className="flex-1">
+              Staff login
+            </ToggleGroupItem>
+            <ToggleGroupItem value="client" className="flex-1">
+              Client login
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
+        {asClient ? (
+          <ClientDeviceAdd initialEmail={target?.email} />
+        ) : (
+          <LoginForm
+            mode={firstRun ? 'signup' : 'login'}
+            next={next}
+            error={error}
+            setupCodeRequired={setupCodeRequired}
+            add={add}
+            initialEmail={target?.email ?? hintEmail}
+          />
+        )}
         {/* No client exists on a brain that is still being set up. Not while
             adding a login either: a client signs in with a cookie and no
             bearer, so it cannot be one of the logins this device holds, and

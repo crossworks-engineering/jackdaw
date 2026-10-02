@@ -41,6 +41,17 @@ export function clientItemIdFromPath(pathname: string): string | null {
   return UUID_RE.test(id) ? id : null;
 }
 
+/**
+ * Where a hinted client's /login goes. A client has no password, so /login is
+ * not its way in: the client sign-in page is. The one exception is the
+ * deliberate Add login (`/login?add=1`): a client login the desktop app holds
+ * as a session reaches it from its own menu to add another login, and must
+ * not be bounced to a page about sign-in links. Null: let /login through.
+ */
+export function clientLoginPageRedirect(search: URLSearchParams): string | null {
+  return search.get('add') === '1' ? null : CLIENT_SIGNIN_PATH;
+}
+
 /** The client home, with `id` open when one is given. */
 export function clientHomeHref(id?: string | null): string {
   return id ? `/?id=${encodeURIComponent(id)}` : '/';

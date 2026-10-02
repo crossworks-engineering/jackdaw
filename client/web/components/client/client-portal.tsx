@@ -18,6 +18,8 @@ import { clientPortalView, isNewShellAnswer, refreshClientPortal } from '@/lib/c
 import { clearRescues, clientRescueOwner, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
 import type { ClientShell } from '@mantle/client-types';
 import { ClientShellFrame } from './client-shell-frame';
+import { recordActiveIdentity } from '@mantle/web-ui/session-registry';
+import { refreshAllSessions } from '@mantle/web-ui/token-refresh';
 
 /**
  * A CLIENT login's whole app (client logins C2): the shell renders this in
@@ -32,6 +34,7 @@ export function ClientPortal({ query }: { query: UseQueryResult<ClientShell> }) 
   useBrand(shell);
   useFreshList(query.dataUpdatedAt);
   useRescueOwner(shell);
+  useHeldClientUpkeep(shell);
   switch (view) {
     case 'ready':
       return (
@@ -55,6 +58,25 @@ export function ClientPortal({ query }: { query: UseQueryResult<ClientShell> }) 
     default:
       return <RoleLoadingScreen fullScreen client />;
   }
+}
+
+/**
+ * A client login the desktop app holds as a session (a bearer, by emailed
+ * code): the client shell names it, so its row learns its name and role, and
+ * every login held here is kept alive, as the owner shell does for its own.
+ * No-ops for a cookie client (a browser's), which holds no session.
+ */
+function useHeldClientUpkeep(shell: ClientShell | undefined) {
+  // Keyed on what it records, not the shell object: the shell is polled
+  // about once a minute, and this is once per load or per change of name.
+  const email = shell?.email;
+  const displayName = shell?.displayName;
+  const siteName = shell?.siteName;
+  useEffect(() => {
+    if (email === undefined) return;
+    recordActiveIdentity({ email, displayName, siteName, role: 'client' });
+    void refreshAllSessions();
+  }, [email, displayName, siteName]);
 }
 
 /**

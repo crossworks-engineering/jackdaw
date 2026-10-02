@@ -26,6 +26,7 @@ import {
   setSessionToken,
   signInSession,
   TOKEN_STORAGE_KEY,
+  type SessionRole,
 } from './session-registry';
 
 const PRESENCE_COOKIE = 'mantle_authed';
@@ -89,7 +90,12 @@ export const tokenStore = {
   },
   /** A sign-in succeeded: hold the bearer as a session of its own (or refresh
    *  the row this login already has) and make it the active one. */
-  signIn(login: { email: string; token: string }): void {
+  signIn(login: {
+    email: string;
+    token: string;
+    role?: SessionRole | null;
+    loginId?: string | null;
+  }): void {
     if (!canStore()) return;
     try {
       signInSession(login);
