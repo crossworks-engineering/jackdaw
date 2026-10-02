@@ -35,7 +35,7 @@ import {
 } from '@/lib/recall-v2';
 import { CreateMapDialog } from './map-dialogs';
 import { MapWorkbench, type EditGuard } from './map-workbench';
-import { useLeaveGuard } from './use-leave-guard';
+import { useLeaveGuard } from '@/lib/use-leave-guard';
 
 export type RecallV2View = 'cards' | 'graph' | 'revisions';
 

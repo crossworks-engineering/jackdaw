@@ -18,6 +18,17 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@mantle/web-ui/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
+import { useLeaveGuard } from '@/lib/use-leave-guard';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
@@ -115,6 +126,20 @@ function AppDetailView({ app }: { app: AppDetail }) {
   // select mode is active. Both reset whenever the app reloads (rebuild/publish).
   const [inspect, setInspect] = useState(false);
   const [focusRegion, setFocusRegion] = useState<string | null>(null);
+  // Discard throws away the whole draft, the assistant's work included, and
+  // cannot be undone: it asks first (apps audit U2).
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Unsaved Code edits: leaving the screen (Back, a link, closing the tab)
+  // asks first instead of dropping them (apps audit U3).
+  const [heldLeave, setHeldLeave] = useState<(() => void) | null>(null);
+  const holdLeave = useCallback(
+    (go: () => void) => {
+      if (dirty) setHeldLeave(() => go);
+      else go();
+    },
+    [dirty],
+  );
+  useLeaveGuard(dirty, holdLeave);
 
   const activeContent = files[activePath] ?? files[source.entry] ?? '';
   const canFormat = FORMATTABLE.has(extOf(activePath));
@@ -299,9 +324,14 @@ function AppDetailView({ app }: { app: AppDetail }) {
             Preview
           </Button>
           {app.hasDraft && (
-            <Button size="sm" variant="ghost" onClick={discard} disabled={busy !== null}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmDiscard(true)}
+              disabled={busy !== null}
+            >
               <Undo2 />
-              Discard
+              {busy === 'discard' ? 'Discarding…' : 'Discard'}
             </Button>
           )}
           {/* Commit compiles the draft itself, so it gates on there being
@@ -493,6 +523,57 @@ function AppDetailView({ app }: { app: AppDetail }) {
           <AppAccessLog appId={app.id} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard the draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every change since the last commit goes, the assistant&apos;s included. The live app
+              stays as it is. This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep the draft</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void discard()}
+            >
+              Discard draft
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={heldLeave !== null}
+        onOpenChange={(o) => {
+          if (!o) setHeldLeave(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The code has edits that are not saved to the draft. Leaving throws them away.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const go = heldLeave;
+                setHeldLeave(null);
+                setDirty(false);
+                go?.();
+              }}
+            >
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

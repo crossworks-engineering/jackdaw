@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 // Relative, not `@/`: the unit test imports this file, and vitest has no alias.
-import { setNavHold } from '../../../../lib/nav-guard';
+import { setNavHold } from './nav-guard';
 
 /**
  * Whether a click on a link to `href` would take the reader off the screen
