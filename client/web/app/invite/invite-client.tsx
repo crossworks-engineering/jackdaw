@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect, useState } from 'react';
 import type { MemberInvitePreview } from '@mantle/client-types';
 import { apiUrl } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
-import { tokenStore } from '@mantle/web-ui/token-store';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   Field,
@@ -26,7 +25,8 @@ import {
   type InviteFormErrors,
 } from '@/lib/member-invites';
 import { takeLinkCode } from '@/lib/link-code';
-import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
+import { UNEXPECTED_RESPONSE, signInErrorMessage } from '@/lib/sign-in-error';
+import { signInAfterInvite } from '@/lib/invite-sign-in';
 
 type Preview =
   | { kind: 'idle' }
@@ -158,29 +158,11 @@ export function InviteClient({
       }
       const email = outcome.email || preview.invite.email;
 
-      // Sign in for a bearer with what was just set, as the sign-in form does
-      // in both topologies: the new member login is then one of the logins
-      // this device holds, and any other login held here stays as it was.
-      // Split, the accept answer's cookie is on the API origin, which a split
-      // client never uses; same-origin it is this very login's, so it stays.
-      const tokenRes = await fetch(apiUrl('/api/auth/token'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password, deviceName: 'Web client' }),
-        credentials: 'omit',
-      }).catch(() => null);
-      const token = tokenRes?.ok ? await readBearer(tokenRes) : null;
-      if (token) {
-        tokenStore.signIn({ email, token });
-      } else if (split) {
-        setFormError(`Your login is ready. Sign in at /login with ${email} and your password.`);
+      // A bearer, held as one of this device's logins (see signInAfterInvite).
+      const signedIn = await signInAfterInvite(email, password, split);
+      if (signedIn.kind === 'sign-in-at-login') {
+        setFormError(signedIn.message);
         return;
-      } else {
-        // No bearer, but the accept's cookie signs this browser in. A bearer
-        // left by an earlier session would ride along with every request and
-        // answer for the wrong login, so it goes; the cookie is the session.
-        tokenStore.clear();
-        tokenStore.markPresence();
       }
       setMemberHint(true);
       // A full load, not a client navigation: nothing an earlier session
