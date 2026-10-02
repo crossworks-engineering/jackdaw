@@ -96,6 +96,9 @@ type RestoreResult = {
   undo: AppSnapshot | null;
   code: 'draft' | 'live' | null;
   mode: AppRestoreMode;
+  /** A code restore leaves the app's tools alone: the restored code's
+   *  declared tools, when they differ (mantle apps audit 2026-10-02). */
+  declaredTools?: string[] | null;
 };
 
 const historyKey = (appId: string) => ['apps', appId, 'snapshots'] as const;
@@ -135,21 +138,34 @@ export function AppHistory({
   async function restore(entry: AppSnapshot, mode: AppRestoreMode) {
     setBusy(true);
     try {
+      // The draft is dropped only when the dialog said so: a code restore
+      // over a draft the owner saw. A data restore never touches the draft,
+      // and a draft that appeared since the dialog opened is refused (409)
+      // rather than dropped unseen (mantle apps audit 2026-10-02, low).
       const res = await apiSend<RestoreResult>(
         `/api/apps/${appId}/snapshots/${entry.id}/restore`,
         'POST',
-        { mode, discardDraft: true },
+        { mode, discardDraft: mode !== 'data' && hasDraft },
       );
       await refresh();
       onRestored(res);
       const undo = res.undo ? ` To undo, restore v${res.undo.seq}.` : '';
+      const tools = res.declaredTools?.length
+        ? ` That version used the tools ${res.declaredTools.join(', ')}; the app keeps its current tools until you grant those.`
+        : '';
       toast.success(
         res.code === 'draft'
-          ? `v${entry.seq}'s code is in the draft: preview it, then commit.${undo}`
+          ? `v${entry.seq}'s code is in the draft: preview it, then commit.${tools}${undo}`
           : `Restored v${entry.seq}.${undo}`,
       );
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not restore.');
+      if (err instanceof ApiError && err.status === 409 && err.body?.reason === 'draft') {
+        toast.error(
+          'The app got a draft after you opened this (the assistant, or another window). Look at it first, then restore again.',
+        );
+      } else {
+        toast.error(err instanceof ApiError ? err.message : 'Could not restore.');
+      }
     } finally {
       setBusy(false);
       setRestoring(null);
@@ -249,7 +265,10 @@ export function AppHistory({
         )}
       </Dialog>
 
-      <AlertDialog open={restoring !== null} onOpenChange={(o) => !o && setRestoring(null)}>
+      <AlertDialog
+        open={restoring !== null}
+        onOpenChange={(o) => !o && !busy && setRestoring(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -259,8 +278,16 @@ export function AppHistory({
               {restoring ? MODE_COPY[restoring.mode].body + replacesWork : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {busy && restoring && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <Spinner />
+              {restoring.mode === 'code'
+                ? 'Restoring the code…'
+                : 'Restoring. The app pauses for a few seconds while its data is swapped…'}
+            </p>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               className={
@@ -268,9 +295,13 @@ export function AppHistory({
                   ? undefined
                   : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
               }
-              onClick={() => restoring && void restore(restoring.entry, restoring.mode)}
+              onClick={(ev) => {
+                // The dialog stays open, with the progress, until it is done.
+                ev.preventDefault();
+                if (restoring) void restore(restoring.entry, restoring.mode);
+              }}
             >
-              {restoring ? MODE_COPY[restoring.mode].action : ''}
+              {busy ? 'Restoring…' : restoring ? MODE_COPY[restoring.mode].action : ''}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

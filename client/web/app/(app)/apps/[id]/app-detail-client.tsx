@@ -160,6 +160,9 @@ function AppDetailView({ app }: { app: AppDetail }) {
   dirtyRef.current = dirty;
   const [conflict, setConflict] = useState(false);
   const [tab, setTab] = useState('builder');
+  // The next reload only restarts the running app (a data restore): the
+  // draft did not change, so the re-sync says nothing about it.
+  const quietResyncRef = useRef(false);
 
   const activeContent = files[activePath] ?? files[source.entry] ?? '';
   const canFormat = FORMATTABLE.has(extOf(activePath));
@@ -174,8 +177,12 @@ function AppDetailView({ app }: { app: AppDetail }) {
   // it keeps them instead (apps audit U1): the next save meets the newer
   // draft and asks what to do, rather than either side's work vanishing.
   useEffect(() => {
+    const quiet = quietResyncRef.current;
+    quietResyncRef.current = false;
     if (dirtyRef.current) {
-      toast.info('The draft changed. Your unsaved edits are kept; saving will ask what to do.');
+      if (!quiet) {
+        toast.info('The draft changed. Your unsaved edits are kept; saving will ask what to do.');
+      }
       return;
     }
     setFiles(source.files);
@@ -584,11 +591,17 @@ function AppDetailView({ app }: { app: AppDetail }) {
             appTitle={app.title}
             hasDraft={app.hasDraft}
             dirty={dirty}
-            onRestored={() => {
-              // The restore replaced the draft or the data: take the server's
-              // files and reload the running app, then show it.
-              setDirty(false);
-              dirtyRef.current = false;
+            onRestored={(res) => {
+              // Code came back (the draft or live): take the server's files.
+              // A data-only restore leaves the code alone, unsaved edits
+              // included (mantle apps audit 2026-10-02, item 6): only the
+              // running app reloads.
+              if (res.code !== null) {
+                setDirty(false);
+                dirtyRef.current = false;
+              } else {
+                quietResyncRef.current = true;
+              }
               setReloadKey((k) => k + 1);
               setTab('builder');
             }}
