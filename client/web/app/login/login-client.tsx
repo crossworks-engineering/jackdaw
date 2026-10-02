@@ -48,9 +48,12 @@ export function LoginClient({
 
   const bootQuery = useQuery({
     queryKey: ['auth-bootstrap-state'],
-    queryFn: () => apiFetch<{ firstRun: boolean }>('/api/auth/bootstrap-state'),
+    // setupCodeRequired is absent on a brain from before the setup code.
+    queryFn: () =>
+      apiFetch<{ firstRun: boolean; setupCodeRequired?: boolean }>('/api/auth/bootstrap-state'),
   });
   const firstRun = bootQuery.data?.firstRun ?? false;
+  const setupCodeRequired = bootQuery.data?.setupCodeRequired ?? false;
 
   return (
     // The settings-card shell (ui-style-guide §6e): a form in a content area
@@ -63,7 +66,12 @@ export function LoginClient({
         </p>
       </div>
       <div className="space-y-4 p-4 md:p-5">
-        <LoginForm mode={firstRun ? 'signup' : 'login'} next={next} error={error} />
+        <LoginForm
+          mode={firstRun ? 'signup' : 'login'}
+          next={next}
+          error={error}
+          setupCodeRequired={setupCodeRequired}
+        />
         {/* No client exists on a brain that is still being set up. */}
         <ClientCodeLink enabled={clientCodes && !firstRun} />
       </div>

@@ -20,6 +20,7 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { attentionMode, safeInAppPath } from './attention';
+import { stripBrowserOnlyHeaders } from './brain-fence';
 
 /**
  * Jackdaw desktop — shell around the owner UI.
@@ -268,9 +269,10 @@ async function startUiServer(brainOrigin: string): Promise<string> {
 // (server/web/server/middleware/gate.ts). Native clients (the mobile app,
 // curl) therefore need no CORS setup. Electron is native too; only the
 // embedded Chromium enforces CORS on itself. So, for the configured brain
-// origin ONLY: declare ourselves native (drop Origin on the way out) and
-// satisfy the renderer's own check (supply ACAO on the way in). Nothing about
-// the server's browser-facing posture changes — a real browser tab can't do this.
+// origin ONLY: declare ourselves native (drop Origin and Sec-Fetch-* on the
+// way out, see brain-fence.ts) and satisfy the renderer's own check (supply
+// ACAO on the way in). Nothing about the server's browser-facing posture
+// changes; a real browser tab can't do this.
 
 function fenceBrainSession(
   ses: Electron.Session,
@@ -280,10 +282,7 @@ function fenceBrainSession(
   const brainUrls = { urls: [`${brainOrigin}/*`] };
 
   ses.webRequest.onBeforeSendHeaders(brainUrls, ({ requestHeaders }, callback) => {
-    for (const key of Object.keys(requestHeaders)) {
-      if (key.toLowerCase() === 'origin') delete requestHeaders[key];
-    }
-    callback({ requestHeaders });
+    callback({ requestHeaders: stripBrowserOnlyHeaders(requestHeaders) });
   });
 
   ses.webRequest.onHeadersReceived(brainUrls, ({ responseHeaders = {} }, callback) => {

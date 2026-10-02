@@ -11,6 +11,7 @@ import { apiUrl } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
+import { SetupCodeField, isSetupCodeRefusal } from './setup-code-field';
 
 /**
  * Owner sign-in, both topologies:
@@ -32,21 +33,31 @@ import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-
  *
  * Signup (first-run) creates the account first, then enters the same branch —
  * in split mode that means an immediate token exchange with the same
- * credentials.
+ * credentials. A brain the installer set up asks for its setup code too
+ * (`setupCodeRequired`); a setup-code refusal shows on that field.
  */
 export function LoginForm({
   mode = 'login',
   next,
   error: initialError,
+  setupCodeRequired = false,
 }: {
   mode?: 'login' | 'signup';
   next?: string;
   error?: string;
+  /** First-run signup asks for the installer's setup code. */
+  setupCodeRequired?: boolean;
 }) {
   const router = useRouter();
   const isSignup = mode === 'signup';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [setupCode, setSetupCode] = useState('');
+  // Shown when the brain says so, or when it refuses a signup for the code
+  // (a bootstrap state that had not loaded yet must not hide the field).
+  const [codeRefused, setCodeRefused] = useState(false);
+  const [codeError, setCodeError] = useState<string | undefined>();
+  const askCode = isSignup && (setupCodeRequired || codeRefused);
   const [error, setError] = useState<string | undefined>(initialError);
   const [busy, setBusy] = useState(false);
 
@@ -54,6 +65,7 @@ export function LoginForm({
     e.preventDefault();
     setBusy(true);
     setError(undefined);
+    setCodeError(undefined);
     try {
       const split = isCrossOrigin();
 
@@ -61,11 +73,16 @@ export function LoginForm({
         const res = await fetch(apiUrl('/api/auth/signup'), {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify(askCode ? { email, password, setupCode } : { email, password }),
           credentials: split ? 'omit' : 'include',
         });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as { error?: string; reason?: string };
+          if (isSetupCodeRefusal(res.status, data)) {
+            setCodeRefused(true);
+            setCodeError(data.error ?? 'Enter the setup code the installer printed.');
+            return;
+          }
           setError(data.error ?? 'Could not create your login.');
           return;
         }
@@ -138,6 +155,16 @@ export function LoginForm({
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
+      {askCode && (
+        <SetupCodeField
+          value={setupCode}
+          onChange={(v) => {
+            setSetupCode(v);
+            setCodeError(undefined);
+          }}
+          error={codeError}
+        />
+      )}
       {error && <p className="text-sm text-destructive-ink">{error}</p>}
       <SubmitButton pending={busy} className="w-full">
         {isSignup ? 'Create login' : 'Sign in'}
