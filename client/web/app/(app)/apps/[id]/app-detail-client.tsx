@@ -239,6 +239,11 @@ function AppDetailView({ app }: { app: AppDetail }) {
     try {
       await apiSend(`/api/apps/${app.id}/draft`, 'DELETE');
       toast.success('Draft discarded.');
+      // The unsaved edits go with the draft (the owner said so): the re-sync
+      // takes the server's files and stamp. Kept, they met the new draft on
+      // the next save as a false conflict (apps audit 2026-10-02, low).
+      setDirty(false);
+      dirtyRef.current = false;
       await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       setReloadKey((k) => k + 1);
     } catch {

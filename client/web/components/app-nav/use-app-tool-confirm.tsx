@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AppToolConfirmRequest } from '@mantle/share-ui/app-sandbox';
 import {
   AlertDialog,
@@ -13,8 +13,10 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 
-/** How much of the input the dialog shows before it cuts. */
-const MAX_INPUT_CHARS = 4000;
+/** How long "Run it" stays off after a question opens: a click meant for
+ *  the app (or for an earlier question) never lands on it (apps audit
+ *  2026-10-02, item 6). */
+const ARM_DELAY_MS = 800;
 
 /**
  * The owner's answer when a running app calls a tool that needs confirmation
@@ -45,15 +47,30 @@ export function useAppToolConfirm(): {
   const confirmTool = useCallback(
     (req: AppToolConfirmRequest) =>
       new Promise<boolean>((resolve) => {
-        // One question at a time: a second call while one is open declines
-        // the first, so neither waits for ever.
-        resolver.current?.(false);
+        // One question at a time (apps audit 2026-10-02, item 6): a second
+        // call while one is open is declined, and the open one stays as it
+        // is. Replacing it put a different call under the Run button the
+        // owner was about to press, and an app could time that.
+        if (resolver.current) {
+          resolve(false);
+          return;
+        }
         resolver.current = resolve;
         setShown(req);
       }),
     [],
   );
 
+  // "Run it" waits a moment after the question appears.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    setArmed(false);
+    if (!shown) return;
+    const t = setTimeout(() => setArmed(true), ARM_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [shown]);
+
+  // The whole input, never cut: the dialog scrolls (a cut hid the tail).
   const input = shown ? JSON.stringify(shown.input, null, 2) : '';
   const dialog = (
     <AlertDialog
@@ -74,14 +91,22 @@ export function useAppToolConfirm(): {
           <div className="flex min-w-0 flex-col gap-2 text-sm">
             <p className="font-mono text-xs text-muted-foreground">{shown.slug}</p>
             {shown.description && <p className="text-muted-foreground">{shown.description}</p>}
-            <pre className="max-h-48 overflow-auto scrollbar-thin rounded-md border border-border bg-muted p-2 font-mono text-xs whitespace-pre-wrap break-all">
-              {input.length > MAX_INPUT_CHARS ? `${input.slice(0, MAX_INPUT_CHARS)}…` : input}
+            <pre className="max-h-64 overflow-auto scrollbar-thin rounded-md border border-border bg-muted p-2 font-mono text-xs whitespace-pre-wrap break-all">
+              {input}
             </pre>
+            {input.length > 2000 && (
+              <p className="text-xs text-muted-foreground">
+                The input is {input.length.toLocaleString()} characters long. Scroll to read all of
+                it before you say yes.
+              </p>
+            )}
           </div>
         )}
         <AlertDialogFooter>
           <AlertDialogCancel>Don&apos;t run it</AlertDialogCancel>
-          <AlertDialogAction onClick={() => answer(true)}>Run it</AlertDialogAction>
+          <AlertDialogAction disabled={!armed} onClick={() => answer(true)}>
+            Run it
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
