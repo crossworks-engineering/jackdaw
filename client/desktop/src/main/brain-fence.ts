@@ -25,3 +25,15 @@ export function stripBrowserOnlyHeaders(
   }
   return requestHeaders;
 }
+
+/**
+ * The requests the fence applies to: everything under the configured brain's
+ * origin, its /api/auth routes included. Not narrower, on purpose: the client
+ * login's device sign-in (POST /api/auth/client-code and .../verify) is
+ * refused by the brain (403 `device-only`) to any request still carrying
+ * `Origin` or a `Sec-Fetch-*` header, so a desktop client login exists only
+ * because these routes pass through `stripBrowserOnlyHeaders` too.
+ */
+export function brainRequestFilter(brainOrigin: string): { urls: string[] } {
+  return { urls: [`${brainOrigin}/*`] };
+}

@@ -20,7 +20,7 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { attentionMode, safeInAppPath } from './attention';
-import { stripBrowserOnlyHeaders } from './brain-fence';
+import { brainRequestFilter, stripBrowserOnlyHeaders } from './brain-fence';
 import { createVault, type Vault } from './vault';
 
 /**
@@ -263,7 +263,7 @@ function fenceBrainSession(
   brainOrigin: string,
   rendererOrigin: string,
 ): void {
-  const brainUrls = { urls: [`${brainOrigin}/*`] };
+  const brainUrls = brainRequestFilter(brainOrigin);
 
   ses.webRequest.onBeforeSendHeaders(brainUrls, ({ requestHeaders }, callback) => {
     callback({ requestHeaders: stripBrowserOnlyHeaders(requestHeaders) });
