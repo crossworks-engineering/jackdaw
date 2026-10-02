@@ -315,15 +315,8 @@ export function ToolsClient() {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Delete failed.'),
   });
 
-  // Search. A connector tool also matches its group's display name; the
-  // ['tool-groups'] cache is the one the Tool groups screen reads.
-  const groupsQuery = useQuery({
-    queryKey: ['tool-groups'],
-    queryFn: () =>
-      apiFetch<{ groups: { slug: string; name: string }[] }>('/api/tool-groups').then(
-        (r) => r.groups,
-      ),
-  });
+  // Search. A connector tool also matches its group's display name (from
+  // groupsQuery above, the ['tool-groups'] cache).
   const groupNames = useMemo(
     () => new Map((groupsQuery.data ?? []).map((g) => [g.slug, g.name])),
     [groupsQuery.data],

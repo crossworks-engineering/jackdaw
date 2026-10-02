@@ -575,7 +575,6 @@ function ConnectorToolList({
   toolSlugs: string[];
   names: ToolOption[];
 }) {
-  const byName = new Map(names.map((t) => [t.slug, t.name]));
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
@@ -590,16 +589,7 @@ function ConnectorToolList({
           No tools yet. The {kind === 'mcp' ? 'MCP' : 'OpenAPI'} connector adds them when it syncs.
         </p>
       ) : (
-        <ul className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2 scrollbar-thin">
-          {toolSlugs.map((slug) => (
-            <li key={slug} className="flex min-w-0 items-baseline gap-2 text-sm">
-              <span className="truncate font-mono text-xs">{slug}</span>
-              {byName.get(slug) && byName.get(slug) !== slug && (
-                <span className="truncate text-xs text-muted-foreground">{byName.get(slug)}</span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <ToolPicker readOnly available={names} selected={toolSlugs} />
       )}
     </div>
   );
