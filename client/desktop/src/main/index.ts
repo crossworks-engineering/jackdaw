@@ -717,7 +717,7 @@ function registerIpc(): void {
 
   ipcMain.handle('profiles:connect', async (event, id: string) => {
     if (!loadProfiles().some((p) => p.id === id)) {
-      return { ok: false, error: 'Unknown brain — refresh the list.' };
+      return { ok: false, error: 'Unknown brain. Refresh the list.' };
     }
     try {
       await openBrain(id);

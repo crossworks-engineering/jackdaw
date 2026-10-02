@@ -56,7 +56,7 @@ async function refreshIdleSession(session: Session): Promise<void> {
     // Only if nothing replaced it while the request was in flight.
     if (body.token && sessionToken(session.id) === token) setSessionToken(session.id, body.token);
   } catch {
-    /* unreachable brain, or one that does not allow this origin — next boot retries */
+    /* unreachable brain, or one that does not allow this origin; the next boot retries */
   }
 }
 

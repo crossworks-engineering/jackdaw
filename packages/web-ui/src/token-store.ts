@@ -101,7 +101,7 @@ export const tokenStore = {
       signInSession(login);
       setPresenceCookie();
     } catch {
-      /* storage unavailable (private mode etc.) — the session just won't persist */
+      /* storage unavailable (private mode etc.); the session just won't persist */
     }
   },
   /** Replace the ACTIVE session's bearer: a rotation. A sign-in goes through
