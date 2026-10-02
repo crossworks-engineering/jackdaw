@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOARD_COLUMNS, boardColumnFor, statusForDrop } from './task-meta';
+import { BOARD_COLUMNS, boardColumnFor, reopenLabel, statusForDrop } from './task-meta';
 
 /**
  * The board shows three columns for four statuses, which is only safe while
@@ -50,5 +50,33 @@ describe('statusForDrop', () => {
     for (const status of ['open', 'in_progress', 'blocked', 'done'] as const) {
       expect(statusForDrop(status, boardColumnFor(status))).toBe(status);
     }
+  });
+});
+
+describe('statusForDrop out of Done', () => {
+  it('restores the status the brain remembers when its column is the target', () => {
+    expect(statusForDrop('done', 'in_progress', 'blocked')).toBe('blocked');
+    expect(statusForDrop('done', 'in_progress', 'in_progress')).toBe('in_progress');
+    expect(statusForDrop('done', 'open', 'open')).toBe('open');
+  });
+
+  it('writes the column when the drop names another one, or nothing is known', () => {
+    expect(statusForDrop('done', 'open', 'blocked')).toBe('open');
+    expect(statusForDrop('done', 'in_progress', null)).toBe('in_progress');
+    expect(statusForDrop('done', 'in_progress')).toBe('in_progress');
+    expect(statusForDrop('done', 'done', 'blocked')).toBe('done');
+  });
+});
+
+describe('reopenLabel', () => {
+  it('names the status a reopen goes back to, when known', () => {
+    expect(reopenLabel('blocked')).toBe('Reopen (back to Blocked)');
+    expect(reopenLabel('in_progress')).toBe('Reopen (back to In progress)');
+    expect(reopenLabel('open')).toBe('Reopen (back to To do)');
+  });
+
+  it('says plain Reopen when the brain does not know', () => {
+    expect(reopenLabel(null)).toBe('Reopen');
+    expect(reopenLabel(undefined)).toBe('Reopen');
   });
 });

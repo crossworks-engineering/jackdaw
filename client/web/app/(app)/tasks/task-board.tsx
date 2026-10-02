@@ -18,7 +18,8 @@ import { Ban, CheckSquare, Flag, MessageSquare } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardTags } from '@mantle/web-ui/ui/list-card';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import type { TaskRow, TaskStatus } from '@mantle/client-types';
+import type { TaskStatus } from '@mantle/client-types';
+import type { TaskRow } from './task-detail';
 import { rankBetween } from '@/lib/rank';
 import {
   BOARD_COLUMNS,
@@ -288,7 +289,7 @@ export function TaskBoard({
       insertBeforeId = overTask.id;
     }
 
-    const targetStatus = statusForDrop(task.status, targetColumn);
+    const targetStatus = statusForDrop(task.status, targetColumn, task.statusBeforeDone);
 
     // Neighbours come from the RENDERED (rank-sorted) column, not the raw
     // list — after an optimistic drag the two orders diverge and raw-order

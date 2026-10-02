@@ -33,12 +33,14 @@ import { TaskForm, taskToForm, type TaskPayload } from './task-form';
 import { PRIORITY_BADGE, STATUSES, STATUS_BADGE, STATUS_LABEL, type Status } from './task-meta';
 import { TaskTodos } from './task-todos';
 import { TaskComments } from './task-comments';
-import type { TaskRow, TaskTodo } from '@mantle/client-types';
+import type { TaskRow as WireTaskRow, TaskTodo } from '@mantle/client-types';
 
 // Wire shape is the GET /api/tasks mapper's output — single source of truth.
 // Re-exported so the list client keeps importing it from here; a drift between
 // the @mantle/content row and what this screen renders is now a compile error.
-export type { TaskRow };
+// `statusBeforeDone` (the status a reopen restores) is optional in the brain's
+// contract but newer than the pinned one: drop the widening at the pin bump.
+export type TaskRow = WireTaskRow & { statusBeforeDone?: Status | null };
 export type { Status };
 
 /** A partial task write (status move, todos edit) — subset of the form payload. */
@@ -46,6 +48,9 @@ export type TaskPatch = Partial<TaskPayload> & {
   todos?: TaskTodo[];
   /** File the task away (or restore it). The server stamps `archivedAt`. */
   archived?: boolean;
+  /** Take a done task back to the status it had before done. The brain
+   *  remembers that status; an explicit `status` in the same patch wins. */
+  reopen?: boolean;
 };
 
 /**

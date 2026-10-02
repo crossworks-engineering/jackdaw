@@ -45,8 +45,24 @@ export function boardColumnFor(status: TaskStatus): BoardColumn {
  * would be clearing the flag as a side effect of tidying. Dragging OUT of the
  * column is still a real status change; blocked is cleared from the form.
  */
-export function statusForDrop(current: TaskStatus, column: BoardColumn): TaskStatus {
-  return current === 'blocked' && column === 'in_progress' ? 'blocked' : column;
+export function statusForDrop(
+  current: TaskStatus,
+  column: BoardColumn,
+  reopensTo?: TaskStatus | null,
+): TaskStatus {
+  if (current === 'blocked' && column === 'in_progress') return 'blocked';
+  // A done card dragged back into the column its old status lives in goes back
+  // to that status (the brain remembers it), so a Blocked task dropped from
+  // Done onto In progress is Blocked again, not merely In progress.
+  if (
+    current === 'done' &&
+    column !== 'done' &&
+    reopensTo &&
+    boardColumnFor(reopensTo) === column
+  ) {
+    return reopensTo;
+  }
+  return column;
 }
 
 export type Priority = TaskPriority;
@@ -58,6 +74,14 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   blocked: 'Blocked',
   done: 'Done',
 };
+
+/** The Reopen action's label: names where the task goes when the brain says
+ *  so ("Reopen (back to Blocked)"), plain "Reopen" when it does not know. */
+export function reopenLabel(reopensTo?: TaskStatus | null): string {
+  return reopensTo && reopensTo !== 'done'
+    ? `Reopen (back to ${STATUS_LABEL[reopensTo]})`
+    : 'Reopen';
+}
 
 /** Badge classes per status — literal map (Tailwind v4: no dynamic classes). */
 export const STATUS_BADGE: Record<TaskStatus, string> = {

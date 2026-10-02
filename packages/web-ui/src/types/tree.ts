@@ -6,7 +6,7 @@
  * At the pin bump that publishes the tree, this file becomes
  * `export * from '@mantle/client-types/tree';` (as ./sanity.ts does).
  */
-import type { AccessLevel } from '@mantle/client-types';
+import type { AccessLevel, TaskStatus } from '@mantle/client-types';
 import type { AppTint } from '@mantle/client-types/app-nav';
 
 /** The kinds the tree serves, in navigation order. */
@@ -202,6 +202,9 @@ export type TreeItemState = 'private' | 'draft' | 'submitted' | 'returned' | 'wi
 export type TreeItemMeta = {
   /** A task marked done. */
   done?: boolean;
+  /** A done task: the status a reopen restores, when the brain knows it.
+   *  Absent otherwise (a reopen then lands on 'open'). */
+  reopensTo?: TaskStatus;
   /** A task's due instant (ISO), when it has one. */
   due?: string | null;
   /** An event's start (ISO). */

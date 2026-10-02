@@ -54,6 +54,7 @@ import {
   STATUSES,
   STATUS_LABEL,
   dueLabel,
+  reopenLabel,
   type Priority,
   type Status,
 } from './task-meta';
@@ -259,46 +260,61 @@ export function TasksClient() {
   };
 
   /** One optimistic write path for every partial update — status moves, board
-   *  drags ({status, rank}), todos edits, and the full edit form. */
-  const patchTask = async (id: string, patch: TaskPatch & { rank?: string }): Promise<boolean> => {
+   *  drags ({status, rank}), todos edits, and the full edit form. `optimistic`
+   *  is what the row shows while the write is in flight, when the patch itself
+   *  is not (a reopen). Resolves to the brain's row, or null on failure. */
+  const writeTask = async (
+    id: string,
+    patch: TaskPatch & { rank?: string },
+    optimistic: Partial<TaskRow> = patch as Partial<TaskRow>,
+  ): Promise<TaskRow | null> => {
     // Row-scoped revert: restoring the whole snapshot would clobber writes
     // that landed on OTHER rows while this one was in flight (review catch).
     const beforeRow = tasks.find((t) => t.id === id);
-    setTasks((prev) => prev.map((t) => (t.id === id ? ({ ...t, ...patch } as TaskRow) : t)));
+    setTasks((prev) => prev.map((t) => (t.id === id ? ({ ...t, ...optimistic } as TaskRow) : t)));
     let task: TaskRow;
     try {
       ({ task } = await apiSend<{ task: TaskRow }>(`/api/tasks/${id}`, 'PATCH', patch));
     } catch (e) {
       if (beforeRow) setTasks((prev) => prev.map((t) => (t.id === id ? beforeRow : t)));
-      if (e instanceof ApiError && e.status === 401) return false; // already bounced to /login
+      if (e instanceof ApiError && e.status === 401) return null; // already bounced to /login
       toast.error(e instanceof Error ? e.message : 'Could not update task');
-      return false;
+      return null;
     }
     setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
     void queryClient.invalidateQueries({ queryKey: treeKey('tasks') });
-    return true;
+    return task;
   };
 
-  // What each task was before the checkbox marked it done, so unticking is an
-  // UNDO rather than a reset. The checkbox is binary over a four-state
-  // vocabulary: without this, ticking a Blocked task and unticking it to change
-  // your mind silently lands it on To do, and the state is gone. Now that
-  // Blocked is only reachable from the form, that was the easiest way to lose it.
+  const patchTask = async (id: string, patch: TaskPatch & { rank?: string }): Promise<boolean> =>
+    (await writeTask(id, patch)) !== null;
+
+  // The brain remembers what a task was before it was marked done
+  // (`statusBeforeDone`), so unticking or Reopen is an UNDO rather than a
+  // reset, after a reload, from the board, an agent or the phone alike.
   //
-  // A ref, not state: nothing renders from it, and it must not trigger a
-  // repaint mid-toggle. Deliberately NOT persisted — after a reload, unticking
-  // an old task is no longer an undo, so `open` is the honest answer.
+  // This ref only serves a brain older than that, which ignores `reopen`: it
+  // keeps the in-view undo there, as before. A ref, not state: nothing renders
+  // from it, and it must not trigger a repaint mid-toggle.
   const statusBeforeDone = useRef(new Map<string, Status>());
 
-  const toggleStatus = (t: TaskRow) => {
-    if (t.status === 'done') {
-      const restored = statusBeforeDone.current.get(t.id) ?? 'open';
-      statusBeforeDone.current.delete(t.id);
-      return void patchTask(t.id, { status: restored });
+  /** Reopen through the brain, which restores the status the task had before
+   *  done. A brain that predates that answers with a row that has no
+   *  `statusBeforeDone` key and is still done: then write the status directly. */
+  const reopenTask = async (id: string, known?: Status | null) => {
+    const guess = known ?? statusBeforeDone.current.get(id) ?? 'open';
+    statusBeforeDone.current.delete(id);
+    const task = await writeTask(id, { reopen: true }, { status: guess, statusBeforeDone: null });
+    if (task && task.status === 'done' && !('statusBeforeDone' in task)) {
+      await writeTask(id, { status: guess });
     }
+  };
+
+  const toggleStatus = (t: TaskRow) => {
+    if (t.status === 'done') return void reopenTask(t.id, t.statusBeforeDone);
     statusBeforeDone.current.set(t.id, t.status);
     void patchTask(t.id, { status: 'done' });
   };
@@ -531,11 +547,13 @@ export function TasksClient() {
                 itemActions={(item) => (
                   <DropdownMenuItem
                     onSelect={() =>
-                      void patchTask(item.id, { status: item.meta?.done ? 'open' : 'done' })
+                      item.meta?.done
+                        ? void reopenTask(item.id, item.meta.reopensTo)
+                        : void patchTask(item.id, { status: 'done' })
                     }
                   >
                     {item.meta?.done ? <RotateCcw /> : <CircleCheck />}
-                    {item.meta?.done ? 'Reopen' : 'Mark done'}
+                    {item.meta?.done ? reopenLabel(item.meta.reopensTo) : 'Mark done'}
                   </DropdownMenuItem>
                 )}
                 onUnsupported={() => setTreeGone(true)}
