@@ -1,5 +1,6 @@
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { clickUntilOpen } from '../lib/hydration';
 import { openFromTree, treeRow } from '../lib/tree';
 import type { APIRequestContext, Page } from '@playwright/test';
 
@@ -27,9 +28,8 @@ import type { APIRequestContext, Page } from '@playwright/test';
  *
  * Every spec tags its fixtures with a unique marker and narrows the screen to
  * it, so the suite's other content (and a box's real tasks) cannot change what
- * the assertions see: `?q=<marker>` on the board and the Archived list, a
- * search of the item tree on the List view (which ignores `?q=`, see
- * lib/tree.ts). Fixtures are deleted in a `finally`.
+ * the assertions see: `?q=<marker>`, which the board, the Archived list and
+ * the List view's item tree all read. Fixtures are deleted in a `finally`.
  */
 
 type Task = { id: string; status: string; rank: string | null; archivedAt: string | null };
@@ -246,6 +246,59 @@ test.describe('tasks', () => {
       await expect(card(ownerPage, title)).toBeVisible();
     } finally {
       await ownerApi.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
+  test('the tree search lives in ?q=: a link, opening a task, the board, a reload, clearing', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    // A link with ?q= used to open the tree unfiltered, and a reload, Back or
+    // a switch to the Board lost the text: the tree kept it in local state.
+    const marker = `E2E tree q ${Date.now()}`;
+    const title = `${marker} pump`;
+    const other = `E2E tree other ${Date.now()}`;
+    const hit = await createTask(ownerApi, { title, status: 'open' });
+    const miss = await createTask(ownerApi, { title: other, status: 'open' });
+    const q = () => new URL(ownerPage.url()).searchParams.get('q');
+
+    try {
+      await ownerPage.goto(`/tasks?q=${encodeURIComponent(marker)}`);
+      const list = ownerPage.locator('[data-testid="list"]');
+      const search = list.getByRole('textbox', { name: 'Search tasks' });
+      await expect(search).toHaveValue(marker);
+      await expect(treeRow(ownerPage, title)).toBeVisible({ timeout: 20_000 });
+      await expect(treeRow(ownerPage, other)).toBeHidden();
+
+      // Opening a task from the search keeps q, so Back finds the search.
+      const detail = ownerPage.locator('[data-testid="detail"]');
+      await clickUntilOpen(treeRow(ownerPage, title), detail.getByRole('heading', { name: title }));
+      await expect.poll(q).toBe(marker);
+
+      // To the Board and back: the same text both ways.
+      await ownerPage.getByRole('radio', { name: 'Board view' }).click();
+      await expect(ownerPage).toHaveURL(/view=board/);
+      expect(q()).toBe(marker);
+      await expect(ownerPage.getByPlaceholder('Search tasks…')).toHaveValue(marker);
+      await expect(card(ownerPage, title)).toBeVisible();
+      await expect(card(ownerPage, other)).toBeHidden();
+      await ownerPage.getByRole('radio', { name: 'List view' }).click();
+      await expect(ownerPage).not.toHaveURL(/view=board/);
+      await expect(search).toHaveValue(marker);
+      await expect(treeRow(ownerPage, title)).toBeVisible();
+
+      // A reload keeps it.
+      await ownerPage.reload();
+      await expect(search).toHaveValue(marker);
+      await expect(treeRow(ownerPage, title)).toBeVisible({ timeout: 20_000 });
+
+      // Clearing the search takes q out of the URL.
+      await expect(async () => {
+        await search.fill('');
+        await expect.poll(q, { timeout: 2_000 }).toBeNull();
+      }).toPass({ timeout: 20_000 });
+    } finally {
+      for (const t of [hit, miss]) await ownerApi.delete(`/api/tasks/${t.id}`);
     }
   });
 

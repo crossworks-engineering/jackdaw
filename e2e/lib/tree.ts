@@ -10,9 +10,8 @@ import { clickUntilOpen } from './hydration';
  *
  *  - the tree opens NOTHING by itself. The lists selected their first row on
  *    load, so `?q=<marker>` used to land on the fixture; on the tree the pane
- *    stays empty until a row is picked.
- *  - the tree's search is its own state, not the URL's `?q=`. A `?q=` is still
- *    read by the paged list a brain before the tree gets, and by nothing else.
+ *    stays empty until a row is picked. (`?q=` does filter the tree: its
+ *    search lives in the URL, see components/item-tree/use-tree-search.ts.)
  *
  * The search is typed until the row turns up, because a field filled a beat
  * before hydration is reset by React, and the row only exists once the
