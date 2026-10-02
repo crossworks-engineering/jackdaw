@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   canResetPassword,
@@ -58,7 +58,7 @@ import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
-import { performSignOut } from '@mantle/web-ui/sign-out';
+import { signOutActive } from '@mantle/web-ui/session-switch';
 import {
   EVERYWHERE_CONFIRM,
   otherLoginEverywhereText,
@@ -652,7 +652,6 @@ function DevicesCard({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
  */
 function SignOutEverywhereButton({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
   const toast = useToast();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -667,10 +666,10 @@ function SignOutEverywhereButton({ user, isSelf }: { user: UserRow; isSelf: bool
       return;
     }
     if (isSelf || outcome.kind === 'signed-out') {
-      // This browser's session is gone too (or already was).
-      await performSignOut();
-      router.push('/login');
-      router.refresh();
+      // This browser's session is gone too (or already was). Signed out the
+      // way the profile menu's Sign out everywhere does it: onto the next
+      // login this device holds, else /login, in a page load.
+      await signOutActive();
       return;
     }
     setBusy(false);
