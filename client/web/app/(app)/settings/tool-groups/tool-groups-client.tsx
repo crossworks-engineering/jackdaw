@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
-import type { ToolDTO, ToolGroupWithRefs } from '@mantle/client-types';
+import type { ToolDTO } from '@mantle/client-types';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -50,10 +50,14 @@ import {
 } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { slugify } from '@mantle/web-ui/slugify';
+import type { ToolGroupWithLevel } from '@/lib/tool-group-level';
+import { AudienceBadge } from '@/components/share/audience-badge';
 import { connectorKind, toolGroupSaveBody } from './tool-group-save';
+import { GroupLevelSection } from './group-level-section';
 
-// List items carry the agent-grant fan-out from GET /api/tool-groups.
-type ToolGroupSummary = ToolGroupWithRefs;
+// List items carry the agent-grant fan-out from GET /api/tool-groups, and the
+// level from a brain that sends it.
+type ToolGroupSummary = ToolGroupWithLevel;
 
 type FormState = {
   slug: string;
@@ -314,6 +318,7 @@ export function ToolGroupsClient() {
                             {g.integration.service}
                           </span>
                         )}
+                        <AudienceBadge level={g.audience} />
                         {!g.enabled && (
                           <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                             off
@@ -373,6 +378,12 @@ export function ToolGroupsClient() {
                   )}
                 </div>
               </div>
+              {editing.mode === 'edit' && (
+                // The list's copy, so the level shows what the brain saved.
+                <GroupLevelSection
+                  group={groups.find((g) => g.id === editing.group.id) ?? editing.group}
+                />
+              )}
               <form onSubmit={submit} noValidate>
                 <FieldGroup>
                   <div className="grid gap-3 sm:grid-cols-2">

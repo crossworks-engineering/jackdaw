@@ -40,7 +40,9 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
 import { ListSearchBar, ListSearchEmpty, useListQuery } from '@/components/list-search';
 import { filterTools } from '@/lib/tool-search';
+import { groupsHolding, teamAppsReach, type ToolGroupWithLevel } from '@/lib/tool-group-level';
 import { TeamAppsSection, type ToolWithTeamApps } from './team-apps-section';
+import { TeamAppsGroupNote, ToolGroupsOfTool } from './tool-groups-of-tool';
 
 type ToolSummary = ToolWithTeamApps;
 
@@ -218,6 +220,13 @@ export function ToolsClient() {
   const settingsQuery = useQuery({
     queryKey: ['tools', 'settings'],
     queryFn: () => apiFetch<ToolSettings>('/api/tools/settings'),
+  });
+  // Shares the ['tool-groups'] cache with /settings/tool-groups: a level set
+  // there shows here at once.
+  const groupsQuery = useQuery({
+    queryKey: ['tool-groups'],
+    queryFn: () =>
+      apiFetch<{ groups: ToolGroupWithLevel[] }>('/api/tool-groups').then((r) => r.groups),
   });
   const tools = useMemo(() => toolsQuery.data ?? [], [toolsQuery.data]);
   const settings = settingsQuery.data ?? DEFAULT_SETTINGS;
@@ -1001,15 +1010,35 @@ export function ToolsClient() {
                 </div>
               </form>
 
-              {editing.mode === 'edit' && (
-                <TeamAppsSection
-                  tool={editing.tool}
-                  onChanged={(t) => {
-                    queryClient.invalidateQueries({ queryKey: ['tools'] });
-                    setEditing({ mode: 'edit', tool: t });
-                  }}
-                />
-              )}
+              {editing.mode === 'edit' &&
+                (() => {
+                  const allGroups = groupsQuery.data ?? [];
+                  const holding = groupsHolding(allGroups, editing.tool.slug);
+                  return (
+                    <>
+                      <TeamAppsSection
+                        tool={editing.tool}
+                        onChanged={(t) => {
+                          queryClient.invalidateQueries({ queryKey: ['tools'] });
+                          setEditing({ mode: 'edit', tool: t });
+                        }}
+                        groupNote={
+                          groupsQuery.isSuccess ? (
+                            <TeamAppsGroupNote
+                              reach={teamAppsReach(allGroups, editing.tool.slug)}
+                              groups={holding}
+                            />
+                          ) : null
+                        }
+                      />
+                      <ToolGroupsOfTool
+                        groups={holding}
+                        pending={groupsQuery.isPending}
+                        error={groupsQuery.isError ? groupsQuery.error.message : null}
+                      />
+                    </>
+                  );
+                })()}
             </div>
           )
         }

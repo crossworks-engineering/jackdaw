@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import type { ToolDTO, ToolTeamAppsDTO } from '@mantle/client-types';
@@ -54,9 +54,12 @@ function who(t: ToolTeamApps): string {
 export function TeamAppsSection({
   tool,
   onChanged,
+  groupNote,
 }: {
   tool: ToolWithTeamApps;
   onChanged: (tool: ToolWithTeamApps) => void;
+  /** Whether a team-level group holds the tool (`TeamAppsGroupNote`). */
+  groupNote?: ReactNode;
 }) {
   const toast = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -117,6 +120,7 @@ export function TeamAppsSection({
           className="mt-0.5 shrink-0"
         />
       </div>
+      {groupNote}
       {on && state && (
         <p className="text-xs text-muted-foreground">
           Confirmed read-only by {who(state)} on{' '}
