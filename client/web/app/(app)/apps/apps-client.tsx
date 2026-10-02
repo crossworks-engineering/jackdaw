@@ -36,6 +36,7 @@ import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
+import { useAppToolConfirm } from '@/components/app-nav/use-app-tool-confirm';
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
@@ -101,6 +102,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   const queryClient = useQueryClient();
   const { pending, go } = useListNav();
   const { zen } = useZenMode();
+  const toolConfirm = useAppToolConfirm();
 
   // The organised list: the brain's folder tree (GET /api/app-nav). A brain on
   // a release before app nav answers 404, and the page keeps the flat,
@@ -362,6 +364,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                     <AppSandbox
                       appId={selected.id}
                       {...ownerAppSandboxProps(selected.id)}
+                      confirmTool={toolConfirm.confirmTool}
                       loader={
                         <AppLoader
                           title={selected.title}
@@ -393,6 +396,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         }
       />
 
+      {toolConfirm.dialog}
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

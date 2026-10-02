@@ -1,7 +1,7 @@
 'use client';
 
 import { inheritedOf } from '@/lib/access-levels';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Eye,
@@ -40,6 +40,7 @@ import { AccessControl } from '@/components/share/access-control';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
+import { useAppToolConfirm } from '@/components/app-nav/use-app-tool-confirm';
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { AppAccessLog } from '@mantle/web-ui/app-sandbox/access-log';
@@ -145,6 +146,18 @@ function AppDetailView({ app }: { app: AppDetail }) {
     [dirty],
   );
   useLeaveGuard(dirty, holdLeave);
+  // A running app's call to a tool that needs confirmation (apps audit S1).
+  const toolConfirm = useAppToolConfirm();
+  // The draft stamp of the files this editor holds (apps audit U1). A save
+  // sends it back; the brain refuses (409) when the draft changed since, so
+  // a save cannot drop work the assistant or another window did meanwhile.
+  // It moves only when the editor takes the server's files, never when a
+  // refetch merely reports a newer draft. Undefined from an older brain:
+  // then a save sends no stamp and goes through, as before.
+  const baseRef = useRef(app.draftUpdatedAt);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const [conflict, setConflict] = useState(false);
 
   const activeContent = files[activePath] ?? files[source.entry] ?? '';
   const canFormat = FORMATTABLE.has(extOf(activePath));
@@ -155,9 +168,16 @@ function AppDetailView({ app }: { app: AppDetail }) {
   }, [reloadKey]);
 
   // Re-sync the editable copy whenever the server source changes (a build,
-  // publish, discard, or an Appsmith edit). Drops any unsaved local edits.
+  // publish, discard, or an Appsmith edit). With unsaved edits in the editor
+  // it keeps them instead (apps audit U1): the next save meets the newer
+  // draft and asks what to do, rather than either side's work vanishing.
   useEffect(() => {
+    if (dirtyRef.current) {
+      toast.info('The draft changed. Your unsaved edits are kept; saving will ask what to do.');
+      return;
+    }
     setFiles(source.files);
+    baseRef.current = app.draftUpdatedAt;
     setDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
@@ -253,20 +273,40 @@ function AppDetailView({ app }: { app: AppDetail }) {
 
   // Persist the edited file tree to the draft. Returns true on success so
   // Preview and Commit can save-then-compile when there are unsaved edits.
-  async function saveDraft(): Promise<boolean> {
+  // `overwrite` (the conflict dialog's choice) sends no stamp, so it goes
+  // through over a draft that changed meanwhile.
+  async function saveDraft(overwrite = false): Promise<boolean> {
     setBusy('save');
     try {
-      await apiSend(`/api/apps/${app.id}/draft`, 'PUT', { entry: source.entry, files });
+      const base = baseRef.current;
+      const res = await apiSend<{ draftUpdatedAt?: string }>(`/api/apps/${app.id}/draft`, 'PUT', {
+        entry: source.entry,
+        files,
+        ...(base !== undefined && !overwrite ? { baseDraftUpdatedAt: base } : {}),
+      });
+      if (res?.draftUpdatedAt) baseRef.current = res.draftUpdatedAt;
       setDirty(false);
       toast.success('Saved to draft.');
       await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       return true;
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setConflict(true);
+        return false;
+      }
       toast.error(err instanceof Error ? err.message : 'Could not save.');
       return false;
     } finally {
       setBusy(null);
     }
+  }
+
+  /** Drop the unsaved edits and take the draft as the brain has it now. */
+  async function reloadLatest() {
+    setDirty(false);
+    dirtyRef.current = false;
+    await queryClient.invalidateQueries({ queryKey: APPS_KEY });
+    setReloadKey((k) => k + 1);
   }
 
   async function formatActive() {
@@ -427,6 +467,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 <AppSandbox
                   appId={app.id}
                   {...ownerAppSandboxProps(app.id)}
+                  confirmTool={toolConfirm.confirmTool}
                   loader={<AppLoader title={app.title} icon={icon} color={color} />}
                   frame="viewport"
                   reloadKey={reloadKey}
@@ -506,7 +547,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={saveDraft}
+                    onClick={() => void saveDraft()}
                     disabled={busy !== null || !dirty}
                   >
                     <Save />
@@ -535,6 +576,38 @@ function AppDetailView({ app }: { app: AppDetail }) {
           <AppAccessLog appId={app.id} />
         </TabsContent>
       </Tabs>
+
+      {toolConfirm.dialog}
+
+      <AlertDialog open={conflict} onOpenChange={setConflict}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>The draft changed</AlertDialogTitle>
+            <AlertDialogDescription>
+              The assistant or another window changed this app&apos;s draft after you opened it.
+              Saving now would replace that work with yours. Your edits are still here.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConflict(false);
+                void reloadLatest();
+              }}
+            >
+              Load the latest (drop mine)
+            </Button>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void saveDraft(true)}
+            >
+              Save mine over it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
         <AlertDialogContent>
