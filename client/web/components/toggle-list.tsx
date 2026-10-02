@@ -26,6 +26,18 @@ export type ToggleListItem = {
 type StateFilter = 'all' | 'on' | 'off';
 
 /**
+ * One switch flipped: that value in or out, every other value kept as it was,
+ * whether or not its row is on screen. A caller that filters `items` passes
+ * the WHOLE selection, so hidden rows stay selected.
+ */
+export function toggleValue(selected: readonly string[], value: string): string[] {
+  const next = new Set(selected);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return Array.from(next);
+}
+
+/**
  * A scannable multi-select rendered as a list of rows — name + description +
  * a Switch — instead of a wall of pills. The whole row is the toggle target;
  * the Switch is a visual indicator. Selected rows are highlighted. Pass
@@ -42,6 +54,7 @@ export function ToggleList({
   collapsible = false,
   defaultOpen = true,
   searchable = false,
+  className,
 }: {
   items: ToggleListItem[];
   selected: string[];
@@ -52,17 +65,14 @@ export function ToggleList({
   defaultOpen?: boolean;
   /** Add a search box + All/On/Off selection filter above the rows. */
   searchable?: boolean;
+  /** Extra classes on the bordered box when not collapsible, e.g. a max height. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const set = new Set(selected);
-  const toggle = (value: string) => {
-    const next = new Set(set);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    onChange(Array.from(next));
-  };
+  const toggle = (value: string) => onChange(toggleValue(selected, value));
 
   const q = query.trim().toLowerCase();
   const filtered = items.filter((it) => {
@@ -196,7 +206,9 @@ export function ToggleList({
   );
 
   if (!collapsible) {
-    return <div className="overflow-hidden rounded-md border border-border">{body}</div>;
+    return (
+      <div className={cn('overflow-hidden rounded-md border border-border', className)}>{body}</div>
+    );
   }
 
   return (

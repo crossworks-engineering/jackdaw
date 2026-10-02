@@ -482,6 +482,8 @@ export function ToolGroupsClient() {
                       </p>
                     ) : (
                       <ToolPicker
+                        // A fresh filter for each group the editor opens.
+                        key={editing.mode === 'edit' ? editing.group.id : 'new'}
                         available={availableTools}
                         selected={form.toolSlugs}
                         onChange={(next) => setForm((f) => ({ ...f, toolSlugs: next }))}
