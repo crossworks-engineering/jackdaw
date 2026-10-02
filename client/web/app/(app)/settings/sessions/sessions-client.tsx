@@ -88,6 +88,8 @@ export function SessionsClient() {
       toast.error(`${nameOf(s)} did not answer. Nothing was changed.`);
     } else if (outcome === 'other-brain') {
       toast.error('That login is held for a different brain than the one this app is open on.');
+    } else if (outcome === 'client-signed-in') {
+      toast.error('A client is signed in on this browser. Sign it out first.');
     } else {
       toast.error('This app cannot switch logins here.');
     }

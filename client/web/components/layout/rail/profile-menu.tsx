@@ -197,6 +197,8 @@ export function ProfileMenu({
     setBusy(false);
     if (outcome === 'needs-sign-in') window.location.assign(signInAgainPath(s.id));
     else if (outcome === 'unreachable') toast.error('The brain did not answer. Nothing changed.');
+    else if (outcome === 'client-signed-in')
+      toast.error('A client is signed in on this browser. Sign it out first.');
     else toast.error('Could not switch to that login.');
   }
 

@@ -80,12 +80,20 @@ describe('switchSession · same-origin box', () => {
 
     expect(await switcher.switchSession(b.id)).toBe('switched');
 
-    expect(paths()).toEqual(['/api/shell', '/api/auth/logout', '/api/auth/sso']);
+    expect(paths()).toEqual([
+      '/api/shell',
+      '/api/auth/whoami',
+      '/api/auth/logout',
+      '/api/auth/sso',
+    ]);
     expect(bearerOf(calls[0]!)).toBe('Bearer b.sig');
     expect(calls[0]!.init?.credentials).toBe('omit');
-    // The cookie drop revokes nothing: it carries no bearer.
+    // Whose cookie it is, asked with the cookie alone.
     expect(bearerOf(calls[1]!)).toBeNull();
-    expect(bearerOf(calls[2]!)).toBe('Bearer b.sig');
+    expect(calls[1]!.init?.credentials).toBe('include');
+    // The cookie drop revokes nothing: it carries no bearer.
+    expect(bearerOf(calls[2]!)).toBeNull();
+    expect(bearerOf(calls[3]!)).toBe('Bearer b.sig');
 
     expect(map.get('mantle_token')).toBe('b.sig');
     expect(registry.activeSession()?.id).toBe(b.id);
@@ -206,6 +214,47 @@ describe('switchSession · same-origin box', () => {
     expect(await switcher.switchSession(far.id)).toBe('other-brain');
     expect(calls).toEqual([]);
     expect(switcher.switchableSessions()).toEqual([]);
+  });
+});
+
+describe('a client login cookie on a same-origin box (audit B23)', () => {
+  /** The brain's whoami for the cookie alone says: a client is signed in. */
+  const clientCookie = (call: Call) =>
+    call.url.endsWith('/api/auth/whoami')
+      ? ({ ok: true, status: 200, json: () => Promise.resolve({ role: 'client' }) } as unknown as {
+          ok: boolean;
+          status: number;
+        })
+      : { ok: true, status: 200 };
+
+  it('a switch never posts logout with it, and changes nothing', async () => {
+    const { registry, switcher } = await fresh();
+    const b = registry.signInSession({ email: 'b@example.com', token: 'b.sig' })!;
+    const a = registry.signInSession({ email: 'a@example.com', token: 'a.sig' })!;
+    respond = clientCookie;
+
+    expect(await switcher.switchSession(b.id)).toBe('client-signed-in');
+    expect(paths()).toEqual(['/api/shell', '/api/auth/whoami']);
+    expect(registry.activeSession()?.id).toBe(a.id);
+    expect(map.get('mantle_token')).toBe('a.sig');
+    expect(assigned).toEqual([]);
+  });
+
+  it('forgetting the login in use does not post logout with it either', async () => {
+    const { registry, switcher } = await fresh();
+    const a = registry.signInSession({ email: 'a@example.com', token: 'a.sig' })!;
+    respond = clientCookie;
+
+    await switcher.forgetSession(a.id);
+    expect(paths()).not.toContain('/api/auth/logout');
+    expect(assigned).toEqual(['/login']);
+  });
+
+  it('cross-origin there is no cookie to ask about: whoami is never called', async () => {
+    stubWindow({ apiBase: 'https://brain.example' });
+    const { switcher } = await fresh();
+    expect(await switcher.sameOriginCookieRole()).toBe('none');
+    expect(calls).toEqual([]);
   });
 });
 
