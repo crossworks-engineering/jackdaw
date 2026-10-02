@@ -70,34 +70,19 @@ export function ToolGroupsOfTool({
 }
 
 /**
- * Beside "Team apps may use": the switch alone is not enough, an ENABLED
- * group at team level or lower must also hold the tool. Says so when none
- * does, and links to the group whose level to change.
+ * Beside "External access": an MCP tool's connector that is switched off
+ * stops every call, whatever the switch says. Links to the connector's group.
  */
-export function TeamAppsGroupNote({
-  reach,
-  groups,
-}: {
-  reach: 'yes' | 'no' | 'unknown';
-  /** The groups holding this tool, enabled first. */
-  groups: ToolGroupWithLevel[];
-}) {
-  if (reach !== 'no') return null;
-  const target = groups[0];
+export function ConnectorOffNote({ group }: { group: ToolGroupWithLevel | null }) {
+  if (!group) return null;
   return (
     <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-ink">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
       <span>
-        Not in a team-level group yet: team apps cannot call it.{' '}
-        {target ? (
-          <Link href={toolGroupHref(target.slug)} className="underline underline-offset-2">
-            {target.enabled ? `Change the level of ${target.name}` : `Open ${target.name}`}
-          </Link>
-        ) : (
-          <Link href="/settings/tool-groups" className="underline underline-offset-2">
-            Put it in a tool group
-          </Link>
-        )}
+        Its connector is switched off: nobody can call this tool.{' '}
+        <Link href={toolGroupHref(group.slug)} className="underline underline-offset-2">
+          Open {group.name}
+        </Link>
       </span>
     </p>
   );

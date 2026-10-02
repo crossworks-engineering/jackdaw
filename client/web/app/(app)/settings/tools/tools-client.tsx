@@ -40,11 +40,11 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
 import { ListSearchBar, ListSearchEmpty, useListQuery } from '@/components/list-search';
 import { filterTools } from '@/lib/tool-search';
-import { groupsHolding, teamAppsReach, type ToolGroupWithLevel } from '@/lib/tool-group-level';
-import { TeamAppsSection, type ToolWithTeamApps } from './team-apps-section';
-import { TeamAppsGroupNote, ToolGroupsOfTool } from './tool-groups-of-tool';
+import { connectorOff, groupsHolding, type ToolGroupWithLevel } from '@/lib/tool-group-level';
+import { ExternalAccessSection, type ToolWithExternalAccess } from './external-access-section';
+import { ConnectorOffNote, ToolGroupsOfTool } from './tool-groups-of-tool';
 
-type ToolSummary = ToolWithTeamApps;
+type ToolSummary = ToolWithExternalAccess;
 
 type FormKind = 'http' | 'shell';
 
@@ -1009,17 +1009,16 @@ export function ToolsClient() {
                   const holding = groupsHolding(allGroups, editing.tool.slug);
                   return (
                     <>
-                      <TeamAppsSection
+                      <ExternalAccessSection
                         tool={editing.tool}
                         onChanged={(t) => {
                           queryClient.invalidateQueries({ queryKey: ['tools'] });
                           setEditing({ mode: 'edit', tool: t });
                         }}
-                        groupNote={
+                        note={
                           groupsQuery.isSuccess ? (
-                            <TeamAppsGroupNote
-                              reach={teamAppsReach(allGroups, editing.tool.slug)}
-                              groups={holding}
+                            <ConnectorOffNote
+                              group={connectorOff(allGroups, editing.tool.handler)}
                             />
                           ) : null
                         }
@@ -1079,12 +1078,12 @@ function ToolCard({
             off
           </span>
         )}
-        {tool.teamApps?.on && (
+        {tool.externalAccess?.on && (
           <span
             className="shrink-0 rounded-sm bg-warning/15 px-1 text-[10px] uppercase tracking-wider text-warning-ink"
-            title="Team apps may use this tool"
+            title="External access is on"
           >
-            team apps
+            external
           </span>
         )}
         {tool.requiresConfirm && (

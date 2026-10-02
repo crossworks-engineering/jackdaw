@@ -2,11 +2,12 @@
  * A tool group's level (its `audience`): admin > team > client > public. An
  * agent may hold a group only at a level it reads (a team agent holds team,
  * client and public groups; client and public are siblings), and a team app
- * calls an outside tool only while an ENABLED group at team level or lower
- * holds it. Set with `PATCH /api/access/tool-groups/:slug { audience }`;
+ * calls a built-in tool only while an ENABLED group at team level or lower
+ * holds it. An outside (MCP or http) tool follows its own "External access"
+ * switch instead: the app's sharing decides who calls it, not a group level. Set with `PATCH /api/access/tool-groups/:slug { audience }`;
  * the brain refuses a level that an agent holding the group cannot read
  * (code `group_above_agent`, naming each agent). See the brain's
- * docs/access-levels.md and docs/member-logins.md "Outside tools in team apps".
+ * docs/access-levels.md and docs/member-logins.md "External access: outside tools in shared apps".
  *
  * Pure: no React, so the rules are unit-tested (tool-group-level.test.ts).
  */
@@ -30,9 +31,6 @@ export const GROUP_LEVEL_MEANING: Record<AccessLevel, string> = {
 /** Shown in place of the selector when the brain does not send the level. */
 export const GROUP_LEVEL_UNKNOWN = 'Update the brain to change levels here.';
 
-/** The levels team apps reach (mantle MEMBER_GROUP_LEVELS). */
-const TEAM_APP_LEVELS: readonly AccessLevel[] = ['team', 'client', 'public'];
-
 /** Moving to client or public opens the tools past the team: confirm first. */
 export function levelNeedsConfirm(from: AccessLevel | undefined, to: AccessLevel): boolean {
   return from !== to && (to === 'client' || to === 'public');
@@ -49,18 +47,18 @@ export function groupsHolding(
 }
 
 /**
- * Whether team apps can reach `toolSlug` through its groups: `yes` when an
- * enabled group at team level or lower holds it, `no` when none does, and
- * `unknown` when a group that could decide it has no level (an older brain).
+ * The connector group of an MCP tool when it is switched OFF: then nobody
+ * can call the tool, External access or not (the brain refuses a disabled
+ * connector on every call). Null for any other tool, or when the connector
+ * is on or not in the list.
  */
-export function teamAppsReach(
+export function connectorOff(
   groups: readonly ToolGroupWithLevel[],
-  toolSlug: string,
-): 'yes' | 'no' | 'unknown' {
-  const enabled = groupsHolding(groups, toolSlug).filter((g) => g.enabled);
-  if (enabled.some((g) => g.audience && TEAM_APP_LEVELS.includes(g.audience))) return 'yes';
-  if (enabled.some((g) => g.audience === undefined)) return 'unknown';
-  return 'no';
+  handler: { kind: string; group?: string },
+): ToolGroupWithLevel | null {
+  if (handler.kind !== 'mcp' || !handler.group) return null;
+  const g = groups.find((x) => x.slug === handler.group);
+  return g && !g.enabled ? g : null;
 }
 
 /** The tool groups screen opened on one group. */

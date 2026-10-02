@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   groupsHolding,
   levelNeedsConfirm,
-  teamAppsReach,
+  connectorOff,
   toolGroupHref,
   type ToolGroupWithLevel,
 } from './tool-group-level';
@@ -46,26 +46,18 @@ describe('groupsHolding', () => {
   });
 });
 
-describe('teamAppsReach', () => {
-  it('is yes when an enabled group at team level or lower holds the tool', () => {
-    for (const audience of ['team', 'client', 'public'] as const) {
-      expect(teamAppsReach([group({ slug: 'g', audience })], 'site_query')).toBe('yes');
-    }
+describe('connectorOff', () => {
+  const mcp = { kind: 'mcp', group: 'mcp-site' };
+  it('names the connector group of an MCP tool when it is switched off', () => {
+    expect(connectorOff([group({ slug: 'mcp-site', enabled: false })], mcp)?.slug).toBe('mcp-site');
   });
 
-  it('is no when only admin or disabled groups hold it, or none does', () => {
-    expect(teamAppsReach([group({ slug: 'g', audience: 'admin' })], 'site_query')).toBe('no');
+  it('is null when the connector is on, missing, or the tool is not MCP', () => {
+    expect(connectorOff([group({ slug: 'mcp-site' })], mcp)).toBeNull();
+    expect(connectorOff([], mcp)).toBeNull();
     expect(
-      teamAppsReach([group({ slug: 'g', audience: 'team', enabled: false })], 'site_query'),
-    ).toBe('no');
-    expect(teamAppsReach([], 'site_query')).toBe('no');
-  });
-
-  it('is unknown when an enabled group has no level (an older brain)', () => {
-    expect(teamAppsReach([group({ slug: 'g' })], 'site_query')).toBe('unknown');
-    expect(
-      teamAppsReach([group({ slug: 'g' }), group({ slug: 'h', audience: 'team' })], 'site_query'),
-    ).toBe('yes');
+      connectorOff([group({ slug: 'mcp-site', enabled: false })], { kind: 'http' }),
+    ).toBeNull();
   });
 });
 
