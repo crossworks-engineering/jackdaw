@@ -380,7 +380,9 @@ export function ToolGroupsClient() {
               </div>
               {editing.mode === 'edit' && (
                 // The list's copy, so the level shows what the brain saved.
+                // Keyed: a refusal or a pending confirm belongs to one group.
                 <GroupLevelSection
+                  key={editing.group.id}
                   group={groups.find((g) => g.id === editing.group.id) ?? editing.group}
                 />
               )}
