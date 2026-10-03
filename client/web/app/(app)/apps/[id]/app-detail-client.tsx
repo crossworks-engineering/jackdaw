@@ -1,14 +1,21 @@
 'use client';
 
 import { inheritedOf } from '@/lib/access-levels';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, GitCommitHorizontal, Undo2, Save, WandSparkles } from 'lucide-react';
+import { ChevronDown, Eye, GitCommitHorizontal, Undo2, Save, WandSparkles } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@mantle/web-ui/ui/tabs';
+import { Tabs, TabsContent } from '@mantle/web-ui/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@mantle/web-ui/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,6 +75,35 @@ const extOf = (p: string) => p.slice(p.lastIndexOf('.') + 1).toLowerCase();
  *  changes the list's draft and build badges too (apps audit U7); inactive
  *  list pages are only marked stale, not refetched. */
 const APPS_KEY = ['apps'] as const;
+
+/** The four views of an app, picked from the header's View menu. */
+const VIEWS = [
+  { value: 'builder', label: 'Builder' },
+  { value: 'code', label: 'Code' },
+  { value: 'history', label: 'History' },
+  { value: 'activity', label: 'Activity' },
+] as const;
+type View = (typeof VIEWS)[number]['value'];
+const viewLabel = (v: string) => VIEWS.find((x) => x.value === v)?.label ?? VIEWS[0].label;
+
+/**
+ * One view's panel. Radix Tabs still holds the switching (and Builder's
+ * forceMount), but there is no tab list: the views are picked from a menu.
+ * So a panel is a labelled region, not a tabpanel naming a trigger that
+ * isn't there, and not a tab stop of its own.
+ */
+function ViewPanel({ value, ...props }: ComponentProps<typeof TabsContent> & { value: View }) {
+  return (
+    <TabsContent
+      value={value}
+      role="region"
+      aria-label={viewLabel(value)}
+      aria-labelledby={undefined}
+      tabIndex={undefined}
+      {...props}
+    />
+  );
+}
 
 /** Outer query-gate so the page stays data-free. */
 export function AppDetailClient({ id }: { id: string }) {
@@ -317,9 +353,8 @@ function AppDetailView({ app }: { app: AppDetail }) {
     <div className="flex h-full min-h-0 flex-col">
       <SetPageTitle title={app.title} />
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        {/* One wrapping row: title, actions, then the tab list. The tab list is
-          last in the DOM (and in focus order), so when the row runs out of
-          room it is the part that drops to a line of its own. */}
+        {/* One row: title, then the actions with the View menu last. It wraps
+            only when the pane is too narrow (a phone). */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-3">
           <div className="flex min-w-0 items-center gap-3">
             <BackLink href="/apps">Apps</BackLink>
@@ -343,7 +378,11 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 }
               />
               <span className="min-w-0 truncate">{app.title}</span>
-              {app.hasDraft && <Badge variant="secondary">unpublished draft</Badge>}
+              {app.hasDraft && (
+                <Badge variant="secondary" className="shrink-0">
+                  unpublished draft
+                </Badge>
+              )}
               <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
             </span>
           </div>
@@ -388,23 +427,39 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data."
               />
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`View: ${viewLabel(tab)}`}
+                  title="Switch view"
+                >
+                  {viewLabel(tab)}
+                  <ChevronDown className="opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup value={tab} onValueChange={setTab}>
+                  {VIEWS.map((v) => (
+                    <DropdownMenuRadioItem key={v.value} value={v.value}>
+                      {v.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <TabsList>
-            <TabsTrigger value="builder">Builder</TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
         </div>
         {/* Informational (C6): members and clients only read its data. */}
         <AppInformationalSwitch app={app} />
 
         {/* Builder — the live preview. Ask Appsmith to edit the app via the
             global assistant (⌘I), auto-armed for this app. */}
-        {/* forceMount: the running app stays mounted while another tab is
+        {/* forceMount: the running app stays mounted while another view is
             open (apps audit P8). Unmounting it on every switch minted a new
             frame ticket, reloaded the app and lost its state. */}
-        <TabsContent
+        <ViewPanel
           value="builder"
           forceMount
           className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
@@ -446,14 +501,14 @@ function AppDetailView({ app }: { app: AppDetail }) {
               </div>
             )}
           </div>
-        </TabsContent>
+        </ViewPanel>
 
         {/* Code — file-tree sidebar + an editable, syntax-highlighted editor. */}
-        <TabsContent value="code" className="mt-0 flex min-h-0 flex-1 flex-col">
+        <ViewPanel value="code" className="mt-0 flex min-h-0 flex-1 flex-col">
           <MasterDetail
             id="app-code"
-            // The tab is the whole of this pane, so the scaffold takes all of
-            // it — the page header and the tab strip sit above.
+            // The view is the whole of this pane, so the scaffold takes all of
+            // it — the page header sits above.
             className="min-h-0 flex-1"
             // The 200px column the grid always had. It is a file TREE, not a
             // list of cards, so it opens narrower than the 340px default and
@@ -517,11 +572,11 @@ function AppDetailView({ app }: { app: AppDetail }) {
               </div>
             }
           />
-        </TabsContent>
+        </ViewPanel>
 
         {/* History — versions (each commit) and snapshots (code + data);
             restore any of them. */}
-        <TabsContent value="history" className="mt-0 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+        <ViewPanel value="history" className="mt-0 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
           <AppHistory
             appId={app.id}
             appTitle={app.title}
@@ -542,15 +597,12 @@ function AppDetailView({ app }: { app: AppDetail }) {
               setTab('builder');
             }}
           />
-        </TabsContent>
+        </ViewPanel>
 
         {/* Activity — the external access log (who opened/used the shared app). */}
-        <TabsContent
-          value="activity"
-          className="mt-0 min-h-0 flex-1 overflow-y-auto scrollbar-thin"
-        >
+        <ViewPanel value="activity" className="mt-0 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
           <AppAccessLog appId={app.id} />
-        </TabsContent>
+        </ViewPanel>
       </Tabs>
 
       {toolConfirm.dialog}
