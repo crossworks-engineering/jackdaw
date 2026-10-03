@@ -13,8 +13,10 @@ function str(v: FormDataEntryValue | null): string | undefined {
   return s.length > 0 ? s : undefined;
 }
 function num(v: FormDataEntryValue | null): number | undefined {
-  if (v == null) return undefined;
-  const n = Number(v);
+  // A blank input is "not set", not 0 (Number('') is 0).
+  const s = str(v);
+  if (s === undefined) return undefined;
+  const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -96,19 +98,22 @@ export function paramsFromForm(kind: AiWorkerKind, fd: FormData): Record<string,
     case 'decider': {
       // Experimental per-use switches (see worker-fields-decider.tsx). A use
       // whose checkbox is off is written as enabled:false so the operator's
-      // mode/threshold choice survives the round trip.
+      // mode/threshold choice survives the round trip. A field the form shows
+      // is always written (undefined when blank, so mergeParams clears it);
+      // keys the form does not show are kept by mergeParams on edit.
       const uses: Record<string, Record<string, unknown>> = {};
       for (const [k] of fd.entries()) {
-        const m = /^use_([a-z_]+)_(enabled|mode|threshold)$/.exec(k);
+        const m = /^use_([a-z_]+)_(enabled|mode|threshold|pool)$/.exec(k);
         if (!m) continue;
         const [, use] = m;
         if (uses[use!]) continue;
-        const threshold = num(fd.get(`use_${use}_threshold`));
-        uses[use!] = {
+        const cfg: Record<string, unknown> = {
           enabled: fd.get(`use_${use}_enabled`) === 'on',
           mode: str(fd.get(`use_${use}_mode`)) === 'live' ? 'live' : 'shadow',
-          ...(threshold != null ? { threshold } : {}),
         };
+        if (fd.has(`use_${use}_threshold`)) cfg.threshold = num(fd.get(`use_${use}_threshold`));
+        if (fd.has(`use_${use}_pool`)) cfg.pool = poolOf(fd.get(`use_${use}_pool`));
+        uses[use!] = cfg;
       }
       return {
         uses,
@@ -121,6 +126,41 @@ export function paramsFromForm(kind: AiWorkerKind, fd: FormData): Record<string,
     default:
       return {};
   }
+}
+
+/** passage_scoring's pool: a whole number 1..100, or undefined (blank or
+ *  out of range = the server default). The server caps it too. */
+function poolOf(v: FormDataEntryValue | null): number | undefined {
+  const n = num(v);
+  if (n === undefined) return undefined;
+  const whole = Math.floor(n);
+  return whole >= 1 ? Math.min(whole, 100) : undefined;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Lay the form's params over the params the worker already has. The form
+ * only knows the fields it shows, and the server stores `params` whole, so a
+ * save built from the form alone drops every key the form has no field for
+ * (a new server setting, a value set through the API). Rules:
+ * - a key the form wrote wins, even when undefined (blank = cleared);
+ * - a key only `prev` has is kept;
+ * - when both sides hold a plain object (`uses`, one use's config), merge
+ *   one level down by the same rules.
+ */
+export function mergeParams(
+  prev: Record<string, unknown> | null | undefined,
+  next: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(prev ?? {}) };
+  for (const [k, v] of Object.entries(next)) {
+    const old = out[k];
+    out[k] = isPlainObject(old) && isPlainObject(v) ? mergeParams(old, v) : v;
+  }
+  return out;
 }
 
 function backupFromForm(fd: FormData) {

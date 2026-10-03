@@ -7,7 +7,7 @@ import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import type { AiWorkerConfig, AiWorkerDTO, AiWorkerKind } from '@mantle/client-types';
 import { getProvider } from '@mantle/voice-client';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import { buildWorkerBody } from '@/lib/ai-worker-form';
+import { buildWorkerBody, mergeParams } from '@/lib/ai-worker-form';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Switch } from '@mantle/web-ui/ui/switch';
@@ -184,8 +184,15 @@ export function AiWorkersClient() {
 
   const createAction = (fd: FormData) =>
     createMutation.mutateAsync(buildWorkerBody(fd)).then(() => {});
-  const updateAction = (id: string, fd: FormData) =>
-    updateMutation.mutateAsync({ id, body: buildWorkerBody(fd) });
+  const updateAction = (id: string, fd: FormData) => {
+    // Keep the params this form has no field for (see mergeParams).
+    const body = buildWorkerBody(fd);
+    const prev = workers.find((w) => w.id === id)?.params;
+    return updateMutation.mutateAsync({
+      id,
+      body: { ...body, params: mergeParams(prev, body.params) },
+    });
+  };
 
   // After a create (?selected=newId deep-link) preselect that worker. The
   // param also accepts a worker KIND (?selected=summarizer / extractor / tts…)

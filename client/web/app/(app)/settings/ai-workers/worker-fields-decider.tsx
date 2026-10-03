@@ -28,6 +28,8 @@ export const DECISION_USES: ReadonlyArray<{
   scale?: 'score' | 'probability';
   /** What the threshold does, for the field hint. */
   thresholdHint?: string;
+  /** Shows the "passages judged" pool field (passage_scoring). */
+  pool?: boolean;
 }> = [
   {
     id: 'passage_scoring',
@@ -37,6 +39,7 @@ export const DECISION_USES: ReadonlyArray<{
     threshold: 1.5,
     scale: 'score',
     thresholdHint: 'Passages scoring below this are dropped when live.',
+    pool: true,
   },
   {
     id: 'context_pruning',
@@ -102,7 +105,12 @@ export const DECISION_USES: ReadonlyArray<{
   },
 ];
 
-type UseConfig = { enabled?: boolean; mode?: 'shadow' | 'live'; threshold?: number };
+type UseConfig = {
+  enabled?: boolean;
+  mode?: 'shadow' | 'live';
+  threshold?: number;
+  pool?: number;
+};
 
 export function DeciderFields({ params }: { params: Record<string, unknown> }) {
   const uses = (params.uses ?? {}) as Record<string, UseConfig | undefined>;
@@ -173,6 +181,26 @@ export function DeciderFields({ params }: { params: Record<string, unknown> }) {
                       aria-describedby={hintId(`${base}_threshold`)}
                     />
                     <FieldHint id={`${base}_threshold`}>{u.thresholdHint}</FieldHint>
+                  </Field>
+                )}
+                {u.pool && (
+                  <Field>
+                    <FieldLabel htmlFor={`${base}_pool`}>Passages judged (pool)</FieldLabel>
+                    <Input
+                      id={`${base}_pool`}
+                      name={`${base}_pool`}
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="100"
+                      placeholder="Default"
+                      defaultValue={typeof cfg.pool === 'number' ? cfg.pool : ''}
+                      aria-describedby={hintId(`${base}_pool`)}
+                    />
+                    <FieldHint id={`${base}_pool`}>
+                      How many search passages Jev scores before the cut. Blank = default (16 to
+                      25). Above 25 means several Jev requests: more time and more cost.
+                    </FieldHint>
                   </Field>
                 )}
               </div>
