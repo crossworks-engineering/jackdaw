@@ -10,6 +10,8 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { formatDuration, formatMicroUsd } from '@mantle/web-ui/traces-format';
 import { deriveAction, sourceLabel } from '@mantle/web-ui/journey-format';
 import { ActionIcon } from '@/components/journey/action-icon';
+import { findContextTrace } from '@/components/journey/context-trace';
+import { ContextTraceView } from '@/components/journey/context-trace-view';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { JsonView } from '@mantle/web-ui/ui/json-view';
 import { SetPageTitle } from '@/components/layout/page-title';
@@ -158,6 +160,7 @@ export function JourneyDetailClient({ traceId }: { traceId: string }) {
             {j.steps.map((s) => {
               const out = s.output && Object.keys(s.output).length > 0 ? s.output : null;
               const meta = s.meta && Object.keys(s.meta).length > 0 ? s.meta : null;
+              const trace = findContextTrace(out);
               return (
                 <li key={s.id} className="relative py-2">
                   <span
@@ -186,6 +189,7 @@ export function JourneyDetailClient({ traceId }: { traceId: string }) {
                       <summary className="cursor-pointer select-none truncate font-mono text-[11px] text-muted-foreground">
                         {JSON.stringify(out ?? meta)}
                       </summary>
+                      {trace && <ContextTraceView trace={trace} />}
                       <JsonView
                         value={out ?? meta}
                         label={out ? 'Output' : 'Meta'}
