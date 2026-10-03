@@ -9,6 +9,7 @@ import { scrollBehavior } from '@mantle/web-ui/lib/motion';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
+import { revealInFolds } from '@mantle/share-ui/heading-fold-dom';
 import { PageView } from './page-view';
 
 /**
@@ -82,6 +83,8 @@ export function readerToc(doc: JSONContent | null | undefined): TocEntry[] {
 function jumpToBlock(root: HTMLElement | null, id: string): void {
   const el = root?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`);
   if (!el) return;
+  // A heading inside a folded section opens first, or there is nothing to see.
+  revealInFolds(el);
   const scroller = scrollParent(el);
   if (scroller) {
     const top =

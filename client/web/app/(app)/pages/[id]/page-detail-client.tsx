@@ -31,6 +31,7 @@ import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { ExportMenu } from '@/components/export/export-menu';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
+import { revealFoldsAt } from '@/components/page-editor/heading-fold';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { docToMarkdown } from '@mantle/content-core/doc-to-markdown';
 import { markdownToDoc } from '@mantle/content-core/markdown';
@@ -435,6 +436,8 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
       return true;
     });
     if (pos == null) return;
+    // A heading inside a folded section opens first, or there is nothing to see.
+    revealFoldsAt(ed.view, pos);
     const dom = ed.view.nodeDOM(pos);
     if (dom instanceof HTMLElement)
       dom.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });

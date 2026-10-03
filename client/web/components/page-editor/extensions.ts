@@ -20,6 +20,7 @@ import { FolderIndex } from './folder-index';
 import { Diagram } from './diagram';
 import { TextColor } from './text-color';
 import { BlockId } from './block-id';
+import { HeadingFold } from './heading-fold';
 import { highlightColor } from '@mantle/web-ui/highlight-colors';
 
 // Highlight mark with an optional themed `color` (a token key like `chart-2`,
@@ -109,6 +110,10 @@ export const pageExtensions: Extensions = [
   // a plugin mints/dedupes ids on split & paste so the doc never holds two
   // blocks with one id. Mirrors server-side ensureBlockIds in @mantle/content.
   BlockId,
+  // Foldable headings: the `fold` attr on headings (so every surface parses
+  // and renders it) plus the editor's arrow + section folding. Fold STATE is
+  // the reader's, in localStorage, never in the doc. See heading-fold.ts.
+  HeadingFold,
   Placeholder.configure({
     // Only the first empty line shows it (showOnlyWhenEditable defaults true,
     // so the read-only PageView never renders a placeholder).

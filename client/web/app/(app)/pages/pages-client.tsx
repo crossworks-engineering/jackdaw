@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
+import { revealInFolds } from '@mantle/share-ui/heading-fold-dom';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -1320,9 +1321,9 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
   // uses getElementById, which only works on the server-rendered share/print
   // surface — so this surface supplies its own.
   const jumpToBlock = useCallback((id: string) => {
-    bodyRef.current
-      ?.querySelector(`[data-block-id="${CSS.escape(id)}"]`)
-      ?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+    const el = bodyRef.current?.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+    revealInFolds(el); // a heading in a folded section opens first
+    el?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   }, []);
 
   useEffect(() => {

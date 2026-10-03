@@ -33,6 +33,9 @@
  *   Colour:  [text]{color=chart-2} / [text]{highlight=chart-3}  (chart-1..5) →
  *     a themed text colour and/or highlight (both keys may appear in one span).
  *
+ *   Foldable heading:  ## Title {fold}  /  {fold=closed}  → `<hN data-fold>`,
+ *     read with the same helper markdownToDoc uses (content-core heading-fold).
+ *
  *   Stored image:  ![alt](media:<file-id>)  → the uploaded file's picture,
  *     placed exactly where it was written. This is what lets a reply put a
  *     screenshot beside the step it belongs to instead of clumping every
@@ -54,6 +57,7 @@ import {
   fileRawSrc,
   mediaFileId,
 } from '@mantle/content-core/markdown-refs';
+import { splitFoldMarker } from '@mantle/content-core/heading-fold';
 
 const CALLOUT_VARIANTS = ['info', 'success', 'warning', 'danger'] as const;
 type CalloutVariant = (typeof CALLOUT_VARIANTS)[number];
@@ -211,6 +215,15 @@ function drawImageHtml(drawId: string, alt: string): string {
 const md = new Marked({ gfm: true });
 md.use({
   extensions: [highlightExtension, colorSpanExtension, inlineMathExtension, mediaImageExtension],
+  renderer: {
+    // A trailing `{fold}` marker makes the heading foldable (data-fold, which
+    // the heading schema parses); it never shows as text.
+    heading({ tokens, depth }) {
+      const { tokens: rest, fold } = splitFoldMarker(tokens);
+      const attr = fold ? ` data-fold="${fold}"` : '';
+      return `<h${depth}${attr}>${this.parser.parseInline(rest ?? [])}</h${depth}>\n`;
+    },
+  },
 });
 
 const BLOCK_MATH_INLINE = /^\$\$(.+?)\$\$\s*$/;

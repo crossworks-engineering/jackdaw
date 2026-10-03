@@ -12,6 +12,7 @@ import {
   Baseline,
   Bold,
   Code2,
+  FoldVertical,
   Heading1,
   Heading2,
   Highlighter,
@@ -134,6 +135,8 @@ export function EditorBubbleMenu({ editor }: { editor: Editor }) {
       link: editor.isActive('link'),
       h1: editor.isActive('heading', { level: 1 }),
       h2: editor.isActive('heading', { level: 2 }),
+      heading: editor.isActive('heading'),
+      foldable: editor.isActive('heading') && !!editor.getAttributes('heading').fold,
       bullet: editor.isActive('bulletList'),
       ordered: editor.isActive('orderedList'),
       quote: editor.isActive('blockquote'),
@@ -261,6 +264,20 @@ export function EditorBubbleMenu({ editor }: { editor: Editor }) {
           active={s.h2}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
         />
+        {s.heading && (
+          <ToolButton
+            label={s.foldable ? 'Remove fold' : 'Make foldable'}
+            icon={FoldVertical}
+            active={s.foldable}
+            onClick={() =>
+              editor
+                .chain()
+                .focus()
+                .setHeadingFold(s.foldable ? null : 'open')
+                .run()
+            }
+          />
+        )}
         <ToolButton
           label="Bullet list"
           icon={List}

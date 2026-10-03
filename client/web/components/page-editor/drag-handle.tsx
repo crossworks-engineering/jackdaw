@@ -12,6 +12,7 @@ import {
   Code2,
   Copy,
   FilePlus2,
+  FoldVertical,
   GripVertical,
   Heading1,
   Heading2,
@@ -32,6 +33,8 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { randomAsideAngle, randomAsideColor } from '@mantle/web-ui/aside-style';
+import type { HeadingFold } from '@mantle/content-core/heading-fold';
+import { headingFoldAt } from './heading-fold';
 
 /**
  * "Turn into" conversions offered on the handle menu. Deliberately limited to
@@ -39,15 +42,29 @@ import { randomAsideAngle, randomAsideColor } from '@mantle/web-ui/aside-style';
  * image / divider (those are inserts, not transforms). Each `apply` runs
  * against a chain whose selection is already inside the target block.
  */
-const TURN_OPTIONS: {
+export const TURN_OPTIONS: {
   label: string;
   icon: LucideIcon;
   apply: (c: ChainedCommands) => ChainedCommands;
 }[] = [
   { label: 'Text', icon: Type, apply: (c) => c.setNode('paragraph') },
-  { label: 'Heading 1', icon: Heading1, apply: (c) => c.setNode('heading', { level: 1 }) },
-  { label: 'Heading 2', icon: Heading2, apply: (c) => c.setNode('heading', { level: 2 }) },
-  { label: 'Heading 3', icon: Heading3, apply: (c) => c.setNode('heading', { level: 3 }) },
+  // `fold: null`: Turn into is also how a foldable heading becomes a normal
+  // one again (setNode would otherwise copy the attr across).
+  {
+    label: 'Heading 1',
+    icon: Heading1,
+    apply: (c) => c.setNode('heading', { level: 1, fold: null }),
+  },
+  {
+    label: 'Heading 2',
+    icon: Heading2,
+    apply: (c) => c.setNode('heading', { level: 2, fold: null }),
+  },
+  {
+    label: 'Heading 3',
+    icon: Heading3,
+    apply: (c) => c.setNode('heading', { level: 3, fold: null }),
+  },
   { label: 'Bulleted list', icon: List, apply: (c) => c.toggleBulletList() },
   { label: 'Numbered list', icon: ListOrdered, apply: (c) => c.toggleOrderedList() },
   { label: 'To-do list', icon: ListTodo, apply: (c) => c.toggleTaskList() },
@@ -80,6 +97,9 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
   // Whether the block under the handle is a top-level heading with a stable id —
   // gates the "Extract to a new page" action (Phase 4c).
   const [canExtract, setCanExtract] = useState(false);
+  // The fold of the heading under the handle: undefined = not a heading,
+  // null = a normal heading ("Make foldable"), else its default state.
+  const [fold, setFold] = useState<HeadingFold | null | undefined>(undefined);
 
   const openMenu = (e: React.MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -88,6 +108,7 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
     const node = pos != null && pos >= 0 ? editor.state.doc.nodeAt(pos) : null;
     const depthOk = pos != null && pos >= 0 ? editor.state.doc.resolve(pos).depth === 0 : false;
     setCanExtract(!!node && node.type.name === 'heading' && !!node.attrs.id && depthOk);
+    setFold(pos != null ? headingFoldAt(editor, pos) : undefined);
     setMenu({
       x: Math.min(r.right + 6, window.innerWidth - 232),
       y: Math.min(r.top, window.innerHeight - 96),
@@ -174,6 +195,15 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
     } catch {
       // Best-effort; the section is left intact on failure.
     }
+  };
+
+  // Make the heading foldable, or set how it starts (for readers who never
+  // chose). The author's own view follows the choice at once.
+  const applyFold = (next: HeadingFold) => {
+    const pos = posRef.current;
+    close();
+    if (pos == null || pos < 0) return;
+    editor.chain().focus().setHeadingFold(next, pos).run();
   };
 
   // Convert the target block. Drop the cursor inside it first, then run the
@@ -283,6 +313,23 @@ export function EditorDragHandle({ editor }: { editor: Editor }) {
                     />
                   ))}
                 </div>
+              )}
+
+              {fold !== undefined && (
+                <>
+                  <div className="my-1 h-px bg-border" />
+                  <MenuItem
+                    icon={FoldVertical}
+                    label={
+                      fold === null
+                        ? 'Make foldable'
+                        : fold === 'open'
+                          ? 'Start folded'
+                          : 'Start open'
+                    }
+                    onClick={() => applyFold(fold === 'open' ? 'closed' : 'open')}
+                  />
+                </>
               )}
 
               {canExtract && (

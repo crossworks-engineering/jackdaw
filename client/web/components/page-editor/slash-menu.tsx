@@ -20,6 +20,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  FoldVertical,
   Image as ImageIcon,
   Info,
   List,
@@ -150,6 +151,16 @@ const ITEMS: SlashItem[] = [
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run(),
   },
+  ...([1, 2, 3] as const).map((level): SlashItem => ({
+    group: 'Basic',
+    id: `fold-heading-${level}`,
+    title: `Foldable heading ${level}`,
+    description: 'A heading that folds the section under it.',
+    icon: FoldVertical,
+    keywords: ['toggle', 'fold', 'collapse', `h${level}`],
+    command: ({ editor, range }) =>
+      editor.chain().focus().deleteRange(range).setNode('heading', { level, fold: 'open' }).run(),
+  })),
   {
     group: 'Pages',
     id: 'new-page',

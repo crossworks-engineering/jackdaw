@@ -9,6 +9,7 @@ import { stampDrawEmbeds } from './draw-embed-theme';
 import { lowlight, pageExtensions } from './extensions';
 import { ASSET_PATH_ATTR } from './image';
 import { FolderIndexList } from './folder-index-list';
+import { wireHeadingFolds } from '@mantle/share-ui/heading-fold-dom';
 
 /**
  * A page document rendered as STATIC HTML — the same schema, without an editor.
@@ -224,6 +225,14 @@ export function StaticDoc({
       unsubscribe();
       cancelStamp();
     };
+  }, [rendered]);
+
+  // Foldable headings: the arrows, the folding and the reader's remembered
+  // choices (share-ui heading-fold-dom.ts, the same code the share reader
+  // runs). Rewired whenever the HTML is replaced.
+  useEffect(() => {
+    if (rendered === null) return;
+    return wireHeadingFolds(ref.current);
   }, [rendered]);
 
   // The Folder index blocks (folder phase 7): the schema renders each as an

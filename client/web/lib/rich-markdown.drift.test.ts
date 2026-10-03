@@ -98,3 +98,25 @@ describe('rich-markdown ↔ markdownToDoc: media: image parity', () => {
     expect(html).toContain('href="page:p-9"');
   });
 });
+
+describe('rich-markdown ↔ markdownToDoc: foldable heading parity', () => {
+  const CASES = [
+    '## Plans {fold}',
+    '# Top {fold=closed}\n\nbody',
+    '### **Bold** {fold}',
+    '## Plain',
+    '## Literal \\{fold}',
+  ];
+  for (const md of CASES) {
+    it(JSON.stringify(md), () => {
+      const doc = markdownToDoc(md) as unknown as PMNode;
+      const fold = (doc.content ?? []).find((n) => n.type === 'heading')?.attrs?.fold ?? null;
+      const html = richMarkdownToHtml(md);
+      expect(/<h\d data-fold="(\w+)"/.exec(html)?.[1] ?? null).toBe(fold);
+      // A marker is never shown as text; an escaped one is the heading's words.
+      const text = html.replace(/<[^>]+>/g, '');
+      if (fold) expect(text).not.toContain('{fold');
+      else if (md.includes('\\{fold}')) expect(text).toContain('{fold}');
+    });
+  }
+});
