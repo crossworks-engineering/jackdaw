@@ -522,6 +522,7 @@ export function NotesClient() {
                 onSaved={onSaved}
                 onCancel={() => guard(exitEdit)}
                 onDirtyChange={setDirty}
+                inFolder={creating && createIn !== null}
               />
             ) : selected ? (
               <NotePreview

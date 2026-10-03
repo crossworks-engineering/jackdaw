@@ -97,7 +97,7 @@ export function FolderTreeRail({
   recentActive: boolean;
   onRecent: () => void;
   onNewFolder: (parentPath: string) => void;
-  /** "New markdown file inside": the screen's own create, in that folder. */
+  /** "New file inside": the screen's own create, in that folder. */
   onNewFile?: (parentPath: string) => void;
   onRename: (folder: FolderRow) => void;
 }) {
@@ -174,7 +174,7 @@ export function FolderTreeRail({
       {onNewFile && (
         <DropdownMenuItem onSelect={() => onNewFile(f.path)}>
           <FileText />
-          New markdown file inside
+          New file inside
         </DropdownMenuItem>
       )}
       {f.path !== FILES_ROOT && (

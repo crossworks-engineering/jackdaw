@@ -615,10 +615,10 @@ function FilesView({
                 query={query}
                 onQueryChange={setQuery}
                 searchPlaceholder="Search files and folders…"
-                // Like New > Markdown file with that folder open: the file is
-                // made in it and opens there.
+                // Like New with that folder open: the dialog picks the type,
+                // and the file is made in the folder and opens there.
                 newItemInFolder={{
-                  label: 'markdown file',
+                  label: 'file',
                   icon: FileText,
                   onCreate: (f) => {
                     setRecentView(false);

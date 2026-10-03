@@ -214,7 +214,7 @@ export function fmtRelative(iso: string): string {
  */
 export type FilesDialog =
   | { kind: 'createFolder'; parentPath?: string }
-  /** `parentPath`: "New markdown file inside" a tree folder (else the open one). */
+  /** `parentPath`: "New file inside" a tree folder (else the open one). */
   | { kind: 'createFile'; ext: TextExt; parentPath?: string }
   | { kind: 'deleteFolder' }
   /** `ids` from a tree row's Delete; none = the table's selection. */

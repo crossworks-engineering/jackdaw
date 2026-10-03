@@ -223,6 +223,9 @@ export function PagesClient() {
   const [pickedFolder, setTreeFolder] = useState<TreeFolder | null>(null);
   const treeFolder = useLiveTreeFolder('pages', 'owner', pickedFolder);
   const { fileNew, confirm: fileConfirm } = useFileNewItem('pages', 'page');
+  // New came from a folder's "New page inside": the page goes there, so the
+  // dialog names it and does not offer "Keep private" (no folder for that).
+  const [inside, setInside] = useState(false);
   useEffect(() => {
     if (pickedFolder && !treeFolder) setTreeFolder(null);
   }, [pickedFolder, treeFolder]);
@@ -494,7 +497,7 @@ export function PagesClient() {
     }
     setSaving(true);
     try {
-      if (keepPrivate) {
+      if (keepPrivate && !inside) {
         let href: string;
         try {
           href = await createPrivateItem('page', { title: form.title });
@@ -730,7 +733,10 @@ export function PagesClient() {
                 rootLabel="All pages"
                 actions={
                   <NewButton
-                    onClick={() => setOpen(true)}
+                    onClick={() => {
+                      setInside(false);
+                      setOpen(true);
+                    }}
                     title={
                       treeFolder ? `New page in ${treeFolder.name}` : 'New page at the top level'
                     }
@@ -742,6 +748,7 @@ export function PagesClient() {
                   label: 'page',
                   onCreate: (f) => {
                     setTreeFolder(f);
+                    setInside(true);
                     setOpen(true);
                   },
                 }}
@@ -776,7 +783,14 @@ export function PagesClient() {
                 search={searchInput}
                 onSearch={setSearchInput}
                 placeholder="Search pages…"
-                actions={<NewButton onClick={() => setOpen(true)} />}
+                actions={
+                  <NewButton
+                    onClick={() => {
+                      setInside(false);
+                      setOpen(true);
+                    }}
+                  />
+                }
               >
                 <SortMenu
                   value={sort}
@@ -901,7 +915,9 @@ export function PagesClient() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>New page</DialogTitle>
+            <DialogTitle>
+              {inside && treeFolder ? `New page in “${treeFolder.name}”` : 'New page'}
+            </DialogTitle>
             <DialogDescription>
               Give it a title — you’ll write the body in the editor.
             </DialogDescription>
@@ -918,7 +934,7 @@ export function PagesClient() {
               />
             </div>
             {/* A private item carries no tags until it is in the brain. */}
-            {keepPrivate ? null : (
+            {keepPrivate && !inside ? null : (
               <div className="space-y-1.5">
                 <Label htmlFor="tags">Tags</Label>
                 <TagInput
@@ -929,7 +945,9 @@ export function PagesClient() {
                 />
               </div>
             )}
-            <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+            {inside ? null : (
+              <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+            )}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel

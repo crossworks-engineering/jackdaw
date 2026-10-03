@@ -11,6 +11,7 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { TagInput } from '@/components/tag-input';
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 
@@ -45,6 +46,7 @@ export function NoteEditor({
   onSaved,
   onCancel,
   onDirtyChange,
+  inFolder = false,
 }: {
   note: NoteRow | null;
   focus: boolean;
@@ -52,6 +54,9 @@ export function NoteEditor({
   onSaved: (saved: NoteRow) => void;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** A new note bound for a tree folder: a private note has no folder, so
+   *  "Keep private" is not offered. */
+  inFolder?: boolean;
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -88,7 +93,7 @@ export function NoteEditor({
     }
     setSaving(true);
     try {
-      if (creating && keepPrivate) {
+      if (creating && keepPrivate && !inFolder) {
         let href: string;
         try {
           href = await createPrivateItem('note', { title, content });
@@ -104,17 +109,20 @@ export function NoteEditor({
         router.push(href);
         return;
       }
-      const res = await fetch(creating ? '/api/notes' : `/api/notes/${note!.id}`, {
-        method: creating ? 'POST' : 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), content, tags }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        toast.error(j.error ?? `Save failed (${res.status})`);
+      // Through the API client, not a bare fetch: the brain may sit on
+      // another origin (a detached frontend, the desktop app).
+      let saved: NoteRow;
+      try {
+        ({ note: saved } = await apiSend<{ note: NoteRow }>(
+          creating ? '/api/notes' : `/api/notes/${note!.id}`,
+          creating ? 'POST' : 'PATCH',
+          { title: title.trim(), content, tags },
+        ));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) return;
+        toast.error(err instanceof Error ? err.message : 'Save failed');
         return;
       }
-      const { note: saved } = (await res.json()) as { note: NoteRow };
       toast.success(creating ? 'Note created' : 'Saved');
       onSaved(saved);
     } finally {
@@ -174,11 +182,11 @@ export function NoteEditor({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3">
-        {creating ? (
+        {creating && !inFolder ? (
           <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
         ) : null}
         {/* A private note carries no tags until it is in the brain. */}
-        {creating && keepPrivate ? null : (
+        {creating && keepPrivate && !inFolder ? null : (
           <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
         )}
         <MarkdownEditor
