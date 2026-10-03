@@ -392,7 +392,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
               variant="outline"
               onClick={preview}
               disabled={busy !== null}
-              title="Compile the draft and refresh the preview — does not go live"
+              title="Compile the draft and refresh the preview. It does not go live."
             >
               <Eye />
               Preview

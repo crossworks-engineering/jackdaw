@@ -1,4 +1,4 @@
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
@@ -32,6 +32,13 @@ async function withApp(
   } finally {
     await ownerApi.delete(`/api/apps/${app.id}`);
   }
+}
+
+/** Switch an app's view (Builder, Code, History, Activity). They are picked
+ *  from the header's View menu, not a tab bar, since v0.6.217. */
+async function openView(page: Page, view: string) {
+  await page.getByRole('button', { name: /^View:/ }).click();
+  await page.getByRole('menuitemradio', { name: view }).click();
 }
 
 test.describe('apps', () => {
@@ -130,7 +137,7 @@ test.describe('apps', () => {
     await withApp(ownerApi, async (app) => {
       await ownerPage.setViewportSize({ width: 1600, height: 900 });
       await ownerPage.goto(`/apps/${app.id}`);
-      await ownerPage.getByRole('tab', { name: 'Code' }).click();
+      await openView(ownerPage, 'Code');
 
       const list = ownerPage.locator('[data-testid="list"]');
       await expect(list, 'no list panel — still a hand-written grid?').toBeVisible();
@@ -156,7 +163,7 @@ test.describe('apps', () => {
       expect(widened, 'the divider did not move').toBeGreaterThan(260);
 
       await ownerPage.reload();
-      await ownerPage.getByRole('tab', { name: 'Code' }).click();
+      await openView(ownerPage, 'Code');
       await expect(list).toBeVisible();
       await expect.poll(async () => Math.abs((await widthOf()) - widened)).toBeLessThan(3);
     });
