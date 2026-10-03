@@ -1,5 +1,6 @@
 'use client';
 
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useEffect, useState } from 'react';
 import {
   Download,
@@ -65,6 +66,8 @@ export function FileEditor({
   const [mode, setMode] = useState<Mode>('split');
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
+  // Files opens on this file next time (lib/last-opened.ts).
+  useRememberLastOpened('files', state.kind === 'loaded' ? fileId : null);
 
   useEffect(() => {
     let cancelled = false;

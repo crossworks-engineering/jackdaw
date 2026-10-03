@@ -65,6 +65,8 @@ import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
 import { ShellRoleGate, ViewerRoleProvider } from '@/components/member/viewer-role';
 import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
 import { clearRescues, rescueOwnerFor, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
+import { noteRoute } from '@/lib/last-opened';
+import { LastOpenedLoginProvider } from '@/components/last-opened/last-opened';
 import { onSignOut } from '@mantle/web-ui/sign-out';
 
 /**
@@ -450,6 +452,12 @@ function ShellFrame({
   useEffect(() => {
     setRescueOwner(rescueWho);
   }, [rescueWho]);
+  // The route before this one, for the workspace sections' "open the last
+  // item" restore (lib/last-opened.ts): back to a section's list from one of
+  // its own items is a trip to the list, not an entry.
+  useEffect(() => {
+    noteRoute(pathname);
+  }, [pathname]);
   // What the chrome shows (brand, identity, theme, fonts, asset token) comes
   // from whichever shell answered; the two share those fields.
   const brand = isMember ? memberShellQuery.data : shellQuery.data;
@@ -832,7 +840,9 @@ function ShellFrame({
           data-tour="main"
           className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]"
         >
-          <Suspense fallback={null}>{children}</Suspense>
+          <Suspense fallback={null}>
+            <LastOpenedLoginProvider login={rescueWho}>{children}</LastOpenedLoginProvider>
+          </Suspense>
         </main>
 
         {/* The full assistant as a content-area overlay — fills the same box as

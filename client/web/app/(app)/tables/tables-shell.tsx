@@ -1,5 +1,6 @@
 'use client';
 
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -164,6 +165,9 @@ export function TablesShell() {
   });
   const selectedTable: TableDetail | null =
     selectedTableQuery.data?.id === selectedId ? selectedTableQuery.data : null;
+  // Tables opens on this table next time (lib/last-opened.ts): one the user
+  // picked and that loaded, not the first row shown by default.
+  useRememberLastOpened('tables', urlSelected && selectedTable ? selectedTable.id : null);
 
   const [searchInput, setSearchInput] = useState(query);
   const [createOpen, setCreateOpen] = useState(false);

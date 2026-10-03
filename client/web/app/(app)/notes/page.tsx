@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
+import { RestoreLastOpened } from '@/components/last-opened/last-opened';
 import { MemberWorkspace } from '@/components/member/member-workspace';
 import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { SetPageTitle } from '@/components/layout/page-title';
@@ -23,11 +24,13 @@ export default async function NotesPage() {
           </div>
         }
       >
-        <RoleSwitch member={<MemberWorkspace kind="note" />}>
-          <AdminSpaces kind="note">
-            <NotesClient />
-          </AdminSpaces>
-        </RoleSwitch>
+        <RestoreLastOpened section="notes">
+          <RoleSwitch member={<MemberWorkspace kind="note" />}>
+            <AdminSpaces kind="note">
+              <NotesClient />
+            </AdminSpaces>
+          </RoleSwitch>
+        </RestoreLastOpened>
       </Suspense>
     </>
   );

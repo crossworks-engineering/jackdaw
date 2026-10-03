@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
+import { RestoreLastOpened } from '@/components/last-opened/last-opened';
 import { MemberWorkspace } from '@/components/member/member-workspace';
 import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -21,11 +22,13 @@ export default async function TablesPage() {
         </div>
       }
     >
-      <RoleSwitch member={<MemberWorkspace kind="table" />}>
-        <AdminSpaces kind="table">
-          <TablesShell />
-        </AdminSpaces>
-      </RoleSwitch>
+      <RestoreLastOpened section="tables">
+        <RoleSwitch member={<MemberWorkspace kind="table" />}>
+          <AdminSpaces kind="table">
+            <TablesShell />
+          </AdminSpaces>
+        </RoleSwitch>
+      </RestoreLastOpened>
     </Suspense>
   );
 }

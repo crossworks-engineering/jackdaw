@@ -1,5 +1,6 @@
 'use client';
 
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,6 +97,8 @@ export function DrawDetailClient({ drawId }: { drawId: string }) {
     queryFn: () => apiFetch<{ draw: DrawDetail }>(`/api/draws/${drawId}`).then((r) => r.draw),
     refetchOnMount: 'always',
   });
+  // Draw opens on this drawing next time (lib/last-opened.ts).
+  useRememberLastOpened('draw', drawQuery.isSuccess ? drawId : null);
 
   if (drawQuery.isPending || (!drawQuery.isFetchedAfterMount && !drawQuery.isError)) {
     return (

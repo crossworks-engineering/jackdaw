@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { RoleSwitch } from '@/components/member/viewer-role';
+import { RestoreLastOpened } from '@/components/last-opened/last-opened';
 import { MemberWorkspace } from '@/components/member/member-workspace';
 import { AdminSpaces } from '@/components/member/admin-private-workspace';
 import { SetPageTitle } from '@/components/layout/page-title';
@@ -24,11 +25,13 @@ export default async function DrawPage() {
           </div>
         }
       >
-        <RoleSwitch member={<MemberWorkspace kind="draw" />}>
-          <AdminSpaces kind="draw">
-            <DrawsClient />
-          </AdminSpaces>
-        </RoleSwitch>
+        <RestoreLastOpened section="draw">
+          <RoleSwitch member={<MemberWorkspace kind="draw" />}>
+            <AdminSpaces kind="draw">
+              <DrawsClient />
+            </AdminSpaces>
+          </RoleSwitch>
+        </RestoreLastOpened>
       </Suspense>
     </>
   );

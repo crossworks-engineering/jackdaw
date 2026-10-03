@@ -1,5 +1,6 @@
 'use client';
 
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { OwnerClientThread } from '@/components/share/owner-client-thread';
@@ -167,6 +168,9 @@ export function NotesClient() {
     }
     return first && !isPrivateRow(first) ? first : null;
   }, [privateOpen, selectedId, notes, selectedNoteQuery.data, first]);
+  // Notes opens on this note next time (lib/last-opened.ts): one the user
+  // picked and that loaded, not the first card shown by default.
+  useRememberLastOpened('notes', selectedId && selected?.id === selectedId ? selectedId : null);
 
   // Pin whatever the right pane is showing. That includes the `notes[0]`
   // fallback above: nothing was clicked, but the note is on screen and read,

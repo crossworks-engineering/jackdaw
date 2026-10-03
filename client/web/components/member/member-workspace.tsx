@@ -39,6 +39,8 @@ import { MEMBER_STATE_OPTIONS, fetchMemberItems, memberStateOf, srcOf } from '@/
 import { authorName } from '@/lib/item-author';
 import { authorRoleLabel } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
+import { sectionOf } from '@/lib/last-opened';
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { treeKey } from '@/components/item-tree/tree-api';
@@ -117,6 +119,12 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   // redirects write; a member's screen reads it the same way.
   const openId = params.get('id') ?? params.get('selected');
   const openSource = asSource(params.get('src'));
+  // The section opens on this item next time (lib/last-opened.ts). A
+  // client's submitted item is not one of the member's sources to restore.
+  useRememberLastOpened(
+    sectionOf(MEMBER_KIND[kind].path),
+    openId && openSource !== 'client-request' ? openId : null,
+  );
   const [details, changeDetails] = useCardDetails(`mantle_member_${kind}_card_details_v1`);
   // The brain's folders as a tree, when it serves this kind to members: what
   // the member reads there, by folder, with its own folders and drafts and

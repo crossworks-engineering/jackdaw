@@ -1,5 +1,6 @@
 'use client';
 
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useRouter } from 'next/navigation';
@@ -117,6 +118,8 @@ export function PageDetailClient({ pageId }: { pageId: string }) {
         (r) => r.backlinks,
       ),
   });
+  // Pages opens on this page next time (lib/last-opened.ts).
+  useRememberLastOpened('pages', pageQuery.isSuccess ? pageId : null);
 
   // …and gate the editor on the FRESH response (isFetchedAfterMount), never
   // the cached entry — a brief spinner beats losing the first typed characters.
