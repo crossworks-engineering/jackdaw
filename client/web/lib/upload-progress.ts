@@ -41,13 +41,20 @@ export function overLimitMessage(size: number, limit: number): string {
 /**
  * The upload's form, in the order the brain reads it: the folder, then
  * `confirm` (a yes to a folder shared with the team or clients, which the
- * brain reads before it streams the file), then the file itself. A field
- * after the file part would reach the brain only once the bytes had.
+ * brain reads before it streams the file) and `replace` (write over a file of
+ * the same name in place), then the file itself. A field after the file part
+ * would reach the brain only once the bytes had.
  */
-export function uploadForm(parentPath: string, file: Blob, confirm = false): FormData {
+export function uploadForm(
+  parentPath: string,
+  file: Blob,
+  confirm = false,
+  replace = false,
+): FormData {
   const form = new FormData();
   form.set('parentPath', parentPath);
   if (confirm) form.set('confirm', 'true');
+  if (replace) form.set('replace', 'true');
   form.set('file', file);
   return form;
 }

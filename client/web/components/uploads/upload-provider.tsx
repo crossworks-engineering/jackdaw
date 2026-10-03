@@ -93,6 +93,8 @@ type UploadApi = {
   enqueue: (input: FileList | File[], parentPath: string, opts?: { confirm?: boolean }) => void;
   cancel: (id: string) => void;
   retry: (id: string) => void;
+  /** Send a `conflict` upload again, over the different version. */
+  replace: (id: string) => void;
   clearFinished: () => void;
 };
 
@@ -136,6 +138,8 @@ type Pending = {
   parentPath: string;
   /** A yes to a shared folder, kept for a retry. */
   confirm?: boolean;
+  /** Write over the file of the same name (the Replace on a conflict). */
+  replace?: boolean;
   controller?: AbortController;
 };
 
@@ -192,7 +196,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      const form = uploadForm(entry.parentPath, entry.file, entry.confirm === true);
+      const form = uploadForm(
+        entry.parentPath,
+        entry.file,
+        entry.confirm === true,
+        entry.replace === true,
+      );
       const token = tokenStore.get();
       await xhrUpload({
         url: `${runtimeApiBase()}/api/files/files`,
@@ -210,21 +219,30 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         update(id, { status: 'cancelled', rate: null });
         pendingRef.current.delete(id);
       } else if (err instanceof UploadHttpError && isNameClash(err.status, err.body)) {
-        // Not a failure to retry: the name is taken. Say what holds it.
-        const verdict = await checkClash(entry.file, entry.parentPath);
-        update(
-          id,
-          verdict === 'same' || verdict === 'same-size'
-            ? { status: 'exists', rate: null, loaded: entry.file.size, note: CLASH_DETAIL[verdict] }
-            : {
-                status: 'conflict',
-                rate: null,
-                note: verdict
-                  ? CLASH_DETAIL.different
-                  : 'A file with this name is already here, not replaced',
-              },
-        );
-        pendingRef.current.delete(id);
+        // Not a failure to retry: the name is taken. Say what holds it. A
+        // replace refused the same way means a brain older than `replace`.
+        const verdict = entry.replace ? null : await checkClash(entry.file, entry.parentPath);
+        if (verdict === 'same' || verdict === 'same-size') {
+          update(id, {
+            status: 'exists',
+            rate: null,
+            loaded: entry.file.size,
+            note: CLASH_DETAIL[verdict],
+          });
+          pendingRef.current.delete(id);
+        } else {
+          // The File stays in pendingRef so Replace can send it again.
+          update(id, {
+            status: 'conflict',
+            rate: null,
+            retryable: !entry.replace,
+            note: entry.replace
+              ? 'Not replaced: this brain cannot replace files yet'
+              : verdict
+                ? CLASH_DETAIL.different
+                : 'A file with this name is already here, not replaced',
+          });
+        }
       } else {
         // A folder shared since the screen last looked: the yes is asked
         // for on the Files screen, not by a retry here.
@@ -322,6 +340,18 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     [pump, update],
   );
 
+  const replace = useCallback(
+    (id: string) => {
+      const entry = pendingRef.current.get(id);
+      if (!entry || entry.controller) return;
+      entry.replace = true;
+      update(id, { status: 'pending', loaded: 0, rate: null, note: undefined });
+      queueRef.current.push(id);
+      pump();
+    },
+    [pump, update],
+  );
+
   const clearFinished = useCallback(() => {
     setTasks((ts) => {
       const keep = ts.filter((t) => t.status === 'pending' || t.status === 'uploading');
@@ -358,9 +388,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       enqueue,
       cancel,
       retry,
+      replace,
       clearFinished,
     }),
-    [tasks, active, maxUploadBytes, enqueue, cancel, retry, clearFinished],
+    [tasks, active, maxUploadBytes, enqueue, cancel, retry, replace, clearFinished],
   );
 
   return <UploadContext.Provider value={api}>{children}</UploadContext.Provider>;
@@ -384,7 +415,7 @@ export function useUploads(): UploadApi {
  * which read as three uploads for one file.
  */
 export function UploadDock() {
-  const { tasks, active, cancel, retry, clearFinished } = useUploads();
+  const { tasks, active, cancel, retry, replace, clearFinished } = useUploads();
   const [collapsed, setCollapsed] = useState(false);
 
   if (tasks.length === 0) return null;
@@ -434,7 +465,7 @@ export function UploadDock() {
       {!collapsed && (
         <ul className="max-h-56 divide-y divide-border overflow-y-auto scrollbar-thin border-t border-border">
           {tasks.map((t) => (
-            <UploadRow key={t.id} task={t} onCancel={cancel} onRetry={retry} />
+            <UploadRow key={t.id} task={t} onCancel={cancel} onRetry={retry} onReplace={replace} />
           ))}
         </ul>
       )}
@@ -494,10 +525,12 @@ function UploadRow({
   task: t,
   onCancel,
   onRetry,
+  onReplace,
 }: {
   task: UploadTask;
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
+  onReplace: (id: string) => void;
 }) {
   const detail =
     t.status === 'uploading'
@@ -513,6 +546,8 @@ function UploadRow({
               : (t.error ?? 'Upload failed.');
   const canCancel = t.status === 'pending' || t.status === 'uploading';
   const canRetry = t.status === 'error' && t.retryable !== false;
+  // `retryable` false on a conflict: a replace was refused already.
+  const canReplace = t.status === 'conflict' && t.retryable !== false;
 
   return (
     <li className="flex items-center gap-2 px-3 py-1.5 text-xs">
@@ -560,6 +595,19 @@ function UploadRow({
           title="Cancel"
         >
           <X className="size-3.5" aria-hidden />
+        </Button>
+      )}
+      {canReplace && (
+        <Button
+          variant="ghost"
+          size="2xs"
+          type="button"
+          onClick={() => onReplace(t.id)}
+          className="shrink-0"
+          aria-label={`Replace the version already here with ${t.name}`}
+          title="Replace the version already here with this file"
+        >
+          Replace
         </Button>
       )}
       {canRetry && (

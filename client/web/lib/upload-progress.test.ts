@@ -85,6 +85,10 @@ describe('uploadForm', () => {
     expect(form.get('confirm')).toBe('true');
     expect(form.get('parentPath')).toBe('files.shared');
   });
+  it('sends replace before the file part too', () => {
+    const form = uploadForm('files', new Blob(['x']), false, true);
+    expect([...form.keys()]).toEqual(['parentPath', 'replace', 'file']);
+  });
   it('sends no confirm unless asked', () => {
     expect([...uploadForm('files', new Blob(['x'])).keys()]).toEqual(['parentPath', 'file']);
   });
