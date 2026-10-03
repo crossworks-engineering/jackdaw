@@ -226,7 +226,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         await queryClient.invalidateQueries({ queryKey: APPS_KEY });
         setReloadKey((k) => k + 1);
       } else {
-        toast.error(`${data.errors?.length ?? 0} error(s) — preview not updated.`);
+        toast.error(`${data.errors?.length ?? 0} error(s). The preview was not updated.`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not build the preview.');
@@ -243,7 +243,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
     setBuildErrors([]);
     try {
       await apiSend(`/api/apps/${app.id}/publish`, 'POST');
-      toast.success('Committed — the live app is updated.');
+      toast.success('Committed. The live app is updated.');
       await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       setReloadKey((k) => k + 1);
     } catch (err) {
@@ -252,7 +252,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
       if (err instanceof ApiError && err.status === 422) {
         const errors = (err.body?.errors as BuildMsg[] | undefined) ?? [];
         setBuildErrors(errors);
-        toast.error(`${errors.length} error(s) — nothing was committed.`);
+        toast.error(`${errors.length} error(s). Nothing was committed.`);
       } else {
         toast.error(err instanceof Error ? err.message : 'Commit failed.');
       }
@@ -493,7 +493,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 <ul className="flex flex-col gap-1">
                   {buildErrors.map((e, i) => (
                     <li key={i}>
-                      {e.location ? `${e.location.file}:${e.location.line} — ` : ''}
+                      {e.location ? `${e.location.file}:${e.location.line}: ` : ''}
                       {e.text}
                     </li>
                   ))}
