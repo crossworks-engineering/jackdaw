@@ -368,7 +368,7 @@ function EmbeddingForm({
                 name="extraction_concurrency"
                 type="number"
                 min="1"
-                max="8"
+                max="16"
                 value={perfConcurrency}
                 onChange={(e) => setPerfConcurrency(e.target.value)}
                 placeholder="default 2"
