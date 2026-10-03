@@ -16,6 +16,18 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ModelSelect } from '@/components/ui/model-select';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import {
+  AGENT_THINKING_EFFORT_OPTIONS,
+  parseAgentThinkingEffort,
+  type AgentThinkingEffort,
+} from '@/lib/thinking-effort';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -31,6 +43,9 @@ import type { ExplorerModel } from '@mantle/client-types';
 export type SkillOpt = { slug: string; name: string; usedByAgentSlugs: string[] };
 export type AgentOpt = { slug: string; name: string; enabled: boolean };
 
+/** Select value for "no own effort" (Radix forbids an empty value). */
+const INHERIT = '__inherit__';
+
 type AgentLike = {
   id: string;
   slug: string;
@@ -38,6 +53,9 @@ type AgentLike = {
   model: string;
   params: { temperature?: number; max_tokens?: number };
   maxIterations?: number;
+  /** Per-agent thinking effort (brain migration 0228); null = inherit the
+   *  profile. Absent = a brain without it: the select hides. */
+  thinkingEffort?: AgentThinkingEffort | null;
   skillSlugs: string[];
   delegateSlugs: string[];
   resettable: boolean;
@@ -244,6 +262,29 @@ export function StructureEditor({
           </label>
         </div>
       </div>
+
+      {'thinkingEffort' in agent && (
+        <label className="flex flex-col gap-0.5 text-[12px] text-muted-foreground">
+          thinking effort (used when the model supports it)
+          <Select
+            value={agent.thinkingEffort ?? INHERIT}
+            disabled={busy}
+            onValueChange={(v) => void patch({ thinkingEffort: parseAgentThinkingEffort(v) })}
+          >
+            <SelectTrigger className="h-7 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={INHERIT}>Inherit from profile</SelectItem>
+              {AGENT_THINKING_EFFORT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+      )}
 
       <div className="flex flex-col gap-1">
         <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">
