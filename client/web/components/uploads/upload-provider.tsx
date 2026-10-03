@@ -25,9 +25,15 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { isCrossOrigin, runtimeApiBase } from '@mantle/web-ui/runtime-env';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { apiFetch } from '@mantle/web-ui/api-fetch';
 import {
+  CLASH_DETAIL,
   SHARED_UPLOAD_REFUSED,
   aggregateProgress,
+  clashVerdict,
+  isNameClash,
+  sha256Hex,
+  storedFilename,
   formatBytes,
   formatEta,
   formatRate,
@@ -35,6 +41,7 @@ import {
   updateRate,
   uploadForm,
 } from '@/lib/upload-progress';
+import type { ClashVerdict } from '@/lib/upload-progress';
 import { UploadAbortedError, UploadHttpError, xhrUpload } from '@/lib/xhr-upload';
 
 /**
@@ -53,7 +60,11 @@ import { UploadAbortedError, UploadHttpError, xhrUpload } from '@/lib/xhr-upload
  * Each successful POST creates a `file` node → `node_ingested` → the realtime
  * layer refreshes /files live, so the manager never has to cross-talk to it.
  */
-export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'cancelled';
+/** `exists`: the name was taken by a file with the same bytes, so it is
+ *  already uploaded. `conflict`: a different version holds the name and the
+ *  brain kept it; this file was not saved. */
+export type UploadStatus =
+  'pending' | 'uploading' | 'done' | 'exists' | 'conflict' | 'error' | 'cancelled';
 
 export type UploadTask = {
   id: string;
@@ -65,6 +76,8 @@ export type UploadTask = {
   /** Smoothed bytes/s while uploading; null before the first sample. */
   rate: number | null;
   error?: string;
+  /** What a name clash turned out to be (`exists` and `conflict`). */
+  note?: string;
   /** False when the failure is final (refused as too large): retry is pointless. */
   retryable?: boolean;
 };
@@ -92,6 +105,31 @@ const CONCURRENCY = 3;
 const PROGRESS_TICK_MS = 150;
 /** What an old server (no `maxUploadBytes` in /api/shell) accepts. */
 const LEGACY_LIMIT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * The brain refuses an upload whose name is taken in the folder, whatever
+ * its bytes. Look at the file that holds the name: the same bytes mean the
+ * upload is already done; other bytes mean a different version stays there.
+ * Null when the folder could not be read.
+ */
+async function checkClash(file: File, parentPath: string): Promise<ClashVerdict | null> {
+  try {
+    const { files } = await apiFetch<{
+      files: Array<{ filename?: string; sizeBytes?: number; sha256?: string | null }>;
+    }>(`/api/files/files?parent=${encodeURIComponent(parentPath)}`);
+    const name = storedFilename(file.name);
+    const row = files.find((f) => f.filename === name);
+    const stored =
+      row && typeof row.sizeBytes === 'number'
+        ? { sizeBytes: row.sizeBytes, sha256: row.sha256 ?? null }
+        : undefined;
+    // Hash only when it can decide: equal sizes and a fingerprint to match.
+    const sha256 = stored?.sha256 && stored.sizeBytes === file.size ? await sha256Hex(file) : null;
+    return clashVerdict({ size: file.size, sha256 }, stored);
+  } catch {
+    return null;
+  }
+}
 
 type Pending = {
   file: File;
@@ -170,6 +208,22 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       if (err instanceof UploadAbortedError) {
         update(id, { status: 'cancelled', rate: null });
+        pendingRef.current.delete(id);
+      } else if (err instanceof UploadHttpError && isNameClash(err.status, err.body)) {
+        // Not a failure to retry: the name is taken. Say what holds it.
+        const verdict = await checkClash(entry.file, entry.parentPath);
+        update(
+          id,
+          verdict === 'same' || verdict === 'same-size'
+            ? { status: 'exists', rate: null, loaded: entry.file.size, note: CLASH_DETAIL[verdict] }
+            : {
+                status: 'conflict',
+                rate: null,
+                note: verdict
+                  ? CLASH_DETAIL.different
+                  : 'A file with this name is already here, not replaced',
+              },
+        );
         pendingRef.current.delete(id);
       } else {
         // A folder shared since the screen last looked: the yes is asked
@@ -337,18 +391,16 @@ export function UploadDock() {
 
   const total = tasks.length;
   const done = tasks.filter((t) => t.status === 'done').length;
+  const exists = tasks.filter((t) => t.status === 'exists').length;
+  const conflicts = tasks.filter((t) => t.status === 'conflict').length;
   const failed = tasks.filter((t) => t.status === 'error').length;
   const cancelled = tasks.filter((t) => t.status === 'cancelled').length;
-  const finished = done + failed + cancelled;
+  const finished = done + exists + conflicts + failed + cancelled;
   const agg = aggregateProgress(tasks);
 
   const heading = active
     ? `Uploading ${Math.min(finished + 1, total)} of ${total}`
-    : failed > 0
-      ? `Uploaded ${done} · ${failed} failed${cancelled ? ` · ${cancelled} cancelled` : ''}`
-      : cancelled > 0
-        ? `Uploaded ${done} · ${cancelled} cancelled`
-        : `Uploaded ${done} file${done === 1 ? '' : 's'}`;
+    : finishedHeading({ done, exists, conflicts, failed, cancelled });
   const progressLine = [`${agg.pct}%`, formatRate(agg.rate), formatEta(agg.etaSec)]
     .filter(Boolean)
     .join(' · ');
@@ -364,6 +416,8 @@ export function UploadDock() {
           <Loader2 className="size-4 shrink-0 animate-spin text-primary-ink" aria-hidden />
         ) : failed > 0 ? (
           <AlertCircle className="size-4 shrink-0 text-destructive-ink" aria-hidden />
+        ) : conflicts > 0 ? (
+          <AlertCircle className="size-4 shrink-0 text-warning-ink" aria-hidden />
         ) : (
           <CheckCircle2 className="size-4 shrink-0 text-primary-ink" aria-hidden />
         )}
@@ -418,6 +472,24 @@ export function UploadDock() {
   );
 }
 
+/** The dock title once nothing is moving. Files already there count as
+ *  uploaded; only a different version left in place is called out. */
+export function finishedHeading(c: {
+  done: number;
+  exists: number;
+  conflicts: number;
+  failed: number;
+  cancelled: number;
+}): string {
+  const uploaded = c.done + c.exists;
+  const parts = [`Uploaded ${uploaded} file${uploaded === 1 ? '' : 's'}`];
+  if (c.exists > 0) parts.push(`${c.exists} already there`);
+  if (c.conflicts > 0) parts.push(`${c.conflicts} not replaced`);
+  if (c.failed > 0) parts.push(`${c.failed} failed`);
+  if (c.cancelled > 0) parts.push(`${c.cancelled} cancelled`);
+  return parts.join(' · ');
+}
+
 function UploadRow({
   task: t,
   onCancel,
@@ -434,16 +506,20 @@ function UploadRow({
         ? `Waiting · ${formatBytes(t.size)}`
         : t.status === 'done'
           ? formatBytes(t.size)
-          : t.status === 'cancelled'
-            ? 'Cancelled'
-            : (t.error ?? 'Upload failed.');
+          : t.status === 'exists' || t.status === 'conflict'
+            ? (t.note ?? '')
+            : t.status === 'cancelled'
+              ? 'Cancelled'
+              : (t.error ?? 'Upload failed.');
   const canCancel = t.status === 'pending' || t.status === 'uploading';
   const canRetry = t.status === 'error' && t.retryable !== false;
 
   return (
     <li className="flex items-center gap-2 px-3 py-1.5 text-xs">
-      {t.status === 'done' ? (
+      {t.status === 'done' || t.status === 'exists' ? (
         <CheckCircle2 className="size-3.5 shrink-0 text-primary-ink" aria-hidden />
+      ) : t.status === 'conflict' ? (
+        <AlertCircle className="size-3.5 shrink-0 text-warning-ink" aria-hidden />
       ) : t.status === 'error' ? (
         <AlertCircle className="size-3.5 shrink-0 text-destructive-ink" aria-hidden />
       ) : t.status === 'cancelled' ? (
@@ -463,7 +539,11 @@ function UploadRow({
       <span
         className={cn(
           'max-w-[45%] shrink-0 truncate',
-          t.status === 'error' ? 'text-destructive-ink' : 'text-muted-foreground',
+          t.status === 'error'
+            ? 'text-destructive-ink'
+            : t.status === 'conflict'
+              ? 'text-warning-ink'
+              : 'text-muted-foreground',
         )}
         title={detail}
       >

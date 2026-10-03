@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   aggregateProgress,
+  clashVerdict,
   etaSeconds,
   formatBytes,
   formatEta,
   formatRate,
+  isNameClash,
   overLimitMessage,
+  sha256Hex,
+  storedFilename,
   updateRate,
   uploadForm,
 } from './upload-progress';
@@ -83,5 +87,46 @@ describe('uploadForm', () => {
   });
   it('sends no confirm unless asked', () => {
     expect([...uploadForm('files', new Blob(['x'])).keys()]).toEqual(['parentPath', 'file']);
+  });
+});
+
+describe('name clashes', () => {
+  it('stores names as the brain does', () => {
+    expect(storedFilename('My Doc.PDF')).toBe('my-doc.pdf');
+    expect(storedFilename('a/b/readme.md')).toBe('readme.md');
+    expect(storedFilename('..hidden.md')).toBe('hidden.md');
+  });
+  it('spots the brain’s name-taken refusal only', () => {
+    expect(isNameClash(409, { error: "adoptSpooled: 'a.txt' already exists in this folder" })).toBe(
+      true,
+    );
+    expect(isNameClash(409, { error: 'visibility' })).toBe(false);
+    expect(isNameClash(400, { error: 'already exists' })).toBe(false);
+  });
+  it('calls equal bytes already uploaded and other bytes a different version', () => {
+    expect(clashVerdict({ size: 3, sha256: 'aa' }, { sizeBytes: 3, sha256: 'aa' })).toBe('same');
+    expect(clashVerdict({ size: 3, sha256: 'aa' }, { sizeBytes: 3, sha256: 'bb' })).toBe(
+      'different',
+    );
+    expect(clashVerdict({ size: 3, sha256: null }, { sizeBytes: 4, sha256: 'aa' })).toBe(
+      'different',
+    );
+    expect(clashVerdict({ size: 3, sha256: null }, { sizeBytes: 3, sha256: 'aa' })).toBe(
+      'same-size',
+    );
+    expect(clashVerdict({ size: 3, sha256: 'aa' }, undefined)).toBe('different');
+  });
+  it('hashes a file as hex SHA-256', async () => {
+    expect(await sha256Hex(new Blob(['abc']))).toBe(
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
+  });
+  it('leaves clashes out of the byte progress', () => {
+    const agg = aggregateProgress([
+      { status: 'done', size: 10, loaded: 10, rate: null },
+      { status: 'exists', size: 50, loaded: 50, rate: null },
+      { status: 'conflict', size: 50, loaded: 0, rate: null },
+    ]);
+    expect(agg).toMatchObject({ loaded: 10, total: 10, pct: 100 });
   });
 });

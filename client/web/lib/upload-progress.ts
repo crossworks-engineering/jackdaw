@@ -99,7 +99,7 @@ export function aggregateProgress(tasks: readonly ProgressLike[]): AggregateProg
   let rate = 0;
   let anyRate = false;
   for (const t of tasks) {
-    if (t.status === 'error' || t.status === 'cancelled') continue;
+    if (t.status !== 'pending' && t.status !== 'uploading' && t.status !== 'done') continue;
     total += t.size;
     loaded += t.status === 'done' ? t.size : t.loaded;
     if (t.status === 'uploading' && t.rate != null && t.rate > 0) {
@@ -110,4 +110,62 @@ export function aggregateProgress(tasks: readonly ProgressLike[]): AggregateProg
   const pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
   const r = anyRate ? rate : null;
   return { loaded, total, pct, rate: r, etaSec: etaSeconds(loaded, total, r) };
+}
+
+/**
+ * The name the brain stores an upload under, as its `sanitizeFilename`
+ * (packages/files): "My Doc.PDF" lands as "my-doc.pdf". Needed to find the
+ * file a name clash collided with.
+ */
+export function storedFilename(raw: string): string | null {
+  const base = raw.replace(/^.*[\\/]/, '');
+  const lower = base.toLowerCase().normalize('NFKD');
+  const dot = lower.lastIndexOf('.');
+  const stem = dot > 0 ? lower.slice(0, dot) : lower;
+  const ext = dot > 0 ? lower.slice(dot + 1) : '';
+  const cleanStem = stem
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 180);
+  const cleanExt = ext.replace(/[^a-z0-9]+/g, '').slice(0, 16);
+  if (!cleanStem) return null;
+  return cleanExt ? `${cleanStem}.${cleanExt}` : cleanStem;
+}
+
+/** The brain's refusal of an upload whose name is taken in that folder. It
+ *  checks the name only: the bytes may or may not match. */
+export function isNameClash(status: number, body: Record<string, unknown> | null): boolean {
+  return status === 409 && typeof body?.error === 'string' && body.error.includes('already exists');
+}
+
+/**
+ * What a name clash means. `same`: the file there has these bytes, so the
+ * upload is already done. `same-size`: equal size, bytes not checked (no
+ * fingerprint on either side). `different`: another version is there, and
+ * the brain kept it; this upload was NOT saved.
+ */
+export type ClashVerdict = 'same' | 'same-size' | 'different';
+
+export function clashVerdict(
+  local: { size: number; sha256: string | null },
+  stored: { sizeBytes: number; sha256: string | null } | undefined,
+): ClashVerdict {
+  if (!stored || stored.sizeBytes !== local.size) return 'different';
+  if (stored.sha256 && local.sha256) return stored.sha256 === local.sha256 ? 'same' : 'different';
+  return 'same-size';
+}
+
+export const CLASH_DETAIL: Record<ClashVerdict, string> = {
+  same: 'Already uploaded',
+  'same-size': 'Already here, same size',
+  different: 'A different version is already here, not replaced',
+};
+
+/** SHA-256 of a file as hex, or null where the browser has no WebCrypto
+ *  (a plain-http LAN address is not a secure context). */
+export async function sha256Hex(file: Blob): Promise<string | null> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return null;
+  const digest = await subtle.digest('SHA-256', await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
