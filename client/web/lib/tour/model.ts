@@ -83,6 +83,32 @@ export function decideAutoStart(input: {
   return null;
 }
 
+/** One step of one tour, as the provider tells steps apart. */
+export const tourStepId = (tourId: string, index: number) => `${tourId}:${index}`;
+
+/**
+ * Where the tour sends the browser now: the step's route when the step has
+ * just OPENED (start, Next, Back) on another screen, else nowhere. `opened`
+ * is the step the provider last opened (null: none, or the tour closed).
+ *
+ * Only the opening moves the browser. The card is non-modal and the page
+ * behind it stays usable, so a route the person picks themselves while a
+ * step is open is theirs to keep. Before, the provider pushed the step's
+ * route on EVERY route change: a member who clicked Pages while the
+ * Welcome card sat on Home was pulled back to Home a moment later, every
+ * time, until they closed the tour.
+ */
+export function tourRouteToOpen(input: {
+  step: string | null;
+  route: string | null;
+  pathname: string | null;
+  opened: string | null;
+}): string | null {
+  if (input.step === null || input.route === null) return null;
+  if (input.step === input.opened) return null;
+  return input.pathname === input.route ? null : input.route;
+}
+
 export type Rect = { top: number; left: number; width: number; height: number };
 export type Size = { width: number; height: number };
 

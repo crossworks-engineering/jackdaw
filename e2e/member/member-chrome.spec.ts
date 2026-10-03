@@ -68,6 +68,31 @@ test('the member tour opens once on Home and walks only member screens', async (
   expect(api.adminCalls).toEqual([]);
 });
 
+test('an open tour step does not pull the member back to its screen', async ({ page }) => {
+  // The member bounce (2026-10-03): with the Welcome card open on Home, a
+  // click on Pages landed on Pages and was pushed back to Home a moment
+  // later, every time, until the tour was closed.
+  await page.goto('/');
+  const card = tourCard(page);
+  await expect(card).toContainText('Welcome', { timeout: 60_000 });
+
+  await page.locator('[data-tour="nav:/pages"] >> visible=true').first().click();
+  await expect(page).toHaveURL(/\/pages$/);
+  await page.waitForTimeout(1500);
+  await expect(page).toHaveURL(/\/pages$/);
+  await page.locator('[data-tour="nav:/notes"] >> visible=true').first().click();
+  await expect(page).toHaveURL(/\/notes$/);
+  await page.waitForTimeout(1500);
+  await expect(page).toHaveURL(/\/notes$/);
+
+  // The tour still walks: Next opens the next step on its own screen.
+  await expect(card).toContainText('Welcome');
+  await card.getByRole('button', { name: 'Next' }).click();
+  await expect(card).toContainText('Your home');
+  await expect(page).toHaveURL(/\/$/);
+  expect(api.adminCalls).toEqual([]);
+});
+
 test('every target the member tour names is on the member shell', async ({ page }) => {
   await skipTour(page);
   await page.goto('/pages');

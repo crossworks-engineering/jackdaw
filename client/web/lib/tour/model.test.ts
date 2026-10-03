@@ -5,7 +5,9 @@ import {
   decideAutoStart,
   parseTourMemory,
   placeCard,
+  tourRouteToOpen,
   tourSelector,
+  tourStepId,
   tourStorageKey,
 } from './model';
 
@@ -163,5 +165,49 @@ describe('tourSelector', () => {
   it('builds an attribute selector and escapes quotes', () => {
     expect(tourSelector('nav:/notes')).toBe('[data-tour="nav:/notes"]');
     expect(tourSelector('a"b')).toBe('[data-tour="a\\"b"]');
+  });
+});
+
+describe('tourRouteToOpen', () => {
+  const welcome = tourStepId('member', 0);
+  const pagesStep = tourStepId('member', 2);
+  const at = (pathname: string, opened: string | null, step = welcome, route = '/') =>
+    tourRouteToOpen({ step, route, pathname, opened });
+
+  it('goes to the step screen once, as the step opens elsewhere', () => {
+    expect(at('/pages', null)).toBe('/');
+    expect(at('/', welcome, pagesStep, '/pages')).toBe('/pages');
+    // Back to an earlier step is an opening too.
+    expect(at('/pages', pagesStep, welcome, '/')).toBe('/');
+  });
+
+  it('stays when the step opens on its own screen', () => {
+    expect(at('/', null)).toBeNull();
+  });
+
+  it('never pulls the person back while the same step stays open', () => {
+    // The member bounce (2026-10-03): the Welcome step sat on Home and every
+    // click on Pages, Notes or Apps was pushed back to Home.
+    expect(at('/pages', welcome)).toBeNull();
+    expect(at('/notes', welcome)).toBeNull();
+    expect(at('/pages', pagesStep, pagesStep, '/pages')).toBeNull();
+    expect(at('/apps', pagesStep, pagesStep, '/pages')).toBeNull();
+  });
+
+  it('does nothing with no step open', () => {
+    expect(tourRouteToOpen({ step: null, route: null, pathname: '/pages', opened: welcome })).toBe(
+      null,
+    );
+  });
+
+  it('opens the same step again after the tour closed and restarted', () => {
+    // Closed: the provider forgets what it opened, so Take the tour from
+    // another screen goes to the first step's screen again.
+    expect(at('/pages', null)).toBe('/');
+  });
+
+  it('keys each step of each tour apart', () => {
+    expect(tourStepId('member', 0)).not.toBe(tourStepId('member', 1));
+    expect(tourStepId('member', 0)).not.toBe(tourStepId('demo', 0));
   });
 });

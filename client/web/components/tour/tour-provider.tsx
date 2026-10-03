@@ -6,7 +6,9 @@ import { runtimeTour } from '@mantle/web-ui/runtime-env';
 import {
   decideAutoStart,
   parseTourMemory,
+  tourRouteToOpen,
   tourSelector,
+  tourStepId,
   tourStorageKey,
   type Rect,
   type Tour,
@@ -29,7 +31,8 @@ import { useViewerRole } from '@/components/member/viewer-role';
  * browser that blocks site data, so every touch of it is guarded.
  *
  * Walking is navigation plus a search: a step names a route and the provider
- * pushes it, then waits for the step's `data-tour` element to exist before
+ * pushes it as the step opens (never again while it stays open: the person
+ * may go elsewhere), then waits for the step's `data-tour` element to exist before
  * measuring it — the screen behind a route change arrives whenever it
  * arrives. A target that never turns up (a collapsed rail, a scope that hides
  * the item) is reported rather than hung on: the card centres and still says
@@ -162,11 +165,21 @@ export function TourProvider({
     [state],
   );
 
-  // Go where the step is. The target search below waits for the route to
-  // actually be current, so a slow transition is a wait, not a mismeasure.
+  // Go where the step is, once, as it opens (tourRouteToOpen). A route the
+  // person picks while the step is open stays theirs. The target search
+  // below waits for the route to actually be current, so a slow transition
+  // is a wait, not a mismeasure.
+  const opened = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!active) return;
-    if (pathname !== active.step.route) router.push(active.step.route);
+    const step = active ? tourStepId(active.tour.id, active.index) : null;
+    const to = tourRouteToOpen({
+      step,
+      route: active?.step.route ?? null,
+      pathname,
+      opened: opened.current,
+    });
+    opened.current = step;
+    if (to) router.push(to);
   }, [active, pathname, router]);
 
   // Find and follow the step's element.
