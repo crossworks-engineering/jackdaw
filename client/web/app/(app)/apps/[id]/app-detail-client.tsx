@@ -316,81 +316,79 @@ function AppDetailView({ app }: { app: AppDetail }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SetPageTitle title={app.title} />
-      <div className="flex items-center justify-between gap-3 border-b border-border p-3">
-        <div className="flex items-center gap-3">
-          <BackLink href="/apps">Apps</BackLink>
-          <span className="flex items-center gap-2 font-semibold">
-            <AppLookPicker
-              icon={icon}
-              color={color}
-              label={app.title}
-              onChange={(l) => void setAppLook(app.id, l)}
-              align="start"
-              trigger={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Change icon and colour"
-                  title="Change icon and colour"
-                >
-                  <AppTile icon={icon} color={color} size="md" />
-                </Button>
-              }
-            />
-            {app.title}
-            {app.hasDraft && <Badge variant="secondary">unpublished draft</Badge>}
-            <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={preview}
-            disabled={busy !== null}
-            title="Compile the draft and refresh the preview — does not go live"
-          >
-            <Eye />
-            Preview
-          </Button>
-          {app.hasDraft && (
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
+        {/* One wrapping row: title, actions, then the tab list. The tab list is
+          last in the DOM (and in focus order), so when the row runs out of
+          room it is the part that drops to a line of its own. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <BackLink href="/apps">Apps</BackLink>
+            <span className="flex min-w-0 items-center gap-2 font-semibold">
+              <AppLookPicker
+                icon={icon}
+                color={color}
+                label={app.title}
+                onChange={(l) => void setAppLook(app.id, l)}
+                align="start"
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Change icon and colour"
+                    title="Change icon and colour"
+                  >
+                    <AppTile icon={icon} color={color} size="md" />
+                  </Button>
+                }
+              />
+              <span className="min-w-0 truncate">{app.title}</span>
+              {app.hasDraft && <Badge variant="secondary">unpublished draft</Badge>}
+              <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
+            </span>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              variant="ghost"
-              onClick={() => setConfirmDiscard(true)}
+              variant="outline"
+              onClick={preview}
               disabled={busy !== null}
+              title="Compile the draft and refresh the preview — does not go live"
             >
-              <Undo2 />
-              {busy === 'discard' ? 'Discarding…' : 'Discard'}
+              <Eye />
+              Preview
             </Button>
-          )}
-          {/* Commit compiles the draft itself, so it gates on there being
+            {app.hasDraft && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConfirmDiscard(true)}
+                disabled={busy !== null}
+              >
+                <Undo2 />
+                {busy === 'discard' ? 'Discarding…' : 'Discard'}
+              </Button>
+            )}
+            {/* Commit compiles the draft itself, so it gates on there being
               something staged, not on a build having been run by hand. */}
-          <Button
-            size="sm"
-            onClick={commit}
-            disabled={busy !== null || (!app.hasDraft && !dirty)}
-            title="Compile the draft and make it live"
-          >
-            <GitCommitHorizontal />
-            Commit
-          </Button>
-          {/* Share the published app at a public full-screen /s/<token> URL.
+            <Button
+              size="sm"
+              onClick={commit}
+              disabled={busy !== null || (!app.hasDraft && !dirty)}
+              title="Compile the draft and make it live"
+            >
+              <GitCommitHorizontal />
+              Commit
+            </Button>
+            {/* Share the published app at a public full-screen /s/<token> URL.
               Only once there's a published build to point the link at. */}
-          {app.publishedBuild?.ok && (
-            <AccessControl
-              nodeId={app.id}
-              hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data."
-            />
-          )}
-        </div>
-      </div>
-      {/* Informational (C6): members and clients only read its data. */}
-      <AppInformationalSwitch app={app} />
-
-      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <div className="border-b border-border px-3 py-2">
+            {app.publishedBuild?.ok && (
+              <AccessControl
+                nodeId={app.id}
+                hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data."
+              />
+            )}
+          </div>
           <TabsList>
             <TabsTrigger value="builder">Builder</TabsTrigger>
             <TabsTrigger value="code">Code</TabsTrigger>
@@ -398,6 +396,8 @@ function AppDetailView({ app }: { app: AppDetail }) {
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
         </div>
+        {/* Informational (C6): members and clients only read its data. */}
+        <AppInformationalSwitch app={app} />
 
         {/* Builder — the live preview. Ask Appsmith to edit the app via the
             global assistant (⌘I), auto-armed for this app. */}
