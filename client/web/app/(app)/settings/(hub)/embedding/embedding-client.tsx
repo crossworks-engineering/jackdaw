@@ -18,6 +18,7 @@ import {
 } from '@mantle/web-ui/ui/select';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { ExtractorQueueStatus, useExtractionStatus } from '../../ai-workers/extractor-throughput';
 
 /**
  * "No key" as a Select item value. Radix reserves `''` for "nothing selected"
@@ -134,6 +135,7 @@ function EmbeddingForm({
   const [testing, setTesting] = useState<'primary' | 'backup' | null>(null);
   const [pending, startTransition] = useTransition();
   const [rebuilding, setRebuilding] = useState(false);
+  const extractionStatus = useExtractionStatus();
 
   // ── Performance & throughput (blank = use the default) ──
   const num = (n: number | null | undefined) => (n != null ? String(n) : '');
@@ -378,9 +380,10 @@ function EmbeddingForm({
                 id="extraction_concurrency"
                 warn="Past what the box has cores for, everything slows down together."
               >
-                How many files index at once. Drop to <code>1</code> on a CPU-only box so jobs
-                don&apos;t fight for the same cores.
+                How many files index at once, 1 to 16. Drop to <code>1</code> on a CPU-only box so
+                jobs don&apos;t fight for the same cores.
               </FieldHint>
+              <ExtractorQueueStatus status={extractionStatus.data} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="extraction_time_budget_minutes">Time budget (min)</Label>
@@ -446,8 +449,9 @@ function EmbeddingForm({
           </div>
 
           <p className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            ℹ Batch size and timeout apply immediately. Concurrency and the time budget are read
-            when the extractor starts, so they take effect after the agent restarts.
+            ℹ All four apply without a restart: batch size and timeout at once, concurrency and the
+            time budget within 30 seconds. You can also set concurrency on Settings, AI workers,
+            Extractor.
           </p>
         </fieldset>
 

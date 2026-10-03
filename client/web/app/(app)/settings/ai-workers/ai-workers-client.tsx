@@ -25,6 +25,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { WorkerForm } from './worker-form';
+import { ExtractorThroughput } from './extractor-throughput';
 
 type KeyOption = { id: string; service: string; label: string; masked: string };
 
@@ -404,6 +405,7 @@ export function AiWorkersClient() {
                     </Button>
                   </div>
                 </div>
+                {editWorker.kind === 'extractor' ? <ExtractorThroughput /> : null}
                 <WorkerForm
                   key={editWorker.id}
                   mode="edit"
