@@ -57,6 +57,8 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { notesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
@@ -142,6 +144,9 @@ export function NotesClient() {
     enabled: !!selectedId && !notes.some((n) => n.id === selectedId),
   });
   const [creating, setCreating] = useState(false);
+  // "New note inside" a tree folder: where the note goes once it is saved.
+  const [createIn, setCreateIn] = useState<TreeFolder | null>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('notes', 'note');
   const [focus, setFocus] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Pick<NoteRow, 'id' | 'title'> | null>(null);
@@ -212,8 +217,9 @@ export function NotesClient() {
       openPrivate(id);
     });
 
-  const startCreate = () =>
+  const startCreate = (folder: TreeFolder | null = null) =>
     guard(() => {
+      setCreateIn(folder);
       setCreating(true);
       setEditing(true);
       setFocus(false);
@@ -225,6 +231,8 @@ export function NotesClient() {
   };
 
   const onSaved = (saved: NoteRow) => {
+    const fileIn = creating ? createIn : null;
+    setCreateIn(null);
     setEditing(false);
     setCreating(false);
     setFocus(false);
@@ -233,6 +241,7 @@ export function NotesClient() {
     syncSelectionParam('selected', saved.id);
     void queryClient.invalidateQueries({ queryKey: ['notes'] });
     void queryClient.invalidateQueries({ queryKey: treeKey('notes') });
+    if (fileIn) void fileNew(saved.id, fileIn);
   };
 
   const buildHref = (over: {
@@ -350,7 +359,8 @@ export function NotesClient() {
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search notes and folders…"
-                actions={<NewButton onClick={startCreate} />}
+                newItemInFolder={{ label: 'note', onCreate: (f) => startCreate(f) }}
+                actions={<NewButton onClick={() => startCreate()} />}
                 onOpenItem={(item) =>
                   item.state === 'private' ? selectPrivate(item.id) : selectNote(item.id)
                 }
@@ -377,7 +387,7 @@ export function NotesClient() {
                 search={searchInput}
                 onSearch={setSearchInput}
                 placeholder="Search notes…"
-                actions={<NewButton onClick={startCreate} />}
+                actions={<NewButton onClick={() => startCreate()} />}
               >
                 <TagFilter
                   tags={tags}
@@ -529,6 +539,7 @@ export function NotesClient() {
         }
       />
 
+      {fileConfirm}
       {/* Discard-unsaved-changes guard */}
       <AlertDialog open={discard !== null} onOpenChange={(o) => !o && setDiscard(null)}>
         <AlertDialogContent>

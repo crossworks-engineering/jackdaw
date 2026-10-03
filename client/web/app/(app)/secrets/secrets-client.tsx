@@ -28,8 +28,11 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { secretsAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 
-type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
+/** `in`: "New secret inside" a tree folder, where it goes once saved. */
+type Selection = { mode: 'create'; in?: TreeFolder } | { mode: 'view'; id: string } | null;
 
 type SecretsPage = { secrets: SecretRow[]; total: number; page: number; pageSize: number };
 
@@ -125,6 +128,7 @@ function SecretsView({
         ? null
         : { mode: 'create' },
   );
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('secrets', 'secret');
   /** Where selection lands when the open secret goes away. */
   const fallbackSel = (rows: SecretRow[]): Selection =>
     showTree ? null : rows[0] ? { mode: 'view', id: rows[0].id } : { mode: 'create' };
@@ -163,6 +167,7 @@ function SecretsView({
     : null;
 
   const createSecret = async (body: SecretBody) => {
+    const fileIn = sel?.mode === 'create' ? sel.in : undefined;
     let secret: SecretRow;
     try {
       ({ secret } = await apiSend<{ secret: SecretRow }>('/api/secrets', 'POST', body));
@@ -172,6 +177,7 @@ function SecretsView({
     }
     setSecrets((prev) => [secret, ...prev]);
     setSel({ mode: 'view', id: secret.id });
+    if (fileIn) void fileNew(secret.id, fileIn);
     toast.success(`Saved “${secret.title}”`);
     refresh();
   };
@@ -199,7 +205,9 @@ function SecretsView({
         <FormShell>
           <div className="flex items-center gap-2">
             <KeyRound className="size-5 text-primary-ink" aria-hidden />
-            <h2 className="text-lg font-semibold">New secret</h2>
+            <h2 className="text-lg font-semibold">
+              {sel.in ? `New secret in “${sel.in.name}”` : 'New secret'}
+            </h2>
           </div>
           <p className="text-xs text-muted-foreground">
             Stored sealed (AES-256-GCM). Only the title, description, and tags are indexed.
@@ -232,6 +240,7 @@ function SecretsView({
       list={
         showTree ? (
           <aside className="flex h-full flex-col bg-muted/20">
+            {fileConfirm}
             <ItemTree
               kind="secrets"
               adapter={secretsAdapter}
@@ -239,6 +248,11 @@ function SecretsView({
               query={treeQuery}
               onQueryChange={setTreeQuery}
               searchPlaceholder="Search secrets and folders…"
+              newItemInFolder={{
+                label: 'secret',
+                icon: KeyRound,
+                onCreate: (f) => setSel({ mode: 'create', in: f }),
+              }}
               actions={
                 <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
                   <Plus /> New

@@ -66,6 +66,8 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { drawAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 
 type DrawRow = {
   id: string;
@@ -118,9 +120,14 @@ export function DrawsClient() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [keepPrivate, setKeepPrivate] = useState(false);
-  const openCreate = () => {
+  // "New drawing inside" a tree folder: where it goes (a private drawing has
+  // no folder, so the dialog does not offer that then).
+  const [createIn, setCreateIn] = useState<TreeFolder | null>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('draw', 'drawing');
+  const openCreate = (folder: TreeFolder | null = null) => {
     setNewTitle('');
     setKeepPrivate(false);
+    setCreateIn(folder);
     setCreateOpen(true);
   };
 
@@ -236,7 +243,7 @@ export function DrawsClient() {
     setCreating(true);
     const title = newTitle.trim() || 'Untitled drawing';
     try {
-      if (keepPrivate) {
+      if (keepPrivate && !createIn) {
         const href = await createPrivateItem('draw', { title });
         // The private drawing lists in this screen now: refresh the list too.
         void queryClient.invalidateQueries({ queryKey: ['draws'] });
@@ -249,6 +256,10 @@ export function DrawsClient() {
       const { draw } = await apiSend<{ draw: { id: string } }>('/api/draws', 'POST', {
         title,
       });
+      if (createIn) {
+        setCreateOpen(false);
+        await fileNew(draw.id, createIn);
+      }
       await queryClient.invalidateQueries({ queryKey: ['draws'] });
       void queryClient.invalidateQueries({ queryKey: treeKey('draw') });
       router.push(`/draw/${draw.id}`);
@@ -300,7 +311,8 @@ export function DrawsClient() {
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search drawings and folders…"
-                actions={<NewButton onClick={openCreate} busy={creating} />}
+                newItemInFolder={{ label: 'drawing', onCreate: (f) => openCreate(f) }}
+                actions={<NewButton onClick={() => openCreate()} busy={creating} />}
                 onOpenItem={(item) =>
                   item.state === 'private' ? openPrivate(item.id) : select(item.id)
                 }
@@ -327,7 +339,7 @@ export function DrawsClient() {
                 search={searchInput}
                 onSearch={setSearchInput}
                 placeholder="Search drawings…"
-                actions={<NewButton onClick={openCreate} busy={creating} />}
+                actions={<NewButton onClick={() => openCreate()} busy={creating} />}
               >
                 <SortMenu
                   value={sort}
@@ -377,7 +389,12 @@ export function DrawsClient() {
                       No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
                       brain like every other content type.
                     </p>
-                    <Button variant="outline" size="sm" onClick={openCreate} disabled={creating}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openCreate()}
+                      disabled={creating}
+                    >
                       {creating ? <Spinner /> : <Plus />}
                       New drawing
                     </Button>
@@ -477,10 +494,13 @@ export function DrawsClient() {
         }
       />
 
+      {fileConfirm}
       <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>New drawing</DialogTitle>
+            <DialogTitle>
+              {createIn ? `New drawing in “${createIn.name}”` : 'New drawing'}
+            </DialogTitle>
             <DialogDescription>Give it a name, or leave it Untitled.</DialogDescription>
           </DialogHeader>
           <form
@@ -497,7 +517,9 @@ export function DrawsClient() {
               placeholder="Untitled drawing"
               aria-label="Drawing title"
             />
-            <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+            {createIn ? null : (
+              <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+            )}
             <div className="flex justify-end gap-2">
               <Button
                 type="button"

@@ -26,6 +26,8 @@ import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { recallAdapter } from '@/components/item-tree/kinds/simple';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { useListNav } from '@/lib/use-list-nav';
 import {
   fetchAllMaps,
@@ -120,6 +122,13 @@ function RecallV2View({
   const { pending: navPending, go } = useListNav();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
+  // "New map inside" a tree folder: where the new map goes.
+  const [createIn, setCreateIn] = useState<TreeFolder | null>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('recall', 'map');
+  const startCreate = (folder: TreeFolder | null = null) => {
+    setCreateIn(folder);
+    setCreating(true);
+  };
   // `isNativeMap` drops a page-built row a brain from before mantle R5 could
   // still list (see lib/recall-v2).
   const maps = useMemo(() => data.maps.filter(isNativeMap), [data.maps]);
@@ -220,9 +229,11 @@ function RecallV2View({
     <CreateMapDialog
       open
       onOpenChange={setCreating}
-      onCreated={(mapId) =>
-        guarded(() => go({ selected: mapId, view: null, card: null, q: null, page: null }))
-      }
+      folderName={createIn?.name ?? null}
+      onCreated={async (mapId) => {
+        if (createIn) await fileNew(mapId, createIn);
+        guarded(() => go({ selected: mapId, view: null, card: null, q: null, page: null }));
+      }}
     />
   );
 
@@ -237,7 +248,7 @@ function RecallV2View({
             where to go next. Start one here; its entry card is written for you.
           </p>
           <div className="mt-2">
-            <Button size="sm" onClick={() => setCreating(true)}>
+            <Button size="sm" onClick={() => startCreate()}>
               <Plus /> New map
             </Button>
           </div>
@@ -254,7 +265,7 @@ function RecallV2View({
           <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Maps
           </h2>
-          <Button size="sm" onClick={() => setCreating(true)}>
+          <Button size="sm" onClick={() => startCreate()}>
             <Plus /> New map
           </Button>
         </div>
@@ -328,13 +339,14 @@ function RecallV2View({
   ) : null;
 
   const newMapButton = (
-    <Button size="sm" onClick={() => setCreating(true)}>
+    <Button size="sm" onClick={() => startCreate()}>
       <Plus /> New map
     </Button>
   );
   const tree = (
     <aside className="flex h-full flex-col bg-muted/20">
       <div className="min-h-40 flex-1">
+        {fileConfirm}
         <ItemTree
           kind="recall"
           adapter={recallAdapter}
@@ -343,6 +355,7 @@ function RecallV2View({
           onQueryChange={setTreeQuery}
           searchPlaceholder="Search maps and folders…"
           actions={newMapButton}
+          newItemInFolder={{ label: 'map', icon: MapIcon, onCreate: (f) => startCreate(f) }}
           onOpenItem={(item) => openMap(item.id)}
           onUnsupported={() => setTreeGone(true)}
           // A move changes a map's folder, which the catalog and the map's

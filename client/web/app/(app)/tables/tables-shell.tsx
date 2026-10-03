@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AudienceBadge } from '@/components/share/audience-badge';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from 'lucide-react';
+import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Table2, Trash2 } from 'lucide-react';
 import { useListNav } from '@/lib/use-list-nav';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -63,6 +63,8 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { tablesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { TableDetailClient } from './[id]/table-detail-client';
 import type { TableDetail, TableRow, TableSort } from '@mantle/content-core/table-model';
 
@@ -175,6 +177,10 @@ export function TablesShell() {
   // "Keep private": the new table goes into this admin's private space, not the brain.
   const [keepPrivate, setKeepPrivate] = useState(false);
   const [creating, setCreating] = useState(false);
+  // "New table inside" a tree folder: where it goes (a private table has no
+  // folder, so the dialog does not offer that then).
+  const [createIn, setCreateIn] = useState<TreeFolder | null>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('tables', 'table');
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<Pick<TableRow, 'id' | 'title'> | null>(null);
 
@@ -218,9 +224,10 @@ export function TablesShell() {
     return () => clearTimeout(h);
   }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openCreate = () => {
+  const openCreate = (folder: TreeFolder | null = null) => {
     setNewTitle('');
     setKeepPrivate(false);
+    setCreateIn(folder);
     setCreateOpen(true);
   };
 
@@ -229,7 +236,7 @@ export function TablesShell() {
     if (!title) return;
     setCreating(true);
     try {
-      if (keepPrivate) {
+      if (keepPrivate && !createIn) {
         const href = await createPrivateItem('table', { title });
         // The private table lists in this screen now: refresh the list too.
         void queryClient.invalidateQueries({ queryKey: ['tables'] });
@@ -240,6 +247,7 @@ export function TablesShell() {
       }
       const { table } = await apiSend<{ table: TableDetail }>('/api/tables', 'POST', { title });
       setCreateOpen(false);
+      if (createIn) await fileNew(table.id, createIn);
       await queryClient.invalidateQueries({ queryKey: ['tables'] });
       void queryClient.invalidateQueries({ queryKey: treeKey('tables') });
       go({ selected: table.id });
@@ -293,7 +301,7 @@ export function TablesShell() {
   // pair above the tree and above the older list.
   const listActions = (
     <>
-      <NewButton onClick={openCreate} />
+      <NewButton onClick={() => openCreate()} />
       <Button
         size="icon"
         variant="ghost"
@@ -328,7 +336,7 @@ export function TablesShell() {
             size="icon"
             variant="ghost"
             className="size-8"
-            onClick={openCreate}
+            onClick={() => openCreate()}
             aria-label="New table"
             title="New table"
           >
@@ -362,6 +370,7 @@ export function TablesShell() {
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search tables and folders…"
+                newItemInFolder={{ label: 'table', icon: Table2, onCreate: (f) => openCreate(f) }}
                 actions={listActions}
                 onOpenItem={(item) =>
                   item.state === 'private' ? openPrivate(item.id) : selectTable(item.id)
@@ -563,10 +572,11 @@ export function TablesShell() {
       />
 
       {/* Create dialog */}
+      {fileConfirm}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New table</DialogTitle>
+            <DialogTitle>{createIn ? `New table in “${createIn.name}”` : 'New table'}</DialogTitle>
             <DialogDescription>
               Give it a name. You can add columns and import a spreadsheet in the editor.
             </DialogDescription>
@@ -580,7 +590,9 @@ export function TablesShell() {
               if (e.key === 'Enter') void createTable();
             }}
           />
-          <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+          {createIn ? null : (
+            <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel

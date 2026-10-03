@@ -39,8 +39,11 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { eventsAdapter } from '@/components/item-tree/kinds/dated';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 
-type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
+/** `in`: "New event inside" a tree folder, where it goes once saved. */
+type Selection = { mode: 'create'; in?: TreeFolder } | { mode: 'view'; id: string } | null;
 
 const GROUP_ORDER: DayGroup[] = ['today', 'tomorrow', 'this_week', 'later', 'past'];
 const GROUP_LABEL: Record<DayGroup, string> = {
@@ -113,6 +116,7 @@ export function EventsClient() {
   // null = "not yet defaulted"; the effect below selects the first event (or
   // create mode) once the list loads.
   const [sel, setSel] = useState<Selection>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('events', 'event');
 
   // The tree's rows are not events, so the open one is fetched on its own
   // (the same call and key as the /events/[id] deep link).
@@ -192,6 +196,7 @@ export function EventsClient() {
   }, [now, all, tz]);
 
   const createEvent = async (payload: EventPayload) => {
+    const fileIn = sel?.mode === 'create' ? sel.in : undefined;
     let event: EventRow;
     try {
       ({ event } = await apiSend<{ event: EventRow }>('/api/events', 'POST', payload));
@@ -204,6 +209,7 @@ export function EventsClient() {
     // Seed the by-id fetch so the tree's detail opens without a round trip.
     queryClient.setQueryData(['events', event.id], event);
     setSel({ mode: 'view', id: event.id });
+    if (fileIn) void fileNew(event.id, fileIn);
     toast.success(`Saved “${event.title}”`);
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['events'] });
@@ -310,7 +316,9 @@ export function EventsClient() {
         <FormShell>
           <div className="flex items-center gap-2">
             <CalendarClock className="size-5 text-primary-ink" aria-hidden />
-            <h2 className="text-lg font-semibold">New event</h2>
+            <h2 className="text-lg font-semibold">
+              {sel.in ? `New event in “${sel.in.name}”` : 'New event'}
+            </h2>
           </div>
           <EventForm
             initial={emptyEventForm()}
@@ -348,6 +356,7 @@ export function EventsClient() {
       list={
         showTree ? (
           <aside className="flex h-full flex-col bg-muted/20">
+            {fileConfirm}
             <ItemTree
               kind="events"
               adapter={eventsAdapter}
@@ -355,6 +364,10 @@ export function EventsClient() {
               query={treeQuery}
               onQueryChange={setTreeQuery}
               searchPlaceholder="Search events and folders…"
+              newItemInFolder={{
+                label: 'event',
+                onCreate: (f) => setSel({ mode: 'create', in: f }),
+              }}
               actions={
                 <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
                   <Plus /> New

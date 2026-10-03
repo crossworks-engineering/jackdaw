@@ -33,10 +33,13 @@ export function CreateMapDialog({
   open,
   onOpenChange,
   onCreated,
+  folderName = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (mapId: string) => void;
+  /** "New map inside" a tree folder: its name, for the title. */
+  folderName?: string | null;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -66,7 +69,7 @@ export function CreateMapDialog({
     <Dialog open={open} onOpenChange={(o) => (!pending ? onOpenChange(o) : undefined)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>New map</DialogTitle>
+          <DialogTitle>{folderName ? `New map in “${folderName}”` : 'New map'}</DialogTitle>
           <DialogDescription>
             A map is a set of cards agents walk one at a time. It starts with its entry card.
           </DialogDescription>

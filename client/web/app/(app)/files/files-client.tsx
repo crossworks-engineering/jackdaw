@@ -615,6 +615,17 @@ function FilesView({
                 query={query}
                 onQueryChange={setQuery}
                 searchPlaceholder="Search files and folders…"
+                // Like New > Markdown file with that folder open: the file is
+                // made in it and opens there.
+                newItemInFolder={{
+                  label: 'markdown file',
+                  icon: FileText,
+                  onCreate: (f) => {
+                    setRecentView(false);
+                    navigateFolder(f.path);
+                    setDialog({ kind: 'createFile', ext: 'md', parentPath: f.path });
+                  },
+                }}
                 onOpenFolder={(f) => {
                   setRecentView(false);
                   navigateFolder(f?.path ?? FILES_ROOT);
@@ -709,6 +720,11 @@ function FilesView({
                   recentActive={recentView}
                   onRecent={() => setRecentView(true)}
                   onNewFolder={(parentPath) => setDialog({ kind: 'createFolder', parentPath })}
+                  onNewFile={(parentPath) => {
+                    setRecentView(false);
+                    navigateFolder(parentPath);
+                    setDialog({ kind: 'createFile', ext: 'md', parentPath });
+                  }}
                   onRename={(f) =>
                     setDialog({
                       kind: 'rename',
@@ -1599,7 +1615,7 @@ function FilesView({
       <CreateFileDialog
         ext={dialog?.kind === 'createFile' ? dialog.ext : null}
         onOpenChange={(open) => !open && closeDialog('createFile')}
-        parentPath={currentPath}
+        parentPath={(dialog?.kind === 'createFile' && dialog.parentPath) || currentPath}
         onCreated={(id) => {
           refresh();
           openFile(id);

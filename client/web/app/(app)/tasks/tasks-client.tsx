@@ -49,6 +49,8 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { tasksAdapter } from '@/components/item-tree/kinds/dated';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import {
   PRIORITIES,
   STATUSES,
@@ -59,7 +61,8 @@ import {
   type Status,
 } from './task-meta';
 
-type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
+/** `in`: "New task inside" a tree folder, where it goes once saved. */
+type Selection = { mode: 'create'; in?: TreeFolder } | { mode: 'view'; id: string } | null;
 
 type TasksListResponse = { tasks: TaskRow[]; total: number; page: number; pageSize: number };
 
@@ -143,6 +146,7 @@ export function TasksClient() {
   // stays unselected until you click a card — auto-selecting there would open a
   // form beside a board you had only just switched to.
   const [sel, setSel] = useState<Selection>(urlSelected ? { mode: 'view', id: urlSelected } : null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('tasks', 'task');
 
   // The tree's rows are not tasks, so the open one is fetched on its own.
   const openTaskId = showTree && sel?.mode === 'view' ? sel.id : null;
@@ -240,6 +244,7 @@ export function TasksClient() {
   });
 
   const createTask = async (payload: TaskPayload) => {
+    const fileIn = sel?.mode === 'create' ? sel.in : undefined;
     let task: TaskRow;
     try {
       ({ task } = await apiSend<{ task: TaskRow }>('/api/tasks', 'POST', payload));
@@ -252,6 +257,7 @@ export function TasksClient() {
     // Seed the by-id fetch so the tree's detail opens without a round trip.
     queryClient.setQueryData(['tasks', task.id], task);
     setSel({ mode: 'view', id: task.id });
+    if (fileIn) void fileNew(task.id, fileIn);
     toast.success(`Added “${task.title}”`);
     startTransition(async () => {
       await queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -402,7 +408,9 @@ export function TasksClient() {
         <FormShell>
           <div className="flex items-center gap-2">
             <ListTodo className="size-5 text-primary-ink" aria-hidden />
-            <h2 className="text-lg font-semibold">New task</h2>
+            <h2 className="text-lg font-semibold">
+              {sel.in ? `New task in “${sel.in.name}”` : 'New task'}
+            </h2>
           </div>
           <TaskForm
             initial={emptyTaskForm()}
@@ -531,6 +539,7 @@ export function TasksClient() {
               </div>
             </div>
             <div className="min-h-0 flex-1">
+              {fileConfirm}
               <ItemTree
                 kind="tasks"
                 adapter={tasksAdapter}
@@ -538,6 +547,10 @@ export function TasksClient() {
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search tasks and folders…"
+                newItemInFolder={{
+                  label: 'task',
+                  onCreate: (f) => setSel({ mode: 'create', in: f }),
+                }}
                 actions={
                   <Button type="button" size="sm" onClick={() => setSel({ mode: 'create' })}>
                     <Plus /> New

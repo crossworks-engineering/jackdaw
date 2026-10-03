@@ -51,6 +51,8 @@ import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { appsAdapter } from '@/components/item-tree/kinds/apps';
 import { treeKey } from '@/components/item-tree/tree-api';
@@ -139,6 +141,9 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(apps[0]?.id ?? null);
   const [q, setQ] = useState(query);
   const [createOpen, setCreateOpen] = useState(false);
+  // "New app inside" a tree folder: where the new app goes.
+  const [createIn, setCreateIn] = useState<TreeFolder | null>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('apps', 'app');
   const [deleteTarget, setDeleteTarget] = useState<SelectedApp | null>(null);
 
   // Keep a valid selection as the list changes (filter/page, a deleted app,
@@ -155,13 +160,20 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   const createButton = (
     <Dialog open={createOpen} onOpenChange={setCreateOpen}>
       <DialogTrigger asChild>
-        <Button size="icon-sm" aria-label="New app" title="New app">
+        <Button
+          size="icon-sm"
+          aria-label="New app"
+          title="New app"
+          onClick={() => setCreateIn(null)}
+        >
           <Plus />
         </Button>
       </DialogTrigger>
       <CreateAppDialog
-        onCreated={(id) => {
+        folderName={createIn?.name ?? null}
+        onCreated={async (id) => {
           setCreateOpen(false);
+          if (createIn) await fileNew(id, createIn);
           router.push(`/apps/${id}`);
         }}
       />
@@ -198,6 +210,7 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         list={
           itemTree ? (
             <aside className="flex h-full flex-col bg-muted/20">
+              {fileConfirm}
               <ItemTree
                 kind="apps"
                 adapter={appsAdapter}
@@ -206,6 +219,14 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search apps and folders…"
                 actions={createButton}
+                newItemInFolder={{
+                  label: 'app',
+                  icon: AppWindow,
+                  onCreate: (f) => {
+                    setCreateIn(f);
+                    setCreateOpen(true);
+                  },
+                }}
                 onOpenItem={(item) => setSelectedId(item.id)}
                 itemActions={(item) => (
                   <DropdownMenuItem
@@ -420,7 +441,14 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
   );
 }
 
-function CreateAppDialog({ onCreated }: { onCreated: (id: string) => void }) {
+function CreateAppDialog({
+  folderName,
+  onCreated,
+}: {
+  /** "New app inside" a folder: its name, for the title. */
+  folderName: string | null;
+  onCreated: (id: string) => void | Promise<void>;
+}) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -443,7 +471,7 @@ function CreateAppDialog({ onCreated }: { onCreated: (id: string) => void }) {
         name: name.trim(),
         description: description.trim() || undefined,
       });
-      onCreated(app.id);
+      await onCreated(app.id);
     } catch {
       toast.error('Could not create the app.');
     } finally {
@@ -454,7 +482,7 @@ function CreateAppDialog({ onCreated }: { onCreated: (id: string) => void }) {
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>New app</DialogTitle>
+        <DialogTitle>{folderName ? `New app in “${folderName}”` : 'New app'}</DialogTitle>
       </DialogHeader>
       <form onSubmit={submit} noValidate>
         <FieldGroup>

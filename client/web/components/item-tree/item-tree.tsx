@@ -24,7 +24,18 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from '@dnd-kit/core';
-import { FolderInput, FolderPlus, ListFilter, Pin, PinOff, Search, Share2, X } from 'lucide-react';
+import {
+  FolderInput,
+  FolderPlus,
+  ListFilter,
+  Pin,
+  PinOff,
+  Search,
+  Share2,
+  Table2,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -64,6 +75,8 @@ import { DeleteFolderDialog, FolderNameDialog } from '@/components/app-nav/folde
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { usePersistedState } from '@/lib/use-persisted-state';
 import type { TreeKindAdapter } from './kinds/types';
+import { newInsideEntry, type NewItemInFolder } from './new-inside';
+import { nodeTypeIcon } from '@/components/search/node-type-icons';
 import {
   createTreeFolder,
   deleteTreeFolder,
@@ -235,6 +248,7 @@ export function ItemTree({
   itemActions,
   onChanged,
   onUnsupported,
+  newItemInFolder,
   capOnNarrow = true,
 }: {
   kind: TreeKind;
@@ -266,6 +280,10 @@ export function ItemTree({
   onChanged?: () => void;
   /** A tree call answered 404: the brain does not serve this kind. */
   onUnsupported?: () => void;
+  /** "New <label> inside" in a folder's menu: the section's own create flow,
+   *  for an item in that folder. The tree unfolds the folder, so the new
+   *  item shows in it. `icon` defaults to the kind's node type icon. */
+  newItemInFolder?: NewItemInFolder & { icon?: LucideIcon };
   /**
    * Below `md` a master-detail screen stacks its panes and gives the list no
    * height of its own, so the list would grow to every row: the virtual list
@@ -620,10 +638,13 @@ export function ItemTree({
     // After the menu's own close has run, so the picker isn't born into it.
     window.setTimeout(() => setLookFor({ key, folder }), 0);
 
+  const NewItemIcon =
+    newItemInFolder?.icon ?? (spec.nodeType === 'table' ? Table2 : nodeTypeIcon(spec.nodeType));
   const folderMenu = manage
     ? (folder: TreeFolder, _parent: TreeFolder | null, siblings: TreeFolder[]) => {
         const up = afterForStep(siblings, folder.id, -1);
         const down = afterForStep(siblings, folder.id, 1);
+        const newInside = newInsideEntry(folder, { manage, newItemInFolder });
         return (
           <DropdownMenuContent
             align="start"
@@ -640,6 +661,18 @@ export function ItemTree({
               <DropdownMenuItem onSelect={() => setFolderDialog({ mode: 'new', parent: folder })}>
                 <FolderPlus />
                 New folder inside…
+              </DropdownMenuItem>
+            )}
+            {newInside && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  setOpen(folder.id, true);
+                  setReveal(folder.path);
+                  newInside.run();
+                }}
+              >
+                <NewItemIcon />
+                {newInside.label}
               </DropdownMenuItem>
             )}
             {!folder.system && mine(folder) && (

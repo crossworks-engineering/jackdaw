@@ -62,6 +62,8 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { contactsAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { Tabs, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { brainHasContactShares, type SharingContactRow } from '@/lib/contact-shares';
 import { ContactSharedTab, ContactSharingBlock } from './contact-sharing';
@@ -76,6 +78,10 @@ type ContactsListResponse = {
 export function ContactsClient() {
   const searchParams = useSearchParams();
   const { go, pending } = useListNav();
+  const newContact = useCreateContact();
+  const newButton = (
+    <NewContactButton onClick={() => newContact.create()} pending={newContact.pending} />
+  );
 
   // URL is the source of truth (matches the old SSR page).
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
@@ -159,6 +165,7 @@ export function ContactsClient() {
       list={
         showTree ? (
           <aside className="flex h-full flex-col bg-muted/20">
+            {newContact.confirm}
             <ItemTree
               kind="contacts"
               adapter={contactsAdapter}
@@ -166,7 +173,8 @@ export function ContactsClient() {
               query={treeQuery}
               onQueryChange={setTreeQuery}
               searchPlaceholder="Search contacts and folders…"
-              actions={<NewContactButton />}
+              actions={newButton}
+              newItemInFolder={{ label: 'contact', onCreate: (f) => newContact.create(f) }}
               onOpenItem={(item) => go({ id: item.id })}
               onUnsupported={() => setTreeGone(true)}
             />
@@ -193,7 +201,7 @@ export function ContactsClient() {
                   className="pl-8"
                 />
               </div>
-              <NewContactButton />
+              {newButton}
             </div>
             <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
               {contacts.length === 0 ? (
@@ -260,12 +268,16 @@ export function ContactsClient() {
   );
 }
 
-function NewContactButton() {
+/** New: an empty contact, opened in its form. `folder`: "New contact
+ *  inside" a tree folder, filed there first. `confirm` is the tree's question
+ *  for a shared folder, for the caller to render. */
+function useCreateContact() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { go } = useListNav();
   const [pending, start] = useTransition();
-  const onClick = () => {
+  const { fileNew, confirm } = useFileNewItem('contacts', 'contact');
+  const create = (folder: TreeFolder | null = null) => {
     start(async () => {
       let contact: ContactRow;
       try {
@@ -278,11 +290,16 @@ function NewContactButton() {
         toast.error(e instanceof Error ? e.message : 'Could not create contact');
         return;
       }
+      if (folder) await fileNew(contact.id, folder);
       await queryClient.invalidateQueries({ queryKey: ['contacts'] });
       void queryClient.invalidateQueries({ queryKey: treeKey('contacts') });
       go({ id: contact.id, page: null });
     });
   };
+  return { create, pending, confirm };
+}
+
+function NewContactButton({ onClick, pending }: { onClick: () => void; pending: boolean }) {
   return (
     <Button size="sm" variant="default" onClick={onClick} disabled={pending} title="Add a contact">
       <Plus aria-hidden />

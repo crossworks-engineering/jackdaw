@@ -106,6 +106,8 @@ import { pagesAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useLiveTreeFolder } from '@/components/item-tree/use-tree-cache';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import { visibilityRefusal } from '@/components/item-tree/sharing';
 import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { PageView } from '@/components/page-editor/page-view';
 import { AccessControl } from '@/components/share/access-control';
@@ -220,6 +222,7 @@ export function PagesClient() {
   // tab), New goes back to the top level.
   const [pickedFolder, setTreeFolder] = useState<TreeFolder | null>(null);
   const treeFolder = useLiveTreeFolder('pages', 'owner', pickedFolder);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('pages', 'page');
   useEffect(() => {
     if (pickedFolder && !treeFolder) setTreeFolder(null);
   }, [pickedFolder, treeFolder]);
@@ -510,17 +513,34 @@ export function PagesClient() {
         return;
       }
       let created: PageRow;
-      try {
-        ({ page: created } = await apiSend<{ page: PageRow }>('/api/pages', 'POST', {
+      const create = (folderId?: string | null) =>
+        apiSend<{ page: PageRow }>('/api/pages', 'POST', {
           title: form.title.trim(),
           tags: form.tags,
-          // In the tree, a new page lands in the folder that is open.
-          ...(showTree ? { folderId: treeFolder?.id ?? null } : {}),
-        }));
+          ...(folderId !== undefined ? { folderId } : {}),
+        });
+      // In the tree, a new page lands in the folder that is open.
+      const folder = showTree ? treeFolder : null;
+      try {
+        ({ page: created } = await create(showTree ? (folder?.id ?? null) : undefined));
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return;
-        toast.error(e instanceof Error ? e.message : 'request failed');
-        return;
+        if (!folder || !visibilityRefusal(e)) {
+          toast.error(e instanceof Error ? e.message : 'request failed');
+          return;
+        }
+        // A shared folder: the page would be read at its share at once, so
+        // the brain asks first. Made at the top level, then filed with the
+        // tree's move, which shows that question.
+        try {
+          ({ page: created } = await create(null));
+        } catch (e2) {
+          if (e2 instanceof ApiError && e2.status === 401) return;
+          toast.error(e2 instanceof Error ? e2.message : 'request failed');
+          return;
+        }
+        setOpen(false);
+        await fileNew(created.id, folder);
       }
       setForm({ title: '', tags: [] });
       setOpen(false);
@@ -717,6 +737,14 @@ export function PagesClient() {
                   />
                 }
                 onOpenFolder={(f) => setTreeFolder(f)}
+                // New, with that folder open: the page lands in it.
+                newItemInFolder={{
+                  label: 'page',
+                  onCreate: (f) => {
+                    setTreeFolder(f);
+                    setOpen(true);
+                  },
+                }}
                 onOpenItem={(item) => {
                   if (item.state === 'private') {
                     openPrivate(item.id);
@@ -868,6 +896,7 @@ export function PagesClient() {
         }
       />
 
+      {fileConfirm}
       {/* New page dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">

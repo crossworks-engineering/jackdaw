@@ -403,6 +403,19 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
             selectedItemId={open ? open.id : null}
             selectedFolderPath={treeFolder?.path ?? TREE_KIND_SPECS[treeKind].root}
             onOpenFolder={setTreeFolder}
+            // A draft made in that folder, like New with the folder open.
+            // Files come by upload, so their folders offer no New.
+            {...(meta.create
+              ? {
+                  newItemInFolder: {
+                    label: meta.one,
+                    onCreate: (f: TreeFolder) => {
+                      setTreeFolder(f);
+                      void create(f.id);
+                    },
+                  },
+                }
+              : {})}
             onOpenItem={(item) =>
               setParams({
                 src: item.source === 'own' ? 'mine' : item.source === 'team' ? 'team' : 'library',

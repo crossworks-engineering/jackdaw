@@ -45,6 +45,8 @@ import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { formulasAdapter } from '@/components/item-tree/kinds/simple';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
+import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
+import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { FormulaDetail, type FormulaRow } from './formula-detail';
 
 type ListResponse = {
@@ -66,8 +68,9 @@ type DetailResponse = {
 /** Radix Select has no empty-string value, so "no filter" needs a sentinel. */
 const ANY = '__any__';
 
-/** Which editor is open, if any. `new` carries the chosen template's spec. */
-type EditorState = { mode: 'new'; spec: Draft } | { mode: 'edit' } | null;
+/** Which editor is open, if any. `new` carries the chosen template's spec,
+ *  and `in` the tree folder it goes in ("New formula inside"). */
+type EditorState = { mode: 'new'; spec: Draft; in: TreeFolder | null } | { mode: 'edit' } | null;
 
 export function FormulasClient() {
   const searchParams = useSearchParams();
@@ -76,6 +79,12 @@ export function FormulasClient() {
   const toast = useToast();
   const [editor, setEditor] = useState<EditorState>(null);
   const [picking, setPicking] = useState(false);
+  const [pickIn, setPickIn] = useState<TreeFolder | null>(null);
+  const { fileNew, confirm: fileConfirm } = useFileNewItem('formulas', 'formula');
+  const startNew = (folder: TreeFolder | null = null) => {
+    setPickIn(folder);
+    setPicking(true);
+  };
   const [seeding, setSeeding] = useState(false);
 
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
@@ -177,7 +186,7 @@ export function FormulasClient() {
       spec = {};
     }
     setPicking(false);
-    setEditor({ mode: 'new', spec });
+    setEditor({ mode: 'new', spec, in: pickIn });
   }
 
   async function addSeedSet() {
@@ -198,8 +207,9 @@ export function FormulasClient() {
     }
   }
 
-  async function afterSave(id: string) {
+  async function afterSave(id: string, folder: TreeFolder | null = null) {
     setEditor(null);
+    if (folder) await fileNew(id, folder);
     await queryClient.invalidateQueries({ queryKey: ['formulas'] });
     await queryClient.invalidateQueries({ queryKey: ['formula'] });
     void queryClient.invalidateQueries({ queryKey: treeKey('formulas') });
@@ -234,7 +244,7 @@ export function FormulasClient() {
         initialSpec={editor.spec}
         initialTitle=""
         initialTags={[]}
-        onSaved={afterSave}
+        onSaved={(id) => afterSave(id, editor.in)}
         onCancel={() => setEditor(null)}
       />
     );
@@ -246,14 +256,14 @@ export function FormulasClient() {
         initialSpec={detailQuery.data.formula.spec as unknown as Draft}
         initialTitle={detailQuery.data.formula.title}
         initialTags={detailQuery.data.formula.tags}
-        onSaved={afterSave}
+        onSaved={(id) => afterSave(id)}
         onCancel={() => setEditor(null)}
       />
     );
   }
 
   const newButton = (
-    <Button size="sm" onClick={() => setPicking(true)}>
+    <Button size="sm" onClick={() => startNew()}>
       <Plus />
       New
     </Button>
@@ -264,10 +274,11 @@ export function FormulasClient() {
       {/* Outside the panes on purpose: Radix portals the content to the body,
           so nesting the root in a resizable panel buys nothing and only makes
           the list markup harder to read. */}
+      {fileConfirm}
       <Dialog open={picking} onOpenChange={setPicking}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>New formula</DialogTitle>
+            <DialogTitle>{pickIn ? `New formula in “${pickIn.name}”` : 'New formula'}</DialogTitle>
             <DialogDescription>
               Start from a template. The annotated example carries teaching comments on every field
               — worth reading once even if you delete it after.
@@ -330,6 +341,7 @@ export function FormulasClient() {
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search formulas and folders…"
                 actions={newButton}
+                newItemInFolder={{ label: 'formula', onCreate: (f) => startNew(f) }}
                 onOpenItem={(item) => select(item.id)}
                 onUnsupported={() => setTreeGone(true)}
               />
@@ -403,7 +415,7 @@ export function FormulasClient() {
                       one.
                     </p>
                     <div className="flex flex-col items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
+                      <Button variant="outline" size="sm" onClick={() => startNew()}>
                         <Plus />
                         New formula
                       </Button>

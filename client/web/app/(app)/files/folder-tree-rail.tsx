@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Clock, FolderPlus, MoreHorizontal, Palette, Pencil } from 'lucide-react';
+import {
+  ChevronRight,
+  Clock,
+  FileText,
+  FolderPlus,
+  MoreHorizontal,
+  Palette,
+  Pencil,
+} from 'lucide-react';
 import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -77,6 +85,7 @@ export function FolderTreeRail({
   recentActive,
   onRecent,
   onNewFolder,
+  onNewFile,
   onRename,
 }: {
   tree: FolderRow[];
@@ -88,6 +97,8 @@ export function FolderTreeRail({
   recentActive: boolean;
   onRecent: () => void;
   onNewFolder: (parentPath: string) => void;
+  /** "New markdown file inside": the screen's own create, in that folder. */
+  onNewFile?: (parentPath: string) => void;
   onRename: (folder: FolderRow) => void;
 }) {
   const qc = useQueryClient();
@@ -160,6 +171,12 @@ export function FolderTreeRail({
         <FolderPlus />
         New folder inside…
       </DropdownMenuItem>
+      {onNewFile && (
+        <DropdownMenuItem onSelect={() => onNewFile(f.path)}>
+          <FileText />
+          New markdown file inside
+        </DropdownMenuItem>
+      )}
       {f.path !== FILES_ROOT && (
         <DropdownMenuItem onSelect={() => onRename(f)}>
           <Pencil />
