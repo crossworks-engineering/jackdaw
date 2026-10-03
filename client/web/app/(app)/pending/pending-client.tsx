@@ -14,6 +14,7 @@ import {
   type Decide,
   type PendingRow,
 } from '@/components/pending/types';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 export function PendingClient({ devMode = false }: { devMode?: boolean }) {
   const queryClient = useQueryClient();
@@ -160,11 +161,7 @@ export function PendingClient({ devMode = false }: { devMode?: boolean }) {
                     {r.error}
                   </p>
                 )}
-                {r.result && (
-                  <pre className="max-h-40 overflow-auto scrollbar-thin rounded-md bg-muted/40 px-2 py-1 text-[11px] font-mono">
-                    {JSON.stringify(r.result, null, 2)}
-                  </pre>
-                )}
+                {r.result && <JsonView value={r.result} label="Result" maxHeight={240} />}
               </li>
             ))}
           </ul>
@@ -217,14 +214,12 @@ function PendingCard({ row, decide, busy }: { row: PendingRow; decide: Decide; b
         )}
       </div>
 
-      <details className="rounded-md bg-muted/40 px-2 py-1 text-xs">
+      <details className="text-xs">
         <summary className="cursor-pointer select-none font-mono text-muted-foreground hover:text-foreground">
           args ({Object.keys(row.args ?? {}).length} field
           {Object.keys(row.args ?? {}).length === 1 ? '' : 's'})
         </summary>
-        <pre className="mt-1 max-h-64 overflow-auto scrollbar-thin font-mono">
-          {JSON.stringify(row.args, null, 2)}
-        </pre>
+        <JsonView value={row.args} label="Args" className="mt-1" collapseDepth={3} />
       </details>
 
       <div className="flex gap-2">

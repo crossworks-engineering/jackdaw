@@ -48,6 +48,7 @@ import {
 import { Input } from '@mantle/web-ui/ui/input';
 import { Label } from '@mantle/web-ui/ui/label';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 const HOURS_OPTIONS: Array<[number, string]> = [
   [1, '1h'],
@@ -581,11 +582,9 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 
 function Payload({ label, body }: { label: string; body: string }) {
   return (
-    <details className="rounded-md border border-border bg-muted/30">
-      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold">
-        {label}
-      </summary>
-      <pre className="overflow-x-auto px-3 pb-3 text-xs scrollbar-thin">{body}</pre>
+    <details>
+      <summary className="cursor-pointer select-none py-1 text-sm font-semibold">{label}</summary>
+      <JsonView value={body} label={label} className="mt-1" />
     </details>
   );
 }

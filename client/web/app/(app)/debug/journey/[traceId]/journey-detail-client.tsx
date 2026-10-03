@@ -11,6 +11,7 @@ import { formatDuration, formatMicroUsd } from '@mantle/web-ui/traces-format';
 import { deriveAction, sourceLabel } from '@mantle/web-ui/journey-format';
 import { ActionIcon } from '@/components/journey/action-icon';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 import { SetPageTitle } from '@/components/layout/page-title';
 import type { JourneyDetail } from '@mantle/client-types/journey-format';
 
@@ -181,9 +182,16 @@ export function JourneyDetailClient({ traceId }: { traceId: string }) {
                   </div>
                   {s.error && <p className="mt-1 text-xs text-destructive-ink">{s.error}</p>}
                   {(out || meta) && (
-                    <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-                      {JSON.stringify(out ?? meta)}
-                    </p>
+                    <details className="mt-0.5">
+                      <summary className="cursor-pointer select-none truncate font-mono text-[11px] text-muted-foreground">
+                        {JSON.stringify(out ?? meta)}
+                      </summary>
+                      <JsonView
+                        value={out ?? meta}
+                        label={out ? 'Output' : 'Meta'}
+                        className="mt-1"
+                      />
+                    </details>
                   )}
                 </li>
               );
@@ -335,9 +343,7 @@ export function JourneyDetailClient({ traceId }: { traceId: string }) {
       {Object.keys(data).length > 0 && (
         <details className="rounded-lg border border-border p-3 text-xs">
           <summary className="cursor-pointer text-muted-foreground">Raw trace data</summary>
-          <pre className="mt-2 overflow-x-auto scrollbar-thin whitespace-pre-wrap break-all text-[11px] text-muted-foreground">
-            {JSON.stringify(data, null, 2)}
-          </pre>
+          <JsonView value={data} className="mt-2" maxHeight={560} />
         </details>
       )}
     </>

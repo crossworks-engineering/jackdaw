@@ -10,8 +10,8 @@ import { Loader2 } from 'lucide-react';
 import { CopyButton } from '@mantle/web-ui/ui/copy-button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { useDevTools } from './context';
-import { JsonTree } from './json-tree';
 import { StatusPill, formatBytes } from './status-pill';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 export function ResponseViewer() {
   const { response, sending } = useDevTools();
@@ -104,7 +104,7 @@ export function ResponseViewer() {
               </div>
             )}
             {response.json !== null ? (
-              <JsonTree value={response.json} />
+              <JsonView value={response.json} collapseDepth={3} maxHeight="none" />
             ) : response.bodyText ? (
               <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-5">
                 {response.bodyText}

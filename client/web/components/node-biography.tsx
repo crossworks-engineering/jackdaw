@@ -16,6 +16,7 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { formatDuration, formatMicroUsd } from '@mantle/web-ui/traces-format';
 import type { NodeBiographyView } from '@mantle/client-types';
 import type { TraceDetail, TraceStepSummary } from '@mantle/web-ui/traces-format';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 const KIND_LABELS: Record<string, string> = {
   content_ingest: 'Ingest',
@@ -259,9 +260,7 @@ function TraceCard({ trace, index }: { trace: TraceDetail; index: number }) {
             <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
               Full disposition payload
             </summary>
-            <pre className="mt-1 overflow-x-auto scrollbar-thin whitespace-pre-wrap break-words rounded bg-background/60 px-2 py-1 text-[10px] font-mono">
-              {JSON.stringify(trace.data, null, 2)}
-            </pre>
+            <JsonView value={trace.data} className="mt-1" maxHeight={320} />
           </details>
         </div>
       )}
@@ -280,9 +279,7 @@ function TraceCard({ trace, index }: { trace: TraceDetail; index: number }) {
           <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
             Trace data
           </summary>
-          <pre className="mt-2 overflow-x-auto scrollbar-thin whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-[10px] font-mono">
-            {JSON.stringify(trace.data, null, 2)}
-          </pre>
+          <JsonView value={trace.data} className="mt-2" maxHeight={320} />
         </details>
       )}
 
@@ -357,9 +354,7 @@ function PayloadBlock({ label, payload }: { label: string; payload: Record<strin
           {Object.keys(payload).length === 1 ? '' : 's'})
         </span>
       </summary>
-      <pre className="overflow-x-auto scrollbar-thin whitespace-pre-wrap break-words border-t border-border px-2 py-1.5 text-[10px] font-mono">
-        {JSON.stringify(payload, null, 2)}
-      </pre>
+      <JsonView value={payload} className="rounded-none border-0 border-t" maxHeight={320} />
     </details>
   );
 }

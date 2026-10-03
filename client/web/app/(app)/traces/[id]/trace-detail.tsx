@@ -18,6 +18,7 @@ import type {
   TraceStepSummary,
 } from '@mantle/web-ui/traces-format';
 import { formatDuration } from '@mantle/web-ui/traces-format';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 const NODE_W = 260;
 const NODE_H = 80;
@@ -250,12 +251,5 @@ function StepPanel({ step }: { step: TraceStepSummary }) {
 
 function JsonBlock({ title, value }: { title: string; value: Record<string, unknown> }) {
   if (!value || Object.keys(value).length === 0) return null;
-  return (
-    <div className="space-y-1">
-      <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</h4>
-      <pre className="overflow-x-auto scrollbar-thin rounded-md border border-border bg-muted/40 p-2 text-xs">
-        {JSON.stringify(value, null, 2)}
-      </pre>
-    </div>
-  );
+  return <JsonView value={value} label={title} />;
 }

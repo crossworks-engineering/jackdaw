@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SetPageTitle } from '@/components/layout/page-title';
 import type { HeartbeatSummary, HeartbeatFireSummary } from '@mantle/client-types';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 type DetailLabels = {
   nextFireAt: string;
@@ -128,9 +129,7 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Current state
         </h2>
-        <pre className="overflow-x-auto scrollbar-thin rounded-md border bg-muted/50 p-3 text-xs">
-          {JSON.stringify(hb.state, null, 2)}
-        </pre>
+        <JsonView value={hb.state} />
       </section>
 
       <section>
@@ -165,9 +164,10 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
               {f.stateAfter && f.stateBefore && (
                 <details className="mt-1 text-xs">
                   <summary className="cursor-pointer text-muted-foreground">state diff</summary>
-                  <pre className="mt-1 overflow-x-auto scrollbar-thin rounded bg-muted/50 p-2">
-                    {`before: ${JSON.stringify(f.stateBefore)}\nafter:  ${JSON.stringify(f.stateAfter)}`}
-                  </pre>
+                  <div className="mt-1 grid gap-2 md:grid-cols-2">
+                    <JsonView value={f.stateBefore} label="Before" maxHeight={256} />
+                    <JsonView value={f.stateAfter} label="After" maxHeight={256} />
+                  </div>
                 </details>
               )}
             </li>

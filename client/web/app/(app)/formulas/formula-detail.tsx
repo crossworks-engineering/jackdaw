@@ -53,6 +53,7 @@ import { apiSend } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { parseInputText } from '@mantle/content-core/formula-eval';
 import { AccessControl } from '@/components/share/access-control';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 export type FormulaRow = {
   id: string;
@@ -379,9 +380,7 @@ export function FormulaDetail({
             </ul>
           </Notice>
           <Section title="Stored spec">
-            <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground scrollbar-thin">
-              <code>{JSON.stringify(spec, null, 2)}</code>
-            </pre>
+            <JsonView value={spec} collapseDepth={3} maxHeight={560} />
           </Section>
         </div>
       </div>

@@ -50,6 +50,7 @@ import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import { KvEditor } from './kv-editor';
 import { KindBadge } from './method-badge';
 import { SaveToolDialog } from './save-tool-dialog';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -230,9 +231,12 @@ function SchemaPeek({ schema }: { schema: Record<string, unknown> }) {
         Input schema
       </RowButton>
       {open && (
-        <pre className="max-h-64 overflow-auto border-t border-border bg-muted/30 p-2 font-mono text-[11px] leading-4 scrollbar-thin">
-          {JSON.stringify(schema, null, 2)}
-        </pre>
+        <JsonView
+          value={schema}
+          collapseDepth={3}
+          maxHeight={256}
+          className="rounded-none border-0 border-t"
+        />
       )}
     </div>
   );

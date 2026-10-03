@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -43,6 +43,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import type { ExplorerModel, ModelSort } from '@mantle/client-types';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
+import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 export type ProviderMeta = {
   id: string;
@@ -453,7 +454,6 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 function ModelDetail({ model, provider }: { model: ExplorerModel; provider?: ProviderMeta }) {
   const toast = useToast();
   const [poolDialog, setPoolDialog] = useState(false);
-  const rawJson = useMemo(() => JSON.stringify(model.raw, null, 2), [model.raw]);
 
   const copy = async (text: string, what: string) => {
     try {
@@ -520,17 +520,10 @@ function ModelDetail({ model, provider }: { model: ExplorerModel; provider?: Pro
       )}
 
       <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Raw API response
-          </h3>
-          <Button variant="ghost" size="sm" onClick={() => copy(rawJson, 'raw JSON')}>
-            <Copy /> Copy
-          </Button>
-        </div>
-        <pre className="max-h-[480px] overflow-auto rounded-lg border border-border bg-muted/40 p-4 font-mono text-[11px] leading-relaxed scrollbar-thin">
-          {rawJson}
-        </pre>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Raw API response
+        </h3>
+        <JsonView value={model.raw} maxHeight={480} />
       </div>
     </div>
   );
