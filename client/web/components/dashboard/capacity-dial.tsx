@@ -96,10 +96,40 @@ function AxisBar({
   );
 }
 
+/** The latest `recall_eval` passage score. Mirrors `RetrievalScore` in
+ *  @mantle/client-types (added with mantle's capacity `retrieval` field);
+ *  declared here so the card also renders against a server without it. */
+type RetrievalScore = { at: string; cases: number; recallAt10: number; mrr: number };
+
+/** Size says when to look; the measured score says whether quality moved. */
+function RetrievalLine({ retrieval }: { retrieval: RetrievalScore | null | undefined }) {
+  if (retrieval === undefined) return null;
+  if (!retrieval)
+    return (
+      <p className="text-xs text-muted-foreground">
+        Retrieval not measured yet. Add a note tagged recall-eval-cases to score it weekly.
+      </p>
+    );
+  const day = new Date(retrieval.at).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  });
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-xs">
+      <span className="text-muted-foreground">Retrieval, last check {day}</span>
+      <span className="font-medium tabular-nums">
+        {Math.round(retrieval.recallAt10 * 100)}% in top 10 · {retrieval.cases} questions
+      </span>
+    </div>
+  );
+}
+
 /**
- * Brain capacity card — real corpus counts vs the split policy from the
- * scaling whitepaper (watch 10k docs / 50k passages; split 20k / 100k). The
- * dial reads the WORST axis; the bars show each axis with its watch tick.
+ * Brain capacity card — real corpus counts vs the split policy (watch 10k
+ * docs / 100k passages; split 20k / 250k, the passage numbers measured on a
+ * scale curve, mantle docs/recall-eval.md). The dial reads the WORST axis; the
+ * bars show each axis with its watch tick; the last line is the measured
+ * retrieval score from the weekly recall check.
  */
 export function CapacityDial({ capacity }: { capacity: BrainCapacity }) {
   return (
@@ -133,9 +163,14 @@ export function CapacityDial({ capacity }: { capacity: BrainCapacity }) {
             split={capacity.chunkVectors.split}
             zone={capacity.chunkVectors.zone}
           />
+          <RetrievalLine
+            retrieval={
+              (capacity as BrainCapacity & { retrieval?: RetrievalScore | null }).retrieval
+            }
+          />
           <p className="text-xs text-muted-foreground">
-            A brain is split into a federated breakout brain before any index reaches the sizes
-            where retrieval degradation has been measured.
+            Retrieval loses a little with every doubling of the corpus. A split helps once a whole
+            category can move to its own brain.
           </p>
         </div>
       </CardContent>
