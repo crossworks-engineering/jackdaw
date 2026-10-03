@@ -1,5 +1,6 @@
 'use client';
 
+import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AccessLevel } from '@mantle/client-types';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -220,6 +221,9 @@ export function DrawsClient() {
   const active =
     draws.find((d) => d.id === activeId) ??
     (activeId && selectedDrawQuery.data?.id === activeId ? selectedDrawQuery.data : null);
+  // Draw opens on this drawing next time (lib/last-opened.ts): one the user
+  // picked and that loaded, not the first card shown by default.
+  useRememberLastOpened('draw', selectedId && active?.id === selectedId ? selectedId : null);
 
   function select(id: string) {
     setSelectedId(id);

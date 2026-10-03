@@ -141,7 +141,9 @@ export async function adminRestore(
         return { href: `/pages/${enc}` };
       case 'draw':
         await fetchJson(`/api/draws/${enc}`);
-        return { href: `/draw/${enc}` };
+        // The list with the drawing open, as picking it there opens it; the
+        // editor is one click on from there.
+        return { href: `/draw?id=${enc}` };
       case 'notes':
         await fetchJson(`/api/notes/${enc}`);
         return { href: `/notes?selected=${enc}` };

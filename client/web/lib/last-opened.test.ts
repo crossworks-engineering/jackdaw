@@ -161,7 +161,7 @@ describe("an admin's restore", () => {
 
   it('reads the item and opens it where its own screen opens it', async () => {
     expect(await adminRestore('pages', ID, ok())).toEqual({ href: `/pages/${ID}` });
-    expect(await adminRestore('draw', ID, ok())).toEqual({ href: `/draw/${ID}` });
+    expect(await adminRestore('draw', ID, ok())).toEqual({ href: `/draw?id=${ID}` });
     expect(await adminRestore('notes', ID, ok())).toEqual({ href: `/notes?selected=${ID}` });
     expect(await adminRestore('tables', ID, ok())).toEqual({ href: `/tables?selected=${ID}` });
     expect(reads).toEqual([
