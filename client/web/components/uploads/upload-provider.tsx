@@ -145,6 +145,10 @@ type Pending = {
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<UploadTask[]>([]);
+  // The rendered tasks, for callbacks that must not read state through an
+  // updater (see clearFinished).
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
   const [maxUploadBytes, setMaxUploadBytes] = useState<number | null>(null);
   const limitRef = useRef<number | null>(null);
   limitRef.current = maxUploadBytes;
@@ -353,14 +357,17 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   );
 
   const clearFinished = useCallback(() => {
-    setTasks((ts) => {
-      const keep = ts.filter((t) => t.status === 'pending' || t.status === 'uploading');
-      const keepIds = new Set(keep.map((t) => t.id));
-      for (const id of Array.from(pendingRef.current.keys())) {
-        if (!keepIds.has(id)) pendingRef.current.delete(id);
-      }
-      return keep;
-    });
+    // Drop the kept files of the rows being dismissed, OUTSIDE the state
+    // updater: React may run an updater again on a later render, and a
+    // delete in there then took the file of every row finished since (a
+    // conflict's Replace, an error's Retry), leaving the button dead. Only
+    // rows known to be finished: one enqueued since the last render stays.
+    const finished = tasksRef.current.filter(
+      (t) => t.status !== 'pending' && t.status !== 'uploading',
+    );
+    for (const t of finished) pendingRef.current.delete(t.id);
+    const gone = new Set(finished.map((t) => t.id));
+    setTasks((ts) => ts.filter((t) => !gone.has(t.id)));
   }, []);
 
   const active = useMemo(
@@ -513,12 +520,15 @@ export function finishedHeading(c: {
   cancelled: number;
 }): string {
   const uploaded = c.done + c.exists;
-  const parts = [`Uploaded ${uploaded} file${uploaded === 1 ? '' : 's'}`];
-  if (c.exists > 0) parts.push(`${c.exists} already there`);
-  if (c.conflicts > 0) parts.push(`${c.conflicts} not replaced`);
-  if (c.failed > 0) parts.push(`${c.failed} failed`);
-  if (c.cancelled > 0) parts.push(`${c.cancelled} cancelled`);
-  return parts.join(' · ');
+  const rest: string[] = [];
+  if (c.exists > 0) rest.push(`${c.exists} already there`);
+  if (c.conflicts > 0) rest.push(`${c.conflicts} not replaced`);
+  if (c.failed > 0) rest.push(`${c.failed} failed`);
+  if (c.cancelled > 0) rest.push(`${c.cancelled} cancelled`);
+  // "Uploaded 0 files · 1 not replaced" read as a failure count; lead with
+  // what did happen.
+  if (uploaded === 0 && rest.length > 0) return rest.join(' · ');
+  return [`Uploaded ${uploaded} file${uploaded === 1 ? '' : 's'}`, ...rest].join(' · ');
 }
 
 function UploadRow({
