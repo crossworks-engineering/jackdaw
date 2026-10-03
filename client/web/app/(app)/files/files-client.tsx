@@ -20,6 +20,7 @@ import {
   FileJson,
   FileText,
   FolderPlus,
+  FolderUp,
   LayoutGrid,
   List,
   Lock,
@@ -38,6 +39,13 @@ import { FileEditor } from './file-editor';
 import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
 import { useFileSearch } from './use-file-search';
 import { CreateFileDialog, CreateFolderDialog, RenameDialog } from './files-dialogs';
+import {
+  droppedTree,
+  folderUploadNotice,
+  pickedTreeFiles,
+  planFolderUpload,
+} from './folder-upload';
+import type { FolderUploadPlan, TreeFile } from './folder-upload';
 import { ChildFolders, DualPane } from './files-panes';
 import { FolderTreeRail } from './folder-tree-rail';
 import { ItemTree } from '@/components/item-tree/item-tree';
@@ -352,7 +360,12 @@ function FilesView({
   // them at once: asked once per upload, then sent with `confirm` (the brain
   // refuses it without, 409).
   const share = folderShareOf(currentFolder);
-  const [sharedUpload, setSharedUpload] = useState<{ files: File[]; path: string } | null>(null);
+  // `tree`: a folder upload, whose files land in the folders it makes.
+  const [sharedUpload, setSharedUpload] = useState<{
+    files: File[];
+    path: string;
+    tree?: FolderUploadPlan;
+  } | null>(null);
   const upload = (list: FileList | File[]) => {
     const picked = Array.from(list);
     if (!picked.length) return;
@@ -362,6 +375,49 @@ function FilesView({
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     upload(e.target.files);
+    e.target.value = '';
+  };
+
+  // ─── Folder upload ───────────────────────────────────────────────
+  // A folder with its sub-folders: the brain takes one file into one
+  // existing folder, so each missing folder is made first, parents before
+  // children, then each folder's files go to the upload dock.
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const sendTree = async (plan: FolderUploadPlan, confirm: boolean) => {
+    for (const step of plan.folders) {
+      if (foldersByPath.has(step.path)) continue;
+      try {
+        await apiSend('/api/files/folders', 'POST', {
+          parentPath: step.parentPath,
+          slug: step.slug,
+        });
+      } catch (err) {
+        // 409: it is there already (made since the tree last loaded).
+        if (err instanceof ApiError && err.status === 409) continue;
+        toast.error(
+          `Could not create folder ${step.path}: ${err instanceof Error ? err.message : 'unknown error'}`,
+        );
+        return;
+      }
+    }
+    void queryClient.invalidateQueries({ queryKey: ['files', 'tree'] });
+    for (const b of plan.batches) enqueue(b.files, b.parentPath, confirm ? { confirm: true } : {});
+    const notice = folderUploadNotice(plan);
+    if (notice) toast.info(notice);
+  };
+  const uploadTree = (items: TreeFile[]) => {
+    const plan = planFolderUpload(items, currentPath);
+    if (plan.fileCount === 0) {
+      toast.info(folderUploadNotice(plan) ?? 'That folder has no files to upload.');
+      return;
+    }
+    const files = plan.batches.flatMap((b) => b.files);
+    if (share) setSharedUpload({ files, path: currentPath, tree: plan });
+    else void sendTree(plan, false);
+  };
+  const onFolderInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    uploadTree(pickedTreeFiles(e.target.files));
     e.target.value = '';
   };
 
@@ -390,6 +446,12 @@ function FilesView({
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(false);
+    // A drop with a folder in it keeps its tree; read while the event runs.
+    const tree = droppedTree(e.dataTransfer.items);
+    if (tree) {
+      tree.then(uploadTree, () => toast.error('Could not read the dropped folder.'));
+      return;
+    }
     if (e.dataTransfer.files?.length) upload(e.dataTransfer.files);
   };
 
@@ -1071,7 +1133,26 @@ function FilesView({
                   <Button size="sm" variant="outline" onClick={triggerUpload}>
                     <Upload /> Upload
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => folderInputRef.current?.click()}
+                    title="Upload a folder with its sub-folders"
+                  >
+                    <FolderUp /> Upload folder
+                  </Button>
                   <input ref={fileInputRef} type="file" multiple hidden onChange={onFileInput} />
+                  <input
+                    ref={(el) => {
+                      // Not a React prop: the folder picker is a DOM attribute.
+                      el?.setAttribute('webkitdirectory', '');
+                      folderInputRef.current = el;
+                    }}
+                    type="file"
+                    multiple
+                    hidden
+                    onChange={onFolderInput}
+                  />
                   <input
                     ref={privateInputRef}
                     type="file"
@@ -1502,7 +1583,9 @@ function FilesView({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (sharedUpload) enqueue(sharedUpload.files, sharedUpload.path, { confirm: true });
+                if (sharedUpload?.tree) void sendTree(sharedUpload.tree, true);
+                else if (sharedUpload)
+                  enqueue(sharedUpload.files, sharedUpload.path, { confirm: true });
                 setSharedUpload(null);
               }}
             >
