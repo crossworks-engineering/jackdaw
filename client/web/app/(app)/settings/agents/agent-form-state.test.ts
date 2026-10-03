@@ -134,6 +134,7 @@ describe('thinking effort on the form', () => {
   it('detects a brain that stores it by the key, null included', () => {
     expect(brainHasAgentThinkingEffort([row({ thinkingEffort: null })])).toBe(true);
     expect(brainHasAgentThinkingEffort([row({})])).toBe(false);
-    expect(brainHasAgentThinkingEffort([])).toBe(false);
+    // Nothing to look at (a fresh brain): show it; an older brain drops the key.
+    expect(brainHasAgentThinkingEffort([])).toBe(true);
   });
 });

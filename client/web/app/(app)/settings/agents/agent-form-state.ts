@@ -137,9 +137,10 @@ export type AgentAvatar = AgentAvatarDTO;
 export type AgentSummary = AgentDTO & { thinkingEffort?: AgentThinkingEffort | null };
 
 /** Whether this brain stores a per-agent thinking effort (it sends the key on
- *  every agent, null included). */
+ *  every agent, null included). With no agents to look at, assume yes: an older
+ *  brain drops the unknown key on save, which costs nothing. */
 export function brainHasAgentThinkingEffort(agents: readonly AgentSummary[]): boolean {
-  return agents.some((a) => 'thinkingEffort' in a);
+  return agents.length === 0 || agents.some((a) => 'thinkingEffort' in a);
 }
 
 export type ApiKeyOption = { id: string; service: string; label: string; masked: string };
