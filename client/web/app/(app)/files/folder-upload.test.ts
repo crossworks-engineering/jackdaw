@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { folderSlug, folderUploadNotice, pickedTreeFiles, planFolderUpload } from './folder-upload';
+import {
+  droppedTree,
+  folderSlug,
+  folderUploadNotice,
+  pickedTreeFiles,
+  planFolderUpload,
+} from './folder-upload';
 import type { TreeFile } from './folder-upload';
 
 const tf = (relPath: string): TreeFile => ({
@@ -92,5 +98,56 @@ describe('folderUploadNotice', () => {
     expect(folderUploadNotice(plan)).toBe(
       '1 file nested deeper than 3 folders went into the deepest folder. 1 hidden or system file was left out.',
     );
+  });
+});
+
+/** A fake of the drag-and-drop entry API: files and folders by full path. */
+function fakeEntry(fullPath: string, children?: FileSystemEntry[]): FileSystemEntry {
+  const name = fullPath.split('/').pop()!;
+  if (!children) {
+    return {
+      isFile: true,
+      isDirectory: false,
+      name,
+      fullPath,
+      file: (ok: (f: File) => void) => ok(new File(['x'], name)),
+    } as unknown as FileSystemEntry;
+  }
+  return {
+    isFile: false,
+    isDirectory: true,
+    name,
+    fullPath,
+    createReader: () => {
+      // Two batches then empty, as Chromium answers a big folder.
+      const batches = [children.slice(0, 1), children.slice(1), []];
+      return { readEntries: (ok: (e: FileSystemEntry[]) => void) => ok(batches.shift()!) };
+    },
+  } as unknown as FileSystemEntry;
+}
+const itemsOf = (entries: FileSystemEntry[]) =>
+  entries.map((e) => ({
+    kind: 'file',
+    webkitGetAsEntry: () => e,
+  })) as unknown as DataTransferItemList;
+
+describe('droppedTree', () => {
+  it('is null for a drop of plain files', () => {
+    expect(droppedTree(itemsOf([fakeEntry('/a.txt')]))).toBeNull();
+  });
+
+  it('walks every folder batch and keeps paths, skipping hidden folders', async () => {
+    const tree = fakeEntry('/top', [
+      fakeEntry('/top/a.txt'),
+      fakeEntry('/top/sub', [fakeEntry('/top/sub/b.txt'), fakeEntry('/top/sub/c.txt')]),
+      fakeEntry('/top/.git', [fakeEntry('/top/.git/config')]),
+    ]);
+    const files = await droppedTree(itemsOf([tree, fakeEntry('/loose.md')]));
+    expect(files!.map((f) => f.relPath).sort()).toEqual([
+      'loose.md',
+      'top/a.txt',
+      'top/sub/b.txt',
+      'top/sub/c.txt',
+    ]);
   });
 });
