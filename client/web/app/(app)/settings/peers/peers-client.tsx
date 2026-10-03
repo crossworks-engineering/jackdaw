@@ -34,6 +34,7 @@ import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
+import { PeerAccessSection, type PeerAccess } from './peer-access';
 
 type Peer = {
   id: string;
@@ -46,7 +47,7 @@ type Peer = {
   lastSeenAt: string | null;
   createdAt: string;
   updatedAt: string;
-};
+} & PeerAccess;
 type Share = { id: string; nodeId: string; nodeType: string; title: string; createdAt: string };
 type TypeShare = { id: string; nodeType: string; createdAt: string };
 type NodeHit = { id: string; title: string; type: string };
@@ -578,6 +579,18 @@ function PeerDetail({
       </div>
 
       {revealToken && <TokenReveal token={revealToken} onDone={onClearReveal} />}
+
+      <PeerAccessSection
+        peerId={peer.id}
+        peerName={peer.displayName}
+        access={{
+          actsAsLoginId: peer.actsAsLoginId ?? null,
+          actsAsRole: peer.actsAsRole ?? null,
+          writeEnabled: peer.writeEnabled ?? false,
+          allowedRiskyTools: peer.allowedRiskyTools ?? [],
+        }}
+        onChanged={onChanged}
+      />
 
       {/* Tokens */}
       <div className="space-y-3 rounded-md border border-border p-3">

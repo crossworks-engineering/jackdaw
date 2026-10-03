@@ -22,6 +22,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
+import { McpLoginsSection } from './mcp-logins';
 
 type ConnectedClient = {
   id: string;
@@ -186,6 +187,9 @@ export function McpSettingsClient() {
             </div>
           )}
         </section>
+
+        {/* Team and client logins (MCP as a login) */}
+        {enabled && <McpLoginsSection />}
 
         {/* Connected clients */}
         <section className="rounded-xl border border-border bg-card">
