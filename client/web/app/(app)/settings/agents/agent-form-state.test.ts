@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ROLES, emptyForm, tempDescriptor, validateAgent } from './agent-form-state';
+import {
+  ROLES,
+  brainHasAgentThinkingEffort,
+  emptyForm,
+  formFromAgent,
+  tempDescriptor,
+  validateAgent,
+} from './agent-form-state';
 import type { AgentSummary, FormState } from './agent-form-state';
 
 /**
@@ -91,5 +98,42 @@ describe('emptyForm', () => {
 
   it('honours the role it is given', () => {
     for (const r of ROLES) expect(emptyForm(r.value).role).toBe(r.value);
+  });
+});
+
+describe('thinking effort on the form', () => {
+  const row = (over: Partial<AgentSummary>): AgentSummary =>
+    ({
+      slug: 'ada',
+      name: 'Ada',
+      role: 'responder',
+      provider: 'openrouter',
+      model: 'm',
+      systemPrompt: 'p',
+      priority: 100,
+      enabled: true,
+      backupEnabled: false,
+      viaTailnet: false,
+      backupViaTailnet: false,
+      memoryConfig: {},
+      params: {},
+      ...over,
+    }) as AgentSummary;
+
+  it('a new agent starts on inherit', () => {
+    expect(emptyForm().thinkingEffort).toBeNull();
+  });
+
+  it('loads the stored effort, and inherit for null, missing or unknown', () => {
+    expect(formFromAgent(row({ thinkingEffort: 'max' })).thinkingEffort).toBe('max');
+    expect(formFromAgent(row({ thinkingEffort: 'off' })).thinkingEffort).toBe('off');
+    expect(formFromAgent(row({ thinkingEffort: null })).thinkingEffort).toBeNull();
+    expect(formFromAgent(row({})).thinkingEffort).toBeNull();
+  });
+
+  it('detects a brain that stores it by the key, null included', () => {
+    expect(brainHasAgentThinkingEffort([row({ thinkingEffort: null })])).toBe(true);
+    expect(brainHasAgentThinkingEffort([row({})])).toBe(false);
+    expect(brainHasAgentThinkingEffort([])).toBe(false);
   });
 });

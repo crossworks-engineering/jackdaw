@@ -5,6 +5,7 @@
  * already standalone, just living in the wrong file. No signatures changed.
  */
 import type { AgentAvatarDTO, AgentDTO, AgentMemoryConfigDTO } from '@mantle/client-types';
+import { parseAgentThinkingEffort, type AgentThinkingEffort } from '@/lib/thinking-effort';
 
 export const DEFAULT_REFLECTOR_PROMPT = `You are a reflector for a personal AI assistant. You will be given a transcript of recent exchanges + the notes the assistant has already learned. Spot NEW signals worth remembering, AND ONLY new ones.
 
@@ -130,7 +131,16 @@ export type MemoryConfig = AgentMemoryConfigDTO;
 
 export type AgentAvatar = AgentAvatarDTO;
 
-export type AgentSummary = AgentDTO;
+/** `thinkingEffort` (brain migration 0228) is spelled out here so the screen
+ *  builds against a contract package from before the field. Absent on the wire
+ *  = a brain without per-agent effort: the select hides and the save omits it. */
+export type AgentSummary = AgentDTO & { thinkingEffort?: AgentThinkingEffort | null };
+
+/** Whether this brain stores a per-agent thinking effort (it sends the key on
+ *  every agent, null included). */
+export function brainHasAgentThinkingEffort(agents: readonly AgentSummary[]): boolean {
+  return agents.some((a) => 'thinkingEffort' in a);
+}
 
 export type ApiKeyOption = { id: string; service: string; label: string; masked: string };
 
@@ -277,6 +287,8 @@ export type FormState = {
    *  chip in the chat composer). One extra cheap LLM call per turn, so off by
    *  default. */
   suggestFollowUp: boolean;
+  /** The agent's own thinking effort; null = inherit the person's profile. */
+  thinkingEffort: AgentThinkingEffort | null;
   /** Avatar {style, seed}; null = initials fallback. */
   avatar: AgentAvatar | null;
 };
@@ -322,6 +334,7 @@ export function emptyForm(role: Role = 'responder'): FormState {
     temperature: '0.7',
     maxTokens: '',
     suggestFollowUp: false,
+    thinkingEffort: null,
     avatar: null,
   };
 }
@@ -370,6 +383,7 @@ export function formFromAgent(a: AgentSummary): FormState {
     temperature: a.params.temperature?.toString() ?? '0.7',
     maxTokens: a.params.max_tokens?.toString() ?? '',
     suggestFollowUp: a.params.suggest_follow_up === true,
+    thinkingEffort: parseAgentThinkingEffort(a.thinkingEffort),
     avatar: a.avatar ?? null,
   };
 }

@@ -51,7 +51,13 @@ import { useAvatarStyle } from '@mantle/web-ui/avatar-style-provider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mantle/web-ui/ui/tabs';
 import { ChatTestButton } from '@/components/settings/chat-test-button';
 import { ModelsTab } from './models-tab';
-import { BackupRouteSection, MemorySection, NONE, RouteHostFields } from './agent-form-sections';
+import {
+  BackupRouteSection,
+  MemorySection,
+  NONE,
+  RouteHostFields,
+  ThinkingEffortField,
+} from './agent-form-sections';
 import { ContextWindowHint, DelegatePicker, SkillPicker, ToolGroupPicker } from './agent-pickers';
 import { useModelCatalog } from './use-model-catalog';
 import {
@@ -62,6 +68,7 @@ import {
 } from './agent-delete';
 import {
   ROLES,
+  brainHasAgentThinkingEffort,
   defaultsForRole,
   emptyForm,
   formFromAgent,
@@ -154,6 +161,9 @@ export function AgentsClient() {
   });
 
   const agents = useMemo(() => agentsQuery.data ?? [], [agentsQuery.data]);
+  // A brain from before per-agent thinking effort neither sends nor stores it:
+  // hide the select there and leave the field out of the save.
+  const hasThinkingEffort = brainHasAgentThinkingEffort(agents);
   const apiKeys = keysQuery.data ?? [];
   const tailnetPeers = tailnetQuery.data ?? [];
   // Only enabled skills / tool groups are grantable; TTS pickers want kind='tts'.
@@ -471,6 +481,9 @@ export function AgentsClient() {
       skillSlugs: form.skillSlugs,
       toolGroupSlugs: form.toolGroupSlugs,
       avatar: form.avatar,
+      // null = inherit the profile. Always sent (where the brain has it) so
+      // switching back to Inherit persists.
+      ...(hasThinkingEffort ? { thinkingEffort: form.thinkingEffort } : {}),
       ...(editing.mode === 'create' ? { slug: form.slug.trim() } : {}),
     };
 
@@ -1289,6 +1302,9 @@ export function AgentsClient() {
                                 costs a little per message. Off by default.
                               </FieldHint>
                             </Field>
+                            {hasThinkingEffort && (
+                              <ThinkingEffortField form={form} setForm={setForm} />
+                            )}
                           </fieldset>
 
                           {editing.mode === 'edit' && (

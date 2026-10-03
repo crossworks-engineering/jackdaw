@@ -50,6 +50,7 @@ import { PURPOSE_ARCHETYPES } from '@mantle/content-core/onboarding-questions';
 // Same leaf rule as above: thinking-tiers.ts has no imports at all, whereas
 // profile-preferences.ts (which re-exports it) pulls in @mantle/db.
 import { THINKING_TIERS, thinkingEffortForBudget } from '@mantle/content-core/thinking-tiers';
+import { THINKING_EFFORT_WARNINGS } from '@/lib/thinking-effort';
 import type { ProfilePreferences } from '@mantle/client-types';
 
 /** Sentinel for "no pinned responder" — Radix Select can't use an empty-string
@@ -70,16 +71,6 @@ function snapThinkingTier(v: number | undefined): number {
     THINKING_TIERS[0]!,
   ).budget;
 }
-
-/** What each effort costs the user, in plain terms. Only the tiers that
- *  meaningfully change spend or latency say anything — a warning on every option
- *  is a warning on none. */
-const THINKING_EFFORT_WARNINGS: Partial<Record<string, string>> = {
-  high: 'High makes the model reason at length before answering. Expect noticeably slower replies and materially higher token spend on every turn — reasoning tokens are billed as output.',
-  xhigh:
-    'Very high spends far more reasoning tokens than High, on every turn. Best reserved for genuinely hard work, not everyday chat.',
-  max: 'Maximum tells the model to reason as deeply as it can, on every turn. This is the most expensive and slowest setting by a wide margin — use it deliberately.',
-};
 
 /** `GET /api/profile` payload. */
 type ProfileData = {
@@ -582,7 +573,9 @@ function ProfileForm({ data }: { data: ProfileData }) {
             </div>
             <p className="text-xs text-muted-foreground">
               How hard the model reasons before answering. Needs live thinking on and an effort
-              above Off. Off = no extra reasoning.
+              above Off. Off = no extra reasoning. This is the default for agents set to Inherit; an
+              agent can set its own effort in Settings, Agents (this switch then only shows or hides
+              its thinking).
             </p>
             {thinkingEffortWarning && (
               <p className="text-xs text-warning-ink" role="status">

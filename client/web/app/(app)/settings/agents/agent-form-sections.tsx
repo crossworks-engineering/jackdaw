@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeftRight } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
@@ -19,6 +20,14 @@ import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { ModelSelect } from '@/components/ui/model-select';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { isProviderWired, providersForCapability } from '@mantle/voice-client';
+import type { ProfilePreferences } from '@mantle/client-types';
+import { apiFetch } from '@mantle/web-ui/api-fetch';
+import {
+  AGENT_THINKING_EFFORT_OPTIONS,
+  THINKING_EFFORT_WARNINGS,
+  parseAgentThinkingEffort,
+  profileThinkingLabel,
+} from '@/lib/thinking-effort';
 import type { FormState } from './agent-form-state';
 import type { ModelCatalog } from './use-model-catalog';
 
@@ -49,6 +58,57 @@ export const NONE = '__none__';
 type ApiKeyOption = { id: string; service: string; label: string; masked: string };
 
 type SetFormState = React.Dispatch<React.SetStateAction<FormState>>;
+
+/** Select value for "no own effort". Radix Select forbids an empty value. */
+const INHERIT = '__inherit__';
+
+/** The agent's own thinking effort. Inherit (the default) follows the person's
+ *  profile, and the option says which level that is right now, so "Inherit"
+ *  is never a mystery. The profile is read on its own query: a failure only
+ *  drops the level from the label. */
+export function ThinkingEffortField({ form, setForm }: { form: FormState; setForm: SetFormState }) {
+  const profile = useQuery({
+    queryKey: ['profile', 'thinking'],
+    queryFn: () => apiFetch<{ preferences: ProfilePreferences }>('/api/profile'),
+    staleTime: 60_000,
+  });
+  const inheritLabel = profile.data
+    ? `Inherit from profile (${profileThinkingLabel(profile.data.preferences)})`
+    : 'Inherit from profile';
+  const warning = form.thinkingEffort ? THINKING_EFFORT_WARNINGS[form.thinkingEffort] : undefined;
+  return (
+    <Field>
+      <FieldLabel htmlFor="thinkingEffort">Thinking effort</FieldLabel>
+      <Select
+        value={form.thinkingEffort ?? INHERIT}
+        onValueChange={(v) =>
+          setForm((f) => ({ ...f, thinkingEffort: parseAgentThinkingEffort(v) }))
+        }
+      >
+        <SelectTrigger
+          id="thinkingEffort"
+          className="w-64"
+          aria-describedby={hintId('thinkingEffort')}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={INHERIT}>{inheritLabel}</SelectItem>
+          {AGENT_THINKING_EFFORT_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldHint id="thinkingEffort" warn={warning}>
+        How hard this agent reasons before it answers. Used when the model supports reasoning
+        effort. Inherit follows your profile; Off never reasons; a level here applies whatever your
+        profile says (your live-thinking switch then only shows or hides it).
+      </FieldHint>
+    </Field>
+  );
+}
 
 /** The Memory tab's tuning fieldset — replay window, recall limits, and the
  *  role-specific extractor / summarizer knobs. */
