@@ -39,7 +39,7 @@ export function McpLoginsSection() {
   const [busy, setBusy] = useState<string | null>(null);
   const [minted, setMinted] = useState<{ loginId: string; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [label, setLabel] = useState('');
+  const [labels, setLabels] = useState<Record<string, string>>({});
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['mcp-logins'] });
 
@@ -59,11 +59,11 @@ export function McpLoginsSection() {
     setBusy(id);
     try {
       const { token } = await apiSend<{ token: string }>(`/api/mcp-logins/${id}/tokens`, 'POST', {
-        ...(label.trim() ? { label: label.trim() } : {}),
+        ...(labels[id]?.trim() ? { label: labels[id]!.trim() } : {}),
       });
       setMinted({ loginId: id, token });
       setCopied(false);
-      setLabel('');
+      setLabels((m) => ({ ...m, [id]: '' }));
       await refresh();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not make a token');
@@ -205,8 +205,8 @@ export function McpLoginsSection() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <Input
-                        value={label}
-                        onChange={(e) => setLabel(e.target.value)}
+                        value={labels[l.id] ?? ''}
+                        onChange={(e) => setLabels((m) => ({ ...m, [l.id]: e.target.value }))}
                         placeholder="Label, e.g. Claude Code on laptop"
                         className="h-8 text-xs"
                       />

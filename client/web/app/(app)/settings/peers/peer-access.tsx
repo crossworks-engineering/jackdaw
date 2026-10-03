@@ -30,7 +30,13 @@ export type PeerAccess = {
   allowedRiskyTools: string[];
 };
 
-type Login = { id: string; email: string; displayName: string | null; role: string };
+type Login = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: string;
+  disabled?: boolean;
+};
 
 const NONE = 'none';
 const OWNER = 'owner';
@@ -82,7 +88,7 @@ export function PeerAccessSection({
   const bound = access.actsAsRole !== null;
   const asOwner = access.actsAsRole === 'admin';
   const others = (logins.data?.logins ?? []).filter(
-    (l) => l.role === 'member' || l.role === 'client',
+    (l) => (l.role === 'member' || l.role === 'client') && !l.disabled,
   );
 
   return (
@@ -93,7 +99,7 @@ export function PeerAccessSection({
       <p className="text-xs text-muted-foreground">
         With <span className="font-medium text-foreground">Acts as</span> set, {peerName} can use
         its token on this brain&apos;s MCP endpoint, with exactly that login&apos;s rights. Remote
-        MCP must be on (Settings, MCP).
+        MCP must be on (Settings, MCP). Changing Acts as turns Write off again.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs text-muted-foreground">Acts as</span>
@@ -124,7 +130,7 @@ export function PeerAccessSection({
               <p className="text-sm">Write</p>
               <p className="text-xs text-muted-foreground">
                 {asOwner
-                  ? 'Off: read only. On: it can create and change notes, events, files and folders here.'
+                  ? 'Off: read only. On: it can create, change, move and delete content here (notes, events, files, folders, pages, tables), but not the risky tools below.'
                   : 'Off: read only. On: it can create drafts in that login’s own space, for review.'}
               </p>
             </div>
