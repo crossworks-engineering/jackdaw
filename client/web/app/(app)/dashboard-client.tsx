@@ -14,6 +14,7 @@ import { BrainStats } from '@/components/dashboard/brain-stats';
 import { BuildCard } from '@/components/dashboard/build-card';
 import { CapacityDial } from '@/components/dashboard/capacity-dial';
 import { OpsPanels } from '@/components/dashboard/ops-panels';
+import { ProviderAlertCard } from '@/components/needs-you/provider-alert-card';
 import type {
   BrainCapacity,
   BrainCounts,
@@ -129,6 +130,9 @@ export function DashboardClient() {
 
   return (
     <>
+      {/* Embeddings or extraction failing: before the numbers, which it
+          makes stale (admins only; nothing while all works). */}
+      <ProviderAlertCard showLink />
       <KpiCards items={kpis} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

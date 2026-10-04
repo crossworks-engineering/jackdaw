@@ -26,6 +26,7 @@ import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { WorkerForm } from './worker-form';
 import { ExtractorThroughput } from './extractor-throughput';
+import { ProviderAlertCard } from '@/components/needs-you/provider-alert-card';
 
 type KeyOption = { id: string; service: string; label: string; masked: string };
 
@@ -265,6 +266,8 @@ export function AiWorkersClient() {
               </h2>
             </div>
             <div className="space-y-4 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
+              {/* The extraction model failing (no credits, a refused key). */}
+              <ProviderAlertCard subject="extraction" />
               {workersQuery.isPending ? (
                 <div className="flex flex-col items-center gap-3 px-4 py-10 text-sm text-muted-foreground">
                   <Spinner size={28} />

@@ -60,6 +60,7 @@ import { TourOverlay } from '@/components/tour/tour-overlay';
 import { PendingQuestionWatcher } from '@/components/pending/question-watcher';
 import { DesktopBridge } from '@/components/desktop/desktop-bridge';
 import { NeedsYouBanner } from '@/components/needs-you/needs-you-banner';
+import { ProviderAlertBanner } from '@/components/needs-you/provider-alert-banner';
 import { NeedsYouWatcher } from '@/components/needs-you/needs-you-watcher';
 import { PickMode } from '@/components/assistant/pick-mode';
 import { ZenModeContext } from '@/components/layout/zen-mode';
@@ -704,6 +705,10 @@ function ShellFrame({
                 view (a member whose hint cookie is gone). An admin whose
                 shell failed for any other reason still sees it. */}
             {shellSettledAsAdmin ? <UpdateBanner onNavigate={onNavigate} /> : null}
+            {/* Embeddings or extraction failing (no credits, a refused key):
+                red, above what waits, because the brain is degraded now.
+                Same gate and same live answer as the notice below. */}
+            {shellSettledAsAdmin ? <ProviderAlertBanner onNavigate={onNavigate} /> : null}
             {/* What waits for an admin (Review, Requests), live. Same gate:
                 the count route refuses a member. */}
             {shellSettledAsAdmin ? <NeedsYouBanner onNavigate={onNavigate} /> : null}

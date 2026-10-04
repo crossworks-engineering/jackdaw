@@ -21,7 +21,8 @@ import { useNeedsYou, useNeedsYouSync } from './use-needs-you';
 
 /**
  * Headless, admins only. Makes sure an admin is never blind to work waiting
- * for them (Review submissions, open team requests):
+ * for them (Review submissions, open team requests) or to embeddings or
+ * extraction failing (no credits, a refused key):
  *
  *  - a toast the moment something ARRIVES while the app is open (never on
  *    first load: only what arrives while you are here), with "Open";
@@ -52,7 +53,8 @@ export function NeedsYouWatcher() {
     if (!first) return;
     const text = arrivalText(first);
     toast.push({
-      kind: 'info',
+      // An outage is a failure the admin must act on, not a queue item.
+      kind: first.kind === 'provider' ? 'error' : 'info',
       message: text.body,
       durationMs: 15_000,
       action: { label: 'Open', onClick: () => guardedNavigate(() => router.push(text.href)) },

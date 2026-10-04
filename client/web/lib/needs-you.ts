@@ -1,12 +1,20 @@
 /**
- * "Needs you": what waits for an admin (Review submissions and open team
- * requests), shared by the rail notice, the toast, the tab title and
+ * "Needs you": what waits for an admin (Review submissions, open team
+ * requests, locked contacts, and embedding or extraction outages), shared by the rail notice, the toast, the tab title and
  * favicon, the browser notification and the desktop dock. The numbers come
  * from the brain's count endpoint (GET /api/team-admin/needs-you), so every
  * window and device shows the same; the owner live stream sends
  * `needs_you` when they may have moved. Pure helpers only: no DOM here.
  */
 import type { NeedsYou, NeedsYouItem } from '@mantle/client-types';
+import {
+  alertHeadline,
+  alertHref,
+  alertKey,
+  alertTitle,
+  providerAlertsOf,
+  type ProviderAlert,
+} from './provider-alerts';
 
 export type { NeedsYou, NeedsYouItem };
 
@@ -29,8 +37,12 @@ export const requestsOpen = (n: NeedsYou | null | undefined): number => (n ? n.r
  *  shares, brain migration 0214). A brain before 0214 sends no `sharing`. */
 export const sharingLocked = (n: NeedsYou | null | undefined): number => n?.sharing?.locked ?? 0;
 
+/** Embedding or extraction outages (brain migration 0230). */
+export const providersFailing = (n: NeedsYou | null | undefined): number =>
+  providerAlertsOf(n).length;
+
 export const totalWaiting = (n: NeedsYou | null | undefined): number =>
-  reviewWaiting(n) + requestsOpen(n) + sharingLocked(n);
+  reviewWaiting(n) + requestsOpen(n) + sharingLocked(n) + providersFailing(n);
 
 /** The rail notice: "2 waiting for review", "1 open request", "1 contact
  *  locked", or several. */
@@ -55,7 +67,9 @@ export function needsYouHref(n: NeedsYou | null | undefined): string {
   return REVIEW_HREF;
 }
 
-export type Arrival = { kind: 'review' | 'request'; item: NeedsYouItem };
+export type Arrival =
+  | { kind: 'review' | 'request'; item: NeedsYouItem }
+  | { kind: 'provider'; item: NeedsYouItem; alert: ProviderAlert };
 
 const keyOf = (item: NeedsYouItem | null) => (item ? `${item.id}@${item.at}` : null);
 
@@ -69,18 +83,35 @@ const keyOf = (item: NeedsYouItem | null) => (item ? `${item.id}@${item.at}` : n
 export function arrivals(prev: NeedsYou | null, next: NeedsYou): Arrival[] {
   if (!prev) return [];
   const out: Arrival[] = [];
-  const pick = (kind: Arrival['kind'], before: NeedsYouItem | null, now: NeedsYouItem | null) => {
+  const pick = (
+    kind: 'review' | 'request',
+    before: NeedsYouItem | null,
+    now: NeedsYouItem | null,
+  ) => {
     if (!now || keyOf(now) === keyOf(before)) return;
     if (before && Date.parse(now.at) <= Date.parse(before.at)) return;
     out.push({ kind, item: now });
   };
   pick('review', prev.review.newest, next.review.newest);
   pick('request', prev.requests.newest, next.requests.newest);
+  // An outage that was not in the previous answer.
+  const before = new Set(providerAlertsOf(prev).map(alertKey));
+  for (const alert of providerAlertsOf(next)) {
+    if (before.has(alertKey(alert))) continue;
+    out.push({
+      kind: 'provider',
+      alert,
+      item: { id: alert.subject, title: alert.reason, from: '', at: alert.since },
+    });
+  }
   return out.sort((a, b) => Date.parse(b.item.at) - Date.parse(a.item.at));
 }
 
 /** The words for one arrival: its title and who it is from, never content. */
 export function arrivalText(a: Arrival): { title: string; body: string; href: string } {
+  if (a.kind === 'provider') {
+    return { title: alertTitle(a.alert), body: alertHeadline(a.alert), href: alertHref(a.alert) };
+  }
   const what = `"${a.item.title.trim() || 'Untitled'}"`;
   return a.kind === 'review'
     ? {

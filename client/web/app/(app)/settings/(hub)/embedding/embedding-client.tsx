@@ -19,6 +19,7 @@ import {
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ExtractorQueueStatus, useExtractionStatus } from '../../ai-workers/extractor-throughput';
+import { ProviderAlertCard } from '@/components/needs-you/provider-alert-card';
 
 /**
  * "No key" as a Select item value. Radix reserves `''` for "nothing selected"
@@ -75,7 +76,22 @@ type RouteState = {
   label: string;
 };
 
-type EmbeddingData = { config: ConfigDTO | null; columnDims: number; keys: KeyOpt[] };
+/** A same-model backup route the brain could add at once (brain 0.238):
+ *  the other provider whose key is saved (OpenAI direct and OpenRouter serve
+ *  the same vectors). Absent on older brains. */
+type BackupSuggestion = {
+  provider: string;
+  apiKeyId: string;
+  label: string;
+  why: string;
+};
+
+type EmbeddingData = {
+  config: ConfigDTO | null;
+  columnDims: number;
+  keys: KeyOpt[];
+  suggestBackup?: BackupSuggestion | null;
+};
 
 /** Outer query-gate so the page stays data-free. The inner form mounts only
  *  once loaded, so its useState initializers seed from the saved config. */
@@ -102,17 +118,26 @@ export function EmbeddingClient() {
     );
   }
   const d = embeddingQuery.data;
-  return <EmbeddingForm config={d.config} columnDims={d.columnDims} keys={d.keys} />;
+  return (
+    <EmbeddingForm
+      config={d.config}
+      columnDims={d.columnDims}
+      keys={d.keys}
+      suggestBackup={d.suggestBackup ?? null}
+    />
+  );
 }
 
 function EmbeddingForm({
   config,
   columnDims,
   keys,
+  suggestBackup,
 }: {
   config: ConfigDTO | null;
   columnDims: number;
   keys: KeyOpt[];
+  suggestBackup: BackupSuggestion | null;
 }) {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -214,13 +239,19 @@ function EmbeddingForm({
     const body = Object.fromEntries(new FormData(e.currentTarget));
     startTransition(async () => {
       try {
-        const res = await apiSend<{ ok: true; model: string } | { ok: false; error: string }>(
-          '/api/embedding',
-          'POST',
-          body,
-        );
+        const res = await apiSend<
+          | { ok: true; model: string; suggestBackup?: BackupSuggestion | null }
+          | { ok: false; error: string }
+        >('/api/embedding', 'POST', body);
         if (res.ok) {
-          toast.success(`Embedding config saved — ${res.model}`);
+          toast.success(`Embedding config saved: ${res.model}`);
+          if (res.suggestBackup) {
+            toast.info(
+              `No backup route. Add ${res.suggestBackup.label} (same model) so an outage does not stop indexing.`,
+            );
+          }
+          // A save also tells the brain to try a failing provider again and
+          // to catch up on what waits (no restart needed).
           queryClient.invalidateQueries({ queryKey: ['embedding'] });
         } else {
           toast.error(`Save failed: ${res.error}`);
@@ -250,6 +281,10 @@ function EmbeddingForm({
           model.
         </p>
       </header>
+
+      {/* Embeddings failing now (no credits, a refused key): the reason,
+          the fix and "Try again". Nothing while all works. */}
+      <ProviderAlertCard subject="embedding" />
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* ── Model identity ─────────────────────────────────────────── */}
@@ -311,11 +346,39 @@ function EmbeddingForm({
           </div>
           <input type="hidden" name="backup_enabled" value={backupEnabled ? 'on' : 'off'} />
           <p className="text-xs text-muted-foreground">
-            When the primary route is unreachable (connection refused / timeout / 5xx), embeds fail
-            over here. Must serve the same model{' '}
+            When the primary route is unreachable (connection refused, timeout, 5xx) or its account
+            fails (no credits, a refused key), embeds fail over here. Must serve the same model{' '}
             <code className="font-mono">{model || 'embeddinggemma:latest'}</code> — a different
             model lands vectors in a different space and silently breaks retrieval.
           </p>
+          {!backupEnabled && suggestBackup ? (
+            <div className="space-y-2 rounded-md bg-warning/15 px-3 py-2 text-xs text-warning-ink">
+              <p>
+                <strong>No backup route.</strong> If the primary provider fails (for example the
+                account runs out of credits), new files are not indexed until someone fixes it.
+              </p>
+              <p>
+                Suggested: <strong>{suggestBackup.label}</strong>. {suggestBackup.why}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBackupEnabled(true);
+                  setBackup({
+                    provider: suggestBackup.provider,
+                    baseUrl: '',
+                    apiKeyId: suggestBackup.apiKeyId,
+                    label: suggestBackup.label,
+                  });
+                }}
+              >
+                Use {suggestBackup.label} as the backup
+              </Button>
+              <p>Then test the route and save.</p>
+            </div>
+          ) : null}
           {backupEnabled && (
             <RouteFields
               title=""
