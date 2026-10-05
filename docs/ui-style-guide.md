@@ -40,10 +40,12 @@ reference **master-detail** implementation (§8) and the reference for forms
 ## 2. Color tokens
 
 Use Tailwind utilities backed by the theme CSS variables (mapped in the
-`@theme inline` block of `@mantle/web-ui/styles/themes.css`). **Never** put a
-hex/oklch literal in a component. The theme CSS itself is **generated**,
-seeds in `packages/web-ui/themes/`, every text token solved to AA at build
-time; see [themes.md](themes.md) before touching any theme colour.
+`@theme inline` block of `@mantle/share-ui/styles/themes.css`). **Never** put a
+hex/oklch literal in a component. The theme CSS itself is **generated** in the
+mantle repo, seeds in its `packages/share-ui/themes/`, every text token solved
+to AA at build time; see mantle's
+[themes.md](https://github.com/crossworks-engineering/mantle/blob/main/docs/themes.md)
+before touching any theme colour.
 
 | Purpose                        | Tokens (`bg-`/`text-`/`border-`)                                            |
 | ------------------------------ | --------------------------------------------------------------------------- |
@@ -140,7 +142,7 @@ Rules:
   (a coloured `accent` tint muddies it).
 - Light/dark is handled by `next-themes`; the color theme by
   `ColorThemeProvider` (`data-color-theme` on `<html>`, palettes in
-  `packages/web-ui/styles/themes.css`, registry in
+  `@mantle/share-ui/styles/themes.css` from the mantle repo, registry in
   `packages/web-ui/src/lib/themes.ts`). Don't fork theme logic.
 - **Adding a hand-authored theme** (as opposed to the imported tweakcn presets):
   a token has to clear contrast in _both_ the roles the app uses it in, `--primary`
