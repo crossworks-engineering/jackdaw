@@ -160,6 +160,10 @@ export function AssistantPanel({ member = false }: { member?: boolean } = {}) {
     if (panel !== 'open') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // An open menu, picker or popover (the header's "..." menu, the agent
+        // picker) takes Escape first: closing it must not also minimise the
+        // panel. Radix closes its layer on this same keydown, later.
+        if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
         e.preventDefault();
         minimize();
       }
