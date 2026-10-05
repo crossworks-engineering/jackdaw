@@ -12,6 +12,7 @@
  */
 
 import type {
+  OptionalServiceName,
   ServiceInfo,
   ServiceRunPhase,
   ServiceRunStatus,
@@ -30,6 +31,16 @@ export type {
   ServicesView,
   ServiceSwitchResult,
 } from '@mantle/client-types';
+
+/** One plain line per service on what it enables, for the screen's help box
+ *  (the brain's descriptions carry the details shown on each card). Not "mini
+ *  apps": those run without sandboxes, and switching sandboxes off leaves
+ *  them alone. */
+export const SERVICE_ENABLES: Record<OptionalServiceName, string> = {
+  sandboxes: 'lets the coder and app agents build, run and test code in isolated workspaces.',
+  media:
+    'lets the brain read video and audio (transcripts from links or files) and CAD drawings (DWF, DWG, DXF).',
+};
 
 const BUSY: readonly ServiceRunPhase[] = ['requested', 'pulling', 'starting', 'stopping'];
 

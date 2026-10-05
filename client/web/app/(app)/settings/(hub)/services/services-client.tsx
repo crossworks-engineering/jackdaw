@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,7 @@ import {
   runBusy,
   runLabel,
   stateLabel,
+  SERVICE_ENABLES,
   type ServiceInfo,
   type ServiceRunPoll,
   type ServiceRunStatus,
@@ -147,10 +148,7 @@ function ServicesScreen({ view }: { view: ServicesView }) {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Optional parts of this box. Switching one on downloads and starts it; switching it off stops
-        it and keeps all of its data.
-      </p>
+      <ServicesHelp services={view.services} />
       {!view.switching.available && (
         <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
           {view.switching.reason}
@@ -225,6 +223,31 @@ function ServicesScreen({ view }: { view: ServicesView }) {
         onCancel={() => setConfirm(null)}
         onConfirm={(svc, enable) => void send(svc, enable)}
       />
+    </div>
+  );
+}
+
+/** The screen's help box: what services are, and one line per service on
+ *  what it enables. The details (cost, what stops) stay on each card. */
+function ServicesHelp({ services }: { services: ServiceInfo[] }) {
+  return (
+    <div className="space-y-2 rounded-md border border-info/30 bg-info/10 p-3 text-sm">
+      <p className="flex items-center gap-2 font-medium text-info-ink">
+        <Info className="size-4 shrink-0" aria-hidden />
+        What services are
+      </p>
+      <p className="text-muted-foreground">
+        Optional parts of this box that you switch on or off. Off stops the service and keeps all of
+        its data.
+      </p>
+      <ul className="space-y-1 text-muted-foreground">
+        {services.map((svc) => (
+          <li key={svc.name}>
+            <span className="font-medium text-foreground">{svc.description.title}</span>:{' '}
+            {SERVICE_ENABLES[svc.name] ?? svc.description.what}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

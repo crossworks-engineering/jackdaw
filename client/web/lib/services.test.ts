@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SERVICE_ENABLES,
   currentRun,
   diskWarning,
   memoryWarning,
@@ -141,5 +142,16 @@ describe('the screen is admin-only', () => {
   it('a member is sent home from Settings > Services', async () => {
     const { memberMayOpen } = await import('./member-surface');
     expect(memberMayOpen('/settings/services')).toBe(false);
+  });
+});
+
+describe('the help box lines', () => {
+  it('one short plain line per service, no en or em dash', () => {
+    for (const line of Object.values(SERVICE_ENABLES)) {
+      expect(line.startsWith('lets ')).toBe(true);
+      expect(line.length).toBeLessThan(120);
+      expect(line).not.toMatch(/[\u2013\u2014]/);
+    }
+    expect(Object.keys(SERVICE_ENABLES).sort()).toEqual(['media', 'sandboxes']);
   });
 });
