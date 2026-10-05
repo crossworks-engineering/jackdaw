@@ -102,7 +102,7 @@ export function SystemVitals() {
                     : '')
                 : sandboxes.up === false
                   ? 'sandboxd unreachable'
-                  : 'not enabled on this box (compose profile `sandboxes`)'
+                  : 'switched off (see Services below)'
             }
           />
           {media !== undefined && (
@@ -121,7 +121,7 @@ export function SystemVitals() {
                       : 'DWG tier missing (update the media image to v0.232.99+)')
                   : media.up === false
                     ? 'media sidecar unreachable'
-                    : 'not enabled on this box (compose profile `media`)'
+                    : 'switched off (see Services below)'
               }
             />
           )}

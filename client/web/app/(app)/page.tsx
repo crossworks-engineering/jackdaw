@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SystemVitals } from '@/components/dashboard/system-vitals';
+import { ServicesCard } from '@/components/dashboard/services-card';
 import { OpenQuestions } from '@/components/dashboard/open-questions';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { DashboardClient } from './dashboard-client';
@@ -29,6 +30,8 @@ export default async function DashboardPage() {
         </header>
 
         <SystemVitals />
+
+        <ServicesCard />
 
         <OpenQuestions />
 

@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 /**
  * The CLI-sandboxes surface. Master-detail: left = the owner's sandboxes
  * (URL-driven selection, live status merged server-side); right = the selected
@@ -280,18 +282,23 @@ function SandboxDetail({
   );
 }
 
-/** Centered explainer for boxes that haven't opted into the feature. */
+/** Centered explainer for a box where the Sandboxes service is switched off. */
 function NotEnabled() {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="max-w-md space-y-3 rounded-lg border border-border bg-card p-6 text-center">
-        <h2 className="text-base font-semibold">Sandboxes are not enabled on this box</h2>
+        <h2 className="text-base font-semibold">Sandboxes are switched off on this box</h2>
         <p className="text-sm text-muted-foreground">
-          CLI sandboxes are isolated, persistent containers the coder agent works in — enabled per
-          box via the <code>sandboxes</code> compose profile. To turn them on, set{' '}
-          <code>SANDBOXD_TOKEN</code> and <code>MANTLE_SANDBOXES_HOST_DIR</code> in the box&rsquo;s
-          env and add <code>COMPOSE_PROFILES=sandboxes</code>, then redeploy.
+          Sandboxes are isolated, persistent containers the coder and app agents work in. Switch
+          them on from the dashboard, under Services. Every sandbox, its files and its apps are kept
+          while the service is off.
         </p>
+        <Link
+          href="/"
+          className="inline-block text-sm text-primary-ink underline-offset-2 hover:underline"
+        >
+          Go to Services on the dashboard
+        </Link>
       </div>
     </div>
   );
