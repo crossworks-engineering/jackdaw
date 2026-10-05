@@ -1427,10 +1427,7 @@ export function HighlightButton() {
  * is always the full overlay), so it renders nothing otherwise — keeping that
  * header clean when the assistant is closed.
  */
-/** The panel's display shapes. Icon-only by default (the member chat header);
- *  `labels` adds the words, for the assistant's "..." menu, where every item
- *  is icon plus text. */
-export function AssistantDockToggle({ labels = false }: { labels?: boolean } = {}) {
+export function AssistantDockToggle() {
   const { panel, display, setDisplay } = useAssistantDock();
   if (panel !== 'open') return null;
 
@@ -1444,34 +1441,16 @@ export function AssistantDockToggle({ labels = false }: { labels?: boolean } = {
         if (v === 'full' || v === 'docked' || v === 'popout') setDisplay(v);
       }}
       aria-label="Assistant display"
-      className={labels ? 'w-full' : 'hidden lg:inline-flex'}
+      className="hidden lg:inline-flex"
     >
-      <ToggleGroupItem
-        value="docked"
-        aria-label="Show as a side column"
-        title="Side column"
-        className={cn(labels && 'flex-1 gap-1.5 px-2')}
-      >
+      <ToggleGroupItem value="docked" aria-label="Show as a side column" title="Side column">
         <PanelRight />
-        {labels && 'Side'}
       </ToggleGroupItem>
-      <ToggleGroupItem
-        value="popout"
-        aria-label="Show as a movable window"
-        title="Window"
-        className={cn(labels && 'flex-1 gap-1.5 px-2')}
-      >
+      <ToggleGroupItem value="popout" aria-label="Show as a movable window" title="Window">
         <PictureInPicture2 />
-        {labels && 'Window'}
       </ToggleGroupItem>
-      <ToggleGroupItem
-        value="full"
-        aria-label="Show as full display"
-        title="Full display"
-        className={cn(labels && 'flex-1 gap-1.5 px-2')}
-      >
+      <ToggleGroupItem value="full" aria-label="Show as full display" title="Full display">
         <Maximize2 />
-        {labels && 'Full'}
       </ToggleGroupItem>
     </ToggleGroup>
   );
