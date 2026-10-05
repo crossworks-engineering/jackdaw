@@ -87,11 +87,14 @@ export function ServicesCard() {
       try {
         const p = await apiFetch<ServiceRunPoll>('/api/services/status', { cache: 'no-store' });
         if (stopped) return;
-        setPoll(p);
         const run = currentRun(p.run, sentAt);
         if (run && !runBusy(run)) {
           stopped = true;
+          // Fetch the new state BEFORE the progress line goes: otherwise the
+          // row shows the old state (Off after a switch on) for a moment.
+          await loadView();
           following.current = false;
+          setPoll(p);
           setSentAt(null);
           const key = `${run.service}:${run.startedAt}:${run.phase}`;
           if (announced.current !== key) {
@@ -99,8 +102,9 @@ export function ServicesCard() {
             if (run.phase === 'done') toastRef.current.success(runLabel(run));
             else if (run.phase === 'error') toastRef.current.error(runLabel(run));
           }
-          void loadView();
+          return;
         }
+        setPoll(p);
       } catch {
         // The web container is not restarted by a switch, but a first-time
         // token recreates it: keep polling through the gap.
