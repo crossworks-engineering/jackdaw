@@ -205,7 +205,9 @@ function ServicesScreen({ view }: { view: ServicesView }) {
           <CardHeader>
             <CardTitle className="text-destructive-ink">The last switch did not work</CardTitle>
             <CardDescription>
-              {lastError.service ? `${lastError.service}: ` : ''}
+              {lastError.service
+                ? `${view.services.find((x) => x.name === lastError.service)?.description.title ?? lastError.service}: `
+                : ''}
               {runLabel(lastError)}
             </CardDescription>
           </CardHeader>
