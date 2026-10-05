@@ -39,6 +39,7 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { HeartbeatDTO, AgentOptionDTO, SkillDTO } from '@mantle/client-types';
 import { slugify } from '@mantle/web-ui/slugify';
+import { heartbeatStateForSave } from './heartbeat-state';
 
 type HeartbeatSummary = HeartbeatDTO;
 
@@ -84,6 +85,10 @@ type FormState = {
    *  edits from being clobbered when the operator switches skills
    *  back and forth experimentally. */
   state_touched: boolean;
+  /** True only once the person types in the state textarea. On edit, state
+   *  is sent only then (see heartbeatStateForSave): the heartbeat writes its
+   *  own state while running, and the opened copy may be stale. */
+  state_edited: boolean;
   /** Set when the heartbeat being edited has scheduleKind='cron'.
    *  Cron isn't supported in v1 (see docs/heartbeats.md §2); the
    *  form surfaces a banner + disables the schedule-kind radio in
@@ -118,6 +123,7 @@ function emptyForm(): FormState {
     gate_preset: 'sensible',
     state_text: '{}',
     state_touched: false,
+    state_edited: false,
     is_cron_locked: false,
     ...SENSIBLE_DEFAULTS,
   };
@@ -171,6 +177,7 @@ function fromHeartbeat(h: HeartbeatSummary): FormState {
     // subsequent skill change doesn't clobber existing data.
     state_text: JSON.stringify(h.state ?? {}, null, 2),
     state_touched: true,
+    state_edited: false,
     is_cron_locked: h.scheduleKind === 'cron',
   };
 }
@@ -369,28 +376,15 @@ export function HeartbeatsClient() {
       cooldownMinutes: nint(form.cooldown_minutes),
     };
 
-    // state_text → state (object). Empty textarea = omit so create seeds from
-    // the bound skill's defaultState and edit leaves existing state untouched.
-    const rawState = form.state_text.trim();
-    if (rawState.length > 0) {
-      try {
-        const parsed: unknown = JSON.parse(rawState);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          setErrors({ state_text: 'State must be a JSON object (e.g. {"answered": []}).' });
-          document.getElementById('state_text')?.focus();
-          return;
-        }
-        body.state = parsed;
-      } catch (err) {
-        // The parser message is the useful half — you have to read it against
-        // the JSON you just typed, which a toast takes away too soon.
-        setErrors({
-          state_text: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
-        });
-        document.getElementById('state_text')?.focus();
-        return;
-      }
+    // state_text → state (object). See heartbeatStateForSave: an edit sends
+    // it only when the person typed in it.
+    const stateSave = heartbeatStateForSave(form, editing?.mode === 'edit' ? 'edit' : 'create');
+    if (!stateSave.ok) {
+      setErrors({ state_text: stateSave.error });
+      document.getElementById('state_text')?.focus();
+      return;
     }
+    if (stateSave.state) body.state = stateSave.state;
 
     try {
       if (editing?.mode === 'edit') {
@@ -709,7 +703,12 @@ export function HeartbeatsClient() {
                     aria-describedby={errors.state_text ? 'state_text-error' : undefined}
                     value={form.state_text}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, state_text: e.target.value, state_touched: true }))
+                      setForm((f) => ({
+                        ...f,
+                        state_text: e.target.value,
+                        state_touched: true,
+                        state_edited: true,
+                      }))
                     }
                     rows={6}
                     className="w-full rounded-md border bg-transparent px-3 py-2 font-mono text-xs"
@@ -717,7 +716,8 @@ export function HeartbeatsClient() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Pre-fills from the chosen skill&apos;s default state on first pick. Edits here
-                    only affect this heartbeat. See well-known keys in{' '}
+                    only affect this heartbeat. When editing, the state is saved only if you change
+                    it here, so state the heartbeat wrote meanwhile is kept. See well-known keys in{' '}
                     <a
                       href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
                       className="underline"
