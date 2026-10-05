@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Cpu, Database, HardDrive, MemoryStick } from 'lucide-react';
 import type { SystemHealth } from '@mantle/client-types';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -98,6 +99,7 @@ export function SystemVitals() {
           <Pill
             ok={sandboxes.up}
             label="Sandboxes"
+            href="/settings/services"
             title={
               sandboxes.up
                 ? `${sandboxes.running ?? 0}/${sandboxes.total ?? 0} running` +
@@ -106,13 +108,14 @@ export function SystemVitals() {
                     : '')
                 : sandboxes.up === false
                   ? 'sandboxd unreachable'
-                  : 'switched off (see Services below)'
+                  : 'switched off (Settings > Services)'
             }
           />
           {media !== undefined && (
             <Pill
               ok={media.up}
               label="Media"
+              href="/settings/services"
               title={
                 media.up
                   ? `yt-dlp ${media.ytDlpVersion ?? '?'} · ffmpeg ${media.ffmpegVersion ?? '?'} · ` +
@@ -125,7 +128,7 @@ export function SystemVitals() {
                       : 'DWG tier missing (update the media image to v0.232.99+)')
                   : media.up === false
                     ? 'media sidecar unreachable'
-                    : 'switched off (see Services below)'
+                    : 'switched off (Settings > Services)'
               }
             />
           )}
@@ -185,21 +188,27 @@ export function SystemVitals() {
   );
 }
 
-function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?: string }) {
+function Pill({
+  ok,
+  label,
+  title,
+  href,
+}: {
+  ok: boolean | null;
+  label: string;
+  title?: string;
+  /** The screen that manages this service (the optional services link to
+   *  Settings > Services, where they are switched on and off). */
+  href?: string;
+}) {
   const tone =
     ok == null
       ? 'bg-muted text-muted-foreground'
       : ok
         ? 'bg-success/15 text-success-ink'
         : 'bg-destructive/15 text-destructive-ink';
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
-        tone,
-      )}
-      title={title}
-    >
+  const body = (
+    <>
       <span
         className={cn(
           'size-1.5 rounded-full',
@@ -207,6 +216,22 @@ function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?:
         )}
       />
       {label}
+    </>
+  );
+  const cls = cn(
+    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
+    tone,
+  );
+  if (href) {
+    return (
+      <Link href={href} className={cn(cls, 'underline-offset-2 hover:underline')} title={title}>
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <span className={cls} title={title}>
+      {body}
     </span>
   );
 }

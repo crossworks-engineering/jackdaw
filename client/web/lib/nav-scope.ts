@@ -72,6 +72,9 @@ const SETTINGS_HREFS = new Set([
   '/settings/microsoft',
   '/settings/calendar',
   '/settings/embedding',
+  // Which optional services the agents can use (sandboxes, media): it
+  // changes what the brain can do, so it is capability, not plumbing.
+  '/settings/services',
 ]);
 
 /**

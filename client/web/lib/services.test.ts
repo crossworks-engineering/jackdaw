@@ -136,3 +136,10 @@ describe('labels', () => {
     ]);
   });
 });
+
+describe('the screen is admin-only', () => {
+  it('a member is sent home from Settings > Services', async () => {
+    const { memberMayOpen } = await import('./member-surface');
+    expect(memberMayOpen('/settings/services')).toBe(false);
+  });
+});

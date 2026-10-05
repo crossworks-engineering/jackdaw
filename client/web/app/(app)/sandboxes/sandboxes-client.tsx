@@ -290,14 +290,14 @@ function NotEnabled() {
         <h2 className="text-base font-semibold">Sandboxes are switched off on this box</h2>
         <p className="text-sm text-muted-foreground">
           Sandboxes are isolated, persistent containers the coder and app agents work in. Switch
-          them on from the dashboard, under Services. Every sandbox, its files and its apps are kept
-          while the service is off.
+          them on in Settings, under Services. Every sandbox, its files and its apps are kept while
+          the service is off.
         </p>
         <Link
-          href="/"
+          href="/settings/services"
           className="inline-block text-sm text-primary-ink underline-offset-2 hover:underline"
         >
-          Go to Services on the dashboard
+          Open Settings &gt; Services
         </Link>
       </div>
     </div>

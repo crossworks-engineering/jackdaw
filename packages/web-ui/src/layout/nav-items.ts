@@ -1,3 +1,4 @@
+import { Power } from 'lucide-react';
 import {
   NAV_GROUPS as SHARED_NAV_GROUPS,
   navItemMatches,
@@ -31,9 +32,42 @@ export function withoutRetired(groups: readonly NavGroup[]): NavGroup[] {
     .filter((g) => g.items.length > 0);
 }
 
+/**
+ * Screens this client has that the pinned shared list does not name yet, each
+ * placed after an existing href in a named group. Settings > Services (the
+ * optional-service switches) joins the shared list in mantle's next release;
+ * an entry is skipped when the list already has its href, so this is a no-op
+ * once the pin carries it. Remove an entry after the pin moves past it.
+ */
+export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item: NavItem }> = [
+  {
+    group: 'Settings',
+    after: '/settings/updates',
+    item: { name: 'Services', href: '/settings/services', icon: Power },
+  },
+];
+
+/** Pure, so the placement is unit-tested against any list. */
+export function withAdded(
+  groups: readonly NavGroup[],
+  added: typeof ADDED_NAV_ITEMS = ADDED_NAV_ITEMS,
+): NavGroup[] {
+  const known = new Set(groups.flatMap((g) => g.items.map((i) => i.href)));
+  return groups.map((g) => {
+    const mine = added.filter((a) => a.group === g.label && !known.has(a.item.href));
+    if (mine.length === 0) return g;
+    const items = [...g.items];
+    for (const a of mine) {
+      const at = items.findIndex((i) => i.href === a.after);
+      items.splice(at === -1 ? items.length : at + 1, 0, a.item);
+    }
+    return { ...g, items };
+  });
+}
+
 // These three shadow the shared module's own exports of the same names (a
 // local export wins over `export *`), so every consumer gets the filtered list.
-export const NAV_GROUPS: NavGroup[] = withoutRetired(SHARED_NAV_GROUPS);
+export const NAV_GROUPS: NavGroup[] = withAdded(withoutRetired(SHARED_NAV_GROUPS));
 
 /** Flat list of every nav item, in sidebar order. */
 export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
