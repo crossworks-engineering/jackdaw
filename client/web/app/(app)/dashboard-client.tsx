@@ -135,12 +135,12 @@ export function DashboardClient() {
       <ProviderAlertCard showLink />
       <KpiCards items={kpis} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 @2xl/dashboard:grid-cols-2">
         <SpendChart data={spend30} />
         <IngestChart data={ingest} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 @2xl/dashboard:grid-cols-2">
         <CapacityDial capacity={capacity} />
         <BrainBreakdown nodesByType={brain.nodesByType} entitiesByKind={brain.entitiesByKind} />
         <BrainStats vectors={vectors} brain={brain} integrity={integrity} />

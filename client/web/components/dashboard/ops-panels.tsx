@@ -38,10 +38,10 @@ export function OpsPanels({
   recentFailures: RecentFailure[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 @2xl/dashboard:grid-cols-2">
       {/* Email sync */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle className="flex items-center gap-1.5 text-base">
             <Mail className="size-4 text-muted-foreground" aria-hidden /> Email sync
           </CardTitle>
@@ -115,7 +115,7 @@ export function OpsPanels({
 
       {/* Heartbeats */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle className="flex items-center gap-1.5 text-base">
             <HeartPulse className="size-4 text-muted-foreground" aria-hidden /> Heartbeats
           </CardTitle>
@@ -155,7 +155,7 @@ export function OpsPanels({
 
       {/* Errors */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle className="flex items-center gap-1.5 text-base">
             <AlertTriangle className="size-4 text-muted-foreground" aria-hidden /> Recent failures
           </CardTitle>

@@ -34,7 +34,7 @@ export function SpendChart({ data }: { data: DailySpend[] }) {
 
   return (
     <Card className="h-full">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <div className="space-y-1">
           <CardTitle className="text-base">LLM spend</CardTitle>
           <CardDescription>

@@ -144,7 +144,7 @@ export function ServicesCard() {
   const lastError = run && run.phase === 'error' ? run : null;
 
   return (
-    <Card>
+    <Card className="@container">
       <CardHeader>
         <CardTitle className="text-base">Services</CardTitle>
         <CardDescription>
@@ -159,7 +159,7 @@ export function ServicesCard() {
             <section key={svc.name} className="space-y-3 px-6 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <h3 className="text-sm font-medium">{svc.description.title}</h3>
                     <StatePill state={svc.state} />
                   </div>
@@ -173,7 +173,7 @@ export function ServicesCard() {
                   title={view.switching.reason ?? undefined}
                 />
               </div>
-              <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
+              <dl className="grid gap-x-6 gap-y-1 text-xs @md:grid-cols-2">
                 <Fact k="Used by" v={svc.description.usedBy} />
                 <Fact k="When it is off" v={svc.description.whenOff} />
                 <Fact k="Kept when off" v={svc.description.keeps} />

@@ -16,7 +16,7 @@ import { MemberHomeSwitch } from '@/components/member/member-home-app';
 export default async function DashboardPage() {
   return (
     <RoleSwitch member={<MemberHomeSwitch />}>
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="@container/dashboard space-y-6 p-4 md:p-6">
         <SetPageTitle title="Dashboard" />
         <header className="flex flex-wrap items-center justify-end gap-2">
           <nav className="flex items-center gap-3 text-sm">

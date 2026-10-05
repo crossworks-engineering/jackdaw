@@ -43,7 +43,7 @@ export function BrainStats({
           value={`${formatCount(vectors.entitiesIndexed)} / ${formatCount(vectors.entitiesTotal)}`}
           pct={pct(vectors.entitiesIndexed, vectors.entitiesTotal)}
         />
-        <div className="grid grid-cols-3 gap-2 border-t pt-3 text-center">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(4.5rem,1fr))] gap-2 border-t pt-3 text-center">
           <Stat
             icon={<Boxes className="size-4" />}
             label="Entities"

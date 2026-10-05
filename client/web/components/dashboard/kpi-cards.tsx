@@ -18,7 +18,7 @@ export type Kpi = {
 /** Headline KPI grid, adapted from the appearance dashboard's SectionCards. */
 export function KpiCards({ items }: { items: Kpi[] }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 @md/dashboard:grid-cols-2 @3xl/dashboard:grid-cols-4">
       {items.map((k) => {
         const body = (
           <Card

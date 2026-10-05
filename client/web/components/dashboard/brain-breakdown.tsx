@@ -114,9 +114,11 @@ export function BrainBreakdown({
   entitiesByKind: Bucket[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Donut title="Nodes by type" buckets={nodesByType} centerLabel="nodes" />
-      <Donut title="Entities by kind" buckets={entitiesByKind} centerLabel="entities" />
+    <div className="@container">
+      <div className="grid h-full grid-cols-1 gap-4 @lg:grid-cols-2">
+        <Donut title="Nodes by type" buckets={nodesByType} centerLabel="nodes" />
+        <Donut title="Entities by kind" buckets={entitiesByKind} centerLabel="entities" />
+      </div>
     </div>
   );
 }

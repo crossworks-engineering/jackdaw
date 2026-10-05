@@ -59,7 +59,7 @@ export function BuildCard() {
     typeof server?.contractVersion === 'number' && server.contractVersion !== CONTRACT_VERSION;
 
   return (
-    <Card className="h-full">
+    <Card className="@container h-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5 text-base">
           <JackdawBadge className="size-4" /> Build
@@ -112,7 +112,7 @@ function Row({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid size-8 shrink-0 place-items-center rounded-md border bg-muted/40">
+      <span className="hidden size-8 shrink-0 place-items-center rounded-md border bg-muted/40 @2xs:grid">
         {icon}
       </span>
       <span className="min-w-0 flex-1">

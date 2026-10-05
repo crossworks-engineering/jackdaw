@@ -75,11 +75,15 @@ export function SystemVitals() {
     ? `${formatBytes(host.disk.usedBytes)} / ${formatBytes(host.disk.totalBytes)}`
     : '—';
 
+  // The card is its own @container: the stat grid follows the CARD's width,
+  // not the screen's, so a narrow dashboard column (assistant in the side
+  // column) gets one stat per row instead of four columns printed on top of
+  // each other.
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+    <Card className="@container">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">System vitals</CardTitle>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Pill ok={postgres.up} label="Postgres" />
           {/* objectStoreUp arrived with the backend-neutral object store (mantle
               v0.232.245); older brains only send minioUp. */}
@@ -136,7 +140,7 @@ export function SystemVitals() {
           />
         </div>
       </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <CardContent className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-4">
         {/* CPU */}
         <Tile icon={<Cpu className="size-4" />} title="CPU load">
           <VitalsBar pct={host.cpuLoadPct} value={formatPct(host.cpuLoadPct, true)} />
@@ -171,7 +175,7 @@ export function SystemVitals() {
           </dl>
         </Tile>
       </CardContent>
-      <CardContent className="grid gap-x-6 gap-y-1 border-t pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+      <CardContent className="grid gap-x-6 gap-y-1 border-t pt-4 text-xs @md:grid-cols-2 @3xl:grid-cols-4">
         <Row k="Process uptime" v={formatUptime(host.uptimeSec)} />
         <Row k="Heap" v={formatBytes(host.heapUsedBytes)} />
         <Row k="Attachment storage" v={formatBytes(storage.attachmentBytes)} />
@@ -230,19 +234,19 @@ function Tile({
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <dt className="text-muted-foreground">{k}</dt>
-      <dd className="font-medium tabular-nums">{v}</dd>
+      <dt className="min-w-0 text-muted-foreground">{k}</dt>
+      <dd className="shrink-0 font-medium tabular-nums">{v}</dd>
     </div>
   );
 }
 
 function SystemVitalsSkeleton() {
   return (
-    <Card>
+    <Card className="@container">
       <CardHeader>
         <CardTitle className="text-base">System vitals</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <CardContent className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="space-y-2">
             <Skeleton className="h-4 w-24" />

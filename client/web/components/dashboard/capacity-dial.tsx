@@ -74,7 +74,7 @@ function AxisBar({
   const watchPct = (watch / split) * 100;
   return (
     <div className="space-y-1">
-      <div className="flex items-baseline justify-between gap-2 text-xs">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium tabular-nums">
           {formatCount(count)} / {formatCount(split)}
@@ -115,7 +115,7 @@ function RetrievalLine({ retrieval }: { retrieval: RetrievalScore | null | undef
     month: 'short',
   });
   return (
-    <div className="flex items-baseline justify-between gap-2 text-xs">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
       <span className="text-muted-foreground">Retrieval, last check {day}</span>
       <span className="font-medium tabular-nums">
         {Math.round(retrieval.recallAt10 * 100)}% in top 10 · {retrieval.cases} questions
@@ -133,7 +133,7 @@ function RetrievalLine({ retrieval }: { retrieval: RetrievalScore | null | undef
  */
 export function CapacityDial({ capacity }: { capacity: BrainCapacity }) {
   return (
-    <Card>
+    <Card className="@container">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gauge className="size-4 text-muted-foreground" aria-hidden />
@@ -146,9 +146,9 @@ export function CapacityDial({ capacity }: { capacity: BrainCapacity }) {
           </span>
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center gap-6">
+      <CardContent className="flex flex-col items-center gap-6 @sm:flex-row">
         <CapacityRing pct={capacity.pctOfSplit} zone={capacity.zone} />
-        <div className="min-w-0 flex-1 space-y-4">
+        <div className="w-full min-w-0 flex-1 space-y-4">
           <AxisBar
             label="Documents"
             count={capacity.docs.count}

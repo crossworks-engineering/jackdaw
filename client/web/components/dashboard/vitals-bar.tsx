@@ -44,7 +44,7 @@ export function VitalsBar({
   return (
     <div className={cn('space-y-1', className)}>
       {(label || value) && (
-        <div className="flex items-baseline justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
           {label && <span className="text-muted-foreground">{label}</span>}
           <span className="font-medium tabular-nums">
             {value ?? (known ? `${clamped.toFixed(0)}%` : '—')}
