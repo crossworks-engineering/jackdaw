@@ -69,6 +69,7 @@ import {
 import {
   ROLES,
   brainHasAgentThinkingEffort,
+  agentParamsFromForm,
   defaultsForRole,
   emptyForm,
   formFromAgent,
@@ -439,16 +440,9 @@ export function AgentsClient() {
     if (!Number.isNaN(spillKb) && spillKb > 0) rh.spill_max_kb = spillKb;
     memoryConfig.result_handling = rh;
 
-    const params: { temperature?: number; max_tokens?: number; suggest_follow_up?: boolean } = {};
-    const t = parseFloat(form.temperature);
-    if (!Number.isNaN(t)) params.temperature = t;
-    const mt = form.maxTokens.trim();
-    if (mt) {
-      const n = parseInt(mt, 10);
-      if (!Number.isNaN(n)) params.max_tokens = n;
-    }
-    // Only persisted when on; absent means off, keeping default rows clean.
-    if (form.suggestFollowUp) params.suggest_follow_up = true;
+    // The form's params plus the saved ones it has no field for (see
+    // agentParamsFromForm): the brain replaces params whole on a save.
+    const params = agentParamsFromForm(form, editing.mode === 'edit' ? editing.agent.params : null);
 
     const priority = parseInt(form.priority, 10);
 
@@ -531,7 +525,16 @@ export function AgentsClient() {
       }
       await invalidateAgentQueries(queryClient);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed.');
+      // A brain from before v0.238.7 rejects the unknown `tool_loading` key.
+      const oldBrain =
+        err instanceof Error && /unrecognized key[^:]*:.*\btool_loading\b/i.test(err.message);
+      toast.error(
+        oldBrain
+          ? 'This brain is too old for on-demand tools (it needs v0.238.7 or later). Turn the switch off and save again.'
+          : err instanceof Error
+            ? err.message
+            : 'Save failed.',
+      );
     } finally {
       setSaving(false);
     }
@@ -1300,6 +1303,28 @@ export function AgentsClient() {
                                 chip in the chat composer. Runs the Follow-up suggester worker once
                                 per turn (a cheap model, off the reply&apos;s critical path), so it
                                 costs a little per message. Off by default.
+                              </FieldHint>
+                            </Field>
+                            <Field>
+                              <FieldLabel
+                                htmlFor="toolLoading"
+                                className="cursor-pointer items-center gap-2"
+                              >
+                                <Switch
+                                  id="toolLoading"
+                                  checked={form.toolLoading === 'deferred'}
+                                  onCheckedChange={(v) =>
+                                    setForm((f) => ({ ...f, toolLoading: v ? 'deferred' : 'full' }))
+                                  }
+                                />
+                                Load tools on demand
+                              </FieldLabel>
+                              <FieldHint>
+                                Sends the most used tools in full and lists the rest by name; the
+                                agent loads one with a search when it needs it. Same tools, about
+                                75% fewer tool tokens per call, and one extra step when a rarely
+                                used tool is needed. Off sends every granted tool on every call.
+                                Needs brain v0.238.7 or later.
                               </FieldHint>
                             </Field>
                             {hasThinkingEffort && (

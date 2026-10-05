@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ROLES,
+  agentParamsFromForm,
   brainHasAgentThinkingEffort,
   emptyForm,
   formFromAgent,
@@ -136,5 +137,61 @@ describe('thinking effort on the form', () => {
     expect(brainHasAgentThinkingEffort([row({})])).toBe(false);
     // Nothing to look at (a fresh brain): show it; an older brain drops the key.
     expect(brainHasAgentThinkingEffort([])).toBe(true);
+  });
+});
+
+describe('tool loading and the params a save sends', () => {
+  const row = (params: AgentSummary['params']): AgentSummary =>
+    ({
+      slug: 'ada',
+      name: 'Ada',
+      role: 'responder',
+      provider: 'openrouter',
+      model: 'm',
+      systemPrompt: 'p',
+      priority: 100,
+      enabled: true,
+      backupEnabled: false,
+      viaTailnet: false,
+      backupViaTailnet: false,
+      memoryConfig: {},
+      params,
+    }) as AgentSummary;
+
+  it('a new agent sends every tool (full)', () => {
+    expect(emptyForm().toolLoading).toBe('full');
+    expect(agentParamsFromForm(emptyForm())).not.toHaveProperty('tool_loading');
+  });
+
+  it('loads deferred, and full for absent or unknown values', () => {
+    expect(formFromAgent(row({ tool_loading: 'deferred' })).toolLoading).toBe('deferred');
+    expect(formFromAgent(row({ tool_loading: 'full' })).toolLoading).toBe('full');
+    expect(formFromAgent(row({})).toolLoading).toBe('full');
+  });
+
+  it('a save keeps tool_loading: loading a deferred agent and saving sends it back', () => {
+    const saved = { temperature: 0.4, tool_loading: 'deferred' as const };
+    const form = formFromAgent(row(saved));
+    expect(agentParamsFromForm(form, saved)).toEqual({
+      temperature: 0.4,
+      tool_loading: 'deferred',
+    });
+  });
+
+  it('turning it off omits the key, so absent means full', () => {
+    const saved = { tool_loading: 'deferred' as const };
+    const form = { ...formFromAgent(row(saved)), toolLoading: 'full' as const };
+    expect(agentParamsFromForm(form, saved)).not.toHaveProperty('tool_loading');
+  });
+
+  it('keeps top_p, which has no field, and never sends keys the brain rejects', () => {
+    const saved = {
+      top_p: 0.9,
+      max_retries: 3,
+      voice: { enabled: true },
+      temperature: 1,
+    };
+    const params = agentParamsFromForm(formFromAgent(row(saved)), saved);
+    expect(params).toEqual({ temperature: 1, top_p: 0.9 });
   });
 });

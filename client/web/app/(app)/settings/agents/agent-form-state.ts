@@ -4,7 +4,12 @@
  * Moved out of agents-client.tsx unchanged (structure pass, phase 1):
  * already standalone, just living in the wrong file. No signatures changed.
  */
-import type { AgentAvatarDTO, AgentDTO, AgentMemoryConfigDTO } from '@mantle/client-types';
+import type {
+  AgentAvatarDTO,
+  AgentDTO,
+  AgentMemoryConfigDTO,
+  AgentParamsDTO,
+} from '@mantle/client-types';
 import { parseAgentThinkingEffort, type AgentThinkingEffort } from '@/lib/thinking-effort';
 
 export const DEFAULT_REFLECTOR_PROMPT = `You are a reflector for a personal AI assistant. You will be given a transcript of recent exchanges + the notes the assistant has already learned. Spot NEW signals worth remembering, AND ONLY new ones.
@@ -288,6 +293,10 @@ export type FormState = {
    *  chip in the chat composer). One extra cheap LLM call per turn, so off by
    *  default. */
   suggestFollowUp: boolean;
+  /** How granted tools reach the model (brain v0.238.7). 'full' sends every
+   *  granted tool on every call; 'deferred' sends a fixed core in full and
+   *  lists the rest for `tool_search`. Same grant either way. */
+  toolLoading: ToolLoading;
   /** The agent's own thinking effort; null = inherit the person's profile. */
   thinkingEffort: AgentThinkingEffort | null;
   /** Avatar {style, seed}; null = initials fallback. */
@@ -335,6 +344,7 @@ export function emptyForm(role: Role = 'responder'): FormState {
     temperature: '0.7',
     maxTokens: '',
     suggestFollowUp: false,
+    toolLoading: 'full',
     thinkingEffort: null,
     avatar: null,
   };
@@ -384,9 +394,37 @@ export function formFromAgent(a: AgentSummary): FormState {
     temperature: a.params.temperature?.toString() ?? '0.7',
     maxTokens: a.params.max_tokens?.toString() ?? '',
     suggestFollowUp: a.params.suggest_follow_up === true,
+    toolLoading: a.params.tool_loading === 'deferred' ? 'deferred' : 'full',
     thinkingEffort: parseAgentThinkingEffort(a.thinkingEffort),
     avatar: a.avatar ?? null,
   };
+}
+
+export type ToolLoading = 'full' | 'deferred';
+
+/**
+ * The `params` an agent save sends. The brain stores params WHOLE and checks
+ * them strictly, so this writes exactly the keys it accepts: the form's own
+ * fields, plus `top_p` carried over from the saved row (no field for it here,
+ * but a save must not wipe it). Off/full values are omitted (absent = off), so
+ * a brain from before a key never sees it unless the person turns it on.
+ */
+export function agentParamsFromForm(
+  form: Pick<FormState, 'temperature' | 'maxTokens' | 'suggestFollowUp' | 'toolLoading'>,
+  saved?: AgentParamsDTO | null,
+): AgentParamsDTO {
+  const params: AgentParamsDTO = {};
+  const t = parseFloat(form.temperature);
+  if (!Number.isNaN(t)) params.temperature = t;
+  const mt = form.maxTokens.trim();
+  if (mt) {
+    const n = parseInt(mt, 10);
+    if (!Number.isNaN(n)) params.max_tokens = n;
+  }
+  if (typeof saved?.top_p === 'number') params.top_p = saved.top_p;
+  if (form.suggestFollowUp) params.suggest_follow_up = true;
+  if (form.toolLoading === 'deferred') params.tool_loading = 'deferred';
+  return params;
 }
 
 /** Map a sampling temperature (0–2) to a human descriptor + hint. */
