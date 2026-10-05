@@ -293,7 +293,7 @@ export type FormState = {
    *  chip in the chat composer). One extra cheap LLM call per turn, so off by
    *  default. */
   suggestFollowUp: boolean;
-  /** How granted tools reach the model (brain v0.238.7). 'full' sends every
+  /** How granted tools reach the model (brain v0.238.8). 'full' sends every
    *  granted tool on every call; 'deferred' sends a fixed core in full and
    *  lists the rest for `tool_search`. Same grant either way. */
   toolLoading: ToolLoading;

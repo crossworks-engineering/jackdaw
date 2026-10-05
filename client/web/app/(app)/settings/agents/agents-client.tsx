@@ -525,12 +525,12 @@ export function AgentsClient() {
       }
       await invalidateAgentQueries(queryClient);
     } catch (err) {
-      // A brain from before v0.238.7 rejects the unknown `tool_loading` key.
+      // A brain from before v0.238.8 rejects the unknown `tool_loading` key.
       const oldBrain =
         err instanceof Error && /unrecognized key[^:]*:.*\btool_loading\b/i.test(err.message);
       toast.error(
         oldBrain
-          ? 'This brain is too old for on-demand tools (it needs v0.238.7 or later). Turn the switch off and save again.'
+          ? 'This brain is too old for on-demand tools (it needs v0.238.8 or later). Turn the switch off and save again.'
           : err instanceof Error
             ? err.message
             : 'Save failed.',
@@ -1324,7 +1324,7 @@ export function AgentsClient() {
                                 agent loads one with a search when it needs it. Same tools, about
                                 75% fewer tool tokens per call, and one extra step when a rarely
                                 used tool is needed. Off sends every granted tool on every call.
-                                Needs brain v0.238.7 or later.
+                                Needs brain v0.238.8 or later.
                               </FieldHint>
                             </Field>
                             {hasThinkingEffort && (
