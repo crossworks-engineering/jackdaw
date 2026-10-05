@@ -7,7 +7,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Input } from '@mantle/web-ui/ui/input';
-import { Field, FieldLabel } from '@mantle/web-ui/ui/field';
+import { Field, FieldError, FieldLabel } from '@mantle/web-ui/ui/field';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import {
   Select,
@@ -28,7 +28,14 @@ import {
   parseAgentThinkingEffort,
   profileThinkingLabel,
 } from '@/lib/thinking-effort';
-import type { FormState } from './agent-form-state';
+import { estimateTokens, CORPUS_MAP_CHARS_PER_TOKEN } from '@/lib/token-estimate';
+import {
+  CORPUS_MAP_DEFAULT_CHARS,
+  CORPUS_MAP_MAX_CHARS,
+  CORPUS_MAP_MIN_CHARS,
+  type AgentErrors,
+  type FormState,
+} from './agent-form-state';
 import type { ModelCatalog } from './use-model-catalog';
 
 /** Built-in node types the extractor can be allow-listed against. Matches
@@ -112,7 +119,75 @@ export function ThinkingEffortField({ form, setForm }: { form: FormState; setFor
 
 /** The Memory tab's tuning fieldset — replay window, recall limits, and the
  *  role-specific extractor / summarizer knobs. */
-export function MemorySection({ form, setForm }: { form: FormState; setForm: SetFormState }) {
+/** The corpus map budget with a live token estimate (lib/token-estimate). */
+function CorpusMapCharsField({
+  form,
+  setForm,
+  error,
+}: {
+  form: FormState;
+  setForm: SetFormState;
+  error?: string;
+}) {
+  const typed = Number(form.corpusMapChars.trim());
+  const chars =
+    form.corpusMapChars.trim() && Number.isFinite(typed) && typed > 0
+      ? typed
+      : CORPUS_MAP_DEFAULT_CHARS;
+  // Rounded to tens: the estimate is not precise enough for more digits.
+  const tokens = Math.round(estimateTokens(chars, CORPUS_MAP_CHARS_PER_TOKEN) / 10) * 10;
+  const describedBy = error
+    ? `corpusMapChars-error ${hintId('corpusMapChars')}`
+    : hintId('corpusMapChars');
+  return (
+    <Field data-invalid={!!error || undefined} className="sm:max-w-sm">
+      <FieldLabel htmlFor="corpusMapChars">Corpus map size (characters)</FieldLabel>
+      <div className="flex items-center gap-3">
+        <Input
+          id="corpusMapChars"
+          type="number"
+          inputMode="numeric"
+          value={form.corpusMapChars}
+          onChange={(e) => setForm((f) => ({ ...f, corpusMapChars: e.target.value }))}
+          placeholder={`${CORPUS_MAP_DEFAULT_CHARS} (default)`}
+          min={CORPUS_MAP_MIN_CHARS}
+          max={CORPUS_MAP_MAX_CHARS}
+          step={500}
+          aria-invalid={!!error || undefined}
+          aria-describedby={describedBy}
+        />
+        <span
+          className="shrink-0 text-sm text-muted-foreground tabular-nums"
+          aria-live="polite"
+          data-testid="corpus-map-tokens"
+        >
+          about {tokens.toLocaleString('en-US')} tokens
+        </span>
+      </div>
+      {error ? <FieldError id="corpusMapChars-error">{error}</FieldError> : null}
+      <FieldHint
+        id="corpusMapChars"
+        warn="It is sent on every turn, so each 1,000 characters costs about 300 tokens a turn."
+      >
+        The overview of what the brain holds (pages, tables, files, notes, tasks) sent with each
+        message. Empty = the default, {CORPUS_MAP_DEFAULT_CHARS.toLocaleString('en-US')} characters.
+        Tokens are an estimate: characters ÷ {CORPUS_MAP_CHARS_PER_TOKEN}, measured on real maps,
+        which are mostly ids, counts and short titles (prose is nearer 4). The provider&apos;s
+        tokenizer decides the real count.
+      </FieldHint>
+    </Field>
+  );
+}
+
+export function MemorySection({
+  form,
+  setForm,
+  errors,
+}: {
+  form: FormState;
+  setForm: SetFormState;
+  errors?: AgentErrors;
+}) {
   return (
     <fieldset className="space-y-3 rounded-md border border-border p-3">
       <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -205,6 +280,10 @@ export function MemorySection({ form, setForm }: { form: FormState; setForm: Set
             </FieldHint>
           </Field>
         </div>
+      )}
+
+      {(form.role === 'responder' || form.role === 'assistant') && (
+        <CorpusMapCharsField form={form} setForm={setForm} error={errors?.corpusMapChars} />
       )}
 
       {form.role === 'extractor' && (

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ROLES,
+  agentMemoryConfigFromForm,
   agentParamsFromForm,
   brainHasAgentThinkingEffort,
   emptyForm,
@@ -8,7 +9,7 @@ import {
   tempDescriptor,
   validateAgent,
 } from './agent-form-state';
-import type { AgentSummary, FormState } from './agent-form-state';
+import type { AgentSummary, FormState, MemoryConfig } from './agent-form-state';
 
 /**
  * The agents form's pure layer. Until phase 1 lifted this out of a 2,147-line
@@ -193,5 +194,104 @@ describe('tool loading and the params a save sends', () => {
     };
     const params = agentParamsFromForm(formFromAgent(row(saved)), saved);
     expect(params).toEqual({ temperature: 1, top_p: 0.9 });
+  });
+});
+
+describe('corpus map size and the memory_config a save sends', () => {
+  const row = (
+    memoryConfig: MemoryConfig,
+    role: AgentSummary['role'] = 'assistant',
+  ): AgentSummary =>
+    ({
+      slug: 'ada',
+      name: 'Ada',
+      role,
+      provider: 'openrouter',
+      model: 'm',
+      systemPrompt: 'p',
+      priority: 100,
+      enabled: true,
+      backupEnabled: false,
+      viaTailnet: false,
+      backupViaTailnet: false,
+      memoryConfig,
+      params: {},
+    }) as AgentSummary;
+
+  // What a brain stores on an assistant, most of it set outside this form.
+  const stored: MemoryConfig = {
+    history_limit: 20,
+    corpus_map_limit: 300,
+    corpus_map_chars: 9_000,
+    delegate_to: ['researcher'],
+    inject_journal: true,
+    journal_tiers: 'live',
+    journal_relevant_chars: 4_000,
+    notes_target: 'journal',
+    chunk_limit: 4,
+    max_iterations: 12,
+  };
+
+  it('loads the stored size, and empty (the default) when none is stored', () => {
+    expect(formFromAgent(row(stored)).corpusMapChars).toBe('9000');
+    expect(formFromAgent(row({})).corpusMapChars).toBe('');
+    expect(emptyForm().corpusMapChars).toBe('');
+  });
+
+  it('an unchanged save sends the size back and leaves every hidden key out', () => {
+    const mc = agentMemoryConfigFromForm(formFromAgent(row(stored)), stored);
+    expect(mc.corpus_map_chars).toBe(9_000);
+    expect(mc.delegate_to).toEqual(['researcher']);
+    // The brain merges, so a key left out keeps its stored value. Sending one
+    // of these would overwrite a value the form never showed.
+    for (const k of [
+      'corpus_map_limit',
+      'inject_journal',
+      'journal_tiers',
+      'journal_relevant_chars',
+      'notes_target',
+      'chunk_limit',
+      'max_iterations',
+    ]) {
+      expect(mc).not.toHaveProperty(k);
+    }
+  });
+
+  it('a new size is sent as a number', () => {
+    const form = { ...formFromAgent(row(stored)), corpusMapChars: '4000' };
+    expect(agentMemoryConfigFromForm(form, stored).corpus_map_chars).toBe(4_000);
+  });
+
+  it('emptying a stored size sends null (back to the default)', () => {
+    const form = { ...formFromAgent(row(stored)), corpusMapChars: '' };
+    expect(agentMemoryConfigFromForm(form, stored).corpus_map_chars).toBeNull();
+  });
+
+  it('no stored size and an empty field sends nothing (an older brain refuses null)', () => {
+    const mc = agentMemoryConfigFromForm(formFromAgent(row({})), {});
+    expect(mc).not.toHaveProperty('corpus_map_chars');
+  });
+
+  it('an empty time window is sent as null so clearing it sticks', () => {
+    const saved: MemoryConfig = { history_window_hours: 6 };
+    const form = { ...formFromAgent(row(saved)), historyWindowHours: '' };
+    expect(agentMemoryConfigFromForm(form, saved).history_window_hours).toBeNull();
+    const kept = agentMemoryConfigFromForm(formFromAgent(row(saved)), saved);
+    expect(kept.history_window_hours).toBe(6);
+  });
+
+  it('only responder and assistant agents send a size', () => {
+    const form = { ...formFromAgent(row(stored, 'extractor')), corpusMapChars: '4000' };
+    expect(agentMemoryConfigFromForm(form, stored)).not.toHaveProperty('corpus_map_chars');
+  });
+
+  it('validates the range, and empty is fine', () => {
+    expect(validateAgent(valid({ role: 'assistant', corpusMapChars: '' }), create)).toEqual({});
+    expect(validateAgent(valid({ role: 'assistant', corpusMapChars: '6500' }), create)).toEqual({});
+    for (const bad of ['999', '50001', '2500.5', 'abc']) {
+      expect(
+        validateAgent(valid({ role: 'assistant', corpusMapChars: bad }), create).corpusMapChars,
+      ).toBeTruthy();
+    }
   });
 });

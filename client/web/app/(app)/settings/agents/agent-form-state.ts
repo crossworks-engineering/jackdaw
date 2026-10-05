@@ -93,7 +93,7 @@ export type AgentSection = 'general' | 'model' | 'behaviour' | 'memory';
 
 /** Which field of the agent form can be wrong, keyed by the control's `id`. */
 export type AgentErrors = Partial<
-  Record<'name' | 'slug' | 'apiKey' | 'model' | 'systemPrompt', string>
+  Record<'name' | 'slug' | 'apiKey' | 'model' | 'systemPrompt' | 'corpusMapChars', string>
 >;
 
 /**
@@ -126,20 +126,40 @@ export function validateAgent(
   if (!form.apiKeyId) errs.apiKey = 'Pick the saved key this agent should bill to.';
   if (!form.model.trim()) errs.model = 'A model is required.';
   if (!form.systemPrompt.trim()) errs.systemPrompt = 'A system prompt is required.';
+  const mapChars = form.corpusMapChars.trim();
+  if (mapChars && (form.role === 'responder' || form.role === 'assistant')) {
+    const n = Number(mapChars);
+    if (!Number.isInteger(n) || n < CORPUS_MAP_MIN_CHARS || n > CORPUS_MAP_MAX_CHARS)
+      errs.corpusMapChars = `A whole number from ${CORPUS_MAP_MIN_CHARS.toLocaleString('en-US')} to ${CORPUS_MAP_MAX_CHARS.toLocaleString('en-US')}, or empty for the default.`;
+  }
   return errs;
 }
 
 // Wire shapes come from @mantle/client-types (the `/api/**` contract); the local
 // names below keep the rest of this file unchanged. `AgentSummary` is the agent
 // DTO; the others are aliases for the jsonb sub-shapes the form reads/writes.
-export type MemoryConfig = AgentMemoryConfigDTO;
+// The corpus map keys are spelled out so the screen builds against a contract
+// package from before them (client-types gains them with brain v0.238.18+).
+export type MemoryConfig = AgentMemoryConfigDTO & {
+  corpus_map_limit?: number;
+  corpus_map_chars?: number;
+};
+
+/** The brain's corpus map budget (CORPUS_MAP_MAX_CHARS in the runtime) and the
+ *  range its agents API accepts for `memory_config.corpus_map_chars`. */
+export const CORPUS_MAP_DEFAULT_CHARS = 6_500;
+export const CORPUS_MAP_MIN_CHARS = 1_000;
+export const CORPUS_MAP_MAX_CHARS = 50_000;
 
 export type AgentAvatar = AgentAvatarDTO;
 
 /** `thinkingEffort` (brain migration 0228) is spelled out here so the screen
  *  builds against a contract package from before the field. Absent on the wire
  *  = a brain without per-agent effort: the select hides and the save omits it. */
-export type AgentSummary = AgentDTO & { thinkingEffort?: AgentThinkingEffort | null };
+export type AgentSummary = Omit<AgentDTO, 'memoryConfig'> & {
+  memoryConfig: MemoryConfig;
+  thinkingEffort?: AgentThinkingEffort | null;
+};
 
 /** Whether this brain stores a per-agent thinking effort (it sends the key on
  *  every agent, null included). With no agents to look at, assume yes: an older
@@ -272,6 +292,8 @@ export type FormState = {
   digestLimit: string;
   factLimit: string;
   contentHitLimit: string;
+  /** Corpus map budget in characters; '' = the brain default (6,500). */
+  corpusMapChars: string;
   summarizeThreshold: string;
   summarizeBatch: string;
   extractTypes: string;
@@ -330,6 +352,7 @@ export function emptyForm(role: Role = 'responder'): FormState {
     digestLimit: d.digestLimit,
     factLimit: d.factLimit,
     contentHitLimit: d.contentHitLimit,
+    corpusMapChars: '',
     summarizeThreshold: d.summarizeThreshold,
     summarizeBatch: d.summarizeBatch,
     extractTypes: d.extractTypes,
@@ -377,6 +400,7 @@ export function formFromAgent(a: AgentSummary): FormState {
     digestLimit: a.memoryConfig.digest_limit?.toString() ?? d.digestLimit,
     factLimit: a.memoryConfig.fact_limit?.toString() ?? d.factLimit,
     contentHitLimit: a.memoryConfig.content_hit_limit?.toString() ?? d.contentHitLimit,
+    corpusMapChars: a.memoryConfig.corpus_map_chars?.toString() ?? '',
     summarizeThreshold: a.memoryConfig.summarize_threshold?.toString() ?? d.summarizeThreshold,
     summarizeBatch: a.memoryConfig.summarize_batch?.toString() ?? d.summarizeBatch,
     extractTypes: a.memoryConfig.extract_types?.join(',') ?? d.extractTypes,
@@ -425,6 +449,105 @@ export function agentParamsFromForm(
   if (form.suggestFollowUp) params.suggest_follow_up = true;
   if (form.toolLoading === 'deferred') params.tool_loading = 'deferred';
   return params;
+}
+
+/** A memory_config write: a value sets the key, `null` clears it (brain
+ *  v0.238.18+ removes the key; before that only the keys whose schema allows
+ *  null took it, see below). */
+export type MemoryConfigPatch = { [K in keyof MemoryConfig]?: MemoryConfig[K] | null };
+
+/**
+ * The `memory_config` an agent save sends. The brain MERGES it onto the stored
+ * value, so only the fields this form shows are sent: every key it leaves out
+ * (corpus_map_limit, chunk_limit, the Journal keys, the manifest's tool caps,
+ * anything set by SQL or the Studio) keeps its stored value. A field the person
+ * empties must go back to the default, so it is sent as null:
+ * history_window_hours always (every brain takes null there), corpus_map_chars
+ * only when the saved agent had one (a brain from before null-clears would
+ * refuse a null it never stored).
+ */
+export function agentMemoryConfigFromForm(
+  form: Pick<
+    FormState,
+    | 'role'
+    | 'historyLimit'
+    | 'historyWindowHours'
+    | 'digestLimit'
+    | 'factLimit'
+    | 'contentHitLimit'
+    | 'corpusMapChars'
+    | 'summarizeThreshold'
+    | 'summarizeBatch'
+    | 'extractTypes'
+    | 'extractFacts'
+    | 'extractCostCapCents'
+    | 'delegateTo'
+    | 'resultInlineMaxKb'
+    | 'resultEmbedMinKb'
+    | 'resultSpillMaxKb'
+  >,
+  saved?: MemoryConfig | null,
+): MemoryConfigPatch {
+  const memoryConfig: MemoryConfigPatch = {};
+  const limit = parseInt(form.historyLimit, 10);
+  if (!Number.isNaN(limit)) memoryConfig.history_limit = limit;
+  const win = form.historyWindowHours.trim();
+  const winN = win ? parseFloat(win) : NaN;
+  memoryConfig.history_window_hours = Number.isNaN(winN) ? null : winN;
+  if (form.role === 'responder' || form.role === 'assistant') {
+    const dl = parseInt(form.digestLimit, 10);
+    if (!Number.isNaN(dl)) memoryConfig.digest_limit = dl;
+    const fl = parseInt(form.factLimit, 10);
+    if (!Number.isNaN(fl)) memoryConfig.fact_limit = fl;
+    const cl = parseInt(form.contentHitLimit, 10);
+    if (!Number.isNaN(cl)) memoryConfig.content_hit_limit = cl;
+    const mc = form.corpusMapChars.trim();
+    if (mc) {
+      const n = Number(mc);
+      if (Number.isInteger(n)) memoryConfig.corpus_map_chars = n;
+    } else if (typeof saved?.corpus_map_chars === 'number') {
+      memoryConfig.corpus_map_chars = null;
+    }
+  }
+  if (form.role === 'summarizer') {
+    const st = parseInt(form.summarizeThreshold, 10);
+    if (!Number.isNaN(st)) memoryConfig.summarize_threshold = st;
+    const sb = parseInt(form.summarizeBatch, 10);
+    if (!Number.isNaN(sb)) memoryConfig.summarize_batch = sb;
+  }
+  if (form.role === 'extractor') {
+    const types = form.extractTypes
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    memoryConfig.extract_types = types.length > 0 ? types : ['note'];
+    memoryConfig.extract_facts = form.extractFacts;
+    const cap = form.extractCostCapCents.trim();
+    if (cap === '') {
+      memoryConfig.extract_cost_cap_micro_usd = null;
+    } else {
+      const cents = parseFloat(cap);
+      if (!Number.isNaN(cents) && cents >= 0) {
+        memoryConfig.extract_cost_cap_micro_usd = Math.round(cents * 10_000);
+      }
+    }
+  }
+  // Delegation allowlist. Always send it (even empty) so de-selecting every
+  // delegate actually clears it: under the merge an omitted key is kept.
+  memoryConfig.delegate_to = form.delegateTo;
+
+  // Tool-result spill thresholds (KB). Only set keys the operator filled;
+  // blank = fall back to the env/global default. Always send the object
+  // (possibly empty): an object value replaces the stored one whole.
+  const rh: { inline_max_kb?: number; embed_min_kb?: number; spill_max_kb?: number } = {};
+  const inlineKb = parseInt(form.resultInlineMaxKb, 10);
+  if (!Number.isNaN(inlineKb) && inlineKb > 0) rh.inline_max_kb = inlineKb;
+  const embedKb = parseInt(form.resultEmbedMinKb, 10);
+  if (!Number.isNaN(embedKb) && embedKb > 0) rh.embed_min_kb = embedKb;
+  const spillKb = parseInt(form.resultSpillMaxKb, 10);
+  if (!Number.isNaN(spillKb) && spillKb > 0) rh.spill_max_kb = spillKb;
+  memoryConfig.result_handling = rh;
+  return memoryConfig;
 }
 
 /** Map a sampling temperature (0–2) to a human descriptor + hint. */

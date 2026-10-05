@@ -69,6 +69,7 @@ import {
 import {
   ROLES,
   brainHasAgentThinkingEffort,
+  agentMemoryConfigFromForm,
   agentParamsFromForm,
   defaultsForRole,
   emptyForm,
@@ -86,7 +87,6 @@ import type {
   AgentSummary,
   ApiKeyOption,
   FormState,
-  MemoryConfig,
   Role,
   SkillOption,
   ToolGroupOption,
@@ -114,6 +114,7 @@ const AGENT_ERROR_ORDER: { field: keyof AgentErrors; section: AgentSection }[] =
   { field: 'apiKey', section: 'model' },
   { field: 'model', section: 'model' },
   { field: 'systemPrompt', section: 'behaviour' },
+  { field: 'corpusMapChars', section: 'memory' },
 ];
 
 export function AgentsClient() {
@@ -384,61 +385,12 @@ export function AgentsClient() {
       return;
     }
 
-    const memoryConfig: MemoryConfig = {};
-    const limit = parseInt(form.historyLimit, 10);
-    if (!Number.isNaN(limit)) memoryConfig.history_limit = limit;
-    const win = form.historyWindowHours.trim();
-    if (win) {
-      const n = parseFloat(win);
-      if (!Number.isNaN(n)) memoryConfig.history_window_hours = n;
-    }
-    if (form.role === 'responder' || form.role === 'assistant') {
-      const dl = parseInt(form.digestLimit, 10);
-      if (!Number.isNaN(dl)) memoryConfig.digest_limit = dl;
-      const fl = parseInt(form.factLimit, 10);
-      if (!Number.isNaN(fl)) memoryConfig.fact_limit = fl;
-      const cl = parseInt(form.contentHitLimit, 10);
-      if (!Number.isNaN(cl)) memoryConfig.content_hit_limit = cl;
-    }
-    if (form.role === 'summarizer') {
-      const st = parseInt(form.summarizeThreshold, 10);
-      if (!Number.isNaN(st)) memoryConfig.summarize_threshold = st;
-      const sb = parseInt(form.summarizeBatch, 10);
-      if (!Number.isNaN(sb)) memoryConfig.summarize_batch = sb;
-    }
-    if (form.role === 'extractor') {
-      const types = form.extractTypes
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      memoryConfig.extract_types = types.length > 0 ? types : ['note'];
-      memoryConfig.extract_facts = form.extractFacts;
-      const cap = form.extractCostCapCents.trim();
-      if (cap === '') {
-        memoryConfig.extract_cost_cap_micro_usd = null;
-      } else {
-        const cents = parseFloat(cap);
-        if (!Number.isNaN(cents) && cents >= 0) {
-          memoryConfig.extract_cost_cap_micro_usd = Math.round(cents * 10_000);
-        }
-      }
-    }
-    // Delegation allowlist. Always send it (even empty) so de-selecting every
-    // delegate actually clears it — the server merges memory_config, so an
-    // omitted key would otherwise be preserved.
-    memoryConfig.delegate_to = form.delegateTo;
-
-    // Tool-result spill thresholds (KB). Only set keys the operator filled;
-    // blank = fall back to the env/global default. Always send the object
-    // (possibly empty) so clearing a field actually clears it under the merge.
-    const rh: { inline_max_kb?: number; embed_min_kb?: number; spill_max_kb?: number } = {};
-    const inlineKb = parseInt(form.resultInlineMaxKb, 10);
-    if (!Number.isNaN(inlineKb) && inlineKb > 0) rh.inline_max_kb = inlineKb;
-    const embedKb = parseInt(form.resultEmbedMinKb, 10);
-    if (!Number.isNaN(embedKb) && embedKb > 0) rh.embed_min_kb = embedKb;
-    const spillKb = parseInt(form.resultSpillMaxKb, 10);
-    if (!Number.isNaN(spillKb) && spillKb > 0) rh.spill_max_kb = spillKb;
-    memoryConfig.result_handling = rh;
+    // Only the fields this form shows; the brain merges memory_config, so
+    // every other key keeps its stored value (see agentMemoryConfigFromForm).
+    const memoryConfig = agentMemoryConfigFromForm(
+      form,
+      editing.mode === 'edit' ? editing.agent.memoryConfig : null,
+    );
 
     // The form's params plus the saved ones it has no field for (see
     // agentParamsFromForm): the brain replaces params whole on a save.
@@ -1356,7 +1308,7 @@ export function AgentsClient() {
                           data-agent-section="memory"
                           className="mt-0 space-y-4 data-[state=inactive]:hidden"
                         >
-                          <MemorySection form={form} setForm={setForm} />
+                          <MemorySection form={form} setForm={setForm} errors={errors} />
                           {editing.mode === 'edit' && (
                             <LearnedInJournal slug={editing.agent.slug} />
                           )}

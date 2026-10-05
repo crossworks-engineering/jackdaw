@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiEventStream } from '@mantle/web-ui/api-fetch';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
 import type { TurnEvent } from '@mantle/client-types';
+import { estimateTokens } from '@/lib/token-estimate';
 
 /** One step in a turn's thought trail (a `status` event, kept). */
 export interface ThoughtEvent {
@@ -138,13 +139,6 @@ export interface TurnStream {
   tokensApprox: boolean;
 }
 
-/** Rough output-token estimate from a running character count. ~4 chars/token
- *  is the standard English heuristic — good enough for a live readout that the
- *  real `tokensOut` from `done` supersedes the moment the turn finishes. */
-function estimateTokens(chars: number): number {
-  return Math.max(1, Math.round(chars / 4));
-}
-
 /**
  * Subscribe to one in-flight turn's live status and accumulate it into a trail.
  *
@@ -215,7 +209,9 @@ export function useTurnStream(turnId: string | null): TurnStream {
     const flusher = createFrameFlusher(() => {
       setReply(replyRef.current);
       setReasoning(reasoningRef.current);
-      setTokens(estimateTokens(outCharsRef.current));
+      // The shared prose estimate (lib/token-estimate): good enough for a
+      // live readout that the real `tokensOut` from `done` supersedes.
+      setTokens(Math.max(1, estimateTokens(outCharsRef.current)));
     });
     const stop = apiEventStream(
       `/api/assistant/turn/${turnId}/stream`,
