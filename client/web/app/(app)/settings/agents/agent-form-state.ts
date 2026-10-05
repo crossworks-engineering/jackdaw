@@ -138,12 +138,7 @@ export function validateAgent(
 // Wire shapes come from @mantle/client-types (the `/api/**` contract); the local
 // names below keep the rest of this file unchanged. `AgentSummary` is the agent
 // DTO; the others are aliases for the jsonb sub-shapes the form reads/writes.
-// The corpus map keys are spelled out so the screen builds against a contract
-// package from before them (client-types gains them with brain v0.238.18+).
-export type MemoryConfig = AgentMemoryConfigDTO & {
-  corpus_map_limit?: number;
-  corpus_map_chars?: number;
-};
+export type MemoryConfig = AgentMemoryConfigDTO;
 
 /** The brain's corpus map budget (CORPUS_MAP_MAX_CHARS in the runtime) and the
  *  range its agents API accepts for `memory_config.corpus_map_chars`. */
@@ -156,10 +151,7 @@ export type AgentAvatar = AgentAvatarDTO;
 /** `thinkingEffort` (brain migration 0228) is spelled out here so the screen
  *  builds against a contract package from before the field. Absent on the wire
  *  = a brain without per-agent effort: the select hides and the save omits it. */
-export type AgentSummary = Omit<AgentDTO, 'memoryConfig'> & {
-  memoryConfig: MemoryConfig;
-  thinkingEffort?: AgentThinkingEffort | null;
-};
+export type AgentSummary = AgentDTO & { thinkingEffort?: AgentThinkingEffort | null };
 
 /** Whether this brain stores a per-agent thinking effort (it sends the key on
  *  every agent, null included). With no agents to look at, assume yes: an older
