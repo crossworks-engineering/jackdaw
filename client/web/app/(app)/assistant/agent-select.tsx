@@ -7,6 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@mantle/web-ui/ui/select';
+import { cn } from '@mantle/web-ui/lib/utils';
+import { shortModelName } from '@mantle/web-ui/lib/model-name';
 import { useDockActions } from '@/components/assistant/assistant-dock';
 import type { AssistantAgentOption } from '@mantle/client-types';
 
@@ -16,9 +18,11 @@ import type { AssistantAgentOption } from '@mantle/client-types';
 export function AgentSelect({
   agents,
   selected,
+  className,
 }: {
   agents: AssistantAgentOption[];
   selected: string;
+  className?: string;
 }) {
   const { setActiveAgentSlug } = useDockActions();
   function pick(slug: string) {
@@ -26,7 +30,7 @@ export function AgentSelect({
   }
   return (
     <Select value={selected} onValueChange={pick}>
-      <SelectTrigger className="w-60" aria-label="Choose agent">
+      <SelectTrigger className={cn('w-60', className)} aria-label="Choose agent">
         <SelectValue placeholder="Select agent" />
       </SelectTrigger>
       <SelectContent>
@@ -34,7 +38,7 @@ export function AgentSelect({
           <SelectItem key={a.slug} value={a.slug}>
             <span className="font-medium">{a.name}</span>
             <span className="ml-2 text-xs text-muted-foreground">
-              {a.role} · {a.model.split('/').pop()}
+              {a.role} · {shortModelName(a.model)}
             </span>
           </SelectItem>
         ))}

@@ -2,14 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  GitCompareArrows,
-  Highlighter,
-  History,
-  MapPin,
-  MessageSquarePlus,
-  Minus,
-} from 'lucide-react';
+import { GitCompareArrows, Highlighter, MapPin, MessageSquarePlus } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { agentAccent } from '@/lib/agent-color';
@@ -20,12 +13,13 @@ import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/experience';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
-import { AssistantDockToggle, useAssistantDock } from '@/components/assistant/assistant-dock';
+import { useAssistantDock } from '@/components/assistant/assistant-dock';
+import { shortModelName } from '@mantle/web-ui/lib/model-name';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
 import { PendingQuestionsStrip } from '@/components/pending/pending-questions-strip';
 import { AssistantClient } from './assistant-client';
-import { AgentSelect } from './agent-select';
+import { AssistantHeaderMenu } from './assistant-header-menu';
 import type {
   AssistantAgentOption,
   AssistantTimelineRow,
@@ -36,7 +30,6 @@ import { PreviousChatView, PreviousChatsList } from './previous-chats';
 import {
   NEW_CHAT_HINT,
   NEW_CHAT_LABEL,
-  PREVIOUS_CHATS_LABEL,
   newChatToast,
   type ChatView,
 } from './chat-threads-state';
@@ -207,11 +200,11 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
                 banner that appears from nowhere and moves the name. */}
             <p className="mt-0.5 text-xs text-muted-foreground">
               {agent ? (
-                <>
-                  <code className="font-mono">{agent.slug}</code> ·{' '}
-                  <code className="font-mono">{agent.model}</code> — separate thread per agent,
-                  shared brain.
-                </>
+                // Short and plain (Jason, 2026-10-05): "assistant · Sonnet 5.5",
+                // the full model id on hover.
+                <span className="block truncate" title={agent.model}>
+                  {agent.slug} · {shortModelName(agent.model)}
+                </span>
               ) : (
                 <span className="text-destructive-ink">
                   No enabled agent. Configure one at{' '}
@@ -228,49 +221,34 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
             and once it does a `justify-between` right group drops to the LEFT of
             the next line. Floated, the controls stay on the right edge whatever
             the width. */}
-        <div className="ml-auto flex items-center gap-1.5">
-          {agentList.length > 0 && <AgentSelect agents={agentList} selected={agent?.slug ?? ''} />}
-          {/* New chat saves this chat in Previous chats and starts a fresh one.
-              The words never say "archive" (Jason, 2026-10-05). */}
+        <div className="ml-auto flex items-center gap-1">
+          {/* Two icons only (Jason, 2026-10-05): New chat, and "..." for the
+              rest: the agent picker, the panel shape, Previous chats and
+              Minimise. The words never say "archive". */}
           {agent && threadsSupported && (
-            <>
-              <Button
-                variant="outline"
-                size="xs"
-                disabled={startingNew || busy}
-                onClick={startNewChat}
-                title={NEW_CHAT_HINT}
-              >
-                <MessageSquarePlus aria-hidden />
-                {NEW_CHAT_LABEL}
-              </Button>
-              <Button
-                variant={view.kind === 'live' ? 'ghost' : 'secondary'}
-                size="icon-xs"
-                onClick={() => setView(view.kind === 'live' ? { kind: 'list' } : { kind: 'live' })}
-                title={PREVIOUS_CHATS_LABEL}
-                aria-label={PREVIOUS_CHATS_LABEL}
-                aria-pressed={view.kind !== 'live'}
-              >
-                <History aria-hidden />
-              </Button>
-            </>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              disabled={startingNew || busy}
+              onClick={startNewChat}
+              title={NEW_CHAT_HINT}
+              aria-label={NEW_CHAT_LABEL}
+            >
+              <MessageSquarePlus aria-hidden />
+            </Button>
           )}
-          {/* The three display shapes, immediately right of the responder
-              picker: pick who answers, then pick where they answer. Both sit in
-              this header rather than the left rail — a rail on the far side of
-              the screen is the wrong place to reshape a panel on this one. */}
-          <AssistantDockToggle />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={minimize}
-            title="Minimise (Esc)"
-            aria-label="Minimise assistant"
-          >
-            <Minus aria-hidden />
-          </Button>
+          <AssistantHeaderMenu
+            agents={agentList}
+            selected={agent?.slug ?? ''}
+            threads={!!agent && threadsSupported}
+            showingPrevious={view.kind !== 'live'}
+            newChatDisabled={startingNew || busy}
+            onPreviousChats={() =>
+              setView(view.kind === 'live' ? { kind: 'list' } : { kind: 'live' })
+            }
+            onNewChat={startNewChat}
+            onMinimise={minimize}
+          />
         </div>
       </header>
 

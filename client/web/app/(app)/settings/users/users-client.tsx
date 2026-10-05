@@ -1,5 +1,6 @@
 'use client';
 
+import { shortModelName } from '@mantle/web-ui/lib/model-name';
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -948,7 +949,7 @@ function AssistantFields({
                 <SelectItem key={a.id} value={a.id}>
                   <span className="font-medium">{a.name}</span>
                   <span className="ml-2 text-xs text-muted-foreground">
-                    {a.model.split('/').pop()}
+                    {shortModelName(a.model)}
                   </span>
                 </SelectItem>
               ))}
