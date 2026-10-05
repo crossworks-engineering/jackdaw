@@ -8,62 +8,28 @@
  * Off stops the service and keeps everything: sandboxes, their files and
  * apps, and app data. Pure helpers only: no DOM here.
  *
- * The types mirror `ServicesView` and friends in @mantle/client-types
- * (mantle 0.238): declared here until the pinned contract package carries
- * them.
+ * The types are the mantle contract (@mantle/client-types, since 0.239.3).
  */
 
-export type OptionalServiceName = 'sandboxes' | 'media';
-export type ServiceState = 'off' | 'up' | 'down';
+import type {
+  ServiceInfo,
+  ServiceRunPhase,
+  ServiceRunStatus,
+  ServiceState,
+  ServicesView,
+} from '@mantle/client-types';
 
-export type ServiceDescription = {
-  title: string;
-  what: string;
-  usedBy: string;
-  whenOff: string;
-  keeps: string;
-  downloadMb: number;
-  memory: string;
-  memoryMaxMb: number;
-  note: string | null;
-};
-
-export type ServiceInfo = {
-  name: OptionalServiceName;
-  state: ServiceState;
-  container: string | null;
-  health: string | null;
-  description: ServiceDescription;
-};
-
-export type ServiceRunPhase =
-  'idle' | 'requested' | 'pulling' | 'starting' | 'stopping' | 'done' | 'error';
-
-export type ServiceRunStatus = {
-  phase: ServiceRunPhase;
-  service: OptionalServiceName | null;
-  enable: boolean | null;
-  startedAt: string | null;
-  finishedAt: string | null;
-  ok: boolean | null;
-  error: string | null;
-};
-
-export type ServicesView = {
-  services: ServiceInfo[];
-  switching: { available: boolean; reason: string | null };
-  box: {
-    memTotalBytes: number | null;
-    memAvailableBytes: number | null;
-    diskFreeBytes: number | null;
-    core: boolean;
-    smallBox: boolean;
-  };
-  run: ServiceRunStatus | null;
-};
-
-export type ServiceSwitchResult = { ok: true } | { ok: false; error: string };
-export type ServiceRunPoll = { run: ServiceRunStatus | null; log: string };
+export type {
+  OptionalServiceName,
+  ServiceDescription,
+  ServiceInfo,
+  ServiceRunPhase,
+  ServiceRunPoll,
+  ServiceRunStatus,
+  ServiceState,
+  ServicesView,
+  ServiceSwitchResult,
+} from '@mantle/client-types';
 
 const BUSY: readonly ServiceRunPhase[] = ['requested', 'pulling', 'starting', 'stopping'];
 
