@@ -5,7 +5,7 @@
  * the UI says "New chat" and "Previous chats", never "archive".
  */
 import { formatDate, formatDateTime } from '@mantle/web-ui/lib/format-datetime';
-import type { ChatArchiveResponse, ChatThreadRow } from '@mantle/web-ui/types/chat-threads';
+import type { ChatArchiveResponse, ChatThreadRow } from '@mantle/client-types';
 
 export const NEW_CHAT_LABEL = 'New chat';
 export const PREVIOUS_CHATS_LABEL = 'Previous chats';

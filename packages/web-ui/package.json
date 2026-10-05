@@ -85,7 +85,6 @@
     "./traces-format": "./src/traces-format.ts",
     "./assistant-limits": "./src/assistant-limits.ts",
     "./turn-streaming": "./src/turn-streaming.ts",
-    "./types/chat-threads": "./src/types/chat-threads.ts",
     "./types/integrity": "./src/types/integrity.ts",
     "./types/maintenance": "./src/types/maintenance.ts",
     "./types/recall-v2": "./src/types/recall-v2.ts",

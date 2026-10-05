@@ -8,8 +8,11 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import type { AssistantTimelineRow } from '@mantle/client-types';
-import type { ChatArchiveResponse, ChatThreadRow } from '@mantle/web-ui/types/chat-threads';
+import type {
+  AssistantTimelineRow,
+  ChatArchiveResponse,
+  ChatThreadRow,
+} from '@mantle/client-types';
 import { groupTurns } from './assistant-turns';
 import { TurnRow } from './turn-row';
 import {

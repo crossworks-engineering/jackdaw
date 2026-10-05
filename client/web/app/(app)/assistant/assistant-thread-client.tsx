@@ -26,8 +26,12 @@ import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
 import { PendingQuestionsStrip } from '@/components/pending/pending-questions-strip';
 import { AssistantClient } from './assistant-client';
 import { AgentSelect } from './agent-select';
-import type { AssistantAgentOption, AssistantTimelineRow } from '@mantle/client-types';
-import type { ChatArchiveResponse, ChatThreadRow } from '@mantle/web-ui/types/chat-threads';
+import type {
+  AssistantAgentOption,
+  AssistantTimelineRow,
+  ChatArchiveResponse,
+  ChatThreadRow,
+} from '@mantle/client-types';
 import { PreviousChatView, PreviousChatsList } from './previous-chats';
 import {
   NEW_CHAT_HINT,

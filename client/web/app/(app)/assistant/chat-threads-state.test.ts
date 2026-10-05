@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatThreadRow } from '@mantle/web-ui/types/chat-threads';
+import type { ChatThreadRow } from '@mantle/client-types';
 import { messageCount, newChatToast, previousChats, threadTitle } from './chat-threads-state';
 
 const row = (over: Partial<ChatThreadRow>): ChatThreadRow => ({
