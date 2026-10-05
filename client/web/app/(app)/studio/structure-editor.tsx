@@ -15,6 +15,7 @@ import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
 import { ModelSelect } from '@/components/ui/model-select';
+import { studioParamsPatch } from './studio-params';
 import {
   Select,
   SelectContent,
@@ -152,11 +153,22 @@ export function StructureEditor({
     void patch({ memoryConfig: { delegate_to: [...set] } });
   }
 
-  function saveParams() {
-    const params: Record<string, number> = {};
-    if (temp.trim()) params.temperature = Number(temp);
-    if (maxTokens.trim()) params.max_tokens = Number(maxTokens);
-    const body: Record<string, unknown> = { params };
+  async function saveParams() {
+    // The brain replaces params whole and the graph carries only two of them,
+    // so read the agent's full params first (see studioParamsPatch).
+    let saved: Record<string, unknown> | undefined;
+    try {
+      const { agents } = await apiFetch<{
+        agents: { id: string; params?: Record<string, unknown> }[];
+      }>('/api/agents');
+      const row = agents.find((a) => a.id === agent.id);
+      if (!row) throw new Error('This agent is no longer listed. Reload the Studio.');
+      saved = row.params;
+    } catch (e) {
+      setError((e as Error).message);
+      return;
+    }
+    const body: Record<string, unknown> = { params: studioParamsPatch(saved, temp, maxTokens) };
     if (maxIter.trim()) body.memoryConfig = { max_iterations: Number(maxIter) };
     void patch(body);
   }
@@ -231,7 +243,7 @@ export function StructureEditor({
               value={temp}
               disabled={busy}
               onChange={(e) => setTemp(e.target.value)}
-              onBlur={saveParams}
+              onBlur={() => void saveParams()}
               className="h-7 text-sm"
             />
           </label>
@@ -243,7 +255,7 @@ export function StructureEditor({
               value={maxTokens}
               disabled={busy}
               onChange={(e) => setMaxTokens(e.target.value)}
-              onBlur={saveParams}
+              onBlur={() => void saveParams()}
               className="h-7 text-sm"
             />
           </label>
@@ -256,7 +268,7 @@ export function StructureEditor({
               value={maxIter}
               disabled={busy}
               onChange={(e) => setMaxIter(e.target.value)}
-              onBlur={saveParams}
+              onBlur={() => void saveParams()}
               className="h-7 text-sm"
             />
           </label>
