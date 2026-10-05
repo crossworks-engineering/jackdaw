@@ -27,12 +27,7 @@ import type {
   ChatThreadRow,
 } from '@mantle/client-types';
 import { PreviousChatView, PreviousChatsList } from './previous-chats';
-import {
-  NEW_CHAT_HINT,
-  NEW_CHAT_LABEL,
-  newChatToast,
-  type ChatView,
-} from './chat-threads-state';
+import { NEW_CHAT_HINT, NEW_CHAT_LABEL, newChatToast, type ChatView } from './chat-threads-state';
 
 /** The fields the header + chat need off the resolved agent. */
 type ResolvedAgent = {
