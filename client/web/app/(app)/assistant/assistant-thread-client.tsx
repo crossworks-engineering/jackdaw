@@ -1,12 +1,21 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { GitCompareArrows, Highlighter, MapPin, Minus } from 'lucide-react';
-import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  GitCompareArrows,
+  Highlighter,
+  History,
+  MapPin,
+  MessageSquarePlus,
+  Minus,
+} from 'lucide-react';
+import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { useToast } from '@mantle/web-ui/ui/toast';
 import { agentAccent } from '@/lib/agent-color';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { Button } from '@mantle/web-ui/ui/button';
+import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/experience';
@@ -18,6 +27,15 @@ import { PendingQuestionsStrip } from '@/components/pending/pending-questions-st
 import { AssistantClient } from './assistant-client';
 import { AgentSelect } from './agent-select';
 import type { AssistantAgentOption, AssistantTimelineRow } from '@mantle/client-types';
+import type { ChatArchiveResponse, ChatThreadRow } from '@mantle/web-ui/types/chat-threads';
+import { PreviousChatView, PreviousChatsList } from './previous-chats';
+import {
+  NEW_CHAT_HINT,
+  NEW_CHAT_LABEL,
+  PREVIOUS_CHATS_LABEL,
+  newChatToast,
+  type ChatView,
+} from './chat-threads-state';
 
 /** The fields the header + chat need off the resolved agent. */
 type ResolvedAgent = {
@@ -35,6 +53,10 @@ type ThreadData = {
   /** This login's own assistant, when the operator gave it one (migration 0143).
    *  Null when it shares the brain default. */
   assigned: { slug: string; assignedAt: string | null } | null;
+  /** The open chat thread (chat archive, mantle 0231): null for a chat never
+   *  restarted with New chat. ABSENT on a brain older than the feature, which
+   *  is how the window knows to hide New chat and Previous chats. */
+  thread?: ChatThreadRow | null;
 };
 
 /** Watermark for the last assignment this browser has already honoured. */
@@ -55,7 +77,15 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
     setActiveAgentSlug,
     display,
     startPopoutMove,
+    busy,
   } = useAssistantDock();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  // What sits under the header: the live chat, the Previous chats list, or one
+  // previous chat read-only. Back to the live chat on an agent switch.
+  const [view, setView] = useState<ChatView>({ kind: 'live' });
+  const [startingNew, setStartingNew] = useState(false);
+  useEffect(() => setView({ kind: 'live' }), [slugHint]);
   const threadQuery = useQuery({
     queryKey: ['assistant', 'thread', slugHint ?? ''],
     queryFn: () =>
@@ -97,6 +127,29 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
   }
 
   const { agents: agentList, agent, messages } = threadQuery.data;
+  const openThread = threadQuery.data.thread ?? null;
+  const threadsSupported = 'thread' in threadQuery.data;
+
+  // New chat: the brain saves the current chat in Previous chats (and writes
+  // its summary) and opens a fresh one. Refetching the thread changes the open
+  // thread id, which remounts the chat below with the empty transcript.
+  async function startNewChat() {
+    if (!agent) return;
+    setStartingNew(true);
+    try {
+      const r = await apiSend<ChatArchiveResponse>('/api/assistant/threads', 'POST', {
+        agent: agent.slug,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['assistant'] });
+      const t = newChatToast(r);
+      toast[t.kind](t.text);
+      setView({ kind: 'live' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t start a new chat. Try again.');
+    } finally {
+      setStartingNew(false);
+    }
+  }
   const accent = agent ? agentAccent(agent.slug) : null;
   const agentXp = experienceOf(agent);
 
@@ -173,6 +226,32 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
             the width. */}
         <div className="ml-auto flex items-center gap-1.5">
           {agentList.length > 0 && <AgentSelect agents={agentList} selected={agent?.slug ?? ''} />}
+          {/* New chat saves this chat in Previous chats and starts a fresh one.
+              The words never say "archive" (Jason, 2026-10-05). */}
+          {agent && threadsSupported && (
+            <>
+              <Button
+                variant="outline"
+                size="xs"
+                disabled={startingNew || busy}
+                onClick={startNewChat}
+                title={NEW_CHAT_HINT}
+              >
+                <MessageSquarePlus aria-hidden />
+                {NEW_CHAT_LABEL}
+              </Button>
+              <Button
+                variant={view.kind === 'live' ? 'ghost' : 'secondary'}
+                size="icon-xs"
+                onClick={() => setView(view.kind === 'live' ? { kind: 'list' } : { kind: 'live' })}
+                title={PREVIOUS_CHATS_LABEL}
+                aria-label={PREVIOUS_CHATS_LABEL}
+                aria-pressed={view.kind !== 'live'}
+              >
+                <History aria-hidden />
+              </Button>
+            </>
+          )}
           {/* The three display shapes, immediately right of the responder
               picker: pick who answers, then pick where they answer. Both sit in
               this header rather than the left rail — a rail on the far side of
@@ -225,18 +304,50 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
       {/* Background runs the owner has in flight — compact cards, self-hiding
           when none are active (slice 4 WP-A). */}
       <ActiveRunsStrip />
-      <AssistantClient
-        // Force a remount on agent change so the draft input, attachment,
-        // recording state, and optimistic messages don't carry across agents.
-        // The SSR-equivalent initialMessages are already per-agent; the key
-        // makes React honour the swap.
-        key={agent?.slug ?? '__none__'}
-        initialMessages={messages}
-        agentReady={!!agent}
-        agentSlug={agent?.slug}
-        agentName={agent?.name}
-        agentAvatar={agent?.avatar ?? null}
-      />
+      {view.kind === 'live' && openThread?.continuedFrom && (
+        <RowButton
+          onClick={() => setView({ kind: 'thread', id: openThread.continuedFrom!.id })}
+          className="border-b border-border bg-muted/30 px-6 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+        >
+          Continued from the previous chat{' '}
+          <span className="font-medium text-foreground">
+            {openThread.continuedFrom.title ?? 'without a title'}
+          </span>
+        </RowButton>
+      )}
+      {agent && view.kind === 'list' && (
+        <PreviousChatsList
+          agentSlug={agent.slug}
+          onOpen={(id) => setView({ kind: 'thread', id })}
+          onBack={() => setView({ kind: 'live' })}
+        />
+      )}
+      {view.kind === 'thread' && (
+        <PreviousChatView
+          threadId={view.id}
+          agentName={agent?.name}
+          accentBorder={accent?.border ?? ''}
+          onBack={() => setView({ kind: 'list' })}
+          onContinued={() => setView({ kind: 'live' })}
+        />
+      )}
+      {/* Kept mounted (hidden) while a previous chat is open, so a reply
+          streaming in the live chat and the composer draft both survive. */}
+      <div className={cn('flex min-h-0 flex-1 flex-col', view.kind !== 'live' && 'hidden')}>
+        <AssistantClient
+          // Force a remount on agent change so the draft input, attachment,
+          // recording state, and optimistic messages don't carry across agents.
+          // The SSR-equivalent initialMessages are already per-agent; the key
+          // makes React honour the swap. The open thread id is in the key too:
+          // New chat swaps it, and the fresh chat starts empty.
+          key={`${agent?.slug ?? '__none__'}:${openThread?.id ?? ''}`}
+          initialMessages={messages}
+          agentReady={!!agent}
+          agentSlug={agent?.slug}
+          agentName={agent?.name}
+          agentAvatar={agent?.avatar ?? null}
+        />
+      </div>
     </div>
   );
 }

@@ -76,7 +76,28 @@ export const API_CATALOG: CatalogGroup[] = [
         { key: 'before', description: 'ISO timestamp cursor', required: true },
         { key: 'limit', description: '1–200, default 100' },
         { key: 'agent', description: 'agent slug to scope the thread' },
+        { key: 'thread', description: 'a previous chat id: page inside that chat instead' },
       ],
+    },
+    {
+      n: 'New chat',
+      m: 'POST',
+      p: '/api/assistant/threads',
+      d: 'Saves the current chat in Previous chats (with a model-written title and summary) and starts a fresh one. 409 while a reply is running.',
+      b: '{\n  "agent": "assistant"\n}',
+    },
+    {
+      n: 'List chats',
+      m: 'GET',
+      p: '/api/assistant/threads',
+      d: 'The open chat and the previous chats of one agent, newest first.',
+      q: [{ key: 'agent', description: 'agent slug' }],
+    },
+    {
+      n: 'Continue from a previous chat',
+      m: 'POST',
+      p: '/api/assistant/threads/{id}/continue',
+      d: "Starts a new chat that opens with that previous chat's summary.",
     },
     {
       n: 'Get current stage',
