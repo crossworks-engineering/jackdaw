@@ -1,5 +1,6 @@
 /**
- * Optional services on the dashboard: sandboxes and media, each with a
+ * Optional services on the dashboard: sandboxes, media, the local embedder
+ * and (on a core box) the helpers, each with a
  * switch an admin flips to start or stop it (mantle docs/services.md). The
  * brain serves the state and the plain-language description on
  * GET /api/services; POST /api/services/:name {enable} asks the box's
@@ -37,10 +38,25 @@ export type {
  *  costs) are in the screen's help topic, mantle docs/guide/06-help/services.md.
  *  Not "mini apps": those run without sandboxes, and switching sandboxes off
  *  leaves them alone. */
-export const SERVICE_ENABLES: Record<OptionalServiceName, string> = {
+export const SERVICE_ENABLES: Record<ServiceName, string> = {
   sandboxes: 'Lets the coder and app agents build, run and test code in isolated workspaces.',
   media: 'Lets the brain read video and audio (transcripts) and CAD drawings (DWF, DWG, DXF).',
+  'local-embedder':
+    'Lets the brain index and search your text on this box, with no online embedder.',
+  helpers: 'Lets the brain read rare file types (ODT, PPTX, DOC, RTF) and make PDF exports.',
 };
+
+/** Every service the brain can list. The union keeps this file compiling
+ *  against client-types from before the two newer names (a no-op after). */
+export type ServiceName = OptionalServiceName | 'local-embedder' | 'helpers';
+
+/** The one-line warning the confirm dialog shows before a service goes off
+ *  (the embedder while this brain embeds with it, the helpers), or null.
+ *  Older brains send none. */
+export function offWarning(svc: ServiceInfo): string | null {
+  const d: ServiceInfo['description'] & { offWarning?: string | null } = svc.description;
+  return d.offWarning ?? null;
+}
 
 const BUSY: readonly ServiceRunPhase[] = ['requested', 'pulling', 'starting', 'stopping'];
 

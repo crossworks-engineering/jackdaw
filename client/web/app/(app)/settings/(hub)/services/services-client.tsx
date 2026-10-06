@@ -24,6 +24,7 @@ import {
   currentRun,
   diskWarning,
   memoryWarning,
+  offWarning,
   runBusy,
   runLabel,
   stateLabel,
@@ -43,11 +44,13 @@ const RUN_POLL_MS = 2_000;
 
 /**
  * Settings > Services: start and stop the box's optional services
- * (sandboxes, media). A card per service gives ONE line on what it enables
- * and a switch that asks the box's updater to start or stop it. What uses
- * it, what stops, what is kept and what it costs live in the help rail
- * (topic `services`, mantle docs/guide/06-help/services.md) and in the
- * confirm dialog. Off never removes anything.
+ * (sandboxes, media, the local embedder and, on a core box, the helpers).
+ * A card per service gives ONE line on what it enables and a switch that
+ * asks the box's updater to start or stop it. What uses it, what stops,
+ * what is kept and what it costs live in the help rail (topic `services`,
+ * mantle docs/guide/06-help/services.md) and in the confirm dialog, which
+ * also shows the brain's off warning when it sends one. Off never removes
+ * anything.
  * Admin-only: members are sent home from any settings path and clients get
  * their portal, and the brain refuses both on /api/services.
  */
@@ -241,6 +244,7 @@ function ConfirmSwitch({
   const enable = pending?.enable ?? false;
   const mem = svc && enable ? memoryWarning(view, svc) : null;
   const disk = svc && enable ? diskWarning(view, svc) : null;
+  const off = svc && !enable ? offWarning(svc) : null;
   return (
     <AlertDialog open={pending !== null} onOpenChange={(o) => !o && onCancel()}>
       <AlertDialogContent className="sm:max-w-md">
@@ -271,6 +275,7 @@ function ConfirmSwitch({
         </AlertDialogHeader>
         {mem && <Warning text={mem} />}
         {disk && <Warning text={disk} />}
+        {off && <Warning text={off} />}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={() => svc && onConfirm(svc, enable)}>

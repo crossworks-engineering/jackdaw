@@ -4,6 +4,7 @@ import {
   currentRun,
   diskWarning,
   memoryWarning,
+  offWarning,
   runBusy,
   runLabel,
   stateLabel,
@@ -159,6 +160,29 @@ describe('the one line per service card', () => {
       expect(line.length).toBeLessThan(120);
       expect(line).not.toMatch(/[\u2013\u2014]/);
     }
-    expect(Object.keys(SERVICE_ENABLES).sort()).toEqual(['media', 'sandboxes']);
+    expect(Object.keys(SERVICE_ENABLES).sort()).toEqual([
+      'helpers',
+      'local-embedder',
+      'media',
+      'sandboxes',
+    ]);
+  });
+});
+
+describe('offWarning', () => {
+  it('reads the brain line, and is null from an older brain', () => {
+    expect(offWarning(svc())).toBeNull();
+    const withLine = svc({ offWarning: 'PDF export stops.' } as Partial<
+      ServiceInfo['description']
+    >);
+    expect(offWarning(withLine)).toBe('PDF export stops.');
+  });
+
+  it('a warning for a two-container service stays short', () => {
+    const w = memoryWarning(
+      view({ memTotalBytes: 4 * GB, smallBox: true }),
+      svc({ title: 'Helpers', memory: 'up to 3 GB (1.5 GB each)', memoryMaxMb: 3072 }),
+    );
+    expect(w).toContain('Helpers can use up to 3 GB, so');
   });
 });
