@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { Bot, Cog, Info } from 'lucide-react';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { padAsideFences, remarkAsides } from '@/lib/doc-asides';
+import { DocAside } from '@/components/doc-aside';
 
 /**
  * The three-part content, dynamically imported by <HelpRail> so neither this
@@ -33,7 +35,9 @@ type HelpTopic = {
 function Prose({ markdown }: { markdown: string }) {
   return (
     <div className="prose prose-sm max-w-none dark:prose-invert prose-accent">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkAsides]} components={{ aside: DocAside }}>
+        {padAsideFences(markdown)}
+      </ReactMarkdown>
     </div>
   );
 }

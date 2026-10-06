@@ -6,6 +6,8 @@ import remarkGfm from 'remark-gfm';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { prettifyDocLabel } from '@mantle/web-ui/docs-labels';
 import type { ReaderDoc } from '@/lib/docs-types';
+import { padAsideFences, remarkAsides } from '@/lib/doc-asides';
+import { DocAside } from '@/components/doc-aside';
 
 /** Resolve a relative posix path against a base dir, folding `.`/`..`.
  *  Returns null if it escapes the root (too many `..`). Browser-safe (no node:path). */
@@ -34,6 +36,7 @@ const MD_RE = /\.(md|markdown)$/i;
 function makeComponents(collectionKey: string, relPath: string): Components {
   const baseDir = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
   return {
+    aside: DocAside,
     a(props) {
       const { href, children } = props;
       const h = (href ?? '').trim();
@@ -96,8 +99,8 @@ export function DocView({ doc }: { doc: ReaderDoc }) {
         ))}
       </p>
       <div className="prose dark:prose-invert max-w-none prose-accent">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-          {doc.content}
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkAsides]} components={components}>
+          {padAsideFences(doc.content)}
         </ReactMarkdown>
       </div>
       {(doc.prev || doc.next) && (
