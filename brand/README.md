@@ -38,10 +38,22 @@ from.
 
 ### Colours
 
+Jackdaw (the product) and Mantle (the engine) share one colour base and
+each keeps its own lead colour: a family, but you can tell them apart. The
+base is Jackdaw's own badge colours, so no mark had to change.
+
 | swatch | hex | where it comes from |
 |---|---|---|
-| Brand brown | `#2D1500` | the ring of the light-background badge; the darkest swatch in the palette |
-| Brand cream | `#FDE7BC` | the ring and wordmark of the dark variants (the wordmark is 100% this one colour) |
+| Brand brown (shared) | `#2D1500` | the ring of the light-background badge; the darkest swatch in the palette. Light-mode text and the ink on orange. |
+| Brand cream (shared) | `#FDE7BC` | the ring and wordmark of the dark variants (the wordmark is 100% this one colour). Light-mode background, dark-mode text. |
+| Amber (shared) | `#EB9F13` | a badge stripe. Dark-mode primary and the focus ring. |
+| Sunset orange (Jackdaw lead) | `#E46E08` | a badge stripe. Light-mode primary, always with brown ink (white on it fails AA). |
+| Rust | `#C83C04` | a badge stripe. Destructive actions, with white ink. |
+
+Mantle uses the same cream, brown and amber, and leads with instrument grey
+plus blue-grey instead of orange. The theme itself is generated in the
+mantle repo (`packages/share-ui/themes/seeds.mjs`, the `jackdaw` entry) and
+reaches this repo through `@crossworks/share-ui`.
 
 ### ⚠️ The badge's cream field is semi-transparent
 
