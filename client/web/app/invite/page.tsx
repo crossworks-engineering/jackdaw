@@ -45,7 +45,7 @@ export default async function InvitePage({
           />
         </div>
       </div>
-      {brand.kind !== 'jackdaw' && <LoginCredit />}
+      <LoginCredit showJackdaw={brand.kind !== 'jackdaw'} />
     </main>
   );
 }

@@ -1,11 +1,10 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { Server } from 'lucide-react';
-import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@mantle/web-ui/ui/card';
 import { APP_VERSION, CONTRACT_VERSION, GIT_SHA } from '@mantle/web-ui/version';
 import { JackdawBadge } from '@/components/layout/rail/jackdaw-mark';
+import { MantleBadge } from '@/components/layout/rail/mantle-mark';
+import { useServerVersion } from '@/lib/server-version';
 
 /**
  * What this install is actually running, both halves of it.
@@ -24,34 +23,10 @@ import { JackdawBadge } from '@/components/layout/rail/jackdaw-mark';
  * this card is the manual check.
  */
 
-type VersionPayload = {
-  version?: string;
-  contractVersion?: number;
-  gitSha?: string | null;
-  buildTime?: string | null;
-};
-
 export function BuildCard() {
-  const versionQuery = useQuery({
-    queryKey: ['server-version'],
-    queryFn: () => apiFetch<VersionPayload>('/api/version'),
-    // Constant for the life of the server build; a roll reloads the tab anyway.
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const server = versionQuery.data;
-  // Three states, and the failure one is explicit on purpose: a brain that is
-  // unreachable (down, blocked, wrong origin) must not leave the row sitting on
-  // a loading ellipsis that reads like a slow network forever.
-  //
-  // `paused` counts as unreachable, not as loading. On a network-level failure
-  // (DNS, refused, CORS) the fetch rejects without a Response, and TanStack's
-  // default `networkMode: 'online'` parks the retry instead of failing it — the
-  // query then sits at `pending/paused` indefinitely and never reaches
-  // `isError`. Observed exactly that against an origin the brain does not
-  // allow; without this branch the row showed "…" forever.
-  const unreachable = versionQuery.isError || versionQuery.fetchStatus === 'paused';
-  const serverVersion = server?.version ? `v${server.version}` : unreachable ? 'unavailable' : '…';
+  // Loading, unreachable and loaded are all resolved in the shared hook; the
+  // rail's version footer reads the same query.
+  const { data: server, label: serverVersion } = useServerVersion();
 
   // Only flag a real disagreement: absent while loading, or on an older brain
   // that predates the field, is not a mismatch.
@@ -75,7 +50,7 @@ export function BuildCard() {
             version={`v${APP_VERSION}`}
           />
           <Row
-            icon={<Server className="size-5 text-muted-foreground" aria-hidden />}
+            icon={<MantleBadge className="size-5" />}
             name="Mantle"
             role="brain"
             version={serverVersion}

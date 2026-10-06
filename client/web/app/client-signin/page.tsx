@@ -62,7 +62,7 @@ export default async function ClientSigninPage({
           />
         </div>
       </div>
-      {brand.kind !== 'jackdaw' && <LoginCredit />}
+      <LoginCredit showJackdaw={brand.kind !== 'jackdaw'} />
     </main>
   );
 }

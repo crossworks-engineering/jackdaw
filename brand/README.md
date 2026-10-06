@@ -36,6 +36,16 @@ from.
 | `jackdaw-row-{dark,light}.png` (96 px high) | `jackdaw-icon-name-logo-{dark,light}-row-trans.png` |
 | `jackdaw-lockup-{dark,light}.png` (360 px high) | `jackdaw-icon-name-logo-{dark,light}-trans.png` |
 
+The same folder also holds two Mantle marks, for the places that name the
+brain beside the interface (the dashboard's Build card, the rail's version
+footer, the sign-in credit). They are copies from the mantle repo's
+`brand/`, which owns them; copy them again when the Mantle mark changes.
+
+| web file | made from (mantle repo) |
+|---|---|
+| `mantle-badge.svg` | `brand/mantle-logo-icon.svg` |
+| `mantle-row.svg` | `brand/mantle-logo-full.svg` |
+
 ### Colours
 
 Jackdaw (the product) and Mantle (the engine) share one colour base and

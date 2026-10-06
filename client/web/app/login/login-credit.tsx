@@ -1,21 +1,25 @@
+import { MantleRow } from '@/components/layout/rail/mantle-mark';
+
 /**
- * The small Jackdaw mark at the foot of the sign-in screen.
+ * The small product marks at the foot of the sign-in screen: what this brain
+ * is built on. The hero says whose brain this is; the credit says what runs
+ * it. Both are true and they want different weights.
  *
- * Once a brain wears its OWN branding up top, the product's mark has nowhere
- * left to sit — so it moves here: quiet, small, and out of the way of the thing
- * the owner chose to put in the hero slot. The brand says whose brain this is;
- * this says what it is built on. Both are true and they want different weights.
+ * ── Mantle always, Jackdaw when the hero is not already Jackdaw ────────────
+ * The Mantle mark is ALWAYS here: the brain is Mantle whatever the owner calls
+ * it, and nothing else on the screen says so.
+ *
+ * The Jackdaw mark joins it only once a brain wears its OWN branding up top
+ * (`showJackdaw`, the `kind !== 'jackdaw'` test in `page.tsx`). On an
+ * UNBRANDED brain the hero slot is already the Jackdaw lockup, and the same
+ * mark twice on one short screen reads as a bug rather than a credit. When
+ * both show, Jackdaw is on the left and Mantle on its right: interface, then
+ * the brain under it.
  *
  * Named `LoginCredit` rather than `JackdawCredit` to match the folder — every
  * component here is `Login*` in a `login-*.tsx`, and the Jackdaw-specific piece
  * stays an internal detail, exactly as `login-mark.tsx` keeps `JackdawLockup`
  * private to itself.
- *
- * ── Why it is not always shown ─────────────────────────────────────────────
- * On an UNBRANDED brain the hero slot is already the Jackdaw lockup, and the
- * same mark twice on one short screen reads as a bug rather than a credit. So
- * `page.tsx` renders this only when the owner's branding won the hero — see the
- * `kind !== 'jackdaw'` test there.
  *
  * One acknowledged edge: a brain with ONLY a dark logo uploaded and no site
  * name falls back to the lockup in LIGHT mode (that fallback is `BrandLogo`'s
@@ -36,33 +40,39 @@
  * 96px tall, so 48px is exactly 2x and stays sharp on retina. The intrinsic
  * `width`/`height` are declared so the footer reserves its box and the form
  * above never shifts when the image decodes.
+ *
+ * The Mantle row is cut tight to its artwork while the Jackdaw PNG carries
+ * some air, so Mantle runs one step shorter (`h-10` beside `h-12`) to read at
+ * the same weight. On a phone both step down so the pair fits one line.
  */
-export function LoginCredit() {
+export function LoginCredit({ showJackdaw }: { showJackdaw: boolean }) {
   return (
-    <footer className="flex justify-center pt-8">
-      {/* Softened so it stays a credit at this size: the mark is big enough to
-          read comfortably, and opacity is what keeps it from competing with the
-          owner's hero. Fixed opacity, no hover change: there is nothing to
-          click here, and a mark that reacts to the pointer claims to be a
-          control. */}
-      <span className="opacity-50">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/jackdaw-row-light.png"
-          alt="Jackdaw"
-          width={344}
-          height={96}
-          className="h-12 w-auto dark:hidden"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/jackdaw-row-dark.png"
-          alt="Jackdaw"
-          width={338}
-          height={96}
-          className="hidden h-12 w-auto dark:block"
-        />
-      </span>
+    // Softened so it stays a credit at this size: the marks are big enough to
+    // read comfortably, and opacity is what keeps them from competing with the
+    // owner's hero. Fixed opacity, no hover change: there is nothing to click
+    // here, and a mark that reacts to the pointer claims to be a control.
+    <footer className="flex items-center justify-center gap-6 pt-8 opacity-50">
+      {showJackdaw && (
+        <span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/jackdaw-row-light.png"
+            alt="Jackdaw"
+            width={344}
+            height={96}
+            className="h-9 w-auto sm:h-12 dark:hidden"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/jackdaw-row-dark.png"
+            alt="Jackdaw"
+            width={338}
+            height={96}
+            className="hidden h-9 w-auto sm:h-12 dark:block"
+          />
+        </span>
+      )}
+      <MantleRow className="h-8 sm:h-10" />
     </footer>
   );
 }

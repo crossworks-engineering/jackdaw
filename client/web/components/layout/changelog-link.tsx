@@ -13,26 +13,34 @@ import {
   VERSION_LABEL,
   versionDetail,
 } from '@mantle/web-ui/version';
+import { useServerVersion } from '@/lib/server-version';
+import { JackdawBadge } from './rail/jackdaw-mark';
+import { MantleBadge } from './rail/mantle-mark';
 
 /**
- * Build identity at the foot of the rail's nav → /changelog: this build's
- * version and a "What's new?" pill until the changelog has been viewed
- * (localStorage last-seen vs APP_VERSION; the /changelog page stamps it and
- * fires CHANGELOG_SEEN_EVENT so the pill clears without a remount). In the
- * collapsed icon rail the version gives way to the megaphone and the pill
- * becomes the same dot the nav badges use.
+ * Build identity at the foot of the rail's nav, both halves of the install:
  *
- * Version ONLY, no wordmark. The line used to carry a "mantle" wordmark from
- * the old footer bar, which the repo split made actively wrong: APP_VERSION
- * here is the JACKDAW build (next.config stamps the client's own
- * package.json), so the pairing read "mantle vX" while naming a version
- * Mantle never had. Both products and both versions now appear together on
- * the dashboard's <BuildCard>, which can name each one correctly because it
- * reads the server's version over the wire.
+ *   - Jackdaw, this build → /changelog, with a "What's new?" pill until the
+ *     changelog has been viewed (localStorage last-seen vs APP_VERSION; the
+ *     /changelog page stamps it and fires CHANGELOG_SEEN_EVENT so the pill
+ *     clears without a remount).
+ *   - Mantle, the brain this interface talks to, read over the wire from
+ *     `GET /api/version` (the same cached query as the dashboard's
+ *     <BuildCard>). Plain text: the changelog is Jackdaw's, so this line does
+ *     not link to it.
+ *
+ * Each line names its product with its badge. That is the fix for the old
+ * footer, which put a "mantle" wordmark beside APP_VERSION, a JACKDAW version
+ * (next.config stamps the client's own package.json), and so read "mantle vX"
+ * for a version Mantle never had.
+ *
+ * In the collapsed icon rail both lines give way to the megaphone, and the
+ * pill becomes the same dot the nav badges use.
  */
 export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const { label: mantleVersion } = useServerVersion();
 
   useEffect(() => {
     const read = () => {
@@ -78,8 +86,12 @@ export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
           className="hidden size-4 shrink-0 group-data-[nav-collapsed=true]/shell:block"
           aria-hidden
         />
+        <JackdawBadge
+          className="size-4 shrink-0"
+          visibility="group-data-[nav-collapsed=true]/shell:hidden"
+        />
         <span className="flex-1 truncate text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden">
-          {VERSION_LABEL}
+          Jackdaw {VERSION_LABEL}
         </span>
         {showWhatsNew && (
           <>
@@ -94,6 +106,13 @@ export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
           </>
         )}
       </Link>
+      <p
+        title="Mantle, the brain this interface talks to"
+        className="flex items-center gap-2 px-3 pt-1 text-xs font-medium text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden"
+      >
+        <MantleBadge className="size-4 shrink-0" />
+        <span className="truncate">Mantle {mantleVersion}</span>
+      </p>
     </div>
   );
 }
