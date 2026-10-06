@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,9 +43,11 @@ const RUN_POLL_MS = 2_000;
 
 /**
  * Settings > Services: start and stop the box's optional services
- * (sandboxes, media). A card per service says what it does, what uses it,
- * what stops while it is off, what is kept, and what it costs; its switch
- * asks the box's updater to start or stop it. Off never removes anything.
+ * (sandboxes, media). A card per service gives ONE line on what it enables
+ * and a switch that asks the box's updater to start or stop it. What uses
+ * it, what stops, what is kept and what it costs live in the help rail
+ * (topic `services`, mantle docs/guide/06-help/services.md) and in the
+ * confirm dialog. Off never removes anything.
  * Admin-only: members are sent home from any settings path and clients get
  * their portal, and the brain refuses both on /api/services.
  */
@@ -148,7 +150,6 @@ function ServicesScreen({ view }: { view: ServicesView }) {
 
   return (
     <div className="space-y-6">
-      <ServicesHelp services={view.services} />
       {!view.switching.available && (
         <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
           {view.switching.reason}
@@ -157,6 +158,7 @@ function ServicesScreen({ view }: { view: ServicesView }) {
       {view.services.map((svc) => {
         const on = svc.state !== 'off';
         const warning = !on ? memoryWarning(view, svc) : null;
+        const working = progress && progress.service === svc.name ? progress : null;
         return (
           <Card key={svc.name}>
             <CardHeader>
@@ -166,7 +168,9 @@ function ServicesScreen({ view }: { view: ServicesView }) {
                     {svc.description.title}
                     <StatePill state={svc.state} />
                   </CardTitle>
-                  <CardDescription>{svc.description.what}</CardDescription>
+                  <CardDescription>
+                    {SERVICE_ENABLES[svc.name] ?? svc.description.what}
+                  </CardDescription>
                 </div>
                 <Switch
                   checked={on}
@@ -176,27 +180,20 @@ function ServicesScreen({ view }: { view: ServicesView }) {
                 />
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                <Fact k="Used by" v={svc.description.usedBy} />
-                <Fact k="When it is off" v={svc.description.whenOff} />
-                <Fact k="Kept when off" v={svc.description.keeps} />
-                <Fact
-                  k="Cost"
-                  v={`About ${svc.description.downloadMb} MB to download. Memory: ${svc.description.memory}.`}
-                />
-              </dl>
-              {svc.description.note && (
-                <p className="text-xs text-muted-foreground">{svc.description.note}</p>
-              )}
-              {warning && <Warning text={warning} />}
-              {progress && progress.service === svc.name && (
-                <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-                  <Spinner size={14} label="Working" />
-                  {runLabel(progress)}
-                </p>
-              )}
-            </CardContent>
+            {(warning || working) && (
+              <CardContent className="space-y-3">
+                {warning && <Warning text={warning} />}
+                {working && (
+                  <p
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                    role="status"
+                  >
+                    <Spinner size={14} label="Working" />
+                    {runLabel(working)}
+                  </p>
+                )}
+              </CardContent>
+            )}
           </Card>
         );
       })}
@@ -225,31 +222,6 @@ function ServicesScreen({ view }: { view: ServicesView }) {
         onCancel={() => setConfirm(null)}
         onConfirm={(svc, enable) => void send(svc, enable)}
       />
-    </div>
-  );
-}
-
-/** The screen's help box: what services are, and one line per service on
- *  what it enables. The details (cost, what stops) stay on each card. */
-function ServicesHelp({ services }: { services: ServiceInfo[] }) {
-  return (
-    <div className="space-y-2 rounded-md border border-info/30 bg-info/10 p-3 text-sm">
-      <p className="flex items-center gap-2 font-medium text-info-ink">
-        <Info className="size-4 shrink-0" aria-hidden />
-        What services are
-      </p>
-      <p className="text-muted-foreground">
-        Optional parts of this box that you switch on or off. Off stops the service and keeps all of
-        its data.
-      </p>
-      <ul className="space-y-1 text-muted-foreground">
-        {services.map((svc) => (
-          <li key={svc.name}>
-            <span className="font-medium text-foreground">{svc.description.title}</span>:{' '}
-            {SERVICE_ENABLES[svc.name] ?? svc.description.what}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -344,14 +316,5 @@ function Warning({ text }: { text: string }) {
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
       <span>{text}</span>
     </p>
-  );
-}
-
-function Fact({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="space-y-0.5">
-      <dt className="text-xs text-muted-foreground">{k}</dt>
-      <dd>{v}</dd>
-    </div>
   );
 }

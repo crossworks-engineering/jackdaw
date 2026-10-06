@@ -76,6 +76,12 @@ describe('memoryWarning (shown, never a block)', () => {
     expect(w).toContain('Switch it off again');
   });
 
+  it('stays short: drops the bracketed aside from the memory line', () => {
+    const w = memoryWarning(view({ memTotalBytes: 4 * GB, smallBox: true }), svc()) ?? '';
+    expect(w).not.toContain('DWF');
+    expect(w.length).toBeLessThan(140);
+  });
+
   it('warns a core box whatever its memory, and says why', () => {
     expect(memoryWarning(view({ core: true, smallBox: true }), svc())).toContain(
       'small core setup',
@@ -145,10 +151,11 @@ describe('the screen is admin-only', () => {
   });
 });
 
-describe('the help box lines', () => {
-  it('one short plain line per service, no en or em dash', () => {
+describe('the one line per service card', () => {
+  it('one short plain sentence per service, no en or em dash', () => {
     for (const line of Object.values(SERVICE_ENABLES)) {
-      expect(line.startsWith('lets ')).toBe(true);
+      expect(line.startsWith('Lets ')).toBe(true);
+      expect(line.endsWith('.')).toBe(true);
       expect(line.length).toBeLessThan(120);
       expect(line).not.toMatch(/[\u2013\u2014]/);
     }

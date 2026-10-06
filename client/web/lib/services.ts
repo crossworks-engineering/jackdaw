@@ -32,14 +32,14 @@ export type {
   ServiceSwitchResult,
 } from '@mantle/client-types';
 
-/** One plain line per service on what it enables, for the screen's help box
- *  (the brain's descriptions carry the details shown on each card). Not "mini
- *  apps": those run without sandboxes, and switching sandboxes off leaves
- *  them alone. */
+/** The one line each service card shows: the most important thing it
+ *  enables. The details (what uses it, what stops while it is off, what it
+ *  costs) are in the screen's help topic, mantle docs/guide/06-help/services.md.
+ *  Not "mini apps": those run without sandboxes, and switching sandboxes off
+ *  leaves them alone. */
 export const SERVICE_ENABLES: Record<OptionalServiceName, string> = {
-  sandboxes: 'lets the coder and app agents build, run and test code in isolated workspaces.',
-  media:
-    'lets the brain read video and audio (transcripts from links or files) and CAD drawings (DWF, DWG, DXF).',
+  sandboxes: 'Lets the coder and app agents build, run and test code in isolated workspaces.',
+  media: 'Lets the brain read video and audio (transcripts) and CAD drawings (DWF, DWG, DXF).',
 };
 
 const BUSY: readonly ServiceRunPhase[] = ['requested', 'pulling', 'starting', 'stopping'];
@@ -94,8 +94,8 @@ function gb(bytes: number): string {
 }
 
 /**
- * The warning before a service goes on, or null when the box has room.
- * Shown, never a block: the admin decides.
+ * The short warning before a service goes on, or null when the box has room.
+ * Shown, never a block: the admin decides. The longer story is in the help.
  */
 export function memoryWarning(view: ServicesView, svc: ServiceInfo): string | null {
   const { box } = view;
@@ -105,10 +105,11 @@ export function memoryWarning(view: ServicesView, svc: ServiceInfo): string | nu
   if (!small) return null;
   const size = total !== null ? `This box has ${gb(total)} of memory` : 'This is a small box';
   const core = box.core ? ' and runs the small core setup' : '';
+  // The brain's memory line can carry a bracketed aside; the warning drops it.
+  const memory = svc.description.memory.replace(/\s*\([^)]*\)\s*$/, '');
   return (
-    `${size}${core}. ${svc.description.title} can use ${svc.description.memory}. ` +
-    'The brain and its workers share that memory, so it can slow down or restart under load. ' +
-    'Switch it off again if that happens.'
+    `${size}${core}. ${svc.description.title} can use ${memory}, so the brain can slow down. ` +
+    'Switch it off again if it does.'
   );
 }
 
