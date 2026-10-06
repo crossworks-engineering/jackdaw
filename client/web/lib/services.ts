@@ -104,7 +104,7 @@ export function memoryWarning(view: ServicesView, svc: ServiceInfo): string | nu
   const small = box.smallBox || (total !== null && need >= total / 2);
   if (!small) return null;
   const size = total !== null ? `This box has ${gb(total)} of memory` : 'This is a small box';
-  const core = box.core ? ' and runs the small core setup' : '';
+  const core = box.core ? ' (small core setup)' : '';
   // The brain's memory line can carry a bracketed aside; the warning drops it.
   const memory = svc.description.memory.replace(/\s*\([^)]*\)\s*$/, '');
   return (
