@@ -654,8 +654,8 @@ export function RouteHostFields({
             </FieldLabel>
             <p className="text-xs text-muted-foreground">
               Route this request through the bundled Tailscale proxy so the Base URL (a MagicDNS
-              name) reaches a box behind NAT. Inert unless the <code>tailnet</code> compose profile
-              is up.
+              name) reaches a box behind NAT. Inert until Tailscale is activated under Settings &gt;
+              Local network.
             </p>
           </div>
           <Switch

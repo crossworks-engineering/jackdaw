@@ -84,8 +84,8 @@ export function ConnectGuide() {
             <div className="space-y-0.5 text-sm">
               <p className="font-medium">The Mantle host</p>
               <p className="text-muted-foreground">
-                Joins via the bundled <code className="font-mono">tailscale</code> sidecar (an auth
-                key in <code className="font-mono">.env</code>).
+                Joins through the bundled <code className="font-mono">tailscale</code> sidecar. You
+                activate it with an auth key on the Local network screen.
               </p>
             </div>
           </div>
@@ -222,29 +222,34 @@ open -a Tailscale`}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">3 · Bring up the Mantle sidecar</CardTitle>
-            <Badge variant="outline">on the Mantle host</Badge>
+            <CardTitle className="text-base">3 · Activate Mantle on your tailnet</CardTitle>
+            <Badge variant="outline">in Mantle</Badge>
           </div>
           <CardDescription>
-            Put the auth key in <code className="font-mono">.env</code> (next to{' '}
-            <code className="font-mono">docker-compose.yml</code>) and start the optional{' '}
-            <code className="font-mono">tailnet</code> profile.
+            The <code className="font-mono">tailscale</code> sidecar already runs with every Mantle
+            install. It waits, signed out, until you activate it here. No SSH and no{' '}
+            <code className="font-mono">.env</code> edit.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <CopyBlock
-            code={`# .env
-TS_AUTHKEY=tskey-auth-xxxxxxxxxxxx
-TS_HOSTNAME=mantle-host          # this node's name on your tailnet
-
-# start just the tailnet sidecar (or include it in your normal up):
-docker compose --profile tailnet up -d`}
-          />
-          <p className="text-xs text-muted-foreground">
-            The <code className="font-mono">tailnet</code> profile is off by default — a normal{' '}
-            <code className="font-mono">docker compose up</code> never touches it. The node&apos;s
-            identity persists in a volume, so the key only matters on first join / fresh redeploy.
-          </p>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <ol className="space-y-3">
+            <Step n={1} title="Save the key">
+              <p>
+                Open{' '}
+                <Link href="/settings/network" className="underline">
+                  Local network
+                </Link>
+                . Paste the key into <strong>Auth key</strong>, set a <strong>Device name</strong>{' '}
+                (how other devices reach this brain), and click <strong>Save key</strong>.
+              </p>
+            </Step>
+            <Step n={2} title="Activate">
+              <p>
+                Click <strong>Activate</strong>. The node keeps its identity across restarts and
+                updates, so the key only matters on the first join.
+              </p>
+            </Step>
+          </ol>
         </CardContent>
       </Card>
 

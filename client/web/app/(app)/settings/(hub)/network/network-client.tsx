@@ -311,7 +311,7 @@ function ActivateCard({
                 title={
                   sidecarUp
                     ? undefined
-                    : 'The tailscale sidecar is not running (dev, or profile off)'
+                    : 'The tailscale sidecar is not running (normal on a dev stack; on a server, check docker compose ps tailscale)'
                 }
                 onClick={() =>
                   run(() => apiSend<NetworkResult>('/api/network/activate', 'POST'), { poll: true })
