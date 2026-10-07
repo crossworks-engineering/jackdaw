@@ -42,6 +42,29 @@ export const UNREACHABLE = 'Could not reach the server. Check your connection an
 export const SIGN_IN_TIMEOUT_MS = 20_000;
 
 /**
+ * `work`, or `fallback` once `ms` have passed, whichever is first. For the
+ * best-effort steps after the bearer is held (the same-origin cookie checks and
+ * upgrade): none of them may hold the form busy forever, and every one of them
+ * already has an answer for "that did not happen" that the shell recovers from.
+ * A rejection is the fallback too. The work itself is not cancelled.
+ */
+export function settleWithin<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
+/**
  * Turn whatever was thrown into something a person can act on.
  *
  * A TypeError is the transport failing; anything else is unexpected and its own

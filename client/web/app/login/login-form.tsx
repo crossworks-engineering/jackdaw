@@ -17,6 +17,7 @@ import {
   SIGN_IN_TIMEOUT_MS,
   UNEXPECTED_RESPONSE,
   readBearer,
+  settleWithin,
   signInErrorMessage,
 } from '@/lib/sign-in-error';
 import { SetupCodeField, isSetupCodeRefusal } from './setup-code-field';
@@ -178,7 +179,14 @@ export function LoginForm({
         // client holds (its phone too, audit B23), which a staff sign-in on a
         // shared computer must not do. The password sign-in then sets this
         // login's own cookie over it instead, the way sign-in always did.
-        const leftover = isSignup ? 'none' : await sameOriginCookieRole();
+        //
+        // Every step here is best effort with the bearer already held, and
+        // each has the same 20 s limit as the sign-in itself: a hang must not
+        // keep the button disabled. A check that runs out reads 'unknown',
+        // which takes the ordinary logout-and-upgrade path.
+        const leftover = isSignup
+          ? 'none'
+          : await settleWithin(sameOriginCookieRole(), SIGN_IN_TIMEOUT_MS, 'unknown' as const);
         if (leftover === 'client') {
           try {
             await fetch(apiUrl('/api/auth/login'), {
@@ -186,6 +194,7 @@ export function LoginForm({
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ email, password }),
               credentials: 'include',
+              signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
             });
           } catch {
             /* the bearer is held already; the shell's own upgrade retries */
@@ -195,12 +204,13 @@ export function LoginForm({
             await fetch(apiUrl('/api/auth/logout'), {
               method: 'POST',
               credentials: 'include',
+              signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
             }).catch(() => undefined);
           }
           // Whatever an earlier visit to this tab memoised is about someone
           // else's session; this one has not been upgraded yet.
           resetCookieUpgrade();
-          await upgradeOwnerCookie();
+          await settleWithin(upgradeOwnerCookie(), SIGN_IN_TIMEOUT_MS, undefined);
         }
       }
 

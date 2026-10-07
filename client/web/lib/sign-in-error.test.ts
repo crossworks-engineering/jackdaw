@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UNEXPECTED_RESPONSE, UNREACHABLE, readBearer, signInErrorMessage } from './sign-in-error';
+import {
+  UNEXPECTED_RESPONSE,
+  UNREACHABLE,
+  readBearer,
+  settleWithin,
+  signInErrorMessage,
+} from './sign-in-error';
 
 /**
  * Sign-in is the one screen with no transport to fall back on, so every failure
@@ -110,5 +116,32 @@ describe('readBearer', () => {
 
   it('and the two failure messages are distinct, so the screen is not ambiguous', () => {
     expect(UNEXPECTED_RESPONSE).not.toBe(UNREACHABLE);
+  });
+});
+
+/**
+ * The steps after the bearer is held (same-origin cookie check and upgrade) are
+ * best effort; a hang in any of them kept the Sign in button disabled.
+ */
+describe('settleWithin', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('answers with the work when it finishes in time', async () => {
+    await expect(settleWithin(Promise.resolve('client'), 1000, 'unknown')).resolves.toBe('client');
+  });
+
+  it('answers with the fallback when the work rejects', async () => {
+    await expect(settleWithin(Promise.reject(new Error('x')), 1000, 'unknown')).resolves.toBe(
+      'unknown',
+    );
+  });
+
+  it('answers with the fallback when the work never settles', async () => {
+    vi.useFakeTimers();
+    const settled = settleWithin(new Promise<string>(() => undefined), 20_000, 'unknown');
+    await vi.advanceTimersByTimeAsync(20_000);
+    await expect(settled).resolves.toBe('unknown');
   });
 });
