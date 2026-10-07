@@ -4,6 +4,7 @@ import {
   FileText,
   FolderTree,
   Home,
+  KeyRound,
   MessageSquare,
   PenTool,
   Table2,
@@ -25,7 +26,7 @@ export type MemberNavItem = { name: string; href: string; icon: LucideIcon; chat
 
 /** What a member reaches (member logins, plan section 7): their home, the five
  *  workspace kinds (each with Mine, Team drafts and the Library), the apps
- *  they may run (Phase 4b), and chat. */
+ *  they may run (Phase 4b), chat, and their own API keys. */
 export const MEMBER_NAV: { label: string; items: MemberNavItem[] }[] = [
   { label: 'Home', items: [{ name: 'Home', href: '/', icon: Home }] },
   {
@@ -40,4 +41,6 @@ export const MEMBER_NAV: { label: string; items: MemberNavItem[] }[] = [
     ],
   },
   { label: 'Assistant', items: [{ name: 'Chat', href: '#chat', icon: MessageSquare, chat: true }] },
+  // Their own API keys, for scripts and MCP clients (brain migration 0232).
+  { label: 'You', items: [{ name: 'API access', href: '/settings/api-access', icon: KeyRound }] },
 ];

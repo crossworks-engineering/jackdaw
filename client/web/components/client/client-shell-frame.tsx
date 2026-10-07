@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { AppWindow, Inbox, Send } from 'lucide-react';
+import { AppWindow, Inbox, KeyRound, Send } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Sheet, SheetContent, SheetTitle } from '@mantle/web-ui/ui/sheet';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
@@ -16,6 +16,7 @@ import { clientRedirectFor } from '@/lib/client-surface';
 import { CLIENT_VIEW_HREF, clientViewOf, type ClientView } from '@/lib/client-requests';
 import type { ClientShell } from '@mantle/client-types';
 import { showsClientApps } from '@/lib/client-apps';
+import { ApiAccessClient } from '@/components/api-access/api-access-client';
 import { ClientApps, useClientApps } from './client-apps';
 import { ClientChatDock, ClientChatProvider } from './client-chat';
 import { ClientHome } from './client-home';
@@ -29,6 +30,8 @@ const CLIENT_NAV: readonly { view: ClientView; label: string; icon: typeof Inbox
   { view: 'shared', label: 'Shared with you', icon: Inbox },
   { view: 'requests', label: 'My requests', icon: Send },
   { view: 'apps', label: 'Apps', icon: AppWindow },
+  // Their own API keys (brain migration 0232).
+  { view: 'api-access', label: 'API keys', icon: KeyRound },
 ];
 
 /** The rail's links. `?view=` picks the screen (all live at `/`). Apps
@@ -66,12 +69,19 @@ function ClientNav({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-/** The screen the URL names: "Shared with you", My requests (C5), or Apps
- *  (C6). */
+/** The screen the URL names: "Shared with you", My requests (C5), Apps
+ *  (C6), or the client's own API keys. */
 function ClientScreen() {
   const view = clientViewOf(useSearchParams());
   if (view === 'requests') return <ClientRequests />;
   if (view === 'apps') return <ClientApps />;
+  if (view === 'api-access') {
+    return (
+      <div className="mx-auto w-full max-w-2xl p-4 md:p-6">
+        <ApiAccessClient />
+      </div>
+    );
+  }
   return <ClientHome />;
 }
 

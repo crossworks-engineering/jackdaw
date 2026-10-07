@@ -30,11 +30,11 @@ import { MEMBER_KIND } from './member-kinds';
  *  the client's apps (C6), anything else "Shared with you". A query, not a
  *  path, so the middleware's one-path rule for a client
  *  (lib/client-surface.ts) stays as it is. */
-export type ClientView = 'shared' | 'requests' | 'apps';
+export type ClientView = 'shared' | 'requests' | 'apps' | 'api-access';
 
 export function clientViewOf(params: Pick<URLSearchParams, 'get'> | null): ClientView {
   const v = params?.get('view');
-  return v === 'requests' || v === 'apps' ? v : 'shared';
+  return v === 'requests' || v === 'apps' || v === 'api-access' ? v : 'shared';
 }
 
 /** Where each screen starts: every filter, search, page and open item
@@ -43,6 +43,7 @@ export const CLIENT_VIEW_HREF: Record<ClientView, string> = {
   shared: '/',
   requests: '/?view=requests',
   apps: '/?view=apps',
+  'api-access': '/?view=api-access',
 };
 
 // ── My requests ─────────────────────────────────────────────────────────────

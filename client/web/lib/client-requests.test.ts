@@ -55,6 +55,7 @@ describe('the client screens', () => {
   it('reads the screen from `view`, Shared with you unless it says requests or apps', () => {
     expect(clientViewOf(new URLSearchParams('view=requests'))).toBe('requests');
     expect(clientViewOf(new URLSearchParams('view=apps'))).toBe('apps');
+    expect(clientViewOf(new URLSearchParams('view=api-access'))).toBe('api-access');
     expect(clientViewOf(new URLSearchParams('view=other'))).toBe('shared');
     expect(clientViewOf(new URLSearchParams(''))).toBe('shared');
     expect(clientViewOf(null)).toBe('shared');
@@ -65,6 +66,7 @@ describe('the client screens', () => {
       shared: '/',
       requests: '/?view=requests',
       apps: '/?view=apps',
+      'api-access': '/?view=api-access',
     });
   });
 });

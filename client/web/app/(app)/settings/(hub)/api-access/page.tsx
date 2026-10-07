@@ -1,5 +1,5 @@
 import { SetPageTitle } from '@/components/layout/page-title';
-import { ApiAccessClient } from './api-access-client';
+import { ApiAccessClient } from '@/components/api-access/api-access-client';
 
 /**
  * /settings/api-access: API keys for scripts and MCP clients (brain

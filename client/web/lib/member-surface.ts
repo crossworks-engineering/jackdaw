@@ -26,8 +26,13 @@ export const MEMBER_APP_PREFIXES: readonly string[] = [...MEMBER_KIND_PATHS, '/a
  *  that kind's screen (components/member/member-go-to-list.tsx). */
 export const MEMBER_LINK_PREFIXES: readonly string[] = ['/n'];
 
+/** Owner-shell screens that serve every login (they call routes that answer
+ *  any role): Settings > API access, where a member makes, lists and revokes
+ *  their own API keys (brain migration 0232). */
+export const MEMBER_SHARED_SCREENS: readonly string[] = ['/settings/api-access'];
+
 /** A path a member may open: the home, the member app screens, the item
- *  permalink, public paths. Chat is the assistant dock, on any of them (the
+ *  permalink, the shared screens (API access), public paths. Chat is the assistant dock, on any of them (the
  *  old /m is gone). */
 export function memberMayOpen(pathname: string, publicPrefixes: readonly string[] = []): boolean {
   const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
@@ -35,6 +40,7 @@ export function memberMayOpen(pathname: string, publicPrefixes: readonly string[
     pathname === '/' ||
     MEMBER_APP_PREFIXES.some(under) ||
     MEMBER_LINK_PREFIXES.some(under) ||
+    MEMBER_SHARED_SCREENS.some(under) ||
     publicPrefixes.some(under)
   );
 }
