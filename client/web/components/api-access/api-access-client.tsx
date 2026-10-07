@@ -117,7 +117,7 @@ export function ApiAccessClient() {
               <KeyRound className="size-4" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold">API keys</h2>
+              <h2 className="text-sm font-semibold">Keys for scripts and MCP</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 A key lets a script or an MCP client use this brain as you, with fewer rights if you
                 choose: read only, or only some areas. It works on the public API (
