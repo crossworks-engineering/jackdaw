@@ -38,7 +38,7 @@ const demo: Tour = {
       route: '/',
       target: 'brand',
       title: 'Welcome to the Jackdaw demo',
-      body: 'You are looking at a real Mantle brain: the working memory of Harbour Labs, a fictional five-person engineering studio. Everything in it is generated, and the demo is read-only, so look anywhere and change nothing.',
+      body: 'You are looking at a real Mantle brain: the working memory of Harbour Labs, a fictional three-person engineering studio, and one of its clients. Everything in it is generated, and the demo is read-only, so look anywhere and change nothing.',
     },
     {
       route: '/',
