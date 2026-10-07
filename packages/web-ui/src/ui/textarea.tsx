@@ -18,8 +18,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'tex
           //
           // Two deliberate differences, both textarea-only:
           //  - `min-h-[60px]` instead of `Input`'s fixed `h-10`; it grows.
-          //  - `scrollbar-thin`, because this is the one field that scrolls
-          //    and nothing sets a thin bar globally (html/body are `auto`).
+          //  - `scrollbar-thin`, because this is the one field that scrolls.
+          //    Now only an alias: share-ui sets the needle bar globally.
           //
           // `text-base md:text-sm` is the iOS zoom guard, and `Input` carries
           // it too now — keep the two in step if either changes.

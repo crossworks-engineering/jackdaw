@@ -704,29 +704,34 @@ into `<main>` when its content is far taller than the viewport, so the actual
 scroll container (the detail pane) must also be `relative` (see the master-detail
 rules below).
 
-**Scrollbars are always thin. No exceptions.** Every element that scrolls
-carries `scrollbar-thin` (`scrollbar-hidden` is the deliberate opt-out; both
-are utilities in `globals.css`). There is **no global default** — `html` and
-`body` compute to `scrollbar-width: auto` — so an element that scrolls without
-the class gets a fat bar, and nothing warns you.
+**Scrollbars are always needle-thin. No exceptions.** There is ONE global
+default, in share-ui `app.css`: every element that scrolls gets a 4px thumb
+(6px under the pointer) in the theme's primary colour on a transparent track,
+with no buttons and no corner. You do not add a class for it. The only
+opt-out is hiding the bar: `scrollbar-hidden`, or Tailwind's own
+`scrollbar-none`.
 
-**Small popovers add `scrollbar-hair`** (3px, against thin's 6px): the slash
-menu, the mention list, `Command`, `Select` and `DropdownMenu` content, where a
-6px bar is a visible share of a narrow list. Always written as
-`scrollbar-thin scrollbar-hair`, the hairline refining thin rather than
-replacing it, so a share-ui that predates the class falls back to thin and not
-to the fat default. Page-level panes, tables, code blocks and textareas stay on
-thin alone: 3px is a poor drag target on a long document. Firefox has no pixel
-control over scrollbars, so there the two look the same.
+`scrollbar-thin` and `scrollbar-hair` still appear across the code. They are
+plain aliases of the default now; leave them or drop them, the bar is the same.
+Do not add a new scrollbar class or a per-element width.
 
-Two consequences worth knowing:
+Two traps, both of which drew a fat grey bar in production:
 
-- **Put it on the primitive, not the caller.** `Textarea` carries it, so its
-  ~20 consumers cannot forget. Any new scrolling primitive should do the same.
-- **A raw `<textarea>` gets a fat bar**, which is one more reason §6d bans
-  them. When auditing, don't grep for the class: read computed
-  `scrollbarWidth` in the browser, because an element can inherit a scroll
-  overflow from a parent rule and still miss the class.
+- **Never set `scrollbar-width` or `scrollbar-color` in Chromium or Safari
+  code paths.** Since Chromium 121 either property (and `scrollbar-color` is
+  inherited) switches the `::-webkit-scrollbar` pseudo elements off for that
+  element, and Chrome draws its own 11px grey bar. Tailwind 4 ships a
+  `scrollbar-thin` utility that sets `scrollbar-width: thin`, which is how
+  every `.scrollbar-thin` pane got the fat bar in October 2026; share-ui resets
+  both properties to `auto` in those engines. Firefox gets the standard
+  properties from share-ui, since it has no pseudo elements.
+- **A third-party widget can outrank the global rule** with its own
+  `::-webkit-scrollbar` styling (Excalidraw does). Restate the needle in that
+  widget's theme file, as `components/draw/draw-theme.css` does.
+
+When auditing, read computed `scrollbarWidth` and the gutter
+(`offsetWidth - clientWidth`) in the browser rather than grepping for a class:
+the needle measures 6px, Chrome's fallback bar 11px or more.
 
 ### Resizable panes: `<MasterDetail>` (the scaffold, in code)
 

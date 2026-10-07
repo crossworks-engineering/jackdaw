@@ -104,9 +104,13 @@
   );
   --button-destructive-color: var(--destructive);
 
-  /* Scrollbars + radii. */
-  --scrollbar-thumb: var(--border);
-  --scrollbar-thumb-hover: var(--muted-foreground);
+  /* Scrollbars (the app's needle colours, see the rules at the end) + radii. */
+  --scrollbar-thumb: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--primary) 65%, var(--foreground)) 80%,
+    transparent
+  );
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--primary) 65%, var(--foreground));
   --border-radius-md: var(--radius-md);
   --border-radius-lg: var(--radius-lg);
 }
@@ -148,16 +152,28 @@
   --icon-fill-color: var(--accent-foreground);
 }
 
-/* Scroll surfaces get the app's thin scrollbar: the shape-properties island
-   (revealed by selecting an element), the right-click context menu (whose
-   Popover sets overflow-y inline when it would leave the viewport), and the
-   main-menu dropdown. Standard properties, so every engine renders the same
-   thin, theme-colored bar as .scrollbar-thin. */
-.excalidraw .App-menu__left,
-.excalidraw .context-menu-popover,
-.excalidraw .dropdown-menu-container {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent) transparent;
+/* Scrollbars: the app's global needle (share-ui app.css), restated here
+   because the package's own `.excalidraw ::-webkit-scrollbar` rules outrank
+   the global ones (4px wide, 3px tall, 10px for a select). Same specificity,
+   later in the cascade, so these win. No standard properties: since Chromium
+   121, `scrollbar-width` or `scrollbar-color` on an element switches these
+   pseudo elements off and Chrome draws its own 11px grey bar. This file used
+   to set both on the island, the context menu and the main menu. Firefox
+   takes the global standard-property rule. */
+.excalidraw ::-webkit-scrollbar,
+.excalidraw select::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.excalidraw ::-webkit-scrollbar-thumb {
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+}
+.excalidraw ::-webkit-scrollbar-thumb:hover,
+.excalidraw ::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-hover);
+  border-width: 0;
 }
 
 /* Tooltips portal to <body> WITHOUT the .excalidraw class and re-declare the

@@ -11,8 +11,9 @@ export type ScrollbarStyle = 'hidden' | 'thin' | 'hair' | 'default';
 
 interface ScrollableProps {
   children: React.ReactNode;
-  /** Scrollbar style: "hidden" (no scrollbar), "thin" (6px, the app's standard),
-   *  "hair" (3px, small popovers only), "default" (browser default) */
+  /** Scrollbar style: "hidden" (no scrollbar) or any other value. "thin",
+   *  "hair" and "default" all draw share-ui's global needle bar now; the
+   *  names stay so existing callers keep compiling. */
   scrollbar?: ScrollbarStyle;
   /** Additional class names */
   className?: string;
