@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Bot, type LucideIcon } from 'lucide-react';
 import { NAV_GROUPS as SHARED_NAV_GROUPS } from '@mantle/share-ui/nav-items';
 import {
+  ADDED_NAV_ITEMS,
   ALL_NAV_ITEMS,
   NAV_GROUPS,
   matchNavItem,
@@ -15,6 +16,10 @@ import {
  *  names it. */
 const icon = Bot as LucideIcon;
 const hrefs = (groups: NavGroup[]) => groups.flatMap((g) => g.items).map((i) => i.href);
+/** The hrefs this client adds itself (ADDED_NAV_ITEMS). */
+const ADDED = new Set(ADDED_NAV_ITEMS.map((a) => a.item.href));
+/** Only the Services entry, for the placement tests below. */
+const SERVICES_ONLY = ADDED_NAV_ITEMS.filter((a) => a.item.href === '/settings/services');
 
 describe('nav items without retired screens', () => {
   it('drops /team-portal from the groups, the flat list and the matcher', () => {
@@ -25,8 +30,8 @@ describe('nav items without retired screens', () => {
 
   it('keeps everything else the shared list has, in order', () => {
     const shared = hrefs(SHARED_NAV_GROUPS).filter((h) => h !== '/team-portal');
-    expect(hrefs(NAV_GROUPS).filter((h) => h !== '/settings/services')).toEqual(
-      shared.filter((h) => h !== '/settings/services'),
+    expect(hrefs(NAV_GROUPS).filter((h) => !ADDED.has(h))).toEqual(
+      shared.filter((h) => !ADDED.has(h)),
     );
     expect(matchNavItem('/team-admin')?.href).toBe('/team-admin');
   });
@@ -60,6 +65,14 @@ describe('nav items this client adds before the shared list names them', () => {
     expect(matchNavItem('/settings/services')?.name).toBe('Services');
   });
 
+  it('Settings > API access is in the Settings group, once, right after MCP', () => {
+    const settings = NAV_GROUPS.find((g) => g.label === 'Settings')!;
+    const list = settings.items.map((i) => i.href);
+    expect(list.filter((h) => h === '/settings/api-access')).toHaveLength(1);
+    expect(list[list.indexOf('/settings/mcp') + 1]).toBe('/settings/api-access');
+    expect(matchNavItem('/settings/api-access')?.name).toBe('API access');
+  });
+
   const groups: NavGroup[] = [
     {
       label: 'Settings',
@@ -72,7 +85,7 @@ describe('nav items this client adds before the shared list names them', () => {
   ];
 
   it('places an entry after its anchor', () => {
-    expect(hrefs(withAdded(groups))).toEqual([
+    expect(hrefs(withAdded(groups, SERVICES_ONLY))).toEqual([
       '/settings/backups',
       '/settings/updates',
       '/settings/services',
@@ -87,7 +100,7 @@ describe('nav items this client adds before the shared list names them', () => {
         items: [...groups[0]!.items, { name: 'Services', href: '/settings/services', icon }],
       },
     ];
-    expect(withAdded(carried)).toEqual(carried);
+    expect(withAdded(carried, SERVICES_ONLY)).toEqual(carried);
   });
 
   it('appends when the anchor is gone, and leaves other groups alone', () => {
@@ -95,7 +108,7 @@ describe('nav items this client adds before the shared list names them', () => {
       { label: 'Settings', items: [{ name: 'Backups', href: '/settings/backups', icon }] },
       { label: 'System', items: [{ name: 'Debug', href: '/debug', icon }] },
     ];
-    expect(hrefs(withAdded(noAnchor))).toEqual([
+    expect(hrefs(withAdded(noAnchor, SERVICES_ONLY))).toEqual([
       '/settings/backups',
       '/settings/services',
       '/debug',

@@ -1,0 +1,451 @@
+'use client';
+
+/**
+ * Settings > API access (brain migration 0232): API keys for scripts and
+ * MCP clients. A key acts as the login that made it and can only narrow
+ * it: read only or read and write, all areas or some. It works as a
+ * Bearer on the public API (/api/v1) and on /api/mcp. The secret is shown
+ * once, right after it is made.
+ *
+ * Every login makes and revokes its own keys. An admin also sees, and may
+ * revoke, every key on the brain. Not the outbound "API keys" screen
+ * (/settings/keys): those are keys this brain uses to call other services.
+ */
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import type { AccessKeyCreated, AccessKeyList, AccessKeyView } from '@mantle/client-types';
+import { apiFetch, apiSend, apiUrl, ApiError } from '@mantle/web-ui/api-fetch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
+import { Badge } from '@mantle/web-ui/ui/badge';
+import { Button } from '@mantle/web-ui/ui/button';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
+import { CopyBlock } from '@mantle/web-ui/ui/copy-button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@mantle/web-ui/ui/dialog';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@mantle/web-ui/ui/field';
+import { Input } from '@mantle/web-ui/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mantle/web-ui/ui/select';
+import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
+import { Switch } from '@mantle/web-ui/ui/switch';
+import { useToast } from '@mantle/web-ui/ui/toast';
+import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
+import {
+  ACCESS_LABEL,
+  AREA_LABEL,
+  EXPIRY_CHOICES,
+  EXPIRY_LABEL,
+  createBody,
+  defaultExpiryChoice,
+  exampleCommands,
+  scopeLine,
+  sortKeys,
+  type CreateForm,
+} from './api-access-model';
+
+const QUERY_KEY = ['access-keys'];
+
+/** The brain's origin, for the example commands: the API base in the split
+ *  topology, this page's origin otherwise. */
+function brainOrigin(): string {
+  return new URL(apiUrl('/'), window.location.href).origin;
+}
+
+export function ApiAccessClient() {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: () => apiFetch<AccessKeyList>('/api/access-keys'),
+  });
+  const [creating, setCreating] = useState(false);
+  const [minted, setMinted] = useState<(AccessKeyCreated & { name: string }) | null>(null);
+  const [revoking, setRevoking] = useState<AccessKeyView | null>(null);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: QUERY_KEY });
+
+  const revoke = async (key: AccessKeyView) => {
+    try {
+      await apiSend(`/api/access-keys/${key.id}`, 'DELETE');
+      toast.success(`Revoked ${key.name}`);
+      if (minted?.id === key.id) setMinted(null);
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not revoke the key');
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  const data = query.data;
+  const isAdmin = data?.role === 'admin';
+  const keys = data ? sortKeys(data.keys) : [];
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-border bg-card">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4 md:p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-lg bg-accent p-2 text-accent-foreground">
+              <KeyRound className="size-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold">API keys</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A key lets a script or an MCP client use this brain as you, with fewer rights if you
+                choose: read only, or only some areas. It works on the public API (
+                <code>/api/v1</code>) and on MCP. Signing out does not end a key. Revoke it here.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={() => setCreating(true)} disabled={!data}>
+            <Plus /> Make key
+          </Button>
+        </div>
+
+        {minted && (
+          <NewKeyPanel minted={minted} origin={brainOrigin()} onDone={() => setMinted(null)} />
+        )}
+
+        {query.isLoading ? (
+          <div className="p-4 text-sm text-muted-foreground md:p-5">Loading…</div>
+        ) : query.isError ? (
+          <div className="p-4 text-sm text-destructive-ink md:p-5">Could not load the keys.</div>
+        ) : keys.length === 0 ? (
+          <div className="p-4 text-sm text-muted-foreground md:p-5">No keys yet.</div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {keys.map((k) => (
+              <KeyRow key={k.id} k={k} showOwner={isAdmin} onRevoke={() => setRevoking(k)} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {data && (
+        <CreateKeyDialog
+          open={creating}
+          onOpenChange={setCreating}
+          isAdmin={isAdmin}
+          areas={data.areas}
+          defaultExpiryDays={data.defaultExpiryDays}
+          onCreated={async (made) => {
+            setMinted(made);
+            setCreating(false);
+            await refresh();
+          }}
+        />
+      )}
+
+      <AlertDialog open={!!revoking} onOpenChange={(o) => !o && setRevoking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke {revoking?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The key stops working on its next request. Scripts and MCP clients that use it get
+              401. You cannot undo this; make a new key instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => revoking && revoke(revoking)}
+            >
+              Revoke key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function KeyRow({
+  k,
+  showOwner,
+  onRevoke,
+}: {
+  k: AccessKeyView;
+  showOwner: boolean;
+  onRevoke: () => void;
+}) {
+  const ended = k.status !== 'active';
+  return (
+    <li
+      className={`flex items-start justify-between gap-3 p-4 md:px-5 ${ended ? 'opacity-60' : ''}`}
+    >
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-medium">{k.name}</span>
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{k.prefix}</code>
+          {k.status === 'revoked' && <Badge variant="outline">Revoked</Badge>}
+          {k.status === 'expired' && <Badge variant="outline">Expired</Badge>}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {scopeLine(k)}
+          {k.riskyTools.length > 0 ? ` · risky tools: ${k.riskyTools.join(', ')}` : ''}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {showOwner ? `${k.login.displayName || k.login.email || 'Unknown login'} · ` : ''}
+          Made {formatDateTime(k.createdAt)}
+          {' · '}
+          {k.lastUsedAt
+            ? `last used ${formatDateTime(k.lastUsedAt)}${showOwner && k.lastUsedIp ? ` from ${k.lastUsedIp}` : ''}`
+            : 'not used yet'}
+          {' · '}
+          {k.expiresAt
+            ? `${k.status === 'expired' ? 'expired' : 'expires'} ${formatDateTime(k.expiresAt)}`
+            : 'never expires'}
+        </p>
+      </div>
+      {!ended && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive-ink"
+          onClick={onRevoke}
+          aria-label={`Revoke ${k.name}`}
+        >
+          <Trash2 />
+        </Button>
+      )}
+    </li>
+  );
+}
+
+function NewKeyPanel({
+  minted,
+  origin,
+  onDone,
+}: {
+  minted: AccessKeyCreated & { name: string };
+  origin: string;
+  onDone: () => void;
+}) {
+  const ex = exampleCommands(origin, minted.secret);
+  return (
+    <div className="space-y-3 border-b border-border bg-primary/5 p-4 md:p-5">
+      <p className="text-sm">
+        <span className="font-medium">{minted.name}</span> is ready. Copy the key now: it is shown
+        only once. Keep it like a password.
+      </p>
+      <CopyBlock code={minted.secret} />
+      <p className="text-xs text-muted-foreground">Try it:</p>
+      <CopyBlock code={ex.http} />
+      <p className="text-xs text-muted-foreground">Or add this brain to Claude Code over MCP:</p>
+      <CopyBlock code={ex.mcp} />
+      <div className="flex justify-end">
+        <Button size="sm" onClick={onDone}>
+          I copied it
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CreateKeyDialog({
+  open,
+  onOpenChange,
+  isAdmin,
+  areas,
+  defaultExpiryDays,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isAdmin: boolean;
+  areas: AccessKeyList['areas'];
+  defaultExpiryDays: number;
+  onCreated: (made: AccessKeyCreated & { name: string }) => Promise<void>;
+}) {
+  const toast = useToast();
+  const blank = (): CreateForm => ({
+    name: '',
+    access: 'read',
+    allAreas: true,
+    areas: [],
+    expiry: defaultExpiryChoice(defaultExpiryDays),
+    riskyTools: '',
+  });
+  const [form, setForm] = useState<CreateForm>(blank);
+  const [error, setError] = useState<{ field: string; message: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const set = (patch: Partial<CreateForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const built = createBody(form, isAdmin);
+    if ('error' in built) {
+      setError({ field: built.field, message: built.error });
+      return;
+    }
+    setError(null);
+    setPending(true);
+    try {
+      const made = await apiSend<AccessKeyCreated>('/api/access-keys', 'POST', built.body);
+      await onCreated({ ...made, name: built.body.name });
+      setForm(blank());
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not make the key');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setError(null);
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Make an API key</DialogTitle>
+          <DialogDescription>The key acts as you, with the limits you set here.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} noValidate>
+          <FieldGroup>
+            <Field data-invalid={error?.field === 'name' || undefined}>
+              <FieldLabel htmlFor="key-name">Name</FieldLabel>
+              <Input
+                id="key-name"
+                value={form.name}
+                onChange={(e) => set({ name: e.target.value })}
+                placeholder="Backup script"
+                aria-invalid={error?.field === 'name' || undefined}
+                aria-describedby={error?.field === 'name' ? 'key-name-error' : undefined}
+              />
+              <FieldError id="key-name-error">
+                {error?.field === 'name' ? error.message : null}
+              </FieldError>
+            </Field>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="key-access">Access</FieldLabel>
+                <Select
+                  value={form.access}
+                  onValueChange={(v) => set({ access: v as CreateForm['access'] })}
+                >
+                  <SelectTrigger id="key-access">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="read">{ACCESS_LABEL.read}</SelectItem>
+                    <SelectItem value="read_write">{ACCESS_LABEL.read_write}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="key-expiry">Expires</FieldLabel>
+                <Select
+                  value={form.expiry}
+                  onValueChange={(v) => set({ expiry: v as CreateForm['expiry'] })}
+                >
+                  <SelectTrigger id="key-expiry">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPIRY_CHOICES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {EXPIRY_LABEL[c]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <Field data-invalid={error?.field === 'areas' || undefined}>
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel htmlFor="key-all-areas">All areas</FieldLabel>
+                <Switch
+                  id="key-all-areas"
+                  checked={form.allAreas}
+                  onCheckedChange={(v) => set({ allAreas: v })}
+                />
+              </div>
+              {!form.allAreas && (
+                <div className="grid grid-cols-2 gap-2 pt-1" role="group" aria-label="Areas">
+                  {areas.map((a) => (
+                    <label key={a} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={form.areas.includes(a)}
+                        onCheckedChange={(v) =>
+                          set({
+                            areas: v ? [...form.areas, a] : form.areas.filter((x) => x !== a),
+                          })
+                        }
+                      />
+                      {AREA_LABEL[a]}
+                    </label>
+                  ))}
+                </div>
+              )}
+              <FieldDescription>
+                Off: the key reaches only the areas you tick. Some routes and tools belong to no
+                area; they need All areas.
+              </FieldDescription>
+              <FieldError>{error?.field === 'areas' ? error.message : null}</FieldError>
+            </Field>
+
+            {isAdmin && (
+              <Field data-invalid={error?.field === 'riskyTools' || undefined}>
+                <FieldLabel htmlFor="key-risky">Risky MCP tools allowed</FieldLabel>
+                <Input
+                  id="key-risky"
+                  value={form.riskyTools}
+                  onChange={(e) => set({ riskyTools: e.target.value })}
+                  placeholder="web_search, email_send"
+                  aria-invalid={error?.field === 'riskyTools' || undefined}
+                  aria-describedby="key-risky-description"
+                />
+                <FieldDescription id="key-risky-description">
+                  Tools that send, spend or publish stay blocked for a key until you name them here.
+                  Leave it empty if you are not sure.
+                </FieldDescription>
+                <FieldError>{error?.field === 'riskyTools' ? error.message : null}</FieldError>
+              </Field>
+            )}
+
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <SubmitButton pending={pending}>Make key</SubmitButton>
+            </div>
+          </FieldGroup>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

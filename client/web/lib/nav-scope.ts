@@ -62,6 +62,7 @@ const SETTINGS_HREFS = new Set([
   '/settings/heartbeats',
   // What they can reach.
   '/settings/mcp',
+  '/settings/api-access',
   '/settings/tools',
   '/settings/tool-groups',
   '/settings/skills',

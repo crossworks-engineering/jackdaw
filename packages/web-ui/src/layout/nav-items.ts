@@ -1,4 +1,4 @@
-import { Power } from 'lucide-react';
+import { KeyRound, Power } from 'lucide-react';
 import {
   NAV_GROUPS as SHARED_NAV_GROUPS,
   navItemMatches,
@@ -44,6 +44,13 @@ export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item
     group: 'Settings',
     after: '/settings/updates',
     item: { name: 'Services', href: '/settings/services', icon: Power },
+  },
+  // API keys for scripts and MCP clients (mantle migration 0232). Joins the
+  // shared list in the mantle release that ships the keys.
+  {
+    group: 'Settings',
+    after: '/settings/mcp',
+    item: { name: 'API access', href: '/settings/api-access', icon: KeyRound },
   },
 ];
 
