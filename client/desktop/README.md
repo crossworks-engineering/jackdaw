@@ -45,7 +45,7 @@ CI picks the mode from the repository secrets:
 
 | Secrets present | Result on a downloaded Mac build |
 | --- | --- |
-| none | **Ad-hoc** signed. macOS says it cannot verify the developer; the user opens it once with System Settings > Privacy & Security > Open Anyway. No self-update. |
+| none (branch or manual build only; a tag build FAILS if any of the five is missing) | **Ad-hoc** signed. macOS says it cannot verify the developer; the user opens it once with System Settings > Privacy & Security > Open Anyway. No self-update. |
 | `CSC_LINK` + `CSC_KEY_PASSWORD` + the three `APPLE_API_*` | **Developer ID** signed, hardened runtime, notarized and stapled. Opens with no warning; electron-updater self-updates. |
 
 | Secret | What it holds |
