@@ -64,7 +64,7 @@ test.describe('My requests', () => {
   test('sits beside Shared with you; each row wears its state as a pill', async ({ page }) => {
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Primary' });
-    await expect(nav.getByRole('link')).toHaveText(['Shared with you', 'My requests'], {
+    await expect(nav.getByRole('link')).toHaveText(['Shared with you', 'My requests', 'API keys'], {
       timeout: 60_000,
     });
     await nav.getByRole('link', { name: 'My requests' }).click();

@@ -310,13 +310,13 @@ test.describe('a signed-in client', () => {
     await signInAsClient(context, baseURL!);
   });
 
-  test('the client chrome: the brand, the account, one screen', async ({ page }) => {
+  test('the client chrome: the brand, the account, its screens', async ({ page }) => {
     await page.goto('/');
     await expect(heading(page)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('link', { name: `${CLIENT_SITE} home` }).first()).toBeVisible();
     const nav = page.getByRole('navigation', { name: 'Primary' });
-    // Two screens since C5: what is shared, and what the client sent.
-    await expect(nav.getByRole('link')).toHaveText(['Shared with you', 'My requests']);
+    // What is shared, what the client sent (C5), and its own API keys.
+    await expect(nav.getByRole('link')).toHaveText(['Shared with you', 'My requests', 'API keys']);
     const account = page.getByRole('button', { name: /^Account/ }).first();
     // The house style: no em or en dash, not even in an accessible name
     // (tier N7). Named by code point so this file carries neither.

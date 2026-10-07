@@ -70,7 +70,10 @@ const overflow = (page: Page) =>
     const scroll = document.documentElement.scrollWidth - document.documentElement.clientWidth;
     return wide.length + sideways.length + Math.max(0, scroll);
   });
-const appsList = (page: Page) => page.getByRole('list', { name: 'Apps' });
+/** The launcher's grid: the one list on the Apps screen, a card per app. */
+const appsList = (page: Page) => page.getByRole('main').getByRole('list');
+const appCard = (page: Page, title: string) =>
+  appsList(page).getByRole('listitem').filter({ hasText: title });
 const appsAsked = () => api.clientRouteCalls.filter((c) => c === 'GET /api/client/apps').length;
 
 test.describe('a client’s apps', () => {
@@ -88,7 +91,7 @@ test.describe('a client’s apps', () => {
     ];
     await page.goto('/');
     await expect(nav(page).getByRole('link')).toHaveText(
-      ['Shared with you', 'My requests', 'Apps'],
+      ['Shared with you', 'My requests', 'Apps', 'API keys'],
       { timeout: 60_000 },
     );
     await nav(page).getByRole('link', { name: 'Apps' }).click();
@@ -99,10 +102,8 @@ test.describe('a client’s apps', () => {
     );
     await expect(appsList(page).getByRole('listitem')).toHaveCount(2, { timeout: 30_000 });
     // Only the informational app wears its tag.
-    const plain = appsList(page).locator('[data-item-id]').filter({ hasText: CLIENT_APP_TITLE });
-    const info = appsList(page)
-      .locator('[data-item-id]')
-      .filter({ hasText: CLIENT_INFO_APP_TITLE });
+    const plain = appCard(page, CLIENT_APP_TITLE);
+    const info = appCard(page, CLIENT_INFO_APP_TITLE);
     await expect(info).toContainText('Informational');
     await expect(plain).not.toContainText('Informational');
     // The search narrows the cards.
@@ -110,7 +111,7 @@ test.describe('a client’s apps', () => {
     await expect(appsList(page).getByRole('listitem')).toHaveCount(1);
     await page.getByRole('textbox', { name: 'Search apps' }).fill('');
 
-    await plain.getByRole('button', { name: CLIENT_APP_TITLE }).click();
+    await plain.getByRole('link').click();
     await expect(page).toHaveURL(new RegExp(`\\?view=apps&id=${CLIENT_APP_ID}$`));
     await expect(page.getByRole('heading', { name: CLIENT_APP_TITLE })).toBeVisible();
     // The sandbox runs over the client base: its ticket, then its frame.
@@ -210,14 +211,22 @@ test.describe('a client’s apps', () => {
   test('a brain with no client apps shows no Apps', async ({ page }) => {
     await page.goto('/');
     await expect.poll(appsAsked, { timeout: 60_000 }).toBe(1);
-    await expect(nav(page).getByRole('link')).toHaveText(['Shared with you', 'My requests']);
+    await expect(nav(page).getByRole('link')).toHaveText([
+      'Shared with you',
+      'My requests',
+      'API keys',
+    ]);
   });
 
   test('a brain before C6 shows no Apps, and is asked once', async ({ page }) => {
     api.clientApps.routes = false;
     await page.goto('/');
     await expect.poll(appsAsked, { timeout: 60_000 }).toBe(1);
-    await expect(nav(page).getByRole('link')).toHaveText(['Shared with you', 'My requests']);
+    await expect(nav(page).getByRole('link')).toHaveText([
+      'Shared with you',
+      'My requests',
+      'API keys',
+    ]);
     // A focus refresh asks the portal's lists again, but not a missing route.
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect
@@ -249,7 +258,7 @@ test.describe('a client’s apps on a phone', () => {
     await page.goto('/?view=apps');
     await expect(appsList(page).getByRole('listitem')).toHaveCount(2, { timeout: 60_000 });
     expect(await overflow(page)).toBe(0);
-    await appsList(page).getByRole('button', { name: CLIENT_INFO_APP_TITLE }).click();
+    await appCard(page, CLIENT_INFO_APP_TITLE).getByRole('link').click();
     await expect(page.getByRole('heading', { name: CLIENT_INFO_APP_TITLE })).toBeVisible({
       timeout: 30_000,
     });
@@ -367,7 +376,9 @@ test.describe('an admin', () => {
     ] as const) {
       api.admin.app = detail(false, audience);
       await page.goto(`/apps/${ADMIN_APP_ID}`);
-      await expect(page.getByRole('tab', { name: 'Builder' })).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByRole('button', { name: 'View: Builder' })).toBeVisible({
+        timeout: 60_000,
+      });
       await expect(page.getByRole('switch', { name: LABEL }), audience).toHaveCount(shown);
     }
   });
@@ -375,7 +386,9 @@ test.describe('an admin', () => {
   test('a brain before C6 shows no switch', async ({ page }) => {
     api.admin.app = detail(undefined);
     await page.goto(`/apps/${ADMIN_APP_ID}`);
-    await expect(page.getByRole('tab', { name: 'Builder' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('button', { name: 'View: Builder' })).toBeVisible({
+      timeout: 60_000,
+    });
     await expect(page.getByRole('switch', { name: LABEL })).toHaveCount(0);
   });
 
