@@ -121,8 +121,10 @@ export function ApiAccessClient() {
               <p className="mt-1 text-sm text-muted-foreground">
                 A key lets a script or an MCP client use this brain as you, with fewer rights if you
                 choose: read only, or only some areas. It works on the public API (
-                <code>/api/v1</code>) and on MCP. A plain sign-out does not end a key; a password
-                change or Sign out everywhere ends all of them. Revoke a key here.
+                <code>/api/v1</code>) and on MCP.{' '}
+                {data && !data.needsPassword
+                  ? 'Your keys end when you sign out. Revoke a key here.'
+                  : 'A plain sign-out does not end a key; a password change or Sign out everywhere ends all of them. Revoke a key here.'}
               </p>
             </div>
           </div>
@@ -263,6 +265,10 @@ function NewKeyPanel({
         only once. Keep it like a password.
       </p>
       <CopyBlock code={minted.secret} />
+      <p className="text-xs text-muted-foreground">
+        Keep it in a variable, so it stays out of each command:
+      </p>
+      <CopyBlock code={ex.env} />
       <p className="text-xs text-muted-foreground">Try it:</p>
       <CopyBlock code={ex.http} />
       <p className="text-xs text-muted-foreground">Or add this brain to Claude Code over MCP:</p>
@@ -321,10 +327,11 @@ function CreateKeyDialog({
       await onCreated({ ...made, name: built.body.name });
       setForm(blank());
     } catch (err) {
+      // The password is never kept after a try, whatever the answer.
+      set({ password: '' });
       // A wrong password is the field's problem, not a toast.
-      if (err instanceof ApiError && err.status === 403 && rules.needsPassword) {
+      if (err instanceof ApiError && err.status === 403 && err.body?.reason === 'password') {
         setError({ field: 'password', message: err.message });
-        set({ password: '' });
         return;
       }
       toast.error(err instanceof ApiError ? err.message : 'Could not make the key');
@@ -337,7 +344,11 @@ function CreateKeyDialog({
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) setError(null);
+        // Closing forgets the whole form, the password above all.
+        if (!o) {
+          setError(null);
+          setForm(blank());
+        }
         onOpenChange(o);
       }}
     >
@@ -347,11 +358,19 @@ function CreateKeyDialog({
           <DialogDescription>The key acts as you, with the limits you set here.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate>
+          {rules.needsPassword && (
+            // For a password manager: the login the password field is for, so
+            // it does not fill the key's Name instead. Hidden and never
+            // focused, so the kit's styling has nothing to do here.
+            // eslint-disable-next-line house/no-raw-form-control -- a hidden autofill hint, not a control
+            <input type="text" autoComplete="username" hidden readOnly value="" />
+          )}
           <FieldGroup>
             <Field data-invalid={error?.field === 'name' || undefined}>
               <FieldLabel htmlFor="key-name">Name</FieldLabel>
               <Input
                 id="key-name"
+                autoComplete="off"
                 value={form.name}
                 onChange={(e) => set({ name: e.target.value })}
                 placeholder="Backup script"

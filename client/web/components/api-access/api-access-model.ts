@@ -135,11 +135,17 @@ export function sortKeys(keys: readonly AccessKeyView[]): AccessKeyView[] {
   );
 }
 
-/** The two commands shown with a new key: a first API call, and adding the
- *  brain to Claude Code over MCP. `origin` is the brain's origin. */
-export function exampleCommands(origin: string, secret: string): { http: string; mcp: string } {
+/** The commands shown with a new key: put it in a variable once (so the
+ *  secret is not on every command line, or in the shell history of each),
+ *  a first API call, and adding the brain to Claude Code over MCP. `origin`
+ *  is the brain's origin. */
+export function exampleCommands(
+  origin: string,
+  secret: string,
+): { env: string; http: string; mcp: string } {
   return {
-    http: `curl -s ${origin}/api/v1/whoami \\\n  -H "Authorization: Bearer ${secret}"`,
-    mcp: `claude mcp add --transport http mantle ${origin}/api/mcp \\\n  --header "Authorization: Bearer ${secret}"`,
+    env: `export MANTLE_KEY='${secret}'`,
+    http: `curl -s ${origin}/api/v1/whoami \\\n  -H "Authorization: Bearer $MANTLE_KEY"`,
+    mcp: `claude mcp add --transport http mantle ${origin}/api/mcp \\\n  --header "Authorization: Bearer $MANTLE_KEY"`,
   };
 }

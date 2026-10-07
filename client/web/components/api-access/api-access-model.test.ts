@@ -128,8 +128,12 @@ describe('API access: list', () => {
 
   it('builds the example commands on the brain origin', () => {
     const ex = exampleCommands('https://brain.example.com', 'mtlk_abcdefgh_secret');
+    expect(ex.env).toBe("export MANTLE_KEY='mtlk_abcdefgh_secret'");
     expect(ex.http).toContain('https://brain.example.com/api/v1/whoami');
-    expect(ex.http).toContain('Authorization: Bearer mtlk_abcdefgh_secret');
+    expect(ex.http).toContain('Authorization: Bearer $MANTLE_KEY');
     expect(ex.mcp).toContain('https://brain.example.com/api/mcp');
+    // The secret is on the export line only.
+    expect(ex.http).not.toContain('mtlk_');
+    expect(ex.mcp).not.toContain('mtlk_');
   });
 });
