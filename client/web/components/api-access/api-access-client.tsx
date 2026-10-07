@@ -59,14 +59,15 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import {
   ACCESS_LABEL,
   AREA_LABEL,
-  EXPIRY_CHOICES,
   EXPIRY_LABEL,
   createBody,
   defaultExpiryChoice,
   exampleCommands,
+  expiryChoicesFor,
   scopeLine,
   sortKeys,
   type CreateForm,
+  type CreateRules,
 } from './api-access-model';
 
 const QUERY_KEY = ['access-keys'];
@@ -120,7 +121,8 @@ export function ApiAccessClient() {
               <p className="mt-1 text-sm text-muted-foreground">
                 A key lets a script or an MCP client use this brain as you, with fewer rights if you
                 choose: read only, or only some areas. It works on the public API (
-                <code>/api/v1</code>) and on MCP. Signing out does not end a key. Revoke it here.
+                <code>/api/v1</code>) and on MCP. A plain sign-out does not end a key; a password
+                change or Sign out everywhere ends all of them. Revoke a key here.
               </p>
             </div>
           </div>
@@ -152,7 +154,11 @@ export function ApiAccessClient() {
         <CreateKeyDialog
           open={creating}
           onOpenChange={setCreating}
-          isAdmin={isAdmin}
+          rules={{
+            isAdmin,
+            needsPassword: data.needsPassword,
+            maxExpiryDays: data.maxExpiryDays,
+          }}
           areas={data.areas}
           defaultExpiryDays={data.defaultExpiryDays}
           onCreated={async (made) => {
@@ -273,26 +279,28 @@ function NewKeyPanel({
 function CreateKeyDialog({
   open,
   onOpenChange,
-  isAdmin,
+  rules,
   areas,
   defaultExpiryDays,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  isAdmin: boolean;
+  rules: CreateRules;
   areas: AccessKeyList['areas'];
   defaultExpiryDays: number;
   onCreated: (made: AccessKeyCreated & { name: string }) => Promise<void>;
 }) {
   const toast = useToast();
+  const { isAdmin } = rules;
   const blank = (): CreateForm => ({
     name: '',
     access: 'read',
     allAreas: true,
     areas: [],
-    expiry: defaultExpiryChoice(defaultExpiryDays),
+    expiry: defaultExpiryChoice(defaultExpiryDays, rules.maxExpiryDays),
     riskyTools: '',
+    password: '',
   });
   const [form, setForm] = useState<CreateForm>(blank);
   const [error, setError] = useState<{ field: string; message: string } | null>(null);
@@ -301,7 +309,7 @@ function CreateKeyDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const built = createBody(form, isAdmin);
+    const built = createBody(form, rules);
     if ('error' in built) {
       setError({ field: built.field, message: built.error });
       return;
@@ -313,6 +321,12 @@ function CreateKeyDialog({
       await onCreated({ ...made, name: built.body.name });
       setForm(blank());
     } catch (err) {
+      // A wrong password is the field's problem, not a toast.
+      if (err instanceof ApiError && err.status === 403 && rules.needsPassword) {
+        setError({ field: 'password', message: err.message });
+        set({ password: '' });
+        return;
+      }
       toast.error(err instanceof ApiError ? err.message : 'Could not make the key');
     } finally {
       setPending(false);
@@ -375,7 +389,7 @@ function CreateKeyDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {EXPIRY_CHOICES.map((c) => (
+                    {expiryChoicesFor(rules.maxExpiryDays).map((c) => (
                       <SelectItem key={c} value={c}>
                         {EXPIRY_LABEL[c]}
                       </SelectItem>
@@ -412,8 +426,8 @@ function CreateKeyDialog({
                 </div>
               )}
               <FieldDescription>
-                Off: the key reaches only the areas you tick. Some routes and tools belong to no
-                area; they need All areas.
+                Off: the key reaches only the areas you tick. Search finds every kind of item, email
+                and journal included. Some routes and tools belong to no area; they need All areas.
               </FieldDescription>
               <FieldError>{error?.field === 'areas' ? error.message : null}</FieldError>
             </Field>
@@ -434,6 +448,24 @@ function CreateKeyDialog({
                   Leave it empty if you are not sure.
                 </FieldDescription>
                 <FieldError>{error?.field === 'riskyTools' ? error.message : null}</FieldError>
+              </Field>
+            )}
+
+            {rules.needsPassword && (
+              <Field data-invalid={error?.field === 'password' || undefined}>
+                <FieldLabel htmlFor="key-password">Your password</FieldLabel>
+                <Input
+                  id="key-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={(e) => set({ password: e.target.value })}
+                  aria-invalid={error?.field === 'password' || undefined}
+                  aria-describedby={error?.field === 'password' ? 'key-password-error' : undefined}
+                />
+                <FieldError id="key-password-error">
+                  {error?.field === 'password' ? error.message : null}
+                </FieldError>
               </Field>
             )}
 

@@ -11,7 +11,8 @@ import type {
 } from '@mantle/client-types';
 
 export const AREA_LABEL: Record<AccessKeyArea, string> = {
-  search: 'Search',
+  // Search reads every kind of item, email and journal included.
+  search: 'Search (every kind)',
   pages: 'Pages',
   notes: 'Notes',
   tasks: 'Tasks',
@@ -39,11 +40,25 @@ export const EXPIRY_LABEL: Record<ExpiryChoice, string> = {
   never: 'Never',
 };
 
+/** The expiry choices a login may pick: up to its maximum (a member's 90
+ *  days, a client's 30), and "never" only without one (an admin). */
+export function expiryChoicesFor(maxDays: number | null): ExpiryChoice[] {
+  return EXPIRY_CHOICES.filter((c) =>
+    c === 'never' ? maxDays === null : maxDays === null || Number(c) <= maxDays,
+  );
+}
+
 /** The expiry a new key starts on: the brain's default when it is one of
- *  the choices, else 90 days. */
-export function defaultExpiryChoice(defaultDays: number): ExpiryChoice {
+ *  the choices this login may pick, else the longest it may pick. */
+export function defaultExpiryChoice(
+  defaultDays: number,
+  maxDays: number | null = null,
+): ExpiryChoice {
+  const choices = expiryChoicesFor(maxDays);
   const v = String(defaultDays);
-  return (EXPIRY_CHOICES as readonly string[]).includes(v) ? (v as ExpiryChoice) : '90';
+  if ((choices as string[]).includes(v)) return v as ExpiryChoice;
+  const numeric = choices.filter((c) => c !== 'never');
+  return numeric[numeric.length - 1] ?? '30';
 }
 
 export type CreateForm = {
@@ -54,13 +69,25 @@ export type CreateForm = {
   expiry: ExpiryChoice;
   /** Comma or space separated tool slugs (an admin's own key only). */
   riskyTools: string;
+  /** The caller's password (an admin or member re-types it). */
+  password: string;
+};
+
+/** What the brain says about the caller (GET /api/access-keys). */
+export type CreateRules = {
+  isAdmin: boolean;
+  needsPassword: boolean;
+  maxExpiryDays: number | null;
 };
 
 /** The POST body for a form, or the problem to show. */
 export function createBody(
   form: CreateForm,
-  isAdmin: boolean,
-): { body: AccessKeyCreateInput } | { error: string; field: 'name' | 'areas' | 'riskyTools' } {
+  rules: CreateRules,
+):
+  | { body: AccessKeyCreateInput }
+  | { error: string; field: 'name' | 'areas' | 'riskyTools' | 'expiry' | 'password' } {
+  const { isAdmin } = rules;
   const name = form.name.trim();
   if (!name) return { error: 'Name the key, for example "Backup script".', field: 'name' };
   if (name.length > 100) return { error: 'Use 100 characters or fewer.', field: 'name' };
@@ -76,6 +103,12 @@ export function createBody(
   if (risky.some((s) => !/^[a-z0-9_]{1,64}$/.test(s))) {
     return { error: 'Tool names use a to z, 0 to 9 and _ only.', field: 'riskyTools' };
   }
+  if (!(expiryChoicesFor(rules.maxExpiryDays) as string[]).includes(form.expiry)) {
+    return { error: `Your keys can last at most ${rules.maxExpiryDays} days.`, field: 'expiry' };
+  }
+  if (rules.needsPassword && !form.password) {
+    return { error: 'Type your password to make a key.', field: 'password' };
+  }
   return {
     body: {
       name,
@@ -83,6 +116,7 @@ export function createBody(
       areas: form.allAreas ? null : [...new Set(form.areas)],
       expiresInDays: form.expiry === 'never' ? null : Number(form.expiry),
       ...(risky.length ? { riskyTools: [...new Set(risky)] } : {}),
+      ...(rules.needsPassword ? { password: form.password } : {}),
     },
   };
 }
