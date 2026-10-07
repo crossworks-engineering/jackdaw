@@ -37,9 +37,37 @@ CI (`.github/workflows/desktop.yml`) builds all three OSes on the same `v*`
 tags as the image release and uploads installers to a **draft** GitHub
 release — publishing stays a human act. Auto-update (electron-updater) checks
 the published releases, downloads in the background, notifies once, and
-installs on quit — never a surprise restart. macOS artifacts are unsigned
-until Apple credentials land in CI; electron-updater won't self-update an
-unsigned mac build.
+installs on quit — never a surprise restart.
+
+### macOS signing
+
+CI picks the mode from the repository secrets:
+
+| Secrets present | Result on a downloaded Mac build |
+| --- | --- |
+| none | **Ad-hoc** signed. macOS says it cannot verify the developer; the user opens it once with System Settings > Privacy & Security > Open Anyway. No self-update. |
+| `MAC_CSC_LINK` + `MAC_CSC_KEY_PASSWORD` + the three `APPLE_API_*` | **Developer ID** signed, hardened runtime, notarized and stapled. Opens with no warning; electron-updater self-updates. |
+
+| Secret | What it holds |
+| --- | --- |
+| `MAC_CSC_LINK` | The "Developer ID Application" certificate with its private key, exported as `.p12`, then base64 (`base64 -i cert.p12 \| pbcopy`). |
+| `MAC_CSC_KEY_PASSWORD` | The password set on that `.p12` export. |
+| `APPLE_API_KEY` | The full text of an App Store Connect API key (`AuthKey_<id>.p8`). A Team key with the Developer role or higher. |
+| `APPLE_API_KEY_ID` | That key's Key ID. |
+| `APPLE_API_ISSUER` | The Issuer ID shown above the key list in App Store Connect. |
+
+Never commit any of these or paste them into a log. The `Verify macOS
+signature` step fails the job when the bundle's seal is broken, and on a
+Developer ID build also runs `spctl` and `xcrun stapler validate`.
+
+Builds up to v0.6.251 had no signing step at all. The bundle kept Electron's
+linker-signed stub, and macOS reported the quarantined download as
+"damaged", with no Open Anyway button. Users of those builds can clear the
+flag with `xattr -dr com.apple.quarantine /Applications/Jackdaw.app`.
+
+`pnpm dist` on a Mac signs with whatever identity the keychain offers;
+`-c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false`
+reproduces the CI ad-hoc build.
 
 ## Desktop integration
 
@@ -85,7 +113,10 @@ The shell registers no permission handler today (no
 so microphone and camera prompts follow Electron's defaults: a packaged
 Electron app grants renderer permission requests unless a handler denies
 them, and the OS-level prompt (macOS microphone access, for example) is
-whatever the platform does for an unsigned app. This has not been verified
+whatever the platform does. The Developer ID build runs under the hardened
+runtime, so `build/entitlements.mac.plist` carries the microphone and camera
+entitlements; without them macOS blocks the device even after the user says
+yes. This has not been verified
 in the packaged app; treat voice capture on desktop as untested until it is.
 
 ## The app icon

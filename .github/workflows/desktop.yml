@@ -18,9 +18,12 @@
 # forgotten publish into a growing heap. When checking a release, ask HOW MANY
 # drafts carry the tag, not just whether one is published.
 #
-# macOS artifacts are UNSIGNED until Apple credentials land as secrets;
-# electron-updater won't self-update an unsigned mac build (fresh installs
-# still work). Linux and Windows auto-update from the published release.
+# macOS signing follows the secrets (names in client/desktop/README.md):
+# with the Developer ID certificate and the App Store Connect API key the app
+# is signed, notarized and stapled; without them it is AD-HOC signed, which
+# macOS reports as an unverified developer (Open Anyway) rather than
+# "damaged". electron-updater only self-updates the Developer ID build.
+# Linux and Windows auto-update from the published release.
 
 name: desktop
 
@@ -96,16 +99,66 @@ jobs:
         shell: bash
         run: pnpm -C client/desktop build:ui
 
+      # Mirrors the dist / dist:ci scripts, but calls electron-builder directly
+      # so the macOS signing mode can add its own -c overrides.
       - name: Build and package
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS only. Each is empty on the other runners and until the
+          # secret exists. CSC_LINK is a base64 .p12, which electron-builder
+          # imports into a throwaway keychain.
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_API_KEY_P8: ${{ runner.os == 'macOS' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ runner.os == 'macOS' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ runner.os == 'macOS' && secrets.APPLE_API_ISSUER || '' }}
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            pnpm -C client/desktop dist:ci
-          else
-            pnpm -C client/desktop dist
+          publish=never
+          [[ "${{ github.ref_type }}" == "tag" ]] && publish=always
+          args=()
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            if [[ -n "$CSC_LINK" ]]; then
+              if [[ -n "$APPLE_API_KEY_P8" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER" ]]; then
+                # @electron/notarize wants a path to the .p8, not its contents.
+                key="$RUNNER_TEMP/AuthKey.p8"
+                printf '%s\n' "$APPLE_API_KEY_P8" > "$key"
+                chmod 600 "$key"
+                export APPLE_API_KEY="$key"
+                echo "macOS: Developer ID signing + notarization"
+              else
+                echo "::warning::macOS is signed but NOT notarized (APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER missing). Gatekeeper will still warn."
+              fi
+            else
+              # No certificate: ad-hoc. The hardened runtime would reject the
+              # Electron frameworks (no Team ID), so it goes off with notarizing.
+              args=(-c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false)
+              echo "::warning::macOS build is AD-HOC signed (no MAC_CSC_LINK secret). Users see Open Anyway, and self-update is off."
+            fi
           fi
+          unset APPLE_API_KEY_P8
+          pnpm -C client/desktop build
+          pnpm -C client/desktop exec electron-builder --publish "$publish" "${args[@]}"
+
+      # The check that would have caught the "damaged" builds: a broken seal
+      # fails here instead of on a user's Mac. On a tag the assets are already
+      # on the DRAFT release by now, so a red job means: do not publish it.
+      - name: Verify macOS signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for app in client/desktop/dist/mac*/Jackdaw.app; do
+            echo "== $app"
+            codesign -dv "$app" 2>&1 | grep -E '^(Identifier|Authority|TeamIdentifier|Signature|Runtime|Sealed)' || true
+            codesign --verify --deep --strict --verbose=2 "$app"
+            if codesign -dv "$app" 2>&1 | grep -q '^Signature=adhoc'; then
+              echo "ad-hoc build: Gatekeeper will ask for Open Anyway (expected until the Developer ID secrets exist)"
+            else
+              spctl -a -vv -t exec "$app"
+              xcrun stapler validate "$app"
+            fi
+          done
 
       - name: Upload artifacts (manual runs)
         if: github.ref_type != 'tag'
