@@ -46,12 +46,12 @@ CI picks the mode from the repository secrets:
 | Secrets present | Result on a downloaded Mac build |
 | --- | --- |
 | none | **Ad-hoc** signed. macOS says it cannot verify the developer; the user opens it once with System Settings > Privacy & Security > Open Anyway. No self-update. |
-| `MAC_CSC_LINK` + `MAC_CSC_KEY_PASSWORD` + the three `APPLE_API_*` | **Developer ID** signed, hardened runtime, notarized and stapled. Opens with no warning; electron-updater self-updates. |
+| `CSC_LINK` + `CSC_KEY_PASSWORD` + the three `APPLE_API_*` | **Developer ID** signed, hardened runtime, notarized and stapled. Opens with no warning; electron-updater self-updates. |
 
 | Secret | What it holds |
 | --- | --- |
-| `MAC_CSC_LINK` | The "Developer ID Application" certificate with its private key, exported as `.p12`, then base64 (`base64 -i cert.p12 \| pbcopy`). |
-| `MAC_CSC_KEY_PASSWORD` | The password set on that `.p12` export. |
+| `CSC_LINK` | The "Developer ID Application" certificate with its private key, exported as `.p12`, then base64 (`base64 -i cert.p12 \| pbcopy`). |
+| `CSC_KEY_PASSWORD` | The password set on that `.p12` export. |
 | `APPLE_API_KEY` | The full text of an App Store Connect API key (`AuthKey_<id>.p8`). A Team key with the Developer role or higher. |
 | `APPLE_API_KEY_ID` | That key's Key ID. |
 | `APPLE_API_ISSUER` | The Issuer ID shown above the key list in App Store Connect. |

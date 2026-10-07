@@ -110,8 +110,8 @@ jobs:
           # empty-but-set CSC_LINK as a path and fails ("not a file"), so the
           # script exports it only when it has a value. It is a base64 .p12,
           # imported into a throwaway keychain.
-          MAC_CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || '' }}
-          MAC_CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          MAC_CSC_LINK: ${{ runner.os == 'macOS' && secrets.CSC_LINK || '' }}
+          MAC_CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.CSC_KEY_PASSWORD || '' }}
           APPLE_API_KEY_P8: ${{ runner.os == 'macOS' && secrets.APPLE_API_KEY || '' }}
           APPLE_API_KEY_ID: ${{ runner.os == 'macOS' && secrets.APPLE_API_KEY_ID || '' }}
           APPLE_API_ISSUER: ${{ runner.os == 'macOS' && secrets.APPLE_API_ISSUER || '' }}
@@ -136,7 +136,7 @@ jobs:
               # No certificate: ad-hoc. The hardened runtime would reject the
               # Electron frameworks (no Team ID), so it goes off with notarizing.
               args=(-c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false)
-              echo "::warning::macOS build is AD-HOC signed (no MAC_CSC_LINK secret). Users see Open Anyway, and self-update is off."
+              echo "::warning::macOS build is AD-HOC signed (no CSC_LINK secret). Users see Open Anyway, and self-update is off."
             fi
           fi
           unset APPLE_API_KEY_P8 MAC_CSC_LINK MAC_CSC_KEY_PASSWORD

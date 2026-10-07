@@ -52,7 +52,7 @@ mac:
   category: public.app-category.productivity
   # Signing has TWO modes, picked by desktop.yml from which secrets exist:
   #
-  # - Developer ID (MAC_CSC_LINK set): this section as written. Hardened
+  # - Developer ID (CSC_LINK secret set): this section as written. Hardened
   #   runtime + entitlements, then notarized with the App Store Connect API key
   #   (APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER) and stapled by
   #   @electron/notarize. Opens with no warning; electron-updater can apply
