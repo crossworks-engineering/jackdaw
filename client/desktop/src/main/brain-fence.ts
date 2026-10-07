@@ -55,6 +55,13 @@ export function tagRendererRequest(
   brainOrigin: string,
   key: string,
 ): Record<string, string> {
+  // Whatever the page sent under these names goes first, in any case: header
+  // names are case-insensitive, so a page's own `x-jackdaw-brain` would
+  // otherwise travel beside ours and the server would read whichever won.
+  const ours = [DESKTOP_BRAIN_HEADER.toLowerCase(), DESKTOP_BRAIN_KEY_HEADER.toLowerCase()];
+  for (const name of Object.keys(requestHeaders)) {
+    if (ours.includes(name.toLowerCase())) delete requestHeaders[name];
+  }
   requestHeaders[DESKTOP_BRAIN_HEADER] = brainOrigin;
   requestHeaders[DESKTOP_BRAIN_KEY_HEADER] = key;
   return requestHeaders;

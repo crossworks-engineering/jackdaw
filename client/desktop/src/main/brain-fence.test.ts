@@ -138,6 +138,19 @@ describe('brain window requests', () => {
     }
   });
 
+  it('a brain the page names itself is replaced, whatever its case', () => {
+    const out = rewriteBrainWindowRequest(
+      `${renderer}/login`,
+      { 'x-jackdaw-brain': 'https://evil.example', 'X-JACKDAW-BRAIN-KEY': 'guess' },
+      { brain: 'https://second.example', renderer },
+      key,
+    );
+    expect(out).toEqual({
+      [DESKTOP_BRAIN_HEADER]: 'https://second.example',
+      [DESKTOP_BRAIN_KEY_HEADER]: key,
+    });
+  });
+
   it('requests to the brain are made native, and never carry the key', () => {
     const brain = 'https://second.example';
     const out = rewriteBrainWindowRequest(
