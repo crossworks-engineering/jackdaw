@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
 import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
+import { brainOrigin } from '@/lib/brain-origin';
 import { clientLoginBrand, clientTabTitle, readBrandFields } from '@/lib/brand';
 import { loadClientCodesEnabled } from '@/lib/client-code-availability';
 import { LoginMark } from '../login/login-mark';
@@ -40,10 +41,11 @@ export default async function ClientSigninPage({
 }: {
   searchParams: Promise<{ code?: string | string[] }>;
 }) {
-  const [params, appearance, codesEnabled] = await Promise.all([
+  const [params, appearance, codesEnabled, origin] = await Promise.all([
     searchParams,
     loadBrainAppearance(),
     loadClientCodesEnabled(),
+    brainOrigin(),
   ]);
   const brand = clientLoginBrand(readBrandFields(appearance));
   const neat = decodeNeatSpec(appearance?.neatBackground);
@@ -56,7 +58,7 @@ export default async function ClientSigninPage({
       <div className="flex w-full flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-8">
           <ClientSigninClient
-            mark={<LoginMark brand={brand} srcBase={process.env.MANTLE_SERVER_ORIGIN} />}
+            mark={<LoginMark brand={brand} srcBase={origin} />}
             initialCode={code}
             codesEnabled={codesEnabled}
           />

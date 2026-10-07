@@ -13,6 +13,7 @@ import { clientLoginAddable } from '@/lib/client-device-signin';
 import { LoginForm } from './login-form';
 import { ClientCodeLink } from './client-code-link';
 import { ClientDeviceAdd } from './client-device-add';
+import { LoginServer } from './login-server';
 
 /**
  * Everything on the sign-in screen that has to run in the browser: the
@@ -31,6 +32,7 @@ export function LoginClient({
   clientCodes = false,
   add = false,
   sessionId,
+  serverOrigin,
 }: {
   /** The server-rendered brand block. A React node, not data — this component
    *  has no business knowing which rung of the branding ladder won. */
@@ -43,6 +45,8 @@ export function LoginClient({
   add?: boolean;
   /** The held login being signed back in to (an id from this device's list). */
   sessionId?: string;
+  /** The brain this screen signs in to, as the server render resolved it. */
+  serverOrigin?: string;
 }) {
   const router = useRouter();
 
@@ -131,6 +135,7 @@ export function LoginClient({
       <div className="space-y-2 border-b border-border p-4 text-center md:p-5">
         {mark}
         <p className="text-sm text-muted-foreground">{strapline}</p>
+        <LoginServer origin={serverOrigin} />
       </div>
       <div className="space-y-4 p-4 md:p-5">
         {replacesCurrent && (

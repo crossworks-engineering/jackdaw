@@ -13,7 +13,12 @@ import { currentBrainOrigin } from '@mantle/web-ui/session-registry';
 import { sameOriginCookieRole } from '@mantle/web-ui/session-switch';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { sameBrainAddress } from '@/lib/brain-address';
-import { UNEXPECTED_RESPONSE, readBearer, signInErrorMessage } from '@/lib/sign-in-error';
+import {
+  SIGN_IN_TIMEOUT_MS,
+  UNEXPECTED_RESPONSE,
+  readBearer,
+  signInErrorMessage,
+} from '@/lib/sign-in-error';
 import { SetupCodeField, isSetupCodeRefusal } from './setup-code-field';
 
 /**
@@ -130,6 +135,7 @@ export function LoginForm({
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(askCode ? { email, password, setupCode } : { email, password }),
           credentials: split ? 'omit' : 'include',
+          signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
         });
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as { error?: string; reason?: string };
@@ -148,6 +154,7 @@ export function LoginForm({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, password, deviceName: 'Web client' }),
         credentials: split ? 'omit' : 'include',
+        signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };

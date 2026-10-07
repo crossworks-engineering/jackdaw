@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test';
-import { MOCK_API_ORIGIN } from './member/mock-member-api';
+import { MOCK_API_ORIGIN, MOCK_DESKTOP_BRAIN_KEY } from './member/mock-member-api';
 
 /**
  * The member specs: NO brain. Every /api/* request goes to an in-memory
@@ -46,7 +46,13 @@ export default defineConfig({
           reuseExistingServer: false,
           timeout: 180_000,
           // The brain is the spec's in-memory member API, never a real one.
-          env: { MANTLE_SERVER_ORIGIN: MOCK_API_ORIGIN, NEXT_PUBLIC_MANTLE_API_BASE: '' },
+          // The desktop shell's per-launch key, so a spec can name a window's
+          // brain the way the shell does (login-brains.spec.ts).
+          env: {
+            MANTLE_SERVER_ORIGIN: MOCK_API_ORIGIN,
+            NEXT_PUBLIC_MANTLE_API_BASE: '',
+            MANTLE_DESKTOP_BRAIN_KEY: MOCK_DESKTOP_BRAIN_KEY,
+          },
         },
       }),
 });

@@ -20,6 +20,7 @@ import {
 import { loadBrainAppearance } from '@/lib/appearance';
 import { brandTitle, readBrandFields } from '@/lib/brand';
 import { buildRuntimeCsp } from '@/lib/csp';
+import { brainOrigin } from '@/lib/brain-origin';
 
 /**
  * ZERO-SECRET client root layout. No DB, no session read.
@@ -78,9 +79,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // runtimes, and one prebuilt image serves any brain. Server components read
   // runtime env — the same reason /env.js works. The static, origin-free half
   // is still a real header (CSP_ENFORCED_STATIC); the two compose, and
-  // frame-ancestors stays in the header because meta ignores it.
+  // frame-ancestors stays in the header because meta ignores it. The brain is
+  // the REQUEST's (lib/brain-origin.ts): in the desktop shell one server
+  // renders for several brains, and a connect-src naming another brain than
+  // the window's refuses every request the window makes to its own.
   const csp = buildRuntimeCsp({
-    brainOrigin: process.env.MANTLE_SERVER_ORIGIN ?? '',
+    brainOrigin: await brainOrigin(),
     dev: process.env.NODE_ENV !== 'production',
   });
   // Font attributes + vars come from the shared projections in appearance.ts —

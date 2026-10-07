@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
@@ -20,7 +20,11 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { attentionMode, safeInAppPath } from './attention';
-import { brainRequestFilter, stripBrowserOnlyHeaders } from './brain-fence';
+import {
+  brainRequestFilter,
+  brainWindowRequestFilter,
+  rewriteBrainWindowRequest,
+} from './brain-fence';
 import { createVault, type Vault } from './vault';
 
 /**
@@ -180,12 +184,19 @@ let uiServer: { port: number; proc: Electron.UtilityProcess } | null = null;
  *  port. Memoising the promise is the same shape `upgradeOwnerCookie` uses. */
 let uiServerBoot: Promise<string> | null = null;
 
+/** Proves to the embedded server that a "this window is brain X" header came
+ *  from this shell (fenceBrainSession, client/web/lib/desktop-brain.ts). Per
+ *  launch, held in memory and in the server process's environment only. */
+const RENDERER_BRAIN_KEY = randomBytes(32).toString('hex');
+
 /** Resolve the URL the app windows load: the dev override, or the embedded
- *  standalone server (spawned on first use). `brainOrigin` becomes the server
- *  process's MANTLE_SERVER_ORIGIN so the root layout's SSR appearance fetch
- *  brands the first paint — spawn-time only, so with several brains open at
- *  once, later windows SSR the first brain's branding (cosmetic; the window's
- *  own data all comes from its preload-injected env). */
+ *  standalone server (spawned on first use). ONE server renders for every
+ *  brain: each window's session names its brain on every request to it
+ *  (fenceBrainSession), and the server renders that brain, its branding and
+ *  its CSP. `brainOrigin` is only the server's fallback MANTLE_SERVER_ORIGIN
+ *  for a request that names none. It used to be the whole answer, and a second
+ *  brain's window was rendered for the first: its branding, and a CSP whose
+ *  connect-src refused every request to its own brain. */
 function ensureRendererUrl(brainOrigin: string): Promise<string> {
   const override = process.env.MANTLE_DESKTOP_RENDERER_URL;
   if (override) return Promise.resolve(override);
@@ -223,6 +234,7 @@ async function startUiServer(brainOrigin: string): Promise<string> {
       PORT: String(port),
       HOSTNAME: '127.0.0.1',
       MANTLE_SERVER_ORIGIN: brainOrigin,
+      MANTLE_DESKTOP_BRAIN_KEY: RENDERER_BRAIN_KEY,
     },
   });
   uiServer = { port, proc };
@@ -257,6 +269,9 @@ async function startUiServer(brainOrigin: string): Promise<string> {
 // way out, see brain-fence.ts) and satisfy the renderer's own check (supply
 // ACAO on the way in). Nothing about the server's browser-facing posture
 // changes; a real browser tab can't do this.
+//
+// The same listener tags every request to the embedded UI server with this
+// window's brain, so the one server renders each window for its own brain.
 
 function fenceBrainSession(
   ses: Electron.Session,
@@ -264,10 +279,15 @@ function fenceBrainSession(
   rendererOrigin: string,
 ): void {
   const brainUrls = brainRequestFilter(brainOrigin);
-
-  ses.webRequest.onBeforeSendHeaders(brainUrls, ({ requestHeaders }, callback) => {
-    callback({ requestHeaders: stripBrowserOnlyHeaders(requestHeaders) });
-  });
+  const origins = { brain: brainOrigin, renderer: rendererOrigin };
+  ses.webRequest.onBeforeSendHeaders(
+    brainWindowRequestFilter(brainOrigin, rendererOrigin),
+    ({ url, requestHeaders }, callback) => {
+      callback({
+        requestHeaders: rewriteBrainWindowRequest(url, requestHeaders, origins, RENDERER_BRAIN_KEY),
+      });
+    },
+  );
 
   ses.webRequest.onHeadersReceived(brainUrls, ({ responseHeaders = {} }, callback) => {
     for (const key of Object.keys(responseHeaders)) {
@@ -283,11 +303,11 @@ function fenceBrainSession(
     callback({ responseHeaders });
   });
 
-  // The Next app's /env.js (which reads the SERVER PROCESS's env) must not win
-  // over the preload-injected __MANTLE_ENV__ carrying this window's brain.
-  ses.webRequest.onBeforeRequest({ urls: [`${rendererOrigin}/env.js*`] }, (_details, callback) => {
-    callback({ redirectURL: 'data:text/javascript,// Jackdaw provides __MANTLE_ENV__' });
-  });
+  // No /env.js rewrite. It was redirected to a data: URL so the server's
+  // first-brain env could not win over the preload's, and Chromium refuses a
+  // redirect to data: (net::ERR_UNSAFE_REDIRECT in every window). It is the
+  // tagged request above that keeps it right now: /env.js answers with this
+  // window's brain, the same value the preload injected.
 }
 
 // ── Windows ───────────────────────────────────────────────────────────────────

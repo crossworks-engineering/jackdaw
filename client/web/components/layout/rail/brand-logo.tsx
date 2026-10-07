@@ -42,7 +42,7 @@ import { serverUrl } from '@mantle/web-ui/runtime-env';
  * does not rescue it either; React keeps the server's `src`.
  *
  * So a server-rendered caller passes the origin it already has
- * (`process.env.MANTLE_SERVER_ORIGIN` — the very string /env.js hands the
+ * (`brainOrigin()` in lib/brain-origin.ts, the very string /env.js hands the
  * browser, so there is one value, not two). Omitted, the behavior is exactly
  * as before.
  */

@@ -1,6 +1,7 @@
 import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
 import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
+import { brainOrigin } from '@/lib/brain-origin';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { safeNext } from '@/lib/safe-next';
 import { loadClientCodesEnabled } from '@/lib/client-code-availability';
@@ -30,10 +31,11 @@ export default async function LoginPage({
 }) {
   // Whether this brain mails client sign-in codes (client logins C2b): a
   // client has no password, and the screen points them at the codes then.
-  const [params, appearance, clientCodes] = await Promise.all([
+  const [params, appearance, clientCodes, origin] = await Promise.all([
     searchParams,
     loadBrainAppearance(),
     loadClientCodesEnabled(),
+    brainOrigin(),
   ]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
   // The saved Neat background, decoded defensively like every appearance field —
@@ -61,7 +63,7 @@ export default async function LoginPage({
             // custom logo working when the client and the brain sit on
             // different origins — see `components/layout/rail/brand-logo.tsx`,
             // which also normalises the trailing slash for every caller.
-            mark={<LoginMark brand={brand} srcBase={process.env.MANTLE_SERVER_ORIGIN} />}
+            mark={<LoginMark brand={brand} srcBase={origin} />}
             // Reduced to an in-app path before either client half sees it —
             // the raw parameter was an open redirect (lib/safe-next.ts).
             next={safeNext(params.next)}
@@ -73,6 +75,7 @@ export default async function LoginPage({
             // client resolves against its own list; neither is trusted for more.
             add={params.add === '1'}
             sessionId={params.session}
+            serverOrigin={origin}
           />
         </div>
       </div>

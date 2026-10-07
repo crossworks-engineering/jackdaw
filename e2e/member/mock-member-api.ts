@@ -116,6 +116,11 @@ type Doc = Record<string, unknown>;
 export const MOCK_API_PORT = Number(process.env.E2E_MEMBER_API_PORT || 3912);
 /** The "brain" origin the owner UI is started against. */
 export const MOCK_API_ORIGIN = `http://127.0.0.1:${MOCK_API_PORT}`;
+
+/** The key the owner UI under test is started with in place of the desktop
+ *  shell's per-launch one (client/web/lib/desktop-brain.ts): a spec sending it
+ *  names the brain a request renders for, as the shell does for each window. */
+export const MOCK_DESKTOP_BRAIN_KEY = 'e2e-desktop-brain-key-not-a-secret';
 export const PAGE_ID = '11111111-1111-4111-8111-111111111111';
 export const FILE_ID = '22222222-2222-4222-8222-222222222222';
 export const CHILD_ID = '33333333-3333-4333-8333-333333333333';

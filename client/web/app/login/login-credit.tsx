@@ -13,8 +13,9 @@ import { MantleRow } from '@/components/layout/rail/mantle-mark';
  * (`showJackdaw`, the `kind !== 'jackdaw'` test in `page.tsx`). On an
  * UNBRANDED brain the hero slot is already the Jackdaw lockup, and the same
  * mark twice on one short screen reads as a bug rather than a credit. When
- * both show, Jackdaw is on the left and Mantle on its right: interface, then
- * the brain under it.
+ * both show they STACK, Jackdaw above Mantle: the interface, then the brain
+ * under it, read top to bottom. Side by side they read as two equal brands
+ * competing for one slot, and on a phone the pair barely fit one line.
  *
  * Named `LoginCredit` rather than `JackdawCredit` to match the folder — every
  * component here is `Login*` in a `login-*.tsx`, and the Jackdaw-specific piece
@@ -43,7 +44,8 @@ import { MantleRow } from '@/components/layout/rail/mantle-mark';
  *
  * The Mantle row is cut tight to its artwork while the Jackdaw PNG carries
  * some air, so Mantle runs one step shorter (`h-10` beside `h-12`) to read at
- * the same weight. On a phone both step down so the pair fits one line.
+ * the same weight. On a phone both step down a size, so the stack stays a
+ * footnote under the card rather than a second hero.
  */
 export function LoginCredit({ showJackdaw }: { showJackdaw: boolean }) {
   return (
@@ -51,7 +53,7 @@ export function LoginCredit({ showJackdaw }: { showJackdaw: boolean }) {
     // read comfortably, and opacity is what keeps them from competing with the
     // owner's hero. Fixed opacity, no hover change: there is nothing to click
     // here, and a mark that reacts to the pointer claims to be a control.
-    <footer className="flex items-center justify-center gap-6 pt-8 opacity-50">
+    <footer className="flex flex-col items-center justify-center gap-3 pt-8 opacity-50">
       {showJackdaw && (
         <span>
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -37,3 +37,53 @@ export function stripBrowserOnlyHeaders(
 export function brainRequestFilter(brainOrigin: string): { urls: string[] } {
   return { urls: [`${brainOrigin}/*`] };
 }
+
+/**
+ * The headers that tell the embedded UI server which brain a window is for.
+ * The shell runs one embedded server for every brain, started with the first
+ * brain's origin; without these a second brain's window was rendered for the
+ * first, CSP included, and could not reach its own brain at all. The key is
+ * minted per launch and given to the server process only, so the server can
+ * tell the shell's word from any other local caller's. Mirrors
+ * client/web/lib/desktop-brain.ts, which this package cannot import.
+ */
+export const DESKTOP_BRAIN_HEADER = 'X-Jackdaw-Brain';
+export const DESKTOP_BRAIN_KEY_HEADER = 'X-Jackdaw-Brain-Key';
+
+export function tagRendererRequest(
+  requestHeaders: Record<string, string>,
+  brainOrigin: string,
+  key: string,
+): Record<string, string> {
+  requestHeaders[DESKTOP_BRAIN_HEADER] = brainOrigin;
+  requestHeaders[DESKTOP_BRAIN_KEY_HEADER] = key;
+  return requestHeaders;
+}
+
+/**
+ * Every request a brain window's session sends that the shell rewrites: the
+ * brain's own (made native, see `stripBrowserOnlyHeaders`) and the embedded UI
+ * server's (tagged with the brain, see `tagRendererRequest`). One filter for
+ * both because a session holds ONE `onBeforeSendHeaders` listener: a second
+ * registration replaces the first, it does not add to it.
+ */
+export function brainWindowRequestFilter(
+  brainOrigin: string,
+  rendererOrigin: string,
+): { urls: string[] } {
+  return { urls: [...brainRequestFilter(brainOrigin).urls, `${rendererOrigin}/*`] };
+}
+
+/** The request-header rewrite for one URL a brain window's session sends. */
+export function rewriteBrainWindowRequest(
+  url: string,
+  requestHeaders: Record<string, string>,
+  origins: { brain: string; renderer: string },
+  key: string,
+): Record<string, string> {
+  if (url.startsWith(`${origins.renderer}/`)) {
+    return tagRendererRequest(requestHeaders, origins.brain, key);
+  }
+  if (url.startsWith(`${origins.brain}/`)) return stripBrowserOnlyHeaders(requestHeaders);
+  return requestHeaders;
+}

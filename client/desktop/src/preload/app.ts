@@ -6,8 +6,9 @@ import { contextBridge, ipcRenderer } from 'electron';
  * 1. Injects window.__MANTLE_ENV__ with the user-chosen brain origin — the
  *    same object the web client's /env.js route emits
  *    (packages/web-ui/src/runtime-env.ts reads it). contextBridge bindings
- *    are read-only in the main world, and the shell additionally neutralizes
- *    the served /env.js, so this value is authoritative.
+ *    are read-only in the main world, so this value is authoritative. The
+ *    served /env.js agrees with it: the shell names this window's brain on
+ *    every request to the embedded server (brain-fence.ts).
  * 2. Exposes window.mantleDesktop — the small desktop API the UI's
  *    DesktopBridge and NeedsYouWatcher components feature-detect: OS
  *    notifications (a click can open an in-app path), a dock/taskbar badge,

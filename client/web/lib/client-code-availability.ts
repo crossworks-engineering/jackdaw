@@ -1,6 +1,7 @@
-// Server-module only (fetches with process.env; the /login and
+// Server-module only (fetches the request's brain; the /login and
 // /client-signin pages, Server Components, await it). Do not import from
 // client components.
+import { brainOrigin } from './brain-origin';
 import { CLIENT_CODE_PATH, clientCodesEnabled } from './client-code';
 
 /**
@@ -15,7 +16,7 @@ import { CLIENT_CODE_PATH, clientCodesEnabled } from './client-code';
  * ask for a sign-in link, which always works.
  */
 export async function loadClientCodesEnabled(): Promise<boolean> {
-  const origin = (process.env.MANTLE_SERVER_ORIGIN ?? '').replace(/\/+$/, '');
+  const origin = await brainOrigin();
   if (!origin) return false;
   try {
     const res = await fetch(`${origin}${CLIENT_CODE_PATH}`, {

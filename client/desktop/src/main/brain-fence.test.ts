@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { brainRequestFilter, stripBrowserOnlyHeaders } from './brain-fence';
+import {
+  DESKTOP_BRAIN_HEADER,
+  DESKTOP_BRAIN_KEY_HEADER,
+  brainRequestFilter,
+  brainWindowRequestFilter,
+  rewriteBrainWindowRequest,
+  stripBrowserOnlyHeaders,
+} from './brain-fence';
 
 describe('stripBrowserOnlyHeaders', () => {
   it('drops Origin and every Sec-Fetch-* header, whatever the case', () => {
@@ -87,9 +94,14 @@ describe('the fence and the client device sign-in', () => {
   it('index.ts applies the fence to every brain window, before the window exists', () => {
     const src = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8');
     expect(src).toContain('const brainUrls = brainRequestFilter(brainOrigin);');
+    // ONE onBeforeSendHeaders listener, over the brain and the embedded UI
+    // server both: a second registration would replace the first.
+    expect(src.match(/onBeforeSendHeaders\(/g)).toHaveLength(1);
     expect(src).toMatch(
-      /ses\.webRequest\.onBeforeSendHeaders\(brainUrls, \(\{ requestHeaders \}, callback\) => \{\s*callback\(\{ requestHeaders: stripBrowserOnlyHeaders\(requestHeaders\) \}\);/,
+      /ses\.webRequest\.onBeforeSendHeaders\(\s*brainWindowRequestFilter\(brainOrigin, rendererOrigin\),\s*\(\{ url, requestHeaders \}, callback\) => \{\s*callback\(\{\s*requestHeaders: rewriteBrainWindowRequest\(url, requestHeaders, origins, RENDERER_BRAIN_KEY\),/,
     );
+    // No redirect of /env.js to a data: URL: Chromium refuses it.
+    expect(src).not.toContain('redirectURL');
     // openAppWindow fences the window's own partition first.
     const open = src.slice(src.indexOf('async function openAppWindow('));
     const fence = open.indexOf(
@@ -98,5 +110,58 @@ describe('the fence and the client device sign-in', () => {
     expect(fence).toBeGreaterThan(-1);
     expect(fence).toBeLessThan(open.indexOf('new BrowserWindow('));
     expect(open.slice(0, open.indexOf('preload:'))).toMatch(/webPreferences: \{\s*partition,/);
+  });
+});
+
+/**
+ * One embedded UI server renders every brain's window. A second brain's window
+ * was rendered for the first, CSP included, and could not reach its own brain,
+ * until the shell named the window's brain on each request to that server.
+ */
+describe('brain window requests', () => {
+  const renderer = 'http://127.0.0.1:53077';
+  const key = 'k'.repeat(64);
+
+  it('every window names ITS brain to the embedded server, with the key', () => {
+    for (const brain of ['https://second.example', 'https://third.example']) {
+      const out = rewriteBrainWindowRequest(
+        `${renderer}/login?add=1`,
+        { Accept: 'text/html' },
+        { brain, renderer },
+        key,
+      );
+      expect(out).toEqual({
+        Accept: 'text/html',
+        [DESKTOP_BRAIN_HEADER]: brain,
+        [DESKTOP_BRAIN_KEY_HEADER]: key,
+      });
+    }
+  });
+
+  it('requests to the brain are made native, and never carry the key', () => {
+    const brain = 'https://second.example';
+    const out = rewriteBrainWindowRequest(
+      `${brain}/api/auth/token`,
+      { Origin: renderer, 'Sec-Fetch-Site': 'cross-site', 'Content-Type': 'application/json' },
+      { brain, renderer },
+      key,
+    );
+    expect(out).toEqual({ 'Content-Type': 'application/json' });
+  });
+
+  it('anything else passes untouched: the key goes nowhere but the server', () => {
+    const out = rewriteBrainWindowRequest(
+      'http://127.0.0.1:53078/env.js',
+      { Accept: '*/*' },
+      { brain: 'https://second.example', renderer },
+      key,
+    );
+    expect(out).toEqual({ Accept: '*/*' });
+  });
+
+  it('one filter covers both, because a session keeps ONE such listener', () => {
+    expect(brainWindowRequestFilter('https://second.example', renderer)).toEqual({
+      urls: ['https://second.example/*', `${renderer}/*`],
+    });
   });
 });

@@ -33,6 +33,15 @@ export const UNEXPECTED_RESPONSE = 'The server sent an unexpected response. Plea
 export const UNREACHABLE = 'Could not reach the server. Check your connection and try again.';
 
 /**
+ * How long a sign-in request may take before the form gives up on it. Without
+ * a limit, a brain that accepts the connection and never answers leaves the
+ * Sign in button disabled for as long as the OS keeps the socket, minutes,
+ * with nothing on screen. The person has to be able to try again, so the
+ * request ends, the error shows and the button comes back.
+ */
+export const SIGN_IN_TIMEOUT_MS = 20_000;
+
+/**
  * Turn whatever was thrown into something a person can act on.
  *
  * A TypeError is the transport failing; anything else is unexpected and its own
@@ -41,8 +50,17 @@ export const UNREACHABLE = 'Could not reach the server. Check your connection an
  */
 export function signInErrorMessage(err: unknown): string {
   if (err instanceof TypeError) return UNREACHABLE;
+  // `AbortSignal.timeout` rejects with a DOMException named TimeoutError, not
+  // a TypeError: the request was given up on, which to the person is the same
+  // as never reaching the brain.
+  if (isGivenUp(err)) return UNREACHABLE;
   if (err instanceof Error && err.message.trim() !== '') return err.message;
   return 'Sign-in failed. Please try again.';
+}
+
+function isGivenUp(err: unknown): boolean {
+  const name = (err as { name?: unknown } | null)?.name;
+  return name === 'TimeoutError' || name === 'AbortError';
 }
 
 /**

@@ -11,10 +11,14 @@
  * renders it into the <html> tag server-side (lib/appearance.ts), so the
  * document is already correct before any script runs.
  */
+import { brainOrigin } from '@/lib/brain-origin';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const serverOrigin = (process.env.MANTLE_SERVER_ORIGIN ?? '').replace(/\/+$/, '');
+  // The request's brain: the deployment's, or in the desktop shell the
+  // window's own (lib/brain-origin.ts), the same value its preload injects.
+  const serverOrigin = await brainOrigin();
   const env = {
     apiBase: serverOrigin,
     serverOrigin,

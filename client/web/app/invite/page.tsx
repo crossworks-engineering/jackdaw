@@ -1,6 +1,7 @@
 import { NeatBackdrop } from '@mantle/web-ui/neat-backdrop';
 import { decodeNeatSpec } from '@mantle/share-ui/neat-background';
 import { loadBrainAppearance } from '@/lib/appearance';
+import { brainOrigin } from '@/lib/brain-origin';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { LoginMark } from '../login/login-mark';
 import { LoginCredit } from '../login/login-credit';
@@ -28,7 +29,11 @@ export default async function InvitePage({
 }: {
   searchParams: Promise<{ code?: string | string[] }>;
 }) {
-  const [params, appearance] = await Promise.all([searchParams, loadBrainAppearance()]);
+  const [params, appearance, origin] = await Promise.all([
+    searchParams,
+    loadBrainAppearance(),
+    brainOrigin(),
+  ]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
   const neat = decodeNeatSpec(appearance?.neatBackground);
   const code = typeof params.code === 'string' ? params.code : '';
@@ -39,10 +44,7 @@ export default async function InvitePage({
       {neat && <NeatBackdrop spec={neat} className="-z-10" resolution={0.75} />}
       <div className="flex w-full flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-8">
-          <InviteClient
-            mark={<LoginMark brand={brand} srcBase={process.env.MANTLE_SERVER_ORIGIN} />}
-            initialCode={code}
-          />
+          <InviteClient mark={<LoginMark brand={brand} srcBase={origin} />} initialCode={code} />
         </div>
       </div>
       <LoginCredit showJackdaw={brand.kind !== 'jackdaw'} />

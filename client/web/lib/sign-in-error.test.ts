@@ -24,6 +24,13 @@ describe('signInErrorMessage', () => {
     );
   });
 
+  it('reads a request given up on (the sign-in timeout) as unreachable', () => {
+    expect(signInErrorMessage(new DOMException('signal timed out', 'TimeoutError'))).toBe(
+      UNREACHABLE,
+    );
+    expect(signInErrorMessage(new DOMException('aborted', 'AbortError'))).toBe(UNREACHABLE);
+  });
+
   it('passes through a real error message, which beats a generic one', () => {
     expect(signInErrorMessage(new Error('Account is locked'))).toBe('Account is locked');
   });
