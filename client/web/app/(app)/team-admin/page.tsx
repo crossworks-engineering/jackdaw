@@ -24,6 +24,11 @@
  * admin-level Forum archive pages. These routes no longer answer any forum
  * or upload parts, and every tab's `badges` is `{ openRequestCount }`.
  *
+ * Settings also holds Member chat: the team agent ships at Admin level and a
+ * member chats only with a Team-level agent, so its card moves the agent to
+ * Team (PATCH /api/access/agents/:slug); the Invites tab points at it while
+ * members cannot chat.
+ *
  * Data arrives per tab from GET /api/team-admin/{members,member-chats,
  * requests,shares,settings} via apiFetch (owner bearer cross-origin, cookie
  * same-origin); this app is zero-secret and reads no DB. URL-driven
@@ -74,6 +79,8 @@ import {
   Users,
 } from 'lucide-react';
 import { InviteMemberButton, InvitesPanel } from '@/components/team-admin/member-invites';
+import { TeamAgentAccessCard, TeamAgentNotice } from '@/components/team-admin/team-agent-access';
+import type { TeamAgentAccess } from '@/lib/team-agent-access';
 import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
 import { ClientReportPanel } from '@/components/team-admin/client-report';
 import { ClientLoginsPanel } from '@/components/team-admin/client-logins';
@@ -153,7 +160,18 @@ type SettingsResponse = {
   privateReads: boolean;
   hubAppId: string | null;
   hubCandidates: Array<{ id: string; title: string }>;
+  /** The team agent and its level; absent on a brain before the field. */
+  teamAgent?: TeamAgentAccess | null;
 };
+
+const SETTINGS_KEY = ['team-admin', 'settings'] as const;
+
+function useTeamSettings() {
+  return useQuery({
+    queryKey: SETTINGS_KEY,
+    queryFn: () => apiFetch<SettingsResponse>('/api/team-admin/settings'),
+  });
+}
 
 // ── Shared pieces (carried over from the SSR page) ──────────────────────────
 
@@ -983,10 +1001,7 @@ function ClientsTab() {
 }
 
 function SettingsTab() {
-  const q = useQuery({
-    queryKey: ['team-admin', 'settings'],
-    queryFn: () => apiFetch<SettingsResponse>('/api/team-admin/settings'),
-  });
+  const q = useTeamSettings();
   const data = q.data;
   if (!data) return <TabPending active="settings" query={q} what="the settings" />;
   return (
@@ -997,6 +1012,8 @@ function SettingsTab() {
       <div className="min-h-0 flex-1">
         <MeasuredPane id="team-admin-settings">
           <div className="w-full space-y-4 p-4">
+            <TeamAgentAccessCard agent={data.teamAgent} />
+
             <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
               <h2 className="text-sm font-semibold">Read posture</h2>
               <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
@@ -1027,6 +1044,27 @@ function SettingsTab() {
   );
 }
 
+function InvitesTab() {
+  // Settings carries the team agent's level: an invited member cannot chat
+  // until it is Team, so say so where the invite is made.
+  const settings = useTeamSettings();
+  return (
+    <Tab active="invites">
+      {/* One measured column, like Settings: a list with no detail pane. */}
+      <div className="min-h-0 flex-1">
+        <MeasuredPane id="team-admin-invites">
+          {settings.data ? (
+            <div className="px-4 pt-4">
+              <TeamAgentNotice agent={settings.data.teamAgent} />
+            </div>
+          ) : null}
+          <InvitesPanel />
+        </MeasuredPane>
+      </div>
+    </Tab>
+  );
+}
+
 export default function TeamAdminPage({
   searchParams,
 }: {
@@ -1043,17 +1081,7 @@ export default function TeamAdminPage({
 }) {
   const { contact, view, login, item, share } = use(searchParams);
   if (view === 'chats') return <MemberChatsTab login={login} />;
-  if (view === 'invites')
-    return (
-      <Tab active="invites">
-        {/* One measured column, like Settings: a list with no detail pane. */}
-        <div className="min-h-0 flex-1">
-          <MeasuredPane id="team-admin-invites">
-            <InvitesPanel />
-          </MeasuredPane>
-        </div>
-      </Tab>
-    );
+  if (view === 'invites') return <InvitesTab />;
   if (view === 'review')
     return (
       <Tab active="review">
