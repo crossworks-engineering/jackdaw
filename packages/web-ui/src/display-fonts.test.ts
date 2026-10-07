@@ -165,12 +165,18 @@ describe('renderer parity projections', () => {
 /**
  * resolveAppearanceAttrs feeds every <html> render of the brain's appearance
  * (client root layout + the server htmlPage). Contract: "default" means the
- * attribute is ABSENT — the appearance of a fresh brain is an empty object,
- * and an unknown key must never surface as attribute/provider state.
+ * attribute is ABSENT, and an unknown key must never surface as
+ * attribute/provider state. The colour theme is the one exception: absence
+ * paints the CSS baseline (clean-slate), so the fresh-install theme (jackdaw)
+ * travels as a value.
  */
 describe('resolveAppearanceAttrs', () => {
-  it('null / all-default input resolves to no attributes', () => {
-    expect(resolveAppearanceAttrs(null)).toEqual({ fontVars: {} });
+  it('null / unset input resolves to the fresh-install theme and nothing else', () => {
+    expect(resolveAppearanceAttrs(null)).toEqual({ colorTheme: 'jackdaw', fontVars: {} });
+    expect(resolveAppearanceAttrs(DEFAULTS)).toEqual({ colorTheme: 'jackdaw', fontVars: {} });
+  });
+
+  it('a chosen baseline theme resolves to no attributes at all', () => {
     expect(resolveAppearanceAttrs({ ...DEFAULTS, colorTheme: 'clean-slate' })).toEqual({
       fontVars: {},
     });

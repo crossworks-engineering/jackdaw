@@ -7,7 +7,7 @@ import {
   RANDOM_THEME_AT_STORAGE_KEY,
   RANDOM_THEME_INTERVAL_STORAGE_KEY,
   RANDOM_THEME_INTERVAL_MS,
-  DEFAULT_COLOR_THEME,
+  BASE_COLOR_THEME,
   coerceRandomInterval,
   pickRandomColorTheme,
 } from './lib/themes';
@@ -37,9 +37,12 @@ type Ctx = {
 
 const ColorThemeContext = React.createContext<Ctx | null>(null);
 
+/** Paint `id` onto <html>. The CSS baseline (clean-slate) is the ABSENCE of
+ *  the attribute, so only it removes it; every other theme, the default
+ *  (jackdaw) included, is stamped as a value. */
 function apply(id: string) {
   if (typeof document === 'undefined') return;
-  if (id === DEFAULT_COLOR_THEME) {
+  if (id === BASE_COLOR_THEME) {
     delete document.documentElement.dataset.colorTheme;
   } else {
     document.documentElement.dataset.colorTheme = id;
@@ -65,7 +68,7 @@ function readShuffledAt(): number | null {
 }
 
 export function ColorThemeProvider({ children }: { children: React.ReactNode }) {
-  const [colorTheme, setColorThemeState] = React.useState(DEFAULT_COLOR_THEME);
+  const [colorTheme, setColorThemeState] = React.useState(BASE_COLOR_THEME);
   const [randomTheme, setRandomThemeState] = React.useState(false);
   const [intervalMs, setIntervalMsState] = React.useState(RANDOM_THEME_INTERVAL_MS);
   // Bumped by an external one-off shuffle so the timer effect reschedules from
@@ -87,7 +90,9 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
     // already painted correctly when we mount, so all we do is read the
     // attribute back as initial state. The RANDOM_* toggles are visitor-local
     // behavior, so localStorage remains their home.
-    const stored = document.documentElement.dataset.colorTheme || DEFAULT_COLOR_THEME;
+    // No attribute means the baseline: the layout stamps every other theme,
+    // the fresh-install default included.
+    const stored = document.documentElement.dataset.colorTheme || BASE_COLOR_THEME;
     let random = false;
     let interval = RANDOM_THEME_INTERVAL_MS;
     try {
