@@ -18,6 +18,8 @@ import { AppDataPills } from '@/components/app-nav/app-data-pill';
 import { memberAppHref } from '@/lib/member-apps';
 import {
   MY_APPS_HOWTO,
+  MY_APP_SHARE_HINT,
+  MY_APP_SUBMIT_HINT,
   MY_APPS_KEY,
   MY_APPS_PATH,
   myAppActionPath,
@@ -145,6 +147,13 @@ function MyAppRow({ app }: { app: SpaceAppCard }) {
           </p>
         ) : null}
         {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+        {/* What Share and Submit do, before the click (M3 audit, low 4). */}
+        {actions.share === 'team' ? (
+          <p className="mt-1 text-xs text-muted-foreground">Share: {MY_APP_SHARE_HINT}</p>
+        ) : null}
+        {actions.submit ? (
+          <p className="mt-1 text-xs text-muted-foreground">Submit: {MY_APP_SUBMIT_HINT}</p>
+        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {actions.run ? (

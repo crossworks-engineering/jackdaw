@@ -48,14 +48,25 @@ export function myAppHistoryPath(id: string): string {
 
 /** How a member builds one: no button here builds, their MCP client does. */
 export const MY_APPS_HOWTO =
-  'To build an app, connect your own MCP client (Settings > MCP) and ask it to use the my_app tools. Your apps are private until you share them with the team or submit them to an admin.';
+  'To build an app, connect your own MCP client (Settings > MCP; it needs the Write switch on your MCP) and ask it to use the my_app tools. Your apps are private until you share them with the team or submit them to an admin.';
+
+/** Under Share with team: what sharing gives every member. */
+export const MY_APP_SHARE_HINT = 'Every member can run it and change its data.';
+
+/** Under Submit: what a submit freezes. */
+export const MY_APP_SUBMIT_HINT =
+  'It freezes until an admin answers, and its data turns read only, also for teammates.';
+
+/** The run view's note on an app under review. */
+export const MY_APP_UNDER_REVIEW = 'Under review: read only';
 
 /** The one line under an app: where it stands. */
 export function spaceAppStatus(app: SpaceAppCard): string {
   if (!app.mine) return app.authorName ? `Shared by ${app.authorName}` : 'Shared with the team';
-  if (app.reviewState === 'submitted')
-    return 'Submitted for review. Frozen until an admin answers.';
   const base = app.sharing === 'team' ? 'Shared with the team' : 'Private';
+  if (app.reviewState === 'submitted') {
+    return `Submitted for review. ${base}. Frozen until an admin answers; you can recall it.`;
+  }
   const runs = app.runnable ? '' : '. Not published yet';
   if (app.reviewState === 'returned') return `Returned by an admin. ${base}${runs}.`;
   return `${base}${runs}.`;
@@ -116,6 +127,9 @@ export type AppSubmission = {
 export type AppSubmissionDetail = AppSubmission & {
   entry: string;
   files: Record<string, string>;
+  /** What the accept sends back with `version` (the brain refuses a
+   *  version the admin was not shown). Absent from an older brain. */
+  reviewHash?: string;
 };
 
 export const APP_SUBMISSIONS_PATH = '/api/team-admin/app-submissions';
@@ -135,7 +149,36 @@ export const APP_ACCEPT_LEVEL_MEANING: Record<AppAcceptLevel, string> = {
 };
 
 export const APP_TRUST_TOOLS_HINT =
-  'Without this, the app runs its tools at team rules for everyone, admins too. Tick it only when you checked every declared tool.';
+  'With this, when an admin opens the app, its code (written by a member) calls these tools with your reach and can store what it reads where members see it. Read the source too. Without it, the app runs its tools at team rules for everyone, admins too.';
+
+/** The trust switch on an app in the brain (PATCH /api/apps/:id
+ *  `{ trustTools }`): shown only when the brain sends `authorLevel`. */
+export const APP_TRUST_LABEL = 'Trust its tools';
+export const APP_TRUST_OFF_HINT =
+  'Its tools run at team rules for everyone, admins too: a member wrote it, or it came from a copy, an import or a restore.';
+export const APP_TRUST_ON_HINT = 'Its tools run at the rules of whoever runs it.';
+
+/** The author ceiling as the brain sent it, or null (an older brain). */
+export function appAuthorLevel(app: object): 'admin' | 'team' | null {
+  const v = (app as { authorLevel?: unknown }).authorLevel;
+  return v === 'admin' || v === 'team' ? v : null;
+}
+
+/** The confirm dialog's lines before an Accept: the level, the trust
+ *  choice and the version, as they will be sent. */
+export function acceptSummary(opts: {
+  level: AppAcceptLevel;
+  trust: boolean;
+  version: number;
+}): string[] {
+  return [
+    `Version ${opts.version}, the one you read.`,
+    APP_ACCEPT_LEVEL_MEANING[opts.level],
+    opts.trust
+      ? 'Its tools run at the rules of whoever runs it, admins included.'
+      : 'Its tools run at team rules for everyone, admins too.',
+  ];
+}
 
 /** The source files in reading order: the entry first, then by path. */
 export function submissionFiles(detail: Pick<AppSubmissionDetail, 'entry' | 'files'>): {

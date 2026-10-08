@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  acceptSummary,
+  appAuthorLevel,
   APP_ACCEPT_LEVEL_MEANING,
+  APP_TRUST_OFF_HINT,
+  MY_APP_SHARE_HINT,
+  MY_APP_SUBMIT_HINT,
   APP_TRUST_TOOLS_HINT,
   MY_APPS_HOWTO,
   myAppActionPath,
@@ -53,6 +58,9 @@ describe("a member's own app", () => {
   it('a submitted app is frozen: recall only', () => {
     const sub = { ...APP, reviewState: 'submitted' };
     expect(spaceAppStatus(sub)).toMatch(/Frozen/);
+    // It says how it is shared and that the member may recall it.
+    expect(spaceAppStatus(sub)).toMatch(/Private\./);
+    expect(spaceAppStatus(sub)).toMatch(/recall/);
     expect(spaceAppActions(sub)).toEqual({ run: true, share: null, submit: false, recall: true });
     expect(spaceAppSubmitHint(sub)).toBeNull();
   });
@@ -103,6 +111,34 @@ describe("the admin's review", () => {
       spaceAppStatus({ ...APP, reviewState: 'submitted' }),
     ]) {
       expect(t, t).not.toMatch(DASHES);
+    }
+  });
+});
+
+describe('the accept confirm and the trust switch', () => {
+  it('states the version, the level and the trust choice as sent', () => {
+    expect(acceptSummary({ level: 'team', trust: false, version: 4 })).toEqual([
+      'Version 4, the one you read.',
+      APP_ACCEPT_LEVEL_MEANING.team,
+      'Its tools run at team rules for everyone, admins too.',
+    ]);
+    expect(acceptSummary({ level: 'admin', trust: true, version: 2 })[2]).toMatch(
+      /whoever runs it/,
+    );
+  });
+
+  it('reads the ceiling only as the brain sent it', () => {
+    expect(appAuthorLevel({ authorLevel: 'team' })).toBe('team');
+    expect(appAuthorLevel({ authorLevel: 'admin' })).toBe('admin');
+    expect(appAuthorLevel({})).toBeNull();
+  });
+
+  it('says what the trust gives the code, with no dash', () => {
+    expect(APP_TRUST_TOOLS_HINT).toMatch(/with your reach/);
+    expect(APP_TRUST_TOOLS_HINT).toMatch(/Read the source/);
+    expect(MY_APPS_HOWTO).toMatch(/Write switch/);
+    for (const t of [APP_TRUST_OFF_HINT, MY_APP_SHARE_HINT, MY_APP_SUBMIT_HINT]) {
+      expect(t).not.toMatch(DASHES);
     }
   });
 });

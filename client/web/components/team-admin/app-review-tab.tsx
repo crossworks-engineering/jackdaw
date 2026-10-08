@@ -26,10 +26,21 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
+import {
   APP_ACCEPT_LEVEL_MEANING,
   APP_SUBMISSIONS_KEY,
   APP_SUBMISSIONS_PATH,
   APP_TRUST_TOOLS_HINT,
+  acceptSummary,
   appSubmissionPath,
   submissionFiles,
   type AppAcceptLevel,
@@ -69,22 +80,37 @@ function AppReviewDetail({ id }: { id: string }) {
   const [level, setLevel] = useState<AppAcceptLevel>('team');
   const [trust, setTrust] = useState(false);
   const [note, setNote] = useState('');
+  // The review the admin confirms: version and hash as SHOWN, sent back so
+  // the brain refuses any other version (M3 audit).
+  const [confirming, setConfirming] = useState<AppSubmissionDetail | null>(null);
   const q = useQuery({
     queryKey: [...APP_SUBMISSIONS_KEY, id],
     queryFn: () =>
       apiFetch<{ submission: AppSubmissionDetail }>(appSubmissionPath(id)).then(
         (r) => r.submission,
       ),
+    retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
   });
   const done = (msg: string) => {
     void qc.invalidateQueries({ queryKey: APP_SUBMISSIONS_KEY });
     toast.success(msg);
   };
   const accept = useMutation({
-    mutationFn: () =>
-      apiSend(appSubmissionPath(id, 'accept'), 'POST', { level, trustTools: trust }),
+    mutationFn: (shown: AppSubmissionDetail) =>
+      apiSend(appSubmissionPath(id, 'accept'), 'POST', {
+        level,
+        trustTools: trust,
+        version: shown.version,
+        reviewHash: shown.reviewHash,
+      }),
     onSuccess: () => done(level === 'team' ? 'Accepted at Team level' : 'Accepted at Admin level'),
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not accept it.'),
+    onError: (e) => {
+      // The app changed since it was shown: show the new version to read.
+      if (e instanceof ApiError && e.status === 409) {
+        void qc.invalidateQueries({ queryKey: APP_SUBMISSIONS_KEY });
+      }
+      toast.error(e instanceof Error ? e.message : 'Could not accept it.');
+    },
   });
   const giveBack = useMutation({
     mutationFn: () => apiSend(appSubmissionPath(id, 'return'), 'POST', { note }),
@@ -93,7 +119,17 @@ function AppReviewDetail({ id }: { id: string }) {
   });
   if (q.isPending) return <p className="p-4 text-sm text-muted-foreground">Loading…</p>;
   if (q.isError) {
-    return <p className="p-4 text-sm text-muted-foreground">This app is not waiting any more.</p>;
+    if (q.error instanceof ApiError && q.error.status === 404) {
+      return <p className="p-4 text-sm text-muted-foreground">This app is not waiting any more.</p>;
+    }
+    return (
+      <div className="flex items-center gap-3 p-4">
+        <p className="text-sm text-destructive-ink">Could not load this app.</p>
+        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
   }
   const app = q.data;
   const busy = accept.isPending || giveBack.isPending;
@@ -144,16 +180,47 @@ function AppReviewDetail({ id }: { id: string }) {
             disabled={app.declaredTools.length === 0}
           />
           <span>
-            I checked its tools: let it use them at the runner&apos;s own rules.
+            I checked its tools and its source: let it use them at the runner&apos;s own rules.
             <span className="mt-0.5 block text-xs text-muted-foreground">
               {APP_TRUST_TOOLS_HINT}
             </span>
           </span>
         </label>
-        <Button size="sm" disabled={busy} onClick={() => accept.mutate()}>
+        <Button size="sm" disabled={busy || !app.reviewHash} onClick={() => setConfirming(app)}>
           Accept
         </Button>
+        {!app.reviewHash ? (
+          <p className="text-xs text-muted-foreground">Update the brain to accept apps.</p>
+        ) : null}
       </section>
+
+      <AlertDialog open={confirming !== null} onOpenChange={(o) => !o && setConfirming(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Accept “{app.title || 'Untitled'}” into the brain?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {confirming
+                  ? acceptSummary({ level, trust, version: confirming.version }).map((l) => (
+                      <li key={l}>{l}</li>
+                    ))
+                  : null}
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirming) accept.mutate(confirming);
+                setConfirming(null);
+              }}
+            >
+              Accept at {level === 'team' ? 'Team' : 'Admin'} level
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <section className="space-y-2 rounded-lg border border-border p-3">
         <Label htmlFor="app-return-note" className="text-sm font-medium">

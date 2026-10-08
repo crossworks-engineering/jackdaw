@@ -15,7 +15,7 @@ import { AppLoader } from '@/components/app-nav/app-loader';
 import { AppInformationalNote } from '@/components/app-nav/app-informational-note';
 import { isInformational } from '@/lib/app-informational';
 import { memberAppProblem, memberAppSandboxProps, type MemberAppList } from '@/lib/member-apps';
-import { runnableSpaceApp } from '@/lib/space-apps';
+import { MY_APP_UNDER_REVIEW, runnableSpaceApp } from '@/lib/space-apps';
 import { useMyApps } from '@/components/member/member-my-apps';
 
 /**
@@ -64,8 +64,16 @@ export function MemberAppRun({ id }: { id: string }) {
           <ArrowLeft className="size-4" aria-hidden />
           Apps
         </Link>
-        {/* An informational app (or a public one): read, not written (C6). */}
-        {app && isInformational(app) ? <AppInformationalNote /> : null}
+        {/* Under review (team apps Phase 3): read only until an admin
+            answers. Else an informational (or public) app: read, not
+            written (C6). */}
+        {built &&
+        !list.data?.apps.some((a) => a.id === built.id) &&
+        built.reviewState === 'submitted' ? (
+          <span className="text-xs text-muted-foreground">{MY_APP_UNDER_REVIEW}</span>
+        ) : app && isInformational(app) ? (
+          <AppInformationalNote />
+        ) : null}
       </div>
       <div className="min-h-0 flex-1">
         {list.isPending || isHome ? (
