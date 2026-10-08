@@ -15,6 +15,6 @@
     "@mantle/client-types": "npm:@crossworks/client-types@0.234.4",
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.4",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }
