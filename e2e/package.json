@@ -13,8 +13,8 @@
   },
   "devDependencies": {
     "@mantle/client-types": "npm:@crossworks/client-types@0.234.4",
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^26.4.1",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.4",
     "typescript": "^5.9.3"
   }
 }
