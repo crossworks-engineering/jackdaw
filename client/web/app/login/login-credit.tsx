@@ -5,17 +5,17 @@ import { MantleRow } from '@/components/layout/rail/mantle-mark';
  * is built on. The hero says whose brain this is; the credit says what runs
  * it. Both are true and they want different weights.
  *
- * ── Mantle always, Jackdaw when the hero is not already Jackdaw ────────────
- * The Mantle mark is ALWAYS here: the brain is Mantle whatever the owner calls
- * it, and nothing else on the screen says so.
+ * ── One mark, never two ─────────────────────────────────────────────────────
+ * The footer carries exactly ONE product mark. Two stacked marks under a card
+ * read as clutter, not as a credit.
  *
- * The Jackdaw mark joins it only once a brain wears its OWN branding up top
- * (`showJackdaw`, the `kind !== 'jackdaw'` test in `page.tsx`). On an
- * UNBRANDED brain the hero slot is already the Jackdaw lockup, and the same
- * mark twice on one short screen reads as a bug rather than a credit. When
- * both show they STACK, Jackdaw above Mantle: the interface, then the brain
- * under it, read top to bottom. Side by side they read as two equal brands
- * competing for one slot, and on a phone the pair barely fit one line.
+ * - A brain that wears its OWN branding up top (`showJackdaw`, the
+ *   `kind !== 'jackdaw'` test in `page.tsx`, for example a typed site name)
+ *   credits Jackdaw here: the owner's name holds the hero, and the footer says
+ *   which app this is.
+ * - An UNBRANDED brain (a fresh install, no site name) already shows the
+ *   Jackdaw lockup as its hero, so the footer credits Mantle instead: the app
+ *   up top, the brain it runs on down here.
  *
  * Named `LoginCredit` rather than `JackdawCredit` to match the folder — every
  * component here is `Login*` in a `login-*.tsx`, and the Jackdaw-specific piece
@@ -43,8 +43,8 @@ import { MantleRow } from '@/components/layout/rail/mantle-mark';
  * above never shifts when the image decodes.
  *
  * The Mantle row is cut tight to its artwork while the Jackdaw PNG carries
- * some air, so Mantle runs one step shorter (`h-10` beside `h-12`) to read at
- * the same weight. On a phone both step down a size, so the stack stays a
+ * some air, so Mantle runs one step shorter (`h-10` against `h-12`) to read at
+ * the same weight. On a phone each steps down a size, so the mark stays a
  * footnote under the card rather than a second hero.
  */
 export function LoginCredit({ showJackdaw }: { showJackdaw: boolean }) {
@@ -54,7 +54,7 @@ export function LoginCredit({ showJackdaw }: { showJackdaw: boolean }) {
     // owner's hero. Fixed opacity, no hover change: there is nothing to click
     // here, and a mark that reacts to the pointer claims to be a control.
     <footer className="flex flex-col items-center justify-center gap-3 pt-8 opacity-50">
-      {showJackdaw && (
+      {showJackdaw ? (
         <span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -73,8 +73,9 @@ export function LoginCredit({ showJackdaw }: { showJackdaw: boolean }) {
             className="hidden h-9 w-auto sm:h-12 dark:block"
           />
         </span>
+      ) : (
+        <MantleRow className="h-8 sm:h-10" />
       )}
-      <MantleRow className="h-8 sm:h-10" />
     </footer>
   );
 }
