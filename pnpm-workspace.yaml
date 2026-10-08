@@ -38,14 +38,12 @@ overrides:
   "nanoid@3": "3.3.18"
   # Audit floor for transitive pins the parents have not moved yet (2026-10-08):
   # http-cache-semantics under electron-builder's @electron/get (build-time),
-  # source-map-js under vite's postcss (dev-time), shell-quote under
-  # concurrently (dev-time, which pins 1.9.0 exactly even in 10.x), and
+  # source-map-js under vite's postcss (dev-time), and
   # postcss-selector-parser under @tailwindcss/typography 0.5.20 (pinned 6.0.10;
   # 7.x only made insertions during iteration safe, and the plugin's CSS output
   # was diffed byte-identical across the swap).
   "http-cache-semantics": "4.3.0"
   "source-map-js": "1.2.2"
-  "shell-quote": "1.12.0"
   "@tailwindcss/typography>postcss-selector-parser": "7.1.6"
 
 patchedDependencies:
