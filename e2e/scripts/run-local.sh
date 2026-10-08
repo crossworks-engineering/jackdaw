@@ -31,10 +31,18 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
-artifacts="$root/e2e/.artifacts"
 client_port="${E2E_CLIENT_PORT:-3901}"
-client_pid_file="$artifacts/client.pid"
-client_log="$artifacts/client.log"
+# The owner UI's own log and pid live OUTSIDE the checkout, one dir per port.
+# Every request the dev server answers appends to its log, and turbopack.root
+# (client/web/next.config.ts) is this checkout's root. Under Next 16.4.0 a copy
+# with no .git, after a full suite, rebuilt on each write to e2e/.artifacts/
+# client.log and reloaded the page, which made another request: /draw/<id>
+# reloaded about eight times a second and never settled. Out here no write of
+# ours can feed that loop, whatever the Next version.
+run_dir="${TMPDIR:-/tmp}"
+run_dir="${run_dir%/}/jackdaw-e2e-$client_port"
+client_pid_file="$run_dir/client.pid"
+client_log="$run_dir/client.log"
 client_url="http://localhost:$client_port"
 
 require_brain() {
@@ -57,7 +65,7 @@ EOF
 
 up() {
   require_brain
-  mkdir -p "$artifacts"
+  mkdir -p "$run_dir"
 
   # Reach the brain BEFORE starting anything. Without this the only symptom of
   # a wrong or unreachable URL is global-setup failing several minutes later,

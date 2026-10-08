@@ -174,6 +174,12 @@ On a brain that already has one, set `E2E_EMAIL` / `E2E_PASSWORD` to match.
 requests every static screen once, so `next dev` has compiled them all and no
 spec races a first compile (a minute or two; `E2E_WARM=0` skips it).
 
+The owner UI's own `next dev` log and pid file live outside the checkout, in
+`${TMPDIR:-/tmp}/jackdaw-e2e-<port>/` (`client.log`, `client.pid`); a failed
+`up` prints the tail of that log. Keep them out of the tree: every request
+appends to the log, and a file that changes under `turbopack.root` can make
+Next rebuild and reload the page, which makes another request.
+
 ### What used to be here, and where it is NOT
 
 The runner used to boot a hermetic stack of its own: throwaway Postgres and

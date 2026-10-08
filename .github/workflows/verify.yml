@@ -339,7 +339,9 @@ jobs:
           echo '── object store ──'; docker logs e2e-objectstore 2>&1 | tail -40
 
       # Traces are retained on failure (playwright.config), and they are the
-      # only way to see what a headless run actually did.
+      # only way to see what a headless run actually did. The owner UI's log is
+      # outside the checkout on purpose (run-local.sh says why); TMPDIR is
+      # unset on the runner, so it is under /tmp.
       - name: Upload traces
         if: failure()
         uses: actions/upload-artifact@v7
@@ -347,6 +349,6 @@ jobs:
           name: playwright-traces
           path: |
             e2e/test-results/
-            e2e/.artifacts/client.log
+            /tmp/jackdaw-e2e-3901/client.log
           retention-days: 7
           if-no-files-found: ignore
