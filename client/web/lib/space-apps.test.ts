@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptSummary,
   appAuthorLevel,
+  APP_TRUST_CONFIRM,
+  showsTrustSwitch,
   APP_ACCEPT_LEVEL_MEANING,
   APP_TRUST_OFF_HINT,
   MY_APP_SHARE_HINT,
@@ -140,5 +142,21 @@ describe('the accept confirm and the trust switch', () => {
     for (const t of [APP_TRUST_OFF_HINT, MY_APP_SHARE_HINT, MY_APP_SUBMIT_HINT]) {
       expect(t).not.toMatch(DASHES);
     }
+  });
+});
+
+describe('the trust switch on an app in the brain', () => {
+  it('shows while the brain says the app ever ran at the ceiling, on or off', () => {
+    expect(showsTrustSwitch({ authorLevel: 'admin', authorCeilingSeen: true })).toBe(true);
+    expect(showsTrustSwitch({ authorLevel: 'team', authorCeilingSeen: true })).toBe(true);
+    expect(showsTrustSwitch({ authorLevel: 'admin', authorCeilingSeen: false })).toBe(false);
+    // A brain before the flag: only while capped.
+    expect(showsTrustSwitch({ authorLevel: 'team' })).toBe(true);
+    expect(showsTrustSwitch({ authorLevel: 'admin' })).toBe(false);
+  });
+
+  it('speaks of code the admin did not write', () => {
+    expect(APP_TRUST_CONFIRM).toMatch(/code you did not write/);
+    expect(APP_TRUST_CONFIRM).not.toMatch(DASHES);
   });
 });

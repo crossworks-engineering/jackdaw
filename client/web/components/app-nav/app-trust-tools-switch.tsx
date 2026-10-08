@@ -19,10 +19,11 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import {
   APP_TRUST_LABEL,
+  APP_TRUST_CONFIRM,
   APP_TRUST_OFF_HINT,
   APP_TRUST_ON_HINT,
-  APP_TRUST_TOOLS_HINT,
   appAuthorLevel,
+  showsTrustSwitch,
 } from '@/lib/space-apps';
 
 /**
@@ -30,9 +31,11 @@ import {
  * the author ceiling of an app in the brain. Off, the app runs its tools at
  * team rules for everyone, admins too (a member wrote it, or it came from a
  * copy, an import or a member-era restore). On lifts it, after a confirm
- * that says what the code can then do. One PATCH of the owner app route
- * (`{ trustTools }`), its one writer. Shown only by a brain that sends the
- * ceiling, and only while it is on or an admin turns it off again.
+ * that names the declared tools and says what the code can then do. One
+ * PATCH of the owner app route (`{ trustTools }`), its one writer; the app
+ * it answers goes into the cache. Shown while the brain says the app ever
+ * ran at the ceiling (`authorCeilingSeen`), on or off, so a trust can be
+ * undone after a reload.
  */
 export function AppTrustToolsSwitch({ app }: { app: AppDetail }) {
   const qc = useQueryClient();
@@ -42,20 +45,22 @@ export function AppTrustToolsSwitch({ app }: { app: AppDetail }) {
   const [confirm, setConfirm] = useState(false);
   const level = appAuthorLevel(app);
   // An admin's own app (never capped) shows nothing.
-  const [seenCapped] = useState(level === 'team');
-  if (level === null || (level === 'admin' && !seenCapped)) return null;
+  if (level === null || !showsTrustSwitch(app)) return null;
   const on = sending ?? level === 'admin';
+  const tools = app.manifest?.toolSlugs ?? [];
 
   const send = async (next: boolean) => {
     setSending(next);
     try {
-      await apiSend(`/api/apps/${encodeURIComponent(app.id)}`, 'PATCH', { trustTools: next });
+      const res = await apiSend<{ app: AppDetail }>(
+        `/api/apps/${encodeURIComponent(app.id)}`,
+        'PATCH',
+        { trustTools: next },
+      );
+      // The brain's own answer, not a hand-set field.
       qc.setQueriesData<{ app: AppDetail }>(
         { predicate: (q) => q.queryKey[0] === 'apps' && typeof q.queryKey[1] === 'string' },
-        (d) =>
-          d?.app?.id === app.id
-            ? { ...d, app: { ...d.app, authorLevel: next ? 'admin' : 'team' } as AppDetail }
-            : d,
+        (d) => (d?.app?.id === app.id && res?.app ? { ...d, app: res.app } : d),
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not change the app.');
@@ -83,7 +88,22 @@ export function AppTrustToolsSwitch({ app }: { app: AppDetail }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Trust the tools of “{app.title || 'Untitled'}”?</AlertDialogTitle>
-            <AlertDialogDescription>{APP_TRUST_TOOLS_HINT}</AlertDialogDescription>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>{APP_TRUST_CONFIRM}</p>
+                {tools.length ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {tools.map((t) => (
+                      <li key={t}>
+                        <code className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">{t}</code>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>It declares no tools.</p>
+                )}
+              </div>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

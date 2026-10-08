@@ -158,6 +158,20 @@ export const APP_TRUST_OFF_HINT =
   'Its tools run at team rules for everyone, admins too: a member wrote it, or it came from a copy, an import or a restore.';
 export const APP_TRUST_ON_HINT = 'Its tools run at the rules of whoever runs it.';
 
+/** The trust switch's confirm: what trusting gives code the admin did not
+ *  write (a member's, or a copy's, an import's or a restore's). */
+export const APP_TRUST_CONFIRM =
+  'With this, when an admin opens the app, code you did not write calls these tools with your reach and can store what it reads where members see it. Read the source first.';
+
+/** Whether the app page shows the trust switch: while the brain says the
+ *  app ever ran at the ceiling (on or off), or, on a brain before that
+ *  flag, while it is capped. Null: an older brain with no ceiling at all. */
+export function showsTrustSwitch(app: object): boolean {
+  const seen = (app as { authorCeilingSeen?: unknown }).authorCeilingSeen;
+  if (typeof seen === 'boolean') return seen;
+  return appAuthorLevel(app) === 'team';
+}
+
 /** The author ceiling as the brain sent it, or null (an older brain). */
 export function appAuthorLevel(app: object): 'admin' | 'team' | null {
   const v = (app as { authorLevel?: unknown }).authorLevel;
