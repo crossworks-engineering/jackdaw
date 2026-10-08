@@ -49,4 +49,4 @@ overrides:
   "@tailwindcss/typography>postcss-selector-parser": "7.1.6"
 
 patchedDependencies:
-  katex@0.18.6: patches/katex@0.18.6.patch
+  katex@0.18.11: patches/katex@0.18.11.patch
