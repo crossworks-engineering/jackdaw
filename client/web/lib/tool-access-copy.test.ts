@@ -70,7 +70,10 @@ describe("a connector group's level", () => {
   it('tells public agents and contacts they get only read-only tools', () => {
     expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/public agents/);
     expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/only its read-only tools/);
-    expect(CONNECTOR_LEVEL_MEANING.client).toMatch(/client agents/);
+    // A client never reaches a public connector, and a client agent's grant
+    // gives clients nothing (access matrix N10).
+    expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/Not clients/);
+    expect(CONNECTOR_LEVEL_MEANING.client).not.toMatch(/client agents/);
     expect(connectorLevelConfirmNote('public')).toMatch(/only the tools marked read-only/);
     expect(connectorLevelConfirmNote('team')).not.toMatch(/public agents/);
     expect(toolAccessCopy('mcp').hint).toMatch(

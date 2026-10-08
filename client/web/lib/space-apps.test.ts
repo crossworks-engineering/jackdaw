@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminMemberAppStatus,
+  MEMBER_APP_DELETE_CONFIRM,
+  memberAppAdminPath,
   acceptSummary,
   appAuthorLevel,
   APP_TRUST_CONFIRM,
@@ -158,5 +161,35 @@ describe('the trust switch on an app in the brain', () => {
   it('speaks of code the admin did not write', () => {
     expect(APP_TRUST_CONFIRM).toMatch(/code you did not write/);
     expect(APP_TRUST_CONFIRM).not.toMatch(DASHES);
+  });
+});
+
+// Access matrix N2: the admin's view of members' apps.
+describe("an admin's view of a member app", () => {
+  const app = {
+    id: '11111111-2222-4333-8444-555555555555',
+    title: 'Tally',
+    author: { loginId: 'l', name: 'Sam', active: true },
+    sharing: 'team' as const,
+    reviewState: 'draft',
+    runnable: true,
+    declaredTools: [],
+    updatedAt: '2026-10-08T00:00:00.000Z',
+  };
+
+  it('says who built it and who runs it', () => {
+    expect(adminMemberAppStatus(app)).toBe('By Sam. Shared with the team: every member runs it.');
+    expect(adminMemberAppStatus({ ...app, reviewState: 'submitted' })).toMatch(/Submitted/);
+    expect(adminMemberAppStatus({ ...app, author: { ...app.author, active: false } })).toMatch(
+      /runs for nobody/,
+    );
+  });
+
+  it('deletes only with a snapshot kept, and builds its paths', () => {
+    expect(MEMBER_APP_DELETE_CONFIRM).toMatch(/snapshot/);
+    expect(MEMBER_APP_DELETE_CONFIRM).not.toMatch(DASHES);
+    expect(memberAppAdminPath(app.id, 'delete')).toBe(
+      `/api/team-admin/member-apps/${app.id}/delete`,
+    );
   });
 });

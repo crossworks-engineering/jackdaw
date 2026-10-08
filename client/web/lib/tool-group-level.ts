@@ -40,9 +40,9 @@ export const CONNECTOR_LEVEL_MEANING: Record<AccessLevel, string> = {
     'Admin: only admins and admin agents use this connector. Members, clients and shared apps cannot.',
   team: 'Team: members use every tool of this connector, from their own MCP and in the apps they run. Tools without the read-only mark can change data.',
   client:
-    'Client: clients use it too, from their own MCP and in client apps, and so do client agents granted it, and members. Tools without the read-only mark can change data.',
+    'Client: clients use it too, from their own MCP and in client apps, and so do members. Tools without the read-only mark can change data.',
   public:
-    'Public: public agents granted it and contacts on an app’s contact link use it too, but only its read-only tools. Members and clients use every tool.',
+    'Public: members use every tool; contacts on an app’s contact link and public agents granted it use only its read-only tools. Not clients: they use client-level connectors only.',
 };
 
 /**

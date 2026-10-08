@@ -29,6 +29,10 @@ describe('the R and R/W pill', () => {
     expect(appMcpPill({ mcpAccess: true })).toBe(APP_MCP_PILL);
     expect(appMcpPill({ mcpAccess: false })).toBeNull();
     expect(appMcpPill({})).toBeNull();
+    // The brain says whether it reaches anyone: on, but admin-level or
+    // unpublished, shows no pill (access matrix N9).
+    expect(appMcpPill({ mcpAccess: true, mcpReach: false })).toBeNull();
+    expect(appMcpPill({ mcpAccess: true, mcpReach: true })).toBe(APP_MCP_PILL);
   });
 
   it('speaks one plain sentence each, with no dash', () => {

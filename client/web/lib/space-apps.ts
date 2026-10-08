@@ -194,6 +194,46 @@ export function acceptSummary(opts: {
   ];
 }
 
+// ── Members' apps, as an admin sees them (access matrix N2) ──────────────────
+
+/** One member app an admin sees: team-shared or submitted, never a private
+ *  draft (GET /api/team-admin/member-apps). */
+export type AdminMemberApp = {
+  id: string;
+  title: string;
+  author: { loginId: string | null; name: string | null; active: boolean };
+  sharing: 'private' | 'team';
+  reviewState: string;
+  runnable: boolean;
+  declaredTools: string[];
+  updatedAt: string;
+};
+
+export const MEMBER_APPS_ADMIN_PATH = '/api/team-admin/member-apps';
+export const MEMBER_APPS_ADMIN_KEY = ['team-admin', 'member-apps'] as const;
+
+export function memberAppAdminPath(id: string, action?: 'unshare' | 'delete' | 'activity'): string {
+  const base = `${MEMBER_APPS_ADMIN_PATH}/${encodeURIComponent(id)}`;
+  return action ? `${base}/${action}` : base;
+}
+
+/** The one line under a member app on the admin's list. */
+export function adminMemberAppStatus(app: AdminMemberApp): string {
+  const who = app.author.name ?? 'a member';
+  if (!app.author.active)
+    return `By ${who}, who is no longer an active member: it runs for nobody.`;
+  if (app.reviewState === 'submitted') return `By ${who}. Submitted for review.`;
+  return app.runnable
+    ? `By ${who}. Shared with the team: every member runs it.`
+    : `By ${who}. Shared with the team, not published yet.`;
+}
+
+export const MEMBER_APP_DELETE_CONFIRM =
+  'The app goes to the trash, and its code and data are kept as a snapshot first. Members can no longer run it.';
+
+export const MEMBER_APP_UNSHARE_HINT =
+  'Unshare: the app goes back to private. Only its author runs it; nothing is deleted.';
+
 /** The source files in reading order: the entry first, then by path. */
 export function submissionFiles(detail: Pick<AppSubmissionDetail, 'entry' | 'files'>): {
   path: string;

@@ -38,6 +38,7 @@
  */
 import { useNeedsYou } from '@/components/needs-you/use-needs-you';
 import { AppReviewPanel, useAppSubmissions } from '@/components/team-admin/app-review-tab';
+import { MemberAppsPanel, useAdminMemberApps } from '@/components/team-admin/member-apps-tab';
 import { requestsOpen, reviewWaiting } from '@/lib/needs-you';
 import Link from 'next/link';
 import { use, useState, type ReactNode } from 'react';
@@ -226,6 +227,7 @@ function TeamTabs({
     | 'chats'
     | 'review'
     | 'app-review'
+    | 'member-apps'
     | 'requests'
     | 'shares'
     | 'client-logins'
@@ -243,6 +245,9 @@ function TeamTabs({
   const requestCount = needsYou ? requestsOpen(needsYou) : openRequestCount;
   // Apps members submitted (team apps Phase 3); null on an older brain.
   const appSubmissions = useAppSubmissions().data;
+  // Members' shared and submitted apps (access matrix N2); null on an older
+  // brain.
+  const memberApps = useAdminMemberApps().data;
   // A brain before client logins C1 has no "What clients see": once its
   // route answered 404 the tab leaves the strip (it stays while open).
   const reportMissing = isReportMissing(useQueryClient().getQueryState(CLIENT_REPORT_KEY)?.error);
@@ -286,6 +291,9 @@ function TeamTabs({
             active === 'app-review',
             appSubmissions?.length,
           )}
+      {memberApps === null && active !== 'member-apps'
+        ? null
+        : tab('Member apps', '/team-admin?view=member-apps', active === 'member-apps')}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Clients', '/team-admin?view=client-logins', active === 'client-logins')}
@@ -1106,6 +1114,12 @@ export default function TeamAdminPage({
     return (
       <Tab active="app-review">
         <AppReviewPanel appId={app} />
+      </Tab>
+    );
+  if (view === 'member-apps')
+    return (
+      <Tab active="member-apps">
+        <MemberAppsPanel />
       </Tab>
     );
   if (view === 'settings') return <SettingsTab />;

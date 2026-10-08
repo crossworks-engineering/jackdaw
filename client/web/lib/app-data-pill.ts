@@ -47,8 +47,11 @@ export function appDataPill(app: object): AppPill | null {
   return null;
 }
 
-/** The MCP pill, for an admin's sidebar: only while the app's MCP access is
- *  on. */
+/** The MCP pill, for an admin's sidebar: only while the app's MCP access
+ *  reaches anyone (`mcpReach`: on, published, below admin; access matrix
+ *  N9). A brain before that field: while the switch is on. */
 export function appMcpPill(app: object): AppPill | null {
-  return (app as { mcpAccess?: unknown }).mcpAccess === true ? APP_MCP_PILL : null;
+  const a = app as { mcpAccess?: unknown; mcpReach?: unknown };
+  const reach = typeof a.mcpReach === 'boolean' ? a.mcpReach : a.mcpAccess === true;
+  return reach ? APP_MCP_PILL : null;
 }
