@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { DiffOverlay, RemovedGhost } from '@mantle/content-core/page-diff';
@@ -128,6 +128,17 @@ function decorate(doc: PMNode, overlay: DiffOverlay): DecorationSet {
   });
 
   return DecorationSet.create(doc, decos);
+}
+
+/**
+ * The meta transaction that pushes `overlay` (null clears review mode) into
+ * the plugin, or null when the plugin already shows that same overlay. The
+ * host recomputes the overlay as a new object whenever it changes, so
+ * identity is the change test.
+ */
+export function diffReviewTr(state: EditorState, overlay: DiffOverlay | null): Transaction | null {
+  if ((diffReviewKey.getState(state)?.overlay ?? null) === overlay) return null;
+  return state.tr.setMeta(diffReviewKey, overlay);
 }
 
 export const DiffReview = Extension.create({

@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 
@@ -45,6 +45,21 @@ function decorate(doc: PMNode, marked: Set<string>, edited: Set<string>): Decora
     return true;
   });
   return DecorationSet.create(doc, decos);
+}
+
+function sameIds(have: Set<string>, want: string[]): boolean {
+  return want.every((id) => have.has(id)) && new Set(want).size === have.size;
+}
+
+/**
+ * The meta transaction that pushes `meta` into the plugin, or null when the
+ * plugin already holds exactly those sets (order and repeats don't matter).
+ * The host only dispatches a real change.
+ */
+export function focusMarksTr(state: EditorState, meta: FocusMarksMeta): Transaction | null {
+  const cur = focusMarksKey.getState(state);
+  if (cur && sameIds(cur.marked, meta.marked) && sameIds(cur.edited, meta.edited)) return null;
+  return state.tr.setMeta(focusMarksKey, meta);
 }
 
 export const FocusMarks = Extension.create({

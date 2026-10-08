@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { EditorContent, useEditor, type Editor, type JSONContent } from '@tiptap/react';
+import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { EditorProps } from '@tiptap/pm/view';
 import { pageExtensions } from './extensions';
 import { nodeHref } from '@/lib/node-href';
@@ -15,9 +16,9 @@ import { DrawPicker } from './draw-picker';
 import { useDrawEmbedTheme } from './draw-embed-theme';
 import { SlashCommand } from './slash-command';
 import { folderIndexGate } from './slash-menu';
-import { FocusMarks, focusMarksKey } from './focus-marks';
+import { FocusMarks, focusMarksTr } from './focus-marks';
 import { FocusGutter } from './focus-gutter';
-import { DiffReview, diffReviewKey, DIFF_ACTION_EVENT } from './diff-review';
+import { DiffReview, diffReviewTr, DIFF_ACTION_EVENT } from './diff-review';
 import { handleDroppedFiles } from './upload';
 import { MemberMode } from './mention';
 import { PageImage } from './image';
@@ -57,6 +58,33 @@ function pageExtensionsWithAssets(map: (path: string) => string) {
 /** A member's editor loads image and drawing bytes from the member routes:
  *  the brain refuses a member on the admin byte routes. */
 const memberPageExtensions = pageExtensionsWithAssets(memberAssetPath);
+
+/**
+ * Dispatch a plugin push from a React effect once the commit has returned.
+ * Meta-only is not enough to make a dispatch safe there: the push can be the
+ * editor's first transaction, and appendTransaction plugins ride on it
+ * (StarterKit's TrailingNode adds the closing paragraph, BlockId then mints
+ * the missing ids), so it changes the doc and ProseMirror rebuilds React node
+ * views, which TipTap mounts with flushSync. Inside the commit that is React's
+ * "flushSync was called from inside a lifecycle method". A microtask runs as
+ * soon as the commit returns and before the browser paints, so the overlay
+ * never lags. `build` reads the state at that moment and returns null for
+ * no change; the returned cleanup drops a push the next run supersedes.
+ */
+function dispatchAfterCommit(
+  editor: Editor,
+  build: (state: EditorState) => Transaction | null,
+): () => void {
+  let live = true;
+  queueMicrotask(() => {
+    if (!live || editor.isDestroyed) return;
+    const tr = build(editor.state);
+    if (tr) editor.view.dispatch(tr);
+  });
+  return () => {
+    live = false;
+  };
+}
 
 /**
  * The "invisible" editing surface: no border, no card, no fixed toolbar — just
@@ -286,13 +314,13 @@ export function PageEditor({
   }, [editor, editable]);
 
   // Push the marked + edited block-id sets into the FocusMarks plugin
-  // (meta-only — no doc change, so no autosave). Re-runs whenever either set
-  // changes (incl. after the AI-change editor remount, which re-seeds them).
+  // (meta-only, so no autosave). Re-runs whenever either set changes (incl.
+  // after the AI-change editor remount, which re-seeds them); dispatches only
+  // when the plugin's sets actually differ.
   useEffect(() => {
     if (!editor) return;
-    editor.view.dispatch(
-      editor.state.tr.setMeta(focusMarksKey, { marked: marks ?? [], edited: editedIds ?? [] }),
-    );
+    const meta = { marked: marks ?? [], edited: editedIds ?? [] };
+    return dispatchAfterCommit(editor, (state) => focusMarksTr(state, meta));
   }, [editor, marks, editedIds]);
 
   // Push the visual-diff overlay into the DiffReview plugin (meta-only). Null
@@ -300,7 +328,8 @@ export function PageEditor({
   // recomputes the overlay (e.g. after a per-block discard/restore).
   useEffect(() => {
     if (!editor) return;
-    editor.view.dispatch(editor.state.tr.setMeta(diffReviewKey, diff ?? null));
+    const overlay = diff ?? null;
+    return dispatchAfterCommit(editor, (state) => diffReviewTr(state, overlay));
   }, [editor, diff]);
 
   // Per-block diff controls dispatch a bubbling CustomEvent; the host does the
