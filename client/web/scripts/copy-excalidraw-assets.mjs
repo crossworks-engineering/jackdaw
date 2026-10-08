@@ -1,5 +1,5 @@
 // Syncs @excalidraw/excalidraw's font assets into public/ so self-hosted
-// instances never fetch fonts from the package CDN (esm.run). Runs from
+// instances never fetch fonts from the package CDN (esm.sh). Runs from
 // pre(dev|build) — same generated-into-public pattern as app-runtime.
 // The destination is gitignored; ~13 MB of content-hashed woff2 files do
 // not belong in the repo. Delete-then-copy so hashes from a previous

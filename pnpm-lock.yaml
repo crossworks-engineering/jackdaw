@@ -18,6 +18,7 @@ overrides:
   '@tailwindcss/typography>postcss-selector-parser': 7.1.6
 
 patchedDependencies:
+  '@excalidraw/excalidraw@0.18.1': 815df0f398065739250d0663c070262a21b4676b1b93097ddc460616ad09228b
   katex@0.18.11: f71956893c2816c8b1272d19d989556b1e6d5f0459bfaa7b79d0940f6aef10f9
 
 importers:
@@ -93,7 +94,7 @@ importers:
         version: 3.2.2(react@19.3.0)
       '@excalidraw/excalidraw':
         specifier: 0.18.1
-        version: 0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(immer@11.1.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 0.18.1(patch_hash=815df0f398065739250d0663c070262a21b4676b1b93097ddc460616ad09228b)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(immer@11.1.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@mantle/client-types':
         specifier: npm:@crossworks/client-types@0.239.36
         version: '@crossworks/client-types@0.239.36'
@@ -6048,7 +6049,7 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@excalidraw/excalidraw@0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(immer@11.1.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@excalidraw/excalidraw@0.18.1(patch_hash=815df0f398065739250d0663c070262a21b4676b1b93097ddc460616ad09228b)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(immer@11.1.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@braintree/sanitize-url': 6.0.2
       '@excalidraw/laser-pointer': 1.3.1

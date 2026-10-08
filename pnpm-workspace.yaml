@@ -46,5 +46,14 @@ overrides:
   "source-map-js": "1.2.2"
   "@tailwindcss/typography>postcss-selector-parser": "7.1.6"
 
+# The excalidraw patch drops upstream's esm.sh font source once
+# EXCALIDRAW_ASSET_PATH is set (client/web/components/draw/excalidraw-canvas.tsx).
+# Upstream lists it after the self-hosted source for every font face, and
+# Chromium CSP-checks every FontFace source up front, so our font-src logged a
+# violation per face (~230 a session) although the self-hosted copy loaded.
+# The change is one condition in each build; the patch is ~440 KB only because
+# the prod chunk is a single minified line. Re-check it on every package bump:
+# pnpm refuses an unused patch, and e2e/specs/draw-fonts.spec.ts fails without it.
 patchedDependencies:
+  '@excalidraw/excalidraw@0.18.1': patches/@excalidraw__excalidraw@0.18.1.patch
   katex@0.18.11: patches/katex@0.18.11.patch

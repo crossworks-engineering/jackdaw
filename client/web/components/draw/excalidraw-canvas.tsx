@@ -11,7 +11,16 @@
  * - Self-hosted assets: EXCALIDRAW_ASSET_PATH is set at module scope (before
  *   the dynamic import resolves) so fonts load from /excalidraw-assets/,
  *   synced into public/ by scripts/copy-excalidraw-assets.mjs. A self-hosted
- *   instance must never reach for the package CDN.
+ *   instance must never reach for the package CDN. Upstream appends esm.sh
+ *   to every font face's sources even with the path set, which our font-src
+ *   reports as a violation per face; the package patch in pnpm-workspace.yaml
+ *   keeps it out, and e2e/specs/draw-fonts.spec.ts holds that line.
+ * - Font subsetting (export, Commit's SVG snapshot) runs on the main thread.
+ *   Upstream's worker URL is its chunk's import.meta.url, which Turbopack
+ *   bakes in as a file:// build path, so `new Worker()` throws a SecurityError
+ *   (not a CSP block) and upstream falls back after one console.error. The
+ *   work is subsetting the glyphs a drawing uses, once per export; not worth
+ *   re-hosting the worker for.
  * - Theme follows the app (next-themes resolvedTheme), so the canvas flips
  *   with the rest of the UI; Excalidraw's own theme toggle stays hidden.
  */
