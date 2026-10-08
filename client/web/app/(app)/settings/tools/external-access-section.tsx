@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { toolAccessCopy } from '@/lib/tool-access-copy';
+import { blockedReason, toolAccessCopy } from '@/lib/tool-access-copy';
 
 /**
  * "External access" as the server reports it (`ToolDTO.externalAccess`,
@@ -37,19 +37,6 @@ export type ToolExternalAccess = {
 };
 
 export type ToolWithExternalAccess = ToolDTO & { externalAccess?: ToolExternalAccess | null };
-
-/** Why this tool can't get External access as it stands, else null. Mirrors
- *  the server's rule; the server refuses anyway. */
-function blockedReason(tool: ToolWithExternalAccess): string | null {
-  const h = tool.handler;
-  if (h.kind === 'http' && (h.method === 'PUT' || h.method === 'PATCH' || h.method === 'DELETE')) {
-    return `This tool sends ${h.method}, which changes data, so it can't get External access.`;
-  }
-  if (tool.requiresConfirm) {
-    return 'This tool needs your confirmation on every call. Nobody is there to confirm in an app, so it can’t get External access.';
-  }
-  return null;
-}
 
 function who(t: ToolExternalAccess): string {
   if (t.by.via === 'web') return t.by.actorEmail ?? 'an admin';

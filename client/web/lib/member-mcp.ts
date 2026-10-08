@@ -46,7 +46,9 @@ export function connectorLine(c: MemberMcpConnector, writeEnabled: boolean): str
   const writes =
     c.writeTools === 1 ? '1 tool that changes data' : `${c.writeTools} tools that change data`;
   const need = c.writeTools === 1 ? 'needs' : 'need';
-  return writeEnabled ? `${reads}, ${writes}` : `${reads}; ${writes} ${need} your Write switch`;
+  return writeEnabled
+    ? `${reads}, ${writes}`
+    : `${reads}; ${writes} ${need} the Write switch on your MCP`;
 }
 
 export const MEMBER_MCP_PATH = '/api/member/mcp';

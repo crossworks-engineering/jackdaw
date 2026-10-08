@@ -42,6 +42,7 @@ import { ListSearchBar, ListSearchEmpty, useListQuery } from '@/components/list-
 import { filterTools } from '@/lib/tool-search';
 import { connectorOff, groupsHolding, type ToolGroupWithLevel } from '@/lib/tool-group-level';
 import { ExternalAccessSection, type ToolWithExternalAccess } from './external-access-section';
+import { toolAccessBadge } from '@/lib/tool-access-copy';
 import { ConnectorOffNote, ToolGroupsOfTool } from './tool-groups-of-tool';
 
 type ToolSummary = ToolWithExternalAccess;
@@ -1066,6 +1067,7 @@ function ToolCard({
   selected: boolean;
   onClick: () => void;
 }) {
+  const badge = toolAccessBadge(tool);
   return (
     <ListCard onClick={onClick} selected={selected} dimmed={!tool.enabled}>
       <div className="flex items-center gap-2">
@@ -1078,12 +1080,16 @@ function ToolCard({
             off
           </span>
         )}
-        {tool.externalAccess?.on && (
+        {badge && (
           <span
-            className="shrink-0 rounded-sm bg-warning/15 px-1 text-[10px] uppercase tracking-wider text-warning-ink"
-            title="External access is on"
+            className={
+              badge.tone === 'warning'
+                ? 'shrink-0 rounded-sm bg-warning/15 px-1 text-[10px] uppercase tracking-wider text-warning-ink'
+                : 'shrink-0 rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wider text-muted-foreground'
+            }
+            title={badge.title}
           >
-            external
+            {badge.label}
           </span>
         )}
         {tool.requiresConfirm && (

@@ -40,13 +40,25 @@ export const CONNECTOR_LEVEL_MEANING: Record<AccessLevel, string> = {
     'Admin: only admins and admin agents use this connector. Members, clients and shared apps cannot.',
   team: 'Team: members use every tool of this connector, from their own MCP and in the apps they run. Tools without the read-only mark can change data.',
   client:
-    'Client: clients use it too, from their own MCP and in client apps, and so do members. Tools without the read-only mark can change data.',
+    'Client: clients use it too, from their own MCP and in client apps, and so do client agents granted it, and members. Tools without the read-only mark can change data.',
   public:
-    'Public: contacts on an app’s contact link use it too. Tools without the read-only mark can change data.',
+    'Public: public agents granted it and contacts on an app’s contact link use it too, but only its read-only tools. Members and clients use every tool.',
 };
 
+/**
+ * The second line of the confirm dialog before a connector moves to `level`.
+ * Contacts and public agents only ever get the tools marked read-only
+ * (contacts read only, brain team apps Phase 2).
+ */
+export function connectorLevelConfirmNote(level: AccessLevel): string {
+  const all =
+    'Everyone at this level may use every tool of this connector, the ones that change data included, and read everything it reaches. Keep a source with secret parts at admin level.';
+  if (level !== 'public') return all;
+  return `${all} Contacts and public agents get only the tools marked read-only.`;
+}
+
 /** Is this group an MCP connector (its level then opens its tools to logins
- *  and apps). */
+ *  and apps). An OpenAPI or plain group is not. */
 export function isConnectorGroup(group: { integration?: { mcp?: unknown } | null }): boolean {
   return !!group.integration?.mcp;
 }

@@ -24,13 +24,13 @@ export type ToolAccessCopy = {
 
 const MARK: ToolAccessCopy = {
   label: 'Read-only',
-  hint: "Marks this connector tool as one that only reads. Who may use it is the connector's level (Settings > Tool groups). Without the mark the tool counts as changing data: apps at the connector's level may call it, and a member's or client's MCP only with their Write switch on.",
+  hint: "Marks this connector tool as one that only reads. Who may use it is the connector's level (Settings > Tool groups). Without the mark the tool counts as changing data: apps of members and clients at the connector's level may call it, and their MCP only with the Write switch on. Contacts and public agents only ever get marked tools.",
   warn: 'Everyone at the connector’s level can call its tools by hand, with any input. If a tool takes free SQL, they can read anything the connector can read.',
   stale:
-    'This tool changed after it was marked, so it counts as changing data now. Mark it again to confirm the new version.',
+    'This tool changed after it was marked, so members, clients and apps can’t use it now. Mark it again to confirm the new version.',
   dialogTitle: (slug) => `Mark “${slug}” as read-only?`,
   dialogBody: [
-    'A read-only tool is offered to every member or client at the connector’s level, also on their MCP without the Write switch, and in every app at that level.',
+    'A read-only tool is offered to every member or client at the connector’s level, also on their MCP without the Write switch, and in every app at that level. On a public connector, contacts on an app’s contact link and public agents get it too.',
     'The brain can’t see what an outside tool does. Mark only a tool that reads data and never changes it. Every call is logged with who made it.',
   ],
   action: 'Mark read-only',
@@ -57,4 +57,56 @@ const EXTERNAL: ToolAccessCopy = {
 /** The words for a tool by its handler kind. */
 export function toolAccessCopy(kind: string): ToolAccessCopy {
   return kind === 'mcp' ? MARK : EXTERNAL;
+}
+
+/** The fields of a tool that the rules below read. */
+export type ToolAccessFacts = {
+  handler: { kind: string; method?: string };
+  requiresConfirm?: boolean;
+  externalAccess?: { on: boolean } | null;
+};
+
+/** Why the switch can't be turned on as the tool stands, else null. Mirrors
+ *  the brain's rule; the brain refuses anyway. */
+export function blockedReason(tool: ToolAccessFacts): string | null {
+  const h = tool.handler;
+  const mcp = h.kind === 'mcp';
+  if (h.kind === 'http' && (h.method === 'PUT' || h.method === 'PATCH' || h.method === 'DELETE')) {
+    return `This tool sends ${h.method}, which changes data, so it can't get External access.`;
+  }
+  if (tool.requiresConfirm) {
+    return mcp
+      ? 'This tool needs your confirmation on every call. Nobody is there to confirm for a member, client or app, so only you can use it, and it can’t be marked read-only.'
+      : 'This tool needs your confirmation on every call. Nobody is there to confirm in an app, so it can’t get External access.';
+  }
+  return null;
+}
+
+/** The small tag on a tool in the list, or null for none. */
+export type ToolAccessBadge = { label: string; tone: 'neutral' | 'warning'; title: string };
+
+export function toolAccessBadge(tool: ToolAccessFacts): ToolAccessBadge | null {
+  const state = tool.externalAccess ?? null;
+  if (tool.handler.kind === 'mcp') {
+    if (state?.on) {
+      return { label: 'read-only', tone: 'neutral', title: 'Marked read-only: it only reads data' };
+    }
+    if (state) {
+      return {
+        label: 'changed',
+        tone: 'warning',
+        title:
+          'Changed after it was marked: members, clients and apps can’t use it until you mark it again',
+      };
+    }
+    return {
+      label: 'writes',
+      tone: 'warning',
+      title: 'Not marked read-only: it counts as a tool that changes data',
+    };
+  }
+  if (tool.handler.kind === 'http' && state?.on) {
+    return { label: 'external', tone: 'warning', title: 'External access is on' };
+  }
+  return null;
 }

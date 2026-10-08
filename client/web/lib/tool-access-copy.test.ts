@@ -3,9 +3,10 @@
  * read-only mark, an http tool's External access.
  */
 import { describe, expect, it } from 'vitest';
-import { toolAccessCopy } from './tool-access-copy';
+import { blockedReason, toolAccessBadge, toolAccessCopy } from './tool-access-copy';
 import {
   CONNECTOR_LEVEL_MEANING,
+  connectorLevelConfirmNote,
   connectorLevelNeedsConfirm,
   groupLevelMeaning,
   isConnectorGroup,
@@ -56,10 +57,29 @@ describe("a connector group's level", () => {
   it('says who uses the connector, and a plain group keeps its words', () => {
     expect(isConnectorGroup(connector)).toBe(true);
     expect(isConnectorGroup(plain)).toBe(false);
+    expect(
+      isConnectorGroup({ integration: { openapi: { url: 'https://x.example/o.json' } } } as never),
+    ).toBe(false);
+    expect(isConnectorGroup({})).toBe(false);
     expect(groupLevelMeaning(connector, 'team')).toBe(CONNECTOR_LEVEL_MEANING.team);
     expect(groupLevelMeaning(connector, 'team')).toMatch(/own MCP/);
     expect(groupLevelMeaning(plain, 'team')).not.toMatch(/own MCP/);
     for (const m of Object.values(CONNECTOR_LEVEL_MEANING)) expect(m).not.toMatch(DASHES);
+  });
+
+  it('tells public agents and contacts they get only read-only tools', () => {
+    expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/public agents/);
+    expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/only its read-only tools/);
+    expect(CONNECTOR_LEVEL_MEANING.client).toMatch(/client agents/);
+    expect(connectorLevelConfirmNote('public')).toMatch(/only the tools marked read-only/);
+    expect(connectorLevelConfirmNote('team')).not.toMatch(/public agents/);
+    expect(toolAccessCopy('mcp').hint).toMatch(
+      /Contacts and public agents only ever get marked tools/,
+    );
+    expect(toolAccessCopy('mcp').dialogBody[0]).toMatch(/public agents get it too/);
+    for (const l of ['admin', 'team', 'client', 'public'] as const) {
+      expect(connectorLevelConfirmNote(l)).not.toMatch(DASHES);
+    }
   });
 
   it('asks before every move below admin', () => {
@@ -78,8 +98,57 @@ describe('a connector on the member MCP screen', () => {
       '3 read tools, 2 tools that change data',
     );
     expect(connectorLine(c, false)).toBe(
-      '3 read tools; 1 tool that changes data needs your Write switch',
+      '3 read tools; 1 tool that changes data needs the Write switch on your MCP',
     );
     expect(connectorLine({ ...c, writeTools: 0 }, false)).toBe('3 read tools');
+  });
+});
+
+describe('the tag on a tool in the list', () => {
+  const mcp = { handler: { kind: 'mcp' } };
+  it('shows a marked connector tool as read-only, an unmarked one as writes', () => {
+    expect(toolAccessBadge({ ...mcp, externalAccess: { on: true } })).toMatchObject({
+      label: 'read-only',
+      tone: 'neutral',
+    });
+    expect(toolAccessBadge(mcp)).toMatchObject({ label: 'writes', tone: 'warning' });
+    expect(toolAccessBadge({ ...mcp, externalAccess: { on: false } })).toMatchObject({
+      label: 'changed',
+      tone: 'warning',
+    });
+  });
+
+  it('keeps External access on an http tool, and no tag on others', () => {
+    expect(
+      toolAccessBadge({ handler: { kind: 'http' }, externalAccess: { on: true } }),
+    ).toMatchObject({
+      label: 'external',
+    });
+    expect(toolAccessBadge({ handler: { kind: 'http' } })).toBeNull();
+    expect(toolAccessBadge({ handler: { kind: 'builtin' } })).toBeNull();
+  });
+
+  it('carries no dash', () => {
+    for (const t of [
+      mcp,
+      { ...mcp, externalAccess: { on: true } },
+      { ...mcp, externalAccess: { on: false } },
+    ]) {
+      const b = toolAccessBadge(t);
+      expect(b?.title).not.toMatch(DASHES);
+    }
+  });
+});
+
+describe('why the switch is blocked', () => {
+  it('names the mark on a connector tool and External access on an http tool', () => {
+    expect(blockedReason({ handler: { kind: 'mcp' }, requiresConfirm: true })).toMatch(
+      /can’t be marked read-only/,
+    );
+    expect(
+      blockedReason({ handler: { kind: 'http', method: 'GET' }, requiresConfirm: true }),
+    ).toMatch(/External access/);
+    expect(blockedReason({ handler: { kind: 'http', method: 'DELETE' } })).toMatch(/sends DELETE/);
+    expect(blockedReason({ handler: { kind: 'mcp' } })).toBeNull();
   });
 });

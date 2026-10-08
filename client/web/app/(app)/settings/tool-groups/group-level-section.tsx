@@ -20,6 +20,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { LEVEL_LABEL, LEVEL_ORDER, isAccessLevel } from '@/lib/access-levels';
 import {
   GROUP_LEVEL_UNKNOWN,
+  connectorLevelConfirmNote,
   connectorLevelNeedsConfirm,
   groupLevelMeaning,
   isConnectorGroup,
@@ -41,8 +42,9 @@ function refusalOf(e: unknown): Refusal {
 
 /**
  * The level of one tool group. Saves at once through its own route, apart
- * from the group form, and works for connector groups too (the level is not
- * the connector's). Before client or public it asks first.
+ * from the group form. On a connector group the level is the connector's
+ * own: it decides who may use its tools (brain team apps Phase 2), so every
+ * move below admin asks first. Any other group asks before client or public.
  */
 export function GroupLevelSection({ group }: { group: ToolGroupWithLevel }) {
   const queryClient = useQueryClient();
@@ -135,8 +137,8 @@ export function GroupLevelSection({ group }: { group: ToolGroupWithLevel }) {
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>{confirm ? groupLevelMeaning(group, confirm) : ''}</p>
                 <p>
-                  {connector
-                    ? 'Everyone at this level may use every tool of this connector, the ones that change data included, and read everything it reaches. Keep a source with secret parts at admin level.'
+                  {connector && confirm
+                    ? connectorLevelConfirmNote(confirm)
                     : confirm === 'public'
                       ? 'A public agent answers people who are not signed in. Every tool in this group can then run for them.'
                       : 'A client agent answers signed-in clients. Every tool in this group can then run for them.'}{' '}
