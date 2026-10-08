@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activityLabel,
+  activityRefused,
+  activityWho,
+  activityWrite,
   adminMemberAppStatus,
+  deletedAppRestorePath,
+  MEMBER_APP_DELETED_TOAST,
   MEMBER_APP_DELETE_CONFIRM,
   memberAppAdminPath,
   acceptSummary,
@@ -185,11 +191,45 @@ describe("an admin's view of a member app", () => {
     );
   });
 
-  it('deletes only with a snapshot kept, and builds its paths', () => {
+  it('deletes only with a snapshot kept, says how to restore it, and builds its paths', () => {
     expect(MEMBER_APP_DELETE_CONFIRM).toMatch(/snapshot/);
-    expect(MEMBER_APP_DELETE_CONFIRM).not.toMatch(DASHES);
+    // M4 audit: the brain keeps it in its trash; the copy says for how long.
+    expect(MEMBER_APP_DELETE_CONFIRM).toMatch(/restore it for 30 days/);
+    expect(MEMBER_APP_DELETED_TOAST).toMatch(/Recently deleted apps/);
+    for (const text of [MEMBER_APP_DELETE_CONFIRM, MEMBER_APP_DELETED_TOAST]) {
+      expect(text).not.toMatch(DASHES);
+    }
     expect(memberAppAdminPath(app.id, 'delete')).toBe(
       `/api/team-admin/member-apps/${app.id}/delete`,
     );
+    expect(deletedAppRestorePath(app.id)).toBe(`/api/apps/deleted/${app.id}/restore`);
+  });
+});
+
+// M4 audit (jackdaw low 2, low 3): an app's activity in plain words, with
+// who, a mark on writes, and the write's input.
+describe("a member app's activity", () => {
+  it('names what happened in plain words, never the raw kind', () => {
+    expect(activityLabel({ kind: 'auth', detail: { via: 'member' } })).toBe('Opened');
+    expect(activityLabel({ kind: 'tool', detail: { slug: 'note_list' } })).toBe('Used note_list');
+    expect(activityLabel({ kind: 'db', detail: { op: 'exec' } })).toBe('Changed data');
+    expect(activityLabel({ kind: 'error', detail: null })).toBe('Error');
+    expect(activityLabel({ kind: 'something-new', detail: null })).toBe('Activity');
+  });
+
+  it('says who, by name or by how they came in', () => {
+    expect(activityWho({ contactName: 'Sam', detail: { via: 'member' } })).toBe('Sam');
+    expect(activityWho({ contactName: null, detail: { via: 'client' } })).toBe('A client');
+    expect(activityWho({ contactName: null, detail: null })).toBe('Someone');
+  });
+
+  it('marks a write and keeps its input; a read or a refusal is not a write', () => {
+    expect(activityWrite({ detail: { write: true, input: '{"id":1}' } })).toEqual({
+      input: '{"id":1}',
+    });
+    expect(activityWrite({ detail: { write: true } })).toEqual({ input: null });
+    expect(activityWrite({ detail: { slug: 'x' } })).toBeNull();
+    expect(activityRefused({ detail: { refused: 'read-only' } })).toBe('read-only');
+    expect(activityRefused({ detail: {} })).toBeNull();
   });
 });

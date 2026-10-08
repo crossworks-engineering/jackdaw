@@ -6,7 +6,8 @@
  * sees who built each, whether that author is still an active member (an
  * app whose author is not runs for nobody), what it did (Activity), and can
  * Unshare it (back to private, nothing deleted) or Delete it (confirmed; the
- * brain keeps its code and data as a snapshot first). A brain without the
+ * brain moves it to its trash with its code and data, M4 audit). Recently
+ * deleted apps, below, bring one back for 30 days. A brain without the
  * routes answers 404: the tab says to update it.
  */
 import { useState } from 'react';
@@ -26,22 +27,24 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import {
+  DELETED_APPS_KEY,
+  DELETED_APPS_PATH,
   MEMBER_APPS_ADMIN_KEY,
   MEMBER_APPS_ADMIN_PATH,
+  MEMBER_APP_DELETED_TOAST,
   MEMBER_APP_DELETE_CONFIRM,
   MEMBER_APP_UNSHARE_HINT,
+  activityLabel,
+  activityRefused,
+  activityWho,
+  activityWrite,
   adminMemberAppStatus,
+  deletedAppRestorePath,
   memberAppAdminPath,
   type AdminMemberApp,
+  type DeletedApp,
+  type MemberAppActivity,
 } from '@/lib/space-apps';
-
-type ActivityEntry = {
-  id: string;
-  kind: string;
-  contactName: string | null;
-  detail: Record<string, unknown> | null;
-  createdAt: string;
-};
 
 /** The members' apps an admin sees; null on a brain without the route. */
 export function useAdminMemberApps() {
@@ -68,11 +71,40 @@ function fmt(iso: string): string {
   });
 }
 
+function fmtDay(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function ActivityRow({ e }: { e: MemberAppActivity }) {
+  const write = activityWrite(e);
+  const refused = activityRefused(e);
+  return (
+    <li className="space-y-1">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="shrink-0 text-muted-foreground">{fmt(e.createdAt)}</span>
+        <span className="shrink-0 font-medium">{activityWho(e)}</span>
+        <span className="min-w-0 truncate">{activityLabel(e)}</span>
+        {write ? <Badge variant="outline">Write</Badge> : null}
+        {refused ? <Badge variant="secondary">Refused</Badge> : null}
+      </div>
+      {refused ? <p className="text-muted-foreground">{refused}</p> : null}
+      {write?.input ? (
+        <details>
+          <summary className="cursor-pointer text-muted-foreground">Input</summary>
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 scrollbar-thin">
+            {write.input}
+          </pre>
+        </details>
+      ) : null}
+    </li>
+  );
+}
+
 function Activity({ id }: { id: string }) {
   const q = useQuery({
     queryKey: [...MEMBER_APPS_ADMIN_KEY, id, 'activity'],
     queryFn: () =>
-      apiFetch<{ entries: ActivityEntry[] }>(memberAppAdminPath(id, 'activity')).then(
+      apiFetch<{ entries: MemberAppActivity[] }>(memberAppAdminPath(id, 'activity')).then(
         (r) => r.entries,
       ),
   });
@@ -81,20 +113,10 @@ function Activity({ id }: { id: string }) {
     return <p className="text-xs text-destructive-ink">Could not load the activity.</p>;
   if (q.data.length === 0) return <p className="text-xs text-muted-foreground">Nothing yet.</p>;
   return (
-    <ul className="max-h-64 space-y-1 overflow-y-auto text-xs scrollbar-thin">
-      {q.data.map((e) => {
-        const slug = typeof e.detail?.slug === 'string' ? e.detail.slug : null;
-        const via = typeof e.detail?.via === 'string' ? e.detail.via : null;
-        return (
-          <li key={e.id} className="flex min-w-0 items-baseline gap-2">
-            <span className="shrink-0 text-muted-foreground">{fmt(e.createdAt)}</span>
-            <span className="shrink-0 font-medium">{e.kind}</span>
-            <span className="min-w-0 flex-1 truncate">
-              {[slug, e.contactName ?? via].filter(Boolean).join(' · ')}
-            </span>
-          </li>
-        );
-      })}
+    <ul className="max-h-64 space-y-2 overflow-y-auto text-xs scrollbar-thin">
+      {q.data.map((e) => (
+        <ActivityRow key={e.id} e={e} />
+      ))}
     </ul>
   );
 }
@@ -106,6 +128,7 @@ function Row({ app }: { app: AdminMemberApp }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const done = (msg: string) => {
     void qc.invalidateQueries({ queryKey: MEMBER_APPS_ADMIN_KEY });
+    void qc.invalidateQueries({ queryKey: DELETED_APPS_KEY });
     toast.success(msg);
   };
   const unshare = useMutation({
@@ -115,7 +138,7 @@ function Row({ app }: { app: AdminMemberApp }) {
   });
   const remove = useMutation({
     mutationFn: () => apiSend(memberAppAdminPath(app.id, 'delete'), 'POST', { confirm: true }),
-    onSuccess: () => done('Deleted (kept as a snapshot in the trash)'),
+    onSuccess: () => done(MEMBER_APP_DELETED_TOAST),
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not delete it.'),
   });
   const busy = unshare.isPending || remove.isPending;
@@ -184,6 +207,69 @@ function Row({ app }: { app: AdminMemberApp }) {
   );
 }
 
+/** The brain's trash of apps: a member app an admin deleted waits here, as
+ *  any deleted app does, and comes back as an admin-only app. Hidden on a
+ *  brain without the route, and while it is empty. */
+function RecentlyDeleted() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({
+    queryKey: DELETED_APPS_KEY,
+    queryFn: async () => {
+      try {
+        return (await apiFetch<{ apps: DeletedApp[] }>(DELETED_APPS_PATH)).apps;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+  });
+  const restore = useMutation({
+    mutationFn: (id: string) => apiSend(deletedAppRestorePath(id), 'POST'),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: DELETED_APPS_KEY });
+      toast.success('Restored: it is in Apps, for admins only');
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not restore it.'),
+  });
+  if (!q.data?.length) return null;
+  return (
+    <section className="space-y-2 pt-2">
+      <div>
+        <h3 className="text-sm font-semibold">Recently deleted apps</h3>
+        <p className="text-xs text-muted-foreground">
+          A deleted app can come back for 30 days, with its data. It returns to Apps for admins
+          only; share it again from there.
+        </p>
+      </div>
+      <ul className="space-y-2">
+        {q.data.map((d) => (
+          <li
+            key={d.id}
+            className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 text-sm sm:flex-row sm:items-center"
+          >
+            <div className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{d.title || 'Untitled'}</span>
+              <p className="text-xs text-muted-foreground">
+                Deleted {fmtDay(d.deletedAt)}. Restore until {fmtDay(d.purgeAfter)}.
+                {d.hasData ? '' : ' No data was kept.'}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={restore.isPending}
+              onClick={() => restore.mutate(d.id)}
+            >
+              Restore
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function MemberAppsPanel() {
   const q = useAdminMemberApps();
   return (
@@ -215,6 +301,7 @@ export function MemberAppsPanel() {
           ))}
         </ul>
       )}
+      <RecentlyDeleted />
     </div>
   );
 }

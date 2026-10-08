@@ -229,7 +229,96 @@ export function adminMemberAppStatus(app: AdminMemberApp): string {
 }
 
 export const MEMBER_APP_DELETE_CONFIRM =
-  'The app goes to the trash, and its code and data are kept as a snapshot first. Members can no longer run it.';
+  'It moves to the trash; you can restore it for 30 days, under Recently deleted apps below. Its code and data are kept as a snapshot. Members can no longer run it.';
+
+export const MEMBER_APP_DELETED_TOAST =
+  'Moved to the trash. Restore it under Recently deleted apps for 30 days.';
+
+// ── The brain's recently deleted apps (GET /api/apps/deleted) ────────────────
+
+/** One deleted app that can still come back. A member app an admin deleted
+ *  lands here too (brain M4 audit, medium 2). */
+export type DeletedApp = {
+  id: string;
+  title: string;
+  icon: string | null;
+  color: string | null;
+  deletedAt: string;
+  /** Last day it can be restored. */
+  purgeAfter: string;
+  hasData: boolean;
+  dbBytes: number | null;
+};
+
+export const DELETED_APPS_PATH = '/api/apps/deleted';
+export const DELETED_APPS_KEY = ['apps', 'deleted'] as const;
+
+export function deletedAppRestorePath(id: string): string {
+  return `${DELETED_APPS_PATH}/${encodeURIComponent(id)}/restore`;
+}
+
+// ── A member app's activity, in plain words ──────────────────────────────────
+
+/** One row of GET /api/team-admin/member-apps/:id/activity. `contactName` is
+ *  who ran it: a contact, or a member or client login by name. */
+export type MemberAppActivity = {
+  id: string;
+  kind: string;
+  contactName: string | null;
+  actorId?: string | null;
+  detail: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+const ACTIVITY_KIND: Record<string, string> = {
+  auth: 'Opened',
+  tool: 'Used a tool',
+  db: 'Data',
+  error: 'Error',
+};
+
+const DB_OP: Record<string, string> = {
+  list: 'Listed the app',
+  query: 'Read data',
+  exec: 'Changed data',
+};
+
+/** What happened, in plain words: the kind, then the tool or data step. */
+export function activityLabel(e: Pick<MemberAppActivity, 'kind' | 'detail'>): string {
+  const d = e.detail ?? {};
+  const slug = typeof d.slug === 'string' ? d.slug : null;
+  const op = typeof d.op === 'string' ? d.op : null;
+  if (e.kind === 'tool' && slug) return `Used ${slug}`;
+  if (e.kind === 'db' && op) return DB_OP[op] ?? 'Data';
+  return ACTIVITY_KIND[e.kind] ?? 'Activity';
+}
+
+/** Who did it: the name the brain gave, else how they came in. */
+export function activityWho(e: Pick<MemberAppActivity, 'contactName' | 'detail'>): string {
+  if (e.contactName) return e.contactName;
+  const via = e.detail?.via;
+  if (via === 'member') return 'A member';
+  if (via === 'client') return 'A client';
+  if (via === 'public') return 'A visitor';
+  if (via === 'owner') return 'An admin';
+  return 'Someone';
+}
+
+/** The write a connector call made, with its input (kept up to 2 KB), or
+ *  null for a read. */
+export function activityWrite(
+  e: Pick<MemberAppActivity, 'detail'>,
+): { input: string | null } | null {
+  const d = e.detail ?? {};
+  if (d.write !== true) return null;
+  return { input: typeof d.input === 'string' && d.input ? d.input : null };
+}
+
+/** Why the brain refused the call, or null. */
+export function activityRefused(e: Pick<MemberAppActivity, 'detail'>): string | null {
+  const r = e.detail?.refused;
+  return typeof r === 'string' && r ? r : null;
+}
 
 export const MEMBER_APP_UNSHARE_HINT =
   'Unshare: the app goes back to private. Only its author runs it; nothing is deleted.';
