@@ -10,7 +10,10 @@ import type {
   AccessKeyView,
 } from '@mantle/client-types';
 
-export const AREA_LABEL: Record<AccessKeyArea, string> = {
+/** `app_data` (brain team apps Phase 1): the data of mini apps an admin
+ *  opened to MCP. Named here before the contract pin lists it, so the
+ *  screen labels it on a brain that sends it. */
+export const AREA_LABEL: Record<AccessKeyArea | 'app_data', string> = {
   // Search reads every kind of item, email and journal included.
   search: 'Search (every kind)',
   pages: 'Pages',
@@ -22,6 +25,7 @@ export const AREA_LABEL: Record<AccessKeyArea, string> = {
   contacts: 'Contacts',
   journal: 'Journal',
   apps: 'Apps',
+  app_data: 'App data (MCP)',
 };
 
 export const ACCESS_LABEL: Record<AccessKeyAccess, string> = {

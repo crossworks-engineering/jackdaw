@@ -79,8 +79,9 @@ export function McpLoginsSection() {
           <h2 className="text-sm font-semibold">Team and client access</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Let a member or client use Claude on this brain, with their own rights only. Read only
-            unless you turn Write on: then they can make drafts in their own space, for review. They
-            sign in from Claude with the connector URL above, or make their own key in{' '}
+            unless you turn Write on: then they can make drafts in their own space, for review, and
+            change rows in the mini apps you open to MCP (MCP access on the app). They sign in from
+            Claude with the connector URL above, or make their own key in{' '}
             <Link href="/settings/api-access" className="underline underline-offset-2">
               API access
             </Link>
@@ -128,7 +129,7 @@ export function McpLoginsSection() {
                       checked={l.writeEnabled}
                       disabled={busy === l.id || !l.enabled}
                       onCheckedChange={(v) => patch(l.id, { writeEnabled: v })}
-                      aria-label={`Write drafts for ${l.email}`}
+                      aria-label={`Write drafts and app data for ${l.email}`}
                     />
                   </label>
                 </div>

@@ -33,6 +33,7 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { AppInformationalSwitch } from '@/components/app-nav/app-informational-switch';
+import { AppMcpAccessSwitch } from '@/components/app-nav/app-mcp-access-switch';
 import { useAppNav } from '@/components/app-nav/use-app-nav';
 import { AccessControl } from '@/components/share/access-control';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -453,6 +454,8 @@ function AppDetailView({ app }: { app: AppDetail }) {
         </div>
         {/* Informational (C6): members and clients only read its data. */}
         <AppInformationalSwitch app={app} />
+        {/* MCP access (team apps Phase 1): their own MCP reaches its data. */}
+        <AppMcpAccessSwitch app={app} />
 
         {/* Builder — the live preview. Ask Appsmith to edit the app via the
             global assistant (⌘I), auto-armed for this app. */}

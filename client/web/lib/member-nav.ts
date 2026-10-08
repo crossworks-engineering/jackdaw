@@ -7,6 +7,7 @@ import {
   KeyRound,
   MessageSquare,
   PenTool,
+  Plug,
   Table2,
   type LucideIcon,
 } from 'lucide-react';
@@ -41,6 +42,13 @@ export const MEMBER_NAV: { label: string; items: MemberNavItem[] }[] = [
     ],
   },
   { label: 'Assistant', items: [{ name: 'Chat', href: '#chat', icon: MessageSquare, chat: true }] },
-  // Their own API keys, for scripts and MCP clients (brain migration 0232).
-  { label: 'You', items: [{ name: 'API access', href: '/settings/api-access', icon: KeyRound }] },
+  // Their own MCP view (team apps Phase 1) and their own API keys, for
+  // scripts and MCP clients (brain migration 0232).
+  {
+    label: 'You',
+    items: [
+      { name: 'MCP', href: '/settings/mcp', icon: Plug },
+      { name: 'API access', href: '/settings/api-access', icon: KeyRound },
+    ],
+  },
 ];

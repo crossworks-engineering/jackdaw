@@ -26,10 +26,12 @@ export const MEMBER_APP_PREFIXES: readonly string[] = [...MEMBER_KIND_PATHS, '/a
  *  that kind's screen (components/member/member-go-to-list.tsx). */
 export const MEMBER_LINK_PREFIXES: readonly string[] = ['/n'];
 
-/** Owner-shell screens that serve every login (they call routes that answer
- *  any role): Settings > API access, where a member makes, lists and revokes
- *  their own API keys (brain migration 0232). */
-export const MEMBER_SHARED_SCREENS: readonly string[] = ['/settings/api-access'];
+/** Owner-shell screens that serve a member too: Settings > API access, where
+ *  a member makes, lists and revokes their own API keys (brain migration
+ *  0232), and Settings > MCP, which shows a member their own view (the
+ *  connector URL, their access, their own connected clients; brain team
+ *  apps Phase 1). Each screen picks its member view by role. */
+export const MEMBER_SHARED_SCREENS: readonly string[] = ['/settings/api-access', '/settings/mcp'];
 
 /** A path a member may open: the home, the member app screens, the item
  *  permalink, the shared screens (API access), public paths. Chat is the assistant dock, on any of them (the
