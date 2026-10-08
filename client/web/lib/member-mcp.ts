@@ -28,6 +28,11 @@ export type MemberMcpView = {
 
 export const MEMBER_MCP_PATH = '/api/member/mcp';
 
+/** The connect card while MCP is not open to the member (the box switch or
+ *  their own is off). Why is said once, under Your access. */
+export const MEMBER_MCP_NOT_OPEN =
+  'You can connect a client once MCP is open to you. Your access, below, says why it is not.';
+
 export function memberMcpClientPath(id: string): string {
   return `${MEMBER_MCP_PATH}/clients/${encodeURIComponent(id)}`;
 }
@@ -65,7 +70,7 @@ export function memberMcpAccessLines(view: Pick<MemberMcpView, 'remoteEnabled' |
     lines: [
       'You read what your login can read.',
       'You make drafts in your own space, for review.',
-      'You change rows in the mini apps an admin opened to MCP, unless an app is informational.',
+      'You change rows in the mini apps an admin opened to MCP, unless an app is informational or public.',
     ],
   };
 }

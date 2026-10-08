@@ -30,9 +30,18 @@ describe('MCP access on an app', () => {
     expect(supportsMcpAccess({ mcpAccess: false, audience: 'admin', inherited: 'team' })).toBe(
       true,
     );
-    expect(supportsMcpAccess({ mcpAccess: true, audience: 'admin' })).toBe(false);
+    // Off on an admin app: nothing to show.
+    expect(supportsMcpAccess({ mcpAccess: false, audience: 'admin' })).toBe(false);
+    // Still on after the app moved back to admin: shown, so it can be turned
+    // off before a re-share quietly opens MCP again (M1 audit, low 2).
+    expect(supportsMcpAccess({ mcpAccess: true, audience: 'admin' })).toBe(true);
     // A brain before Phase 1 sends no flag.
     expect(supportsMcpAccess({ audience: 'team' })).toBe(false);
+  });
+
+  it('says members never write a public app, and clients reach client apps only', () => {
+    expect(APP_MCP_ACCESS_HINT).toMatch(/public/);
+    expect(APP_MCP_ACCESS_HINT).toMatch(/clients on a client app/);
   });
 
   it('sends the owner app patch, in words with no dash', () => {

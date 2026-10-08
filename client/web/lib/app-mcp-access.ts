@@ -22,13 +22,15 @@ export type AppMcpAccessPatch = { mcpAccess: boolean };
 
 export const APP_MCP_ACCESS_LABEL = 'MCP access: members and clients reach its data over MCP';
 export const APP_MCP_ACCESS_HINT =
-  'From their own MCP client, at their level. Read only unless their Write switch is on and the app is not informational.';
+  'From their own MCP client: members on a team, client or public app, clients on a client app. Read only unless their Write switch is on; never written on a public or informational app.';
 
 /** Is the admin's switch shown: the brain knows the flag, and someone other
- *  than an admin can run the app (its level, or a folder share). An admin
- *  app has no other readers. */
+ *  than an admin can run the app (its level, or a folder share), or the
+ *  flag is still on (an app moved back to admin keeps it, and re-sharing
+ *  would quietly open MCP again: the admin must be able to turn it off). */
 export function supportsMcpAccess(app: WithMcpAccess): boolean {
   if (typeof app.mcpAccess !== 'boolean') return false;
+  if (app.mcpAccess) return true;
   const open = (l: string | null | undefined) => l === 'team' || l === 'client' || l === 'public';
   return open(app.audience) || open(app.inherited);
 }

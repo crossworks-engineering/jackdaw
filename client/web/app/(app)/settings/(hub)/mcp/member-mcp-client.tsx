@@ -29,6 +29,7 @@ import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import {
+  MEMBER_MCP_NOT_OPEN,
   MEMBER_MCP_PATH,
   claudeCodeKeyCommand,
   claudeCodeOauthCommand,
@@ -128,7 +129,7 @@ export function MemberMcpClient() {
               </p>
             </div>
           </div>
-          {view.remoteEnabled ? (
+          {view.remoteEnabled && view.access.enabled ? (
             <div className="space-y-4 p-4 md:p-5">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Connector URL</p>
@@ -161,9 +162,7 @@ export function MemberMcpClient() {
               </div>
             </div>
           ) : (
-            <div className="p-4 text-sm text-muted-foreground md:p-5">
-              MCP is off on this brain. An admin turns it on in Settings &gt; MCP.
-            </div>
+            <div className="p-4 text-sm text-muted-foreground md:p-5">{MEMBER_MCP_NOT_OPEN}</div>
           )}
         </section>
 

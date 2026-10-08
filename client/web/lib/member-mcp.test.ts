@@ -43,6 +43,7 @@ describe("a member's MCP view", () => {
     });
     expect(write.state).toBe('write');
     expect(write.lines.join(' ')).toMatch(/change rows/);
+    expect(write.lines.join(' ')).toMatch(/informational or public/);
     for (const l of [...read.lines, ...write.lines]) expect(l).not.toMatch(DASHES);
   });
 
