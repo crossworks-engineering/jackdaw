@@ -26,9 +26,10 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
-import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
+import { ReaderNote } from '@/components/member/reader-note';
+import { noteAssetPath } from '@/lib/note-media';
 import {
   QUEUE_KEY,
   authorRoleLabel,
@@ -275,9 +276,7 @@ export function ReviewItemView({ item }: { item: ReviewItem }) {
         />
       );
     case 'note':
-      return (
-        <NotePresenter view={{ title: row.title, content: body.note.content }} chrome="embedded" />
-      );
+      return <ReaderNote content={body.note.content} imagePath={noteAssetPath(mapAsset)} />;
     case 'draw':
       return (
         <DrawPresenter

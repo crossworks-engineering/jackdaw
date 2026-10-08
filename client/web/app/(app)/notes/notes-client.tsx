@@ -6,8 +6,6 @@ import { AudienceBadge } from '@/components/share/audience-badge';
 import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { FileText, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
@@ -59,6 +57,8 @@ import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
 import type { TreeFolder } from '@mantle/web-ui/types/tree';
+import { NoteMarkdown } from '@/components/note-markdown';
+import { ownerNoteAssetPath } from '@/lib/note-media';
 import { NoteEditor, type NoteRow } from './note-editor';
 
 type TagCount = { tag: string; count: number };
@@ -643,7 +643,7 @@ function NotePreview({
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto scrollbar-thin px-6 py-5">
         <article className="prose prose-sm dark:prose-invert max-w-none prose-accent prose-document">
           {note.content ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+            <NoteMarkdown content={note.content} assetPath={ownerNoteAssetPath} />
           ) : (
             <p className="text-sm italic text-muted-foreground">
               No content yet. Click{' '}

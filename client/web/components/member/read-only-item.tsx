@@ -5,12 +5,12 @@ import type { TableDoc } from '@mantle/content-core/table-model';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
-import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { Button } from '@mantle/web-ui/ui/button';
 import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
 import { ReaderNote } from './reader-note';
 import { readerTableView } from '@/lib/reader-table';
+import { noteAssetPath } from '@/lib/note-media';
 
 /** One brain item as a read-only viewer gets it: a Library or accepted item
  *  (a member), or a shared item (a client). The shapes agree per kind. */
@@ -32,7 +32,8 @@ export type ReaderAssets = {
    *  byte route (the client portal). */
   fileEmbedPath?: (id: string) => string;
   /** When set, a note's pictures go through this: the reader's own byte
-   *  route, or null to draw none (the client portal, client tier audit U4). */
+   *  route, or null to draw none (the client portal, client tier audit U4).
+   *  Unset: `mapAssetPath`, the rule a page in this reader follows. */
   noteImagePath?: (src: string) => string | null;
 };
 
@@ -63,10 +64,11 @@ export function ReadOnlyItemBody({
         />
       );
     case 'note':
-      return assets.noteImagePath ? (
-        <ReaderNote content={item.content} imagePath={assets.noteImagePath} />
-      ) : (
-        <NotePresenter view={{ title: item.title, content: item.content }} chrome="embedded" />
+      return (
+        <ReaderNote
+          content={item.content}
+          imagePath={assets.noteImagePath ?? noteAssetPath(assets.mapAssetPath)}
+        />
       );
     case 'draw':
       return (

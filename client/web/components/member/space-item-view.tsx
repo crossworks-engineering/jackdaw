@@ -4,15 +4,18 @@ import type { JSONContent } from '@tiptap/core';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
 import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
-import { NotePresenter } from '@mantle/web-ui/share/note-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
-import { clientAssetPath } from '@/lib/client-portal';
+import { clientAssetPath, clientNoteImagePath } from '@/lib/client-portal';
+import { noteAssetPath, ownerNoteAssetPath } from '@/lib/note-media';
+import { ReaderNote } from './reader-note';
 import { bytesPath, isAdminSpace, isClientSpace, type SpaceItem } from '@/lib/member-space';
 import { spaceViewHere } from '@/lib/member-folder-index';
 import { useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useSpaceApi } from './space-api';
+
+const MEMBER_NOTE_ASSET_PATH = noteAssetPath(memberAssetPath);
 
 /**
  * A personal item, read-only: a teammate's shared item (its SAVED version,
@@ -74,7 +77,12 @@ export function SpaceItemView({
     }
     case 'note':
       return (
-        <NotePresenter view={{ title: row.title, content: body.note.content }} chrome="embedded" />
+        <ReaderNote
+          content={body.note.content}
+          imagePath={
+            admin ? ownerNoteAssetPath : client ? clientNoteImagePath : MEMBER_NOTE_ASSET_PATH
+          }
+        />
       );
     case 'draw':
       return (

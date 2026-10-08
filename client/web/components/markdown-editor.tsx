@@ -1,8 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   Bold,
   Code,
@@ -20,6 +18,8 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { cn } from '@mantle/web-ui/lib/utils';
+import { NoteMarkdown } from '@/components/note-markdown';
+import { ownerNoteAssetPath } from '@/lib/note-media';
 
 type Mode = 'edit' | 'split' | 'preview';
 
@@ -168,7 +168,7 @@ export function MarkdownEditor({
             )}
           >
             {value.trim() ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+              <NoteMarkdown content={value} assetPath={ownerNoteAssetPath} />
             ) : (
               <p className="text-sm italic text-muted-foreground">Nothing to preview yet.</p>
             )}
