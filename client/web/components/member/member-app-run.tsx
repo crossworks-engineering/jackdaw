@@ -15,6 +15,8 @@ import { AppLoader } from '@/components/app-nav/app-loader';
 import { AppInformationalNote } from '@/components/app-nav/app-informational-note';
 import { isInformational } from '@/lib/app-informational';
 import { memberAppProblem, memberAppSandboxProps, type MemberAppList } from '@/lib/member-apps';
+import { runnableSpaceApp } from '@/lib/space-apps';
+import { useMyApps } from '@/components/member/member-my-apps';
 
 /**
  * A member runs one app (member logins Phase 4b): the PUBLISHED build in the
@@ -31,12 +33,26 @@ export function MemberAppRun({ id }: { id: string }) {
     queryKey: ['member-apps'],
     queryFn: () => apiFetch<MemberAppList>('/api/member/apps'),
   });
-  const app = list.data?.apps.find((a) => a.id === id.toLowerCase()) ?? null;
+  // A member-built app (team apps Phase 3) is in no launcher: the member's
+  // own list holds it (theirs, or one a teammate shared).
+  const mine = useMyApps();
+  const built = runnableSpaceApp(mine.data ?? undefined, id);
+  const app =
+    list.data?.apps.find((a) => a.id === id.toLowerCase()) ??
+    (built
+      ? {
+          id: built.id,
+          title: built.title,
+          icon: null,
+          color: null,
+          dataReadOnly: built.dataAccess === 'read',
+        }
+      : null);
   const isHome = !!list.data?.homeAppId && list.data.homeAppId === id.toLowerCase();
   useEffect(() => {
     if (isHome) router.replace('/');
   }, [isHome, router]);
-  const missing = list.isSuccess && !app;
+  const missing = list.isSuccess && !mine.isPending && !app;
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SetPageTitle title={app?.title || 'App'} />

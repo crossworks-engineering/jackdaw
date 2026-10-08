@@ -68,6 +68,7 @@ import {
   type AppNavRow,
 } from '@mantle/content-core/app-nav';
 import { AppTile } from './app-tile';
+import { AppDataPills } from './app-data-pill';
 import { AppLookPicker, type AppLook } from './app-look-picker';
 import { DeleteFolderDialog, FolderNameDialog } from './folder-dialogs';
 import { TREE_INDENT, TREE_ROW_PAD, TreeGuides } from './tree-guides';
@@ -547,6 +548,7 @@ export function AppsTree({
         >
           <AppTile icon={app.icon} color={app.color} size="sm" />
           <span className="min-w-0 flex-1 truncate">{app.title}</span>
+          <AppDataPills app={app} admin />
           {o.path && o.path.length > 0 && (
             <span className="max-w-[45%] shrink truncate text-[11px] text-muted-foreground">
               {o.path.join(' / ')}

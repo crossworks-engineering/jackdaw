@@ -6,6 +6,7 @@ import type { AppTint } from '@mantle/client-types/app-nav';
 // runner does not resolve the app's `@/` alias.
 import { AppTile } from './app-tile';
 import { AppInformationalTag } from './app-informational-note';
+import { AppDataPills } from './app-data-pill';
 import { isInformational } from '../../lib/app-informational';
 import { appCountLabel, type LauncherLevel } from '../../lib/app-launcher';
 
@@ -18,6 +19,9 @@ export type LauncherCard = {
   color: AppTint | null;
   description: string | null;
   dataReadOnly?: boolean | null;
+  /** What the viewer may do with the app's data (team apps Phase 3), as
+   *  the brain sent it: the R and R/W pill. Absent from an older brain. */
+  dataAccess?: 'read' | 'read_write';
 };
 
 /** One card of the launcher's grid: an app, or a folder that leads to apps. */
@@ -89,7 +93,10 @@ export function AppLauncherLevel<T extends LauncherCard>({
             <Link href={appHref(app.id)} className={CARD}>
               <AppTile icon={app.icon} color={app.color} size="lg" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{app.title || 'Untitled'}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate font-medium">{app.title || 'Untitled'}</span>
+                  <AppDataPills app={app} />
+                </span>
                 {app.description ? (
                   <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
                     {app.description}

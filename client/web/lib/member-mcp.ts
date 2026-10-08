@@ -96,6 +96,7 @@ export function memberMcpAccessLines(view: Pick<MemberMcpView, 'remoteEnabled' |
       'You read what your login can read.',
       'You make drafts in your own space, for review.',
       'You change rows in the mini apps an admin opened to MCP, unless an app is informational or public.',
+      'You build your own mini apps with the my_app tools. They stay private until you share or submit them.',
     ],
   };
 }

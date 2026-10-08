@@ -37,6 +37,7 @@
  * link lands on it too.
  */
 import { useNeedsYou } from '@/components/needs-you/use-needs-you';
+import { AppReviewPanel, useAppSubmissions } from '@/components/team-admin/app-review-tab';
 import { requestsOpen, reviewWaiting } from '@/lib/needs-you';
 import Link from 'next/link';
 import { use, useState, type ReactNode } from 'react';
@@ -224,6 +225,7 @@ function TeamTabs({
     | 'invites'
     | 'chats'
     | 'review'
+    | 'app-review'
     | 'requests'
     | 'shares'
     | 'client-logins'
@@ -239,6 +241,8 @@ function TeamTabs({
   const queued = useReviewQueue().data?.counts.submitted ?? 0;
   const reviewCount = needsYou ? reviewWaiting(needsYou) : queued;
   const requestCount = needsYou ? requestsOpen(needsYou) : openRequestCount;
+  // Apps members submitted (team apps Phase 3); null on an older brain.
+  const appSubmissions = useAppSubmissions().data;
   // A brain before client logins C1 has no "What clients see": once its
   // route answered 404 the tab leaves the strip (it stays while open).
   const reportMissing = isReportMissing(useQueryClient().getQueryState(CLIENT_REPORT_KEY)?.error);
@@ -274,6 +278,14 @@ function TeamTabs({
       {tab('Invites', '/team-admin?view=invites', active === 'invites')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
       {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
+      {appSubmissions === null && active !== 'app-review'
+        ? null
+        : tab(
+            'App review',
+            '/team-admin?view=app-review',
+            active === 'app-review',
+            appSubmissions?.length,
+          )}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Clients', '/team-admin?view=client-logins', active === 'client-logins')}
@@ -1075,17 +1087,25 @@ export default function TeamAdminPage({
     login?: string;
     /** The selected item on the Review tab. */
     item?: string;
+    /** The selected app on the App review tab. */
+    app?: string;
     /** The selected link on the Shared links tab. */
     share?: string;
   }>;
 }) {
-  const { contact, view, login, item, share } = use(searchParams);
+  const { contact, view, login, item, share, app } = use(searchParams);
   if (view === 'chats') return <MemberChatsTab login={login} />;
   if (view === 'invites') return <InvitesTab />;
   if (view === 'review')
     return (
       <Tab active="review">
         <ReviewPanel itemId={item} />
+      </Tab>
+    );
+  if (view === 'app-review')
+    return (
+      <Tab active="app-review">
+        <AppReviewPanel appId={app} />
       </Tab>
     );
   if (view === 'settings') return <SettingsTab />;

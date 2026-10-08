@@ -7,6 +7,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { AppLauncherLevel } from '@/components/app-nav/app-launcher-level';
+import { MemberMyApps } from '@/components/member/member-my-apps';
 import {
   memberAppHref,
   memberAppsHref,
@@ -59,6 +60,8 @@ export function MemberApps() {
           empty={<p className="text-sm text-muted-foreground">{MEMBER_APPS_EMPTY}</p>}
         />
       )}
+      {/* Apps members build (team apps Phase 3): their own and the team's. */}
+      <MemberMyApps />
     </div>
   );
 }
