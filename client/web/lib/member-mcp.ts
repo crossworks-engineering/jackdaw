@@ -24,7 +24,30 @@ export type MemberMcpView = {
   access: { enabled: boolean; writeEnabled: boolean };
   /** The clients this member connected, never another login's. */
   clients: MemberMcpClient[];
+  /** The connectors open at the member's level (brain team apps Phase 2).
+   *  Absent from an older brain. */
+  connectors?: MemberMcpConnector[];
 };
+
+/** One connector open to the member: its read and write tool counts. */
+export type MemberMcpConnector = {
+  id: string;
+  name: string;
+  level: string;
+  readTools: number;
+  writeTools: number;
+};
+
+/** One line per connector: what the member may do with it, from their
+ *  Write switch. */
+export function connectorLine(c: MemberMcpConnector, writeEnabled: boolean): string {
+  const reads = `${c.readTools} read tool${c.readTools === 1 ? '' : 's'}`;
+  if (c.writeTools === 0) return reads;
+  const writes =
+    c.writeTools === 1 ? '1 tool that changes data' : `${c.writeTools} tools that change data`;
+  const need = c.writeTools === 1 ? 'needs' : 'need';
+  return writeEnabled ? `${reads}, ${writes}` : `${reads}; ${writes} ${need} your Write switch`;
+}
 
 export const MEMBER_MCP_PATH = '/api/member/mcp';
 

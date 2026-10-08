@@ -19,8 +19,10 @@ import {
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { LEVEL_LABEL, LEVEL_ORDER, isAccessLevel } from '@/lib/access-levels';
 import {
-  GROUP_LEVEL_MEANING,
   GROUP_LEVEL_UNKNOWN,
+  connectorLevelNeedsConfirm,
+  groupLevelMeaning,
+  isConnectorGroup,
   levelNeedsConfirm,
   type ToolGroupWithLevel,
 } from '@/lib/tool-group-level';
@@ -48,6 +50,7 @@ export function GroupLevelSection({ group }: { group: ToolGroupWithLevel }) {
   const [confirm, setConfirm] = useState<AccessLevel | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const level = group.audience;
+  const connector = isConnectorGroup(group);
 
   const mutation = useMutation({
     mutationFn: (audience: AccessLevel) =>
@@ -67,8 +70,9 @@ export function GroupLevelSection({ group }: { group: ToolGroupWithLevel }) {
   const pick = (v: string) => {
     // Empty = a press on the picked item: keep it.
     if (!isAccessLevel(v) || v === level) return;
-    if (levelNeedsConfirm(level, v)) setConfirm(v);
-    else mutation.mutate(v);
+    if (connector ? connectorLevelNeedsConfirm(level, v) : levelNeedsConfirm(level, v)) {
+      setConfirm(v);
+    } else mutation.mutate(v);
   };
 
   return (
@@ -97,7 +101,7 @@ export function GroupLevelSection({ group }: { group: ToolGroupWithLevel }) {
         ))}
       </ToggleGroup>
       <p className="text-xs text-muted-foreground">
-        {level === undefined ? GROUP_LEVEL_UNKNOWN : GROUP_LEVEL_MEANING[level]}
+        {level === undefined ? GROUP_LEVEL_UNKNOWN : groupLevelMeaning(group, level)}
       </p>
       {refusal && (
         <div
@@ -129,11 +133,13 @@ export function GroupLevelSection({ group }: { group: ToolGroupWithLevel }) {
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>{confirm ? GROUP_LEVEL_MEANING[confirm] : ''}</p>
+                <p>{confirm ? groupLevelMeaning(group, confirm) : ''}</p>
                 <p>
-                  {confirm === 'public'
-                    ? 'A public agent answers people who are not signed in. Every tool in this group can then run for them.'
-                    : 'A client agent answers signed-in clients. Every tool in this group can then run for them.'}{' '}
+                  {connector
+                    ? 'Everyone at this level may use every tool of this connector, the ones that change data included, and read everything it reaches. Keep a source with secret parts at admin level.'
+                    : confirm === 'public'
+                      ? 'A public agent answers people who are not signed in. Every tool in this group can then run for them.'
+                      : 'A client agent answers signed-in clients. Every tool in this group can then run for them.'}{' '}
                   This group holds {group.toolSlugs.length} tool
                   {group.toolSlugs.length === 1 ? '' : 's'}.
                 </p>

@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, Loader2, Plug, ShieldCheck, Trash2 } from 'lucide-react';
+import { Check, Copy, Database, KeyRound, Loader2, Plug, ShieldCheck, Trash2 } from 'lucide-react';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -34,6 +34,7 @@ import {
   claudeCodeKeyCommand,
   claudeCodeOauthCommand,
   memberMcpAccessLines,
+  connectorLine,
   memberMcpClientPath,
   type MemberMcpView,
 } from '@/lib/member-mcp';
@@ -199,6 +200,40 @@ export function MemberMcpClient() {
             </p>
           </div>
         </section>
+
+        {/* Data sources (connectors) open at the member's level */}
+        {view.connectors !== undefined && (
+          <section className="rounded-xl border border-border bg-card">
+            <div className="flex items-start gap-3 border-b border-border p-4 md:p-5">
+              <div className="mt-0.5 rounded-lg bg-accent p-2 text-accent-foreground">
+                <Database className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold">Data sources you can use</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Connectors an admin opened to the team. Their tools are on your MCP and in the
+                  apps you run.
+                </p>
+              </div>
+            </div>
+            {view.connectors.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground md:p-5">
+                No data source is open to you yet.
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {view.connectors.map((c) => (
+                  <li key={c.id} className="p-4 md:px-5">
+                    <p className="truncate text-sm font-medium">{c.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {connectorLine(c, view.access.enabled && view.access.writeEnabled)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* Your connected clients */}
         <section className="rounded-xl border border-border bg-card">

@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { toolAccessCopy } from '@/lib/tool-access-copy';
 
 /**
  * "External access" as the server reports it (`ToolDTO.externalAccess`,
@@ -59,7 +60,10 @@ function who(t: ToolExternalAccess): string {
 /**
  * The switch on one outside tool (MCP or http). Only shown for those kinds:
  * built-ins need none, and recipe and shell tools can never get it. Saves at
- * once through its own route, apart from the tool form.
+ * once through its own route, apart from the tool form. On a CONNECTOR tool
+ * (mcp) it is the read-only mark since brain team apps Phase 2: the
+ * connector's level decides who may use the tool, the mark decides read or
+ * write (lib/tool-access-copy.ts holds both sets of words).
  */
 export function ExternalAccessSection({
   tool,
@@ -72,6 +76,7 @@ export function ExternalAccessSection({
   note?: ReactNode;
 }) {
   const toast = useToast();
+  const copy = toolAccessCopy(tool.handler.kind);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
 
@@ -83,7 +88,7 @@ export function ExternalAccessSection({
       }),
     onSuccess: (res, allow) => {
       onChanged(res.tool);
-      toast.success(allow ? 'External access is on' : 'External access is off');
+      toast.success(allow ? copy.toastOn : copy.toastOff);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not change that.'),
   });
@@ -116,15 +121,10 @@ export function ExternalAccessSection({
             htmlFor="external-access-switch"
             className="text-sm font-medium"
           >
-            External access
+            {copy.label}
           </Label>
-          <FieldHint
-            id="external-access-switch"
-            className="mt-1 leading-relaxed"
-            warn="Everyone an app is shared with can call this tool by hand, with any input, not only what the app's screens send. If it takes free SQL, they can read anything the connector can read."
-          >
-            Lets shared apps that declare this tool call it, for everyone they are shared with: team
-            members, clients, and contacts you send the app to. Open links never use it.
+          <FieldHint id="external-access-switch" className="mt-1 leading-relaxed" warn={copy.warn}>
+            {copy.hint}
           </FieldHint>
         </div>
         <Switch
@@ -145,8 +145,7 @@ export function ExternalAccessSection({
       {stale && (
         <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-ink">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          This tool changed after it was confirmed, so shared apps can&apos;t use it now. Switch it
-          on again to confirm the new version.
+          {copy.stale}
         </p>
       )}
       {!on && blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
@@ -154,26 +153,18 @@ export function ExternalAccessSection({
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Give “{tool.slug}” External access?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.dialogTitle(tool.slug)}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-warning-ink">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <span>
-                    Everyone an app that declares this tool is shared with can call it: team
-                    members, clients, and contacts you send the app to. They can also call it by
-                    hand, from their browser, with ANY input, not only what the app&apos;s screens
-                    send. No model checks the calls.
-                  </span>
+                  <span>{copy.dialogBody[0]}</span>
                 </p>
                 <p>
                   If the tool takes free SQL or a free query, they can read anything the connector
                   can read.
                 </p>
-                <p>
-                  The brain can&apos;t see what an outside tool does. Switch this on only for a tool
-                  that reads data and never changes it. Every call is logged with who made it.
-                </p>
+                <p>{copy.dialogBody[1]}</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -192,7 +183,7 @@ export function ExternalAccessSection({
               disabled={!readOnlyConfirmed || mutation.isPending}
               onClick={() => mutation.mutate(true)}
             >
-              Give External access
+              {copy.action}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
