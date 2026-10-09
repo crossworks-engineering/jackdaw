@@ -56,7 +56,7 @@ describe('a phone keeps the tree mounted while an item is open', () => {
   // a new visit: the chosen view holds.
   it('the member workspace hides its list behind the open item', () => {
     expect(member).toContain(
-      "<div className={openId ? 'hidden' : 'h-full min-h-0'}>{treePane ?? listPane}</div> {openId ? detailPane : null}",
+      "<div className={openId ? 'hidden' : 'h-full min-h-0'}>{listPane}</div> {openId ? detailPane : null}",
     );
   });
 

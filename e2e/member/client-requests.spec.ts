@@ -314,20 +314,20 @@ test.describe('the member side', () => {
     });
   });
 
-  test('a member sees a client request in the one list and opens it read only', async ({
+  test('a member sees a client request above the folders and opens it read only', async ({
     page,
   }) => {
     api.clientRequests = true;
     await page.goto('/notes');
-    const row = page.locator('[data-item-id]').filter({ hasText: CLIENT_REQUEST_TITLE });
+    const section = page.locator('details').filter({ has: page.getByText('Client requests') });
+    const row = section.getByRole('button', { name: new RegExp(CLIENT_REQUEST_TITLE) });
     await expect(row).toBeVisible({ timeout: 60_000 });
-    await expect(row.getByText('Client', { exact: true })).toBeVisible();
-    await expect(row.locator('[data-state]')).toHaveText('submitted');
-
-    await page.getByRole('button', { name: 'All items', exact: true }).click();
-    await page.getByRole('menuitemradio', { name: 'Client requests' }).click();
-    await expect(page).toHaveURL(/[?&]state=client-requests/);
-    await expect(page.locator('[data-item-id]')).toHaveCount(1);
+    // Who wrote it, on the row.
+    await expect(row).toContainText(CLIENT_NAME);
+    // Not a tree row: a client's request is no draft and no brain item.
+    await expect(page.getByRole('treeitem').filter({ hasText: CLIENT_REQUEST_TITLE })).toHaveCount(
+      0,
+    );
     expect(api.itemsStates).toContain('client-requests');
 
     await row.click();
@@ -349,7 +349,7 @@ test.describe('the member side', () => {
     api.libraryList = true;
     await page.goto('/pages');
     await page
-      .locator('[data-item-id]')
+      .getByRole('treeitem')
       .filter({ hasText: LIBRARY_CLIENT_TITLE })
       .click({ timeout: 60_000 });
     await expect(page.getByText('For the client.')).toBeVisible({ timeout: 30_000 });
@@ -363,7 +363,7 @@ test.describe('the member side', () => {
     await expect(thread).toContainText('Sent to the client on Monday.');
     expect(api.libraryComments.map((c) => c.body)).toEqual(['Sent to the client on Monday.']);
 
-    await page.locator('[data-item-id]').filter({ hasText: LIBRARY_TITLE }).click();
+    await page.getByRole('treeitem').filter({ hasText: LIBRARY_TITLE }).click();
     await expect(page.getByText('Read me.')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
     expect(api.adminCalls).toEqual([]);

@@ -3,9 +3,10 @@
 import { FolderTree, List } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 
-/** How a member's or client's screen lists a kind: the flat list, or the
- *  brain's folders as a read-only tree (when the brain serves it). The
- *  choice lives in the URL (`view=folders`). */
+/** How the client portal lists a kind: the flat list, or the brain's
+ *  folders as a read-only tree (when the brain serves it). The choice lives
+ *  in the URL (`view=folders`). A member's screens have no switch: they are
+ *  the folder view (member-workspace.tsx). */
 export type ReaderView = 'list' | 'folders';
 
 export function readerViewOf(params: { get: (k: string) => string | null }): ReaderView {

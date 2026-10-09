@@ -885,14 +885,15 @@ test.describe('the member Library', () => {
   });
 
   test('a client-level row wears a Client badge; a team row none', async ({ page }) => {
-    // The one list (item-list alignment): Library rows beside own ones.
+    // The folder view (2026-10-09): Library rows in the tree beside own ones.
     await page.goto('/pages');
-    const rows = page.locator('[data-item-id]');
+    const rows = page.getByRole('treeitem');
     const clientRow = rows.filter({ hasText: LIBRARY_CLIENT_TITLE });
     await expect(clientRow).toBeVisible({ timeout: 60_000 });
-    await expect(clientRow.getByText('Client', { exact: true })).toBeVisible();
+    // The tree's level badge, as on the admin's tree.
+    await expect(clientRow.getByText(/^client$/i)).toBeVisible();
     const teamRow = rows.filter({ hasText: LIBRARY_TITLE });
-    await expect(teamRow.getByText('Client', { exact: true })).toHaveCount(0);
+    await expect(teamRow.getByText(/^client$/i)).toHaveCount(0);
     expect(api.adminCalls).toEqual([]);
   });
 });

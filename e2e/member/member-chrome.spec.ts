@@ -96,7 +96,7 @@ test('an open tour step does not pull the member back to its screen', async ({ p
 test('every target the member tour names is on the member shell', async ({ page }) => {
   await skipTour(page);
   await page.goto('/pages');
-  await expect(page.locator('[data-tour="member-state"]').first()).toBeVisible({
+  await expect(page.locator('[data-tour="member-tree"]').first()).toBeVisible({
     timeout: 60_000,
   });
   for (const target of [

@@ -40,9 +40,9 @@ describe('item author', () => {
       expect(src, rel).toMatch(/authorBadgeText\(/);
       expect(src, rel).toMatch(/Written by \{authorName\(/);
     }
-    // The one list's card names the author the same way (item-list alignment).
-    expect(read('../components/member/member-workspace.tsx')).toMatch(
-      /by \{authorName\(row\.author\)\}/,
+    // A client request above the member's tree names its author the same way.
+    expect(read('../components/member/member-item-sections.tsx')).toMatch(
+      /authorName\(row\.author\)/,
     );
   });
 });

@@ -22,24 +22,17 @@ import type {
 } from '@mantle/client-types';
 import { listPath, type SpaceKind, type WorkspaceSource } from './member-space';
 
-/** The State filter's choices, the first the default. */
-export const MEMBER_STATE_OPTIONS: readonly { value: MemberItemFilter; label: string }[] = [
-  { value: 'all', label: 'All items' },
-  { value: 'private', label: 'Private' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'submitted', label: 'Submitted' },
-  { value: 'returned', label: 'Returned' },
-  { value: 'with-admin', label: 'With admin' },
-  { value: 'brain', label: 'Brain' },
-  { value: 'by-me', label: 'By me' },
-  // A client's submitted items, read only (client logins C5).
-  { value: 'client-requests', label: 'Client requests' },
+/** The sections a member's workspace shows above its folder tree, in their
+ *  order: what the tree does not hold (member-item-sections.tsx). */
+export const MEMBER_ITEM_SECTIONS: readonly {
+  state: Extract<MemberItemFilter, 'with-admin' | 'by-me' | 'client-requests'>;
+  id: string;
+  title: string;
+}[] = [
+  { state: 'with-admin', id: 'member-with-admin', title: 'With admin' },
+  { state: 'by-me', id: 'member-by-me', title: 'By me (accepted)' },
+  { state: 'client-requests', id: 'member-client-requests', title: 'Client requests' },
 ];
-
-export function memberStateOf(params: Pick<URLSearchParams, 'get'> | null): MemberItemFilter {
-  const v = params?.get('state');
-  return MEMBER_STATE_OPTIONS.some((o) => o.value === v) ? (v as MemberItemFilter) : 'all';
-}
 
 export function memberItemsPath(opts: {
   kind: SpaceKind;

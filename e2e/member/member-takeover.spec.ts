@@ -18,7 +18,8 @@ import {
 /**
  * Take over (audit F07), the member's side, and the bundle refusals of audit
  * F04. An admin took one of the member's submitted pages into their own
- * private items: Mine lists it "With admin", and nothing of it opens. A page
+ * private items: it shows under "With admin" above the folders, and nothing
+ * of it opens. A page
  * shown inside a submitted one is frozen with it, and says which. Submit
  * names the items it wants saved first. An accepted file an admin changed
  * says so instead of a broken image. Runs against the in-memory member API.
@@ -35,15 +36,14 @@ test.afterEach(async () => {
   await api.close();
 });
 
-test('an item an admin took over lists as with admin and opens nothing', async ({ page }) => {
+test('an item an admin took over shows under With admin and opens nothing', async ({ page }) => {
   api.withAdmin = true;
   await page.goto('/pages');
-  const card = page.locator(`[data-item-id="${TAKEN_ID}"]`);
+  const section = page.locator('details').filter({ has: page.getByText('With admin') });
+  const card = section.getByRole('button', { name: new RegExp(TAKEN_TITLE) });
   await expect(card).toBeVisible({ timeout: 60_000 });
-  // Its state is the one pill: with admin, not private or draft (who can see
-  // it is the admin's business now).
-  await expect(card.locator('[data-state]')).toHaveAttribute('data-state', 'with-admin');
-  await expect(card).toContainText('with admin');
+  // Not in the tree: it is in the admin's hands now.
+  await expect(page.getByRole('treeitem').filter({ hasText: TAKEN_TITLE })).toHaveCount(0);
 
   await card.click();
   await expect(page).toHaveURL(new RegExp(`/pages\\?id=${TAKEN_ID}$`));
@@ -53,7 +53,7 @@ test('an item an admin took over lists as with admin and opens nothing', async (
   for (const name of ['Submit', 'Recall', 'Save version', 'Delete']) {
     await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
-  // The list said so: the item's routes were never asked.
+  // The section said so: the item's routes were never asked.
   expect(api.withAdminReads).toEqual([]);
   expect(api.adminCalls).toEqual([]);
 });

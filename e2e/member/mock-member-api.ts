@@ -121,6 +121,15 @@ export const MOCK_API_ORIGIN = `http://127.0.0.1:${MOCK_API_PORT}`;
  *  shell's per-launch one (client/web/lib/desktop-brain.ts): a spec sending it
  *  names the brain a request renders for, as the shell does for each window. */
 export const MOCK_DESKTOP_BRAIN_KEY = 'e2e-desktop-brain-key-not-a-secret';
+/** The kinds a member's tree serves (READER_TREE_KINDS) and each one's
+ *  node type, the `kind=` of the mock's source lists. */
+const MEMBER_TREE_TYPES: Record<string, string> = {
+  files: 'file',
+  notes: 'note',
+  pages: 'page',
+  draw: 'draw',
+  tables: 'table',
+};
 export const PAGE_ID = '11111111-1111-4111-8111-111111111111';
 export const FILE_ID = '22222222-2222-4222-8222-222222222222';
 export const CHILD_ID = '33333333-3333-4333-8333-333333333333';
@@ -440,6 +449,13 @@ export type MockMemberApi = {
   itemsRoute: boolean;
   /** The `state=` of every /api/member/items request, in order. */
   itemsStates: string[];
+  /** Member role: the shell names the five tree kinds and
+   *  GET /api/member/tree/:kind(/search) answers, one folder deep (the
+   *  member's drafts, teammates' drafts and the Library at the top level);
+   *  false is a brain before folder sharing (no treeKinds, the tree 404s). */
+  memberTree: boolean;
+  /** Every member tree read the page made (`<kind>` or `<kind>/search`). */
+  memberTreeReads: string[];
   /** Member asset routes the page called. */
   memberAssetCalls: string[];
   /** Every password change the page sent, in order. */
@@ -789,6 +805,8 @@ export async function startMockMemberApi(
     clientCodeVerifies: [],
     libraryList: false,
     itemsRoute: true,
+    memberTree: true,
+    memberTreeReads: [],
     itemsStates: [],
     memberAssetCalls: [],
     passwordChanges: [],
@@ -2556,6 +2574,7 @@ export async function startMockMemberApi(
         fontProseSize: null,
         logoVersion: null,
         logoDarkVersion: null,
+        ...(state.memberTree ? { treeKinds: Object.keys(MEMBER_TREE_TYPES) } : {}),
       });
     }
     if (path === '/api/member/realtime') return send(res, 200, 'text/event-stream', ':\n\n');
@@ -2639,6 +2658,86 @@ export async function startMockMemberApi(
     if (state.withAdmin && path.startsWith(`/api/member/space/${TAKEN_ID}`)) {
       state.withAdminReads.push(`${method} ${path}`);
       return json(res, 409, withAdminRefusal);
+    }
+    // A member's tree (folder plan phase 5): the brain merges the member's
+    // own folders and drafts, teammates' shared drafts and the Library it
+    // reads. This mock has no folders: everything sits at the top level,
+    // read over HTTP from its own source lists.
+    const memberTreeM = /^\/api\/member\/tree\/([a-z]+)(\/search)?$/.exec(path);
+    if (memberTreeM && method === 'GET') {
+      const kind = memberTreeM[1]!;
+      const nodeType = MEMBER_TREE_TYPES[kind];
+      if (!state.memberTree || !nodeType) return json(res, 404, { error: 'unknown kind' });
+      state.memberTreeReads.push(memberTreeM[2] ? `${kind}/search` : kind);
+      if (url.searchParams.get('folder')) return json(res, 404, { error: 'folder not found' });
+      const read = async (p: string) => {
+        const r = await fetch(`${MOCK_API_ORIGIN}${p}?kind=${nodeType}`);
+        return r.ok ? ((await r.json()) as { items: Record<string, unknown>[] }).items : [];
+      };
+      const [own, team, library] = await Promise.all([
+        read('/api/member/space'),
+        read('/api/member/team-drafts'),
+        read('/api/member/library'),
+      ]);
+      const draftState = (r: Record<string, unknown>) =>
+        r.reviewState === 'with-admin' || r.reviewState === 'taken'
+          ? 'with-admin'
+          : r.reviewState === 'submitted' || r.reviewState === 'returned'
+            ? r.reviewState
+            : r.sharing === 'team'
+              ? 'draft'
+              : 'private';
+      const item = (r: Record<string, unknown>, extra: Record<string, unknown>) => ({
+        id: r.id,
+        title: r.title,
+        icon: r.icon ?? null,
+        color: null,
+        subtype: null,
+        level: (r.audience as string | undefined) ?? 'private',
+        state: null,
+        updatedAt: r.updatedAt,
+        ...extra,
+      });
+      const byNew = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+        String(b.updatedAt).localeCompare(String(a.updatedAt));
+      const items = [
+        // An item an admin took over sits in the admin's space, not the
+        // member's: the brain's tree never holds it (listWithAdmin does).
+        ...own
+          .filter((r) => draftState(r) !== 'with-admin')
+          .sort(byNew)
+          .map((r) => item(r, { state: draftState(r), source: 'own' })),
+        ...team.sort(byNew).map((r) =>
+          item(r, {
+            state: draftState(r),
+            source: 'team',
+            ...(typeof (r.author as { name?: unknown } | undefined)?.name === 'string'
+              ? { author: (r.author as { name: string }).name }
+              : {}),
+          }),
+        ),
+        ...library.sort(byNew).map((r) => item(r, {})),
+      ];
+      if (memberTreeM[2]) {
+        const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+        const hits = items
+          .filter((i) =>
+            String(i.title ?? '')
+              .toLowerCase()
+              .includes(q),
+          )
+          .map((i) => ({ ...i, crumbs: [] }));
+        return json(res, 200, { kind, folders: [], items: hits, nextCursor: null });
+      }
+      return json(res, 200, {
+        kind,
+        folder: null,
+        crumbs: [],
+        folders: [],
+        items,
+        sort: url.searchParams.get('sort') ?? 'name',
+        nextCursor: null,
+      });
     }
     // The one list (item-list alignment): the brain reads each source under
     // its own rules and merges them newest first; here the sources are this

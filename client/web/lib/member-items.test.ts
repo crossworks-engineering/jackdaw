@@ -27,11 +27,10 @@ vi.mock('@mantle/web-ui/api-fetch', async (importOriginal) => {
 const {
   fetchMemberItems,
   memberItemsPath,
-  memberStateOf,
   passesState,
+  MEMBER_ITEM_SECTIONS,
   pillOfSpaceRow,
   srcOf,
-  MEMBER_STATE_OPTIONS,
 } = await import('./member-items');
 const { ApiError } = await import('@mantle/web-ui/api-fetch');
 const { MEMBER_ITEM_FILTERS } = await import('@mantle/client-types/member-kinds');
@@ -71,20 +70,13 @@ describe('the request and the URL', () => {
     );
   });
 
-  it('offers every filter the brain takes, All first, and reads unknown as all', () => {
-    // `client-requests` (client logins C5) is in the contract from the C5
-    // release; the shim adds it until the pin gets there.
-    expect(MEMBER_STATE_OPTIONS.map((o) => o.value)).toEqual([
-      ...new Set<string>([...MEMBER_ITEM_FILTERS, 'client-requests']),
+  it('asks only for filters the brain takes (the sections above the tree)', () => {
+    expect(MEMBER_ITEM_SECTIONS.map((s) => s.state)).toEqual([
+      'with-admin',
+      'by-me',
+      'client-requests',
     ]);
-    expect(MEMBER_STATE_OPTIONS.at(-1)).toEqual({
-      value: 'client-requests',
-      label: 'Client requests',
-    });
-    expect(memberStateOf(new URLSearchParams('state=submitted'))).toBe('submitted');
-    expect(memberStateOf(new URLSearchParams('state=client-requests'))).toBe('client-requests');
-    expect(memberStateOf(new URLSearchParams('state=secret'))).toBe('all');
-    expect(memberStateOf(null)).toBe('all');
+    for (const s of MEMBER_ITEM_SECTIONS) expect(MEMBER_ITEM_FILTERS).toContain(s.state);
   });
 
   it('names the item view the old way in the URL (links still use it)', () => {

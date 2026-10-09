@@ -114,9 +114,8 @@ const demo: Tour = {
  * browser on the member home, and `?tour=member` opens it again. Every claim
  * has to hold on any brain a member signs in to, so it names what a member
  * can do, never what this brain contains. Targets: the member rail
- * (`nav:<href>`, `nav:#chat` for the chat item), the State filter on a
- * workspace list (`member-state`), and the shell's `brand`, `main` and
- * `profile`.
+ * (`nav:<href>`, `nav:#chat` for the chat item), a workspace's folder tree
+ * (`member-tree`), and the shell's `brand`, `main` and `profile`.
  */
 const member: Tour = {
   id: 'member',
@@ -139,13 +138,13 @@ const member: Tour = {
       route: '/pages',
       target: 'nav:/pages',
       title: 'Pages, notes, drawings, tables and files',
-      body: 'Each works the same way: one list of everything you can see. Anything new you make is private to you.',
+      body: 'Each works the same way: folders of everything you can see. Anything new you make is private to you.',
     },
     {
       route: '/pages',
-      target: 'member-state',
+      target: 'member-tree',
       title: 'Where each item stands',
-      body: "A small tag says where an item stands: private, draft (shared with the team), submitted or returned; the brain's items have none. Filter by it here, or pick By me for your own work an admin moved into the brain.",
+      body: "A small tag says where an item stands: private, draft (shared with the team), submitted or returned; the brain's items have none. Your own work an admin moved into the brain shows under By me above the folders.",
     },
     {
       route: '/pages',

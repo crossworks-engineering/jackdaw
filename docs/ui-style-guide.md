@@ -1100,9 +1100,8 @@ hold either way:
 
 ### The item list kit: one list, state as a pill (2026-09-29)
 
-Every list of ITEMS (the admin Pages, Notes, Tables and Draw screens, the
-member workspace for each kind, the client portal's "Shared with you") is
-built from ONE kit, `client/web/components/item-list/`. Do not hand-roll a
+Every list of ITEMS (the admin Pages, Notes, Tables and Draw screens' card
+lists, the client portal's "Shared with you") is built from ONE kit, `client/web/components/item-list/`. Do not hand-roll a
 list header, card, filter row or pager on a list screen again; extend the
 kit instead. Files keeps its file-manager layout (a folder rail and a
 table), but follows the same state rule below.
@@ -1133,7 +1132,7 @@ list with a quiet State filter only when they want to.
   the first action. Summaries and tags only with the density switch on.
   Actions a reader may not take are simply absent: no disabled buttons.
 - **State pill: `<StatePill>`**, lower-case words, `rounded-full border px-2
-  py-0.5 text-[11px]`: `private`, `draft` (shared with the team), `submitted`
+py-0.5 text-[11px]`: `private`, `draft` (shared with the team), `submitted`
   (info ink), `returned` (warning ink), `with admin`. The words are the
   brain's (`MemberItemPill`); the brain's own items wear none. One pill per
   card.
@@ -1151,9 +1150,18 @@ list with a quiet State filter only when they want to.
   an admin's private item). The first card opens on a wide screen; a phone
   shows the list first.
 
-The reference screens: `/pages` (the admin card, drag and drill-down) and the
-member workspace (`components/member/member-workspace.tsx`, the one list with
-every pill).
+The reference screen: `/pages` (the admin card, drag and drill-down).
+
+**A member's workspace is not a list (Jason, 2026-10-09).** Pages, notes,
+draw, tables and files open in the FOLDER VIEW for a member: the admin's
+`ItemTree`, layout and search, read as `source="member"` (the member manages
+only its own folders and drafts; nothing admin-only is offered). What the
+tree does not hold (own items with an admin, the member's accepted work,
+clients' requests) shows in small collapsible sections above it, each hidden
+while empty (`components/member/member-workspace.tsx`,
+`member-item-sections.tsx`, built on `ReviewSections`). There is no List or
+Folders switch and no State filter; old `?view=`, `?state=` and `?page=`
+links land in the folders.
 
 ### Detail header anatomy (right pane)
 

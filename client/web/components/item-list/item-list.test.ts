@@ -158,22 +158,29 @@ describe('every admin list shows the admin’s private items beside the brain’
   });
 });
 
-describe('the member workspace is the same list (P4)', () => {
+describe("the member workspace is the admin's folder view (2026-10-09)", () => {
   const src = read('../member/member-workspace.tsx');
 
-  it('uses the kit and shows every source in one list, with no source switch', () => {
-    for (const part of [
+  it('shows the item tree only: no list, no view switch, no State filter, no pager', () => {
+    expect(src).toContain('<ItemTree');
+    expect(src).toContain('source="member"');
+    expect(src).toContain('<MemberItemSections');
+    for (const gone of [
       '<ItemListHeader',
       '<ItemCard',
       '<StateFilter',
       '<ListPager',
-      '<StatePill',
+      'ReaderViewToggle',
+      'readerViewOf',
+      'MEMBER_STATE_OPTIONS',
     ]) {
-      expect(src, part).toContain(part);
+      expect(src, gone).not.toContain(gone);
     }
-    expect(src).toContain('fetchMemberItems(');
-    expect(src).not.toContain('ToggleGroup');
-    expect(src).not.toMatch(/const SOURCES\b/);
+  });
+
+  it('sizes its panes as each admin screen does', () => {
+    expect(src).toMatch(/<MasterDetail id=\{`member-\$\{kind\}`\} \{\.\.\.LAYOUT\[kind\]\}/);
+    expect(src).toContain("note: {\n    defaultListSize: '380px'");
   });
 });
 

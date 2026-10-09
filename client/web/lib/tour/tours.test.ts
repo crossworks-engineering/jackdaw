@@ -54,7 +54,7 @@ describe('the member tour', () => {
       'brand',
       'main',
       'profile',
-      'member-state',
+      'member-tree',
       ...memberHrefs.map((h) => `nav:${h}`),
     ]);
     for (const step of tour.steps) if (step.target) expect(targets).toContain(step.target);

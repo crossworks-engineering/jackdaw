@@ -10,11 +10,11 @@ import {
 
 /**
  * What the member wrote and an admin accepted into the brain (member logins,
- * Phase 4), in the ONE list (item-list alignment): it lists beside the
- * member's own items, marked "by you", and the State filter's "By me"
- * narrows the list to it. The mock's accepted page sits at the ADMIN level,
- * so the Library does not list it: it is its own accepted row, read-only,
- * as accepted. Runs against the in-memory member API, no brain.
+ * Phase 4), in the folder view (2026-10-09): the member's own items sit in
+ * the tree, and the accepted ones show in the "By me (accepted)" section
+ * above it. The mock's accepted page sits at the ADMIN level, so the Library
+ * does not hold it: it opens read-only, as accepted. Runs against the
+ * in-memory member API, no brain.
  */
 let api: MockMemberApi;
 test.beforeEach(async ({ baseURL, context }) => {
@@ -25,31 +25,25 @@ test.afterEach(async () => {
   await api.close();
 });
 
-const byMe = async (page: import('@playwright/test').Page) => {
-  await page.getByRole('button', { name: 'All items' }).click();
-  await page.getByRole('menuitemradio', { name: 'By me' }).click();
-};
+const byMeSection = (page: import('@playwright/test').Page) =>
+  page.locator('details').filter({ has: page.getByText('By me (accepted)') });
 
-test('the one list shows the accepted item beside own ones; By me narrows to it', async ({
+test('the accepted item shows under By me above the folders, own items in the tree', async ({
   page,
 }) => {
   await page.goto('/pages');
-  // Everything the member can see, by default: no source to pick first.
-  await expect(page.getByText(PAGE_TITLE).first()).toBeVisible({ timeout: 60_000 });
-  const accepted = page.locator(`[data-item-id="${ACCEPTED_ID}"]`);
-  await expect(accepted).toBeVisible();
-  await expect(accepted).toContainText('by you');
-  // The own item wears its state as a pill; the brain's item wears none.
-  await expect(page.locator('[data-state="private"]').first()).toBeVisible();
-  await expect(accepted.locator('[data-state]')).toHaveCount(0);
-
-  await byMe(page);
-  await expect(page).toHaveURL(/\/pages\?state=by-me$/);
-  await expect(page.getByText(PAGE_TITLE)).toHaveCount(0);
+  // The member's own item is a tree row, wearing its state as a pill.
+  const own = page.getByRole('treeitem').filter({ hasText: PAGE_TITLE });
+  await expect(own).toBeVisible({ timeout: 60_000 });
+  await expect(own.locator('[data-state="private"]')).toBeVisible();
+  // The accepted item is in the section, not in the tree.
+  const section = byMeSection(page);
+  await expect(section).toBeVisible();
+  await expect(page.getByRole('treeitem').filter({ hasText: ACCEPTED_TITLE })).toHaveCount(0);
   expect(api.itemsStates).toContain('by-me');
 
-  await accepted.click();
-  await expect(page).toHaveURL(new RegExp(`/pages\\?state=by-me&src=accepted&id=${ACCEPTED_ID}$`));
+  await section.getByRole('button', { name: new RegExp(ACCEPTED_TITLE) }).click();
+  await expect(page).toHaveURL(new RegExp(`/pages\\?src=accepted&id=${ACCEPTED_ID}$`));
   await expect(page.getByRole('heading', { name: ACCEPTED_TITLE })).toBeVisible();
   await expect(page.getByText('Saved survey.')).toBeVisible();
   await expect(
@@ -77,19 +71,22 @@ test('an accepted item route opens it as accepted', async ({ page }) => {
   expect(api.adminCalls).toEqual([]);
 });
 
-test('a kind with nothing accepted says so under By me', async ({ page }) => {
+test('an old By me list link opens the folders; a kind with nothing accepted has no section', async ({
+  page,
+}) => {
   await page.goto('/notes?state=by-me');
-  await expect(page.getByText('No notes match this filter.')).toBeVisible({ timeout: 60_000 });
+  await expect(page).toHaveURL(/\/notes$/, { timeout: 60_000 });
+  await expect(page.getByRole('tree')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('By me (accepted)')).toHaveCount(0);
   expect(api.adminCalls).toEqual([]);
 });
 
-test('on a brain without the one-list route the client merges the sources itself', async ({
+test('on a brain without the one-list route the section merges the sources itself', async ({
   page,
 }) => {
   api.itemsRoute = false;
   await page.goto('/pages');
-  await expect(page.getByText(PAGE_TITLE).first()).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator(`[data-item-id="${ACCEPTED_ID}"]`)).toContainText('by you');
+  await expect(byMeSection(page)).toContainText(ACCEPTED_TITLE, { timeout: 60_000 });
   expect(api.itemsStates).toEqual([]);
   expect(api.adminCalls).toEqual([]);
 });
