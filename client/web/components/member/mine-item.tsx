@@ -516,11 +516,11 @@ function MineItemLoaded({
           ) : null}
         </div>
 
-        {row.reviewState === 'returned' && row.returnedNote ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
-            <p className="font-medium">Returned by the reviewer</p>
-            <p className="mt-1 whitespace-pre-wrap">{row.returnedNote}</p>
-          </div>
+        {/* No reviewer note (review flows carry no messages, 2026-10-09). */}
+        {row.reviewState === 'returned' ? (
+          <p className="text-sm text-muted-foreground">
+            Sent back by the reviewer. Change it and submit it again.
+          </p>
         ) : null}
         {row.reviewState === 'submitted' ? (
           <p className="text-sm text-muted-foreground">

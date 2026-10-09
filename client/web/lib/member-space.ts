@@ -446,10 +446,11 @@ export const adminSpace = {
   ...spaceClient(ADMIN_API_BASE),
   accept: (id: string, input: AcceptInput) =>
     apiSend<AcceptResult>(`${ownItemPath(id, ADMIN_API_BASE)}/accept`, 'POST', input),
-  /** An item taken over from the Review queue goes back to its member with
-   *  the note, with everything taken with it (audit F07). */
-  giveBack: (id: string, note: string) =>
-    apiSend<GiveBackResult>(`${ownItemPath(id, ADMIN_API_BASE)}/give-back`, 'POST', { note }),
+  /** An item taken over from the Review queue goes back to its member,
+   *  with everything taken with it (audit F07). No note: review flows carry
+   *  no messages (2026-10-09). */
+  giveBack: (id: string) =>
+    apiSend<GiveBackResult>(`${ownItemPath(id, ADMIN_API_BASE)}/give-back`, 'POST'),
 };
 
 export type AdminSpaceClient = typeof adminSpace;

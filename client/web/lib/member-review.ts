@@ -160,7 +160,8 @@ export const memberReview = {
     apiSend(`${base(id)}/comments/${encodeURIComponent(commentId)}`, 'DELETE'),
   accept: (id: string, input: AcceptInput) =>
     apiSend<AcceptResult>(`${base(id)}/accept`, 'POST', input),
-  giveBack: (id: string, note: string) => apiSend(`${base(id)}/return`, 'POST', { note }),
+  /** Back to its author, no note (review flows carry no messages). */
+  giveBack: (id: string) => apiSend(`${base(id)}/return`, 'POST'),
   discard: (id: string) => apiSend(`${base(id)}/discard`, 'POST'),
   /** Into the acting admin's own private space, with its bundle (audit F07). */
   takeOver: (id: string) => apiSend<TakeOverResult>(`${base(id)}/take-over`, 'POST'),

@@ -128,10 +128,10 @@ test.describe('My requests', () => {
     expect(api.clientCalls).toEqual([]);
   });
 
-  test('a returned item shows the reviewer’s note, and can go again', async ({ page }) => {
+  test('a returned item says so, with no note, and can go again', async ({ page }) => {
     await page.goto(`/?view=requests&id=${CLIENT_RETURNED_ID}`);
-    await expect(page.getByText('Returned by the reviewer')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(CLIENT_RETURNED_NOTE)).toBeVisible();
+    await expect(page.getByText('Sent back by the reviewer')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(CLIENT_RETURNED_NOTE)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Resubmit' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
   });

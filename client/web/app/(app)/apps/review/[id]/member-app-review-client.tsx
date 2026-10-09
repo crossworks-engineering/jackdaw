@@ -11,7 +11,7 @@
  *  - Shared by members: Unshare, Delete (to the trash for 30 days), Activity.
  *
  * Everything is read only: Code shows the PUBLISHED source, History lists
- * versions and snapshots, Activity what the app did. Builder is a TEST run:
+ * versions and snapshots, Activity what the app did. Test is a TEST run:
  * at team rules, on a throwaway copy of the app's data that the brain makes
  * when the screen opens and removes when the admin leaves (or after it sits
  * idle). Nothing real changes. No comments: review flows carry no messages.
@@ -19,7 +19,15 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, RotateCcw, Trash2, Undo2, UserMinus } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  FlaskConical,
+  RotateCcw,
+  Trash2,
+  Undo2,
+  UserMinus,
+} from 'lucide-react';
 import { ApiError, apiFetch, apiSend, apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -72,9 +80,12 @@ import {
   MEMBER_APP_DELETE_CONFIRM,
   MEMBER_APP_UNSHARE_HINT,
   REVIEW_APPS_KEY,
+  REVIEW_TEST_BLOCKED,
   REVIEW_TEST_ENDED,
   REVIEW_TEST_NOTE,
   acceptSummary,
+  reviewAppChanged,
+  reviewBrokerOutcome,
   reviewAppPath,
   reviewBannerText,
   reviewKind,
@@ -85,7 +96,7 @@ import {
 } from '@/lib/space-apps';
 
 const VIEWS = [
-  { value: 'builder', label: 'Builder' },
+  { value: 'test', label: 'Test' },
   { value: 'code', label: 'Code' },
   { value: 'history', label: 'History' },
   { value: 'activity', label: 'Activity' },
@@ -158,7 +169,7 @@ function endTest(id: string) {
 
 /** The test run: starts a fresh copy on open, ends it on leave. */
 function useTestRun(id: string, runnable: boolean) {
-  const [state, setState] = useState<'starting' | 'ready' | 'failed'>('starting');
+  const [state, setState] = useState<'starting' | 'ready' | 'failed' | 'ended'>('starting');
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const startedFor = useRef<string | null>(null);
@@ -204,14 +215,18 @@ function useTestRun(id: string, runnable: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, runnable]);
 
-  return { state, error, reloadKey, restart: start };
+  /** The brain said the copy is gone (idle too long, dropped for a newer
+   *  copy, or ended in another tab): show it, with Restart. */
+  const ended = () => setState('ended');
+
+  return { state, error, reloadKey, restart: start, ended };
 }
 
 function ReviewView({ app }: { app: ReviewAppDetail }) {
   const router = useRouter();
   const qc = useQueryClient();
   const toast = useToast();
-  const [tab, setTab] = useState<string>('builder');
+  const [tab, setTab] = useState<string>('test');
   const kind = reviewKind(app);
 
   const files = useMemo(() => submissionFiles(app), [app]);
@@ -220,13 +235,54 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
   const activeText = app.files[activePath] ?? app.files[app.entry] ?? '';
 
   const test = useTestRun(app.id, app.runnable);
+  // The sandbox's broker calls go through here: a gone copy switches the
+  // screen to its ended state, and a tool test mode blocks is said as that
+  // (and answered to the app as a plain refusal, so the sandbox does not
+  // call it an undeclared tool).
+  const onBroker = useRef({ ended: test.ended, blocked: () => {} });
+  onBroker.current = {
+    ended: test.ended,
+    blocked: () => toast.info(REVIEW_TEST_BLOCKED),
+  };
   const sandbox = useMemo(
     () => ({
       apiBase: apiUrl(reviewAppPath(app.id, 'test')),
-      fetcher: (input: string, init?: RequestInit) => fetch(input, withAuth(init)),
+      fetcher: async (input: string, init?: RequestInit) => {
+        const res = await fetch(input, withAuth(init));
+        if (res.status !== 409 && res.status !== 403) return res;
+        const body: unknown = await res
+          .clone()
+          .json()
+          .catch(() => null);
+        const outcome = reviewBrokerOutcome(res.status, body);
+        if (outcome === 'ended') onBroker.current.ended();
+        if (outcome === 'blocked') {
+          onBroker.current.blocked();
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return res;
+      },
     }),
     [app.id],
   );
+
+  // What Approve sends: the version and hash the admin had in front of them
+  // when they opened the dialog, never a refetch that landed since.
+  const [shown, setShown] = useState<{ version: number; reviewHash: string | null } | null>(null);
+  // A newer version arriving (after a 409, or any refetch) is said, and the
+  // test restarts on it: what the admin tested must be what they approve.
+  const seen = useRef({ version: app.version, reviewHash: app.reviewHash });
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = { version: app.version, reviewHash: app.reviewHash };
+    if (before.version === app.version && before.reviewHash === app.reviewHash) return;
+    toast.info(reviewAppChanged(app.version));
+    if (app.runnable) void test.restart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.version, app.reviewHash]);
 
   // Approve: the form, then the confirm with exactly what is sent.
   const [approveOpen, setApproveOpen] = useState(false);
@@ -237,7 +293,17 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const leave = (msg: string, to = '/apps') => {
-    void qc.invalidateQueries({ queryKey: ['apps'] });
+    // Every app list, but not this screen's own detail: refetched now it
+    // would flash "not waiting any more" on the way out.
+    void qc.invalidateQueries({
+      queryKey: ['apps'],
+      predicate: (q) =>
+        !(
+          q.queryKey[1] === REVIEW_APPS_KEY[1] &&
+          q.queryKey[2] === app.id &&
+          q.queryKey.length === 3
+        ),
+    });
     void qc.invalidateQueries({ queryKey: DELETED_APPS_KEY });
     toast.success(msg);
     router.push(to);
@@ -249,12 +315,12 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
     toast.error(e instanceof Error ? e.message : fallback);
   };
   const approve = useMutation({
-    mutationFn: () =>
+    mutationFn: (pinned: { version: number; reviewHash: string | null }) =>
       apiSend(reviewAppPath(app.id, 'accept'), 'POST', {
         level,
         trustTools: trust,
-        version: app.version,
-        reviewHash: app.reviewHash,
+        version: pinned.version,
+        reviewHash: pinned.reviewHash,
       }),
     onSuccess: () =>
       leave(
@@ -289,6 +355,7 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
           onClick={() => {
             setLevel('team');
             setTrust(false);
+            setShown({ version: app.version, reviewHash: app.reviewHash });
             setApproveOpen(true);
           }}
         >
@@ -379,16 +446,17 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
 
         <ReviewBanner kind={kind} text={reviewBannerText(app)} detail={detail} actions={actions} />
 
-        {/* Builder: the test run. forceMount keeps it (and its copy) while
+        {/* Test: the test run. forceMount keeps it (and its copy) while
             another view is open, as the editor keeps its preview. */}
         <ViewPanel
-          value="builder"
+          value="test"
           forceMount
           className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
         >
           <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <p className="min-w-0 flex-1 basis-60">{REVIEW_TEST_NOTE}</p>
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2">
+              <FlaskConical className="size-4 shrink-0 text-warning-ink" aria-hidden />
+              <p className="min-w-0 flex-1 basis-60 text-sm font-medium">{REVIEW_TEST_NOTE}</p>
               {app.runnable ? (
                 <Button
                   size="sm"
@@ -411,11 +479,14 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
                 <div className="flex h-full items-center justify-center">
                   <Spinner />
                 </div>
-              ) : test.state === 'failed' ? (
+              ) : test.state === 'failed' || test.state === 'ended' ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
-                  <p>{test.error ?? REVIEW_TEST_ENDED}</p>
+                  <p>
+                    {test.state === 'ended' ? REVIEW_TEST_ENDED : (test.error ?? REVIEW_TEST_ENDED)}
+                  </p>
                   <Button size="sm" variant="outline" onClick={() => void test.restart()}>
-                    Try again
+                    <RotateCcw />
+                    {test.state === 'ended' ? 'Restart test' : 'Try again'}
                   </Button>
                 </div>
               ) : (
@@ -510,8 +581,8 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
           <DialogHeader>
             <DialogTitle>Approve “{app.title || 'Untitled'}”</DialogTitle>
             <DialogDescription>
-              Version {app.version}, the one on this screen. It moves into the brain&apos;s Apps
-              with its data and history.
+              Version {shown?.version ?? app.version}, the one on this screen. It moves into the
+              brain&apos;s Apps with its data and history.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -567,9 +638,11 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
             <AlertDialogTitle>Approve “{app.title || 'Untitled'}” into the brain?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                {acceptSummary({ level, trust, version: app.version }).map((l) => (
-                  <li key={l}>{l}</li>
-                ))}
+                {acceptSummary({ level, trust, version: shown?.version ?? app.version }).map(
+                  (l) => (
+                    <li key={l}>{l}</li>
+                  ),
+                )}
               </ul>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -578,7 +651,7 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
             <AlertDialogAction
               onClick={() => {
                 setConfirmApprove(false);
-                approve.mutate();
+                if (shown) approve.mutate(shown);
               }}
             >
               Approve at {level === 'team' ? 'Team' : 'Admin'} level

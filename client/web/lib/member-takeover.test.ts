@@ -306,14 +306,10 @@ describe('the take over and give back routes', () => {
     ]);
   });
 
-  it('Give back posts the note to the admin’s own item', async () => {
-    await adminSpace.giveBack(OWN, 'Fix the totals.');
+  it('Give back posts to the admin’s own item, with no note', async () => {
+    await adminSpace.giveBack(OWN);
     expect(calls).toEqual([
-      {
-        method: 'POST',
-        url: `/api/admin/space/${OWN}/give-back`,
-        body: { note: 'Fix the totals.' },
-      },
+      { method: 'POST', url: `/api/admin/space/${OWN}/give-back`, body: undefined },
     ]);
   });
 });

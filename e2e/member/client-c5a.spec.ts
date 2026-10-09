@@ -129,7 +129,7 @@ test.describe('a client’s screens', () => {
       expect(await readable(page), title).not.toMatch(/admin/i);
     }
     await page.goto(`/?view=requests&id=${CLIENT_RETURNED_ID}`);
-    await expect(page.getByText('Returned by the reviewer')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Sent back by the reviewer')).toBeVisible({ timeout: 30_000 });
     expect(await readable(page)).not.toMatch(/admin/i);
     await page.goto('/');
     await expect(page.getByRole('list', { name: 'Shared items' })).toBeVisible({

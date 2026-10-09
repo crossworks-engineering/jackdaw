@@ -6,7 +6,7 @@
  * wears the Client badge, client logins C1 and C5), and what deactivated logins
  * left shared with the team. The detail pane shows the item's SAVED version
  * read-only (a submitted item is frozen), its thread, and the actions:
- * Accept into the brain, Return with a note, Take over (into the admin's own
+ * Accept into the brain, Return (no note), Take over (into the admin's own
  * private items, audit F07), or (left behind only) Discard.
  *
  * Owner-only screen over /api/team-admin/submissions. A private item never

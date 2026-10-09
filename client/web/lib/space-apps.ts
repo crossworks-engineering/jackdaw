@@ -210,6 +210,26 @@ export const REVIEW_TEST_NOTE =
 /** The test copy ended (left, or idle too long). */
 export const REVIEW_TEST_ENDED = 'The test run ended. Start it again to keep testing.';
 
+/** A test refused a tool that writes or reaches outside (the brain's
+ *  reason 'review-test-read-only'). */
+export const REVIEW_TEST_BLOCKED = 'Test mode blocks tools that change data.';
+
+/** What a test broker answer means for the screen: the copy is gone
+ *  (409 `test-ended`: idle too long, dropped for a newer copy, or ended in
+ *  another tab), a tool test mode blocks, or nothing special. */
+export function reviewBrokerOutcome(status: number, body: unknown): 'ended' | 'blocked' | null {
+  const reason = (body as { reason?: unknown } | null)?.reason;
+  if (status === 409 && reason === 'test-ended') return 'ended';
+  if (status === 403 && reason === 'review-test-read-only') return 'blocked';
+  return null;
+}
+
+/** The app moved while the admin had it open (a 409 on Approve, or a newer
+ *  version on refetch): what they read is not what would be approved. */
+export function reviewAppChanged(version: number): string {
+  return `This app changed since you opened it: it is now version ${version}. The test restarted on it. Read it again, then approve.`;
+}
+
 /** What Send back does, in the confirm. */
 export function sendBackConfirm(app: Pick<ReviewAppDetail, 'author'>): string {
   return `It goes back to ${authorOf(app)}. They can change it and submit it again.`;

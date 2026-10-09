@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { Loader2, Undo2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Label } from '@mantle/web-ui/ui/label';
-import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   Dialog,
@@ -20,7 +18,8 @@ import { adminItemResolver, ItemLinksNotice } from './item-links-notice';
 
 /**
  * Give back (audit F07): an item the admin took over from the Review queue
- * goes back to its member with a note, with everything taken with it. The
+ * goes back to its member (no note: review flows carry no messages), with
+ * everything taken with it. The
  * member sees it as returned, edits it and submits it again. A refusal stays
  * in the dialog: the member cannot take it any more (accept or delete it),
  * unsaved edits (save first), or something the member may not see (remove
@@ -44,7 +43,6 @@ export function GiveBackDialog({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<GiveBackRefusal | null>(null);
   const send = async () => {
@@ -52,10 +50,9 @@ export function GiveBackDialog({
     setRefusal(null);
     try {
       if (beforeGiveBack && !(await beforeGiveBack())) return;
-      await adminSpace.giveBack(row.id, note.trim());
+      await adminSpace.giveBack(row.id);
       toast.success(`Gave “${row.title || 'Untitled'}” back to ${from.name}.`);
       setOpen(false);
-      setNote('');
       onGivenBack();
     } catch (err) {
       setRefusal(giveBackRefusal(err));
@@ -81,27 +78,11 @@ export function GiveBackDialog({
         <DialogHeader>
           <DialogTitle>Give back to {from.name}</DialogTitle>
           <DialogDescription>
-            “{row.title || 'Untitled'}” goes back to {from.name}&rsquo;s space with your note, with
-            everything you took over with it. They can change it and submit it again.
+            “{row.title || 'Untitled'}” goes back to {from.name}&rsquo;s space, with everything you
+            took over with it. They can change it and submit it again.
           </DialogDescription>
         </DialogHeader>
-        <form
-          className="space-y-3"
-          noValidate
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (note.trim()) void send();
-          }}
-        >
-          <Label htmlFor="give-back-note">What needs to change</Label>
-          <Textarea
-            id="give-back-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={4}
-            maxLength={4000}
-            disabled={busy}
-          />
+        <div className="space-y-3">
           {refusal ? (
             refusal.ids.length ? (
               <ItemLinksNotice
@@ -122,12 +103,12 @@ export function GiveBackDialog({
             <Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy || !note.trim()}>
+            <Button type="button" disabled={busy} onClick={() => void send()}>
               {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
-              Give back with note
+              Give back
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

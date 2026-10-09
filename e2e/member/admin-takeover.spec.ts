@@ -117,22 +117,21 @@ test('a released item says so, can be taken over again, and takes no comments', 
   await expect(page.getByRole('textbox', { name: 'Reply to the author' })).toHaveCount(0);
 });
 
-test('Give back needs a note, sends it, and the item leaves the Pages list', async ({ page }) => {
+test('Give back sends no note, and the item leaves the Pages list', async ({ page }) => {
   api.admin.queue = [];
   api.admin.privateIds = [SUBMITTED_ID, ADMIN_OWN_ID];
   await page.goto(`/pages?pid=${SUBMITTED_ID}`);
   await page.getByRole('button', { name: 'Give back' }).click({ timeout: 60_000 });
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: `Give back to ${MEMBER_NAME}` })).toBeVisible();
-  const send = dialog.getByRole('button', { name: 'Give back with note' });
-  await expect(send).toBeDisabled();
-  await dialog.getByLabel('What needs to change').fill('Add the load test.');
-  await send.click();
+  // No note field: review flows carry no messages.
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Give back', exact: true }).click();
 
   await expect(page.getByText(`Gave “${SUBMITTED_TITLE}” back to ${MEMBER_NAME}.`)).toBeVisible({
     timeout: 15_000,
   });
-  expect(api.admin.giveBacks).toEqual([{ id: SUBMITTED_ID, note: 'Add the load test.' }]);
+  expect(api.admin.giveBacks).toEqual([{ id: SUBMITTED_ID }]);
   await expect(page.locator(`[data-item-id="${SUBMITTED_ID}"]`)).toHaveCount(0);
   await expect(page.locator(`[data-item-id="${ADMIN_OWN_ID}"]`)).toBeVisible();
 });
@@ -147,8 +146,7 @@ test('a refused Give back stays in the dialog and names the items to remove', as
   await page.goto(`/pages?pid=${SUBMITTED_ID}`);
   await page.getByRole('button', { name: 'Give back' }).click({ timeout: 60_000 });
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('What needs to change').fill('Tidy it.');
-  await dialog.getByRole('button', { name: 'Give back with note' }).click();
+  await dialog.getByRole('button', { name: 'Give back', exact: true }).click();
 
   const notice = dialog.getByRole('status');
   await expect(notice).toContainText('Remove these, save a version, then give it back:', {
@@ -156,15 +154,15 @@ test('a refused Give back stays in the dialog and names the items to remove', as
   });
   const link = notice.getByRole('link', { name: ADMIN_OWN_TITLE });
   await expect(link).toHaveAttribute('href', `/pages?pid=${ADMIN_OWN_ID}`);
-  // Still open, the note kept, nothing moved.
-  await expect(dialog.getByLabel('What needs to change')).toHaveValue('Tidy it.');
+  // Still open, nothing moved.
+  await expect(dialog.getByRole('heading', { name: `Give back to ${MEMBER_NAME}` })).toBeVisible();
   expect(api.admin.privateIds).toContain(SUBMITTED_ID);
 
   api.admin.giveBackAnswer = {
     status: 409,
     body: { error: 'gone', reason: 'author-inactive' },
   };
-  await dialog.getByRole('button', { name: 'Give back with note' }).click();
+  await dialog.getByRole('button', { name: 'Give back', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('Accept it into the brain, or delete it.', {
     timeout: 15_000,
   });

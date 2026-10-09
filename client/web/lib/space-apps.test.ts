@@ -7,8 +7,11 @@ import {
   deletedAppRestorePath,
   MEMBER_APP_DELETED_TOAST,
   MEMBER_APP_DELETE_CONFIRM,
+  REVIEW_TEST_BLOCKED,
   REVIEW_TEST_ENDED,
   REVIEW_TEST_NOTE,
+  reviewAppChanged,
+  reviewBrokerOutcome,
   reviewAppHref,
   reviewAppPath,
   reviewBannerText,
@@ -216,6 +219,19 @@ describe("an admin's review of a member app, in Apps", () => {
     );
   });
 
+  it('reads what a test broker answer means', () => {
+    expect(reviewBrokerOutcome(409, { ok: false, reason: 'test-ended' })).toBe('ended');
+    expect(reviewBrokerOutcome(403, { ok: false, reason: 'review-test-read-only' })).toBe(
+      'blocked',
+    );
+    // A plain refusal (an undeclared tool) or another conflict is not ours.
+    expect(reviewBrokerOutcome(403, { ok: false, error: 'x' })).toBeNull();
+    expect(reviewBrokerOutcome(409, { ok: false, reason: 'changed' })).toBeNull();
+    expect(reviewBrokerOutcome(200, null)).toBeNull();
+    expect(REVIEW_TEST_BLOCKED).toBe('Test mode blocks tools that change data.');
+    expect(reviewAppChanged(3)).toMatch(/now version 3/);
+  });
+
   it('links to Apps from Team admin only when something waits', () => {
     expect(waitingInAppsLabel(0)).toBeNull();
     expect(waitingInAppsLabel(2)).toBe('2 waiting in Apps');
@@ -239,6 +255,8 @@ describe("an admin's review of a member app, in Apps", () => {
       MEMBER_APP_DELETED_TOAST,
       REVIEW_TEST_NOTE,
       REVIEW_TEST_ENDED,
+      REVIEW_TEST_BLOCKED,
+      reviewAppChanged(2),
       sendBackConfirm({ author }),
       reviewBannerText({ reviewState: 'submitted', author }),
     ]) {

@@ -17,7 +17,6 @@ import type { ReviewAuthorRole } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Label } from '@mantle/web-ui/ui/label';
-import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import {
   Select,
@@ -660,15 +659,13 @@ export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
   const toast = useToast();
   const back = useBackToQueue(onDone);
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const send = async () => {
     setBusy(true);
     try {
-      await memberReview.giveBack(row.id, note);
+      await memberReview.giveBack(row.id);
       toast.success(`Returned “${row.title || 'Untitled'}” to ${row.author.name}.`);
       setOpen(false);
-      setNote('');
       back();
     } catch (err) {
       toast.error(reviewErrorMessage(err, 'Could not return this item.'));
@@ -688,35 +685,18 @@ export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
         <DialogHeader>
           <DialogTitle>Return to {row.author.name}</DialogTitle>
           <DialogDescription>
-            The item goes back to its author with your note. They can change it and submit it again.
+            The item goes back to its author. They can change it and submit it again.
           </DialogDescription>
         </DialogHeader>
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (note.trim()) void send();
-          }}
-        >
-          <Label htmlFor="review-return-note">What needs to change</Label>
-          <Textarea
-            id="review-return-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={4}
-            maxLength={4000}
-            disabled={busy}
-          />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={busy || !note.trim()}>
-              {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
-              Return with note
-            </Button>
-          </div>
-        </form>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={busy} onClick={() => void send()}>
+            {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
+            Return
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

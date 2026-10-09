@@ -487,7 +487,8 @@ export type MockAdminState = {
   /** Set to make Give back answer this instead (a refusal). */
   giveBackAnswer: { status: number; body: unknown } | null;
   takeOvers: string[];
-  giveBacks: { id: string; note: string }[];
+  /** Each Give back, with the note it carried (none since 2026-10-09). */
+  giveBacks: { id: string; note?: string }[];
   accepts: { id: string; body: unknown }[];
   deletes: string[];
   /** "What clients see": the ids of each acknowledgement recorded. */
@@ -1532,8 +1533,8 @@ export async function startMockMemberApi(
         return true;
       }
       if (tail === '/give-back' && method === 'POST') {
-        const body = JSON.parse(await readBody(req)) as { note: string };
-        A.giveBacks.push({ id, note: body.note });
+        const body = JSON.parse((await readBody(req)) || '{}') as { note?: string };
+        A.giveBacks.push(body.note === undefined ? { id } : { id, note: body.note });
         if (A.giveBackAnswer) {
           json(res, A.giveBackAnswer.status, A.giveBackAnswer.body);
           return true;
@@ -1866,7 +1867,9 @@ export async function startMockMemberApi(
     sharing: 'private',
     reviewState,
     submittedAt: reviewState === 'submitted' ? updatedAt : null,
-    returnedNote: reviewState === 'returned' ? CLIENT_RETURNED_NOTE : null,
+    // The brain sends no reviewer note any more (review flows carry no
+    // messages, 2026-10-09); an old one in the row is not shown.
+    returnedNote: null,
     authorLoginId: CLIENT_LOGIN_ID,
     updatedAt,
   });
