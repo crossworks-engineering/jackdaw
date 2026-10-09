@@ -44,7 +44,7 @@ const hits = (re: RegExp) => FILES.filter((f) => re.test(f.text)).map((f) => f.p
 describe('retired team codes', () => {
   it('scans the client (the control)', () => {
     const page = FILES.find((f) => f.path.endsWith('app/(app)/team-admin/page.tsx'));
-    expect(page?.text).toMatch(/'Review'/);
+    expect(page?.text).toMatch(/'Requests'/);
     expect(FILES.some((f) => f.path.endsWith('app/invite/invite-client.tsx'))).toBe(true);
   });
 
