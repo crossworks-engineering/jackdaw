@@ -12,7 +12,7 @@
  * queue (`opened`: the brain item it became, after an Approve), and
  * `onChanged()` after a refusal, so the queue is read again.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useRouter } from 'next/navigation';
@@ -83,7 +83,7 @@ import {
   type ReviewItemRow,
 } from '@/lib/member-review';
 import type { SpaceKind } from '@/lib/member-space';
-import { rejectConfirm } from '@/lib/workspace-review';
+import { REVIEW_CHANGED_TOAST, isChangedRefusal, rejectConfirm } from '@/lib/workspace-review';
 import { FolderPickerDialog } from '@/components/item-tree/folder-picker';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import {
@@ -104,10 +104,17 @@ type ReviewActionProps = {
 };
 
 export function AcceptDialog({ row, onDone, onChanged }: ReviewActionProps) {
+  // The pin, taken once when the dialog opens: what is approved is the
+  // version on screen then, never one a refetch brought in while it is open
+  // (a 409 `changed` closes the dialog, audit re-audit L1).
+  const pinned = useRef<string | null>(row.submittedAt);
   return (
     <AcceptIntoBrainDialog
       item={row}
       triggerLabel="Approve"
+      onOpen={() => {
+        pinned.current = row.submittedAt;
+      }}
       authorRole={row.author.role}
       description={
         <>
@@ -119,9 +126,7 @@ export function AcceptDialog({ row, onDone, onChanged }: ReviewActionProps) {
         key: ['team-admin', 'submissions', row.id, 'bundle'],
         load: (pick) => memberReview.bundle(row.id, pick),
       }}
-      // Pinned: what is approved is the version on screen (`row` is the one
-      // this pane shows), never one sent again since.
-      accept={(input) => memberReview.accept(row.id, { ...input, submittedAt: row.submittedAt })}
+      accept={(input) => memberReview.accept(row.id, { ...input, submittedAt: pinned.current })}
       onAccepted={(res) => onDone(res.id)}
       onFailed={onChanged}
       errorMessage={reviewErrorMessage}
@@ -165,6 +170,7 @@ export function AcceptIntoBrainDialog({
   errorMessage,
   triggerLabel = 'Accept',
   authorRole,
+  onOpen,
 }: {
   item: AcceptTarget;
   /** Who wrote it, where the brain says (absent from older brains). */
@@ -180,9 +186,15 @@ export function AcceptIntoBrainDialog({
   onFailed?: () => void;
   errorMessage: (err: unknown, fallback: string) => string;
   triggerLabel?: string;
+  /** Called as the dialog opens (an Approve takes its pin then). */
+  onOpen?: () => void;
 }) {
   const toast = useToast();
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const setOpen = (o: boolean) => {
+    if (o && !open) onOpen?.();
+    setOpenState(o);
+  };
   const [chosen, setChosen] = useState<AccessLevel>(() => defaultAcceptLevel(authorRole));
   // What the admin ticked of what goes down, and the brain's own ask when it
   // refused the level (409 confirm-level); both start over on a new level.
@@ -330,6 +342,14 @@ export function AcceptIntoBrainDialog({
             void accept(true);
           },
         });
+        return;
+      }
+      if (isChangedRefusal(err)) {
+        // The author sent it again since it was opened: what this dialog
+        // was about is gone. Close it; the pane shows the new version.
+        setOpen(false);
+        toast.error(REVIEW_CHANGED_TOAST);
+        onFailed?.();
         return;
       }
       toast.error(errorMessage(err, 'Could not accept this item.'));

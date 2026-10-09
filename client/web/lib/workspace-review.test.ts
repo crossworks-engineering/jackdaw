@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { ReviewItemRow } from './member-review';
 import {
+  REVIEW_CHANGED_TOAST,
+  isChangedRefusal,
   isLeftBehind,
   rejectConfirm,
   reviewInfoLine,
@@ -91,6 +94,17 @@ describe('workspace review', () => {
     );
     expect(sharedInfoLine({ author: { ...author, name: null } })).toBe(
       'Shared with the team by a member.',
+    );
+  });
+
+  it('knows the refusal of a changed item, and only that one', () => {
+    const changed = new ApiError('sent again', 409, { error: 'x', reason: 'changed' });
+    expect(isChangedRefusal(changed)).toBe(true);
+    expect(isChangedRefusal(new ApiError('x', 409, { reason: 'visibility' }))).toBe(false);
+    expect(isChangedRefusal(new ApiError('x', 404, { reason: 'changed' }))).toBe(false);
+    expect(isChangedRefusal(new Error('changed'))).toBe(false);
+    expect(REVIEW_CHANGED_TOAST).toBe(
+      'This item changed. Look at the new version, then Approve again.',
     );
   });
 });

@@ -87,3 +87,20 @@ describe('the accept dialog, landing in a shared folder (folder plan phase 5)', 
     expect(src).toContain('onClick={() => void picked.refetch()}');
   });
 });
+
+describe('Approve is pinned to the version on screen (re-audit L1)', () => {
+  it('takes the pin once, when the dialog opens', () => {
+    expect(src).toContain('const pinned = useRef<string | null>(row.submittedAt);');
+    expect(flat).toContain('onOpen={() => { pinned.current = row.submittedAt; }}');
+    expect(flat).toContain(
+      'memberReview.accept(row.id, { ...input, submittedAt: pinned.current })',
+    );
+    expect(flat).toContain('if (o && !open) onOpen?.();');
+  });
+
+  it('closes on a 409 changed, says so, and reads the queue again', () => {
+    expect(flat).toMatch(
+      /if \(isChangedRefusal\(err\)\) \{ .*setOpen\(false\); toast\.error\(REVIEW_CHANGED_TOAST\); onFailed\?\.\(\); return; \}/,
+    );
+  });
+});

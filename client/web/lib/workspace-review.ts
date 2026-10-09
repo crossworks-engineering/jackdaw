@@ -12,7 +12,7 @@
  * helpers only.
  */
 import type { ReviewItemRow } from './member-review';
-import type { SpaceKind } from './member-space';
+import { refusalReason, type SpaceKind } from './member-space';
 
 /** The selection param a workspace reads: `?review=<id>` opens a waiting
  *  item in the detail pane, beside the tree, as /apps does. */
@@ -91,6 +91,17 @@ export function reviewInfoLine(row: Pick<ReviewItemRow, 'reason' | 'author'>): s
   }
   return `Submitted by ${who}. Waiting for your approval.`;
 }
+
+/** An Approve the brain refused because the item changed since the dialog
+ *  opened (409 `changed`: its author recalled it and sent it again). */
+export function isChangedRefusal(err: unknown): boolean {
+  return refusalReason(err) === 'changed';
+}
+
+/** The toast when that happens: the dialog closes, the pane shows the new
+ *  version. */
+export const REVIEW_CHANGED_TOAST =
+  'This item changed. Look at the new version, then Approve again.';
 
 /** The Reject confirm: no note (review flows carry no messages). */
 export function rejectConfirm(row: Pick<ReviewItemRow, 'author'>): string {
