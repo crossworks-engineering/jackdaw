@@ -13,14 +13,12 @@
  * reaches it: the brain answers one with a plain 404.
  */
 import Link from 'next/link';
-import { useCallback, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/core';
-import { ClipboardCheck, Trash2, Unlock, UserX } from 'lucide-react';
+import { ClipboardCheck, Unlock, UserX } from 'lucide-react';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Textarea } from '@mantle/web-ui/ui/textarea';
-import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
@@ -34,11 +32,9 @@ import {
   QUEUE_KEY,
   authorRoleLabel,
   canTakeOver,
-  commentsKey,
   isReleased,
   itemKey,
   memberReview,
-  reviewCommentsOpen,
   reviewAssetPath,
   reviewBytesPath,
   reviewErrorMessage,
@@ -47,8 +43,6 @@ import {
   type ReviewItem,
   type ReviewItemRow,
 } from '@/lib/member-review';
-import type { SpaceComment } from '@/lib/member-space';
-import { useThreadPages } from '@/lib/use-thread-pages';
 import { AcceptDialog, DiscardDialog, ReturnDialog, TakeOverDialog } from './review-dialogs';
 
 const KIND_LABEL: Record<ReviewItemRow['type'], string> = {
@@ -246,10 +240,7 @@ function ReviewDetail({ row }: { row: ReviewItemRow }) {
           ) : !q.data ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
-            <>
-              <ReviewItemView item={q.data} />
-              <ReviewThread id={row.id} item={q.data} canWrite={reviewCommentsOpen(row)} />
-            </>
+            <ReviewItemView item={q.data} />
           )}
         </div>
       </div>
@@ -307,112 +298,4 @@ export function ReviewItemView({ item }: { item: ReviewItem }) {
         />
       );
   }
-}
-
-/** The review talk: the author and the reviewers. Teammates never read it. */
-function ReviewThread({ id, item, canWrite }: { id: string; item: ReviewItem; canWrite: boolean }) {
-  const toast = useToast();
-  const qc = useQueryClient();
-  const [text, setText] = useState('');
-  const composer = useRef<HTMLTextAreaElement>(null);
-  const refresh = () => void qc.invalidateQueries({ queryKey: itemKey(id) });
-  // Read a page at a time (the newest 100, then Load older); the item's own
-  // answer carries the talk too, which shows until the first page is read
-  // (and on a brain whose talk route fails).
-  const thread = useThreadPages<SpaceComment>({
-    queryKey: commentsKey(id),
-    path: memberReview.commentsPath(id),
-  });
-  const add = useMutation({
-    mutationFn: () => memberReview.addComment(id, text),
-    onSuccess: () => {
-      setText('');
-      refresh();
-      composer.current?.focus();
-    },
-    onError: (err) => toast.error(reviewErrorMessage(err, 'Could not post the comment.')),
-  });
-  const del = useMutation({
-    mutationFn: (commentId: string) => memberReview.deleteComment(id, commentId),
-    onSuccess: () => {
-      refresh();
-      composer.current?.focus();
-    },
-    onError: (err) => toast.error(reviewErrorMessage(err, 'Could not delete the comment.')),
-  });
-  const comments = thread.query.data ? thread.comments : item.comments;
-  return (
-    <section className="space-y-3 border-t border-border pt-4" aria-label="Review comments">
-      <div>
-        <h3 className="text-sm font-semibold">Review comments</h3>
-        <p className="text-xs text-muted-foreground">
-          Between the author and the admins. Teammates never see these.
-        </p>
-      </div>
-      {comments.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No comments yet.</p>
-      ) : (
-        <ul className="space-y-2">
-          {thread.query.data && thread.hasMore ? (
-            <li className="flex justify-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={thread.loadingOlder}
-                onClick={thread.loadOlder}
-              >
-                Load older
-              </Button>
-            </li>
-          ) : null}
-          {comments.map((c) => (
-            <li key={c.id} className="group/comment rounded-md bg-muted/40 px-3 py-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{c.authorName}</span>
-                <span>{new Date(c.createdAt).toLocaleString()}</span>
-                {c.mine ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-2xs"
-                    className="ml-auto opacity-60 group-focus-within/comment:opacity-100 group-hover/comment:opacity-100 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0"
-                    aria-label="Delete comment"
-                    disabled={del.isPending}
-                    onClick={() => del.mutate(c.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                ) : null}
-              </div>
-              <p className="mt-1 text-sm whitespace-pre-wrap">{c.body}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-      {canWrite ? (
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (text.trim()) add.mutate();
-          }}
-        >
-          <Textarea
-            ref={composer}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Reply to the author…"
-            aria-label="Reply to the author"
-            rows={2}
-            maxLength={10_000}
-          />
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={!text.trim() || add.isPending}>
-              Comment
-            </Button>
-          </div>
-        </form>
-      ) : null}
-    </section>
-  );
 }

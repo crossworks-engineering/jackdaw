@@ -24,8 +24,6 @@ import {
 } from '@/lib/client-portal';
 import type { ClientSharedItem } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
-import { CLIENT_THREAD_CHIPS, sharedCommentsPath } from '@/lib/client-requests';
-import { ClientLevelComments } from './client-level-comments';
 
 /** A client reads bytes from the client routes; a page's file embeds are
  *  download chips on the client byte route. */
@@ -174,7 +172,6 @@ export function ClientReader({
             onPickTab={(tab) => setPicked({ itemId: id, tabId: tab })}
           />
         </div>
-        <ClientLevelComments path={sharedCommentsPath(item.id)} chips={CLIENT_THREAD_CHIPS} />
       </div>
     </div>
   );

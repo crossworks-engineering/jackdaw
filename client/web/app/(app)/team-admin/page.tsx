@@ -46,7 +46,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
-import { NO_IMAGES } from '@mantle/web-ui/comment-thread';
+import { NO_IMAGES } from '@mantle/web-ui/no-images';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import type { TeamMemberActivity, MemberChatPortalThread } from '@mantle/client-types';
 // The C4 request shape (fromClient): drop to '@mantle/client-types' with the shim.

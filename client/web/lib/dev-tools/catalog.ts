@@ -378,15 +378,6 @@ export const API_CATALOG: CatalogGroup[] = [
       b: '{\n  "status": "in_progress"\n}',
     },
     { n: 'Delete task', m: 'DELETE', p: '/api/tasks/{id}' },
-    { n: 'List comments', m: 'GET', p: '/api/nodes/{id}/comments' },
-    {
-      n: 'Add comment',
-      m: 'POST',
-      p: '/api/nodes/{id}/comments',
-      b: '{\n  "body": "Progress note…"\n}',
-    },
-    { n: 'Edit comment', m: 'PATCH', p: '/api/comments/{id}', b: '{\n  "body": "Edited…"\n}' },
-    { n: 'Delete comment', m: 'DELETE', p: '/api/comments/{id}' },
   ]),
 
   group('events', 'Events', '', [

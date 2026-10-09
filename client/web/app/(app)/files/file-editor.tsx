@@ -25,7 +25,6 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { AccessControl } from '@/components/share/access-control';
-import { OwnerClientThread } from '@/components/share/owner-client-thread';
 
 type FileRow = {
   id: string;
@@ -258,8 +257,6 @@ export function FileEditor({
             </ToggleGroup>
           )}
           <AccessControl nodeId={file.id} />
-          {/* At Client level: the thread clients read (audit U2). */}
-          <OwnerClientThread nodeId={file.id} type="file" />
           {/* History link → /nodes/[id]/history: every trace that touched
               this file (ingest, extractor, summarizer, …). */}
           <Button asChild variant="outline" size="sm">

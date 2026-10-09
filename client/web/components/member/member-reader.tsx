@@ -14,8 +14,6 @@ import { formatBytes } from '@/lib/upload-progress';
 import { acceptedBytesChanged, acceptedChangedText, acceptedPlace } from '@/lib/member-space';
 import { ReadOnlyItemBody, type ReaderAssets } from './read-only-item';
 import { authorBadgeText, authorName } from '@/lib/item-author';
-import { MEMBER_THREAD_CHIPS, libraryCommentsPath } from '@/lib/client-requests';
-import { ClientLevelComments } from '@/components/client/client-level-comments';
 
 type ReaderItem = MemberLibraryItem | MemberAcceptedItem;
 
@@ -130,9 +128,6 @@ export function MemberReader({
           <p className="text-sm text-muted-foreground">{item.summary}</p>
         ) : null}
         {body}
-        {source === 'library' && item.audience === 'client' ? (
-          <ClientLevelComments path={libraryCommentsPath(item.id)} chips={MEMBER_THREAD_CHIPS} />
-        ) : null}
       </div>
     </div>
   );

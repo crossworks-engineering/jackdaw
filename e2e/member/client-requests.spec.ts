@@ -10,18 +10,14 @@ import {
   CLIENT_RETURNED_ID,
   CLIENT_RETURNED_NOTE,
   CLIENT_RETURNED_TITLE,
-  CLIENT_SITE,
   CLIENT_SUBMISSION_ID,
   CLIENT_SUBMISSION_TITLE,
   CLIENT_SUBMITTED_ID,
   CLIENT_SUBMITTED_TITLE,
   LIBRARY_CLIENT_TITLE,
   LIBRARY_TITLE,
-  REVIEWER_COMMENT,
   SHARED_PAGE_ID,
   SHARED_PAGE_TITLE,
-  SHARED_TEAM_COMMENT,
-  STAFF_NAME,
   signInAsAdmin,
   signInAsMember,
   startMockMemberApi,
@@ -31,11 +27,10 @@ import {
 /**
  * A client's own items (client logins C5), against the in-memory API (no
  * brain): My requests beside "Shared with you" (create, save, submit,
- * recall, the returned note, the review talk, uploads and the client cap,
- * the filters, an accepted item, an older brain), the thread on an item
- * shared with clients, and the other sides: a member reads a client's
- * request and comments on a client-level Library item, and an admin sees a
- * client's item in Review wearing the Client badge.
+ * recall, a returned item, uploads and the client cap, the filters, an
+ * accepted item, an older brain), no comment thread anywhere (comments are
+ * gone, 2026-10-09), and the other sides: a member reads a client's request,
+ * and an admin sees a client's item in Review wearing the Client badge.
  */
 let api: MockMemberApi;
 test.afterEach(async () => {
@@ -136,26 +131,10 @@ test.describe('My requests', () => {
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
   });
 
-  test('the review talk on a submitted item: the brand’s words, and my own to delete', async ({
-    page,
-  }) => {
+  test('a submitted item has no comment thread (comments are gone)', async ({ page }) => {
     await page.goto(`/?view=requests&id=${CLIENT_SUBMITTED_ID}`);
-    const talk = page.getByRole('region', { name: 'Comments' });
-    await expect(talk).toContainText(REVIEWER_COMMENT, { timeout: 60_000 });
-    // A reviewer is the brand, never a staff name.
-    await expect(talk).toContainText(CLIENT_SITE);
-    await expect(talk.getByRole('button', { name: 'Delete comment' })).toHaveCount(0);
-
-    await talk.getByRole('textbox', { name: 'Add a comment' }).fill('Friday works too.');
-    await talk.getByRole('button', { name: 'Comment' }).click();
-    await expect(talk).toContainText('Friday works too.');
-    await expect(talk).toContainText(CLIENT_NAME);
-    await expect(talk.getByRole('button', { name: 'Delete comment' })).toHaveCount(1);
-    await talk.getByRole('button', { name: 'Delete comment' }).click();
-    await expect(talk).not.toContainText('Friday works too.');
-    expect(api.clientOwn.comments[CLIENT_SUBMITTED_ID]?.map((c) => c.body)).toEqual([
-      REVIEWER_COMMENT,
-    ]);
+    await expect(page.getByRole('button', { name: 'Recall' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('region', { name: 'Comments' })).toHaveCount(0);
     expect(api.clientCalls).toEqual([]);
   });
 
@@ -268,35 +247,18 @@ test.describe('My requests', () => {
   });
 });
 
-test.describe('the thread on a shared item', () => {
+test.describe('a shared item', () => {
   test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'client' });
     await signInAsClient(context, baseURL!);
   });
 
-  test('a client reads the team’s comment by name, posts, and deletes only its own', async ({
-    page,
-  }) => {
+  test('has no comment thread (comments are gone)', async ({ page }) => {
     await page.goto(`/?id=${SHARED_PAGE_ID}`);
     await expect(page.getByRole('heading', { name: SHARED_PAGE_TITLE })).toBeVisible({
       timeout: 60_000,
     });
-    const thread = page
-      .locator('section')
-      .filter({ has: page.getByRole('heading', { name: /^Comments/ }) });
-    await expect(thread).toContainText(SHARED_TEAM_COMMENT, { timeout: 30_000 });
-    await expect(thread).toContainText(STAFF_NAME);
-    await expect(thread).toContainText('Team');
-    await expect(thread.getByRole('button', { name: 'Delete comment' })).toHaveCount(0);
-
-    await thread.getByRole('textbox', { name: 'Write a comment' }).fill('Thanks, looks right.');
-    await thread.getByRole('button', { name: 'Add comment' }).click();
-    await expect(thread).toContainText('Thanks, looks right.');
-    await expect(thread.getByRole('button', { name: 'Delete comment' })).toHaveCount(1);
-    await thread.getByRole('button', { name: 'Delete comment' }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
-    await expect(thread).not.toContainText('Thanks, looks right.');
-    expect(api.clientOwn.shared[SHARED_PAGE_ID]?.map((c) => c.body)).toEqual([SHARED_TEAM_COMMENT]);
+    await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
     expect(api.clientCalls).toEqual([]);
   });
 });
@@ -343,9 +305,7 @@ test.describe('the member side', () => {
     expect(api.adminCalls).toEqual([]);
   });
 
-  test('a member comments on a client-level Library item; a team item has no thread', async ({
-    page,
-  }) => {
+  test('a client-level Library item has no comment thread, nor a team item', async ({ page }) => {
     api.libraryList = true;
     await page.goto('/pages');
     await page
@@ -353,15 +313,7 @@ test.describe('the member side', () => {
       .filter({ hasText: LIBRARY_CLIENT_TITLE })
       .click({ timeout: 60_000 });
     await expect(page.getByText('For the client.')).toBeVisible({ timeout: 30_000 });
-    const thread = page
-      .locator('section')
-      .filter({ has: page.getByRole('heading', { name: /^Comments/ }) });
-    await thread
-      .getByRole('textbox', { name: 'Write a comment' })
-      .fill('Sent to the client on Monday.');
-    await thread.getByRole('button', { name: 'Add comment' }).click();
-    await expect(thread).toContainText('Sent to the client on Monday.');
-    expect(api.libraryComments.map((c) => c.body)).toEqual(['Sent to the client on Monday.']);
+    await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
 
     await page.getByRole('treeitem').filter({ hasText: LIBRARY_TITLE }).click();
     await expect(page.getByText('Read me.')).toBeVisible({ timeout: 30_000 });

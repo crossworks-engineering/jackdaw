@@ -8,7 +8,6 @@ import {
   Check,
   CircleCheck,
   ListTodo,
-  MessageSquare,
   Plus,
   RotateCcw,
   Search,
@@ -177,12 +176,12 @@ export function TasksClient() {
     setTasks([...extra, ...base]);
   }, [showTree, openTaskQuery.data, activeQuery.data, selectedTaskQuery.data]);
 
-  // Live repaint: another tab, an agent, or a team member touching tasks or
-  // comments shows up without a manual reload (events-client precedent).
-  // Trailing debounce: a burst of notifies (bulk edit, extractor sweep, a
-  // comment exchange) collapses into one refetch instead of one per frame.
+  // Live repaint: another tab, an agent, or a team member touching tasks
+  // shows up without a manual reload (events-client precedent). Trailing
+  // debounce: a burst of notifies (bulk edit, extractor sweep) collapses into
+  // one refetch instead of one per frame.
   const invalidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useRealtime(['task', 'comment'], () => {
+  useRealtime(['task'], () => {
     if (invalidateTimer.current) clearTimeout(invalidateTimer.current);
     invalidateTimer.current = setTimeout(() => {
       invalidateTimer.current = null;
@@ -714,8 +713,7 @@ export function TasksClient() {
                           )}
                           {(t.status === 'in_progress' ||
                             t.status === 'blocked' ||
-                            t.todos.length > 0 ||
-                            t.commentCount > 0) && (
+                            t.todos.length > 0) && (
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               {(t.status === 'in_progress' || t.status === 'blocked') && (
                                 <span>{STATUS_LABEL[t.status]}</span>
@@ -723,12 +721,6 @@ export function TasksClient() {
                               {t.todos.length > 0 && (
                                 <span className="tabular-nums">
                                   {todosDone}/{t.todos.length} steps
-                                </span>
-                              )}
-                              {t.commentCount > 0 && (
-                                <span className="inline-flex items-center gap-1 tabular-nums">
-                                  <MessageSquare className="size-3" />
-                                  {t.commentCount}
                                 </span>
                               )}
                             </div>

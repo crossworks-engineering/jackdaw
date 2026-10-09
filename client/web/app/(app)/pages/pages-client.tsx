@@ -12,7 +12,6 @@ import {
 import Link from 'next/link';
 import { revealInFolds } from '@mantle/share-ui/heading-fold-dom';
 import { AudienceBadge } from '@/components/share/audience-badge';
-import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/react';
@@ -1369,8 +1368,6 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               case. The "Draft · uncommitted" badge beside the title is what
               says so. */}
           <AccessControl nodeId={row.id} />
-          {/* At Client level: the thread clients read (audit U2). */}
-          <OwnerClientThread nodeId={row.id} type="page" audience={row.audience} />
           {/* This header survives focus mode (the shell's chrome doesn't), so
               the toggle here is the whole control, enter and exit. */}
           <FocusToggle />

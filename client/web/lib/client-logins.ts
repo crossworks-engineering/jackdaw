@@ -91,7 +91,7 @@ export function openLinkAt(row: Pick<ClientLoginRow, 'openLink'>, now: number) {
 
 /** A row action that is confirmed first. `reissue`: Issue sign-in link while
  *  a link is still open (the new one revokes it). */
-export type ClientConfirmKind = 'reissue' | 'revoke' | 'end' | 'disable' | 'delete' | 'comments';
+export type ClientConfirmKind = 'reissue' | 'revoke' | 'end' | 'disable' | 'delete';
 
 /** What each confirm says. `openUntil`: the open link's expiry, formatted
  *  (reissue only). */
@@ -131,32 +131,23 @@ export function clientActionConfirm(
         body: 'They are signed out at once and cannot sign in, not even with a link, until you enable the login again.',
         action: 'Disable',
       };
-    case 'comments':
-      // Client logins C5 audit fix: an admin removes what one client wrote
-      // in every thread at once (DELETE /api/team-admin/clients/:id/comments).
-      return {
-        title: `Delete every comment ${name} wrote?`,
-        body:
-          'Their comments go from every thread on items shared with clients, and from the ' +
-          'review talk on what they submitted. The login stays. This cannot be undone.',
-        action: 'Delete comments',
-      };
     case 'delete':
       return {
         title: `Delete the client login for ${name}?`,
-        // The brain deletes the client's comments and its chat thread with
-        // the login (client tier audit I5); Disable keeps them.
+        // The brain deletes the client's chat thread (and any comments it
+        // wrote before comments were removed) with the login (client tier
+        // audit I5); Disable keeps them.
         body:
-          'The login and its sign-in links are removed, every session ends, and the comments ' +
-          'and chat thread this client wrote are deleted. To keep their history, disable the ' +
-          'login instead. This cannot be undone.',
+          'The login and its sign-in links are removed, every session ends, and the chat ' +
+          'thread this client wrote is deleted. To keep their history, disable the login ' +
+          'instead. This cannot be undone.',
         action: 'Delete',
       };
   }
 }
 
 /** What Settings > Logins says before it deletes a login: a client's words
- *  are Team admin > Clients' own (its comments and chat go with it), anyone
+ *  are Team admin > Clients' own (its chat goes with it), anyone
  *  else keeps everything they made. */
 export function loginDeleteText(user: {
   role: string;

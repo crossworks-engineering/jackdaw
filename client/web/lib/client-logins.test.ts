@@ -99,9 +99,11 @@ describe('rows', () => {
 describe('deleting a login (client tier audit I5)', () => {
   const row = { displayName: 'Pat', email: 'pat@example.invalid' };
 
-  it('a client: its comments and chat thread go with it, and Disable keeps them', () => {
+  it('a client: its chat thread goes with it, and Disable keeps it', () => {
     const text = loginDeleteText({ ...row, role: 'client' });
-    expect(text).toContain('comments and chat thread this client wrote are deleted');
+    expect(text).toContain('chat thread this client wrote is deleted');
+    // No comments to speak of any more (removed 2026-10-09).
+    expect(text).not.toMatch(/comment/i);
     expect(text).toContain('disable the login instead');
     expect(text).not.toContain('Nothing in the brain is removed');
   });

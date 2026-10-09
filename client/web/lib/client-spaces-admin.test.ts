@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientActionConfirm } from './client-logins';
 import {
-  CLIENT_COMMENTS_PATH,
-  clientCommentsPath,
-  commentItemHref,
-  commentRowLine,
-  deletedCommentsText,
   nearCap,
   refusalLine,
   refusalReasonLabel,
@@ -96,37 +90,5 @@ describe('client storage', () => {
     ]) {
       expect(refusalReasonLabel(reason)).not.toBe(reason);
     }
-  });
-});
-
-describe('client comments', () => {
-  it('asks the week, and deletes one client’s comments by id, encoded', () => {
-    expect(CLIENT_COMMENTS_PATH).toBe('/api/team-admin/clients/comments?days=7');
-    expect(clientCommentsPath('a/b')).toBe('/api/team-admin/clients/a%2Fb/comments');
-    expect(commentItemHref('n 1')).toBe('/n/n%201');
-  });
-
-  it('a row: how many, and the last by whom', () => {
-    const r = {
-      nodeId: 'n-1',
-      title: 'Design brief',
-      type: 'page',
-      lastCommentAt: '2026-09-29T10:00:00.000Z',
-      clientComments: 1,
-      lastClientName: 'Pat Client',
-    };
-    expect(commentRowLine(r)).toMatch(/^1 client comment · the last by Pat Client, /);
-    expect(commentRowLine({ ...r, clientComments: 3 })).toMatch(/^3 client comments · /);
-  });
-
-  it('confirms before deleting, and says how many went', () => {
-    const who = { displayName: 'Pat Client', email: 'pat@example.invalid' };
-    const c = clientActionConfirm('comments', who);
-    expect(c.title).toBe('Delete every comment Pat Client wrote?');
-    expect(c.body).toMatch(/cannot be undone/);
-    expect(c.action).toBe('Delete comments');
-    expect(deletedCommentsText(who, 3)).toBe('Deleted 3 comments by Pat Client.');
-    expect(deletedCommentsText(who, 1)).toBe('Deleted 1 comment by Pat Client.');
-    expect(deletedCommentsText(who, 0)).toBe('Pat Client had no comments to delete.');
   });
 });

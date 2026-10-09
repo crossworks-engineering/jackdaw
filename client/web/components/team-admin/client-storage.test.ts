@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ClientStorageUsage } from '@mantle/client-types';
 import { ClientStorageView } from './client-storage';
-import { ClientCommentsView } from './client-comments-card';
 
 /**
  * Team admin > Clients: the storage card (total against the limit, each
@@ -81,36 +80,5 @@ describe('ClientStorageView', () => {
       createElement(ClientStorageView, { usage: { ...usage, refusals: [] } }),
     );
     expect(html).not.toContain('Refused in the last 7 days');
-  });
-});
-
-describe('ClientCommentsView', () => {
-  it('lists each item with a link to it, and says who commented last', () => {
-    const html = renderToStaticMarkup(
-      createElement(ClientCommentsView, {
-        activity: {
-          rows: [
-            {
-              nodeId: '13131313-1313-4131-8131-131313131313',
-              title: 'Design brief',
-              type: 'page',
-              lastCommentAt: '2026-09-29T10:00:00.000Z',
-              clientComments: 2,
-              lastClientName: 'Pat Client',
-            },
-          ],
-        },
-      }),
-    );
-    expect(html).toContain('href="/n/13131313-1313-4131-8131-131313131313"');
-    expect(html).toContain('>Design brief<');
-    expect(html).toContain('2 client comments · the last by Pat Client');
-  });
-
-  it('says so when no client commented this week', () => {
-    const html = renderToStaticMarkup(
-      createElement(ClientCommentsView, { activity: { rows: [] } }),
-    );
-    expect(html).toContain('No client has commented in the last 7 days.');
   });
 });

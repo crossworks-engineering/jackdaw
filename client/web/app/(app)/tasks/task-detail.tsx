@@ -27,12 +27,11 @@ import {
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { TagPill } from '@mantle/web-ui/tag-pill';
-import { NO_IMAGES } from '@mantle/web-ui/comment-thread';
+import { NO_IMAGES } from '@mantle/web-ui/no-images';
 import { AccessControl } from '@/components/share/access-control';
 import { TaskForm, taskToForm, type TaskPayload } from './task-form';
 import { PRIORITY_BADGE, STATUSES, STATUS_BADGE, STATUS_LABEL, type Status } from './task-meta';
 import { TaskTodos } from './task-todos';
-import { TaskComments } from './task-comments';
 import type { TaskRow as WireTaskRow, TaskTodo } from '@mantle/client-types';
 
 // Wire shape is the GET /api/tasks mapper's output — single source of truth.
@@ -104,7 +103,7 @@ export function TaskDetail({
   return (
     // Fills the panel, like the composer: the divider sets the reading width,
     // so reading a task and editing it occupy the same column. No card wrapper
-    // here, unlike the composer — the body, checklist and comments below are
+    // here, unlike the composer — the body and checklist below are
     // already cards, and boxing them again just nests borders.
     <div className="p-6">
       <div className="space-y-4">
@@ -235,8 +234,6 @@ export function TaskDetail({
         {task.summary && (
           <p className="text-xs italic text-muted-foreground">Indexed: {task.summary}</p>
         )}
-
-        <TaskComments taskId={task.id} />
 
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <AlertDialogContent>

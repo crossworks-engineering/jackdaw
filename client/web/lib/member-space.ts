@@ -25,7 +25,6 @@ import type {
   MemberSpaceItemState,
   MemberSpaceList,
   MemberSpaceSharing,
-  NodeComment,
 } from '@mantle/client-types';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND } from './member-kinds';
 import { formatBytes } from './upload-progress';
@@ -63,7 +62,6 @@ type Doc = Record<string, unknown>;
 export type SpaceItemBody = MemberSpaceItemBody<Doc, TableDetail>;
 export type SpaceItem = MemberSpaceItem<Doc, TableDetail>;
 export type SpaceList = MemberSpaceList;
-export type SpaceComment = NodeComment;
 
 /** The admin's private space (Take over, audit F07): each row names who
  *  wrote it when the admin took it over (`takenFrom`), else null. */
@@ -86,11 +84,8 @@ const REFUSAL_TEXT: Record<string, string> = {
   'with-admin':
     'An admin is working on this. You will see it again when it is accepted or given back.',
   'too-large': 'This holds too many items to move at once (more than 200).',
-  // Client logins C5 audit fixes: a client's day of comments, a full
-  // thread, and a request body over the brain's ceiling. The brain sends
-  // its own sentence with each; these read when it does not.
-  'comment-cap': 'You have written as many comments as you can today. Try again tomorrow.',
-  'thread-full': 'This thread is full: it takes no more comments.',
+  // A request body over the brain's ceiling (client logins C5 audit). The
+  // brain sends its own sentence; this reads when it does not.
   'body-too-large': 'This is too big to send in one go. Make it smaller, then try again.',
 };
 
@@ -151,8 +146,8 @@ export function unsavedBundleIds(err: unknown, ownId: string): string[] {
 
 /**
  * The sentence for a member-route refusal: the brain's own `error` when it
- * sent one (every state refusal does: quota, embed, frozen, comment-cap,
- * thread-full, too-large, body-too-large, …), else a sentence for its
+ * sent one (every state refusal does: quota, embed, frozen, too-large,
+ * body-too-large, …), else a sentence for its
  * `reason` (a bare 429 counts as rate-limit), else null so the caller keeps
  * its own fallback.
  */
@@ -427,15 +422,6 @@ export const memberSpace = {
     apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/share`, 'POST', { sharing }),
   submit: (id: string) => apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/submit`, 'POST'),
   recall: (id: string) => apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/recall`, 'POST'),
-  comments: (source: 'mine' | 'team', id: string) =>
-    apiFetch<{ comments: SpaceComment[] }>(`${itemBase(source, id)}/comments`),
-  addComment: (source: 'mine' | 'team', id: string, body: string) =>
-    apiSend<{ comment: SpaceComment }>(`${itemBase(source, id)}/comments`, 'POST', { body }),
-  deleteComment: (source: 'mine' | 'team', id: string, commentId: string) =>
-    apiSend<{ ok: true }>(
-      `${itemBase(source, id)}/comments/${encodeURIComponent(commentId)}`,
-      'DELETE',
-    ),
 };
 
 /**
@@ -489,19 +475,6 @@ export function reviewClient(client: Pick<SpaceClient, 'base'>): {
   recall: (id: string) => Promise<{ item: SpaceItemRow }>;
 } {
   return isClientSpace(client) ? clientSpace : memberSpace;
-}
-
-/** The discussion on an own item (or a teammate's) for the space an item
- *  view reads: a client's review talk on its own submitted item lives under
- *  /api/client/space/:id/comments, a member's under its own routes. */
-export function spaceCommentsPath(
-  client: Pick<SpaceClient, 'base'>,
-  source: 'mine' | 'team',
-  id: string,
-): string {
-  return isClientSpace(client)
-    ? `${ownItemPath(id, CLIENT_SPACE_BASE)}/comments`
-    : `${itemBase(source, id)}/comments`;
 }
 
 /**
@@ -635,11 +608,6 @@ export function isEditable(row: Pick<SpaceItemRow, 'reviewState'>): boolean {
   return (
     row.reviewState === 'draft' || row.reviewState === 'returned' || row.reviewState === 'taken'
   );
-}
-
-/** Commenting is open on an own item while it is shared or submitted. */
-export function commentsOpen(row: Pick<SpaceItemRow, 'sharing' | 'reviewState'>): boolean {
-  return row.sharing === 'team' || row.reviewState === 'submitted';
 }
 
 /**

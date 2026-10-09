@@ -38,7 +38,6 @@ import {
   CLIENT_WITH_REVIEWER_TEXT,
   WITH_ADMIN_TEXT,
   adminSpace,
-  commentsOpen,
   frozenByOther,
   isAdminSpace,
   isClientSpace,
@@ -53,7 +52,6 @@ import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { CLIENT_REQUESTS_KEY } from '@/lib/client-requests';
 import { useSpaceApi } from './space-api';
-import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
 import { MemberDrawEditor } from './member-draw-editor';
 import { MemberTableEditor } from './member-table-editor';
@@ -566,8 +564,6 @@ function MineItemLoaded({
         ) : null}
 
         {editor}
-
-        {!admin && commentsOpen(row) ? <SpaceComments source="mine" id={row.id} /> : null}
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>

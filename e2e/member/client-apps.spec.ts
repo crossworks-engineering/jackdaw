@@ -12,8 +12,6 @@ import {
   CLIENT_NOTE_TITLE,
   MEMBER_INFO_APP_ID,
   MEMBER_INFO_APP_TITLE,
-  OWNER_THREAD_CLIENT_COMMENT,
-  OWNER_THREAD_TEAM_COMMENT,
   signInAsAdmin,
   signInAsMember,
   startMockMemberApi,
@@ -392,30 +390,13 @@ test.describe('an admin', () => {
     await expect(page.getByRole('switch', { name: LABEL })).toHaveCount(0);
   });
 
-  test('the client thread is read by scope: only the client thread', async ({ page }) => {
-    await page.goto(`/notes?selected=${CLIENT_NOTE_ID}`);
-    await expect(page.getByRole('heading', { name: CLIENT_NOTE_TITLE })).toBeVisible({
-      timeout: 60_000,
-    });
-    await page.getByRole('button', { name: 'Client comments (1)' }).click();
-    const sheet = page.getByRole('dialog', { name: 'Client comments' });
-    await expect(sheet).toContainText(OWNER_THREAD_CLIENT_COMMENT);
-    await expect(sheet).not.toContainText(OWNER_THREAD_TEAM_COMMENT);
-    expect(api.admin.nodeCommentScopes.length).toBeGreaterThan(0);
-    expect(new Set(api.admin.nodeCommentScopes)).toEqual(new Set(['client']));
-  });
-
-  test('a brain before C6 ignores the scope: the panel shows what it did before', async ({
+  test('a client-level note has no Client comments button (comments are gone)', async ({
     page,
   }) => {
-    api.admin.threadScopes = false;
     await page.goto(`/notes?selected=${CLIENT_NOTE_ID}`);
     await expect(page.getByRole('heading', { name: CLIENT_NOTE_TITLE })).toBeVisible({
       timeout: 60_000,
     });
-    await page.getByRole('button', { name: 'Client comments (2)' }).click();
-    const sheet = page.getByRole('dialog', { name: 'Client comments' });
-    await expect(sheet).toContainText(OWNER_THREAD_CLIENT_COMMENT);
-    await expect(sheet).toContainText(OWNER_THREAD_TEAM_COMMENT);
+    await expect(page.getByRole('button', { name: /Client comments/ })).toHaveCount(0);
   });
 });

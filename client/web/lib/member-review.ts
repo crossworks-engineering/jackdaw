@@ -30,7 +30,6 @@ import type {
 } from '@mantle/web-ui/types/tree';
 import {
   refusalReason,
-  type SpaceComment,
   type SpaceItemBody,
   type SpaceKind,
   type SpaceSharing,
@@ -65,7 +64,6 @@ export type ReviewQueue = {
 export type ReviewItem = {
   row: ReviewItemRow;
   body: SpaceItemBody;
-  comments: SpaceComment[];
 };
 
 export type BundleItem = { id: string; type: SpaceKind; title: string };
@@ -143,9 +141,6 @@ export function bundlePath(id: string, pick?: string | null): string {
 
 export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
 export const itemKey = (id: string) => ['team-admin', 'submissions', id] as const;
-/** The review talk's pages: under the item's key, so a refresh of the item
- *  refreshes its talk too. */
-export const commentsKey = (id: string) => [...itemKey(id), 'comments'] as const;
 
 export const memberReview = {
   queue: () => apiFetch<ReviewQueue>('/api/team-admin/submissions'),
@@ -153,12 +148,6 @@ export const memberReview = {
   /** `pick` (folder plan phase 5): the place worked out for the folder the
    *  admin picked (null = the top level) instead of where it was filed. */
   bundle: (id: string, pick?: string | null) => apiFetch<Bundle>(bundlePath(id, pick)),
-  /** The review talk, a page at a time (use-thread-pages.ts). */
-  commentsPath: (id: string) => `${base(id)}/comments`,
-  addComment: (id: string, body: string) =>
-    apiSend<{ comment: SpaceComment }>(`${base(id)}/comments`, 'POST', { body }),
-  deleteComment: (id: string, commentId: string) =>
-    apiSend(`${base(id)}/comments/${encodeURIComponent(commentId)}`, 'DELETE'),
   accept: (id: string, input: AcceptInput) =>
     apiSend<AcceptResult>(`${base(id)}/accept`, 'POST', input),
   /** Back to its author. No note of the admin's (review flows carry no
@@ -185,12 +174,6 @@ export function canTakeOver(row: Pick<ReviewItemRow, 'reviewState'>): boolean {
  *  back to the queue with what was taken with it. */
 export function isReleased(row: Pick<ReviewItemRow, 'reviewState'>): boolean {
   return row.reviewState === 'taken';
-}
-
-/** Review comments are open while the item waits as submitted; not on a
- *  released item (the brain answers 409 `not-submitted`). */
-export function reviewCommentsOpen(row: Pick<ReviewItemRow, 'reason' | 'reviewState'>): boolean {
-  return row.reason === 'submitted' && row.reviewState === 'submitted';
 }
 
 /** The sentence for a refused Take over. */

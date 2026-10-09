@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Ban, CheckSquare, Flag, MessageSquare } from 'lucide-react';
+import { Ban, CheckSquare, Flag } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ListCard, ListCardTags } from '@mantle/web-ui/ui/list-card';
 import { TagPill } from '@mantle/web-ui/tag-pill';
@@ -80,7 +80,6 @@ function BoardCard({
         </p>
         {(task.dueAt ||
           task.todos.length > 0 ||
-          task.commentCount > 0 ||
           task.priority === 'high' ||
           task.status === 'blocked') && (
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -110,12 +109,6 @@ function BoardCard({
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <CheckSquare className="size-3" />
                 {todosDone}/{task.todos.length}
-              </span>
-            )}
-            {task.commentCount > 0 && (
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <MessageSquare className="size-3" />
-                {task.commentCount}
               </span>
             )}
           </div>

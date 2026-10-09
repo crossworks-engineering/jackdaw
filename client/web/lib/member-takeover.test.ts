@@ -20,13 +20,7 @@ import {
   type SpaceItemState,
   type SpaceSource,
 } from './member-space';
-import {
-  canTakeOver,
-  isReleased,
-  memberReview,
-  reviewCommentsOpen,
-  takeOverErrorMessage,
-} from './member-review';
+import { canTakeOver, isReleased, memberReview, takeOverErrorMessage } from './member-review';
 import {
   canDeletePrivate,
   canGiveBack,
@@ -184,12 +178,9 @@ describe('the Review queue side', () => {
     expect(canTakeOver(row('draft', 'left-behind'))).toBe(false);
   });
 
-  it('marks a released item, and keeps its review comments shut', () => {
+  it('marks a released item', () => {
     expect(isReleased(row('taken'))).toBe(true);
     expect(isReleased(row('submitted'))).toBe(false);
-    expect(reviewCommentsOpen(row('submitted'))).toBe(true);
-    expect(reviewCommentsOpen(row('taken'))).toBe(false);
-    expect(reviewCommentsOpen(row('submitted', 'left-behind'))).toBe(false);
   });
 
   it('says why a Take over was refused', () => {

@@ -1,8 +1,8 @@
 /**
  * A client's own items (client logins C5), the pure half: My requests (the
  * client's second screen, beside "Shared with you"), its URL state, the
- * client's upload cap, and the comment threads a client and a member read on
- * an item at client level. The item view itself is the member's (MineItem
+ * client's upload cap. (No comment threads: the brain has no comments since
+ * 2026-10-09.) The item view itself is the member's (MineItem
  * under `clientSpace`, lib/member-space.ts).
  *
  * Every route here is new with C5: an older brain answers 404, which reads
@@ -20,7 +20,7 @@ import {
   type ClientItemFilter,
   type ClientItemKind,
 } from '@mantle/client-types/member-kinds';
-import type { ClientItemRow, NodeCommentAuthorKind } from '@mantle/client-types';
+import type { ClientItemRow } from '@mantle/client-types';
 import { CLIENT_MAX_UPLOAD_BYTES, CLIENT_SPACE_BASE, memberUploadRefusal } from './member-space';
 import { MEMBER_KIND } from './member-kinds';
 
@@ -195,53 +195,6 @@ export function forgetMissingRoutes(): void {
 
 /** What My requests shows on a brain before C5. */
 export const CLIENT_REQUESTS_UNAVAILABLE = 'My requests is not available here yet.';
-
-// ── Comment threads on items at client level (decision 8) ───────────────────
-
-/** Every thread a client or a member reads on a client-level item. */
-export const CLIENT_COMMENTS_KEY = ['client-comments'] as const;
-
-/** A client has no live stream, and a member's stream does not carry these
- *  threads: an open thread is asked again this often, and on focus. */
-export const CLIENT_COMMENTS_POLL_MS = 30_000;
-
-/** The poll, stopped for a thread the brain does not have (404). */
-export function commentsPollMs(error: unknown): number | false {
-  return isMissingRoute(error) ? false : CLIENT_COMMENTS_POLL_MS;
-}
-
-/** The thread on an item shared with clients, as a client reads it. */
-export function sharedCommentsPath(id: string): string {
-  return `${CLIENT_SPACE_BASE}/shared/${encodeURIComponent(id)}/comments`;
-}
-
-/** The same thread, as a member reads it on a client-level Library item. */
-export function libraryCommentsPath(id: string): string {
-  return `/api/member/library/${encodeURIComponent(id)}/comments`;
-}
-
-/** One comment of a thread, for its delete. */
-export function commentPath(threadPath: string, commentId: string): string {
-  return `${threadPath}/${encodeURIComponent(commentId)}`;
-}
-
-/**
- * The chip beside a comment's author, per reader. A client sees the team's
- * comments marked (the names are people it may not know); a member sees a
- * client's comments marked. The reader's own side wears none.
- */
-export const CLIENT_THREAD_CHIPS: Record<NodeCommentAuthorKind, string | null> = {
-  owner: 'Team',
-  member: 'Team',
-  agent: null,
-  client: null,
-};
-export const MEMBER_THREAD_CHIPS: Record<NodeCommentAuthorKind, string | null> = {
-  owner: null,
-  member: null,
-  agent: null,
-  client: 'Client',
-};
 
 // ── A client's submitted items, on the member side ──────────────────────────
 

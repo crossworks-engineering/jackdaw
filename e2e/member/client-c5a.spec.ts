@@ -5,47 +5,36 @@ import {
   CLIENT_ACCEPTED_ID,
   CLIENT_DRAFT_ID,
   CLIENT_DRAFT_TITLE,
-  CLIENT_DRAW_COMMENT,
-  CLIENT_DRAW_ID,
   CLIENT_EMAIL,
   CLIENT_HELD_ID,
   CLIENT_HELD_TITLE,
   CLIENT_LOGIN_ID,
   CLIENT_NAME,
-  CLIENT_NOTE_ID,
-  CLIENT_NOTE_TITLE,
   CLIENT_REQUEST_ID,
   CLIENT_REQUEST_TEXT,
   CLIENT_RETURNED_ID,
   CLIENT_SUBMITTED_ID,
   CLIENT_SUBMITTED_TITLE,
-  LIBRARY_CLIENT_ID,
-  OWNER_THREAD_CLIENT_COMMENT,
   SHARED_FILE_ID,
   SHARED_NOTE_ID,
   SHARED_PAGE_ID,
   SHARED_PAGE_TITLE,
-  SHARED_TEAM_COMMENT,
-  STAFF_NAME,
   signInAsAdmin,
   serveSameOrigin,
   signInAsMember,
   startMockMemberApi,
-  type MockComment,
   type MockMemberApi,
 } from './mock-member-api';
 
 /**
  * The client logins C5 audit fixes, against the in-memory API (no brain):
  * a client's screens name no staff role (U3), an older brain is asked once
- * (U4, with the clock moved on and a focus), a comment loads no image (U5),
- * a member's client request names its writer (U6), a crafted id stays one
- * path segment (U8), Back after a search restores the list (U9), the
- * thread's delete shows on touch and its composer has a name (U10), paged
- * threads with Load older, the brain's sentence for a comment cap, and the
- * missing behaviour tests (U12). The admin side: the client thread on the
- * owner's own item view (U2), and Team admin > Clients' client comments and
- * storage cards, each left out on an older brain.
+ * (U4, with the clock moved on and a focus), a member's client request
+ * names its writer (U6), a crafted id stays one path segment (U8), Back
+ * after a search restores the list (U9), and the missing behaviour tests
+ * (U12). The admin side: Team admin > Clients' storage card, left out on an
+ * older brain. (The comment threads and their cases are gone with comments,
+ * 2026-10-09.)
  */
 let api: MockMemberApi;
 test.afterEach(async () => {
@@ -62,10 +51,6 @@ async function signInAsClient(context: BrowserContext, baseURL: string) {
 const requests = (page: Page) => page.getByRole('list', { name: 'My requests' });
 const card = (page: Page, title: string) =>
   requests(page).locator('[data-item-id]').filter({ hasText: title });
-const toast = (page: Page, text: string | RegExp) =>
-  page.locator('[role="status"], [role="alert"]').filter({ hasText: text }).first();
-const threadOf = (page: Page) =>
-  page.locator('section').filter({ has: page.getByRole('heading', { name: /^Comments/ }) });
 
 /** A focus back on the tab, as TanStack Query hears it: v5 listens for
  *  `visibilitychange` on the window only (focusManager). */
@@ -86,19 +71,6 @@ const readable = (page: Page) =>
     );
     return [words, ...attrs].join('\n');
   });
-
-const comment = (id: string, body: string, createdAt: string, over: Partial<MockComment> = {}) =>
-  ({
-    id,
-    nodeId: SHARED_PAGE_ID,
-    authorKind: 'member',
-    authorName: STAFF_NAME,
-    mine: false,
-    body,
-    createdAt,
-    editedAt: null,
-    ...over,
-  }) satisfies MockComment;
 
 test.describe('a client’s screens', () => {
   test.beforeEach(async ({ baseURL, context }) => {
@@ -419,87 +391,6 @@ test.describe('a client’s screens', () => {
     expect(api.clientOwn.itemsPages).toContain(2);
   });
 
-  test('the thread pages: the newest first, Load older asks the page before (paged threads)', async ({
-    page,
-  }) => {
-    api.threadPageSize = 2;
-    api.clientOwn.shared[SHARED_PAGE_ID] = [
-      comment('c-old', 'The oldest word.', '2026-09-01T08:00:00.000Z'),
-      comment('c-mid', 'A middle word.', '2026-09-02T08:00:00.000Z'),
-      comment('c-new', SHARED_TEAM_COMMENT, '2026-09-03T08:00:00.000Z'),
-    ];
-    await page.goto(`/?id=${SHARED_PAGE_ID}`);
-    const thread = threadOf(page);
-    await expect(thread).toContainText(SHARED_TEAM_COMMENT, { timeout: 60_000 });
-    await expect(thread).toContainText('A middle word.');
-    await expect(thread).not.toContainText('The oldest word.');
-    await expect(thread.getByRole('heading')).toHaveText('Comments(2+)');
-    await thread.getByRole('button', { name: 'Load older' }).click();
-    await expect(thread).toContainText('The oldest word.');
-    await expect(thread.getByRole('button', { name: 'Load older' })).toHaveCount(0);
-    expect(
-      api.clientRouteCalls.some((c) =>
-        c.startsWith(`GET /api/client/shared/${SHARED_PAGE_ID}/comments`),
-      ),
-    ).toBe(true);
-  });
-
-  test('a comment over the day’s cap: the brain’s sentence, and the words kept', async ({
-    page,
-  }) => {
-    const sentence = 'You have written 100 comments today. You can write again tomorrow.';
-    api.clientOwn.commentRefusal = {
-      status: 429,
-      body: { reason: 'comment-cap', error: sentence },
-    };
-    await page.goto(`/?id=${SHARED_PAGE_ID}`);
-    const thread = threadOf(page);
-    await expect(thread).toContainText(SHARED_TEAM_COMMENT, { timeout: 60_000 });
-    const box = thread.getByRole('textbox', { name: 'Write a comment' });
-    await box.fill('One more thing.');
-    await thread.getByRole('button', { name: 'Add comment' }).click();
-    await expect(toast(page, sentence)).toBeVisible();
-    await expect(box).toHaveValue('One more thing.');
-  });
-
-  test('a comment loads no image from anywhere (U5)', async ({ page }) => {
-    const fetched: string[] = [];
-    page.on('request', (r) => {
-      if (r.url().includes('pixel.png')) fetched.push(r.url());
-    });
-    api.clientOwn.shared[SHARED_PAGE_ID] = [
-      comment(
-        'c-px',
-        'Seen ![tracker](http://127.0.0.1:3912/pixel.png?who=you)',
-        '2026-09-01T08:00:00.000Z',
-      ),
-    ];
-    await page.goto(`/?id=${SHARED_PAGE_ID}`);
-    const thread = threadOf(page);
-    await expect(thread).toContainText('[tracker]', { timeout: 60_000 });
-    await expect(thread.locator('img')).toHaveCount(0);
-    await page.waitForTimeout(500);
-    expect(fetched).toEqual([]);
-  });
-
-  test('the open thread is asked again every 30 seconds (U12)', async ({ page }) => {
-    await page.clock.install();
-    await page.goto(`/?id=${SHARED_PAGE_ID}`);
-    const thread = threadOf(page);
-    await expect(thread).toContainText(SHARED_TEAM_COMMENT, { timeout: 60_000 });
-    const asks = () =>
-      api.clientRouteCalls.filter((c) =>
-        c.startsWith(`GET /api/client/shared/${SHARED_PAGE_ID}/comments`),
-      ).length;
-    const before = asks();
-    api.clientOwn.shared[SHARED_PAGE_ID]!.push(
-      comment('c-later', 'Posted from another browser.', new Date().toISOString()),
-    );
-    await page.clock.runFor(31_000);
-    await expect(thread).toContainText('Posted from another browser.', { timeout: 15_000 });
-    expect(asks()).toBeGreaterThan(before);
-  });
-
   test('on a brain before C5: each route asked once, after a poll’s time and a focus (U4)', async ({
     page,
   }) => {
@@ -521,21 +412,6 @@ test.describe('a client’s screens', () => {
     expect(
       api.clientRouteCalls.filter((c) => c === 'GET /api/client/shell').length,
     ).toBeGreaterThan(1);
-
-    // The thread on a shared item: asked once, not polled, not on focus.
-    await page.goto(`/?id=${SHARED_PAGE_ID}`);
-    await expect(page.locator('.ProseMirror')).toContainText('The brief.', { timeout: 30_000 });
-    await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
-    const threadAsks = () =>
-      api.clientRouteCalls.filter((c) => c === `GET /api/client/shared/${SHARED_PAGE_ID}/comments`)
-        .length;
-    await expect.poll(threadAsks).toBe(1);
-    await page.clock.runFor(65_000);
-    await refocus(page);
-    await page.clock.runFor(2_000);
-    await page.waitForTimeout(500);
-    expect(threadAsks()).toBe(1);
-    await expect(page.getByText('Could not load')).toHaveCount(0);
   });
 });
 
@@ -578,25 +454,6 @@ test.describe('a client on a phone', () => {
     });
     expect(await overflow()).toBe(0);
   });
-
-  test('the thread’s delete shows on touch, and the composer has a name (U10)', async ({
-    page,
-  }) => {
-    await page.goto(`/?id=${SHARED_PAGE_ID}`);
-    await expect(page.getByRole('heading', { name: SHARED_PAGE_TITLE })).toBeVisible({
-      timeout: 60_000,
-    });
-    const thread = threadOf(page);
-    await expect(thread).toContainText(SHARED_TEAM_COMMENT, { timeout: 30_000 });
-    await thread
-      .getByRole('textbox', { name: 'Write a comment', exact: true })
-      .fill('From the site.');
-    await thread.getByRole('button', { name: 'Add comment' }).click();
-    const del = thread.getByRole('button', { name: 'Delete comment' });
-    await expect(del).toHaveCount(1);
-    const opacity = await del.evaluate((el) => Number(getComputedStyle(el).opacity));
-    expect(opacity).toBeGreaterThan(0);
-  });
 });
 
 test.describe('a member', () => {
@@ -622,28 +479,6 @@ test.describe('a member', () => {
     await expect(page.getByText(CLIENT_REQUEST_TEXT)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(`Written by ${CLIENT_NAME}, Client.`)).toBeVisible();
   });
-
-  test('the Library thread on a brain before C5: nothing shown, asked once (U12)', async ({
-    page,
-  }) => {
-    api.libraryList = true;
-    api.libraryThread = false;
-    const asks: string[] = [];
-    page.on('request', (r) => {
-      if (r.url().includes(`/api/member/library/${LIBRARY_CLIENT_ID}/comments`)) asks.push(r.url());
-    });
-    await page.clock.install();
-    await page.goto(`/pages?src=library&id=${LIBRARY_CLIENT_ID}`);
-    await expect(page.getByText('For the client.')).toBeVisible({ timeout: 60_000 });
-    await expect.poll(() => asks.length).toBe(1);
-    await page.clock.runFor(65_000);
-    await refocus(page);
-    await page.clock.runFor(2_000);
-    await page.waitForTimeout(500);
-    expect(asks.length).toBe(1);
-    await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
-    await expect(page.getByText('Could not load the comments.')).toHaveCount(0);
-  });
 });
 
 test.describe('an admin', () => {
@@ -663,89 +498,6 @@ test.describe('an admin', () => {
     openLink: null,
     lastLinkUsedAt: null,
   };
-
-  test('reads a client’s comment on a client-level note, answers it, and deletes it (U2)', async ({
-    page,
-  }) => {
-    await page.goto(`/notes?selected=${CLIENT_NOTE_ID}`);
-    await expect(page.getByRole('heading', { name: CLIENT_NOTE_TITLE })).toBeVisible({
-      timeout: 60_000,
-    });
-    await page.getByRole('button', { name: 'Client comments (1)' }).click();
-    const sheet = page.getByRole('dialog', { name: 'Client comments' });
-    await expect(sheet).toContainText('Clients read this thread');
-    await expect(sheet).toContainText(OWNER_THREAD_CLIENT_COMMENT);
-    await expect(sheet).toContainText(CLIENT_NAME);
-    await expect(sheet.getByText('Client', { exact: true })).toBeVisible();
-
-    await sheet.getByRole('textbox', { name: 'Write a comment' }).fill('Thursday works.');
-    await sheet.getByRole('button', { name: 'Add comment' }).click();
-    await expect(sheet).toContainText('Thursday works.');
-    expect(api.admin.nodeComments[CLIENT_NOTE_ID]?.map((c) => c.body)).toEqual([
-      OWNER_THREAD_CLIENT_COMMENT,
-      'Thursday works.',
-    ]);
-
-    // The owner moderates: any comment may go.
-    const clientsComment = sheet.locator('li').filter({ hasText: OWNER_THREAD_CLIENT_COMMENT });
-    await clientsComment.getByRole('button', { name: 'Delete comment' }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
-    await expect(sheet).not.toContainText(OWNER_THREAD_CLIENT_COMMENT);
-    expect(api.admin.commentDeletes).toHaveLength(1);
-  });
-
-  test('reads a client’s comment on a client-level drawing, on the drawing itself (tier U1)', async ({
-    page,
-  }) => {
-    await page.goto(`/draw/${CLIENT_DRAW_ID}`);
-    await page.getByRole('button', { name: 'Client comments (1)' }).click({ timeout: 60_000 });
-    const sheet = page.getByRole('dialog', { name: 'Client comments' });
-    await expect(sheet).toContainText(CLIENT_DRAW_COMMENT);
-    await expect(sheet).toContainText(CLIENT_NAME);
-    await sheet.getByRole('textbox', { name: 'Write a comment' }).fill('Fixed in the next issue.');
-    await sheet.getByRole('button', { name: 'Add comment' }).click();
-    await expect(sheet).toContainText('Fixed in the next issue.');
-    expect(api.admin.nodeComments[CLIENT_DRAW_ID]?.map((c) => c.body)).toEqual([
-      CLIENT_DRAW_COMMENT,
-      'Fixed in the next issue.',
-    ]);
-  });
-
-  test('Clients: the client comments card links each item; a client’s comments go after a confirm', async ({
-    page,
-  }) => {
-    api.admin.clientLogins = [client];
-    api.admin.clientComments = {
-      rows: [
-        {
-          nodeId: CLIENT_NOTE_ID,
-          title: CLIENT_NOTE_TITLE,
-          type: 'note',
-          lastCommentAt: '2026-09-29T10:00:00.000Z',
-          clientComments: 2,
-          lastClientName: CLIENT_NAME,
-        },
-      ],
-    };
-    await page.goto('/team-admin?view=client-logins');
-    const cardEl = page.getByRole('region', { name: 'Client comments' });
-    await expect(cardEl).toContainText(`2 client comments · the last by ${CLIENT_NAME}`, {
-      timeout: 60_000,
-    });
-    await expect(cardEl.getByRole('link', { name: CLIENT_NOTE_TITLE })).toHaveAttribute(
-      'href',
-      `/n/${CLIENT_NOTE_ID}`,
-    );
-
-    await page.getByRole('button', { name: `More for ${CLIENT_NAME}` }).click();
-    await page.getByRole('menuitem', { name: "Delete this client's comments" }).click();
-    const dialog = page.getByRole('alertdialog');
-    await expect(dialog).toContainText(`Delete every comment ${CLIENT_NAME} wrote?`);
-    expect(api.admin.clientCommentDeletes).toEqual([]);
-    await dialog.getByRole('button', { name: 'Delete comments' }).click();
-    await expect(toast(page, `Deleted 3 comments by ${CLIENT_NAME}.`)).toBeVisible();
-    expect(api.admin.clientCommentDeletes).toEqual([CLIENT_LOGIN_ID]);
-  });
 
   test('Clients: the storage card says the total against the limit, each client, the refusals', async ({
     page,

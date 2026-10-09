@@ -4,13 +4,10 @@ import { ApiError } from '@mantle/web-ui/api-fetch';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import {
   CLIENT_ACCEPTED_KEY,
-  CLIENT_COMMENTS_POLL_MS,
   CLIENT_KIND_OPTIONS,
   CLIENT_REQUESTS_KEY,
   CLIENT_STATE_OPTIONS,
-  CLIENT_THREAD_CHIPS,
   CLIENT_VIEW_HREF,
-  MEMBER_THREAD_CHIPS,
   acceptedStamp,
   askUnlessMissing,
   forgetMissingRoutes,
@@ -25,11 +22,7 @@ import {
   clientStateOf,
   clientUploadRefusal,
   clientViewOf,
-  commentPath,
-  commentsPollMs,
   isMissingRoute,
-  libraryCommentsPath,
-  sharedCommentsPath,
 } from './client-requests';
 import { CLIENT_ITEM_FILTERS } from '@mantle/client-types/member-kinds';
 import {
@@ -38,9 +31,7 @@ import {
   isAdminSpace,
   isClientSpace,
   memberSpace,
-  adminSpace,
   reviewClient,
-  spaceCommentsPath,
 } from './member-space';
 import { CLIENT_OWN_ITEM_KEY, refreshClientPortal } from './client-portal';
 
@@ -178,15 +169,6 @@ describe('the client space', () => {
     expect(reviewClient(clientSpace)).toBe(clientSpace);
     expect(reviewClient(memberSpace)).toBe(memberSpace);
   });
-
-  it('keeps the review talk on the client route, a member’s on its own', () => {
-    expect(spaceCommentsPath(clientSpace, 'mine', ID)).toBe(`/api/client/space/${ID}/comments`);
-    expect(spaceCommentsPath(memberSpace, 'mine', ID)).toBe(`/api/member/space/${ID}/comments`);
-    expect(spaceCommentsPath(memberSpace, 'team', ID)).toBe(
-      `/api/member/team-drafts/${ID}/comments`,
-    );
-    expect(spaceCommentsPath(adminSpace, 'mine', ID)).toBe(`/api/member/space/${ID}/comments`);
-  });
 });
 
 describe('older brains', () => {
@@ -196,31 +178,6 @@ describe('older brains', () => {
     expect(isMissingRoute(new ApiError('forbidden', 403))).toBe(false);
     expect(isMissingRoute(new Error('offline'))).toBe(false);
     expect(isMissingRoute(null)).toBe(false);
-  });
-
-  it('polls a thread every 30 seconds, and stops for one the brain does not have', () => {
-    expect(CLIENT_COMMENTS_POLL_MS).toBe(30_000);
-    expect(commentsPollMs(null)).toBe(30_000);
-    expect(commentsPollMs(new ApiError('boom', 500))).toBe(30_000);
-    expect(commentsPollMs(new ApiError('Not found', 404))).toBe(false);
-  });
-});
-
-describe('the thread on a client-level item (decision 8)', () => {
-  it('has a client route and a member route to the same thread', () => {
-    expect(sharedCommentsPath(ID)).toBe(`/api/client/shared/${ID}/comments`);
-    expect(libraryCommentsPath(ID)).toBe(`/api/member/library/${ID}/comments`);
-    expect(commentPath(sharedCommentsPath(ID), 'c 1')).toBe(
-      `/api/client/shared/${ID}/comments/c%201`,
-    );
-  });
-
-  it('marks the other side: a client sees Team, a member sees Client', () => {
-    expect(CLIENT_THREAD_CHIPS.client).toBeNull();
-    expect(CLIENT_THREAD_CHIPS.member).toBe('Team');
-    expect(CLIENT_THREAD_CHIPS.owner).toBe('Team');
-    expect(MEMBER_THREAD_CHIPS.client).toBe('Client');
-    expect(MEMBER_THREAD_CHIPS.member).toBeNull();
   });
 });
 

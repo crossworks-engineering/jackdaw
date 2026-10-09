@@ -115,7 +115,6 @@ function useSpaceEvents() {
       () => {
         void qcRef.current.invalidateQueries({ queryKey: ['member-space-list'] });
         void qcRef.current.invalidateQueries({ queryKey: ['member-space-item'] });
-        void qcRef.current.invalidateQueries({ queryKey: ['member-space-comments'] });
         // The member's tree shows its drafts' states too (folder plan phase 5).
         void qcRef.current.invalidateQueries({ queryKey: ['tree'] });
       },

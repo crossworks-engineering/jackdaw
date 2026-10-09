@@ -7,8 +7,6 @@ import {
   clientSpace,
   itemBase,
   ownItemPath,
-  spaceCommentsPath,
-  commentsOpen,
   isEditable,
   memberUploadRefusal,
   memberItemHref,
@@ -70,10 +68,8 @@ describe('refusalMessage', () => {
     );
   });
 
-  it("shows the brain's sentence for the C5a refusals: comment-cap, thread-full, too-large, body-too-large", () => {
+  it("shows the brain's sentence for the C5a refusals: too-large, body-too-large", () => {
     const cases: [number, string, string][] = [
-      [429, 'comment-cap', 'You have posted 100 comments today. Try again tomorrow.'],
-      [409, 'thread-full', 'This thread holds 1000 comments. It takes no more.'],
       [400, 'too-large', 'This page is over 500 KB. Split it into two pages.'],
       [413, 'body-too-large', 'That request is over 8 MB.'],
     ];
@@ -83,12 +79,6 @@ describe('refusalMessage', () => {
   });
 
   it('reads the C5a refusals when the brain sent no sentence', () => {
-    expect(refusalMessage(new ApiError('429', 429, { reason: 'comment-cap' }))).toMatch(
-      /as many comments as you can today/,
-    );
-    expect(refusalMessage(new ApiError('409', 409, { reason: 'thread-full' }))).toMatch(
-      /thread is full/,
-    );
     expect(refusalMessage(new ApiError('413', 413, { reason: 'body-too-large' }))).toMatch(
       /too big to send/,
     );
@@ -292,16 +282,6 @@ describe('isEditable', () => {
   });
 });
 
-describe('commentsOpen', () => {
-  it('opens the thread while an own item is shared or submitted', () => {
-    expect(commentsOpen({ sharing: 'team', reviewState: 'draft' })).toBe(true);
-    // A private item under review carries the review discussion.
-    expect(commentsOpen({ sharing: 'private', reviewState: 'submitted' })).toBe(true);
-    expect(commentsOpen({ sharing: 'private', reviewState: 'draft' })).toBe(false);
-    expect(commentsOpen({ sharing: 'private', reviewState: 'returned' })).toBe(false);
-  });
-});
-
 describe('accepted items (Phase 4)', () => {
   it('lists and reads from the accepted routes', () => {
     expect(listPath('accepted', { kind: 'page', q: ' plan ', page: 2 })).toBe(
@@ -341,11 +321,8 @@ describe('ids in route paths', () => {
     expect(clientSpace.bytesPath(crafted)).toBe('/api/client/space/..%2Fchat/bytes');
   });
 
-  it('encodes a teammate’s draft, its thread and its bytes', () => {
+  it('encodes a teammate’s draft and its bytes', () => {
     expect(itemBase('team', crafted)).toBe('/api/member/team-drafts/..%2Fchat');
-    expect(spaceCommentsPath(clientSpace, 'mine', crafted)).toBe(
-      '/api/client/space/..%2Fchat/comments',
-    );
     expect(bytesPath('team', crafted)).toBe('/api/member/team-drafts/..%2Fchat/bytes');
   });
 });

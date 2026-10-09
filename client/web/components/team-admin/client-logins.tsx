@@ -76,12 +76,6 @@ import {
   openLinkAt,
 } from '../../lib/client-logins';
 import { clientEmailError } from '../../lib/client-portal';
-import {
-  CLIENT_COMMENTS_ADMIN_KEY,
-  clientCommentsPath,
-  deletedCommentsText,
-} from '../../lib/client-spaces-admin';
-import type { ClientCommentsDeleted } from '@mantle/client-types';
 import type {
   ClientLoginCreated,
   ClientLoginList,
@@ -90,7 +84,6 @@ import type {
 } from '@mantle/client-types';
 import { signLoginOutEverywhere } from '../../lib/sign-out-everywhere';
 import { ClientChatUsagePanel } from './client-chat-usage';
-import { ClientCommentsPanel, useClientComments } from './client-comments-card';
 import { ClientStoragePanel } from './client-storage';
 import { ClientSigninSenderPanel } from './client-signin-sender';
 
@@ -110,8 +103,7 @@ type RowAction =
   | { kind: 'revoke'; row: ClientLoginRow }
   | { kind: 'end'; row: ClientLoginRow }
   | { kind: 'disable'; row: ClientLoginRow }
-  | { kind: 'delete'; row: ClientLoginRow }
-  | { kind: 'comments'; row: ClientLoginRow };
+  | { kind: 'delete'; row: ClientLoginRow };
 
 export type ClientRowHandlers = {
   onIssue: (row: ClientLoginRow) => void;
@@ -137,9 +129,6 @@ export function ClientLoginsPanel() {
   const [action, setAction] = useState<RowAction | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = () => queryClient.invalidateQueries({ queryKey: CLIENT_LOGINS_KEY });
-  // The week's client comments: the card, and whether this brain can delete
-  // one client's comments (the same release; a 404 is an older brain).
-  const comments = useClientComments();
 
   const issue = async (row: ClientLoginRow) => {
     setIssuing(row.id);
@@ -192,13 +181,6 @@ export function ClientLoginsPanel() {
         toast.success(`Signed ${clientName(row)} out everywhere`);
       } else if (action.kind === 'disable') {
         await setDisabled(row, true);
-      } else if (action.kind === 'comments') {
-        const { deleted } = await apiSend<ClientCommentsDeleted>(
-          clientCommentsPath(row.id),
-          'DELETE',
-        );
-        toast.success(deletedCommentsText(row, deleted));
-        void queryClient.invalidateQueries({ queryKey: CLIENT_COMMENTS_ADMIN_KEY });
       } else {
         await apiSend(`/api/users/${encodeURIComponent(row.id)}`, 'DELETE');
         toast.success('Client login deleted');
@@ -263,10 +245,8 @@ export function ClientLoginsPanel() {
             onIssue={askIssue}
             onAction={setAction}
             onEnable={(row) => void enable(row)}
-            commentsDeletable={comments.isSuccess}
           />
           <ClientChatUsagePanel clients={q.data.clients} />
-          {q.data.clients.length > 0 ? <ClientCommentsPanel /> : null}
           {/* Always: a deleted client's space still counts until it is purged. */}
           <ClientStoragePanel />
         </>
@@ -309,14 +289,11 @@ export function ClientLoginsView({
   onIssue,
   onAction,
   onEnable,
-  commentsDeletable = false,
 }: {
   list: ClientLoginList;
   now: number;
   issuing?: string | null;
   onAdd: () => void;
-  /** The brain can delete one client's comments (the C5 audit fixes). */
-  commentsDeletable?: boolean;
 } & ClientRowHandlers) {
   const blocked = clientActionsBlocked(list);
   return (
@@ -353,7 +330,6 @@ export function ClientLoginsView({
               now={now}
               blocked={blocked}
               issuing={issuing === row.id}
-              commentsDeletable={commentsDeletable}
               onIssue={onIssue}
               onAction={onAction}
               onEnable={onEnable}
@@ -370,7 +346,6 @@ function ClientRow({
   now,
   blocked,
   issuing,
-  commentsDeletable,
   onIssue,
   onAction,
   onEnable,
@@ -379,7 +354,6 @@ function ClientRow({
   now: number;
   blocked: boolean;
   issuing: boolean;
-  commentsDeletable: boolean;
 } & ClientRowHandlers) {
   const name = clientName(row);
   const link = openLinkAt(row, now);
@@ -445,14 +419,6 @@ function ClientRow({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            {commentsDeletable ? (
-              <DropdownMenuItem
-                className="text-destructive-ink focus:text-destructive-ink"
-                onSelect={() => onAction({ kind: 'comments', row })}
-              >
-                Delete this client&apos;s comments
-              </DropdownMenuItem>
-            ) : null}
             <DropdownMenuItem
               className="text-destructive-ink focus:text-destructive-ink"
               onSelect={() => onAction({ kind: 'delete', row })}

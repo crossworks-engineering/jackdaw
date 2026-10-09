@@ -447,8 +447,8 @@ arrangement) — do not hand-roll the string.
   feature. The fill is translucent (70, the idle `ListCard` alpha) so the
   workspace's Neat backdrop reads through the shell like every other surface.
 - The read view takes the card treatment only if its content is _not_ already
-  cards. Tasks does not box it, because the body, checklist and comments are
-  cards already and a wrapper would nest borders three deep.
+  cards. Tasks does not box it, because the body and checklist are cards
+  already and a wrapper would nest borders three deep.
 
 ### 6d. Text boxes
 

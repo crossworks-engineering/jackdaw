@@ -5,7 +5,6 @@ import { X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { memberSpace } from '@/lib/member-space';
-import { SpaceComments } from './space-comments';
 import { SpaceItemView } from './space-item-view';
 
 /**
@@ -54,7 +53,6 @@ export function TeamDraftItem({ id, onClose }: { id: string; onClose: () => void
           </Button>
         </div>
         <SpaceItemView source="team" item={item} />
-        <SpaceComments source="team" id={item.row.id} />
       </div>
     </div>
   );

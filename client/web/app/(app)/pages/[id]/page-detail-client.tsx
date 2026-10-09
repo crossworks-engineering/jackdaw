@@ -27,7 +27,6 @@ import { FocusToggle } from '@/components/layout/focus-toggle';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AccessControl } from '@/components/share/access-control';
-import { OwnerClientThread } from '@/components/share/owner-client-thread';
 import { ExportMenu } from '@/components/export/export-menu';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
@@ -974,8 +973,6 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
           </Button>
           <ExportMenu nodeId={initial.id} />
           <AccessControl nodeId={initial.id} beforeEnable={commit} />
-          {/* At Client level: the thread clients read (audit U2). */}
-          <OwnerClientThread nodeId={initial.id} type="page" />
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
               page exits too (the shell drops focus on navigation). */}
