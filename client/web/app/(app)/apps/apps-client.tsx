@@ -471,7 +471,9 @@ function AppPreview({
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1">
+      {/* Below `md` the panes stack and the detail has no height of its own,
+          so the app is given most of the screen there. */}
+      <div data-testid="app-preview-run" className="h-[75dvh] min-h-0 md:h-auto md:flex-1">
         {hasBuild ? (
           // The sandbox host runs the broker, the file tree and the access log
           // beside the iframe; a throw in any of them must not take the list.

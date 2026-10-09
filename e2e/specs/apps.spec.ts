@@ -51,9 +51,11 @@ test.describe('apps', () => {
   test.skip(({ topology }) => topology === 'same-origin', 'owner UI lives on the client app');
 
   test('focus mode collapses the list WITHOUT unmounting it', async ({ ownerApi, ownerPage }) => {
-    await withApp(ownerApi, async () => {
+    await withApp(ownerApi, async (app) => {
       await ownerPage.setViewportSize({ width: 1600, height: 900 });
-      await ownerPage.goto('/apps');
+      // The tree picks nothing by itself: the focus toggle is in the picked
+      // app's header.
+      await ownerPage.goto(`/apps?id=${app.id}`);
 
       const list = ownerPage.locator('[data-testid="list"]');
       // The item tree's search box (a brain that serves the tree for apps,
@@ -300,9 +302,12 @@ test.describe('apps', () => {
     await withApp(ownerApi, async (app) => {
       await ownerPage.setViewportSize({ width: 390, height: 844 });
       await ownerPage.goto(`/apps?id=${app.id}`);
-      await expect(
-        ownerPage.locator('[data-testid="list"]').getByRole('textbox', { name: 'Search apps' }),
-      ).toBeVisible();
+      // Stacked below `md`: no panels (and no list test id), the tree first.
+      await expect(ownerPage.getByRole('textbox', { name: 'Search apps' })).toBeVisible();
+      await expect(ownerPage.getByRole('heading', { name: app.title })).toBeVisible();
+      // The running app gets real height, not the iframe's intrinsic 150px.
+      const pane = ownerPage.getByTestId('app-preview-run');
+      await expect.poll(async () => (await pane.boundingBox())?.height ?? 0).toBeGreaterThan(400);
       // No sideways scroll on a phone.
       const overflow = await ownerPage.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
