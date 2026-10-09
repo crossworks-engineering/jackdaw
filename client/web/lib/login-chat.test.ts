@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MemberChatsResponse } from '@mantle/client-types';
-import { loginChatOf, loginHasChat } from './login-chat';
+import { loginChatOf, loginHasChat, rosterIds } from './login-chat';
 
 const A = '0b8f3c2e-1111-4111-8111-111111111111';
 const B = '0b8f3c2e-2222-4222-8222-222222222222';
@@ -44,5 +44,12 @@ describe('loginHasChat', () => {
     expect(loginHasChat('member')).toBe(true);
     expect(loginHasChat('client')).toBe(true);
     expect(loginHasChat('admin')).toBe(false);
+  });
+
+  it('an admin with an old team thread (a former member) keeps its Chat', () => {
+    const ids = rosterIds(answer(null));
+    expect(loginHasChat('admin', ids.has(A))).toBe(true);
+    expect(loginHasChat('admin', ids.has('someone-else'))).toBe(false);
+    expect(rosterIds(undefined).size).toBe(0);
   });
 });

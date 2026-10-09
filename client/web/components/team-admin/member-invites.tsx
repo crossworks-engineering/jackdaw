@@ -62,6 +62,7 @@ import {
 } from '@/lib/member-invites';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
 import { TeamAgentNotice } from '@/components/team-admin/team-agent-access';
+import { ContactPicker, type PickedContact } from '@/components/team-admin/contact-picker';
 import type { TeamAgentAccess } from '@/lib/team-agent-access';
 
 export const INVITES_KEY = ['team-admin', 'invites'] as const;
@@ -81,25 +82,28 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_REASONS = new Set(['email-has-login', 'no-email']);
 
 /**
- * Create an invite: for a contact (`contact` set; the email and name default
- * to the contact's) or for an email. On success the dialog turns into the
- * link, the code and a Copy button.
+ * Create an invite: for a contact (picked here, or given; the email and name
+ * default to the contact's) or for an email. On success the dialog turns into
+ * the link, the code and a Copy button, shown once. `onCreated` runs when the
+ * dialog closes after that, never while the link is on screen: the caller may
+ * then select the new invite (the old one a New link replaced is gone).
  */
 export function InviteDialog({
   open,
   onOpenChange,
-  contact,
+  initialContact = null,
   initialEmail = '',
   initialName = '',
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  contact?: { id: string; name: string };
+  /** The contact a New link is for; the form starts with it picked. */
+  initialContact?: PickedContact | null;
   /** A new link for an email invite: the form starts filled in. */
   initialEmail?: string;
   initialName?: string;
-  /** The new invite's id, once made (to select it). */
+  /** The new invite's id, once the dialog that showed its link closes. */
   onCreated?: (inviteId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -111,6 +115,7 @@ export function InviteDialog({
     queryFn: () => apiFetch<{ teamAgent?: TeamAgentAccess | null }>('/api/team-admin/settings'),
     enabled: open,
   });
+  const [contact, setContact] = useState<PickedContact | null>(initialContact);
   const [email, setEmail] = useState(initialEmail);
   const [displayName, setDisplayName] = useState(initialName);
   const [emailError, setEmailError] = useState<string>();
@@ -123,6 +128,7 @@ export function InviteDialog({
     : false;
 
   const reset = () => {
+    setContact(initialContact);
     setEmail(initialEmail);
     setDisplayName(initialName);
     setEmailError(undefined);
@@ -131,8 +137,10 @@ export function InviteDialog({
   };
   const changeOpen = (o: boolean) => {
     if (pending) return;
+    const made = !o ? created : null;
     if (!o) reset();
     onOpenChange(o);
+    if (made) onCreated?.(made.invite.id);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -161,7 +169,6 @@ export function InviteDialog({
       });
       setCreated(res);
       void queryClient.invalidateQueries({ queryKey: INVITES_KEY });
-      onCreated?.(res.invite.id);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       const body = e instanceof ApiError ? e.body : undefined;
@@ -247,7 +254,7 @@ export function InviteDialog({
           <>
             <DialogHeader>
               <DialogTitle>
-                {contact ? `Invite ${contact.name} as a member` : 'Invite by email'}
+                {contact ? `Invite ${contact.name} as a member` : 'Invite a member'}
               </DialogTitle>
               <DialogDescription>
                 You get a link to hand over. It works once and expires in {INVITE_LIFETIME_HOURS}{' '}
@@ -257,6 +264,20 @@ export function InviteDialog({
             <form onSubmit={submit} noValidate>
               <FieldGroup>
                 <TeamAgentNotice agent={settings.data?.teamAgent} />
+                <Field>
+                  <FieldLabel htmlFor="invite-contact">Contact (optional)</FieldLabel>
+                  <ContactPicker
+                    id="invite-contact"
+                    hintId="invite-contact-hint"
+                    enabled={open}
+                    contact={contact}
+                    onChange={setContact}
+                  />
+                  <FieldDescription id="invite-contact-hint">
+                    Pick a contact to use their email and name and keep their old portal chat with
+                    the login, or leave it and enter an email.
+                  </FieldDescription>
+                </Field>
                 <Field data-invalid={!!emailError || undefined}>
                   <FieldLabel htmlFor="invite-email">
                     {contact ? 'Email (optional)' : 'Email'}
@@ -351,15 +372,16 @@ export function stateLine(i: MemberInviteRow): string {
 export function InviteDetail({
   invite,
   onRevoked,
-  onCreated,
+  onNewLink,
 }: {
   invite: MemberInviteRow;
   onRevoked: () => void;
-  onCreated: (inviteId: string) => void;
+  /** Open the Invite dialog for the same person. The screen owns it: the new
+   *  invite replaces this one, and the link must outlive this pane. */
+  onNewLink: () => void;
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [again, setAgain] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -382,10 +404,6 @@ export function InviteDetail({
     }
   };
 
-  const contact =
-    invite.contactId && invite.contactName
-      ? { id: invite.contactId, name: invite.contactName }
-      : undefined;
   return (
     <div>
       <ItemHeader
@@ -394,7 +412,7 @@ export function InviteDetail({
         title={inviteName(invite)}
         badges={<StatePill state={invite.state} />}
         textActions={
-          <Button size="sm" variant="outline" onClick={() => setAgain(true)}>
+          <Button size="sm" variant="outline" onClick={onNewLink}>
             New link
           </Button>
         }
@@ -442,14 +460,6 @@ export function InviteDetail({
         </div>
       </div>
 
-      <InviteDialog
-        open={again}
-        onOpenChange={setAgain}
-        contact={contact}
-        initialEmail={contact ? '' : invite.email}
-        initialName={contact ? '' : (invite.displayName ?? '')}
-        onCreated={onCreated}
-      />
       <AlertDialog open={revoking} onOpenChange={(o) => !busy && !o && setRevoking(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -475,4 +485,20 @@ export function InviteDetail({
       </AlertDialog>
     </div>
   );
+}
+
+/** What a New link for an invite starts with: its contact, else its email
+ *  and name. */
+export function newLinkSeed(invite: MemberInviteRow): {
+  contact: PickedContact | null;
+  email: string;
+  name: string;
+} {
+  return invite.contactId
+    ? {
+        contact: { id: invite.contactId, name: inviteName(invite), email: invite.email },
+        email: '',
+        name: '',
+      }
+    : { contact: null, email: invite.email, name: invite.displayName ?? '' };
 }

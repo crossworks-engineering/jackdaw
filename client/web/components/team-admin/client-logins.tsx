@@ -23,7 +23,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, KeyRound } from 'lucide-react';
-import type { ContactRow } from '@mantle/content-core/contacts-format';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
@@ -52,7 +51,6 @@ import {
   FieldLabel,
 } from '@mantle/web-ui/ui/field';
 import { Input } from '@mantle/web-ui/ui/input';
-import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
@@ -80,6 +78,7 @@ import type {
 import { ClientChatUsagePanel } from './client-chat-usage';
 import { ClientStoragePanel } from './client-storage';
 import { ClientSigninSenderPanel } from './client-signin-sender';
+import { ContactPicker, type PickedContact } from './contact-picker';
 
 export function useClientLogins() {
   return useQuery({
@@ -417,12 +416,6 @@ function SigninLinkDialog({
   );
 }
 
-type ContactsPage = { contacts: ContactRow[] };
-
-function contactLabel(c: ContactRow): string {
-  return [c.firstName, c.lastName].filter(Boolean).join(' ') || c.company || c.email || 'Contact';
-}
-
 /** Add a client login: for an email, or for a contact (whose email and name
  *  it takes unless given). The login signs in with a link issued after. */
 export function AddClientDialog({
@@ -438,22 +431,14 @@ export function AddClientDialog({
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [contactQuery, setContactQuery] = useState('');
-  const [contact, setContact] = useState<ContactRow | null>(null);
+  const [contact, setContact] = useState<PickedContact | null>(null);
   const [emailError, setEmailError] = useState<string>();
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
-  const term = contactQuery.trim();
-  const contacts = useQuery({
-    queryKey: ['contacts', { q: term, page: 1 }],
-    queryFn: () => apiFetch<ContactsPage>(`/api/contacts?q=${encodeURIComponent(term)}`),
-    enabled: open && !contact && term.length >= 2,
-  });
 
   const reset = () => {
     setEmail('');
     setDisplayName('');
-    setContactQuery('');
     setContact(null);
     setEmailError(undefined);
     setFormError(undefined);
@@ -506,7 +491,6 @@ export function AddClientDialog({
     }
   };
 
-  const matches = contacts.data?.contacts.slice(0, 6) ?? [];
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent className="sm:max-w-md">
@@ -521,50 +505,13 @@ export function AddClientDialog({
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="client-add-contact">Contact (optional)</FieldLabel>
-              {contact ? (
-                <div className="flex items-center justify-between gap-2 rounded-md border border-input px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate">
-                    {contactLabel(contact)}
-                    {contact.email ? (
-                      <span className="text-muted-foreground"> · {contact.email}</span>
-                    ) : null}
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setContact(null)}>
-                    Change
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    id="client-add-contact"
-                    value={contactQuery}
-                    onChange={(e) => setContactQuery(e.target.value)}
-                    placeholder="Search contacts"
-                    autoComplete="off"
-                    aria-describedby="client-add-contact-hint"
-                  />
-                  {matches.length ? (
-                    <ul className="max-h-48 overflow-y-auto rounded-md border border-border scrollbar-thin">
-                      {matches.map((c) => (
-                        <li key={c.id}>
-                          <RowButton
-                            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
-                            onClick={() => {
-                              setContact(c);
-                              setContactQuery('');
-                            }}
-                          >
-                            <span className="min-w-0 truncate">{contactLabel(c)}</span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {c.email || 'no email'}
-                            </span>
-                          </RowButton>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </>
-              )}
+              <ContactPicker
+                id="client-add-contact"
+                hintId="client-add-contact-hint"
+                enabled={open}
+                contact={contact}
+                onChange={setContact}
+              />
               <FieldDescription id="client-add-contact-hint">
                 Pick a contact to use their email and name, or leave it and enter an email.
               </FieldDescription>
@@ -598,7 +545,7 @@ export function AddClientDialog({
                 id="client-add-name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={contact ? contactLabel(contact) : 'Their full name'}
+                placeholder={contact ? contact.name : 'Their full name'}
               />
             </Field>
             <FieldError id="client-add-error">{formError}</FieldError>

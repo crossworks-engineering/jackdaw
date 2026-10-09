@@ -21,7 +21,13 @@ export function loginChatOf(
 }
 
 /** Whether a login has a Chat view: members and clients chat with the team
- *  agent; an admin login does not. */
-export function loginHasChat(role: string): boolean {
-  return role === 'member' || role === 'client';
+ *  agent; an admin login only when it has a team thread from before (a
+ *  member later made admin: the roster still lists its old thread). */
+export function loginHasChat(role: string, inRoster = false): boolean {
+  return role === 'member' || role === 'client' || inRoster;
+}
+
+/** The logins the chat roster lists (GET /api/team-admin/member-chats). */
+export function rosterIds(res: MemberChatsResponse | undefined): Set<string> {
+  return new Set((res?.members ?? []).map((m) => m.loginId));
 }

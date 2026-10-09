@@ -25,7 +25,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import type { ClientReport } from '@mantle/client-types';
+import type { ClientReport, MemberChatsResponse } from '@mantle/client-types';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { ListCard, ListCardMeta } from '@mantle/web-ui/ui/list-card';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -84,7 +84,7 @@ import {
   fetchClientReport,
   isReportMissing,
 } from '@/lib/client-report';
-import { loginHasChat } from '@/lib/login-chat';
+import { loginHasChat, rosterIds } from '@/lib/login-chat';
 import { CLIENT_SETTINGS, WHAT_CLIENTS_SEE, inviteIdOf, inviteKey } from '@/lib/logins-nav';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
 import { ReviewSections } from '@/components/review/workspace-review-sections';
@@ -92,6 +92,7 @@ import { LoginChat } from '@/components/logins/login-chat';
 import {
   InviteDetail,
   InviteDialog,
+  newLinkSeed,
   stateLine,
   useMemberInvites,
 } from '@/components/team-admin/member-invites';
@@ -308,6 +309,12 @@ export function UsersClient() {
   const invitesQuery = useMemberInvites();
   const clientsQuery = useClientLogins();
   const reportQuery = useClientReport();
+  // Which logins have a team thread: an admin in it (a former member) keeps
+  // its Chat. The same admin-only route the Chat view reads.
+  const rosterQuery = useQuery({
+    queryKey: ['team-admin', 'member-chats', 'roster'],
+    queryFn: () => apiFetch<MemberChatsResponse>('/api/team-admin/member-chats'),
+  });
 
   // Deep link: /settings/users?selected=<id-or-email | invite:<id> |
   // what-clients-see | client-settings>[&view=chat] preselects (initial state
@@ -316,7 +323,12 @@ export function UsersClient() {
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('selected'));
   const [chat, setChat] = useState(searchParams.get('view') === 'chat');
   const [addOpen, setAddOpen] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  // The Invite dialog, empty (Invite) or for an open invite's person (New
+  // link). Owned here, not by the invite pane: a New link replaces that
+  // invite, and the one-time link must stay on screen meanwhile.
+  const [inviteSeed, setInviteSeed] = useState<
+    (ReturnType<typeof newLinkSeed> & { key: number }) | null
+  >(null);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -373,6 +385,7 @@ export function UsersClient() {
   const selectedKey = invite ? inviteKey(invite.id) : (step ?? selected?.id ?? null);
 
   const showReport = () => select(WHAT_CLIENTS_SEE);
+  const inRoster = rosterIds(rosterQuery.data);
 
   return (
     <>
@@ -389,7 +402,13 @@ export function UsersClient() {
                 Logins
               </h2>
               <div className="flex shrink-0 items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setInviteSeed({ key: Date.now(), contact: null, email: '', name: '' })
+                  }
+                >
                   <MailPlus /> Invite
                 </Button>
                 <Button size="sm" onClick={() => setAddOpen(true)}>
@@ -493,7 +512,7 @@ export function UsersClient() {
               key={invite.id}
               invite={invite}
               onRevoked={() => select(null)}
-              onCreated={(id) => select(inviteKey(id))}
+              onNewLink={() => setInviteSeed({ key: Date.now(), ...newLinkSeed(invite) })}
             />
           ) : step === WHAT_CLIENTS_SEE ? (
             <ClientReportPane query={reportQuery} />
@@ -519,7 +538,8 @@ export function UsersClient() {
               key={selected.id}
               user={selected}
               isSelf={selected.id === currentActorId}
-              chat={chat && loginHasChat(selected.role)}
+              hasChat={loginHasChat(selected.role, inRoster.has(selected.id))}
+              chat={chat && loginHasChat(selected.role, inRoster.has(selected.id))}
               onChatChange={setChat}
               onChanged={() => void invalidate()}
               onRequestDelete={() => setDeleteOpen(true)}
@@ -542,11 +562,17 @@ export function UsersClient() {
           void invalidate();
         }}
       />
-      <InviteDialog
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-        onCreated={(id) => select(inviteKey(id))}
-      />
+      {inviteSeed ? (
+        <InviteDialog
+          key={inviteSeed.key}
+          open
+          onOpenChange={(o) => !o && setInviteSeed(null)}
+          initialContact={inviteSeed.contact}
+          initialEmail={inviteSeed.email}
+          initialName={inviteSeed.name}
+          onCreated={(id) => select(inviteKey(id))}
+        />
+      ) : null}
       <AddClientDialog
         open={addClientOpen}
         onOpenChange={setAddClientOpen}
@@ -606,6 +632,7 @@ function loginAbout(user: UserRow): string {
 function UserDetail({
   user,
   isSelf,
+  hasChat,
   chat,
   onChatChange,
   onChanged,
@@ -615,7 +642,9 @@ function UserDetail({
 }: {
   user: UserRow;
   isSelf: boolean;
-  /** The Chat view instead of the details (members and clients). */
+  /** Whether it has a Chat: members, clients, and an admin with a team thread. */
+  hasChat: boolean;
+  /** The Chat view instead of the details. */
   chat: boolean;
   onChatChange: (chat: boolean) => void;
   onChanged: () => void;
@@ -665,7 +694,7 @@ function UserDetail({
           </>
         }
         textActions={
-          loginHasChat(user.role) ? (
+          hasChat ? (
             <Button
               size="sm"
               variant={chat ? 'secondary' : 'outline'}
