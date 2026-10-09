@@ -17,8 +17,8 @@ describe('a request a member login filed (no contact)', () => {
     expect(canReplyToRequest(r)).toBe(true);
   });
 
-  it('links to that login on Member chats', () => {
-    expect(requestChatHref(r)).toBe(`/team-admin?view=chats&login=${LOGIN}`);
+  it("links to that login's Chat in Settings > Logins", () => {
+    expect(requestChatHref(r)).toBe(`/settings/users?selected=${LOGIN}&view=chat`);
   });
 });
 
@@ -29,22 +29,22 @@ describe('a request from the old team portal (a contact)', () => {
     expect(canReplyToRequest(r)).toBe(true);
   });
 
-  it('links to the contact on the Chat archive', () => {
-    expect(requestChatHref(r)).toBe(`/team-admin?contact=${CONTACT}`);
+  it('has no chat link: the Chat archive was removed', () => {
+    expect(requestChatHref(r)).toBeNull();
   });
 
   it('works on a brain that sends no loginId at all', () => {
     // A brain before the audit fix release omits the field the contract now requires.
     const older = { contactId: CONTACT } as Pick<TeamRequest, 'contactId' | 'loginId'>;
     expect(canReplyToRequest(older)).toBe(true);
-    expect(requestChatHref(older)).toBe(`/team-admin?contact=${CONTACT}`);
+    expect(requestChatHref(older)).toBeNull();
   });
 });
 
 describe('a request with both', () => {
   it("prefers the login's chat, where the reply lands", () => {
     expect(requestChatHref({ contactId: CONTACT, loginId: LOGIN })).toBe(
-      `/team-admin?view=chats&login=${LOGIN}`,
+      `/settings/users?selected=${LOGIN}&view=chat`,
     );
   });
 });

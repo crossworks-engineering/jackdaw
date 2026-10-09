@@ -1,5 +1,5 @@
 /**
- * Team admin > Clients, the client storage card of the client logins C5
+ * Settings > Logins > Client settings, the client storage card of the client logins C5
  * audit fixes, the pure half (pinned by client-spaces-admin.test.ts):
  * GET /api/team-admin/clients/storage, what the clients' own spaces hold
  * against the brain's caps, per client, and the quota refusals of the last

@@ -1,15 +1,15 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ClientLoginList, ClientLoginRow } from '@mantle/client-types';
-import { clientActionConfirm } from '../../lib/client-logins';
-import { ClientLoginsView } from './client-logins';
+import type { ClientLoginRow } from '@mantle/client-types';
+import { clientActionConfirm, clientActionsBlocked } from '../../lib/client-logins';
+import { ClientSigninView } from './client-logins';
 
 /**
- * Team admin > Clients (client logins C2), rendered: the list (email, name,
- * last sign-in, the open link's expiry, the last link use, disabled), and
- * Add client and Issue sign-in link DISABLED, with the note and the link to
- * What clients see, until the report is acknowledged.
+ * Clients in Settings > Logins (client logins C2), rendered: a client
+ * login's Sign-in link card (last sign-in, the open link's expiry, the last
+ * link use, disabled), and Issue sign-in link DISABLED, with the note and the
+ * way to What clients see, until the report is acknowledged.
  */
 const NOW = Date.parse('2026-09-29T10:00:00.000Z');
 
@@ -30,15 +30,15 @@ const row = (over: Partial<ClientLoginRow> = {}): ClientLoginRow => ({
   ...over,
 });
 
-const view = (list: ClientLoginList) =>
+const view = (r: ClientLoginRow, blocked = false) =>
   renderToStaticMarkup(
-    createElement(ClientLoginsView, {
-      list,
+    createElement(ClientSigninView, {
+      row: r,
       now: NOW,
-      onAdd: () => {},
+      blocked,
       onIssue: () => {},
-      onAction: () => {},
-      onEnable: () => {},
+      onRevoke: () => {},
+      onShowReport: () => {},
     }),
   );
 
@@ -48,63 +48,68 @@ const button = (html: string, label: string) =>
     new RegExp(`<button[^>]*>(?:(?!</button>).)*${label}(?:(?!</button>).)*</button>`),
   )?.[0];
 
-describe('Clients', () => {
-  it('lists each login: name, email, last sign-in, open link, last link use', () => {
-    const html = view({ clients: [row()], reportAcknowledged: true });
-    expect(html).toContain('Pat Client');
-    expect(html).toContain('pat@example.invalid');
+describe("a client login's Sign-in link card (Settings > Logins)", () => {
+  it('says whether a link is open, the last sign-in and the last link use', () => {
+    const html = view(row());
     expect(html).toMatch(/Last sign-in [^·]+ · Link last used never/);
     expect(html).toContain('Sign-in link open until');
+    expect(button(html, 'Revoke link')).toBeDefined();
   });
 
-  it('says when there is no open link, and marks a disabled login (with Enable)', () => {
-    const html = view({
-      clients: [row({ openLink: null, disabled: true, lastLoginAt: null })],
-      reportAcknowledged: true,
-    });
+  it('says when there is no open link, and offers no Revoke', () => {
+    const html = view(row({ openLink: null, lastLoginAt: null }));
     expect(html).toContain('No open sign-in link');
     expect(html).toContain('Last sign-in never');
-    expect(html).toContain('Disabled');
-    expect(button(html, 'Enable')).toBeDefined();
-    expect(button(html, 'Issue sign-in link')).toBeUndefined();
+    expect(button(html, 'Revoke link')).toBeUndefined();
   });
 
   it('an expired link is not open', () => {
-    const html = view({
-      clients: [
-        row({
-          openLink: {
-            id: 'l',
-            createdAt: '2026-09-01T00:00:00.000Z',
-            expiresAt: '2026-09-04T00:00:00.000Z',
-          },
-        }),
-      ],
-      reportAcknowledged: true,
-    });
+    const html = view(
+      row({
+        openLink: {
+          id: 'l',
+          createdAt: '2026-09-01T00:00:00.000Z',
+          expiresAt: '2026-09-04T00:00:00.000Z',
+        },
+      }),
+    );
     expect(html).toContain('No open sign-in link');
   });
 
-  it('with the report acknowledged: Add client and Issue sign-in link are live, no note', () => {
-    const html = view({ clients: [row()], reportAcknowledged: true });
-    expect(button(html, 'Add client')).not.toContain('disabled=""');
+  it('a disabled login issues no link, and says why', () => {
+    const html = view(row({ disabled: true }));
+    expect(button(html, 'Issue sign-in link')).toBeUndefined();
+    expect(html).toContain('This login is disabled');
+  });
+
+  it('with the report acknowledged: Issue sign-in link is live, no note', () => {
+    const html = view(row());
     expect(button(html, 'Issue sign-in link')).not.toContain('disabled=""');
     expect(html).not.toContain('Check the list in What clients see first');
   });
 
-  it('until then: both DISABLED, with the note and a link to What clients see', () => {
-    const html = view({ clients: [row()], reportAcknowledged: false });
-    expect(button(html, 'Add client')).toContain('disabled=""');
+  it('until then: DISABLED, with the note and a way to What clients see', () => {
+    const html = view(row(), true);
     expect(button(html, 'Issue sign-in link')).toContain('disabled=""');
     expect(html).toContain('Check the list in What clients see first');
-    expect(html).toMatch(/<a[^>]*href="\/team-admin\?view=clients"[^>]*>What clients see<\/a>/);
+    expect(button(html, 'What clients see')).toBeDefined();
   });
+});
 
-  it('empty: says so, and Add client still waits for the report', () => {
-    expect(view({ clients: [], reportAcknowledged: true })).toContain('No client logins yet.');
-    expect(button(view({ clients: [], reportAcknowledged: false }), 'Add client')).toContain(
-      'disabled=""',
+describe('Add client in the Logins list', () => {
+  it('waits for What clients see, and says why', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const screen = readFileSync(
+      fileURLToPath(new URL('../../app/(app)/settings/users/users-client.tsx', import.meta.url)),
+      'utf8',
     );
+    expect(screen).toContain('const clientsBlocked = clientActionsBlocked(clientsQuery.data);');
+    expect(screen).toMatch(
+      /disabled=\{clientsBlocked\}\s*title=\{clientsBlocked \? CLIENT_ACTIONS_BLOCKED_TEXT : undefined\}/,
+    );
+    expect(clientActionsBlocked(undefined)).toBe(true);
+    expect(clientActionsBlocked({ reportAcknowledged: true })).toBe(false);
   });
 });
 
@@ -126,7 +131,7 @@ describe('the confirms (client logins audit B14, B27)', () => {
     expect(c.action).toBe('Issue new link');
   });
 
-  it('the panel confirms a reissue only while a link is open, and the link dialog closes only by Done or Copy', async () => {
+  it('the card confirms a reissue only while a link is open, and the link dialog closes only by Done or Copy', async () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const panel = readFileSync(

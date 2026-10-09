@@ -97,7 +97,7 @@ describe('retired client links', () => {
 
   it('link to the item, and send the admin to Team admin > Clients', () => {
     expect(retiredItemHref(row)).toBe('/n/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
-    expect(CLIENTS_HREF).toBe('/team-admin?view=client-logins');
+    expect(CLIENTS_HREF).toBe('/settings/users?selected=what-clients-see');
   });
 
   it('say when they retired, and just "retired" when the brain has no date', () => {

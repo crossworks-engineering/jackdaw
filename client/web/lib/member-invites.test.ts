@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { MemberInviteRow } from '@mantle/client-types';
 import {
   CODE_NOT_VALID,
   acceptOutcome,
-  contactLoginId,
+  inviteName,
+  openInvites,
   inviteCreateErrorText,
   inviteLink,
   readInviteCode,
@@ -182,43 +184,48 @@ describe('acceptOutcome', () => {
   });
 });
 
-describe('contactLoginId', () => {
-  const row = (
-    over: Partial<{
-      contactId: string | null;
-      state: 'open' | 'redeemed' | 'expired';
-      redeemedLoginId: string | null;
-    }>,
-  ) => ({
-    contactId: 'c1',
-    state: 'open' as const,
+describe('the open invites in Settings > Logins', () => {
+  const row = (over: Partial<MemberInviteRow>): MemberInviteRow => ({
+    id: 'i1',
+    contactId: null,
+    contactName: null,
+    email: 'sam@example.invalid',
+    displayName: null,
+    state: 'open',
+    createdAt: '2026-10-09T08:00:00.000Z',
+    expiresAt: '2026-10-12T08:00:00.000Z',
+    redeemedAt: null,
     redeemedLoginId: null,
+    createdBy: null,
     ...over,
   });
 
-  it("names the login a contact's accepted invite made", () => {
-    expect(contactLoginId([row({ state: 'redeemed', redeemedLoginId: 'L1' })], 'c1')).toBe('L1');
+  it('keeps only the open ones, in order', () => {
+    const list = [
+      row({ id: 'a' }),
+      row({ id: 'b', state: 'redeemed', redeemedLoginId: 'L1' }),
+      row({ id: 'c', state: 'expired' }),
+      row({ id: 'd' }),
+    ];
+    expect(openInvites(list).map((i) => i.id)).toEqual(['a', 'd']);
+    expect(openInvites(undefined)).toEqual([]);
   });
 
-  it('is null for an open or expired invite, another contact, or no list yet', () => {
-    expect(contactLoginId([row({}), row({ state: 'expired' })], 'c1')).toBeNull();
-    expect(contactLoginId([row({ state: 'redeemed', redeemedLoginId: 'L1' })], 'c2')).toBeNull();
-    expect(contactLoginId(undefined, 'c1')).toBeNull();
+  it('names an invite by its name, else the contact, else the email', () => {
+    expect(inviteName(row({ displayName: 'Sam', contactName: 'Sam B' }))).toBe('Sam');
+    expect(inviteName(row({ contactName: 'Sam B' }))).toBe('Sam B');
+    expect(inviteName(row({}))).toBe('sam@example.invalid');
   });
 
-  it('the Chat archive shows the login instead of Invite as member, and labels each button', async () => {
+  it('labels each copy and the revoke', async () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const ui = readFileSync(
       fileURLToPath(new URL('../components/team-admin/member-invites.tsx', import.meta.url)),
       'utf8',
     );
-    expect(ui).toContain(
-      'const loginId = contactLoginId(useMemberInvites().data?.invites, contactId);',
-    );
-    expect(ui).toMatch(/if \(loginId\) \{\s*return \(\s*<Link/);
     expect(ui).toContain('ariaLabel="Copy the invite link"');
     expect(ui).toContain('ariaLabel="Copy the code"');
-    expect(ui).toContain('aria-label={`Revoke the invite for ${i.email}`}');
+    expect(ui).toMatch(/<HeaderIconButton\s+label="Revoke invite"/);
   });
 });

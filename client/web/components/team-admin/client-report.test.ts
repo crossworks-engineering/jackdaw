@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ClientReport } from '@mantle/client-types';
-import { ClientReportView } from './client-report';
+import { REPORT_INTRO, ClientReportView } from './client-report';
 
 /**
  * Team admin > What clients see (client logins C1), rendered: the intro, the
@@ -61,11 +61,14 @@ const view = (r: ClientReport, acking = false) =>
 const ACK_BUTTON = 'I have checked this list';
 
 describe('What clients see', () => {
-  it('opens with the intro: check before inviting, every client login reads it all', () => {
+  it('one header: the title, and the intro behind Info (no banner)', () => {
     const html = view(report());
+    expect(html).toContain('data-testid="item-header"');
     expect(html).toContain('What clients see');
-    expect(html).toContain('Before anyone is invited as a client, check this list.');
-    expect(html).toContain('Every client login will be able to read all of it.');
+    expect(html).toContain('aria-label="About this list"');
+    expect(REPORT_INTRO).toBe(
+      'Before anyone is invited as a client, check this list. Every client login will be able to read all of it.',
+    );
   });
 
   it('lists each client item: title, kind, updated, link views, invite hints', () => {
@@ -210,29 +213,17 @@ describe('the ack sends what is on the screen', () => {
     expect(src).toContain('requestAnimationFrame(() => ackRef.current?.focus());');
   });
 
-  it('is a Team admin tab, fed by the tab query', () => {
-    const page = readFileSync(
-      fileURLToPath(new URL('../../app/(app)/team-admin/page.tsx', import.meta.url)),
+  it('is the first client step in Settings > Logins, fed by the screen query', () => {
+    const screen = readFileSync(
+      fileURLToPath(new URL('../../app/(app)/settings/users/users-client.tsx', import.meta.url)),
       'utf8',
     );
-    expect(page).toContain(
-      "tab('What clients see', '/team-admin?view=clients', active === 'clients')",
-    );
-    expect(page).toContain("if (view === 'clients') return <ClientsTab />;");
-    expect(page).toMatch(/<TabPending active="clients" query=\{q\}/);
-    expect(page).toContain('<ClientReportPanel report={q.data} />');
-  });
-
-  it('on a brain without the report (404): a plain line, no retry, and the tab leaves the strip', () => {
-    const page = readFileSync(
-      fileURLToPath(new URL('../../app/(app)/team-admin/page.tsx', import.meta.url)),
-      'utf8',
-    );
-    expect(page).toContain('if (!q.data && isReportMissing(q.error)) {');
-    expect(page).toContain('{NOT_ON_THIS_BRAIN}');
-    expect(page).toContain('retry: (count, err) => !isReportMissing(err) && count < 1,');
-    expect(page).toMatch(
-      /\{reportMissing && active !== 'clients'\s*\? null\s*: tab\('What clients see'/,
-    );
+    expect(screen).toContain('if (query.data) return <ClientReportPanel report={query.data} />;');
+    // On a brain without the report (404): a plain line, no retry, and the
+    // step leaves the list.
+    expect(screen).toContain('if (isReportMissing(query.error)) {');
+    expect(screen).toContain('{NOT_ON_THIS_BRAIN}');
+    expect(screen).toContain('retry: (count, err) => !isReportMissing(err) && count < 1,');
+    expect(screen).toMatch(/\{reportMissing \? null : \(\s*<ListCard/);
   });
 });

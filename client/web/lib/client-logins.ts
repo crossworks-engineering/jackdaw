@@ -1,5 +1,5 @@
 /**
- * Team admin > Clients (client logins C2), the pure half. An admin adds a
+ * Clients in Settings > Logins (client logins C2), the pure half. An admin adds a
  * CLIENT login (an email, or a contact), issues it a sign-in link and hands
  * the link over; the client opens it, types their email and is signed in
  * for 30 days. A client has no password. Nothing here fetches, so each
@@ -147,7 +147,7 @@ export function clientActionConfirm(
 }
 
 /** What Settings > Logins says before it deletes a login: a client's words
- *  are Team admin > Clients' own (its chat goes with it), anyone
+ *  are the client delete's own (its chat goes with it), anyone
  *  else keeps everything they made. */
 export function loginDeleteText(user: {
   role: string;

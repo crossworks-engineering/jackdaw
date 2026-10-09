@@ -1,5 +1,5 @@
 /**
- * Team admin > Clients > Chat use today (client logins C4), the pure half.
+ * Settings > Logins > Client settings > Chat use today (client logins C4), the pure half.
  * Each client login's own chat is capped per UTC day, in turns and in
  * tokens; the brain answers each login's use so far (GET
  * /api/team-admin/clients/usage). A brain before C4 has no such route (404):

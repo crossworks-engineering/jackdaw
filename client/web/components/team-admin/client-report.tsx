@@ -27,13 +27,21 @@ import {
   shownLine,
 } from '../../lib/client-report';
 import { CLIENT_LOGINS_KEY } from '../../lib/client-logins';
+import { HeaderInfoButton, ItemHeader } from '../layout/item-header';
 import type { ClientReport, ClientReportItem } from '@mantle/client-types';
 
+/** What the Info button says: why the list is checked first. */
+export const REPORT_INTRO =
+  'Before anyone is invited as a client, check this list. Every client login will be able to read all of it.';
+export const REPORT_STEP =
+  'This is the first step for clients: Add client and Issue sign-in link wait for the check.';
+
 /**
- * Team admin > What clients see (client logins C1): every item at client
- * level, which every client login will be able to read, checked by an admin
- * before anyone is invited as a client. The tab's query owns the report
- * (CLIENT_REPORT_KEY); this renders it and sends the acknowledgement.
+ * Settings > Logins > Clients > What clients see (client logins C1; moved out
+ * of Team admin 2026-10-09): every item at client level, which every client
+ * login will be able to read, checked by an admin before anyone is invited
+ * as a client. The screen's query owns the report (CLIENT_REPORT_KEY); this
+ * renders it with its one header and sends the acknowledgement.
  */
 export function ClientReportPanel({ report }: { report: ClientReport }) {
   const queryClient = useQueryClient();
@@ -54,7 +62,7 @@ export function ClientReportPanel({ report }: { report: ClientReport }) {
         d ? afterAck(d, res, body) : d,
       );
       void queryClient.invalidateQueries({ queryKey: CLIENT_REPORT_KEY });
-      // Team admin > Clients waits on this check (client logins C2).
+      // Add client and Issue sign-in link wait on this check (client logins C2).
       void queryClient.invalidateQueries({ queryKey: CLIENT_LOGINS_KEY });
       toast.success('Marked as checked');
       requestAnimationFrame(() => ackRef.current?.focus());
@@ -101,70 +109,76 @@ export function ClientReportView({
   const newIds = newSinceIds(report);
   const cut = shownLine(report);
   return (
-    <div className="w-full space-y-4 p-4">
-      <section className="space-y-3 rounded-lg border border-border bg-card p-4 text-card-foreground">
-        <div className="flex items-baseline gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Eye className="size-4 text-primary-ink" aria-hidden />
-            What clients see
-          </h2>
+    <>
+      {/* The pane's one header (ItemHeader): the title and count, the check
+          as its text action, the intro behind Info. */}
+      <ItemHeader
+        sticky
+        visual={<Eye className="size-4 text-primary-ink" aria-hidden />}
+        title="What clients see"
+        badges={
           <span
-            className="text-xs text-muted-foreground"
+            className="text-xs font-normal text-muted-foreground"
             aria-label={`${report.total} client ${report.total === 1 ? 'item' : 'items'}`}
           >
             {report.total}
           </span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Before anyone is invited as a client, check this list. Every client login will be able to
-          read all of it.
-        </p>
-        <p
-          ref={ackRef}
-          tabIndex={-1}
-          className="text-xs outline-none"
-          data-testid="client-report-ack"
-        >
-          {ack ? ackLine(ack) : 'Nobody has checked this list yet.'}
-        </p>
-        {ack && newCount > 0 ? (
+        }
+        textActions={
+          report.acknowledged ? null : (
+            <Button size="sm" disabled={acking} onClick={onAck}>
+              {acking ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <CheckCircle2 aria-hidden />
+              )}
+              I have checked this list
+            </Button>
+          )
+        }
+        iconActions={
+          <HeaderInfoButton label="About this list">
+            <p>{REPORT_INTRO}</p>
+            <p className="text-muted-foreground">{REPORT_STEP}</p>
+          </HeaderInfoButton>
+        }
+      />
+      <div className="w-full space-y-4 p-4">
+        <div className="space-y-2">
           <p
-            role="status"
-            className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink"
+            ref={ackRef}
+            tabIndex={-1}
+            className="text-sm outline-none"
+            data-testid="client-report-ack"
           >
-            <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-            {newSinceLine(report)}
+            {ack ? ackLine(ack) : 'Nobody has checked this list yet.'}
           </p>
-        ) : null}
-        {report.acknowledged ? null : (
-          <Button size="sm" disabled={acking} onClick={onAck}>
-            {acking ? (
-              <Loader2 className="animate-spin" aria-hidden />
-            ) : (
-              <CheckCircle2 aria-hidden />
-            )}
-            I have checked this list
-          </Button>
-        )}
-      </section>
-
-      {report.items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          <p>No item is at client level.</p>
-          <p className="mt-1">
-            Nothing is on the list, so a client login would read nothing yet. Anything you set to
-            Client later shows here.
-          </p>
+          {ack && newCount > 0 ? (
+            <p role="status" className="flex items-start gap-1.5 text-xs text-warning-ink">
+              <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+              {newSinceLine(report)}
+            </p>
+          ) : null}
         </div>
-      ) : (
-        <ul className="flex flex-col gap-2" aria-label="Client-level items">
-          {report.items.map((item) => (
-            <ClientReportRow key={item.id} item={item} isNew={newIds.has(item.id)} />
-          ))}
-        </ul>
-      )}
-      {cut ? <p className="text-xs text-muted-foreground">{cut}</p> : null}
-    </div>
+
+        {report.items.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <p>No item is at client level.</p>
+            <p className="mt-1">
+              Nothing is on the list, so a client login would read nothing yet. Anything you set to
+              Client later shows here.
+            </p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2" aria-label="Client-level items">
+            {report.items.map((item) => (
+              <ClientReportRow key={item.id} item={item} isNew={newIds.has(item.id)} />
+            ))}
+          </ul>
+        )}
+        {cut ? <p className="text-xs text-muted-foreground">{cut}</p> : null}
+      </div>
+    </>
   );
 }
 

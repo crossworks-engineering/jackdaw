@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Team admin > Clients > Sign-in codes by email (client logins C2b). A
+ * Settings > Logins > Client settings > Sign-in codes by email (client logins C2b). A
  * client with no sign-in link can ask for a code by email, once an admin
  * picks the account the codes are mailed from here. None: codes are off,
  * and /client-signin and /login offer no code at all.

@@ -5,7 +5,7 @@
  * only with a Team-level agent, and the team agent ships at Admin level, so
  * this card is the one step that opens member chat. It sets the level through
  * PATCH /api/access/agents/:slug, after a confirm that says what members then
- * reach. `TeamAgentNotice` is the Invites tab's pointer to it.
+ * reach. `TeamAgentNotice` is the Invite dialog's pointer to it.
  */
 import Link from 'next/link';
 import { useState } from 'react';
@@ -152,7 +152,7 @@ export function TeamAgentAccessCard({ agent }: { agent: TeamAgentAccess | null |
             <AlertDialogTitle>Stop member chat?</AlertDialogTitle>
             <AlertDialogDescription>
               {name} goes back to Admin level. Members can no longer chat with it. Their past
-              threads stay, and you can still read them in Member chats.
+              threads stay, and you can still read each one in Settings &gt; Logins.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -167,7 +167,7 @@ export function TeamAgentAccessCard({ agent }: { agent: TeamAgentAccess | null |
   );
 }
 
-/** On the Invites tab: says when an invited member could not chat yet, and
+/** In the Invite dialog (Settings > Logins): says when an invited member could not chat yet, and
  *  links to the card above. Nothing when chat is on, or the brain cannot say. */
 export function TeamAgentNotice({ agent }: { agent: TeamAgentAccess | null | undefined }) {
   const state = teamAgentState(agent);

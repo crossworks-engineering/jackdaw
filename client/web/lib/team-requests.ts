@@ -3,9 +3,11 @@
  * /team-admin Requests tab). A request a member LOGIN filed has no contact
  * (member logins Phase 6): the brain's reply route (POST
  * /api/team-admin/notify, keyed by the task alone) posts into that login's
- * own chat thread, and the admin reads that thread on Member chats. A request
- * from the old team portal names a contact, whose chat is the Chat archive.
+ * own chat thread, and the admin reads that thread in the login's Chat
+ * (Settings > Logins). A request from the old team portal names a contact:
+ * its old chat is no longer shown (Chat archive removed 2026-10-09).
  */
+import { loginChatHref } from './logins-nav';
 // The C4 shape (fromClient); drop to '@mantle/client-types' with the shim.
 import type { TeamRequest } from '@mantle/client-types';
 
@@ -14,12 +16,10 @@ export function canReplyToRequest(r: Pick<TeamRequest, 'contactId' | 'loginId'>)
   return Boolean(r.loginId || r.contactId);
 }
 
-/** Where "View their chat" goes: the login's Member chat (where a reply to
- *  it lands), else the contact's Chat archive, else nowhere. */
+/** Where "View their chat" goes: the login's Chat in Settings > Logins
+ *  (where a reply to it lands), else nowhere. */
 export function requestChatHref(r: Pick<TeamRequest, 'contactId' | 'loginId'>): string | null {
-  if (r.loginId) return `/team-admin?view=chats&login=${encodeURIComponent(r.loginId)}`;
-  if (r.contactId) return `/team-admin?contact=${encodeURIComponent(r.contactId)}`;
-  return null;
+  return r.loginId ? loginChatHref(r.loginId) : null;
 }
 
 /** A request a client filed (C4). Absent on a member's, and on every row

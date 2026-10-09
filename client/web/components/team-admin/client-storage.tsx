@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Team admin > Clients > Client storage (client logins C5 audit fixes):
+ * Settings > Logins > Client settings > Client storage (client logins C5 audit fixes):
  * what the clients' own spaces hold against the brain's caps, per client,
  * and the quota refusals of the last 7 days. A brain before the fix answers
  * 404 here: the card is left out, and not asked again in the page load.

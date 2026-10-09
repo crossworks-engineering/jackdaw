@@ -25,6 +25,7 @@ import type { AccessLevel } from '@mantle/client-types';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import { LEVEL_LABEL, isOldClientLink, kindLabel } from './access-levels';
+import { WHAT_CLIENTS_SEE, loginsHref } from './logins-nav';
 import type { RetiredClientLinkRow } from '@mantle/client-types';
 
 /** The Shared links tab's query (GET /api/team-admin/shares). */
@@ -74,9 +75,9 @@ export function invalidateLinkQueries(queryClient: QueryClient): void {
 
 // ── Retired client links (client logins C3) ─────────────────────────────────
 
-/** Team admin > Clients, where the people who used a retired link are added
+/** Settings > Logins > Clients (its first step), where the people who used a retired link are added
  *  as client logins. */
-export const CLIENTS_HREF = '/team-admin?view=client-logins';
+export const CLIENTS_HREF = loginsHref(WHAT_CLIENTS_SEE);
 
 /** The old client links the brain retired, from the Shared links answer. A
  *  brain before C3 sends no `retired`: none. */

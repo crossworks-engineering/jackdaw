@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * /client-signin: a CLIENT login signs in (client logins C2). An admin
- * issues a sign-in link in Team admin > Clients (`/client-signin#code=…`,
+ * issues a sign-in link in Settings > Logins (`/client-signin#code=…`,
  * one use, 72 hours; `?code=…` in links issued before) and hands it over;
  * the client opens it, types their
  * email as a check, and is signed in for 30 days. A client has no password.

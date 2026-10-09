@@ -1,20 +1,21 @@
 'use client';
 
 /**
- * Member invites on /team-admin (member logins, Phase 6). The admin invites a
- * contact from Chat archive (or anyone, by email), copies the link the brain
- * answers with and hands it over; the person opens /invite, sets a password
- * and is a member login. Nobody hands a password around.
+ * Member invites in Settings > Logins (member logins, Phase 6; moved out of
+ * Team admin 2026-10-09). The admin clicks Invite beside Add login, copies
+ * the link the brain answers with and hands it over; the person opens
+ * /invite, sets a password and is a member login. Nobody hands a password
+ * around. Open invites are a section above the logins; one opens in the
+ * detail pane with Revoke and New link.
  *
  * The code and link are in the create answer ONCE (the brain keeps only the
  * hash), so the dialog shows them there and then. A new invite for the same
  * contact or email replaces the old one. Server: /api/team-admin/invites
  * (docs/member-logins.md §9 in the mantle repo).
  */
-import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MailPlus, UserPlus } from 'lucide-react';
+import { MailPlus, X } from 'lucide-react';
 import type {
   MemberInviteCreated,
   MemberInviteList,
@@ -55,15 +56,18 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
   INVITE_LIFETIME_HOURS,
-  contactLoginId,
   inviteCreateErrorText,
   inviteLink,
+  inviteName,
 } from '@/lib/member-invites';
+import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
+import { TeamAgentNotice } from '@/components/team-admin/team-agent-access';
+import type { TeamAgentAccess } from '@/lib/team-agent-access';
 
-const INVITES_KEY = ['team-admin', 'invites'] as const;
+export const INVITES_KEY = ['team-admin', 'invites'] as const;
 
-/** The brain's invites, newest first. Shared by the list and the per-contact
- *  button, so a create or revoke refreshes both. */
+/** The brain's invites, newest first. Shared by the Logins list and the
+ *  invite pane, so a create or revoke refreshes both. */
 export function useMemberInvites() {
   return useQuery({
     queryKey: INVITES_KEY,
@@ -85,15 +89,30 @@ export function InviteDialog({
   open,
   onOpenChange,
   contact,
+  initialEmail = '',
+  initialName = '',
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact?: { id: string; name: string };
+  /** A new link for an email invite: the form starts filled in. */
+  initialEmail?: string;
+  initialName?: string;
+  /** The new invite's id, once made (to select it). */
+  onCreated?: (inviteId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const invites = useMemberInvites();
-  const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  // An invited member cannot chat until the team agent is at Team level: the
+  // form says so (Team admin > Settings holds the switch).
+  const settings = useQuery({
+    queryKey: ['team-admin', 'settings'],
+    queryFn: () => apiFetch<{ teamAgent?: TeamAgentAccess | null }>('/api/team-admin/settings'),
+    enabled: open,
+  });
+  const [email, setEmail] = useState(initialEmail);
+  const [displayName, setDisplayName] = useState(initialName);
   const [emailError, setEmailError] = useState<string>();
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -104,8 +123,8 @@ export function InviteDialog({
     : false;
 
   const reset = () => {
-    setEmail('');
-    setDisplayName('');
+    setEmail(initialEmail);
+    setDisplayName(initialName);
     setEmailError(undefined);
     setFormError(undefined);
     setCreated(null);
@@ -142,6 +161,7 @@ export function InviteDialog({
       });
       setCreated(res);
       void queryClient.invalidateQueries({ queryKey: INVITES_KEY });
+      onCreated?.(res.invite.id);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       const body = e instanceof ApiError ? e.body : undefined;
@@ -236,6 +256,7 @@ export function InviteDialog({
             </DialogHeader>
             <form onSubmit={submit} noValidate>
               <FieldGroup>
+                <TeamAgentNotice agent={settings.data?.teamAgent} />
                 <Field data-invalid={!!emailError || undefined}>
                   <FieldLabel htmlFor="invite-email">
                     {contact ? 'Email (optional)' : 'Email'}
@@ -294,33 +315,6 @@ export function InviteDialog({
   );
 }
 
-/** "Invite as member" for one contact, in the Chat archive detail header.
- *  A contact whose invite was accepted has a login already: a link to its
- *  Member chat instead. */
-export function InviteMemberButton({ contactId, name }: { contactId: string; name: string }) {
-  const [open, setOpen] = useState(false);
-  const loginId = contactLoginId(useMemberInvites().data?.invites, contactId);
-  if (loginId) {
-    return (
-      <Link
-        href={`/team-admin?view=chats&login=${encodeURIComponent(loginId)}`}
-        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-      >
-        Has a member login →
-      </Link>
-    );
-  }
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <UserPlus />
-        Invite as member
-      </Button>
-      <InviteDialog open={open} onOpenChange={setOpen} contact={{ id: contactId, name }} />
-    </>
-  );
-}
-
 const STATE_LABEL: Record<MemberInviteState, string> = {
   open: 'Open',
   redeemed: 'Accepted',
@@ -342,31 +336,39 @@ function StatePill({ state }: { state: MemberInviteState }) {
   );
 }
 
-function stateLine(i: MemberInviteRow): string {
+export function stateLine(i: MemberInviteRow): string {
   if (i.state === 'redeemed') return `Accepted ${formatDateTime(i.redeemedAt)}`;
   if (i.state === 'expired') return `Expired ${formatDateTime(i.expiresAt)}`;
   return `Expires ${formatDateTime(i.expiresAt)}`;
 }
 
 /**
- * The Invites tab: every invite (open, accepted, expired; revoked ones are
- * gone), newest first, with Revoke on the open ones and "Invite by email" for
- * a person who is not a contact.
+ * One open invite in the Logins detail pane: the one header (its name and
+ * state; New link; Info and Revoke as icons), then what it is for. The link
+ * itself was shown once, when it was made: New link makes another and the
+ * old one stops working.
  */
-export function InvitesPanel() {
+export function InviteDetail({
+  invite,
+  onRevoked,
+  onCreated,
+}: {
+  invite: MemberInviteRow;
+  onRevoked: () => void;
+  onCreated: (inviteId: string) => void;
+}) {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const q = useMemberInvites();
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [revoking, setRevoking] = useState<MemberInviteRow | null>(null);
+  const [again, setAgain] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const revoke = async () => {
-    if (!revoking) return;
     setBusy(true);
     try {
-      await apiSend(`/api/team-admin/invites/${revoking.id}`, 'DELETE');
+      await apiSend(`/api/team-admin/invites/${encodeURIComponent(invite.id)}`, 'DELETE');
       toast.success('Invite revoked');
+      onRevoked();
     } catch (e) {
       toast.error(
         e instanceof ApiError && e.status === 404
@@ -376,75 +378,82 @@ export function InvitesPanel() {
     } finally {
       await queryClient.invalidateQueries({ queryKey: INVITES_KEY });
       setBusy(false);
-      setRevoking(null);
+      setRevoking(false);
     }
   };
 
-  const invites = q.data?.invites ?? [];
+  const contact =
+    invite.contactId && invite.contactName
+      ? { id: invite.contactId, name: invite.contactName }
+      : undefined;
   return (
-    <div className="w-full space-y-4 p-4">
-      <section className="rounded-lg border border-border bg-card text-card-foreground">
-        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold">Member invites</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              An invite link makes a member login: the person sets their own password. Invite
-              someone from Chat archive, or anyone by email.
-            </p>
-          </div>
-          <Button size="sm" className="shrink-0" onClick={() => setInviteOpen(true)}>
-            <MailPlus />
-            Invite by email
+    <div>
+      <ItemHeader
+        sticky
+        visual={<MailPlus className="size-4 text-muted-foreground" aria-hidden />}
+        title={inviteName(invite)}
+        badges={<StatePill state={invite.state} />}
+        textActions={
+          <Button size="sm" variant="outline" onClick={() => setAgain(true)}>
+            New link
           </Button>
+        }
+        iconActions={
+          <>
+            <HeaderInfoButton label="About this invite">
+              <p>
+                An invite link makes a member login: the person opens it and sets their own
+                password. It works once, for {INVITE_LIFETIME_HOURS} hours.
+              </p>
+              <p className="text-muted-foreground">
+                The link is shown once, when it is made. To send it again, click New link: the old
+                link stops working.
+              </p>
+            </HeaderInfoButton>
+            <HeaderIconButton
+              label="Revoke invite"
+              tooltip="Revoke: the link stops working now"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={() => setRevoking(true)}
+            >
+              <X />
+            </HeaderIconButton>
+          </>
+        }
+      />
+      <div className="grid gap-x-8 gap-y-2 p-6 text-sm sm:grid-cols-2">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Email</div>
+          <div className="mt-0.5 break-all">{invite.email}</div>
         </div>
-        {q.isPending ? (
-          <p className="p-4 text-sm text-muted-foreground">Loading…</p>
-        ) : q.isError ? (
-          <div className="flex items-center gap-3 p-4 text-sm text-muted-foreground">
-            Couldn&apos;t load invites.
-            <Button variant="outline" size="sm" onClick={() => void q.refetch()}>
-              Retry
-            </Button>
+        {invite.contactName ? (
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Contact</div>
+            <div className="mt-0.5">{invite.contactName}</div>
           </div>
-        ) : invites.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">No invites yet.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {invites.map((i) => (
-              <li key={i.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {i.displayName || i.contactName || i.email}
-                    </span>
-                    <StatePill state={i.state} />
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {i.email} · {stateLine(i)}
-                  </p>
-                </div>
-                {i.state === 'open' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    aria-label={`Revoke the invite for ${i.email}`}
-                    onClick={() => setRevoking(i)}
-                  >
-                    Revoke
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        ) : null}
+        <div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Made</div>
+          <div className="mt-0.5">{formatDateTime(invite.createdAt)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">State</div>
+          <div className="mt-0.5">{stateLine(invite)}</div>
+        </div>
+      </div>
 
-      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
-      <AlertDialog open={!!revoking} onOpenChange={(o) => !busy && !o && setRevoking(null)}>
+      <InviteDialog
+        open={again}
+        onOpenChange={setAgain}
+        contact={contact}
+        initialEmail={contact ? '' : invite.email}
+        initialName={contact ? '' : (invite.displayName ?? '')}
+        onCreated={onCreated}
+      />
+      <AlertDialog open={revoking} onOpenChange={(o) => !busy && !o && setRevoking(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke the invite for {revoking?.email}?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke the invite for {invite.email}?</AlertDialogTitle>
             <AlertDialogDescription>
               The link and code stop working now. You can invite them again later.
             </AlertDialogDescription>

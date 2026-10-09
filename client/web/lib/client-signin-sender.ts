@@ -1,5 +1,5 @@
 /**
- * Team admin > Clients > Sign-in codes by email (client logins C2b), the
+ * Settings > Logins > Client settings > Sign-in codes by email (client logins C2b), the
  * pure half. An admin picks the email account client sign-in codes are
  * mailed from; none means codes are off (clients sign in with a link only).
  * Nothing here fetches, so each wording is pinned by a test

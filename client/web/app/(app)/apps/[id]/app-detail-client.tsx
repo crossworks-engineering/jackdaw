@@ -456,7 +456,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
           }
           iconActions={
             <>
-              <HeaderInfoButton>
+              <HeaderInfoButton label="About this app">
                 <p className="font-medium">{app.title || 'Untitled'}</p>
                 {(app.description ?? app.summary) ? (
                   <p className="text-muted-foreground">{app.description ?? app.summary}</p>

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Team admin > Clients > Chat use today (client logins C4). Each client
+ * Settings > Logins > Client settings > Chat use today (client logins C4). Each client
  * login chats with the client-level agent within a daily limit, in turns
  * and in tokens (per login, per UTC day); this card shows how far each one
  * is today, so an admin can tell a client who "cannot send" why. A brain

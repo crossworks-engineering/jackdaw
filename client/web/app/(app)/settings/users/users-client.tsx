@@ -12,14 +12,20 @@ import {
 import {
   Anchor,
   Bot,
+  Eye,
   KeyRound,
+  MailPlus,
+  MessagesSquare,
   Monitor,
   MonitorSmartphone,
   Plus,
+  Settings2,
   Smartphone,
   Trash2,
+  UserPlus,
   Users,
 } from 'lucide-react';
+import type { ClientReport } from '@mantle/client-types';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { ListCard, ListCardMeta } from '@mantle/web-ui/ui/list-card';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -66,7 +72,37 @@ import {
   signLoginOutEverywhere,
   signOutEverywhere,
 } from '@/lib/sign-out-everywhere';
-import { loginDeleteText } from '@/lib/client-logins';
+import {
+  CLIENT_ACTIONS_BLOCKED_TEXT,
+  CLIENT_LOGINS_KEY,
+  clientActionsBlocked,
+  loginDeleteText,
+} from '@/lib/client-logins';
+import {
+  CLIENT_REPORT_KEY,
+  NOT_ON_THIS_BRAIN,
+  fetchClientReport,
+  isReportMissing,
+} from '@/lib/client-report';
+import { loginHasChat } from '@/lib/login-chat';
+import { CLIENT_SETTINGS, WHAT_CLIENTS_SEE, inviteIdOf, inviteKey } from '@/lib/logins-nav';
+import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
+import { ReviewSections } from '@/components/review/workspace-review-sections';
+import { LoginChat } from '@/components/logins/login-chat';
+import {
+  InviteDetail,
+  InviteDialog,
+  stateLine,
+  useMemberInvites,
+} from '@/components/team-admin/member-invites';
+import { inviteName, openInvites } from '@/lib/member-invites';
+import {
+  AddClientDialog,
+  ClientSettingsPanel,
+  ClientSigninCard,
+  useClientLogins,
+} from '@/components/team-admin/client-logins';
+import { ClientReportPanel } from '@/components/team-admin/client-report';
 import { PairPhoneCard } from './pair-phone-card';
 
 type UserRow = {
@@ -82,7 +118,8 @@ type UserRow = {
    *  admin screen, reads team-level items at /m (member logins, Phase 1).
    *  'client' = a person at the brain's client company (client logins C2):
    *  reads client-level items only and signs in with a link. Made and managed
-   *  in Team admin > Clients; the brain refuses a role change to or from it. */
+   *  in this screen's Clients section; the brain refuses a role change to or
+   *  from it. */
   role: 'admin' | 'member' | 'client';
   contactId: string | null;
   disabledAt: string | null;
@@ -146,11 +183,114 @@ function useSourceAgents() {
   });
 }
 
+/** The client report, for the What clients see step's card. A brain before
+ *  client logins C1 answers 404: the step is left out. */
+function useClientReport() {
+  return useQuery({
+    queryKey: CLIENT_REPORT_KEY,
+    queryFn: fetchClientReport,
+    retry: (count, err) => !isReportMissing(err) && count < 1,
+  });
+}
+
+/** A section heading in the list column, in the review sections' style, with
+ *  an optional count and one small text action on the right. */
+function ListSectionHeading({
+  id,
+  title,
+  count,
+  action,
+}: {
+  id: string;
+  title: string;
+  count?: number;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-1 pt-2">
+      <h2 id={id} className="flex items-center gap-1.5 text-xs font-semibold">
+        {title}
+        {count ? (
+          <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground">
+            {count}
+          </span>
+        ) : null}
+      </h2>
+      {action}
+    </div>
+  );
+}
+
+/** One login's card in the list. */
+function LoginCard({
+  user,
+  selected,
+  onSelect,
+}: {
+  user: UserRow;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <ListCard onClick={onSelect} selected={selected}>
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          {user.displayName || user.email}
+        </span>
+        {user.role === 'member' && (
+          <Badge variant="secondary" className="shrink-0">
+            Member
+          </Badge>
+        )}
+        {user.disabledAt && (
+          <Badge variant="outline" className="shrink-0">
+            Disabled
+          </Badge>
+        )}
+        {user.agent && (
+          <Badge variant="outline" className="shrink-0" title={user.agent.name}>
+            <Bot className="size-3" /> {user.agent.name}
+          </Badge>
+        )}
+        {user.isOwner && (
+          <Badge variant="secondary" className="shrink-0">
+            Anchor
+          </Badge>
+        )}
+      </div>
+      <ListCardMeta>
+        {user.displayName
+          ? user.email
+          : user.lastLoginAt
+            ? `Last login ${formatDateTime(user.lastLoginAt)}`
+            : 'Never signed in'}
+      </ListCardMeta>
+    </ListCard>
+  );
+}
+
+/** What the What clients see step's card says under its title. */
+function reportMeta(report: ClientReport | undefined, failed: boolean): string {
+  if (!report) return failed ? 'Could not load the list' : 'Loading…';
+  if (report.acknowledged) return 'Checked. Clients can be added.';
+  if (report.acknowledgement) return 'Changed since the check: check it again';
+  return 'Step 1: check it before adding clients';
+}
+
 /**
- * Co-admin logins into the one brain — NOT tenants. Everyone sees the same data
- * and is a full admin; a row here is a login identity for the audit trail. The
- * server enforces the invariants (anchor undeletable, no self-delete); the UI
- * just mirrors them. (Access tiers are a separate team-member surface.)
+ * Logins: ways INTO the one brain, not tenants. Everyone with an admin login
+ * sees the same data; a member or client login sees only its level. The
+ * list column holds, top to bottom: Open invites (a section above the list,
+ * while any is open), the admin and member logins, then Clients: its two
+ * steps (What clients see, Client settings) and the client logins. Invite and
+ * Add login head the column; Add client heads Clients. One detail pane shows
+ * whatever is selected, under its one header (ItemHeader).
+ *
+ * Invites, Clients, What clients see and each login's Chat moved here from
+ * Team admin on 2026-10-09; their brain routes and admin-only gates are
+ * unchanged (/api/team-admin/invites, /clients, /member-chats and
+ * /api/access/client-report). The server enforces the invariants (anchor
+ * undeletable, no self-delete); the UI just mirrors them.
  */
 export function UsersClient() {
   const queryClient = useQueryClient();
@@ -158,16 +298,30 @@ export function UsersClient() {
     queryKey: ['users'],
     queryFn: () => apiFetch<{ users: UserRow[]; currentActorId: string }>('/api/users'),
   });
+  const invitesQuery = useMemberInvites();
+  const clientsQuery = useClientLogins();
+  const reportQuery = useClientReport();
 
-  // Deep link: /settings/users?selected=<id-or-email> preselects that user
-  // (initial state only — selection stays client-state after).
+  // Deep link: /settings/users?selected=<id-or-email | invite:<id> |
+  // what-clients-see | client-settings>[&view=chat] preselects (initial state
+  // only: selection stays client-state after).
   const searchParams = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('selected'));
+  const [chat, setChat] = useState(searchParams.get('view') === 'chat');
   const [addOpen, setAddOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [addClientOpen, setAddClientOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] });
+  const select = (id: string | null, opts: { chat?: boolean } = {}) => {
+    setSelectedId(id);
+    setChat(!!opts.chat);
+  };
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: CLIENT_LOGINS_KEY });
+    return queryClient.invalidateQueries({ queryKey: ['users'] });
+  };
 
   if (usersQuery.isPending) {
     return (
@@ -188,8 +342,30 @@ export function UsersClient() {
   }
 
   const { users, currentActorId } = usersQuery.data;
+  const team = users.filter((u) => u.role !== 'client');
+  const clients = users.filter((u) => u.role === 'client');
+  const invites = openInvites(invitesQuery.data?.invites);
+  const reportMissing = isReportMissing(reportQuery.error);
+  const clientsBlocked = clientActionsBlocked(clientsQuery.data);
+
+  // What the detail pane shows: an open invite, a client step, or a login
+  // (by id or email; the first login when nothing, or something gone, is
+  // selected).
+  const inviteId = inviteIdOf(selectedId);
+  const invite = inviteId ? (invites.find((i) => i.id === inviteId) ?? null) : null;
+  const step =
+    selectedId === WHAT_CLIENTS_SEE && !reportMissing
+      ? WHAT_CLIENTS_SEE
+      : selectedId === CLIENT_SETTINGS
+        ? CLIENT_SETTINGS
+        : null;
   const selected =
-    users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null;
+    invite || step
+      ? null
+      : (users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null);
+  const selectedKey = invite ? inviteKey(invite.id) : (step ?? selected?.id ?? null);
+
+  const showReport = () => select(WHAT_CLIENTS_SEE);
 
   return (
     <>
@@ -205,69 +381,143 @@ export function UsersClient() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Logins
               </h2>
-              <Button size="sm" onClick={() => setAddOpen(true)}>
-                <Plus /> Add login
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)}>
+                  <MailPlus /> Invite
+                </Button>
+                <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <Plus /> Add login
+                </Button>
+              </div>
             </div>
+            <ReviewSections
+              sections={[
+                {
+                  id: 'logins-open-invites',
+                  title: 'Open invites',
+                  rows: invites.map((i) => ({
+                    id: inviteKey(i.id),
+                    title: inviteName(i),
+                    meta: `${i.email} · ${stateLine(i)}`,
+                    onSelect: () => select(inviteKey(i.id)),
+                  })),
+                },
+              ]}
+              selectedId={selectedKey}
+            />
             <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-              {users.map((u) => (
-                <ListCard
+              {team.map((u) => (
+                <LoginCard
                   key={u.id}
-                  onClick={() => setSelectedId(u.id)}
-                  selected={selected?.id === u.id}
+                  user={u}
+                  selected={selectedKey === u.id}
+                  onSelect={() => select(u.id)}
+                />
+              ))}
+
+              <section aria-labelledby="logins-clients" className="space-y-2">
+                <ListSectionHeading
+                  id="logins-clients"
+                  title="Clients"
+                  count={clients.length}
+                  action={
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={clientsBlocked}
+                      title={clientsBlocked ? CLIENT_ACTIONS_BLOCKED_TEXT : undefined}
+                      onClick={() => setAddClientOpen(true)}
+                    >
+                      <UserPlus /> Add client
+                    </Button>
+                  }
+                />
+                {reportMissing ? null : (
+                  <ListCard
+                    onClick={() => select(WHAT_CLIENTS_SEE)}
+                    selected={selectedKey === WHAT_CLIENTS_SEE}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Eye className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        What clients see
+                      </span>
+                      {reportQuery.data && !reportQuery.data.acknowledged ? (
+                        <Badge variant="outline" className="shrink-0">
+                          To check
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <ListCardMeta>{reportMeta(reportQuery.data, reportQuery.isError)}</ListCardMeta>
+                  </ListCard>
+                )}
+                <ListCard
+                  onClick={() => select(CLIENT_SETTINGS)}
+                  selected={selectedKey === CLIENT_SETTINGS}
                 >
                   <div className="flex items-center gap-2">
+                    <Settings2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {u.displayName || u.email}
+                      Client settings
                     </span>
-                    {u.role === 'member' && (
-                      <Badge variant="secondary" className="shrink-0">
-                        Member
-                      </Badge>
-                    )}
-                    {u.role === 'client' && (
-                      <Badge variant="outline" className="shrink-0">
-                        Client
-                      </Badge>
-                    )}
-                    {u.disabledAt && (
-                      <Badge variant="outline" className="shrink-0">
-                        Disabled
-                      </Badge>
-                    )}
-                    {u.agent && (
-                      <Badge variant="outline" className="shrink-0" title={u.agent.name}>
-                        <Bot className="size-3" /> {u.agent.name}
-                      </Badge>
-                    )}
-                    {u.isOwner && (
-                      <Badge variant="secondary" className="shrink-0">
-                        Anchor
-                      </Badge>
-                    )}
                   </div>
-                  <ListCardMeta>
-                    {u.displayName
-                      ? u.email
-                      : u.lastLoginAt
-                        ? `Last login ${formatDateTime(u.lastLoginAt)}`
-                        : 'Never signed in'}
-                  </ListCardMeta>
+                  <ListCardMeta>Sign-in codes by email, chat use, storage</ListCardMeta>
                 </ListCard>
-              ))}
+                {clients.length === 0 ? (
+                  <p className="px-1 text-xs text-muted-foreground">No client logins yet.</p>
+                ) : (
+                  clients.map((u) => (
+                    <LoginCard
+                      key={u.id}
+                      user={u}
+                      selected={selectedKey === u.id}
+                      onSelect={() => select(u.id)}
+                    />
+                  ))
+                )}
+              </section>
             </div>
           </>
         }
         // `relative` and the pane's single scroller are `MasterDetail`'s job now.
         detail={
-          selected ? (
+          invite ? (
+            <InviteDetail
+              key={invite.id}
+              invite={invite}
+              onRevoked={() => select(null)}
+              onCreated={(id) => select(inviteKey(id))}
+            />
+          ) : step === WHAT_CLIENTS_SEE ? (
+            <ClientReportPane query={reportQuery} />
+          ) : step === CLIENT_SETTINGS ? (
+            <div>
+              <ItemHeader
+                sticky
+                visual={<Settings2 className="size-4 text-muted-foreground" aria-hidden />}
+                title="Client settings"
+                iconActions={
+                  <HeaderInfoButton label="About client settings">
+                    <p>
+                      What applies to every client login: how they get a sign-in code by email,
+                      their chat use today against the daily limits, and what their own spaces hold.
+                    </p>
+                  </HeaderInfoButton>
+                }
+              />
+              <ClientSettingsPanel />
+            </div>
+          ) : selected ? (
             <UserDetail
               key={selected.id}
               user={selected}
               isSelf={selected.id === currentActorId}
-              onChanged={invalidate}
+              chat={chat && loginHasChat(selected.role)}
+              onChatChange={setChat}
+              onChanged={() => void invalidate()}
               onRequestDelete={() => setDeleteOpen(true)}
               onRequestReset={() => setResetOpen(true)}
+              onShowReport={showReport}
             />
           ) : (
             <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -281,7 +531,20 @@ export function UsersClient() {
         open={addOpen}
         onOpenChange={setAddOpen}
         onCreated={(id) => {
-          setSelectedId(id);
+          select(id);
+          void invalidate();
+        }}
+      />
+      <InviteDialog
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        onCreated={(id) => select(inviteKey(id))}
+      />
+      <AddClientDialog
+        open={addClientOpen}
+        onOpenChange={setAddClientOpen}
+        onCreated={(id) => {
+          select(id);
           void invalidate();
         }}
       />
@@ -293,7 +556,7 @@ export function UsersClient() {
             onOpenChange={setDeleteOpen}
             user={selected}
             onDeleted={() => {
-              setSelectedId(null);
+              select(null);
               void invalidate();
             }}
           />
@@ -303,22 +566,60 @@ export function UsersClient() {
   );
 }
 
+/** The What clients see step: the report under its one header, or why it
+ *  cannot show. */
+function ClientReportPane({ query }: { query: ReturnType<typeof useClientReport> }) {
+  if (query.data) return <ClientReportPanel report={query.data} />;
+  if (isReportMissing(query.error)) {
+    return <p className="p-6 text-sm text-muted-foreground">{NOT_ON_THIS_BRAIN}</p>;
+  }
+  if (query.isError) {
+    return (
+      <div className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+        Couldn&apos;t load the client list.
+        <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  return <p className="p-6 text-sm text-muted-foreground">Loading…</p>;
+}
+
+/** What a login is, in a sentence: the Info button's text. */
+function loginAbout(user: UserRow): string {
+  if (user.isOwner) return 'The anchor login. The brain is keyed to it, so it can’t be deleted.';
+  if (user.role === 'member')
+    return 'A member login: team-level items and chat only, at /m. Admin screens refuse it.';
+  if (user.role === 'client')
+    return 'A client login: client-level items only, signed in with a link issued below.';
+  return 'Another way into this brain. Same brain, same data, same settings: actions are recorded under this identity.';
+}
+
 function UserDetail({
   user,
   isSelf,
+  chat,
+  onChatChange,
   onChanged,
   onRequestDelete,
   onRequestReset,
+  onShowReport,
 }: {
   user: UserRow;
   isSelf: boolean;
+  /** The Chat view instead of the details (members and clients). */
+  chat: boolean;
+  onChatChange: (chat: boolean) => void;
   onChanged: () => void;
   onRequestDelete: () => void;
   onRequestReset: () => void;
+  onShowReport: () => void;
 }) {
   const toast = useToast();
   const [displayName, setDisplayName] = useState(user.displayName ?? '');
   const [saving, setSaving] = useState(false);
+  const name = user.displayName || user.email;
 
   const saveDisplayName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -337,102 +638,127 @@ function UserDetail({
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-lg font-semibold">{user.displayName || user.email}</h2>
+    <div>
+      {/* The pane's one header: name and state; Chat (members and clients) as
+          the text action; Info and Delete as icons. */}
+      <ItemHeader
+        sticky
+        title={name}
+        badges={
+          <>
             {user.isOwner && (
               <Badge variant="secondary">
                 <Anchor className="size-3" /> Anchor
               </Badge>
             )}
             {isSelf && <Badge variant="outline">You</Badge>}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {user.isOwner
-              ? 'The anchor login. The brain is keyed to it, so it can’t be deleted.'
-              : user.role === 'member'
-                ? 'A member login: team-level items and chat only, at /m. Admin screens refuse it.'
-                : user.role === 'client'
-                  ? 'A client login: client-level items only, signed in with a link. Sign-in links live in Team admin > Clients.'
-                  : 'Another way into this brain. Same brain, same data, same settings — actions are recorded under this identity.'}
-          </p>
-        </div>
-        {!user.isOwner && !isSelf && (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="shrink-0 text-muted-foreground hover:text-destructive-ink"
-            onClick={onRequestDelete}
-            aria-label="Delete user"
-          >
-            <Trash2 />
-          </Button>
-        )}
-      </div>
-
-      <div className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Email</div>
-          <div className="mt-0.5">{user.email}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Created</div>
-          <div className="mt-0.5">{formatDateTime(user.createdAt)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Last login</div>
-          <div className="mt-0.5">
-            {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'Never signed in'}
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={saveDisplayName} noValidate className="space-y-3">
-        <Field>
-          <FieldLabel htmlFor="display-name">Display name</FieldLabel>
-          <Input
-            id="display-name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="e.g. Ronnie van Zyl"
-            aria-describedby={hintId('display-name')}
-          />
-          <FieldHint id="display-name">
-            How this person appears in the app. Changing it doesn&apos;t affect their login.
-          </FieldHint>
-        </Field>
-        <SubmitButton pending={saving}>Save user</SubmitButton>
-      </form>
-
-      {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
-
-      {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
-
-      {/* Only a password login (admin, member) has one: a client signs in
-          with a link, and a role this app does not know gets nothing. */}
-      {canResetPassword(user.role) && (
-        <div className="rounded-md border border-border p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <KeyRound className="size-4 text-muted-foreground" /> Password
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Set a new password for this login. The reset is recorded in the audit log.
-              </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={onRequestReset}>
-              Reset password
+            {user.role === 'member' && <Badge variant="secondary">Member</Badge>}
+            {user.role === 'client' && <Badge variant="outline">Client</Badge>}
+            {user.disabledAt && <Badge variant="outline">Disabled</Badge>}
+          </>
+        }
+        textActions={
+          loginHasChat(user.role) ? (
+            <Button
+              size="sm"
+              variant={chat ? 'secondary' : 'outline'}
+              aria-pressed={chat}
+              onClick={() => onChatChange(!chat)}
+            >
+              <MessagesSquare /> Chat
             </Button>
+          ) : null
+        }
+        iconActions={
+          <>
+            <HeaderInfoButton label="About this login">
+              <p>{loginAbout(user)}</p>
+            </HeaderInfoButton>
+            {!user.isOwner && !isSelf && (
+              <HeaderIconButton
+                label="Delete login"
+                className="text-muted-foreground hover:text-destructive-ink"
+                onClick={onRequestDelete}
+              >
+                <Trash2 />
+              </HeaderIconButton>
+            )}
+          </>
+        }
+      />
+
+      {chat ? (
+        <LoginChat loginId={user.id} name={name} />
+      ) : (
+        <div className="space-y-6 p-6">
+          <div className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Email</div>
+              <div className="mt-0.5 break-all">{user.email}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Created</div>
+              <div className="mt-0.5">{formatDateTime(user.createdAt)}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Last login
+              </div>
+              <div className="mt-0.5">
+                {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'Never signed in'}
+              </div>
+            </div>
           </div>
+
+          <form onSubmit={saveDisplayName} noValidate className="space-y-3">
+            <Field>
+              <FieldLabel htmlFor="display-name">Display name</FieldLabel>
+              <Input
+                id="display-name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="e.g. Ronnie van Zyl"
+                aria-describedby={hintId('display-name')}
+              />
+              <FieldHint id="display-name">
+                How this person appears in the app. Changing it doesn&apos;t affect their login.
+              </FieldHint>
+            </Field>
+            <SubmitButton pending={saving}>Save user</SubmitButton>
+          </form>
+
+          {user.role === 'client' && (
+            <ClientSigninCard loginId={user.id} onShowReport={onShowReport} />
+          )}
+
+          {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
+
+          {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
+
+          {/* Only a password login (admin, member) has one: a client signs in
+              with a link, and a role this app does not know gets nothing. */}
+          {canResetPassword(user.role) && (
+            <div className="rounded-md border border-border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <KeyRound className="size-4 text-muted-foreground" /> Password
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Set a new password for this login. The reset is recorded in the audit log.
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={onRequestReset}>
+                  Reset password
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <DevicesCard user={user} isSelf={isSelf} />
+          {isSelf && <PairPhoneCard userId={user.id} />}
         </div>
       )}
-
-      <DevicesCard user={user} isSelf={isSelf} />
-      {isSelf && <PairPhoneCard userId={user.id} />}
     </div>
   );
 }

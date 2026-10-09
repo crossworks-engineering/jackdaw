@@ -1,6 +1,6 @@
 /**
  * Member invites (member logins, Phase 6), the client's side. An admin makes
- * an invite on /team-admin and hands over the link; the person opens /invite,
+ * an invite in Settings > Logins and hands over the link; the person opens /invite,
  * sets a password and is a member login.
  *
  * The public half cannot use `apiFetch`: the accept route answers every bad
@@ -68,20 +68,17 @@ export function inviteCreateErrorText(
   return 'Could not create the invite. Try again.';
 }
 
-/**
- * The member login a contact already has, as far as the invites show it (an
- * accepted invite made for that contact), else null. A contact with one gets
- * no "Invite as member": the brain would only refuse it (409). A login made
- * another way is not in the list; the brain's refusal still says so then.
- */
-export function contactLoginId(
-  invites: readonly Pick<MemberInviteRow, 'contactId' | 'state' | 'redeemedLoginId'>[] | undefined,
-  contactId: string,
-): string | null {
-  const hit = invites?.find(
-    (i) => i.contactId === contactId && i.state === 'redeemed' && i.redeemedLoginId,
-  );
-  return hit?.redeemedLoginId ?? null;
+/** The open invites, newest first (the brain's order): the section above
+ *  the logins in Settings > Logins. Accepted ones are logins now, and
+ *  expired ones need a new invite. */
+export function openInvites(invites: readonly MemberInviteRow[] | undefined): MemberInviteRow[] {
+  return (invites ?? []).filter((i) => i.state === 'open');
+}
+
+/** Who an invite is for, as a title: its name, else the contact's, else
+ *  the email. */
+export function inviteName(i: Pick<MemberInviteRow, 'displayName' | 'contactName' | 'email'>) {
+  return i.displayName || i.contactName || i.email;
 }
 
 /** Shown when the preview answers 404: the code redeems nothing. */

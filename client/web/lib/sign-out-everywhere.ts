@@ -30,7 +30,7 @@ export function everywhereConfirmText(client: boolean): string {
 
 /** The whole confirm, for an admin signing ANOTHER login out (Settings >
  *  Logins). For a client the brain also revokes its open sign-in link and
- *  codes, so it says what Team admin > Clients' End sessions says (client
+ *  codes, so it says what the old Team admin > Clients End sessions said (client
  *  tier audit U11). */
 export function otherLoginEverywhereText(user: {
   role: string;
