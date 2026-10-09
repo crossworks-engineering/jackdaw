@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * A member's app in the admin's normal app screen (workspace review pattern,
- * 2026-10-09): the same header and View menu as the editor, with a banner
- * that says who sent it and what waits, and its actions.
+ * A member's app in the admin's Apps pane (workspace review pattern,
+ * 2026-10-09), beside the tree like any app: the one app header (tile,
+ * title, version and state, who sent it), with the review actions in it and
+ * the View menu (Test, Code, History, Activity).
  *
  *  - Waiting for approval: Approve (level, trust its tools, the version;
  *    then a confirm; sends the pinned version and review hash) and Send
@@ -17,7 +18,6 @@
  * idle). Nothing real changes. No comments: review flows carry no messages.
  */
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
-import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -60,18 +60,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
-import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { CodeEditor } from '@mantle/web-ui/app-sandbox/code-editor';
 import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import type { AppTint } from '@mantle/client-types';
-import { SetPageTitle } from '@/components/layout/page-title';
-import { AppTile } from '@/components/app-nav/app-tile';
-import { AppLoader } from '@/components/app-nav/app-loader';
-import { MemberAppActivity } from '@/components/app-nav/member-app-activity';
-import { ReviewBanner } from '@/components/review/review-banner';
+import { FocusToggle } from '@/components/layout/focus-toggle';
+import { AppLoader } from './app-loader';
+import { AppItemHeader, HeaderIconButton } from './app-item-header';
+import { MemberAppActivity } from './member-app-activity';
 import {
   APP_ACCEPT_LEVEL_MEANING,
   APP_TRUST_TOOLS_HINT,
@@ -129,8 +127,12 @@ function fmtWhen(iso: string | null): string {
   });
 }
 
-/** Outer query gate: the page stays data-free. */
-export function MemberAppReviewClient({ id }: { id: string }) {
+/** Where the pane goes after an action: the approved app (now a brain app),
+ *  or nothing picked. */
+export type ReviewDone = (open?: string) => void;
+
+/** Outer query gate. */
+export function MemberAppReview({ id, onDone }: { id: string; onDone: ReviewDone }) {
   const q = useQuery({
     queryKey: [...REVIEW_APPS_KEY, id],
     queryFn: () => apiFetch<{ app: ReviewAppDetail }>(reviewAppPath(id)).then((r) => r.app),
@@ -152,11 +154,10 @@ export function MemberAppReviewClient({ id }: { id: string }) {
             ? 'This app is not waiting or shared any more. Its author may have made it private.'
             : 'Could not load this app.'}
         </p>
-        <BackLink href="/apps">Back to apps</BackLink>
       </div>
     );
   }
-  return <ReviewView app={q.data} />;
+  return <ReviewView app={q.data} onDone={onDone} />;
 }
 
 /** Ending a test waits a moment, so a remount (React's dev double effect,
@@ -222,8 +223,7 @@ function useTestRun(id: string, runnable: boolean) {
   return { state, error, reloadKey, restart: start, ended };
 }
 
-function ReviewView({ app }: { app: ReviewAppDetail }) {
-  const router = useRouter();
+function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [tab, setTab] = useState<string>('test');
@@ -292,7 +292,7 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
   const [confirmSendBack, setConfirmSendBack] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const leave = (msg: string, to = '/apps') => {
+  const leave = (msg: string, open?: string) => {
     // Every app list, but not this screen's own detail: refetched now it
     // would flash "not waiting any more" on the way out.
     void qc.invalidateQueries({
@@ -306,7 +306,7 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
     });
     void qc.invalidateQueries({ queryKey: DELETED_APPS_KEY });
     toast.success(msg);
-    router.push(to);
+    onDone(open);
   };
   const fail = (fallback: string) => (e: unknown) => {
     if (e instanceof ApiError && e.status === 409) {
@@ -323,10 +323,7 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
         reviewHash: pinned.reviewHash,
       }),
     onSuccess: () =>
-      leave(
-        level === 'team' ? 'Approved at Team level' : 'Approved at Admin level',
-        `/apps/${app.id}`,
-      ),
+      leave(level === 'team' ? 'Approved at Team level' : 'Approved at Admin level', app.id),
     onError: fail('Could not approve it.'),
   });
   const sendBack = useMutation({
@@ -346,55 +343,95 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
   });
   const busy = approve.isPending || sendBack.isPending || unshare.isPending || remove.isPending;
 
-  const actions =
-    kind === 'waiting' ? (
-      <>
-        <Button
-          size="sm"
-          disabled={busy || !app.reviewHash}
-          onClick={() => {
-            setLevel('team');
-            setTrust(false);
-            setShown({ version: app.version, reviewHash: app.reviewHash });
-            setApproveOpen(true);
-          }}
-        >
-          <Check />
-          Approve
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => setConfirmSendBack(true)}
-        >
-          <Undo2 />
-          Send back
-        </Button>
-      </>
-    ) : (
-      <>
-        {app.sharing === 'team' ? (
+  // Buttons with words first, then the icon-only group (AppItemHeader).
+  const textActions = (
+    <>
+      {kind === 'waiting' ? (
+        <>
+          <Button
+            size="sm"
+            disabled={busy || !app.reviewHash}
+            onClick={() => {
+              setLevel('team');
+              setTrust(false);
+              setShown({ version: app.version, reviewHash: app.reviewHash });
+              setApproveOpen(true);
+            }}
+          >
+            <Check />
+            Approve
+          </Button>
           <Button
             size="sm"
             variant="outline"
             disabled={busy}
-            title={MEMBER_APP_UNSHARE_HINT}
-            onClick={() => unshare.mutate()}
+            onClick={() => setConfirmSendBack(true)}
           >
-            <UserMinus />
-            Unshare
+            <Undo2 />
+            Send back
           </Button>
-        ) : null}
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirmDelete(true)}>
+        </>
+      ) : app.sharing === 'team' ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          title={MEMBER_APP_UNSHARE_HINT}
+          onClick={() => unshare.mutate()}
+        >
+          <UserMinus />
+          Unshare
+        </Button>
+      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`View: ${viewLabel(tab)}`}
+            title="Switch view"
+          >
+            {viewLabel(tab)}
+            <ChevronDown className="opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuRadioGroup value={tab} onValueChange={setTab}>
+            {VIEWS.map((v) => (
+              <DropdownMenuRadioItem key={v.value} value={v.value}>
+                {v.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+  const iconActions = (
+    <>
+      {tab === 'test' && app.runnable ? (
+        <HeaderIconButton
+          label="Restart test"
+          tooltip="Restart the test from the app's real data"
+          disabled={test.state === 'starting'}
+          onClick={() => void test.restart()}
+        >
+          <RotateCcw />
+        </HeaderIconButton>
+      ) : null}
+      <FocusToggle />
+      {kind === 'shared' ? (
+        <HeaderIconButton
+          label="Delete app"
+          className="text-muted-foreground hover:text-destructive-ink"
+          disabled={busy}
+          onClick={() => setConfirmDelete(true)}
+        >
           <Trash2 />
-          Delete
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => setTab('activity')}>
-          Activity
-        </Button>
-      </>
-    );
+        </HeaderIconButton>
+      ) : null}
+    </>
+  );
 
   const detail =
     kind === 'waiting'
@@ -405,46 +442,33 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <SetPageTitle title={app.title} />
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <BackLink href="/apps">Apps</BackLink>
-            <span className="flex min-w-0 items-center gap-2 font-semibold">
-              <AppTile icon={app.icon} color={app.color as AppTint | null} size="md" />
-              <span className="min-w-0 truncate">{app.title || 'Untitled'}</span>
+        <AppItemHeader
+          icon={app.icon}
+          color={app.color as AppTint | null}
+          title={app.title}
+          badges={
+            <>
               <Badge variant="secondary" className="shrink-0">
                 v{app.version}
               </Badge>
-            </span>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`View: ${viewLabel(tab)}`}
-                  title="Switch view"
-                >
-                  {viewLabel(tab)}
-                  <ChevronDown className="opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup value={tab} onValueChange={setTab}>
-                  {VIEWS.map((v) => (
-                    <DropdownMenuRadioItem key={v.value} value={v.value}>
-                      {v.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        <ReviewBanner kind={kind} text={reviewBannerText(app)} detail={detail} actions={actions} />
+              <Badge variant="outline" className="shrink-0">
+                {kind === 'waiting' ? 'Waiting for approval' : 'Shared by a member'}
+              </Badge>
+            </>
+          }
+          subtitle={`${reviewBannerText(app)} ${detail}`}
+          note={
+            tab === 'test' && app.runnable ? (
+              <p role="status" className="mt-1 flex items-start gap-1.5 text-xs text-warning-ink">
+                <FlaskConical className="mt-px size-3.5 shrink-0" aria-hidden />
+                {REVIEW_TEST_NOTE}
+              </p>
+            ) : null
+          }
+          textActions={textActions}
+          iconActions={iconActions}
+        />
 
         {/* Test: the test run. forceMount keeps it (and its copy) while
             another view is open, as the editor keeps its preview. */}
@@ -453,23 +477,9 @@ function ReviewView({ app }: { app: ReviewAppDetail }) {
           forceMount
           className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
         >
-          <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2">
-              <FlaskConical className="size-4 shrink-0 text-warning-ink" aria-hidden />
-              <p className="min-w-0 flex-1 basis-60 text-sm font-medium">{REVIEW_TEST_NOTE}</p>
-              {app.runnable ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={test.state === 'starting'}
-                  onClick={() => void test.restart()}
-                  title="Start again from the app's real data"
-                >
-                  <RotateCcw />
-                  Restart test
-                </Button>
-              ) : null}
-            </div>
+          {/* Below `md` the panes stack and the detail has no height of its
+              own, so the run is given most of the screen there. */}
+          <div className="flex h-[75dvh] min-h-0 flex-col md:h-auto md:flex-1">
             <div className="min-h-0 flex-1">
               {!app.runnable ? (
                 <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">

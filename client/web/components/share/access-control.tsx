@@ -296,7 +296,12 @@ export function AccessControl({
         <PopoverTrigger asChild>
           {/* `icon-sm`, not `icon`: this sits in detail headers next to
             `size="sm"` buttons, and `icon` is 40px against their 36px. */}
-          <Button variant="outline" size={iconOnly ? 'icon-sm' : 'sm'} aria-label="Access">
+          <Button
+            variant="outline"
+            size={iconOnly ? 'icon-sm' : 'sm'}
+            aria-label="Access"
+            title={iconOnly ? 'Access: who can see this' : undefined}
+          >
             <Share2 />
             {!iconOnly && 'Access'}
           </Button>

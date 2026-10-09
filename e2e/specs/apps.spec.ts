@@ -218,7 +218,7 @@ test.describe('apps', () => {
       // The URL names it, so a reload or a shared link opens the same app.
       await expect.poll(() => new URL(ownerPage.url()).searchParams.get('id')).toBe(app.id);
       // The header's actions: Open goes to the app's own screen.
-      await expect(detail.getByRole('link', { name: 'Open' }).first()).toHaveAttribute(
+      await expect(detail.getByRole('link', { name: 'Open app' })).toHaveAttribute(
         'href',
         `/apps/${app.id}`,
       );
@@ -315,5 +315,129 @@ test.describe('apps', () => {
       expect(overflow).toBeLessThanOrEqual(1);
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-phone.png` });
     });
+  });
+  test('Open after picking an app in /apps opens its own screen (no crash)', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    // The pane and the app's screen share one cache entry. It once held two
+    // shapes, and Open landed on "Something went wrong on this screen".
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto('/apps');
+      const detail = ownerPage.locator('[data-testid="detail"]');
+      await openFromTree(ownerPage, app.title, detail.getByRole('heading', { name: app.title }));
+      await detail.getByRole('link', { name: 'Open app' }).click();
+      await ownerPage.waitForURL(new RegExp(`/apps/${app.id}$`));
+      await expect(ownerPage.getByRole('button', { name: /^View:/ })).toBeVisible();
+      await expect(ownerPage.getByText('Something went wrong')).toHaveCount(0);
+    });
+  });
+
+  test('the app header: words left, the icon-only group right, every icon named', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto(`/apps?id=${app.id}`);
+      const header = ownerPage.getByTestId('app-item-header');
+      await expect(header.getByRole('heading', { name: app.title })).toBeVisible();
+      const icons = header.getByTestId('app-header-icon-actions');
+      await expect(icons.getByRole('link', { name: 'Open app' })).toBeVisible();
+      await expect(icons.getByRole('button', { name: 'Delete app' })).toBeVisible();
+      await expect(icons.getByRole('button', { name: 'Focus mode' })).toBeVisible();
+      for (const el of await icons.locator('button, a').all()) {
+        expect(
+          await el.getAttribute('aria-label'),
+          'an icon-only button with no name',
+        ).toBeTruthy();
+        expect(await el.getAttribute('title'), 'an icon-only button with no tooltip').toBeTruthy();
+      }
+    });
+  });
+
+  test('a member app opens in the pane beside the tree, under the same header', async ({
+    ownerPage,
+    serverURL,
+  }) => {
+    // The review lists and the member app are served by the spec (route
+    // mocks): a real one needs a member to build, publish and submit over
+    // MCP. The screen and its layout are what is under test here.
+    const id = '00000000-0000-4000-8000-0000000000e2';
+    const author = { loginId: null, name: 'A member', active: true };
+    const waiting = {
+      id,
+      title: 'E2E waiting app',
+      icon: null,
+      color: null,
+      author,
+      submittedAt: new Date().toISOString(),
+      version: 3,
+    };
+    const detailBody = {
+      ...waiting,
+      description: null,
+      sharing: 'private',
+      reviewState: 'submitted',
+      updatedAt: new Date().toISOString(),
+      declaredTools: [],
+      dataReadOnly: false,
+      runnable: true,
+      entry: 'App.tsx',
+      files: { 'App.tsx': 'export default () => null;' },
+      reviewHash: 'h1',
+    };
+    const json = (body: unknown, status = 200) => ({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+    await ownerPage.route(`${serverURL}/api/apps/members**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/apps/members')
+        return route.fulfill(json({ waiting: [waiting], shared: [] }));
+      if (path === `/api/apps/members/${id}`) return route.fulfill(json({ app: detailBody }));
+      if (path === `/api/apps/members/${id}/test`) return route.fulfill(json({ ok: true }));
+      if (path === `/api/apps/members/${id}/history`) return route.fulfill(json({ entries: [] }));
+      return route.fulfill(json({ error: 'not found' }, 404));
+    });
+
+    await ownerPage.setViewportSize({ width: 1600, height: 900 });
+    await ownerPage.goto('/apps');
+    const list = ownerPage.locator('[data-testid="list"]');
+    const card = list.getByRole('button', { name: /E2E waiting app/ });
+    await card.click();
+
+    // The tree column stays, the card is the selection, the URL says so.
+    await expect(list.getByRole('textbox', { name: 'Search apps' })).toBeVisible();
+    expect(await list.evaluate((el) => (el as HTMLElement).offsetWidth)).toBeGreaterThan(300);
+    await expect(card).toHaveAttribute('data-selected', 'true');
+    await expect.poll(() => new URL(ownerPage.url()).searchParams.get('review')).toBe(id);
+
+    // One header: the title, the review actions with words on the left, the
+    // icon-only group on the right, and the test notice as one line in it.
+    const header = ownerPage.locator('[data-testid="detail"]').getByTestId('app-item-header');
+    await expect(header.getByRole('heading', { name: 'E2E waiting app' })).toBeVisible();
+    await expect(ownerPage.getByTestId('app-item-header')).toHaveCount(1);
+    const words = header.getByTestId('app-header-text-actions');
+    const icons = header.getByTestId('app-header-icon-actions');
+    await expect(words.getByRole('button', { name: 'Approve' })).toBeVisible();
+    await expect(words.getByRole('button', { name: 'Send back' })).toBeVisible();
+    await expect(icons.getByRole('button', { name: 'Restart test' })).toBeVisible();
+    const w = (await words.boundingBox())!;
+    const i = (await icons.boundingBox())!;
+    expect(w.x + w.width, 'the worded buttons must sit left of the icons').toBeLessThanOrEqual(i.x);
+    await expect(header.getByRole('status')).toContainText('Test run');
+    await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-review-in-pane.png` });
+
+    // The old review address lands here.
+    await ownerPage.goto(`/apps/review/${id}`);
+    await expect
+      .poll(() => {
+        const u = new URL(ownerPage.url());
+        return `${u.pathname}${u.search}`;
+      })
+      .toBe(`/apps?review=${id}`);
   });
 });

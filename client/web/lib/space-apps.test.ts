@@ -247,7 +247,7 @@ describe("an admin's review of a member app, in Apps", () => {
     expect(reviewAppPath(shared.id, 'delete')).toBe(`/api/apps/members/${shared.id}/delete`);
     expect(reviewAppPath(shared.id, 'send-back')).toBe(`/api/apps/members/${shared.id}/send-back`);
     expect(reviewAppPath(shared.id)).toBe(`/api/apps/members/${shared.id}`);
-    expect(reviewAppHref(shared.id)).toBe(`/apps/review/${shared.id}`);
+    expect(reviewAppHref(shared.id)).toBe(`/apps?review=${shared.id}`);
     expect(deletedAppRestorePath(shared.id)).toBe(`/api/apps/deleted/${shared.id}/restore`);
   });
 

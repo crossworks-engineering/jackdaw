@@ -4,7 +4,7 @@
  * Members' apps in the admin's Apps screen (workspace review pattern,
  * 2026-10-09). Above the brain's own tree: "Waiting for approval" (what
  * members submitted) and "Shared by members" (what they shared with the
- * team), each opening the review screen (/apps/review/<id>). Below it,
+ * team), each opening the app in the Apps pane beside the tree. Below it,
  * Recently deleted apps: a deleted app, a member's one included, comes back
  * for 30 days. Replaces Team admin > App review and > Member apps. On a
  * brain without the routes (404) all of it stays hidden.
@@ -26,7 +26,6 @@ import {
   REVIEW_APPS_KEY,
   REVIEW_APPS_PATH,
   deletedAppRestorePath,
-  reviewAppHref,
   sharedAppMeta,
   type DeletedApp,
   type ReviewAppLists,
@@ -62,13 +61,21 @@ const tile = (icon: string | null, color: string | null) => (
   <AppTile icon={icon} color={color as AppTint | null} size="sm" />
 );
 
-export function MemberAppsReviewSections({ selectedId }: { selectedId?: string | null }) {
+/** `onSelect` opens a row in the screen's own pane (the tree stays);
+ *  `selectedId` is the row shown there. */
+export function MemberAppsReviewSections({
+  selectedId,
+  onSelect,
+}: {
+  selectedId?: string | null;
+  onSelect: (id: string) => void;
+}) {
   const q = useMemberAppsForReview();
   if (!q.data) return null;
   const waiting: ReviewSectionRow[] = q.data.waiting.map((a) => ({
     id: a.id,
     title: a.title,
-    href: reviewAppHref(a.id),
+    onSelect: () => onSelect(a.id),
     lead: tile(a.icon, a.color),
     badge: <Badge variant="secondary">v{a.version}</Badge>,
     meta: `${a.author.name ?? 'a member'} · sent ${fmtWhen(a.submittedAt)}`,
@@ -76,7 +83,7 @@ export function MemberAppsReviewSections({ selectedId }: { selectedId?: string |
   const shared: ReviewSectionRow[] = q.data.shared.map((a) => ({
     id: a.id,
     title: a.title,
-    href: reviewAppHref(a.id),
+    onSelect: () => onSelect(a.id),
     lead: tile(a.icon, a.color),
     badge: a.author.active ? undefined : <Badge variant="secondary">Inactive</Badge>,
     meta: sharedAppMeta(a, fmtWhen(a.lastActivityAt)),

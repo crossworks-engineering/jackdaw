@@ -4,7 +4,7 @@ import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Eye, GitCommitHorizontal, Undo2, Save, WandSparkles } from 'lucide-react';
-import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
+import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -50,6 +50,7 @@ import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import type { AppDetail } from '@mantle/client-types';
+import { appDetailQuery } from '@/lib/apps-screen';
 
 type BuildMsg = { text: string; location: { file: string; line: number; column: number } | null };
 
@@ -109,11 +110,8 @@ function ViewPanel({ value, ...props }: ComponentProps<typeof TabsContent> & { v
 
 /** Outer query-gate so the page stays data-free. */
 export function AppDetailClient({ id }: { id: string }) {
-  const appQuery = useQuery({
-    queryKey: ['apps', id],
-    queryFn: () => apiFetch<{ app: AppDetail }>(`/api/apps/${id}`),
-    retry: false,
-  });
+  // One shape for this cache entry on every screen (lib/apps-screen.ts).
+  const appQuery = useQuery(appDetailQuery(id));
 
   if (appQuery.isPending) {
     return (

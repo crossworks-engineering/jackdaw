@@ -176,9 +176,9 @@ export function reviewAppPath(id: string, action?: ReviewAppAction): string {
   return action ? `${base}/${action}` : base;
 }
 
-/** Where the admin opens one: the review screen in Apps. */
+/** Where the admin opens one: in the Apps pane, beside the tree. */
 export function reviewAppHref(id: string): string {
-  return `/apps/review/${encodeURIComponent(id)}`;
+  return `/apps?review=${encodeURIComponent(id)}`;
 }
 
 /** Waiting for approval while submitted; else shared with the team. */

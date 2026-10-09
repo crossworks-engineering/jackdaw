@@ -6,8 +6,49 @@
  * /apps is the same folder view as Pages, Notes, Tables, Draw and Files: the
  * tree in the list column (search in `?q=`), the picked app in `?id=`, and
  * the app's own screen at /apps/<id> (Builder, Code, History, Activity and
- * the switches).
+ * the switches). A member's app (waiting for approval, or shared by members)
+ * opens in the same pane, in `?review=`.
  */
+import { apiFetch } from '@mantle/web-ui/api-fetch';
+import type { AppDetail } from '@mantle/client-types';
+
+/**
+ * One app as its own screen reads it (GET /api/apps/:id), cached at
+ * `['apps', id]` as the route answers it: `{ app }`. Every screen that reads
+ * one app goes through this, so the cache entry has one shape. The /apps pane
+ * once cached the bare app under the same key, and opening the app's own
+ * screen from there read `data.app` as undefined and crashed.
+ */
+export const appDetailKey = (id: string) => ['apps', id] as const;
+export function appDetailQuery(id: string) {
+  return {
+    queryKey: appDetailKey(id),
+    queryFn: () => apiFetch<{ app: AppDetail }>(`/api/apps/${encodeURIComponent(id)}`),
+    retry: false as const,
+  };
+}
+
+/** What the /apps pane shows: a brain app, or a member's app to review. */
+export type AppsSelection = { kind: 'app' | 'review'; id: string };
+
+/** The URL params a selection writes (the other one cleared). */
+export function selectionParams(sel: AppsSelection | null): {
+  id: string | null;
+  review: string | null;
+} {
+  return {
+    id: sel?.kind === 'app' ? sel.id : null,
+    review: sel?.kind === 'review' ? sel.id : null,
+  };
+}
+
+/** The selection the URL opens: `?review=` wins over `?id=`. */
+export function appsUrlSelection(params: Pick<URLSearchParams, 'get'>): AppsSelection | null {
+  const review = params.get('review')?.trim();
+  if (review) return { kind: 'review', id: review };
+  const id = appsUrlId(params);
+  return id ? { kind: 'app', id } : null;
+}
 
 /** Params the old /apps screens wrote that this one does not read: the paged
  *  list's `sort`, and its `page` once the tree is the list. */

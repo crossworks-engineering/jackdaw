@@ -67,9 +67,14 @@ import {
   APP_DELETED_TOAST,
   APP_DELETE_CONFIRM,
   APP_SHARE_HINT,
+  appDetailQuery,
   appsLegacyHref,
-  appsUrlId,
+  appsUrlSelection,
+  selectionParams,
+  type AppsSelection,
 } from '@/lib/apps-screen';
+import { MemberAppReview } from '@/components/app-nav/member-app-review';
+import { AppItemHeader, HeaderIconButton } from '@/components/app-nav/app-item-header';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
 
@@ -100,7 +105,8 @@ export function AppsClient() {
 
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
-  const urlId = appsUrlId(searchParams);
+  const urlSel = appsUrlSelection(searchParams);
+  const urlKey = urlSel ? `${urlSel.kind}:${urlSel.id}` : null;
 
   // The item tree when this brain serves it for apps (docs/folder-tree.md);
   // the paged list for a brain before it, or if a tree call 404s.
@@ -117,16 +123,24 @@ export function AppsClient() {
     if (to) router.replace(to, { scroll: false });
   }, [searchParams, showTree, treeServes, router]);
 
-  // Selection lives in client state; `select` mirrors it to the URL with
-  // replaceState (no navigation): the param is an entry point, not truth.
-  const [selectedId, setSelectedId] = useState<string | null>(urlId);
+  // One selection: a brain app (`?id=`) or a member's app to review
+  // (`?review=`), each shown in the same pane beside the tree. It lives in
+  // client state; `select` mirrors it to the URL with replaceState (no
+  // navigation): the param is an entry point, not truth.
+  const [selection, setSelection] = useState<AppsSelection | null>(urlSel);
   useEffect(() => {
-    if (urlId) setSelectedId(urlId);
-  }, [urlId]);
-  function select(id: string) {
-    setSelectedId(id);
-    syncSelectionParam('id', id);
+    if (urlSel) setSelection(urlSel);
+    // `urlKey` stands for `urlSel`, a new object on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlKey]);
+  function select(sel: AppsSelection | null) {
+    setSelection(sel);
+    const p = selectionParams(sel);
+    syncSelectionParam('review', p.review);
+    syncSelectionParam('id', p.id);
   }
+  const selectedId = selection?.kind === 'app' ? selection.id : null;
+  const reviewId = selection?.kind === 'review' ? selection.id : null;
 
   // The paged list's search box; the tree's lives in the tree.
   const [searchInput, setSearchInput] = useState(query);
@@ -154,16 +168,11 @@ export function AppsClient() {
 
   // The first card when nothing is picked (the paged list only, as on the
   // other screens: the tree opens on its folders with nothing picked).
-  const activeId = selectedId ?? rows[0]?.id ?? null;
-  // The picked app as its own screen reads it: the same query, so opening it
-  // from here is instant.
-  const activeQuery = useQuery({
-    queryKey: ['apps', activeId],
-    queryFn: () => apiFetch<{ app: AppDetail }>(`/api/apps/${activeId}`).then((r) => r.app),
-    enabled: !!activeId,
-    retry: false,
-  });
-  const active = activeQuery.data?.id === activeId ? activeQuery.data : null;
+  const activeId = reviewId ? null : (selectedId ?? rows[0]?.id ?? null);
+  // The picked app as its own screen reads it: the same query and the same
+  // cached shape (appDetailQuery), so opening it from here is instant.
+  const activeQuery = useQuery({ ...appDetailQuery(activeId ?? ''), enabled: !!activeId });
+  const active = activeQuery.data?.app.id === activeId ? activeQuery.data.app : null;
 
   // New, and "New app inside" a tree folder (where the new app goes).
   const [createOpen, setCreateOpen] = useState(false);
@@ -182,10 +191,7 @@ export function AppsClient() {
     try {
       await apiSend(`/api/apps/${deleteTarget.id}`, 'DELETE');
       toast.success(APP_DELETED_TOAST);
-      if (deleteTarget.id === activeId) {
-        setSelectedId(null);
-        syncSelectionParam('id', null);
-      }
+      if (deleteTarget.id === activeId) select(null);
       setDeleteTarget(null);
       void queryClient.invalidateQueries({ queryKey: ['apps'] });
       void queryClient.invalidateQueries({ queryKey: APP_NAV_KEY });
@@ -218,7 +224,10 @@ export function AppsClient() {
           <div className="flex h-full min-h-0 flex-col">
             {/* Members' apps first (workspace review pattern): what waits for
                 approval and what members shared, each hidden while empty. */}
-            <MemberAppsReviewSections />
+            <MemberAppsReviewSections
+              selectedId={reviewId}
+              onSelect={(id) => select({ kind: 'review', id })}
+            />
             <div className="flex min-h-0 flex-1 flex-col">
               {listLoading ? (
                 <div className="flex h-full items-center justify-center p-6">
@@ -235,7 +244,7 @@ export function AppsClient() {
                     searchPlaceholder="Search apps and folders…"
                     actions={newButton}
                     newItemInFolder={{ label: 'app', icon: AppWindow, onCreate: openCreate }}
-                    onOpenItem={(item) => select(item.id)}
+                    onOpenItem={(item) => select({ kind: 'app', id: item.id })}
                     itemActions={(item) => (
                       <DropdownMenuItem
                         className="text-destructive-ink focus:text-destructive-ink"
@@ -312,7 +321,7 @@ export function AppsClient() {
                             </span>
                           }
                           selected={activeId === app.id}
-                          onSelect={() => select(app.id)}
+                          onSelect={() => select({ kind: 'app', id: app.id })}
                           updatedAt={app.updatedAt}
                         >
                           {app.description ? (
@@ -339,7 +348,13 @@ export function AppsClient() {
           </div>
         }
         detail={
-          active ? (
+          reviewId ? (
+            <MemberAppReview
+              key={reviewId}
+              id={reviewId}
+              onDone={(open) => select(open ? { kind: 'app', id: open } : null)}
+            />
+          ) : active ? (
             <AppPreview
               key={active.id}
               app={active}
@@ -428,11 +443,12 @@ function AppPreview({
     // flex-1 here sizes to its content and the sandbox's `h-full` collapses to
     // the iframe's intrinsic 150px.
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="flex min-w-0 flex-wrap items-center gap-2 text-lg font-semibold">
-            <AppTile icon={icon} color={color} size="md" />
-            <span className="min-w-0 truncate">{app.title}</span>
+      <AppItemHeader
+        icon={icon}
+        color={color}
+        title={app.title}
+        badges={
+          <>
             {app.hasDraft && (
               <Badge variant="secondary" className="shrink-0">
                 unpublished draft
@@ -440,37 +456,31 @@ function AppPreview({
             )}
             <AppTreePills id={app.id} />
             <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
-          </h2>
-          {(app.description ?? app.summary) ? (
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-              {app.description ?? app.summary}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {/* The level control, once there is a published build to share. */}
-          {hasBuild && <AccessControl nodeId={app.id} hint={APP_SHARE_HINT} />}
-          {/* Survives focus mode (the shell's chrome does not), so it is the
-              whole control: enter and exit. */}
-          <FocusToggle />
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/apps/${app.id}`}>
-              <Pencil />
-              Open
-            </Link>
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive-ink"
-            onClick={onDelete}
-            aria-label="Delete app"
-            title="Delete app"
-          >
-            <Trash2 />
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        subtitle={app.description ?? app.summary}
+        iconActions={
+          <>
+            {/* The level control, once there is a published build to share. */}
+            {hasBuild && <AccessControl nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />}
+            {/* Survives focus mode (the shell's chrome does not), so it is the
+                whole control: enter and exit. */}
+            <FocusToggle />
+            <HeaderIconButton label="Open app" tooltip="Open the app: build, code, history" asChild>
+              <Link href={`/apps/${app.id}`}>
+                <Pencil />
+              </Link>
+            </HeaderIconButton>
+            <HeaderIconButton
+              label="Delete app"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={onDelete}
+            >
+              <Trash2 />
+            </HeaderIconButton>
+          </>
+        }
+      />
       {/* Below `md` the panes stack and the detail has no height of its own,
           so the app is given most of the screen there. */}
       <div data-testid="app-preview-run" className="h-[75dvh] min-h-0 md:h-auto md:flex-1">

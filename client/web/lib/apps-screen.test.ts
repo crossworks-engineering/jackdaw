@@ -1,5 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import { APP_DELETE_CONFIRM, APP_DELETED_TOAST, appsLegacyHref, appsUrlId } from './apps-screen';
+import { describe, expect, it, vi } from 'vitest';
+
+const apiFetch = vi.fn();
+vi.mock('@mantle/web-ui/api-fetch', () => ({ apiFetch: (...a: unknown[]) => apiFetch(...a) }));
+
+import {
+  APP_DELETE_CONFIRM,
+  APP_DELETED_TOAST,
+  appDetailQuery,
+  appsLegacyHref,
+  appsUrlId,
+  appsUrlSelection,
+  selectionParams,
+} from './apps-screen';
 
 const sp = (s: string) => new URLSearchParams(s);
 
@@ -39,5 +51,41 @@ describe('appsUrlId', () => {
 describe('copy', () => {
   it('has no em or en dashes', () => {
     for (const s of [APP_DELETE_CONFIRM, APP_DELETED_TOAST]) expect(s).not.toMatch(/[–—]/);
+  });
+});
+
+describe('appDetailQuery', () => {
+  // The /apps pane and the app's own screen share `['apps', id]`. The pane
+  // once cached the bare app there, and Open crashed reading `data.app`.
+  it('caches the route answer as it is, `{ app }`, at one key', async () => {
+    const app = {
+      id: 'a1',
+      title: 'Weather',
+      manifest: {},
+      source: { entry: 'App.tsx', files: {} },
+    };
+    apiFetch.mockResolvedValueOnce({ app });
+    const q = appDetailQuery('a1');
+    expect(q.queryKey).toEqual(['apps', 'a1']);
+    expect(apiFetch).not.toHaveBeenCalled();
+    const data = await q.queryFn();
+    expect(apiFetch).toHaveBeenCalledWith('/api/apps/a1');
+    expect(data).toEqual({ app });
+    expect(data.app.id).toBe('a1');
+  });
+});
+
+describe('the pane selection in the URL', () => {
+  it('reads ?review= first, then ?id= and ?selected=', () => {
+    expect(appsUrlSelection(sp('review=m1&id=a1'))).toEqual({ kind: 'review', id: 'm1' });
+    expect(appsUrlSelection(sp('id=a1'))).toEqual({ kind: 'app', id: 'a1' });
+    expect(appsUrlSelection(sp('selected=a1'))).toEqual({ kind: 'app', id: 'a1' });
+    expect(appsUrlSelection(sp('review=%20'))).toBeNull();
+  });
+
+  it('writes one param and clears the other', () => {
+    expect(selectionParams({ kind: 'review', id: 'm1' })).toEqual({ id: null, review: 'm1' });
+    expect(selectionParams({ kind: 'app', id: 'a1' })).toEqual({ id: 'a1', review: null });
+    expect(selectionParams(null)).toEqual({ id: null, review: null });
   });
 });
