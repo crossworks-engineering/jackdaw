@@ -448,14 +448,9 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
           color={app.color as AppTint | null}
           title={app.title}
           badges={
-            <>
-              <Badge variant="secondary" className="shrink-0">
-                v{app.version}
-              </Badge>
-              <Badge variant="outline" className="shrink-0">
-                {kind === 'waiting' ? 'Waiting for approval' : 'Shared by a member'}
-              </Badge>
-            </>
+            <Badge variant="secondary" className="shrink-0">
+              v{app.version}
+            </Badge>
           }
           subtitle={`${reviewBannerText(app)} ${detail}`}
           note={
