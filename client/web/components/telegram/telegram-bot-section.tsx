@@ -11,16 +11,27 @@
  * the bot), or disconnect. The token is validated (getMe) + sealed server-side;
  * only the bot @username + poll status come back here. Polls every 10s so a
  * fresh DM's pairing request appears without a manual refresh.
+ *
+ * Only an admin-level agent can be on Telegram (a paired chat acts as the
+ * owner, access matrix T21), so the brain refuses Connect and Approve for a
+ * team, client or public agent. That refusal stays on screen under the control
+ * it refused, since trying again gives the same answer (lib/telegram-level.ts);
+ * any other failure is a toast.
  */
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Send } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
+import { FieldError } from '@mantle/web-ui/ui/field';
 import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import type { AgentTelegramBinding, AgentTelegramChat } from '@mantle/client-types';
+import { telegramLevelRefusal } from '@/lib/telegram-level';
+
+const CONNECT_ERROR_ID = 'telegram-connect-error';
+const PAIR_ERROR_ID = 'telegram-pair-error';
 
 export function TelegramBotSection({ agentId }: { agentId: string }) {
   const toast = useToast();
@@ -32,6 +43,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyChat, setBusyChat] = useState<string | null>(null);
+  // The brain's level refusal, kept beside the control it refused.
+  const [refusal, setRefusal] = useState<{ at: 'connect' | 'pair'; message: string } | null>(null);
 
   // `initial` shows the loading state + flips to null on failure; polled
   // refreshes update in place without flashing.
@@ -54,6 +67,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
 
   useEffect(() => {
     setToken('');
+    setRefusal(null);
     void load(true);
     // Poll so a fresh DM's pairing request shows up without a manual refresh.
     const timer = setInterval(() => void load(), 10_000);
@@ -63,6 +77,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
   const connect = async () => {
     if (!token.trim()) return;
     setBusy(true);
+    setRefusal(null);
     let b: { binding?: AgentTelegramBinding };
     try {
       b = await apiSend<{ binding?: AgentTelegramBinding }>(
@@ -74,6 +89,11 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
       );
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
+      const refused = telegramLevelRefusal(e);
+      if (refused) {
+        setRefusal({ at: 'connect', message: refused });
+        return;
+      }
       toast.error(e instanceof Error ? e.message : 'Could not link the bot.');
       return;
     } finally {
@@ -109,10 +129,16 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
 
   const setChatStatus = async (chatId: string, status: 'allowed' | 'denied') => {
     setBusyChat(chatId);
+    setRefusal(null);
     try {
       await apiSend(`/api/agents/${agentId}/telegram/chats`, 'POST', { chatId, status });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
+      const refused = telegramLevelRefusal(e);
+      if (refused) {
+        setRefusal({ at: 'pair', message: refused });
+        return;
+      }
       toast.error(e instanceof Error ? e.message : 'Could not update the chat.');
       return;
     } finally {
@@ -131,6 +157,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
   }
 
   const pending = chats.filter((c) => c.status === 'pending');
+  const connectError = refusal?.at === 'connect' ? refusal.message : null;
+  const pairError = refusal?.at === 'pair' ? refusal.message : null;
   const allowedCount = chats.filter((c) => c.status === 'allowed').length;
 
   return (
@@ -177,6 +205,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
                 size="sm"
                 onClick={() => setChatStatus(c.id, 'allowed')}
                 disabled={busyChat === c.id}
+                aria-describedby={pairError ? PAIR_ERROR_ID : undefined}
               >
                 {busyChat === c.id && <Loader2 className="animate-spin" aria-hidden />}
                 Approve
@@ -192,6 +221,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
               </Button>
             </div>
           ))}
+          <FieldError id={PAIR_ERROR_ID}>{pairError}</FieldError>
         </div>
       )}
 
@@ -208,7 +238,10 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
         }}
         placeholder={binding ? 'Paste a new token to rotate…' : 'Paste your bot token…'}
         className="h-9 font-mono text-sm"
+        aria-invalid={connectError ? true : undefined}
+        aria-describedby={connectError ? CONNECT_ERROR_ID : undefined}
       />
+      <FieldError id={CONNECT_ERROR_ID}>{connectError}</FieldError>
 
       <div className="flex gap-2">
         <Button type="button" size="sm" onClick={connect} disabled={busy || !token.trim()}>
