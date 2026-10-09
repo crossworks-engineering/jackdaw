@@ -2,8 +2,14 @@ import type { APIRequestContext, Page } from '@playwright/test';
 
 import { expect, test } from '../lib/fixtures';
 import { ARTIFACTS_DIR } from '../lib/env';
+import { openFromTree, treeRow } from '../lib/tree';
 
 /**
+ * `/apps`, on the folder view every workspace has since 2026-10-09: the item
+ * tree in the list column (its folder menus, "New app inside", the search in
+ * `?q=`), the picked app in `?id=` under the standard item header, and the
+ * app's own screen at /apps/<id>.
+ *
  * `/apps`, the last phase-2a screen — and the one that was blocked, because it
  * is the only ported screen with focus mode.
  *
@@ -173,7 +179,11 @@ test.describe('apps', () => {
     await ownerPage.setViewportSize({ width: 1600, height: 900 });
     await ownerPage.goto('/apps');
 
-    await ownerPage.getByRole('button', { name: 'New app' }).click();
+    // The standard New button of the tree's toolbar, as on every workspace.
+    await ownerPage
+      .locator('[data-testid="list"]')
+      .getByRole('button', { name: 'New', exact: true })
+      .click();
     const dialog = ownerPage.getByRole('dialog');
     await expect(dialog.getByRole('heading', { name: 'New app' })).toBeVisible();
 
@@ -191,5 +201,114 @@ test.describe('apps', () => {
     // Typing clears it, so the mark tracks the field rather than sticking.
     await name.fill('Weather');
     await expect(name).not.toHaveAttribute('aria-invalid', 'true');
+  });
+  test('picking an app in the tree opens it under the item header, in ?id=', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto('/apps');
+      const detail = ownerPage.locator('[data-testid="detail"]');
+      const heading = detail.getByRole('heading', { name: app.title });
+      await openFromTree(ownerPage, app.title, heading);
+
+      // The URL names it, so a reload or a shared link opens the same app.
+      await expect.poll(() => new URL(ownerPage.url()).searchParams.get('id')).toBe(app.id);
+      // The header's actions: Open goes to the app's own screen.
+      await expect(detail.getByRole('link', { name: 'Open' }).first()).toHaveAttribute(
+        'href',
+        `/apps/${app.id}`,
+      );
+      await expect(detail.getByRole('button', { name: 'Delete app' })).toBeVisible();
+      await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-folder-view.png` });
+
+      await ownerPage.reload();
+      await expect(heading).toBeVisible();
+    });
+  });
+
+  test('the tree search lives in ?q=', async ({ ownerApi, ownerPage }) => {
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto(`/apps?q=${encodeURIComponent(app.title)}`);
+      const list = ownerPage.locator('[data-testid="list"]');
+      await expect(list.getByRole('textbox', { name: 'Search apps' })).toHaveValue(app.title);
+      await expect(treeRow(ownerPage, app.title).first()).toBeVisible();
+    });
+  });
+
+  test('old links land on the folder view', async ({ ownerApi, ownerPage }) => {
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      // The paged list's params are dropped; `?selected=` reads as `?id=`.
+      await ownerPage.goto(`/apps?page=2&sort=title&selected=${app.id}`);
+      await expect
+        .poll(() => {
+          const u = new URL(ownerPage.url());
+          return `${u.pathname}${u.search}`;
+        })
+        .toBe(`/apps?id=${app.id}`);
+      await expect(
+        ownerPage.locator('[data-testid="detail"]').getByRole('heading', { name: app.title }),
+      ).toBeVisible();
+    });
+  });
+
+  test('a folder menu makes a new app inside that folder', async ({ ownerApi, ownerPage }) => {
+    const folderName = `E2E apps folder ${Date.now()}`;
+    const made = await ownerApi.post('/api/tree/apps/folders', {
+      data: { parentId: null, name: folderName },
+    });
+    expect(made.status(), 'could not create the fixture folder').toBeLessThan(300);
+    const { folder } = (await made.json()) as { folder: { id: string } };
+    const appName = `E2E inside ${Date.now()}`;
+    let appId: string | null = null;
+    try {
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+      await ownerPage.goto('/apps');
+      await expect(treeRow(ownerPage, folderName).first()).toBeVisible();
+      await ownerPage.getByRole('button', { name: `More actions for ${folderName}` }).click();
+      await ownerPage.getByRole('menuitem', { name: 'New app inside' }).click();
+
+      const dialog = ownerPage.getByRole('dialog');
+      await expect(
+        dialog.getByRole('heading', { name: `New app in “${folderName}”` }),
+      ).toBeVisible();
+      await dialog.getByLabel('Name').fill(appName);
+      await dialog.getByRole('button', { name: 'Create app' }).click();
+
+      // The app's own screen opens next.
+      await ownerPage.waitForURL(/\/apps\/[0-9a-f-]{36}$/);
+      appId = ownerPage.url().split('/apps/')[1]!;
+
+      // And it is filed in the folder.
+      await expect
+        .poll(async () => {
+          const res = await ownerApi.get(`/api/tree/apps?folder=${folder.id}`);
+          const body = (await res.json()) as { items?: Array<{ id: string }> };
+          return body.items?.some((i) => i.id === appId) ?? false;
+        })
+        .toBe(true);
+    } finally {
+      if (appId) await ownerApi.delete(`/api/apps/${appId}`);
+      await ownerApi.delete(`/api/tree/apps/folders/${folder.id}`);
+    }
+  });
+
+  test('phone width stacks the tree over the app', async ({ ownerApi, ownerPage }) => {
+    await withApp(ownerApi, async (app) => {
+      await ownerPage.setViewportSize({ width: 390, height: 844 });
+      await ownerPage.goto(`/apps?id=${app.id}`);
+      await expect(
+        ownerPage.locator('[data-testid="list"]').getByRole('textbox', { name: 'Search apps' }),
+      ).toBeVisible();
+      // No sideways scroll on a phone.
+      const overflow = await ownerPage.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(1);
+      await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-phone.png` });
+    });
   });
 });
