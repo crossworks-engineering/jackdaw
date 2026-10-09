@@ -127,3 +127,28 @@ export function acceptOutcome(status: number, body: unknown): AcceptOutcome {
   if (status === 400 && error) return { kind: 'error', message: error };
   return { kind: 'error', message: 'Could not accept the invite. Try again.' };
 }
+
+/** A contact picked in a dialog (Add client, Invite): its id, how it is
+ *  named, and its email if it has one. */
+export type PickedContact = { id: string; name: string; email: string | null };
+
+/** What a New link for an invite starts with: what the invite was made with
+ *  (its contact, its email and its own name), so the form shows what it
+ *  sends. */
+export function newLinkSeed(invite: MemberInviteRow): {
+  contact: PickedContact | null;
+  email: string;
+  name: string;
+} {
+  return {
+    contact: invite.contactId
+      ? {
+          id: invite.contactId,
+          name: invite.contactName ?? inviteName(invite),
+          email: invite.email,
+        }
+      : null,
+    email: invite.email,
+    name: invite.displayName ?? '',
+  };
+}

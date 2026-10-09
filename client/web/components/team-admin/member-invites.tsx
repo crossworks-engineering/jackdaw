@@ -190,7 +190,15 @@ export function InviteDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogContent className="sm:max-w-md">
+      {/* Once the link is shown it closes only by Done: the brain keeps only
+          a hash, so a stray Escape or click outside must not lose it (as the
+          client sign-in link dialog). */}
+      <DialogContent
+        className="sm:max-w-md"
+        hideClose={!!created}
+        onEscapeKeyDown={(e) => created && e.preventDefault()}
+        onInteractOutside={(e) => created && e.preventDefault()}
+      >
         {created ? (
           <>
             <DialogHeader>
@@ -485,20 +493,4 @@ export function InviteDetail({
       </AlertDialog>
     </div>
   );
-}
-
-/** What a New link for an invite starts with: its contact, else its email
- *  and name. */
-export function newLinkSeed(invite: MemberInviteRow): {
-  contact: PickedContact | null;
-  email: string;
-  name: string;
-} {
-  return invite.contactId
-    ? {
-        contact: { id: invite.contactId, name: inviteName(invite), email: invite.email },
-        email: '',
-        name: '',
-      }
-    : { contact: null, email: invite.email, name: invite.displayName ?? '' };
 }

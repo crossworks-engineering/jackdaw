@@ -14,8 +14,9 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useState } from 'react';
 
-/** A picked contact: its id, how it is named, and its email if it has one. */
-export type PickedContact = { id: string; name: string; email: string | null };
+import type { PickedContact } from '../../lib/member-invites';
+
+export type { PickedContact };
 
 type ContactsPage = { contacts: ContactRow[] };
 

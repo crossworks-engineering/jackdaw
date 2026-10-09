@@ -4,6 +4,7 @@ import {
   CODE_NOT_VALID,
   acceptOutcome,
   inviteName,
+  newLinkSeed,
   openInvites,
   inviteCreateErrorText,
   inviteLink,
@@ -227,5 +228,38 @@ describe('the open invites in Settings > Logins', () => {
     expect(ui).toContain('ariaLabel="Copy the invite link"');
     expect(ui).toContain('ariaLabel="Copy the code"');
     expect(ui).toMatch(/<HeaderIconButton\s+label="Revoke invite"/);
+  });
+
+  it('a New link starts with what the invite was made with', () => {
+    expect(newLinkSeed(row({ displayName: 'Sam', email: 'sam@example.invalid' }))).toEqual({
+      contact: null,
+      email: 'sam@example.invalid',
+      name: 'Sam',
+    });
+    expect(newLinkSeed(row({ contactId: 'c1', contactName: 'Sam B', displayName: 'Sam' }))).toEqual(
+      {
+        contact: { id: 'c1', name: 'Sam B', email: 'sam@example.invalid' },
+        email: 'sam@example.invalid',
+        name: 'Sam',
+      },
+    );
+  });
+
+  it('the one-time link outlives the invite pane, and closes only by Done', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
+    const ui = read('../components/team-admin/member-invites.tsx');
+    const screen = read('../app/(app)/settings/users/users-client.tsx');
+    // The screen owns the dialog (a New link replaces the pane's invite).
+    expect(screen).toMatch(/<InviteDialog\s+key=\{inviteSeed\.key\}/);
+    expect(ui.slice(ui.indexOf('export function InviteDetail('))).not.toContain('<InviteDialog');
+    // Selected only once the link is put away.
+    expect(ui).toMatch(
+      /if \(!o\) reset\(\);\s*onOpenChange\(o\);\s*if \(made\) onCreated\?\.\(made\.invite\.id\);/,
+    );
+    expect(ui).toContain('hideClose={!!created}');
+    expect(ui).toContain('onEscapeKeyDown={(e) => created && e.preventDefault()}');
+    expect(ui).toContain('onInteractOutside={(e) => created && e.preventDefault()}');
   });
 });

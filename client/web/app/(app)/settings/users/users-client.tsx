@@ -92,11 +92,10 @@ import { LoginChat } from '@/components/logins/login-chat';
 import {
   InviteDetail,
   InviteDialog,
-  newLinkSeed,
   stateLine,
   useMemberInvites,
 } from '@/components/team-admin/member-invites';
-import { inviteName, openInvites } from '@/lib/member-invites';
+import { inviteName, newLinkSeed, openInvites } from '@/lib/member-invites';
 import {
   AddClientDialog,
   ClientSettingsPanel,
