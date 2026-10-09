@@ -37,11 +37,12 @@
  * link lands on it too.
  */
 import { useNeedsYou } from '@/components/needs-you/use-needs-you';
-import { AppReviewPanel, useAppSubmissions } from '@/components/team-admin/app-review-tab';
-import { MemberAppsPanel, useAdminMemberApps } from '@/components/team-admin/member-apps-tab';
+import { useMemberAppsForReview } from '@/components/app-nav/member-apps-review';
+import { waitingInAppsLabel } from '@/lib/space-apps';
 import { requestsOpen, reviewWaiting } from '@/lib/needs-you';
 import Link from 'next/link';
-import { use, useState, type ReactNode } from 'react';
+import { use, useEffect, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -226,8 +227,6 @@ function TeamTabs({
     | 'invites'
     | 'chats'
     | 'review'
-    | 'app-review'
-    | 'member-apps'
     | 'requests'
     | 'shares'
     | 'client-logins'
@@ -243,11 +242,9 @@ function TeamTabs({
   const queued = useReviewQueue().data?.counts.submitted ?? 0;
   const reviewCount = needsYou ? reviewWaiting(needsYou) : queued;
   const requestCount = needsYou ? requestsOpen(needsYou) : openRequestCount;
-  // Apps members submitted (team apps Phase 3); null on an older brain.
-  const appSubmissions = useAppSubmissions().data;
-  // Members' shared and submitted apps (access matrix N2); null on an older
-  // brain.
-  const memberApps = useAdminMemberApps().data;
+  // Members' apps are reviewed in Apps now (workspace review pattern): only
+  // a link here, while something waits. Null on an older brain.
+  const appsWaiting = waitingInAppsLabel(useMemberAppsForReview().data?.waiting.length ?? 0);
   // A brain before client logins C1 has no "What clients see": once its
   // route answered 404 the tab leaves the strip (it stays while open).
   const reportMissing = isReportMissing(useQueryClient().getQueryState(CLIENT_REPORT_KEY)?.error);
@@ -283,17 +280,6 @@ function TeamTabs({
       {tab('Invites', '/team-admin?view=invites', active === 'invites')}
       {tab('Member chats', '/team-admin?view=chats', active === 'chats')}
       {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
-      {appSubmissions === null && active !== 'app-review'
-        ? null
-        : tab(
-            'App review',
-            '/team-admin?view=app-review',
-            active === 'app-review',
-            appSubmissions?.length,
-          )}
-      {memberApps === null && active !== 'member-apps'
-        ? null
-        : tab('Member apps', '/team-admin?view=member-apps', active === 'member-apps')}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Clients', '/team-admin?view=client-logins', active === 'client-logins')}
@@ -301,6 +287,14 @@ function TeamTabs({
         ? null
         : tab('What clients see', '/team-admin?view=clients', active === 'clients')}
       {tab('Settings', '/team-admin?view=settings', active === 'settings')}
+      {appsWaiting ? (
+        <Link
+          href="/apps"
+          className="ml-auto shrink-0 whitespace-nowrap px-2 py-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {appsWaiting}
+        </Link>
+      ) : null}
     </nav>
   );
 }
@@ -1085,6 +1079,24 @@ function InvitesTab() {
   );
 }
 
+/** An old Team admin > App review or > Member apps link: the review lives
+ *  in Apps now. */
+function MovedToApps() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/apps');
+  }, [router]);
+  return (
+    <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
+      Members&apos; apps are in{' '}
+      <Link href="/apps" className="ml-1 underline">
+        Apps
+      </Link>
+      .
+    </div>
+  );
+}
+
 export default function TeamAdminPage({
   searchParams,
 }: {
@@ -1095,13 +1107,11 @@ export default function TeamAdminPage({
     login?: string;
     /** The selected item on the Review tab. */
     item?: string;
-    /** The selected app on the App review tab. */
-    app?: string;
     /** The selected link on the Shared links tab. */
     share?: string;
   }>;
 }) {
-  const { contact, view, login, item, share, app } = use(searchParams);
+  const { contact, view, login, item, share } = use(searchParams);
   if (view === 'chats') return <MemberChatsTab login={login} />;
   if (view === 'invites') return <InvitesTab />;
   if (view === 'review')
@@ -1110,18 +1120,8 @@ export default function TeamAdminPage({
         <ReviewPanel itemId={item} />
       </Tab>
     );
-  if (view === 'app-review')
-    return (
-      <Tab active="app-review">
-        <AppReviewPanel appId={app} />
-      </Tab>
-    );
-  if (view === 'member-apps')
-    return (
-      <Tab active="member-apps">
-        <MemberAppsPanel />
-      </Tab>
-    );
+  // App review and Member apps moved to Apps (workspace review pattern).
+  if (view === 'app-review' || view === 'member-apps') return <MovedToApps />;
   if (view === 'settings') return <SettingsTab />;
   if (view === 'shares') return <SharesTab share={share} />;
   if (view === 'clients') return <ClientsTab />;

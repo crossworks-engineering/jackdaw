@@ -1,13 +1,15 @@
 /**
  * Apps members build (brain team apps Phase 3): a member's own apps and the
- * ones teammates shared, on the member's Apps page, and the apps members
- * submitted, on Team admin > App review. Members build over their own MCP
+ * ones teammates shared, on the member's Apps page, and, for an admin, the
+ * ones members submitted or shared, in the admin's own Apps screen
+ * (workspace review pattern, 2026-10-09). Members build over their own MCP
  * connection (the brain's `my_app_*` tools); here they share, submit, recall
- * and run them, and an admin accepts or returns them.
+ * and run them, and an admin tests, approves or sends them back.
  *
- * The types mirror the brain's `SpaceAppCard` and `SpaceAppSubmission`
- * (@mantle/content member-space-apps.ts); they live here until a contract
- * package carries them.
+ * The types mirror the brain's `SpaceAppCard`, `ReviewWaitingApp`,
+ * `ReviewSharedApp` and `MemberAppForReview` (@mantle/content
+ * member-space-apps.ts); they live here until a contract package carries
+ * them.
  *
  * Pure, pinned by space-apps.test.ts.
  */
@@ -25,7 +27,6 @@ export type SpaceAppCard = {
   authorName: string | null;
   sharing: 'private' | 'team';
   reviewState: SpaceAppReviewState;
-  returnedNote: string | null;
   /** A green published build: it runs. */
   runnable: boolean;
   hasDraft: boolean;
@@ -68,7 +69,9 @@ export function spaceAppStatus(app: SpaceAppCard): string {
     return `Submitted for review. ${base}. Frozen until an admin answers; you can recall it.`;
   }
   const runs = app.runnable ? '' : '. Not published yet';
-  if (app.reviewState === 'returned') return `Returned by an admin. ${base}${runs}.`;
+  if (app.reviewState === 'returned') {
+    return `Sent back by an admin. ${base}${runs}. Change it and submit it again.`;
+  }
   return `${base}${runs}.`;
 }
 
@@ -110,34 +113,112 @@ export function runnableSpaceApp(
   return app && app.runnable ? app : null;
 }
 
-// ── The admin's review ───────────────────────────────────────────────────────
+// ── The admin's review, in Apps (workspace review pattern) ─────────────────
 
-/** One submitted app (GET /api/team-admin/app-submissions). */
-export type AppSubmission = {
+/** The author as the review lists show them. */
+export type ReviewAppAuthor = { loginId: string | null; name: string | null; active: boolean };
+
+/** One app in "Waiting for approval" (GET /api/apps/members `waiting`). */
+export type ReviewWaitingApp = {
+  id: string;
+  title: string;
+  icon: string | null;
+  color: string | null;
+  author: ReviewAppAuthor;
+  submittedAt: string | null;
+  version: number;
+};
+
+/** One app in "Shared by members" (GET /api/apps/members `shared`). */
+export type ReviewSharedApp = {
+  id: string;
+  title: string;
+  icon: string | null;
+  color: string | null;
+  author: ReviewAppAuthor;
+  lastActivityAt: string;
+  runnable: boolean;
+};
+
+export type ReviewAppLists = { waiting: ReviewWaitingApp[]; shared: ReviewSharedApp[] };
+
+/** One member app for the review screen (GET /api/apps/members/:id): its
+ *  PUBLISHED source only. `reviewHash` only while it waits for approval. */
+export type ReviewAppDetail = {
   id: string;
   title: string;
   description: string | null;
-  author: { loginId: string | null; name: string | null };
-  submittedAt: string | null;
+  icon: string | null;
+  color: string | null;
+  author: ReviewAppAuthor;
+  sharing: 'private' | 'team';
+  reviewState: string;
   version: number;
+  submittedAt: string | null;
+  updatedAt: string;
   declaredTools: string[];
-};
-
-/** One submitted app with its published source (GET .../:id). */
-export type AppSubmissionDetail = AppSubmission & {
+  dataReadOnly: boolean;
+  runnable: boolean;
   entry: string;
   files: Record<string, string>;
-  /** What the accept sends back with `version` (the brain refuses a
-   *  version the admin was not shown). Absent from an older brain. */
-  reviewHash?: string;
+  reviewHash: string | null;
 };
 
-export const APP_SUBMISSIONS_PATH = '/api/team-admin/app-submissions';
-export const APP_SUBMISSIONS_KEY = ['team-admin', 'app-submissions'] as const;
+export const REVIEW_APPS_PATH = '/api/apps/members';
+/** Under ['apps'], so every app change refreshes the review lists too. */
+export const REVIEW_APPS_KEY = ['apps', 'members'] as const;
 
-export function appSubmissionPath(id: string, action?: 'accept' | 'return'): string {
-  const base = `${APP_SUBMISSIONS_PATH}/${encodeURIComponent(id)}`;
+export type ReviewAppAction =
+  'history' | 'activity' | 'accept' | 'send-back' | 'unshare' | 'delete' | 'test';
+
+export function reviewAppPath(id: string, action?: ReviewAppAction): string {
+  const base = `${REVIEW_APPS_PATH}/${encodeURIComponent(id)}`;
   return action ? `${base}/${action}` : base;
+}
+
+/** Where the admin opens one: the review screen in Apps. */
+export function reviewAppHref(id: string): string {
+  return `/apps/review/${encodeURIComponent(id)}`;
+}
+
+/** Waiting for approval while submitted; else shared with the team. */
+export function reviewKind(app: Pick<ReviewAppDetail, 'reviewState'>): 'waiting' | 'shared' {
+  return app.reviewState === 'submitted' ? 'waiting' : 'shared';
+}
+
+function authorOf(app: { author: ReviewAppAuthor }): string {
+  return app.author.name ?? 'a member';
+}
+
+/** The banner on the review screen. */
+export function reviewBannerText(app: Pick<ReviewAppDetail, 'reviewState' | 'author'>): string {
+  return reviewKind(app) === 'waiting'
+    ? `Submitted by ${authorOf(app)}. Waiting for your approval.`
+    : `Shared with the team by ${authorOf(app)}.`;
+}
+
+/** The one line under a shared app on the list. */
+export function sharedAppMeta(app: ReviewSharedApp, when: string): string {
+  if (!app.author.active) return `${authorOf(app)}, no longer active: it runs for nobody`;
+  return `${authorOf(app)} · last used ${when}`;
+}
+
+/** What the test run is, above the running app. */
+export const REVIEW_TEST_NOTE =
+  'Test run: it runs at team rules on a copy of its data. Nothing real changes, and the copy goes when you leave.';
+
+/** The test copy ended (left, or idle too long). */
+export const REVIEW_TEST_ENDED = 'The test run ended. Start it again to keep testing.';
+
+/** What Send back does, in the confirm. */
+export function sendBackConfirm(app: Pick<ReviewAppDetail, 'author'>): string {
+  return `It goes back to ${authorOf(app)} as sent back. They can change it and submit it again.`;
+}
+
+/** The Team admin link to what waits in Apps, or null when nothing does. */
+export function waitingInAppsLabel(count: number): string | null {
+  if (count <= 0) return null;
+  return `${count} waiting in Apps`;
 }
 
 export type AppAcceptLevel = 'admin' | 'team';
@@ -194,42 +275,10 @@ export function acceptSummary(opts: {
   ];
 }
 
-// ── Members' apps, as an admin sees them (access matrix N2) ──────────────────
-
-/** One member app an admin sees: team-shared or submitted, never a private
- *  draft (GET /api/team-admin/member-apps). */
-export type AdminMemberApp = {
-  id: string;
-  title: string;
-  author: { loginId: string | null; name: string | null; active: boolean };
-  sharing: 'private' | 'team';
-  reviewState: string;
-  runnable: boolean;
-  declaredTools: string[];
-  updatedAt: string;
-};
-
-export const MEMBER_APPS_ADMIN_PATH = '/api/team-admin/member-apps';
-export const MEMBER_APPS_ADMIN_KEY = ['team-admin', 'member-apps'] as const;
-
-export function memberAppAdminPath(id: string, action?: 'unshare' | 'delete' | 'activity'): string {
-  const base = `${MEMBER_APPS_ADMIN_PATH}/${encodeURIComponent(id)}`;
-  return action ? `${base}/${action}` : base;
-}
-
-/** The one line under a member app on the admin's list. */
-export function adminMemberAppStatus(app: AdminMemberApp): string {
-  const who = app.author.name ?? 'a member';
-  if (!app.author.active)
-    return `By ${who}, who is no longer an active member: it runs for nobody.`;
-  if (app.reviewState === 'submitted') return `By ${who}. Submitted for review.`;
-  return app.runnable
-    ? `By ${who}. Shared with the team: every member runs it.`
-    : `By ${who}. Shared with the team, not published yet.`;
-}
+// ── Members' apps, as an admin acts on them (access matrix N2) ──────────────
 
 export const MEMBER_APP_DELETE_CONFIRM =
-  'It moves to the trash; you can restore it for 30 days, under Recently deleted apps below. Its code and data are kept as a snapshot. Members can no longer run it.';
+  'It moves to the trash; you can restore it for 30 days, under Recently deleted apps in Apps. Its code and data are kept as a snapshot. Members can no longer run it.';
 
 export const MEMBER_APP_DELETED_TOAST =
   'Moved to the trash. Restore it under Recently deleted apps for 30 days.';
@@ -259,7 +308,7 @@ export function deletedAppRestorePath(id: string): string {
 
 // ── A member app's activity, in plain words ──────────────────────────────────
 
-/** One row of GET /api/team-admin/member-apps/:id/activity. `contactName` is
+/** One row of GET /api/apps/members/:id/activity. `contactName` is
  *  who ran it: a contact, or a member or client login by name. */
 export type MemberAppActivity = {
   id: string;
@@ -301,6 +350,7 @@ export function activityWho(e: Pick<MemberAppActivity, 'contactName' | 'detail'>
   if (via === 'client') return 'A client';
   if (via === 'public') return 'A visitor';
   if (via === 'owner') return 'An admin';
+  if (via === 'review-test') return 'An admin, testing';
   return 'Someone';
 }
 
@@ -324,7 +374,7 @@ export const MEMBER_APP_UNSHARE_HINT =
   'Unshare: the app goes back to private. Only its author runs it; nothing is deleted.';
 
 /** The source files in reading order: the entry first, then by path. */
-export function submissionFiles(detail: Pick<AppSubmissionDetail, 'entry' | 'files'>): {
+export function submissionFiles(detail: Pick<ReviewAppDetail, 'entry' | 'files'>): {
   path: string;
   text: string;
 }[] {

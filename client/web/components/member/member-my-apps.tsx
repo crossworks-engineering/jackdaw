@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { History } from 'lucide-react';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   Dialog,
@@ -138,14 +139,18 @@ function MyAppRow({ app }: { app: SpaceAppCard }) {
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium">{app.title || 'Untitled'}</span>
+          {app.mine && app.reviewState === 'submitted' ? (
+            <Badge variant="secondary" className="shrink-0">
+              Waiting for approval
+            </Badge>
+          ) : app.mine && app.reviewState === 'returned' ? (
+            <Badge variant="outline" className="shrink-0">
+              Sent back
+            </Badge>
+          ) : null}
           <AppDataPills app={app} />
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{spaceAppStatus(app)}</p>
-        {app.mine && app.reviewState === 'returned' && app.returnedNote ? (
-          <p className="mt-1 rounded-md bg-muted px-2 py-1 text-xs">
-            Note from the admin: {app.returnedNote}
-          </p>
-        ) : null}
         {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
         {/* What Share and Submit do, before the click (M3 audit, low 4). */}
         {actions.share === 'team' ? (

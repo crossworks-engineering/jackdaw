@@ -4,11 +4,18 @@ import {
   activityRefused,
   activityWho,
   activityWrite,
-  adminMemberAppStatus,
   deletedAppRestorePath,
   MEMBER_APP_DELETED_TOAST,
   MEMBER_APP_DELETE_CONFIRM,
-  memberAppAdminPath,
+  REVIEW_TEST_ENDED,
+  REVIEW_TEST_NOTE,
+  reviewAppHref,
+  reviewAppPath,
+  reviewBannerText,
+  reviewKind,
+  sendBackConfirm,
+  sharedAppMeta,
+  waitingInAppsLabel,
   acceptSummary,
   appAuthorLevel,
   APP_TRUST_CONFIRM,
@@ -39,7 +46,6 @@ const APP: SpaceAppCard = {
   authorName: null,
   sharing: 'private',
   reviewState: 'draft',
-  returnedNote: null,
   runnable: true,
   hasDraft: false,
   version: 1,
@@ -76,9 +82,11 @@ describe("a member's own app", () => {
     expect(spaceAppSubmitHint(sub)).toBeNull();
   });
 
-  it('a returned app says so and may be submitted again', () => {
-    const back = { ...APP, reviewState: 'returned', returnedNote: 'add a title' };
-    expect(spaceAppStatus(back)).toBe('Returned by an admin. Private.');
+  it('a sent back app says so, with no note, and may be submitted again', () => {
+    const back = { ...APP, reviewState: 'returned' };
+    expect(spaceAppStatus(back)).toBe(
+      'Sent back by an admin. Private. Change it and submit it again.',
+    );
     expect(spaceAppActions(back).submit).toBe(true);
   });
 
@@ -170,25 +178,41 @@ describe('the trust switch on an app in the brain', () => {
   });
 });
 
-// Access matrix N2: the admin's view of members' apps.
-describe("an admin's view of a member app", () => {
-  const app = {
+// Workspace review pattern (2026-10-09): members' apps in the admin's Apps.
+describe("an admin's review of a member app, in Apps", () => {
+  const author = { loginId: 'l', name: 'Sam', active: true };
+  const shared = {
     id: '11111111-2222-4333-8444-555555555555',
     title: 'Tally',
-    author: { loginId: 'l', name: 'Sam', active: true },
-    sharing: 'team' as const,
-    reviewState: 'draft',
+    icon: null,
+    color: null,
+    author,
+    lastActivityAt: '2026-10-08T00:00:00.000Z',
     runnable: true,
-    declaredTools: [],
-    updatedAt: '2026-10-08T00:00:00.000Z',
   };
 
-  it('says who built it and who runs it', () => {
-    expect(adminMemberAppStatus(app)).toBe('By Sam. Shared with the team: every member runs it.');
-    expect(adminMemberAppStatus({ ...app, reviewState: 'submitted' })).toMatch(/Submitted/);
-    expect(adminMemberAppStatus({ ...app, author: { ...app.author, active: false } })).toMatch(
+  it('says who sent it and what waits, in the banner', () => {
+    expect(reviewBannerText({ reviewState: 'submitted', author })).toBe(
+      'Submitted by Sam. Waiting for your approval.',
+    );
+    expect(reviewBannerText({ reviewState: 'draft', author })).toBe('Shared with the team by Sam.');
+    expect(reviewBannerText({ reviewState: 'returned', author: { ...author, name: null } })).toBe(
+      'Shared with the team by a member.',
+    );
+    expect(reviewKind({ reviewState: 'submitted' })).toBe('waiting');
+    expect(reviewKind({ reviewState: 'draft' })).toBe('shared');
+  });
+
+  it('says when a shared app runs for nobody', () => {
+    expect(sharedAppMeta(shared, 'today')).toBe('Sam · last used today');
+    expect(sharedAppMeta({ ...shared, author: { ...author, active: false } }, 'x')).toMatch(
       /runs for nobody/,
     );
+  });
+
+  it('links to Apps from Team admin only when something waits', () => {
+    expect(waitingInAppsLabel(0)).toBeNull();
+    expect(waitingInAppsLabel(2)).toBe('2 waiting in Apps');
   });
 
   it('deletes only with a snapshot kept, says how to restore it, and builds its paths', () => {
@@ -196,13 +220,24 @@ describe("an admin's view of a member app", () => {
     // M4 audit: the brain keeps it in its trash; the copy says for how long.
     expect(MEMBER_APP_DELETE_CONFIRM).toMatch(/restore it for 30 days/);
     expect(MEMBER_APP_DELETED_TOAST).toMatch(/Recently deleted apps/);
-    for (const text of [MEMBER_APP_DELETE_CONFIRM, MEMBER_APP_DELETED_TOAST]) {
-      expect(text).not.toMatch(DASHES);
+    expect(reviewAppPath(shared.id, 'delete')).toBe(`/api/apps/members/${shared.id}/delete`);
+    expect(reviewAppPath(shared.id, 'send-back')).toBe(`/api/apps/members/${shared.id}/send-back`);
+    expect(reviewAppPath(shared.id)).toBe(`/api/apps/members/${shared.id}`);
+    expect(reviewAppHref(shared.id)).toBe(`/apps/review/${shared.id}`);
+    expect(deletedAppRestorePath(shared.id)).toBe(`/api/apps/deleted/${shared.id}/restore`);
+  });
+
+  it('carries no dash in its words', () => {
+    for (const text of [
+      MEMBER_APP_DELETE_CONFIRM,
+      MEMBER_APP_DELETED_TOAST,
+      REVIEW_TEST_NOTE,
+      REVIEW_TEST_ENDED,
+      sendBackConfirm({ author }),
+      reviewBannerText({ reviewState: 'submitted', author }),
+    ]) {
+      expect(text, text).not.toMatch(DASHES);
     }
-    expect(memberAppAdminPath(app.id, 'delete')).toBe(
-      `/api/team-admin/member-apps/${app.id}/delete`,
-    );
-    expect(deletedAppRestorePath(app.id)).toBe(`/api/apps/deleted/${app.id}/restore`);
   });
 });
 

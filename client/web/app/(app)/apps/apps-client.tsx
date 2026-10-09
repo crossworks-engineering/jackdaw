@@ -47,6 +47,10 @@ import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppRow } from '@mantle/client-types';
 import { appNavAppIds } from '@mantle/content-core/app-nav';
 import { AppsTree } from '@/components/app-nav/apps-tree';
+import {
+  MemberAppsReviewSections,
+  RecentlyDeletedApps,
+} from '@/components/app-nav/member-apps-review';
 import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
@@ -208,115 +212,124 @@ function AppsView({ data, query }: { data: AppsPage; query: string }) {
         // prop's note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          itemTree ? (
-            <aside className="flex h-full flex-col bg-muted/20">
-              {fileConfirm}
-              <ItemTree
-                kind="apps"
-                adapter={appsAdapter}
-                selectedItemId={selectedId}
-                query={treeQuery}
-                onQueryChange={setTreeQuery}
-                searchPlaceholder="Search apps and folders…"
-                actions={createButton}
-                newItemInFolder={{
-                  label: 'app',
-                  icon: AppWindow,
-                  onCreate: (f) => {
-                    setCreateIn(f);
-                    setCreateOpen(true);
-                  },
-                }}
-                onOpenItem={(item) => setSelectedId(item.id)}
-                itemActions={(item) => (
-                  <DropdownMenuItem
-                    className="text-destructive-ink focus:text-destructive-ink"
-                    onSelect={() =>
-                      setDeleteTarget({
-                        id: item.id,
-                        title: item.title,
-                        hasBuild: nav?.apps.find((a) => a.id === item.id)?.hasBuild ?? false,
-                      })
-                    }
-                  >
-                    <Trash2 />
-                    Delete…
-                  </DropdownMenuItem>
-                )}
-                onUnsupported={() => setItemTreeGone(true)}
-              />
-            </aside>
-          ) : navLoading ? (
-            <div className="flex h-full items-center justify-center">
-              <Spinner />
-            </div>
-          ) : treeMode ? (
-            <AppsTree selectedId={selectedId} onSelect={setSelectedId} actions={createButton} />
-          ) : (
-            <>
-              <div className="flex items-center gap-2 border-b border-border p-2">
-                <form
-                  className="flex-1"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    go({ q: q || null, page: null });
-                  }}
-                >
-                  <Input
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search apps…"
-                    className="h-9"
+          // Members' apps first (workspace review pattern): what waits for
+          // approval and what members shared, each hidden while empty. The
+          // brain's own tree below; the trash at the foot.
+          <div className="flex h-full min-h-0 flex-col">
+            <MemberAppsReviewSections />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {itemTree ? (
+                <aside className="flex h-full flex-col bg-muted/20">
+                  {fileConfirm}
+                  <ItemTree
+                    kind="apps"
+                    adapter={appsAdapter}
+                    selectedItemId={selectedId}
+                    query={treeQuery}
+                    onQueryChange={setTreeQuery}
+                    searchPlaceholder="Search apps and folders…"
+                    actions={createButton}
+                    newItemInFolder={{
+                      label: 'app',
+                      icon: AppWindow,
+                      onCreate: (f) => {
+                        setCreateIn(f);
+                        setCreateOpen(true);
+                      },
+                    }}
+                    onOpenItem={(item) => setSelectedId(item.id)}
+                    itemActions={(item) => (
+                      <DropdownMenuItem
+                        className="text-destructive-ink focus:text-destructive-ink"
+                        onSelect={() =>
+                          setDeleteTarget({
+                            id: item.id,
+                            title: item.title,
+                            hasBuild: nav?.apps.find((a) => a.id === item.id)?.hasBuild ?? false,
+                          })
+                        }
+                      >
+                        <Trash2 />
+                        Delete…
+                      </DropdownMenuItem>
+                    )}
+                    onUnsupported={() => setItemTreeGone(true)}
                   />
-                </form>
-                {createButton}
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-3">
-                {apps.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">
-                    No apps yet. Create one, or ask Saskia to “build me an app”.
+                </aside>
+              ) : navLoading ? (
+                <div className="flex h-full items-center justify-center">
+                  <Spinner />
+                </div>
+              ) : treeMode ? (
+                <AppsTree selectedId={selectedId} onSelect={setSelectedId} actions={createButton} />
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 border-b border-border p-2">
+                    <form
+                      className="flex-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        go({ q: q || null, page: null });
+                      }}
+                    >
+                      <Input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Search apps…"
+                        className="h-9"
+                      />
+                    </form>
+                    {createButton}
                   </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {apps.map((app) => (
-                      <li key={app.id}>
-                        <ListCard
-                          selected={app.id === selectedId}
-                          onClick={() => setSelectedId(app.id)}
-                        >
-                          <span className="flex items-center gap-2 text-sm font-medium">
-                            <AppTile icon={app.icon} color={app.color} size="md" />
-                            <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
-                            <span className="ml-auto flex shrink-0 items-center gap-1">
-                              {app.hasDraft && <Badge variant="secondary">draft</Badge>}
-                              <AudienceBadge
-                                level={app.audience}
-                                inherited={inheritedOf(app)}
-                                hub={app.isHub}
-                              />
-                            </span>
-                          </span>
-                          {app.description && (
-                            <ListCardSnippet className="line-clamp-1">
-                              {app.description}
-                            </ListCardSnippet>
-                          )}
-                        </ListCard>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <ListPager
-                page={page}
-                total={total}
-                pageSize={pageSize}
-                pending={pending}
-                onGo={(p) => go({ page: p })}
-              />
-            </>
-          )
+
+                  <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-3">
+                    {apps.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-muted-foreground">
+                        No apps yet. Create one, or ask Saskia to “build me an app”.
+                      </div>
+                    ) : (
+                      <ul className="space-y-2">
+                        {apps.map((app) => (
+                          <li key={app.id}>
+                            <ListCard
+                              selected={app.id === selectedId}
+                              onClick={() => setSelectedId(app.id)}
+                            >
+                              <span className="flex items-center gap-2 text-sm font-medium">
+                                <AppTile icon={app.icon} color={app.color} size="md" />
+                                <ListCardTitle className="min-w-0">{app.title}</ListCardTitle>
+                                <span className="ml-auto flex shrink-0 items-center gap-1">
+                                  {app.hasDraft && <Badge variant="secondary">draft</Badge>}
+                                  <AudienceBadge
+                                    level={app.audience}
+                                    inherited={inheritedOf(app)}
+                                    hub={app.isHub}
+                                  />
+                                </span>
+                              </span>
+                              {app.description && (
+                                <ListCardSnippet className="line-clamp-1">
+                                  {app.description}
+                                </ListCardSnippet>
+                              )}
+                            </ListCard>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <ListPager
+                    page={page}
+                    total={total}
+                    pageSize={pageSize}
+                    pending={pending}
+                    onGo={(p) => go({ page: p })}
+                  />
+                </>
+              )}
+            </div>
+            <RecentlyDeletedApps />
+          </div>
         }
         detail={
           /* The app gets the full pane (viewport frame) and handles its own
