@@ -42,7 +42,9 @@ describe('RetiredClientLinks', () => {
     expect(html).toMatch(/Retired client links<\/h3><span[^>]*>2<\/span>/);
     expect(html).toContain(NOTE);
     expect(html).toContain('Add the people who used them in');
-    expect(html).toMatch(/<a [^>]*href="\/team-admin\?view=client-logins"[^>]*>Clients<\/a>/);
+    expect(html).toMatch(
+      /<a [^>]*href="\/settings\/users\?selected=what-clients-see"[^>]*>Clients<\/a>/,
+    );
   });
 
   it('links each row to its item, with its icon and title', () => {

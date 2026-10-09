@@ -21,9 +21,9 @@ describe('Requests: a member login request can be answered', () => {
 });
 
 describe('every tab says when its load failed', () => {
+  // Chat archive and Member chats left (2026-10-09): Chat archive removed,
+  // a login's Chat in Settings > Logins says so itself (login-chat.tsx).
   it.each([
-    ['members', 'q'],
-    ['chats', 'q'],
     ['requests', 'q'],
     ['shares', 'q'],
     ['settings', 'q'],
