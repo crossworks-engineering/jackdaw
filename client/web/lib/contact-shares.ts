@@ -44,6 +44,31 @@ export function offersCanWrite(itemType: string): boolean {
   return itemType === 'app';
 }
 
+/**
+ * Access matrix L21 (option B, the owner's call: a warning, no refusal). An
+ * app's open link reads every row of the app's data, rows written by contacts
+ * with "Can write" included (the brain answers read queries for anyone holding
+ * the link). So the Access control warns where the two meet: an app with a
+ * Can write contact that has, or is about to get, an open link; and an app
+ * with an open link whose admin is about to give a contact Can write.
+ */
+export function openLinkReadsContactWrites(s: {
+  itemType: string;
+  /** The item has an open link now, or the picked level is about to make one. */
+  openLink: boolean;
+  /** Its contact shares now (absent on a brain before 0214). */
+  shares: readonly Pick<AccessContactShare, 'canWrite'>[] | undefined;
+  /** The admin is about to give one or more contacts Can write. */
+  givingCanWrite?: boolean;
+}): boolean {
+  if (!offersCanWrite(s.itemType) || !s.openLink) return false;
+  return !!s.givingCanWrite || (s.shares ?? []).some((x) => x.canWrite);
+}
+
+/** The L21 warning's words. */
+export const OPEN_LINK_READS_CONTACT_WRITES =
+  "Anyone with the open link can read all of this app's data, including what contacts with Can write put in it.";
+
 /** The level toggle's extra line when the item is shared with contacts. */
 export function contactSharesHint(
   shares: readonly AccessContactShare[] | undefined,

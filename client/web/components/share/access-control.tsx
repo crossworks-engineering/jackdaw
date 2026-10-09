@@ -44,8 +44,12 @@ import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import { AccessLinkBox } from './access-link-box';
 import { RevokeLinkDialog, STAYS_AT_CLIENT, type RevokeTarget } from './revoke-link-dialog';
 import { authorBadgeText, authorName } from '@/lib/item-author';
-import { canShareWithContact, contactSharesHint } from '@/lib/contact-shares';
-import { ContactShareSection } from './contact-share-section';
+import {
+  canShareWithContact,
+  contactSharesHint,
+  openLinkReadsContactWrites,
+} from '@/lib/contact-shares';
+import { ContactShareSection, OpenLinkDataWarning } from './contact-share-section';
 
 /**
  * The owner's Access control for one item: who can see it, as one level
@@ -91,6 +95,11 @@ import { ContactShareSection } from './contact-share-section';
  * link and code (ContactShareSection). They change no level, so the level
  * line says the team does not see it. A brain before 0214 sends no
  * `contactShares` and the section does not show.
+ *
+ * Access matrix L21 (a warning, no refusal): an app's open link reads all of
+ * its data, what Can write contacts put in it included. Picking a level that
+ * makes an open link on an app with a Can write contact warns above Apply;
+ * the contact section warns while the link exists.
  *
  * API: GET/PATCH /api/access/nodes/:id and the share routes. Loads fresh on every open, and again when the host reuses this
  * control for another item (list screens keep it mounted across selection);
@@ -289,6 +298,17 @@ export function AccessControl({
   const willShare: AccessItemView[] =
     view && choice ? embedsSharedWith(follows, view.closure, choice) : [];
   const shownLowered = lastLowered?.nodeId === nodeId ? lastLowered.items : [];
+  // L21: the picked level is about to make an open link on an app a contact
+  // writes. While the link exists, the contact section says it instead.
+  const warnNewOpenLink =
+    !!view &&
+    !view.share &&
+    !!choice &&
+    openLinkReadsContactWrites({
+      itemType: view.item.type,
+      openLink: takesLink(choice, openLevels),
+      shares: view.contactShares,
+    });
 
   return (
     <>
@@ -404,6 +424,7 @@ export function AccessControl({
                   // removes this one (client logins C1).
                   <p className="text-xs text-muted-foreground">Its link will stop working.</p>
                 )}
+                {warnNewOpenLink && <OpenLinkDataWarning />}
                 {choice && (
                   <div className="flex items-center justify-end gap-2">
                     <Button
@@ -450,6 +471,7 @@ export function AccessControl({
                   nodeId={nodeId}
                   itemType={view.item.type}
                   shares={view.contactShares}
+                  openLink={!!view.share}
                   onChanged={() => {
                     void load();
                     invalidateLinkQueries(queryClient);

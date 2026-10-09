@@ -6,7 +6,9 @@ import {
   contactSharesHint,
   disableSharingLine,
   lastUsedLine,
+  OPEN_LINK_READS_CONTACT_WRITES,
   offersCanWrite,
+  openLinkReadsContactWrites,
   pickBlocked,
   revokeAllLine,
 } from './contact-shares';
@@ -75,5 +77,53 @@ describe('contact shares in the owner UI (brain migration 0214)', () => {
       'Their code was last used then',
     );
     expect(contactHref('a b')).toBe('/contacts?id=a%20b');
+  });
+
+  it('warns that an open link reads what Can write contacts put in an app (matrix L21)', () => {
+    const writer = [{ canWrite: true }];
+    const reader = [{ canWrite: false }];
+    // A Can write contact, and an open link now or about to be made.
+    expect(openLinkReadsContactWrites({ itemType: 'app', openLink: true, shares: writer })).toBe(
+      true,
+    );
+    // An open link, and the admin about to give a contact Can write.
+    expect(
+      openLinkReadsContactWrites({
+        itemType: 'app',
+        openLink: true,
+        shares: reader,
+        givingCanWrite: true,
+      }),
+    ).toBe(true);
+    expect(
+      openLinkReadsContactWrites({
+        itemType: 'app',
+        openLink: true,
+        shares: undefined,
+        givingCanWrite: true,
+      }),
+    ).toBe(true);
+    // Only one of the two: no warning.
+    expect(openLinkReadsContactWrites({ itemType: 'app', openLink: true, shares: reader })).toBe(
+      false,
+    );
+    expect(openLinkReadsContactWrites({ itemType: 'app', openLink: true, shares: [] })).toBe(false);
+    expect(
+      openLinkReadsContactWrites({
+        itemType: 'app',
+        openLink: false,
+        shares: writer,
+        givingCanWrite: true,
+      }),
+    ).toBe(false);
+    // Not an app: contacts never write it.
+    expect(openLinkReadsContactWrites({ itemType: 'page', openLink: true, shares: writer })).toBe(
+      false,
+    );
+    // House style: no en or em dash in the words.
+    const dashes = [0x2013, 0x2014];
+    expect(
+      [...OPEN_LINK_READS_CONTACT_WRITES].some((c) => dashes.includes(c.codePointAt(0) ?? 0)),
+    ).toBe(false);
   });
 });

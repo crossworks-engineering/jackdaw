@@ -11,11 +11,16 @@
  * default), and one per added contact. Each added contact: Copy link and
  * Remove (the same revoke as the contact's "Shared" tab). The item's level
  * never changes.
+ *
+ * Access matrix L21: an app's open link reads what Can write contacts put in
+ * it, so while the app has an open link the section warns once a contact has
+ * Can write, or once the add form's Can write is on (beside that switch). A
+ * warning only; the brain refuses nothing.
  */
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Copy, Loader2, UserRoundPlus, X } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Loader2, UserRoundPlus, X } from 'lucide-react';
 import type { AccessContactShare } from '@mantle/client-types';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
@@ -26,9 +31,11 @@ import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import {
+  OPEN_LINK_READS_CONTACT_WRITES,
   SHARING_OFF_HINT,
   contactHref,
   offersCanWrite,
+  openLinkReadsContactWrites,
   pickBlocked,
   setShareCanWrite,
   shareWithContacts,
@@ -37,16 +44,30 @@ import {
 
 type ContactsPage = { contacts: SharingContactRow[] };
 
+/** The L21 warning (an app's open link reads what Can write contacts put in
+ *  it), in the warning tones the settings screens use for an inline caution. */
+export function OpenLinkDataWarning() {
+  return (
+    <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-ink">
+      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <span>{OPEN_LINK_READS_CONTACT_WRITES}</span>
+    </p>
+  );
+}
+
 export function ContactShareSection({
   nodeId,
   itemType,
   shares,
+  openLink,
   onChanged,
   onRemove,
 }: {
   nodeId: string;
   itemType: string;
   shares: readonly AccessContactShare[];
+  /** The item has an open link now (its own share link). */
+  openLink: boolean;
   /** Reload the Access view after an add or a Can write change. */
   onChanged: () => void;
   /** Ask to remove one (the revoke confirm lives beside the popover). */
@@ -61,6 +82,8 @@ export function ContactShareSection({
   const [busy, setBusy] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const app = offersCanWrite(itemType);
+  const givingCanWrite = adding && canWrite;
+  const warnOpenLink = openLinkReadsContactWrites({ itemType, openLink, shares, givingCanWrite });
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 200);
@@ -179,6 +202,8 @@ export function ContactShareSection({
         </ul>
       )}
 
+      {warnOpenLink && !givingCanWrite && <OpenLinkDataWarning />}
+
       {adding && (
         <div className="space-y-2 rounded-md border border-border p-2">
           <Input
@@ -243,6 +268,7 @@ export function ContactShareSection({
               Can write (the contact may change the app&apos;s data)
             </label>
           )}
+          {warnOpenLink && givingCanWrite && <OpenLinkDataWarning />}
           <div className="flex items-center justify-end gap-2">
             <Button
               size="sm"
