@@ -68,7 +68,7 @@ import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import type { AppTint } from '@mantle/client-types';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { AppLoader } from './app-loader';
-import { AppItemHeader, HeaderIconButton } from './app-item-header';
+import { AppItemHeader, HeaderIconButton, HeaderInfoButton } from './app-item-header';
 import { MemberAppActivity } from './member-app-activity';
 import {
   APP_ACCEPT_LEVEL_MEANING,
@@ -343,6 +343,13 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
   });
   const busy = approve.isPending || sendBack.isPending || unshare.isPending || remove.isPending;
 
+  const detail =
+    kind === 'waiting'
+      ? `Version ${app.version}, sent ${fmtWhen(app.submittedAt)}.`
+      : app.author.active
+        ? `Every member runs it. Last changed ${fmtWhen(app.updatedAt)}.`
+        : 'Its author is no longer an active member: it runs for nobody.';
+
   // Buttons with words first, then the icon-only group (AppItemHeader).
   const textActions = (
     <>
@@ -409,6 +416,16 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
   );
   const iconActions = (
     <>
+      <HeaderInfoButton label="About this review">
+        <p className="font-medium">{reviewBannerText(app)}</p>
+        <p className="text-muted-foreground">{detail}</p>
+        {app.runnable ? (
+          <p className="flex items-start gap-1.5 text-xs text-warning-ink">
+            <FlaskConical className="mt-px size-3.5 shrink-0" aria-hidden />
+            {REVIEW_TEST_NOTE}
+          </p>
+        ) : null}
+      </HeaderInfoButton>
       {tab === 'test' && app.runnable ? (
         <HeaderIconButton
           label="Restart test"
@@ -433,13 +450,6 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
     </>
   );
 
-  const detail =
-    kind === 'waiting'
-      ? `Version ${app.version}, sent ${fmtWhen(app.submittedAt)}.`
-      : app.author.active
-        ? `Every member runs it. Last changed ${fmtWhen(app.updatedAt)}.`
-        : 'Its author is no longer an active member: it runs for nobody.';
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
@@ -451,15 +461,6 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
             <Badge variant="secondary" className="shrink-0">
               v{app.version}
             </Badge>
-          }
-          subtitle={`${reviewBannerText(app)} ${detail}`}
-          note={
-            tab === 'test' && app.runnable ? (
-              <p role="status" className="mt-1 flex items-start gap-1.5 text-xs text-warning-ink">
-                <FlaskConical className="mt-px size-3.5 shrink-0" aria-hidden />
-                {REVIEW_TEST_NOTE}
-              </p>
-            ) : null
           }
           textActions={textActions}
           iconActions={iconActions}

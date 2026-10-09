@@ -358,6 +358,7 @@ test.describe('apps', () => {
   });
 
   test('a member app opens in the pane beside the tree, under the same header', async ({
+    ownerApi,
     ownerPage,
     serverURL,
   }) => {
@@ -428,8 +429,34 @@ test.describe('apps', () => {
     const w = (await words.boundingBox())!;
     const i = (await icons.boundingBox())!;
     expect(w.x + w.width, 'the worded buttons must sit left of the icons').toBeLessThanOrEqual(i.x);
-    await expect(header.getByRole('status')).toContainText('Test run');
     await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-review-in-pane.png` });
+
+    // What does not fit the one row is behind Info.
+    await icons.getByRole('button', { name: 'About this review' }).click();
+    const info = ownerPage.getByRole('dialog');
+    await expect(info).toContainText('Waiting for your approval');
+    await expect(info).toContainText('Version 3');
+    await expect(info).toContainText('Test run');
+    await ownerPage.keyboard.press('Escape');
+
+    // The same height as a brain app's header, one with a description too.
+    const reviewHeight = (await header.boundingBox())!.height;
+    const made = await ownerApi.post('/api/apps', {
+      data: { name: `E2E height ${Date.now()}`, description: 'A line that sits beside the title' },
+    });
+    const { app } = (await made.json()) as { app: { id: string } };
+    try {
+      await ownerPage.goto(`/apps?id=${app.id}`);
+      const normal = ownerPage.locator('[data-testid="detail"]').getByTestId('app-item-header');
+      await expect(normal.getByText('A line that sits beside the title')).toBeVisible();
+      const normalHeight = (await normal.boundingBox())!.height;
+      expect(
+        Math.abs(reviewHeight - normalHeight),
+        'the review header is taller',
+      ).toBeLessThanOrEqual(1);
+    } finally {
+      await ownerApi.delete(`/api/apps/${app.id}`);
+    }
 
     // The old review address lands here.
     await ownerPage.goto(`/apps/review/${id}`);
