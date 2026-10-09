@@ -202,9 +202,16 @@ test.describe('workspace review', () => {
       // The same height as the workspace's normal header for a brain item.
       const made = await brainItem(ownerApi, kind, `E2E height ${kind} ${Date.now()}`);
       try {
-        await ownerPage.goto(SCREEN[kind]);
         const normal = detail.getByTestId('item-header');
-        await openFromTree(ownerPage, `E2E height ${kind}`, normal, { timeout: 60_000 });
+        if (kind === 'file') {
+          // A new file is found by the tree search only once it is indexed:
+          // its own link opens it in the pane at once.
+          await ownerPage.goto(`/files?path=files&file=${made.id}`);
+          await expect(normal).toBeVisible({ timeout: 60_000 });
+        } else {
+          await ownerPage.goto(SCREEN[kind]);
+          await openFromTree(ownerPage, `E2E height ${kind}`, normal, { timeout: 60_000 });
+        }
         const normalHeight = (await normal.boundingBox())!.height;
         expect(
           Math.abs(reviewHeight - normalHeight),
