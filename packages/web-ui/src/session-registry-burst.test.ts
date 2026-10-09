@@ -444,8 +444,8 @@ describe('repair on load', () => {
 });
 
 /** A bearer of the brain's shape, naming its login (`uid`) and its own id. */
-function tok(uid: string, jti: string): string {
-  const payload = btoa(JSON.stringify({ uid, jti, exp: 2_000_000_000 }))
+function tok(uid: string, jti: string, act?: string): string {
+  const payload = btoa(JSON.stringify({ uid, jti, exp: 2_000_000_000, ...(act ? { act } : {}) }))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
@@ -564,9 +564,10 @@ describe('repair on load · the desktop keychain', () => {
       setFor: (id: string, t: string) => void map.set(id, t),
       clearFor: (id: string) => void map.delete(id),
       adopt: (id: string) => map.get(id) ?? null,
-      keepOnly: (ids: string[]) => {
+      // The shell's rule: an unnamed slot goes only when it holds a stray bearer.
+      keepOnly: (ids: string[], stray: string[]) => {
         keptOnly.push([...ids].sort());
-        for (const id of [...map.keys()]) if (!ids.includes(id)) map.delete(id);
+        for (const [id, b] of [...map]) if (!ids.includes(id) && stray.includes(b)) map.delete(id);
       },
     };
     return v;
@@ -578,6 +579,8 @@ describe('repair on load · the desktop keychain', () => {
       copy1: tok('u1', 'live'),
       copy2: tok('u1', 'rotated'),
       orphan: tok('u1', 'live'),
+      // Another window of this brain, mid-sign-in: its slot, not yet its row.
+      'other-window': tok('u9', 'new'),
     });
     const shared = sharedStorage({
       mantle_active_session: 'real',
@@ -593,7 +596,7 @@ describe('repair on load · the desktop keychain', () => {
       expect(t.registry.listSessions().map((s) => s.id)).toEqual(['real']);
     });
     expect(vault.keptOnly).toEqual([['real']]);
-    expect([...vault.slots.keys()]).toEqual(['real']);
+    expect([...vault.slots.keys()].sort()).toEqual(['other-window', 'real']);
     expect(tokenKeys(shared)).toEqual([]);
   });
 
@@ -607,5 +610,67 @@ describe('repair on load · the desktop keychain', () => {
     const tab = await openTab(shared, { vault });
     inTab(shared, tab, (t) => expect(t.registry.listSessions()).toHaveLength(1));
     expect([...vault.slots.keys()].sort()).toEqual(['orphan', 'real']);
+  });
+});
+
+describe('repair on load · logins that share the anchor id', () => {
+  // A token can carry the brain's anchor as `uid` and its own login as `act`.
+  // Admin, member and client on one brain then share a uid and are still
+  // three logins.
+  const admin = tok('anchor', 'a1');
+  const member = tok('anchor', 'm1', 'member-login');
+  const client = tok('anchor', 'c1', 'client-login');
+
+  it('are never copies of each other, named or not', async () => {
+    const shared = sharedStorage({
+      mantle_token: admin,
+      mantle_active_session: 'admin',
+      mantle_sessions: JSON.stringify([
+        row('admin', 'a@example.com'),
+        row('member', ''),
+        row('client', ''),
+      ]),
+      'mantle_token:admin': admin,
+      'mantle_token:member': member,
+      'mantle_token:client': client,
+    });
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => {
+      expect(t.registry.listSessions().map((s) => s.id)).toEqual(['admin', 'member', 'client']);
+      expect(t.registry.sessionToken('member')).toBe(member);
+      expect(t.registry.sessionToken('client')).toBe(client);
+    });
+  });
+
+  it('a rotated copy of the member (same act) still is one', async () => {
+    const shared = sharedStorage({
+      mantle_token: member,
+      mantle_active_session: 'member',
+      mantle_sessions: JSON.stringify([
+        row('admin', 'a@example.com'),
+        row('member', 'm@example.com'),
+        row('copy', ''),
+      ]),
+      'mantle_token:admin': admin,
+      'mantle_token:member': member,
+      'mantle_token:copy': tok('anchor', 'm-rotated', 'member-login'),
+    });
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) =>
+      expect(t.registry.listSessions().map((s) => s.id)).toEqual(['admin', 'member']),
+    );
+  });
+
+  it('/api/shell does not fold a nameless member row into the admin', async () => {
+    const shared = sharedStorage();
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => {
+      t.registry.listSessions();
+      t.registry.signInSession({ email: 'a@example.com', token: admin });
+      shared.map.set('mantle_sessions', JSON.stringify([...rows(shared), row('member', '')]));
+      shared.map.set('mantle_token:member', member);
+      t.registry.recordActiveIdentity({ email: 'a@example.com' });
+    });
+    expect(rows(shared).map((r) => r.id)).toContain('member');
   });
 });

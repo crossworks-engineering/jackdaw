@@ -5,6 +5,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -46,6 +47,9 @@ const SESSION_ID = /^[A-Za-z0-9_-]{1,80}$/;
 export function isSessionId(value: unknown): value is string {
   return typeof value === 'string' && SESSION_ID.test(value);
 }
+
+/** A login file younger than this may belong to a window mid-sign-in. */
+const RECENT_MS = 120_000;
 
 export function createVault(baseDir: string, codec: VaultCodec) {
   const legacyFile = (profileId: string) => join(baseDir, 'vault', `${profileId}.tok`);
@@ -111,16 +115,27 @@ export function createVault(baseDir: string, codec: VaultCodec) {
     },
 
     /**
-     * Keep this brain's login files for these sessions and drop the rest: the
-     * page's list no longer names them, so they are leftovers (a burst of
-     * copies, a row removed while the shell was not listening). Ids the page
-     * sends that are not session ids are ignored, and only `<id>.tok` files
-     * in this brain's own folder are ever considered. The one slot is not a
-     * login file and is never touched here.
+     * Drop this brain's leftover login files: those under an id the page's
+     * list does not name AND holding one of `strayBearers`, the bearers the
+     * page still holds under the ids it keeps (so each one dropped is a copy).
+     * A file written in the last two minutes is left alone too: another
+     * window of this brain may be listing a login right now, its file written
+     * and its list not yet. Ids that are not session ids are ignored, only
+     * `<id>.tok` files in this brain's own folder are considered, and the one
+     * slot is not a login file.
      */
-    keepOnly(profileId: string, sessionIds: unknown): void {
-      if (!Array.isArray(sessionIds)) return;
+    keepOnly(
+      profileId: string,
+      sessionIds: unknown,
+      strayBearers: unknown,
+      now = Date.now(),
+    ): void {
+      if (!Array.isArray(sessionIds) || !Array.isArray(strayBearers)) return;
       const keep = new Set(sessionIds.filter(isSessionId));
+      const stray = new Set(
+        strayBearers.filter((b): b is string => typeof b === 'string' && b !== ''),
+      );
+      if (stray.size === 0) return;
       let names: string[];
       try {
         names = readdirSync(sessionDir(profileId));
@@ -130,9 +145,15 @@ export function createVault(baseDir: string, codec: VaultCodec) {
       for (const name of names) {
         if (!name.endsWith('.tok')) continue;
         const id = name.slice(0, -'.tok'.length);
-        if (isSessionId(id) && !keep.has(id)) {
-          rmSync(join(sessionDir(profileId), name), { force: true });
+        if (!isSessionId(id) || keep.has(id)) continue;
+        const path = join(sessionDir(profileId), name);
+        try {
+          if (now - statSync(path).mtimeMs < RECENT_MS) continue;
+        } catch {
+          continue;
         }
+        const held = readFile(path);
+        if (held !== null && stray.has(held)) rmSync(path, { force: true });
       }
     },
 

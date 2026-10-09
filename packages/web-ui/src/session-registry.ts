@@ -32,7 +32,7 @@
  */
 import './desktop-shell'; // global Window.mantleDesktop declaration
 import { runtimeApiBase } from './runtime-env';
-import { tokenExpEpoch, tokenUid } from './token-claims';
+import { tokenExpEpoch, tokenLogin } from './token-claims';
 
 export type Session = {
   /** Random, device-local. Not a secret and not known to any brain. */
@@ -241,7 +241,7 @@ function readListOrNull(): Session[] | null {
 /**
  * Is `row` a copy of the login `of` (held as `ofBearer`)? A copy has no login
  * of its own, and holds either the very same bearer or, at the same brain, a
- * bearer for the same login: idle rows are refreshed too, so a copy's bearer
+ * bearer for the same login (`tokenLogin`, never `uid` alone): idle rows are refreshed too, so a copy's bearer
  * can be a rotation of the one it was copied from and stop matching it.
  */
 function isCopyOf(
@@ -252,8 +252,8 @@ function isCopyOf(
 ): boolean {
   if (row.id === of.id || row.email !== '' || !rowBearer || !ofBearer) return false;
   if (rowBearer === ofBearer) return true;
-  const uid = tokenUid(rowBearer);
-  return row.origin === of.origin && uid !== null && uid === tokenUid(ofBearer);
+  const login = tokenLogin(rowBearer);
+  return row.origin === of.origin && login !== null && login === tokenLogin(ofBearer);
 }
 
 /** Fired on `window` whenever the list changes in THIS tab. `storage` only
@@ -483,8 +483,11 @@ function repairList(ls: Storage): void {
   const mirror = safeGet(ls, TOKEN_STORAGE_KEY);
   if (mirror) held.add(mirror);
   removeOrphanBearers(ls, listed, held);
-  // The keychain's slots under ids no row names, where the shell can list them.
-  scopedVault()?.keepOnly?.([...listed]);
+  // The keychain's slots under ids no row names, where the shell can list
+  // them: only those holding a bearer a kept row holds too, so a login another
+  // window of this brain is listing right now (its slot written, its list
+  // not yet) keeps its new bearer.
+  scopedVault()?.keepOnly?.([...listed], [...held]);
 }
 
 /** Remove `mantle_token:<id>` keys that no listed row (nor the active id)

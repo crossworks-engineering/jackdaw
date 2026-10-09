@@ -728,6 +728,37 @@ describe('signing out with copies of the login still listed', () => {
     expect(assigned).toEqual(['/']);
   });
 
+  it('signing out of the admin neither revokes nor forgets a member that shares its anchor id', async () => {
+    brain();
+    const admin = tok('anchor', 'a1');
+    const member = tok('anchor', 'm1', 'member-login');
+    roles[member] = 'member';
+    const { registry, switcher } = await fresh();
+    registry.signInSession({ email: 'a@example.com', token: admin });
+    registry.listSessions(); // the load-time repair has run
+    const list = JSON.parse(map.get('mantle_sessions')!) as unknown[];
+    list.push({
+      id: 'member',
+      origin: registry.currentBrainOrigin(),
+      email: '',
+      addedAt: 1,
+      lastUsedAt: 1,
+    });
+    map.set('mantle_sessions', JSON.stringify(list));
+    map.set('mantle_token:member', member);
+
+    await switcher.signOutActive();
+
+    const revokedWith = calls
+      .filter((c) => c.url.endsWith('/api/auth/mobile-logout'))
+      .map(bearerOf);
+    expect(revokedWith).toEqual([`Bearer ${admin}`]);
+    expect(registry.listSessions().map((s) => s.id)).toEqual(['member']);
+    expect(registry.sessionToken('member')).toBe(member);
+    // Nameless, so not landed on automatically: the sign-in screen.
+    expect(assigned).toEqual(['/login']);
+  });
+
   it('another tab switching logins while the revoke is in flight keeps that login, unrevoked', async () => {
     brain();
     const { registry } = await fresh();
@@ -759,8 +790,8 @@ describe('signing out with copies of the login still listed', () => {
 });
 
 /** A bearer of the brain's shape, naming its login (`uid`) and its own id. */
-function tok(uid: string, jti: string): string {
-  const payload = btoa(JSON.stringify({ uid, jti, exp: 2_000_000_000 }))
+function tok(uid: string, jti: string, act?: string): string {
+  const payload = btoa(JSON.stringify({ uid, jti, exp: 2_000_000_000, ...(act ? { act } : {}) }))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');

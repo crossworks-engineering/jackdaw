@@ -189,29 +189,55 @@ describe('removing a brain', () => {
 });
 
 describe('leftover login files', () => {
-  it('keepOnly drops the files the page no longer names, and nothing else', () => {
+  const LATER = () => Date.now() + 10 * 60_000;
+
+  it('keepOnly drops copies the page no longer names, and nothing else', () => {
     const vault = createVault(dir, codec);
     vault.write(BRAIN_A, 'legacy');
     vault.writeFor(BRAIN_A, 'keep', 'a.keep');
     vault.writeFor(BRAIN_A, 'copy1', 'a.keep');
     vault.writeFor(BRAIN_A, 'copy2', 'a.keep');
-    vault.writeFor(BRAIN_B, 'copy1', 'b.one');
+    vault.writeFor(BRAIN_B, 'copy1', 'a.keep');
 
-    vault.keepOnly(BRAIN_A, ['keep', '../escape', 7]);
+    vault.keepOnly(BRAIN_A, ['keep', '../escape', 7], ['a.keep'], LATER());
 
     expect(readdirSync(join(dir, 'vault', BRAIN_A))).toEqual(['keep.tok']);
     expect(vault.readFor(BRAIN_A, 'keep')).toBe('a.keep');
     // The one slot and the other brain are not this call's.
     expect(vault.read(BRAIN_A)).toBe('legacy');
-    expect(vault.readFor(BRAIN_B, 'copy1')).toBe('b.one');
+    expect(vault.readFor(BRAIN_B, 'copy1')).toBe('a.keep');
   });
 
-  it('ignores anything that is not a list, and a brain with no folder', () => {
+  it('keeps an unnamed file holding a bearer the page does not hold: another window’s new login', () => {
+    const vault = createVault(dir, codec);
+    vault.writeFor(BRAIN_A, 'keep', 'a.keep');
+    vault.writeFor(BRAIN_A, 'other-window', 'brand.new');
+
+    vault.keepOnly(BRAIN_A, ['keep'], ['a.keep'], LATER());
+
+    expect(vault.readFor(BRAIN_A, 'other-window')).toBe('brand.new');
+  });
+
+  it('keeps a copy written in the last two minutes', () => {
+    const vault = createVault(dir, codec);
+    vault.writeFor(BRAIN_A, 'keep', 'a.keep');
+    vault.writeFor(BRAIN_A, 'just-now', 'a.keep');
+
+    vault.keepOnly(BRAIN_A, ['keep'], ['a.keep'], Date.now() + 60_000);
+    expect(vault.readFor(BRAIN_A, 'just-now')).toBe('a.keep');
+
+    vault.keepOnly(BRAIN_A, ['keep'], ['a.keep'], LATER());
+    expect(vault.readFor(BRAIN_A, 'just-now')).toBeNull();
+  });
+
+  it('ignores anything that is not a list, no bearers, and a brain with no folder', () => {
     const vault = createVault(dir, codec);
     vault.writeFor(BRAIN_A, 's1', 'a.one');
-    vault.keepOnly(BRAIN_A, 's1');
-    vault.keepOnly(BRAIN_A, null);
+    vault.keepOnly(BRAIN_A, 's1', ['a.one'], LATER());
+    vault.keepOnly(BRAIN_A, null, ['a.one'], LATER());
+    vault.keepOnly(BRAIN_A, [], 'a.one', LATER());
+    vault.keepOnly(BRAIN_A, [], [], LATER());
     expect(vault.readFor(BRAIN_A, 's1')).toBe('a.one');
-    expect(() => vault.keepOnly(BRAIN_B, [])).not.toThrow();
+    expect(() => vault.keepOnly(BRAIN_B, [], ['x'], LATER())).not.toThrow();
   });
 });
