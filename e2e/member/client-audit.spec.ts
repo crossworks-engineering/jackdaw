@@ -19,12 +19,16 @@ import {
  * API (no brain): the admin shell's failed role probe retries on its own
  * (A13), "What clients see" after a check with items new since it (A7, A11,
  * A25), and the Access popover on a client item with old client links (A11,
- * A30).
+ * A30). What clients see is a step in Settings > Logins > Clients since
+ * 2026-10-09 (it was a Team admin tab).
  */
 let api: MockMemberApi;
 test.afterEach(async () => {
   await api?.close();
 });
+
+/** Settings > Logins with What clients see selected. */
+const WHAT_CLIENTS_SEE = '/settings/users?selected=what-clients-see';
 
 test.beforeEach(async ({ baseURL, context }) => {
   api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
@@ -36,7 +40,7 @@ test.describe('the shell when /api/shell fails', () => {
     // The query's own attempt and its one retry fail; the card's first
     // automatic retry (about 2 s later) gets the answer.
     api.admin.shellFailures = 2;
-    await page.goto('/team-admin?view=clients');
+    await page.goto(WHAT_CLIENTS_SEE);
     const card = page.locator('section[role="alert"]');
     await expect(card).toBeVisible({ timeout: 60_000 });
     await expect(card).toContainText('Could not load your workspace');
@@ -58,7 +62,7 @@ test.describe('the shell when /api/shell fails', () => {
 
   test('Try again asks at once', async ({ page }) => {
     api.admin.shellFailures = 1000;
-    await page.goto('/team-admin?view=clients');
+    await page.goto(WHAT_CLIENTS_SEE);
     const card = page.locator('section[role="alert"]');
     await expect(card).toBeVisible({ timeout: 60_000 });
     api.admin.shellFailures = 0;
@@ -75,7 +79,7 @@ test.describe('What clients see, after a check', () => {
   }) => {
     api.admin.clientAcks.push([CLIENT_ITEM_ID]);
     api.admin.clientItems = [CLIENT_ITEM_ID, NEW_CLIENT_ITEM_ID];
-    await page.goto('/team-admin?view=clients');
+    await page.goto(WHAT_CLIENTS_SEE);
     await expect(page.getByRole('link', { name: NEW_CLIENT_ITEM_TITLE })).toBeVisible({
       timeout: 60_000,
     });
@@ -108,7 +112,7 @@ test.describe('What clients see, after a check', () => {
     page,
   }) => {
     api.admin.reportChangedOnce = true;
-    await page.goto('/team-admin?view=clients');
+    await page.goto(WHAT_CLIENTS_SEE);
     await expect(page.getByRole('link', { name: CLIENT_ITEM_TITLE })).toBeVisible({
       timeout: 60_000,
     });

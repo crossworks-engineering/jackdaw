@@ -90,23 +90,23 @@ const SCREENS = [
     id: 'sandboxes',
     needsFeature: /Sandboxes are (switched off on this box|not enabled)/,
   },
-  // Two grids in ONE file, one per tab, so they take two keys rather than
-  // sharing a width: a member list and a forum topic list are different
-  // lengths and a width dragged for one has no business setting the other.
-  // The row below lands on Members, the default tab; `team-admin.spec.ts`
-  // holds the half that proves Topics has its own.
-  { path: '/team-admin', id: 'team-admin-members' },
+  // Team admin keeps one grid per tab, each under its own key. The row below
+  // lands on Review, the landing tab, whose grid is there even with nothing
+  // waiting (Requests and Shared links show an empty state instead until
+  // they have rows). Invites, Clients and the member chats moved into the
+  // Settings > Logins row above.
+  { path: '/team-admin', id: 'team-admin-review' },
 ] as const;
 
 /**
  * The scaffold's OWN divider.
  *
  * `[data-slot="resizable-handle"]` alone is not specific enough: the app shell
- * has one (the nav rail), and a detail pane may bring its own — `/team-admin`
- * splits its member transcript from the access log with a second, HORIZONTAL
- * group, and a plain `.last()` grabs that instead and drags it sideways for no
- * effect. Scope to the innermost group that actually holds the list panel, and
- * take only its DIRECT children.
+ * has one (the nav rail), and a detail pane may bring its own (Team admin's
+ * member chats once split a transcript from an access log with a second,
+ * HORIZONTAL group), and a plain `.last()` grabs that instead and drags it
+ * sideways for no effect. Scope to the innermost group that actually holds the
+ * list panel, and take only its DIRECT children.
  */
 function scaffoldHandles(page: import('@playwright/test').Page) {
   return page

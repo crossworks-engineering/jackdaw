@@ -25,7 +25,12 @@ import type {
 } from '@mantle/client-types';
 import type { ClientStorageUsage } from '@mantle/client-types';
 // The C6 answers: client apps and the informational flag.
-import type { MemberChatArchiveMessage, TaskRow } from '@mantle/client-types';
+import type {
+  MemberChatArchiveMessage,
+  MemberChatsResponse,
+  MemberInviteRow,
+  TaskRow,
+} from '@mantle/client-types';
 import type {
   AppDetail,
   ClientAppCard,
@@ -81,9 +86,9 @@ import type {
  *
  * Since the C5 audit fixes every C5 answer is typed against the contract:
  * a client's own items include one a reviewer holds (`clientOwn.held`) and
- * an accepted file changed since (`clientOwn.acceptedFile`), and Team admin
- * > Clients' storage card reads `admin.clientStorage` (null answers 404, an
- * older brain). No comment route is answered any more: the brain has no
+ * an accepted file changed since (`clientOwn.acceptedFile`), and the Client
+ * settings storage card (Settings > Logins) reads `admin.clientStorage`
+ * (null answers 404, an older brain). No comment route is answered any more: the brain has no
  * comments since 2026-10-09.
  *
  * Since C6 it answers a client's apps (/api/client/apps: the list, a frame
@@ -99,6 +104,15 @@ import type {
  * signs in), and, for an admin, the sign-in sender (`admin.signinSender`).
  * The UI calls them cross-origin here, so the request cookie is not
  * modelled: the brain's routes and their tests own that binding.
+ *
+ * Since Team admin started to dissolve (2026-10-09) the admin's Invites,
+ * Clients, What clients see and member chats live in Settings > Logins, so
+ * it answers that screen too: GET /api/users (`admin.logins`, then every
+ * client login as a row of its own), a login's devices (none), the agents
+ * (none), the invites (`admin.invites`) and the Team admin settings the
+ * Invite dialog reads. A login's Chat asks GET /api/team-admin/member-chats
+ * as the brain answers it: a login with no roster row falls back to the
+ * roster's first.
  */
 
 type Doc = Record<string, unknown>;
@@ -340,6 +354,29 @@ export const ADMIN_APP_TITLE = 'Site tracker';
 export const CLIENT_DRAW_ID = '45454545-4545-4454-8454-454545454545';
 export const CLIENT_DRAW_TITLE = 'North elevation';
 
+/** Settings > Logins: the admin's own login (the anchor, and "You"), and a
+ *  member login a spec adds with `loginRow`. */
+export const ADMIN_LOGIN_ID = '48484848-4848-4484-8484-484848484848';
+export const MEMBER_LOGIN_ID = '49494949-4949-4494-8494-494949494949';
+
+/** One row of GET /api/users (Settings > Logins' UserRow), an admin login
+ *  unless `over` says otherwise. */
+export function loginRow(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: ADMIN_LOGIN_ID,
+    email: 'admin@example.com',
+    displayName: 'Ada Admin',
+    isOwner: false,
+    createdAt: '2026-09-01T08:00:00.000Z',
+    lastLoginAt: null,
+    agent: null,
+    role: 'admin',
+    contactId: null,
+    disabledAt: null,
+    ...over,
+  };
+}
+
 /** The member's password in the mock; a change replaces it. */
 export const MEMBER_PASSWORD = 'first-password-1';
 
@@ -503,12 +540,19 @@ export type MockAdminState = {
    *  before C3, whose answer has no `retired`). */
   publicShare: boolean;
   sendsRetired: boolean;
-  /** Team admin > Clients: the client logins, and what was done to them. */
+  /** Settings > Logins > Clients: the client logins, and what was done to
+   *  them (GET /api/users lists each as a login too). */
   clientLogins: Record<string, unknown>[];
   clientCreates: unknown[];
   signinLinksIssued: string[];
   userPatches: { id: string; body: unknown }[];
   userDeletes: string[];
+  /** Settings > Logins: the admin and member logins GET /api/users lists
+   *  (the admin's own first, built with `loginRow`); the client logins
+   *  follow, from `clientLogins`. */
+  logins: Record<string, unknown>[];
+  /** GET /api/team-admin/invites: every invite, newest first. */
+  invites: MemberInviteRow[];
   /** Sign-in codes by email (C2b): the sender's id (null: codes off), the
    *  day's count, whether the cap is reached, every PUT body, and a refusal
    *  the next PUT answers instead. */
@@ -528,9 +572,10 @@ export type MockAdminState = {
     /** Every preview asked, by account id. */
     previewCalls: string[];
   };
-  /** Member chats (B26): rows the roster answers, when set. */
+  /** A login's Chat (B26): the rows the member-chats roster answers (null:
+   *  none). */
   memberChats: Record<string, unknown>[] | null;
-  /** The thread `?login=` opens in Member chats, by login id. */
+  /** The thread `?login=` opens in a login's Chat, by login id. */
   memberChatThreads: Record<string, MemberChatArchiveMessage[]>;
   /** The owner's tasks (/tasks), as GET /api/tasks and /api/tasks/:id
    *  answer them. */
@@ -544,7 +589,8 @@ export type MockAdminState = {
    *  as sent. */
   app: AppDetail | null;
   appPatches: { id: string; body: unknown }[];
-  /** Team admin > Clients > Client storage; null answers 404. */
+  /** Settings > Logins > Client settings > Client storage; null answers
+   *  404. */
   clientStorage: ClientStorageUsage | null;
 };
 
@@ -784,6 +830,8 @@ export async function startMockMemberApi(
       signinLinksIssued: [],
       userPatches: [],
       userDeletes: [],
+      logins: [loginRow({ isOwner: true })],
+      invites: [],
       signinSender: {
         senderId: null,
         sentLast24h: 0,
@@ -1064,7 +1112,8 @@ export async function startMockMemberApi(
         return (json(res, 200, { app: A.app }), true);
       }
     }
-    // Team admin > Clients: client storage (C5 audit fixes); null: 404.
+    // Settings > Logins > Client settings: client storage (C5 audit fixes);
+    // null: 404.
     if (path === '/api/team-admin/clients/storage' && method === 'GET') {
       if (!A.clientStorage) return (json(res, 404, { error: 'Not found.' }), true);
       json(res, 200, A.clientStorage satisfies ClientStorageUsage);
@@ -1188,7 +1237,7 @@ export async function startMockMemberApi(
       json(res, 200, { ok: true });
       return true;
     }
-    // Team admin > Clients (client logins C2). Acknowledged once What
+    // Settings > Logins > Clients (client logins C2). Acknowledged once What
     // clients see was checked here.
     const acked = () => A.clientAcks.length > 0;
     if (path === '/api/team-admin/clients' && method === 'GET') {
@@ -1266,14 +1315,21 @@ export async function startMockMemberApi(
       json(res, 200, { badges: { openRequestCount: open }, requests: A.requests });
       return true;
     }
-    // Member chats (B26): the roster with a client row, when set.
-    if (path === '/api/team-admin/member-chats' && method === 'GET' && A.memberChats) {
-      const login = url.searchParams.get('login');
-      const thread = login ? A.memberChatThreads[login] : undefined;
+    // A login's Chat (B26): the roster, and the asked login's thread. As the
+    // brain does, a login with no roster row falls back to the roster's
+    // first, so the UI must check whose thread came back.
+    if (path === '/api/team-admin/member-chats' && method === 'GET') {
+      const members = (A.memberChats ?? []) as MemberChatsResponse['members'];
+      const asked = url.searchParams.get('login');
+      const loginId = members.some((m) => m.loginId === asked)
+        ? asked
+        : (members[0]?.loginId ?? null);
       json(res, 200, {
-        members: A.memberChats,
-        selected: login && thread ? { loginId: login, thread, windowSize: 50 } : null,
-      });
+        members,
+        selected: loginId
+          ? { loginId, thread: A.memberChatThreads[loginId] ?? [], windowSize: 50 }
+          : null,
+      } satisfies MemberChatsResponse);
       return true;
     }
     if (path === '/api/tasks' && method === 'GET') {
@@ -1316,20 +1372,69 @@ export async function startMockMemberApi(
         return answer();
       }
     }
+    // Settings > Logins: every login, the admin and member ones first, then
+    // each client login as the brain lists it (role 'client').
+    if (path === '/api/users' && method === 'GET') {
+      const text = (v: unknown) => (typeof v === 'string' ? v : null);
+      const clients = A.clientLogins.map((c) =>
+        loginRow({
+          id: c.id,
+          email: c.email,
+          displayName: text(c.displayName),
+          createdAt: c.createdAt,
+          lastLoginAt: text(c.lastLoginAt),
+          role: 'client',
+          contactId: text(c.contactId),
+          disabledAt: c.disabled ? now : null,
+        }),
+      );
+      json(res, 200, { users: [...A.logins, ...clients], currentActorId: ADMIN_LOGIN_ID });
+      return true;
+    }
+    if (/^\/api\/users\/([0-9a-f-]{36})\/devices$/.test(path) && method === 'GET') {
+      json(res, 200, { devices: [] });
+      return true;
+    }
+    if (path === '/api/agents' && method === 'GET') {
+      json(res, 200, { agents: [] });
+      return true;
+    }
+    if (path === '/api/team-admin/invites' && method === 'GET') {
+      json(res, 200, { invites: A.invites });
+      return true;
+    }
+    // What the Invite dialog reads (the team agent's level).
+    if (path === '/api/team-admin/settings' && method === 'GET') {
+      json(res, 200, {
+        badges: { openRequestCount: 0 },
+        privateReads: false,
+        hubAppId: null,
+        hubCandidates: [],
+        teamAgent: null,
+      });
+      return true;
+    }
     const user = /^\/api\/users\/([0-9a-f-]{36})$/.exec(path);
     if (user) {
       const id = user[1]!;
       if (method === 'PATCH') {
-        const body = JSON.parse(await readBody(req)) as { disabled?: boolean };
+        const body = JSON.parse(await readBody(req)) as { disabled?: boolean; signOut?: boolean };
         A.userPatches.push({ id, body });
         const row = A.clientLogins.find((c) => c.id === id);
         if (row && typeof body.disabled === 'boolean') row.disabled = body.disabled;
+        // Signed out everywhere: a client's open sign-in link goes too.
+        if (row && body.signOut) row.openLink = null;
+        const login = A.logins.find((l) => l.id === id);
+        if (login && typeof body.disabled === 'boolean') {
+          login.disabledAt = body.disabled ? now : null;
+        }
         json(res, 200, { ok: true });
         return true;
       }
       if (method === 'DELETE') {
         A.userDeletes.push(id);
         A.clientLogins = A.clientLogins.filter((c) => c.id !== id);
+        A.logins = A.logins.filter((l) => l.id !== id);
         json(res, 200, { ok: true });
         return true;
       }

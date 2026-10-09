@@ -2,12 +2,17 @@ import { expect, test } from '../lib/fixtures';
 
 /**
  * /team-admin on the CLIENT origin (T5): the owner's team console renders
- * from the per-tab /api/team-admin/* routes with the owner credential —
+ * from the per-tab /api/team-admin/* routes with the owner credential:
  * bearer in the split project, session cookie same-origin. The old server
  * page is gone; this is the only surface.
+ *
+ * Team admin is dissolving in parts (2026-10-09). Part 1 moved Invites,
+ * Clients, What clients see and the member chats into Settings > Logins and
+ * removed the Chat archive, so the tabs left are Review (the landing tab),
+ * Requests, Shared links and Settings, and the old links are sent on.
  */
 test.describe('team admin (owner, client origin)', () => {
-  // Post-carve, the owner UI exists only on the CLIENT app — the same-origin
+  // Post-carve, the owner UI exists only on the CLIENT app: the same-origin
   // project covers the SERVER-origin surfaces; the split project runs this.
   test.skip(({ topology }) => topology === 'same-origin', 'owner UI lives on the client app');
   test('tabs render from the per-tab API routes', async ({ ownerPage }) => {
@@ -15,26 +20,31 @@ test.describe('team admin (owner, client origin)', () => {
     // Scoped to the tab strip: the sidebar now carries a "Settings" row of its
     // own (the settings hub), so an unscoped link-by-name is ambiguous.
     const tabs = ownerPage.getByRole('navigation', { name: 'Team admin' });
-    // Chat archive tab (default, the old Code holders URL): every contact with
-    // old portal chat. Team codes are gone (brain 0178), so nothing here says
-    // when a code was last used.
-    await expect(ownerPage.getByRole('heading', { name: 'Chat archive' })).toBeVisible({
+    // Review is the landing tab: the review queue's grid, empty or not.
+    await expect(tabs.getByRole('link', { name: /^Review/ })).toHaveAttribute(
+      'href',
+      '/team-admin?view=review',
+      { timeout: 30_000 },
+    );
+    await expect(ownerPage.getByRole('heading', { name: 'Review', exact: true })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(tabs.getByRole('link', { name: 'Chat archive' })).toHaveAttribute(
-      'href',
-      '/team-admin',
-    );
-    await expect(tabs.getByRole('link', { name: 'Code holders' })).toHaveCount(0);
+
+    // The four tabs left, in order, and none of the ones that moved or went.
+    // (Not the "waiting in Apps" link the strip shows while a member's app
+    // waits: that is a way out, not a tab.)
+    await expect(tabs.locator('a:not([href="/apps"])')).toHaveText([
+      /^Review/,
+      /^Requests/,
+      'Shared links',
+      'Settings',
+    ]);
+    for (const gone of ['Chat archive', 'Member chats', 'Invites', 'Clients', 'Code holders']) {
+      await expect(tabs.getByRole('link', { name: gone })).toHaveCount(0);
+    }
     await expect(ownerPage.getByText(/code last used/i)).toHaveCount(0);
 
-    // Member chats tab: member logins' chats with the team agent.
-    await tabs.getByRole('link', { name: 'Member chats' }).click();
-    await expect(ownerPage.getByRole('heading', { name: 'Member chats' })).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // Requests tab: empty-state or queue — either way the pane rendered.
+    // Requests tab: empty-state or queue, either way the pane rendered.
     await tabs.getByRole('link', { name: /^Requests/ }).click();
     await expect(
       ownerPage
@@ -57,70 +67,60 @@ test.describe('team admin (owner, client origin)', () => {
     await expect(tabs.getByRole('link', { name: /^Topics/ })).toHaveCount(0);
   });
 
-  test('Chat archive and Member chats each remember their OWN width', async ({ ownerPage }) => {
-    // Two grids in one file. They could have shared a `MasterDetail` id, and
-    // that is exactly what this rules out: a chat archive roster and a member
-    // login list are different lengths, so a width dragged on one must not
-    // follow the reader to the other.
-    await ownerPage.setViewportSize({ width: 1600, height: 900 });
-    await ownerPage.goto('/team-admin');
+  test('the moved tabs live in Settings > Logins, and their old links go there', async ({
+    ownerPage,
+  }) => {
+    // Every old link of a moved tab, and where it lands now. Client-side
+    // redirects, so each waits for the address to change.
+    for (const [from, to] of [
+      ['/team-admin?view=invites', /\/settings\/users$/],
+      ['/team-admin?view=chats', /\/settings\/users$/],
+      ['/team-admin?view=clients', /\/settings\/users\?selected=what-clients-see$/],
+      ['/team-admin?view=client-logins', /\/settings\/users\?selected=what-clients-see$/],
+    ] as const) {
+      await ownerPage.goto(from);
+      await expect(ownerPage).toHaveURL(to, { timeout: 30_000 });
+    }
 
-    const list = ownerPage.locator('[data-testid="list"]');
-    // The scaffold's own divider — NOT the shell's rail, and not the
-    // thread/access split inside the detail pane.
-    const handle = ownerPage
-      .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
-      .last()
-      .locator(':scope > [data-slot="resizable-handle"]')
-      .first();
-    await expect(handle).toBeVisible({ timeout: 30_000 });
-    const widthOf = () => list.evaluate((el) => (el as HTMLElement).offsetWidth);
-    const before = await widthOf();
-
-    const grip = (await handle.boundingBox())!;
-    await ownerPage.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
-    await ownerPage.mouse.down();
-    await ownerPage.mouse.move(grip.x + grip.width / 2 + 120, grip.y + grip.height / 2, {
-      steps: 8,
+    // What clients see opened as the selected step: its one header, with the
+    // count and the intro behind Info.
+    const header = ownerPage.getByTestId('item-header');
+    await expect(header.getByRole('heading', { name: /^What clients see/ })).toBeVisible({
+      timeout: 30_000,
     });
-    await ownerPage.mouse.up();
-    const widened = await widthOf();
-    expect(widened, 'the Chat archive divider did not move').toBeGreaterThan(before + 60);
+    await expect(header.getByRole('button', { name: 'About this list' })).toBeVisible();
 
-    await ownerPage
-      .getByRole('navigation', { name: 'Team admin' })
-      .getByRole('link', { name: 'Member chats' })
-      .click();
-    await expect(ownerPage.getByRole('heading', { name: 'Member chats' })).toBeVisible({
-      timeout: 15_000,
+    // The Logins column: Invite beside Add login, and the Clients section with
+    // its two steps.
+    await expect(ownerPage.getByRole('button', { name: 'Invite', exact: true })).toBeVisible();
+    await expect(ownerPage.getByRole('button', { name: 'Add login' })).toBeVisible();
+    const clients = ownerPage.getByRole('region', { name: /^Clients/ });
+    await expect(clients.getByRole('button', { name: 'Add client' })).toBeVisible();
+    await expect(clients.getByRole('button', { name: /^What clients see/ })).toBeVisible();
+    await expect(clients.getByRole('button', { name: /^Client settings/ })).toBeVisible();
+
+    // An old Member chats link to one login opens that login's Chat. No
+    // member login is seeded on this brain, so the id is no login and the
+    // screen shows its first login: what matters is where the link lands.
+    await ownerPage.goto('/team-admin?view=chats&login=not-a-login');
+    await expect(ownerPage).toHaveURL(/\/settings\/users\?selected=not-a-login&view=chat$/, {
+      timeout: 30_000,
     });
-    expect(
-      Math.abs((await widthOf()) - widened),
-      'Member chats inherited the width dragged on Chat archive: shared key?',
-    ).toBeGreaterThan(3);
 
-    // Drag Member chats too, then look at what was written. A layout is only
-    // saved after a real interaction on that screen, so without this second
-    // drag its key would be legitimately absent and the check below vacuous.
-    const chatsHandle = ownerPage
-      .locator('[data-slot="resizable-panel-group"]:has([data-testid="list"])')
-      .last()
-      .locator(':scope > [data-slot="resizable-handle"]')
-      .first();
-    const chatsGrip = (await chatsHandle.boundingBox())!;
-    await ownerPage.mouse.move(chatsGrip.x + chatsGrip.width / 2, chatsGrip.y + 40);
-    await ownerPage.mouse.down();
-    await ownerPage.mouse.move(chatsGrip.x + chatsGrip.width / 2 + 60, chatsGrip.y + 40, {
-      steps: 8,
+    // The Chat archive is gone: its old URL lands on Review.
+    await ownerPage.goto('/team-admin?contact=00000000-0000-4000-8000-000000000000');
+    await expect(ownerPage.getByRole('heading', { name: 'Review', exact: true })).toBeVisible({
+      timeout: 30_000,
     });
-    await ownerPage.mouse.up();
-
-    // Two saved layouts, not one. (Matched loosely: the panel library owns the
-    // exact key shape around the id we hand it.)
-    const keys = await ownerPage.evaluate(() =>
-      Object.keys(window.localStorage).filter((k) => k.includes('master-detail')),
-    );
-    expect(keys.some((k) => k.includes('team-admin-members'))).toBe(true);
-    expect(keys.some((k) => k.includes('team-admin-member-chats'))).toBe(true);
+    await expect(ownerPage.getByRole('heading', { name: 'Chat archive' })).toHaveCount(0);
   });
+
+  // DROPPED 2026-10-09: "Chat archive and Member chats each remember their
+  // OWN width". Its subject was two grids in this file that are gone (Chat
+  // archive removed, Member chats now a login's Chat in Settings > Logins).
+  // Of the grids left, Requests and Shared links draw one only when they have
+  // rows, which this brain need not have, so a two-grid width check here would
+  // skip or pass vacuously. Review's own key is held by the /team-admin row of
+  // master-detail-screens.spec.ts (team-admin-review), and Settings > Logins'
+  // by its /settings/users row (settings-users).
 });

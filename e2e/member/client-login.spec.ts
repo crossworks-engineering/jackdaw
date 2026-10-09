@@ -3,6 +3,7 @@ import {
   CLIENT_ITEM_ID,
   CLIENT_ITEM_TITLE,
   CLIENT_SITE,
+  MEMBER_LOGIN_ID,
   signInAsAdmin,
   signInAsMember,
   startMockMemberApi,
@@ -15,7 +16,8 @@ import {
  * client hint) gets the client portal and nothing of the owner or member
  * shell, on any path, with no loop to /login: the only refused route it
  * asks is the role probe itself, then the client routes. And an admin
- * checks "What clients see" and acknowledges it.
+ * checks "What clients see" (Settings > Logins > Clients) and acknowledges
+ * it.
  */
 let api: MockMemberApi;
 test.afterEach(async () => {
@@ -123,14 +125,27 @@ test.describe('What clients see', () => {
     await signInAsAdmin(context, baseURL!);
   });
 
+  /** Settings > Logins with What clients see selected. */
+  const WHAT_CLIENTS_SEE = '/settings/users?selected=what-clients-see';
+
   test('lists the client items and records the check with the ids shown', async ({ page }) => {
-    await page.goto('/team-admin?view=clients');
+    await page.goto(WHAT_CLIENTS_SEE);
     await expect(page.getByRole('link', { name: CLIENT_ITEM_TITLE })).toBeVisible({
       timeout: 60_000,
     });
+    // The pane's one header: the title and its count, the check as its text
+    // action, why it is checked first behind Info.
+    const header = page.getByTestId('item-header');
+    await expect(header.getByRole('heading', { name: /^What clients see/ })).toBeVisible();
+    await expect(header.locator('[aria-label="1 client item"]')).toHaveText('1');
+    await expect(page.getByText('Every client login will be able to read all of it.')).toHaveCount(
+      0,
+    );
+    await header.getByRole('button', { name: 'About this list' }).click();
     await expect(
-      page.getByText('Every client login will be able to read all of it.'),
+      page.getByRole('dialog').getByText('Every client login will be able to read all of it.'),
     ).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(page.getByText('Internal pricing (Team)')).toBeVisible();
     await expect(page.getByText('Nobody has checked this list yet.')).toBeVisible();
     // Before any check the brain names every item as new: none is marked.
@@ -149,9 +164,30 @@ test.describe('What clients see', () => {
     expect(api.admin.clientAcks).toEqual([[CLIENT_ITEM_ID]]);
   });
 
+  test('the old Team admin links land in Settings > Logins', async ({ page }) => {
+    for (const [from, to] of [
+      ['/team-admin?view=clients', /\/settings\/users\?selected=what-clients-see$/],
+      ['/team-admin?view=client-logins', /\/settings\/users\?selected=what-clients-see$/],
+      ['/team-admin?view=invites', /\/settings\/users$/],
+      ['/team-admin?view=chats', /\/settings\/users$/],
+      [
+        `/team-admin?view=chats&login=${MEMBER_LOGIN_ID}`,
+        new RegExp(`/settings/users\\?selected=${MEMBER_LOGIN_ID}&view=chat$`),
+      ],
+    ] as const) {
+      await page.goto(from);
+      await expect(page).toHaveURL(to, { timeout: 60_000 });
+    }
+    // What clients see opened as the selected step, not just the screen.
+    await page.goto('/team-admin?view=clients');
+    await expect(page.getByRole('link', { name: CLIENT_ITEM_TITLE })).toBeVisible({
+      timeout: 60_000,
+    });
+  });
+
   test('works at phone width', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto('/team-admin?view=clients');
+    await page.goto(WHAT_CLIENTS_SEE);
     await expect(page.getByRole('link', { name: CLIENT_ITEM_TITLE })).toBeVisible({
       timeout: 60_000,
     });
@@ -160,6 +196,10 @@ test.describe('What clients see', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
-    await expect(page.getByRole('button', { name: 'I have checked this list' })).toBeInViewport();
+    // The list and the pane stack at this width: the check is below the
+    // logins, one scroll down, never off to the side.
+    const check = page.getByRole('button', { name: 'I have checked this list' });
+    await check.scrollIntoViewIfNeeded();
+    await expect(check).toBeInViewport();
   });
 });

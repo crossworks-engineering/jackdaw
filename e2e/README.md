@@ -47,8 +47,11 @@ keepalive) outlives the page, and route interception never sees it.
 Started with `{ role: 'admin' }` (and `signInAsAdmin`), the same mock answers
 an ADMIN instead: the shell, the Team admin Review queue and the admin's
 private space, with Take over, Give back, Accept and Delete and the brain's
-refusals of each (`admin-takeover.spec.ts`, audit F07). Any other route an
-admin screen asks for is a plain 404.
+refusals of each (`admin-takeover.spec.ts`, audit F07). It also answers
+Settings > Logins, where Invites, Clients, What clients see and each login's
+Chat moved from Team admin: the logins (`admin.logins`, then every client
+login), the invites, and a login's chat. Any other route an admin screen asks
+for is a plain 404.
 
 ## The route coverage gate (`pnpm e2e:routes`)
 

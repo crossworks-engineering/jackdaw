@@ -7,11 +7,13 @@ import {
   CLIENT_GOOD_CODE,
   CLIENT_ITEM_TITLE,
   CLIENT_NAME,
+  CLIENT_LOGIN_ID,
   CLIENT_RATE_CODE,
   CLIENT_SITE,
   LEAKY_SUMMARY,
   LIBRARY_CLIENT_TITLE,
   LIBRARY_TITLE,
+  MEMBER_LOGIN_ID,
   MOCK_PEER,
   PRIVATE_LABEL,
   SHARED_FILE_ID,
@@ -23,6 +25,7 @@ import {
   SENDER_DESK,
   SENDER_INFO,
   TABLE_DESCRIPTION,
+  loginRow,
   serveSameOrigin,
   signInAsAdmin,
   signInAsMember,
@@ -34,9 +37,11 @@ import {
  * The client portal (client logins C2), against the in-memory API (no
  * brain): the sign-in link page, sign-in by an emailed code (C2b), the
  * client chrome and "Shared with you" with its read-only viewers, an ended
- * session, and the admin's Team admin > Clients with its sign-in code sender. A client asks client routes only: every other route the page
- * calls is refused and recorded (`clientCalls`), and each client test ends
- * with none.
+ * session, and the admin's side in Settings > Logins: its Clients section
+ * (What clients see, Client settings with the sign-in code sender, the client
+ * logins) and a client login's Chat. A client asks client routes only: every
+ * other route the page calls is refused and recorded (`clientCalls`), and
+ * each client test ends with none.
  */
 let api: MockMemberApi;
 test.afterEach(async () => {
@@ -53,7 +58,21 @@ async function signInAsClient(context: BrowserContext, baseURL: string) {
 }
 
 const heading = (page: Page) => page.getByRole('heading', { name: 'Shared with you' });
+
 const list = (page: Page) => page.getByRole('list', { name: 'Shared items' });
+
+/** A client login as GET /api/team-admin/clients lists it. */
+const clientRow = () => ({
+  id: CLIENT_LOGIN_ID,
+  email: CLIENT_EMAIL,
+  displayName: CLIENT_NAME,
+  contactId: null,
+  disabled: false,
+  createdAt: '2026-09-20T08:00:00.000Z',
+  lastLoginAt: null,
+  openLink: null,
+  lastLinkUsedAt: null,
+});
 
 test.describe('the sign-in link', () => {
   test.beforeEach(async ({ baseURL, context }) => {
@@ -573,7 +592,7 @@ test.describe('a signed-in client', () => {
   });
 });
 
-test.describe('Team admin > Clients', () => {
+test.describe('Settings > Logins > Clients', () => {
   test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
     await signInAsAdmin(context, baseURL!);
@@ -582,27 +601,40 @@ test.describe('Team admin > Clients', () => {
     });
   });
 
-  test('Add client and Issue sign-in link wait for What clients see', async ({ page }) => {
-    await page.goto('/team-admin?view=client-logins');
-    const add = page.getByRole('button', { name: 'Add client' });
-    await expect(add).toBeDisabled({ timeout: 60_000 });
-    await expect(page.getByText('Check the list in What clients see first')).toBeVisible();
+  const clientsSection = (page: Page) => page.getByRole('region', { name: /^Clients/ });
 
-    // Check the report, then come back.
-    await page.getByRole('link', { name: 'What clients see' }).last().click();
+  test('Add client and Issue sign-in link wait for What clients see', async ({ page }) => {
+    await page.goto('/settings/users');
+    const add = clientsSection(page).getByRole('button', { name: 'Add client' });
+    await expect(add).toBeDisabled({ timeout: 60_000 });
+    await expect(add).toHaveAttribute('title', /^Check the list in What clients see first/);
+    await expect(clientsSection(page).getByText('No client logins yet.')).toBeVisible();
+
+    // Check the report (the section's first step), and Add client opens up
+    // in the same column.
+    await clientsSection(page)
+      .getByRole('button', { name: /^What clients see/ })
+      .click();
     await expect(page.getByRole('link', { name: CLIENT_ITEM_TITLE })).toBeVisible({
       timeout: 60_000,
     });
     await page.getByRole('button', { name: 'I have checked this list' }).click();
     await expect(page.getByText(/checked this list on/)).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('link', { name: 'Clients', exact: true }).click();
     await expect(add).toBeEnabled({ timeout: 30_000 });
 
     await add.click();
-    await page.getByLabel('Email', { exact: true }).fill(CLIENT_EMAIL);
-    await page.getByLabel('Name (optional)').fill(CLIENT_NAME);
-    await page.getByRole('dialog').getByRole('button', { name: 'Add client' }).click();
-    await expect(page.getByText(CLIENT_NAME).first()).toBeVisible({ timeout: 15_000 });
+    const dialog = page.getByRole('dialog', { name: 'Add a client' });
+    await dialog.getByLabel('Email', { exact: true }).fill(CLIENT_EMAIL);
+    await dialog.getByLabel('Name (optional)').fill(CLIENT_NAME);
+    await dialog.getByRole('button', { name: 'Add client' }).click();
+    // The new login is selected: a client, listed under Clients, with its
+    // Sign-in link card.
+    await expect(
+      clientsSection(page).getByRole('button', { name: new RegExp(CLIENT_NAME) }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByTestId('item-header').getByRole('heading', { name: new RegExp(`^${CLIENT_NAME}`) }),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('No open sign-in link')).toBeVisible();
 
     // The link, once, as the full URL on this app's origin, its code in
@@ -615,13 +647,13 @@ test.describe('Team admin > Clients', () => {
       { timeout: 15_000 },
     );
     // Shown once: no Escape, no click outside, no corner X loses it (B27).
-    const dialog = page.getByRole('dialog', { name: 'Sign-in link ready' });
+    const ready = page.getByRole('dialog', { name: 'Sign-in link ready' });
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Close' })).toHaveCount(0);
+    await expect(ready).toBeVisible();
+    await expect(ready.getByRole('button', { name: 'Close' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Done' }).click();
-    await expect(dialog).toHaveCount(0);
+    await expect(ready).toHaveCount(0);
     await expect(page.getByText(/Sign-in link open until/)).toBeVisible();
     expect(api.admin.signinLinksIssued).toHaveLength(1);
 
@@ -637,58 +669,81 @@ test.describe('Team admin > Clients', () => {
     await expect(link).toBeVisible({ timeout: 15_000 });
     expect(api.admin.signinLinksIssued).toHaveLength(2);
     await page.getByRole('button', { name: 'Copy the sign-in link' }).click();
-    await expect(dialog).toHaveCount(0, { timeout: 15_000 });
+    await expect(ready).toHaveCount(0, { timeout: 15_000 });
   });
 
-  test('a client login is ended, disabled and deleted from its menu', async ({ page }) => {
-    api.admin.clientAcks.push(['x']);
-    api.admin.clientLogins.push({
-      id: '16161616-1616-4161-8161-161616161616',
-      email: CLIENT_EMAIL,
-      displayName: CLIENT_NAME,
-      contactId: null,
-      disabled: false,
-      createdAt: '2026-09-20T08:00:00.000Z',
-      lastLoginAt: null,
-      openLink: null,
-      lastLinkUsedAt: null,
+  test('a client login that is not checked yet says why its link waits, with the way there', async ({
+    page,
+  }) => {
+    api.admin.clientLogins.push(clientRow());
+    await page.goto(`/settings/users?selected=${CLIENT_LOGIN_ID}`);
+    const issue = page.getByRole('button', { name: `Issue a sign-in link for ${CLIENT_NAME}` });
+    await expect(issue).toBeDisabled({ timeout: 60_000 });
+    await expect(page.getByText(/^Check the list in What clients see first/)).toBeVisible();
+    await page.getByTestId('detail').getByRole('button', { name: 'What clients see' }).click();
+    await expect(page.getByRole('button', { name: 'I have checked this list' })).toBeVisible({
+      timeout: 15_000,
     });
-    await page.goto('/team-admin?view=client-logins');
-    const more = page.getByRole('button', { name: `More for ${CLIENT_NAME}` });
-    // End sessions says what it does, and where a lockout is (B14).
-    await more.click({ timeout: 60_000 });
-    await page.getByRole('menuitem', { name: 'End sessions' }).click();
+  });
+
+  test('a client login is signed out everywhere, disabled and deleted with the login controls', async ({
+    page,
+  }) => {
+    api.admin.clientAcks.push(['x']);
+    api.admin.clientLogins.push(clientRow());
+    await page.goto(`/settings/users?selected=${CLIENT_LOGIN_ID}`);
+    const header = page.getByTestId('item-header');
+    await expect(header.getByRole('heading', { name: new RegExp(`^${CLIENT_NAME}`) })).toBeVisible({
+      timeout: 60_000,
+    });
+    // Sign out everywhere says what it does for a client, and where a
+    // lockout is (B14).
+    await page.getByRole('button', { name: 'Sign out everywhere' }).click();
     const end = page.getByRole('alertdialog');
     await expect(end).toContainText('any open sign-in link is revoked');
     await expect(end).toContainText('To keep them out, disable the login instead.');
     await expect(end).not.toContainText('need a new sign-in link');
     await end.getByRole('button', { name: 'Cancel' }).click();
-    await more.click();
-    await page.getByRole('menuitem', { name: 'Disable' }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Disable' }).click();
-    await expect(page.getByRole('button', { name: 'Enable' })).toBeVisible({ timeout: 15_000 });
-    expect(api.admin.userPatches).toEqual([
-      { id: '16161616-1616-4161-8161-161616161616', body: { disabled: true } },
-    ]);
+    expect(api.admin.userPatches).toEqual([]);
 
-    await more.click();
-    await page.getByRole('menuitem', { name: 'Delete' }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
-    await expect(page.getByText('No client logins yet.')).toBeVisible({ timeout: 15_000 });
-    expect(api.admin.userDeletes).toEqual(['16161616-1616-4161-8161-161616161616']);
+    // Disabled: at once, and the Sign-in link card says why it offers none.
+    const disabled = page.getByRole('switch', { name: 'Disable this login' });
+    await disabled.click();
+    await expect(disabled).toBeChecked({ timeout: 15_000 });
+    await expect(header.getByText('Disabled', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('This login is disabled: switch Disabled off to issue a link.'),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole('button', { name: `Issue a sign-in link for ${CLIENT_NAME}` }),
+    ).toHaveCount(0);
+    expect(api.admin.userPatches).toEqual([{ id: CLIENT_LOGIN_ID, body: { disabled: true } }]);
+
+    // Delete says the client's chat goes with it.
+    await header.getByRole('button', { name: 'Delete login' }).click();
+    const del = page.getByRole('alertdialog');
+    await expect(del).toContainText(`Delete ${CLIENT_NAME}?`);
+    await expect(del).toContainText('the chat thread this client wrote is deleted');
+    await del.getByRole('button', { name: 'Delete user' }).click();
+    await expect(clientsSection(page).getByText('No client logins yet.')).toBeVisible({
+      timeout: 15_000,
+    });
+    expect(api.admin.userDeletes).toEqual([CLIENT_LOGIN_ID]);
   });
 });
 
-test.describe('Team admin > Clients > Sign-in codes by email', () => {
+test.describe('Settings > Logins > Client settings > Sign-in codes by email', () => {
   test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
     await signInAsAdmin(context, baseURL!);
   });
 
   const picker = (page: Page) => page.getByRole('combobox', { name: 'Send codes from' });
+  /** Settings > Logins with Client settings selected. */
+  const CLIENT_SETTINGS = '/settings/users?selected=client-settings';
 
   test('pick a sender, the folders kept out, a refusal, then None', async ({ page }) => {
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto(CLIENT_SETTINGS);
     await expect(page.getByRole('heading', { name: 'Sign-in codes by email' })).toBeVisible({
       timeout: 60_000,
     });
@@ -770,7 +825,7 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
 
   test('an older brain (no preview): still confirmed, without folder names', async ({ page }) => {
     api.admin.signinSender.preview = false;
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto(CLIENT_SETTINGS);
     await picker(page).click({ timeout: 60_000 });
     await page.getByRole('option', { name: SENDER_DESK.address }).click();
     const confirm = page.getByRole('alertdialog');
@@ -793,7 +848,7 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
       lastFailure: { at: '2026-09-29T08:00:00.000Z', reason: '535 Authentication failed' },
       emailWorker: false,
     };
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto(CLIENT_SETTINGS);
     await expect(page.getByTestId('client-codes-count')).toHaveText(
       '4 of 200 codes delivered in the last 24 hours, 1 send failed, 2 requests skipped at a limit.',
       { timeout: 60_000 },
@@ -810,7 +865,7 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
     api.admin.signinSender.senderId = SENDER_DESK.id;
     api.admin.signinSender.sentLast24h = 201;
     api.admin.signinSender.capReached = true;
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto(CLIENT_SETTINGS);
     await expect(page.getByTestId('client-codes-cap')).toHaveText(
       'The daily limit of 200 sign-in codes is reached. Requests are still accepted, but no code is sent until the window moves on.',
       { timeout: 60_000 },
@@ -823,7 +878,7 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
       status: 404,
       body: { error: 'Email account not found.', reason: 'account-not-found' },
     };
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto(CLIENT_SETTINGS);
     await picker(page).click({ timeout: 60_000 });
     await page.getByRole('option', { name: SENDER_INFO.address }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Use this account' }).click();
@@ -834,7 +889,7 @@ test.describe('Team admin > Clients > Sign-in codes by email', () => {
   });
 });
 
-test.describe('Team admin > Member chats (B26)', () => {
+test.describe('Settings > Logins: a client login’s Chat (B26)', () => {
   test.beforeEach(async ({ baseURL, context }) => {
     api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
     await signInAsAdmin(context, baseURL!);
@@ -849,24 +904,58 @@ test.describe('Team admin > Member chats (B26)', () => {
       messageCount: 1,
       ...over,
     });
+    api.admin.logins.push(
+      loginRow({
+        id: MEMBER_LOGIN_ID,
+        email: 'mo@example.invalid',
+        displayName: 'Mo Member',
+        role: 'member',
+      }),
+    );
+    api.admin.clientLogins.push(clientRow());
     api.admin.memberChats = [
-      chat({ loginId: 'm-1', name: 'Mo Member', email: 'mo@example.invalid', role: 'member' }),
       chat({
-        loginId: 'c-1',
+        loginId: MEMBER_LOGIN_ID,
+        name: 'Mo Member',
+        email: 'mo@example.invalid',
+        role: 'member',
+      }),
+      chat({
+        loginId: CLIENT_LOGIN_ID,
         name: CLIENT_NAME,
         email: CLIENT_EMAIL,
         role: 'client',
+        // The brain: a client is never an active team member (B26).
+        active: false,
         lastMessageText: 'A question',
       }),
     ];
-    await page.goto('/team-admin?view=chats');
-    const client = page.getByRole('listitem').filter({ hasText: CLIENT_NAME });
-    // The Client badge beside the name (C4), then the last message.
-    await expect(client.getByText('Client', { exact: true })).toBeVisible({ timeout: 60_000 });
-    await expect(client).toContainText('A question');
+    api.admin.memberChatThreads[CLIENT_LOGIN_ID] = [
+      {
+        id: 'c-1',
+        direction: 'inbound',
+        text: 'A question',
+        status: 'complete',
+        error: null,
+        traceId: null,
+        createdAt: '2026-09-28T08:00:00.000Z',
+      },
+    ];
+    await page.goto(`/settings/users?selected=${CLIENT_LOGIN_ID}&view=chat`);
+    const header = page.getByTestId('item-header');
+    // The Client badge beside the name (C4), then the thread.
+    await expect(header.getByText('Client', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(header.getByText('Member', { exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('detail')).toContainText('A question', { timeout: 15_000 });
     await expect(page.getByText(/no longer a member/)).toHaveCount(0);
-    const member = page.getByRole('listitem').filter({ hasText: 'Mo Member' });
-    await expect(member).not.toContainText('Client');
+    // In the list: the client under Clients, the member outside it, wearing
+    // Member and never Client.
+    const clients = page.getByRole('region', { name: /^Clients/ });
+    await expect(clients.getByRole('button', { name: new RegExp(CLIENT_NAME) })).toBeVisible();
+    const member = page.getByRole('button', { name: /^Mo Member/ });
+    await expect(member.getByText('Member', { exact: true })).toBeVisible();
+    await expect(member.getByText('Client', { exact: true })).toHaveCount(0);
+    await expect(clients.getByRole('button', { name: /Mo Member/ })).toHaveCount(0);
   });
 });
 

@@ -32,8 +32,8 @@ import {
  * (U4, with the clock moved on and a focus), a member's client request
  * names its writer (U6), a crafted id stays one path segment (U8), Back
  * after a search restores the list (U9), and the missing behaviour tests
- * (U12). The admin side: Team admin > Clients' storage card, left out on an
- * older brain. (The comment threads and their cases are gone with comments,
+ * (U12). The admin side: the clients' storage card (Settings > Logins >
+ * Client settings), left out on an older brain. (The comment threads and their cases are gone with comments,
  * 2026-10-09.)
  */
 let api: MockMemberApi;
@@ -499,7 +499,7 @@ test.describe('an admin', () => {
     lastLinkUsedAt: null,
   };
 
-  test('Clients: the storage card says the total against the limit, each client, the refusals', async ({
+  test('Client settings: the storage card says the total against the limit, each client, the refusals', async ({
     page,
   }) => {
     const MB = 1024 * 1024;
@@ -530,7 +530,7 @@ test.describe('an admin', () => {
         { at: '2026-09-29T10:00:00.000Z', loginId: CLIENT_LOGIN_ID, reason: 'daily-upload' },
       ],
     };
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto('/settings/users?selected=client-settings');
     const storage = page.getByRole('region', { name: 'Client storage' });
     await expect(storage).toContainText('512 MB of 5.00 GB used by all client spaces', {
       timeout: 60_000,
@@ -539,21 +539,24 @@ test.describe('an admin', () => {
     await expect(storage).toContainText(`${CLIENT_NAME} · the day's uploads are used up`);
   });
 
-  test('Clients on a brain before the fixes: no comments or storage card, no delete offered', async ({
+  test('Clients on a brain before the fixes: no comments or storage card, no comment delete offered', async ({
     page,
   }) => {
     api.admin.clientLogins = [client];
     const asked = page.waitForResponse((r) => r.url().includes('/api/team-admin/clients/storage'));
-    await page.goto('/team-admin?view=client-logins');
+    await page.goto('/settings/users?selected=client-settings');
     expect((await asked).status()).toBe(404);
-    await expect(page.getByRole('list', { name: 'Client logins' })).toContainText(CLIENT_NAME, {
-      timeout: 60_000,
-    });
+    const clients = page.getByRole('region', { name: /^Clients/ });
+    await expect(clients).toContainText(CLIENT_NAME, { timeout: 60_000 });
     await expect(page.getByRole('region', { name: 'Client comments' })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'Client storage' })).toHaveCount(0);
-    await page.getByRole('button', { name: `More for ${CLIENT_NAME}` }).click();
-    await expect(page.getByRole('menuitem', { name: 'End sessions' })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: /comments/ })).toHaveCount(0);
+    // The client login's own controls: the generic login ones, and nothing
+    // about comments.
+    await clients.getByRole('button', { name: new RegExp(CLIENT_NAME) }).click();
+    await expect(page.getByRole('button', { name: 'Sign out everywhere' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('button', { name: /comments/ })).toHaveCount(0);
     await expect(page.getByText(/Couldn.t load/)).toHaveCount(0);
   });
 });

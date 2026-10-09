@@ -13,7 +13,8 @@ import {
  * in-memory API (no brain): every live link is public, and the old client
  * links the brain retired are listed below them, quieter, with no copy and
  * no open (the link is dead), each linking to its item and the note to
- * Clients. A brain before C3 sends no retired list, and none shows.
+ * Clients (Settings > Logins, at What clients see: the first client step).
+ * A brain before C3 sends no retired list, and none shows.
  */
 let api: MockMemberApi;
 test.afterEach(async () => {
@@ -47,7 +48,7 @@ test('lists the retired client links below the live ones, with no copy and no op
   ).toBeVisible();
   await expect(section.getByRole('link', { name: 'Clients', exact: true })).toHaveAttribute(
     'href',
-    '/team-admin?view=client-logins',
+    '/settings/users?selected=what-clients-see',
   );
   const list = retiredList(page);
   await expect(list.getByRole('link', { name: CLIENT_ITEM_TITLE })).toHaveAttribute(
