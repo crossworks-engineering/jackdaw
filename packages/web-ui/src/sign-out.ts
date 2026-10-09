@@ -1,7 +1,7 @@
 import { apiUrl, resetCookieUpgrade, withAuth } from './api-fetch';
 import { setAssetToken } from './asset-url';
 import { runSignOutResets } from './session-reset';
-import { removeActiveSession } from './session-registry';
+import { activeLogin, activeSession, forgetSessions } from './session-registry';
 import { tokenStore } from './token-store';
 
 export { onSignOut } from './session-reset';
@@ -48,18 +48,38 @@ export { onSignOut } from './session-reset';
  * login held on this device is left exactly as it was.
  */
 export async function performSignOut(): Promise<void> {
+  // Everything about WHO is signing out is read before the first await:
+  // another tab can switch logins while the revoke is in flight, and the
+  // login it switched to is not this sign-out's to forget or to revoke.
   const hadToken = tokenStore.get() !== null;
+  const login = activeLogin();
+  const revokeInit = withAuth({ method: 'POST' });
+  const logoutInit = withAuth({ method: 'POST' });
+  // A copy of this login holding a bearer of its own (a rotation) is revoked
+  // with that bearer: it is this login's credential too.
+  const copyBearers = [
+    ...new Set(login?.copies.map((c) => c.token).filter((t): t is string => !!t) ?? []),
+  ].filter((t) => t !== login?.token);
   try {
     if (hadToken) {
-      await fetch(apiUrl('/api/auth/mobile-logout'), withAuth({ method: 'POST' }));
+      await fetch(apiUrl('/api/auth/mobile-logout'), revokeInit);
     }
-    await fetch(apiUrl('/api/auth/logout'), withAuth({ method: 'POST' }));
+    for (const token of copyBearers) {
+      await fetch(apiUrl('/api/auth/mobile-logout'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'omit',
+      });
+    }
+    await fetch(apiUrl('/api/auth/logout'), logoutInit);
   } catch {
     /* network failure — still clear local state so the UI signs out */
   }
-  // The row, and any copy of it holding the same bearer: that bearer is dead now.
-  removeActiveSession();
-  tokenStore.clear();
+  // The row and its copies: those bearers are dead now.
+  if (login) forgetSessions([login.id, ...login.copies.map((c) => c.id)]);
+  // The credential in use, unless another tab has made a different login
+  // active meanwhile: that one is not this sign-out's.
+  if (!login || !activeSession()) tokenStore.clear();
   setAssetToken(null);
   resetCookieUpgrade();
   runSignOutResets();

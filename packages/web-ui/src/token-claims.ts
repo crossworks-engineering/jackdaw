@@ -29,6 +29,24 @@ export function tokenExpEpoch(token: string): number | null {
   }
 }
 
+/**
+ * The `uid` claim (the brain's id for the login) from a signed token, or null.
+ * Not a secret and not verified: the registry uses it only to see that two
+ * bearers it holds, at the same brain, belong to the same login (a rotation
+ * gives a login a new bearer, so the bearers themselves stop matching).
+ */
+export function tokenUid(token: string): string | null {
+  const dot = token.lastIndexOf('.');
+  if (dot < 0) return null;
+  try {
+    const payload = token.slice(0, dot).replace(/-/g, '+').replace(/_/g, '/');
+    const data = JSON.parse(atob(payload)) as { uid?: unknown };
+    return typeof data.uid === 'string' && data.uid !== '' ? data.uid : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Never poll faster than this, however close expiry is. */
 const MIN_REFRESH_MS = 30_000;
 

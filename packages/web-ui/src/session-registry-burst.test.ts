@@ -65,7 +65,10 @@ type Tab = {
 
 /** A new tab: fresh modules (a page load), a window with real listeners, and
  *  the account menu's `useSessions` subscribed to both events. */
-async function openTab(shared: Shared, opts: { listen?: boolean } = {}): Promise<Tab> {
+async function openTab(
+  shared: Shared,
+  opts: { listen?: boolean; vault?: Record<string, unknown> } = {},
+): Promise<Tab> {
   const listeners = new Map<string, Listener[]>();
   const win: Record<string, unknown> = {
     localStorage: shared.storage,
@@ -75,6 +78,7 @@ async function openTab(shared: Shared, opts: { listen?: boolean } = {}): Promise
       href: 'https://brain.example/',
     },
     __MANTLE_ENV__: {},
+    ...(opts.vault ? { mantleDesktop: { tokenVault: opts.vault } } : {}),
     addEventListener: (type: string, fn: Listener) =>
       void listeners.set(type, [...(listeners.get(type) ?? []), fn]),
     removeEventListener: () => {},
@@ -432,8 +436,176 @@ describe('repair on load', () => {
     const shared = sharedStorage({ mantle_token: 'held.sig' });
     const tab = await openTab(shared);
     inTab(shared, tab, (t) => t.tokenStore.get());
-    shared.map.set('mantle_token:later', 'x.sig'); // e.g. another tab mid-write
+    // e.g. another tab mid-write, holding the very bearer a sweep would take
+    shared.map.set('mantle_token:later', 'held.sig');
     inTab(shared, tab, (t) => t.tokenStore.get());
     expect(shared.map.has('mantle_token:later')).toBe(true);
+  });
+});
+
+/** A bearer of the brain's shape, naming its login (`uid`) and its own id. */
+function tok(uid: string, jti: string): string {
+  const payload = btoa(JSON.stringify({ uid, jti, exp: 2_000_000_000 }))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return `${payload}.sig`;
+}
+
+const row = (id: string, email: string, origin = 'https://brain.example') => ({
+  id,
+  origin,
+  email,
+  addedAt: 1,
+  lastUsedAt: 1,
+});
+
+describe('repair on load · copies whose bearer was rotated', () => {
+  it('drops a nameless row holding another bearer for a listed login, and only at that brain', async () => {
+    // Idle rows are refreshed too, so each copy can hold a rotation of its own.
+    const seed: Record<string, string> = {
+      mantle_token: tok('u1', 'live'),
+      mantle_active_session: 'real',
+      mantle_sessions: JSON.stringify([
+        row('real', 'm@example.com'),
+        row('copyA', ''),
+        row('copyB', ''),
+        row('other', 'o@example.com'),
+        row('far', '', 'https://other.example'),
+      ]),
+      'mantle_token:real': tok('u1', 'live'),
+      'mantle_token:copyA': tok('u1', 'old1'),
+      'mantle_token:copyB': tok('u1', 'old2'),
+      'mantle_token:other': tok('u2', 'x'),
+      // The same login id at ANOTHER brain is another login.
+      'mantle_token:far': tok('u1', 'far'),
+    };
+    const shared = sharedStorage(seed);
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => {
+      expect(t.registry.listSessions().map((s) => s.id)).toEqual(['real', 'other', 'far']);
+      expect(t.tokenStore.get()).toBe(tok('u1', 'live'));
+    });
+    expect(tokenKeys(shared).sort()).toEqual(
+      ['mantle_token:far', 'mantle_token:other', 'mantle_token:real'].sort(),
+    );
+  });
+
+  it('when the active row is a rotated copy, the named row takes over its live bearer', async () => {
+    const shared = sharedStorage({
+      mantle_token: tok('u1', 'newest'),
+      mantle_active_session: 'copy',
+      mantle_sessions: JSON.stringify([row('real', 'm@example.com'), row('copy', '')]),
+      'mantle_token:real': tok('u1', 'rotated-away'),
+      'mantle_token:copy': tok('u1', 'newest'),
+    });
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => {
+      expect(t.registry.activeSession()?.id).toBe('real');
+      expect(t.registry.sessionToken('real')).toBe(tok('u1', 'newest'));
+      expect(t.tokenStore.get()).toBe(tok('u1', 'newest'));
+      expect(t.registry.listSessions()).toHaveLength(1);
+    });
+  });
+
+  it('/api/shell folds a rotated nameless copy into the active login', async () => {
+    const shared = sharedStorage();
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => {
+      t.registry.signInSession({ email: 'a@example.com', token: tok('u1', 'a') });
+      shared.map.set('mantle_sessions', JSON.stringify([...rows(shared), row('copy', '')]));
+      shared.map.set('mantle_token:copy', tok('u1', 'b'));
+      t.registry.recordActiveIdentity({ email: 'a@example.com' });
+    });
+    expect(rows(shared).map((r) => r.email)).toEqual(['a@example.com']);
+  });
+});
+
+describe('repair on load · what the sweep leaves alone', () => {
+  it('sweeps nothing against a list it cannot read', async () => {
+    const shared = sharedStorage({
+      mantle_token: 'held.sig',
+      mantle_sessions: '{not json',
+      'mantle_token:a': 'held.sig',
+      'mantle_token:b': 'other.sig',
+    });
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => expect(t.tokenStore.get()).toBe('held.sig'));
+    expect(shared.map.has('mantle_token:a')).toBe(true);
+    expect(shared.map.has('mantle_token:b')).toBe(true);
+  });
+
+  it('keeps an orphan key whose bearer this device holds nowhere else', async () => {
+    const shared = sharedStorage({
+      mantle_token: 'held.sig',
+      mantle_active_session: 'real',
+      mantle_sessions: JSON.stringify([row('real', 'm@example.com')]),
+      'mantle_token:real': 'held.sig',
+      'mantle_token:copy-of-held': 'held.sig',
+      'mantle_token:unknown': 'unknown.sig',
+    });
+    const tab = await openTab(shared);
+    inTab(shared, tab, (t) => t.tokenStore.get());
+    expect(tokenKeys(shared).sort()).toEqual(['mantle_token:real', 'mantle_token:unknown']);
+  });
+});
+
+describe('repair on load · the desktop keychain', () => {
+  function scopedVault(slots: Record<string, string>) {
+    const map = new Map(Object.entries(slots));
+    const keptOnly: string[][] = [];
+    const v = {
+      slots: map,
+      keptOnly,
+      get: () => null,
+      set: () => {},
+      clear: () => {},
+      getFor: (id: string) => map.get(id) ?? null,
+      setFor: (id: string, t: string) => void map.set(id, t),
+      clearFor: (id: string) => void map.delete(id),
+      adopt: (id: string) => map.get(id) ?? null,
+      keepOnly: (ids: string[]) => {
+        keptOnly.push([...ids].sort());
+        for (const id of [...map.keys()]) if (!ids.includes(id)) map.delete(id);
+      },
+    };
+    return v;
+  }
+
+  it('clears the copies’ slots and asks the shell to drop slots no row names', async () => {
+    const vault = scopedVault({
+      real: tok('u1', 'live'),
+      copy1: tok('u1', 'live'),
+      copy2: tok('u1', 'rotated'),
+      orphan: tok('u1', 'live'),
+    });
+    const shared = sharedStorage({
+      mantle_active_session: 'real',
+      mantle_sessions: JSON.stringify([
+        row('real', 'm@example.com'),
+        row('copy1', ''),
+        row('copy2', ''),
+      ]),
+    });
+    const tab = await openTab(shared, { vault });
+    inTab(shared, tab, (t) => {
+      expect(t.tokenStore.get()).toBe(tok('u1', 'live'));
+      expect(t.registry.listSessions().map((s) => s.id)).toEqual(['real']);
+    });
+    expect(vault.keptOnly).toEqual([['real']]);
+    expect([...vault.slots.keys()]).toEqual(['real']);
+    expect(tokenKeys(shared)).toEqual([]);
+  });
+
+  it('an older shell without the call: copies still go, orphans simply stay', async () => {
+    const vault = scopedVault({ real: tok('u1', 'live'), copy1: tok('u1', 'live'), orphan: 'x' });
+    delete (vault as Partial<typeof vault>).keepOnly;
+    const shared = sharedStorage({
+      mantle_active_session: 'real',
+      mantle_sessions: JSON.stringify([row('real', 'm@example.com'), row('copy1', '')]),
+    });
+    const tab = await openTab(shared, { vault });
+    inTab(shared, tab, (t) => expect(t.registry.listSessions()).toHaveLength(1));
+    expect([...vault.slots.keys()].sort()).toEqual(['orphan', 'real']);
   });
 });

@@ -671,6 +671,10 @@ function registerIpc(): void {
     const profileId = vaultProfileFor(event);
     event.returnValue = profileId ? vault().adopt(profileId, sessionId) : null;
   });
+  ipcMain.on('vault:keepOnly', (event, sessionIds: unknown) => {
+    const profileId = vaultProfileFor(event);
+    if (profileId) vault().keepOnly(profileId, sessionIds);
+  });
 
   ipcMain.handle('profiles:list', () => loadProfiles());
 

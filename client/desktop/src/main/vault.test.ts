@@ -187,3 +187,31 @@ describe('removing a brain', () => {
     expect(vault.readFor(BRAIN_B, 's1')).toBe('b.one');
   });
 });
+
+describe('leftover login files', () => {
+  it('keepOnly drops the files the page no longer names, and nothing else', () => {
+    const vault = createVault(dir, codec);
+    vault.write(BRAIN_A, 'legacy');
+    vault.writeFor(BRAIN_A, 'keep', 'a.keep');
+    vault.writeFor(BRAIN_A, 'copy1', 'a.keep');
+    vault.writeFor(BRAIN_A, 'copy2', 'a.keep');
+    vault.writeFor(BRAIN_B, 'copy1', 'b.one');
+
+    vault.keepOnly(BRAIN_A, ['keep', '../escape', 7]);
+
+    expect(readdirSync(join(dir, 'vault', BRAIN_A))).toEqual(['keep.tok']);
+    expect(vault.readFor(BRAIN_A, 'keep')).toBe('a.keep');
+    // The one slot and the other brain are not this call's.
+    expect(vault.read(BRAIN_A)).toBe('legacy');
+    expect(vault.readFor(BRAIN_B, 'copy1')).toBe('b.one');
+  });
+
+  it('ignores anything that is not a list, and a brain with no folder', () => {
+    const vault = createVault(dir, codec);
+    vault.writeFor(BRAIN_A, 's1', 'a.one');
+    vault.keepOnly(BRAIN_A, 's1');
+    vault.keepOnly(BRAIN_A, null);
+    expect(vault.readFor(BRAIN_A, 's1')).toBe('a.one');
+    expect(() => vault.keepOnly(BRAIN_B, [])).not.toThrow();
+  });
+});

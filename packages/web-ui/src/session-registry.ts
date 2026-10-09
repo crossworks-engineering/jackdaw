@@ -32,7 +32,7 @@
  */
 import './desktop-shell'; // global Window.mantleDesktop declaration
 import { runtimeApiBase } from './runtime-env';
-import { tokenExpEpoch } from './token-claims';
+import { tokenExpEpoch, tokenUid } from './token-claims';
 
 export type Session = {
   /** Random, device-local. Not a secret and not known to any brain. */
@@ -217,6 +217,13 @@ function isSession(v: unknown): v is Session {
 }
 
 function readList(): Session[] {
+  return readListOrNull() ?? [];
+}
+
+/** The list, or null when one is stored that this module cannot read. Only
+ *  the load-time repair cares about the difference: it must not sweep bearers
+ *  away against a list it could not read. */
+function readListOrNull(): Session[] | null {
   const ls = storage();
   if (!ls) return [];
   try {
@@ -225,10 +232,28 @@ function readList(): Session[] {
     const parsed: unknown = JSON.parse(raw);
     // A list this module cannot read is treated as empty, never thrown on: the
     // mirror still holds the working bearer and `reconcile` rebuilds from it.
-    return Array.isArray(parsed) ? parsed.filter(isSession) : [];
+    return Array.isArray(parsed) ? parsed.filter(isSession) : null;
   } catch {
-    return [];
+    return null;
   }
+}
+
+/**
+ * Is `row` a copy of the login `of` (held as `ofBearer`)? A copy has no login
+ * of its own, and holds either the very same bearer or, at the same brain, a
+ * bearer for the same login: idle rows are refreshed too, so a copy's bearer
+ * can be a rotation of the one it was copied from and stop matching it.
+ */
+function isCopyOf(
+  row: Session,
+  rowBearer: string | null,
+  of: Session,
+  ofBearer: string | null,
+): boolean {
+  if (row.id === of.id || row.email !== '' || !rowBearer || !ofBearer) return false;
+  if (rowBearer === ofBearer) return true;
+  const uid = tokenUid(rowBearer);
+  return row.origin === of.origin && uid !== null && uid === tokenUid(ofBearer);
 }
 
 /** Fired on `window` whenever the list changes in THIS tab. `storage` only
@@ -407,23 +432,38 @@ function rowHolding(ls: Storage, list: Session[], token: string): Session | unde
  */
 function repairList(ls: Storage): void {
   if (oneSlotVault()) return; // one row by design, and idle rows hold nothing
+  const list = readListOrNull();
+  if (list === null) return; // nothing is swept against a list it cannot read
   let activeId = readActiveId();
-  const list = readList();
   const bearerOf = new Map(list.map((s) => [s.id, bearerGet(ls, s.id, s.id === activeId)]));
-  const holders = new Map<string, Session[]>();
-  for (const s of list) {
-    const b = bearerOf.get(s.id);
-    if (b) holders.set(b, [...(holders.get(b) ?? []), s]);
-  }
+  // Each row that can keep a login, in order of preference: one with a login,
+  // then the active one, then the first listed. Every nameless row that is a
+  // copy of an earlier keeper goes; the rest become keepers themselves.
+  const ranked = [
+    ...list.filter((s) => s.email !== ''),
+    ...list.filter((s) => s.email === '' && s.id === activeId),
+    ...list.filter((s) => s.email === '' && s.id !== activeId),
+  ];
+  const keepers: Session[] = [];
   const drop = new Set<Session>();
-  for (const rows of holders.values()) {
-    if (rows.length < 2) continue;
-    const keep =
-      rows.find((s) => s.email !== '') ?? rows.find((s) => s.id === activeId) ?? rows[0]!;
-    for (const s of rows) if (s !== keep && s.email === '') drop.add(s);
-    if (activeId && rows.some((s) => s.id === activeId && drop.has(s))) {
-      activeId = keep.id;
-      safeSet(ls, ACTIVE_SESSION_STORAGE_KEY, keep.id);
+  for (const s of ranked) {
+    const b = bearerOf.get(s.id) ?? null;
+    const of = keepers.find((k) => isCopyOf(s, b, k, bearerOf.get(k.id) ?? null));
+    if (!of) {
+      keepers.push(s);
+      continue;
+    }
+    drop.add(s);
+    if (s.id === activeId) {
+      // The active copy's bearer is the one in use, and kept fresh: the row
+      // that stays takes it over (its own may be a rotation since replaced).
+      const live = bearerOf.get(s.id);
+      if (live) {
+        bearerSet(ls, of.id, live, true);
+        bearerOf.set(of.id, live);
+      }
+      activeId = of.id;
+      safeSet(ls, ACTIVE_SESSION_STORAGE_KEY, of.id);
     }
   }
   for (const s of list) {
@@ -432,19 +472,33 @@ function repairList(ls: Storage): void {
   for (const s of drop) bearerRemove(ls, s.id, false);
   const kept = list.filter((s) => !drop.has(s));
   if (drop.size > 0) writeList(kept);
-  removeOrphanBearers(ls, new Set(kept.map((s) => s.id)), activeId);
+  const listed = new Set(kept.map((s) => s.id));
+  if (activeId) listed.add(activeId);
+  // Bearers this device still holds: a stray copy of one of them is an orphan.
+  const held = new Set<string>();
+  for (const s of kept) {
+    const b = bearerOf.get(s.id);
+    if (b) held.add(b);
+  }
+  const mirror = safeGet(ls, TOKEN_STORAGE_KEY);
+  if (mirror) held.add(mirror);
+  removeOrphanBearers(ls, listed, held);
+  // The keychain's slots under ids no row names, where the shell can list them.
+  scopedVault()?.keepOnly?.([...listed]);
 }
 
-function removeOrphanBearers(ls: Storage, listed: Set<string>, activeId: string | null): void {
+/** Remove `mantle_token:<id>` keys that no listed row (nor the active id)
+ *  owns, and only those whose bearer is one this device holds anyway. */
+function removeOrphanBearers(ls: Storage, listed: Set<string>, held: Set<string>): void {
   const prefix = `${TOKEN_STORAGE_KEY}:`;
   try {
     if (typeof ls.key !== 'function') return;
     const orphans: string[] = [];
     for (let i = 0; i < ls.length; i++) {
       const key = ls.key(i);
-      if (!key?.startsWith(prefix)) continue;
-      const id = key.slice(prefix.length);
-      if (!listed.has(id) && id !== activeId) orphans.push(key);
+      if (!key?.startsWith(prefix) || listed.has(key.slice(prefix.length))) continue;
+      const value = safeGet(ls, key);
+      if (value !== null && held.has(value)) orphans.push(key);
     }
     for (const key of orphans) safeRemove(ls, key);
   } catch {
@@ -615,7 +669,7 @@ export function recordActiveIdentity(identity: {
         s !== session &&
         (s.email !== ''
           ? sameLogin(s, session)
-          : held !== null && bearerGet(ls, s.id, false) === held),
+          : isCopyOf(s, bearerGet(ls, s.id, false), session, held)),
     );
     if (twins.length > 0) {
       for (const t of twins) bearerRemove(ls, t.id, false);
@@ -664,27 +718,58 @@ function forgetActive(ls: Storage): void {
   writeList(list);
 }
 
+/** The login in use as a sign-out sees it: its row's id and bearer, and the
+ *  rows that are copies of it (see `isCopyOf`; a row holding the very same
+ *  bearer counts whatever it is named), each with its own bearer. */
+export type ActiveLogin = {
+  id: string;
+  token: string | null;
+  copies: { id: string; token: string | null }[];
+};
+
 /**
- * Sign-out's forgetting: the active session's row and bearer, and every other
- * row holding that same bearer. Such a row is a copy of this login (see
- * `reconcile`), and left behind it would be "the next login held here": a
- * sign-out would probe the bearer it had just revoked, once per copy, and
- * leave each one listed as signed out.
+ * Read BEFORE a sign-out awaits anything: another tab may switch logins while
+ * the revoke is in flight, and what is forgotten afterwards must be this
+ * login, not whichever one is active by then. Left behind, a copy would be
+ * "the next login held here": sign-out would probe a revoked bearer once per
+ * copy and leave each listed as signed out.
  */
-export function removeActiveSession(): void {
+export function activeLogin(): ActiveLogin | null {
   const ls = storage();
-  if (!ls) return;
+  if (!ls) return null;
   try {
     reconcile();
     const id = readActiveId();
-    if (!id) return;
-    const held = bearerGet(ls, id, true);
-    const gone = new Set([id]);
-    if (held) {
-      for (const s of readList()) if (bearerGet(ls, s.id, false) === held) gone.add(s.id);
-    }
-    for (const g of gone) bearerRemove(ls, g, g === id);
-    safeRemove(ls, ACTIVE_SESSION_STORAGE_KEY);
+    const list = readList();
+    const session = id ? list.find((s) => s.id === id) : undefined;
+    if (!session) return null;
+    const token = bearerGet(ls, session.id, true);
+    const copies = list
+      .filter((s) => s.id !== session.id)
+      .map((s) => ({ s, b: bearerGet(ls, s.id, false) }))
+      .filter(({ s, b }) => (token !== null && b === token) || isCopyOf(s, b, session, token))
+      .map(({ s, b }) => ({ id: s.id, token: b }));
+    return { id: session.id, token, copies };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Forget these sessions, rows and bearers. When the active one is among them
+ * the device is left with no active session; when another tab has made some
+ * other login active in the meantime, that login is not touched.
+ */
+export function forgetSessions(ids: string[]): void {
+  const ls = storage();
+  if (!ls || ids.length === 0) return;
+  try {
+    const gone = new Set(ids);
+    const activeId = readActiveId();
+    const activeGoes = activeId !== null && gone.has(activeId);
+    // Bearers and the active id first, the list last (see `writeList`).
+    for (const g of gone) bearerRemove(ls, g, activeGoes && g === activeId);
+    if (activeGoes) safeRemove(ls, ACTIVE_SESSION_STORAGE_KEY);
     writeList(readList().filter((s) => !gone.has(s.id)));
   } catch {
     /* ignore */

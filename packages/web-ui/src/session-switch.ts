@@ -210,9 +210,12 @@ export async function signOutActive(): Promise<void> {
   const revoked = tokenStore.get();
   await performSignOut();
   for (const next of switchableSessions()) {
-    // Never "land" on the bearer just revoked: a copy of this login is not
-    // another login. performSignOut forgets copies; this holds even if one
-    // is listed again by another tab in between.
+    // Never "land" on the bearer just revoked, nor on a row with no login:
+    // that is a copy of this login, not another one (its bearer may be a
+    // rotation). performSignOut forgets copies; this holds even if one is
+    // listed again by another tab in between. A nameless row can still be
+    // switched to by hand from the list.
+    if (next.email === '') continue;
     if (revoked !== null && sessionToken(next.id) === revoked) continue;
     if ((await switchSession(next.id)) === 'switched') return;
   }

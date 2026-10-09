@@ -31,6 +31,9 @@ export type DesktopShellApi = {
     clearFor?(sessionId: string): void;
     /** Move the one-slot bearer to a login that has none yet; returns it. */
     adopt?(sessionId: string): string | null;
+    /** Drop every per-login slot of this brain except these sessions'.
+     *  Newer shells only. */
+    keepOnly?(sessionIds: string[]): void;
   };
   /** Other brains, from inside a brain window (newer shells only). The
    *  shell opens the named brain in ITS OWN window on its sign-in screen; the

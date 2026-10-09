@@ -627,40 +627,142 @@ describe('signing out with copies of the login still listed', () => {
     expect(assigned).toEqual(['/']);
   });
 
-  it('a copy listed again by another tab mid-sign-out is still never landed on', async () => {
+  /** Run `onChange` on this tab's SESSIONS_CHANGED_EVENT, as a screen would. */
+  function listen(onChange: () => void) {
+    const w = window as unknown as Record<string, unknown>;
+    w.dispatchEvent = (e: Event) => {
+      if (e.type === 'mantle:sessions') onChange();
+      return true;
+    };
+  }
+
+  /** Another tab lists a row the moment this tab has forgotten the login. */
+  function relistAfterForget(
+    registry: typeof import('./session-registry'),
+    late: object,
+    token: string,
+  ) {
+    let done = false;
+    listen(() => {
+      const list = JSON.parse(map.get('mantle_sessions') ?? '[]') as { email: string }[];
+      if (done || list.some((s) => s.email === 'me@example.com')) return;
+      done = true;
+      map.set('mantle_sessions', JSON.stringify([...list, late]));
+      map.set('mantle_token:late', token);
+    });
+    return () => done;
+  }
+
+  it('a row holding the revoked bearer, listed again mid-sign-out, is never landed on', async () => {
     brain();
     const { registry, switcher } = await fresh();
     registry.signInSession({ email: 'me@example.com', token: 'me.sig' });
     registry.listSessions();
-    // The other tab writes a copy back just after this tab forgot its rows.
-    const inner = globalThis.fetch;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string, init?: RequestInit) => {
-        if (String(url).endsWith('/api/auth/logout')) {
-          queueMicrotask(() => {
-            map.set(
-              'mantle_sessions',
-              JSON.stringify([
-                {
-                  id: 'late',
-                  origin: registry.currentBrainOrigin(),
-                  email: '',
-                  addedAt: 1,
-                  lastUsedAt: 1,
-                },
-              ]),
-            );
-            map.set('mantle_token:late', 'me.sig');
-          });
-        }
-        return inner(url, init);
-      }),
+    const origin = registry.currentBrainOrigin();
+    const relisted = relistAfterForget(
+      registry,
+      { id: 'late', origin, email: 'named@example.com', addedAt: 1, lastUsedAt: 3e12 },
+      'me.sig',
     );
 
     await switcher.signOutActive();
 
+    expect(relisted()).toBe(true);
+    expect(registry.listSessions().map((s) => s.id)).toContain('late');
     expect(probedWith('me.sig')).toEqual([]);
     expect(assigned).toEqual(['/login']);
   });
+
+  it('a nameless row with a rotated bearer, listed again mid-sign-out, is never landed on', async () => {
+    brain();
+    const { registry, switcher } = await fresh();
+    registry.signInSession({ email: 'me@example.com', token: tok('u1', 'live') });
+    registry.listSessions();
+    const origin = registry.currentBrainOrigin();
+    const relisted = relistAfterForget(
+      registry,
+      { id: 'late', origin, email: '', addedAt: 1, lastUsedAt: 3e12 },
+      tok('u1', 'rotated'),
+    );
+
+    await switcher.signOutActive();
+
+    expect(relisted()).toBe(true);
+    expect(probedWith(tok('u1', 'rotated'))).toEqual([]);
+    expect(assigned).toEqual(['/login']);
+  });
+
+  it('member with rotated copies: every copy bearer is revoked too, and it lands on the other login', async () => {
+    brain();
+    roles[tok('u1', 'live')] = 'member';
+    roles['other.sig'] = 'member';
+    const { registry, switcher } = await fresh();
+    const other = registry.signInSession({ email: 'other@example.com', token: 'other.sig' })!;
+    registry.signInSession({ email: 'me@example.com', token: tok('u1', 'live'), role: 'member' });
+    registry.listSessions(); // the load-time repair has run
+    const list = JSON.parse(map.get('mantle_sessions')!) as unknown[];
+    for (const jti of ['old1', 'old2']) {
+      list.push({
+        id: jti,
+        origin: registry.currentBrainOrigin(),
+        email: '',
+        addedAt: 1,
+        lastUsedAt: 3e12,
+      });
+      map.set(`mantle_token:${jti}`, tok('u1', jti));
+    }
+    map.set('mantle_sessions', JSON.stringify(list));
+
+    await switcher.signOutActive();
+
+    const revokedWith = calls
+      .filter((c) => c.url.endsWith('/api/auth/mobile-logout'))
+      .map(bearerOf);
+    expect(revokedWith).toEqual([
+      `Bearer ${tok('u1', 'live')}`,
+      `Bearer ${tok('u1', 'old1')}`,
+      `Bearer ${tok('u1', 'old2')}`,
+    ]);
+    for (const jti of ['live', 'old1', 'old2']) expect(probedWith(tok('u1', jti))).toEqual([]);
+    expect(registry.listSessions().map((s) => s.id)).toEqual([other.id]);
+    expect(assigned).toEqual(['/']);
+  });
+
+  it('another tab switching logins while the revoke is in flight keeps that login, unrevoked', async () => {
+    brain();
+    const { registry } = await fresh();
+    const { performSignOut } = await import('./sign-out');
+    const b = registry.signInSession({ email: 'b@example.com', token: 'b.sig' })!;
+    const me = registry.signInSession({ email: 'me@example.com', token: 'me.sig' })!;
+    const inner = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        // The other tab's switch lands in shared storage mid-sign-out.
+        if (String(url).endsWith('/api/auth/mobile-logout')) registry.setActiveSession(b.id);
+        return inner(url, init);
+      }),
+    );
+
+    await performSignOut();
+
+    expect(registry.listSessions().map((s) => s.id)).toEqual([b.id]);
+    expect(registry.activeSession()?.id).toBe(b.id);
+    expect(registry.sessionToken(b.id)).toBe('b.sig');
+    expect(map.get('mantle_token')).toBe('b.sig');
+    expect(map.has(`mantle_token:${me.id}`)).toBe(false);
+    const revokedWith = calls
+      .filter((c) => c.url.endsWith('/api/auth/mobile-logout'))
+      .map(bearerOf);
+    expect(revokedWith).toEqual(['Bearer me.sig']);
+  });
 });
+
+/** A bearer of the brain's shape, naming its login (`uid`) and its own id. */
+function tok(uid: string, jti: string): string {
+  const payload = btoa(JSON.stringify({ uid, jti, exp: 2_000_000_000 }))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return `${payload}.sig`;
+}

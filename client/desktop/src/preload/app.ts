@@ -68,6 +68,8 @@ contextBridge.exposeInMainWorld('mantleDesktop', {
       const value = ipcRenderer.sendSync('vault:adopt', sessionId) as unknown;
       return typeof value === 'string' ? value : null;
     },
+    /** Drop this brain's login slots except these sessions' (leftovers). */
+    keepOnly: (sessionIds: string[]) => ipcRenderer.send('vault:keepOnly', sessionIds),
   },
   // "Add login" for ANOTHER brain: the shell checks the address, saves the
   // brain and opens its own window on its sign-in screen. Only an address and

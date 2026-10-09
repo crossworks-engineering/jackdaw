@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 
 /**
@@ -100,6 +108,32 @@ export function createVault(baseDir: string, codec: VaultCodec) {
         return null;
       }
       return readFile(target);
+    },
+
+    /**
+     * Keep this brain's login files for these sessions and drop the rest: the
+     * page's list no longer names them, so they are leftovers (a burst of
+     * copies, a row removed while the shell was not listening). Ids the page
+     * sends that are not session ids are ignored, and only `<id>.tok` files
+     * in this brain's own folder are ever considered. The one slot is not a
+     * login file and is never touched here.
+     */
+    keepOnly(profileId: string, sessionIds: unknown): void {
+      if (!Array.isArray(sessionIds)) return;
+      const keep = new Set(sessionIds.filter(isSessionId));
+      let names: string[];
+      try {
+        names = readdirSync(sessionDir(profileId));
+      } catch {
+        return; // no folder: nothing held
+      }
+      for (const name of names) {
+        if (!name.endsWith('.tok')) continue;
+        const id = name.slice(0, -'.tok'.length);
+        if (isSessionId(id) && !keep.has(id)) {
+          rmSync(join(sessionDir(profileId), name), { force: true });
+        }
+      }
     },
 
     /** A brain was removed from the app: nothing of it stays on disk. */
