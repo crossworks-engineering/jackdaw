@@ -28,6 +28,7 @@ import {
   SHARED_TEAM_COMMENT,
   STAFF_NAME,
   signInAsAdmin,
+  serveSameOrigin,
   signInAsMember,
   startMockMemberApi,
   type MockComment,
@@ -142,6 +143,8 @@ test.describe('a client’s screens', () => {
   test('name no staff role: a failed save, an embed refusal, the sign-in page with no link (tier U6)', async ({
     page,
     context,
+    browser,
+    baseURL,
   }) => {
     // Two 5xx in a row: the queue's own sentence, in client words.
     api.clientOwn.draftAnswer = { status: 500, body: { error: 'Internal error' } };
@@ -176,12 +179,19 @@ test.describe('a client’s screens', () => {
     await context.clearCookies();
     api.clientSession = false;
     api.clientCodes = false;
-    const signin = await context.newPage();
+    // On the brain's own origin, as a client signs in (serveSameOrigin):
+    // this suite runs split-origin, where the page rightly says client
+    // sign-in is not available, and its no-link words show only until
+    // hydration (some 50 ms), so a check there passed with the page's speed.
+    const own = await browser.newContext({ baseURL });
+    await serveSameOrigin(own, baseURL!);
+    const signin = await own.newPage();
     await signin.goto('/client-signin');
     await expect(signin.getByText('Open the sign-in link you were sent.')).toBeVisible({
       timeout: 60_000,
     });
     expect(await readable(signin)).not.toMatch(/admin/i);
+    await own.close();
   });
 
   test('a big save a reload cut off is sent again on the next open (tier U7)', async ({ page }) => {
