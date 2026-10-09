@@ -4,6 +4,10 @@ import {
   isLeftBehind,
   rejectConfirm,
   reviewInfoLine,
+  sharedInfoLine,
+  sharedItemPath,
+  sharedItemsPath,
+  sharedRowMeta,
   reviewItemHref,
   reviewRowMeta,
   reviewRowsOf,
@@ -72,6 +76,17 @@ describe('workspace review', () => {
     expect(reviewInfoLine(row())).toBe('Submitted by Mia. Waiting for your approval.');
     expect(rejectConfirm(row())).toBe(
       'It goes back to Mia. They can change it and submit it again.',
+    );
+  });
+
+  it('Shared by members: its routes and its words', () => {
+    expect(sharedItemsPath('note')).toBe('/api/team-admin/member-items?kind=note');
+    expect(sharedItemPath('a b')).toBe('/api/team-admin/member-items/a%20b');
+    const author = { loginId: 'l1', name: 'Mia', active: true };
+    expect(sharedRowMeta({ author }, 'Oct 9')).toBe('Mia · changed Oct 9');
+    expect(sharedInfoLine({ author })).toBe('Shared with the team by Mia.');
+    expect(sharedInfoLine({ author: { ...author, name: null } })).toBe(
+      'Shared with the team by a member.',
     );
   });
 });

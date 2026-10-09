@@ -223,6 +223,91 @@ test.describe('workspace review', () => {
     });
   }
 
+  test('a note a member shared opens read only, with Unshare, at the normal height', async ({
+    ownerApi,
+    ownerPage,
+    serverURL,
+  }) => {
+    const id = '00000000-0000-4000-8000-0000000000b2';
+    const title = 'E2E shared note';
+    const row = {
+      id,
+      type: 'note',
+      title,
+      icon: null,
+      author: { loginId: null, name: 'A member', active: true },
+      updatedAt: new Date().toISOString(),
+    };
+    const unshares: string[] = [];
+    await ownerPage.route(`${serverURL}/api/team-admin/member-items**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body: unknown, status = 200) =>
+        route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      if (path === '/api/team-admin/member-items')
+        return json({ items: unshares.length ? [] : [row] });
+      if (path === `/api/team-admin/member-items/${id}`)
+        return json({ row, body: bodyOf('note', title), author: row.author });
+      if (path === `/api/team-admin/member-items/${id}/unshare`) {
+        unshares.push(id);
+        return json({ ok: true });
+      }
+      return json({ error: 'not found' }, 404);
+    });
+    // Not waiting for approval: the review queue answers it as missing.
+    await ownerPage.route(`${serverURL}/api/team-admin/submissions**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      return route.fulfill({
+        status: path === '/api/team-admin/submissions' ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          path === '/api/team-admin/submissions'
+            ? { items: [], counts: { submitted: 0, leftBehind: 0 } }
+            : { error: 'Not found.' },
+        ),
+      });
+    });
+
+    await ownerPage.setViewportSize({ width: 1600, height: 900 });
+    await ownerPage.goto('/notes');
+    const list = ownerPage.locator('[data-testid="list"]');
+    await expect(list.getByRole('region', { name: 'Waiting for approval' })).toHaveCount(0);
+    const card = list
+      .getByRole('region', { name: 'Shared by members' })
+      .getByRole('button', { name: new RegExp(title) });
+    await card.click({ timeout: 60_000 });
+    await expect(card).toHaveAttribute('data-selected', 'true');
+    await expect.poll(() => new URL(ownerPage.url()).searchParams.get('review')).toBe(id);
+
+    const header = ownerPage.locator('[data-testid="detail"]').getByTestId('item-review-header');
+    await expect(header.getByRole('heading', { name: title })).toBeVisible();
+    const words = header.getByTestId('review-header-text-actions');
+    await expect(words.getByRole('button', { name: 'Unshare' })).toBeVisible();
+    // Read only: no Approve, Reject or Take over for a shared item.
+    await expect(words.getByRole('button', { name: 'Approve' })).toHaveCount(0);
+    await expect(words.getByRole('button', { name: 'Take over' })).toHaveCount(0);
+    await header.getByRole('button', { name: 'About this item' }).click();
+    await expect(ownerPage.getByRole('dialog')).toContainText('Shared with the team by A member');
+    await ownerPage.keyboard.press('Escape');
+    await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}workspace-shared-note.png` });
+    const sharedHeight = (await header.boundingBox())!.height;
+
+    await words.getByRole('button', { name: 'Unshare' }).click();
+    await expect(ownerPage.getByText('Unshared: only its author sees it now.')).toBeVisible();
+    expect(unshares).toEqual([id]);
+    await expect(list.getByRole('region', { name: 'Shared by members' })).toHaveCount(0);
+
+    const made = await brainItem(ownerApi, 'note', `E2E height shared ${Date.now()}`);
+    try {
+      await ownerPage.goto('/notes');
+      const normal = ownerPage.locator('[data-testid="detail"]').getByTestId('item-header');
+      await openFromTree(ownerPage, 'E2E height shared', normal, { timeout: 60_000 });
+      const normalHeight = (await normal.boundingBox())!.height;
+      expect(Math.abs(sharedHeight - normalHeight)).toBeLessThanOrEqual(1);
+    } finally {
+      await made.remove();
+    }
+  });
+
   test('at phone width the review pane fits: no sideways scroll', async ({
     ownerPage,
     serverURL,

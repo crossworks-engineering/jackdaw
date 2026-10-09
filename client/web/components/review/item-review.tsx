@@ -11,17 +11,25 @@
  * Who sent it and when sit behind Info. No banner, no second header row, no
  * comments. Replaces Team admin > Review.
  *
+ * Below it, "Shared by members" (Jason 2026-10-09, option 1): what active
+ * members shared with the team, opening in the same pane, read only, with
+ * Unshare (back to private, nothing deleted). It hides on a brain without
+ * the route.
+ *
  * The body is the SAVED version, read only, through the presenters the
- * member reader uses; every byte comes from the submission's own routes
- * (/api/team-admin/submissions, admin only). A private item never reaches
- * this screen: the brain answers it with a plain 404.
+ * member reader uses; every byte comes from the item's own admin routes
+ * (/api/team-admin/submissions or /api/team-admin/member-items, admin only,
+ * the shared ones read at team level). A private item never reaches this
+ * screen: the brain answers it with a plain 404.
  */
 import { useCallback, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/core';
-import { ClipboardCheck, Unlock, UserX } from 'lucide-react';
-import { ApiError } from '@mantle/web-ui/api-fetch';
+import { ClipboardCheck, Unlock, UserMinus, UserX } from 'lucide-react';
+import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
+import { Button } from '@mantle/web-ui/ui/button';
+import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
@@ -46,17 +54,27 @@ import {
   reviewErrorMessage,
   reviewSvgPath,
   type ReviewItem,
+  type ReviewItemRow,
 } from '@/lib/member-review';
 import { MEMBER_KIND } from '@/lib/member-kinds';
-import type { SpaceKind } from '@/lib/member-space';
+import type { SpaceItemBody, SpaceKind } from '@/lib/member-space';
 import {
+  SHARED_ITEMS_KEY,
+  SHARED_UNSHARED_TOAST,
+  SHARED_UNSHARE_HINT,
   isLeftBehind,
   reviewInfoLine,
   reviewRowMeta,
   reviewRowsOf,
   reviewStateBadge,
+  sharedInfoLine,
+  sharedItemPath,
+  sharedItemsPath,
+  sharedRowMeta,
+  type SharedItemAuthor,
+  type SharedMemberItem,
 } from '@/lib/workspace-review';
-import { ReviewSections, type ReviewSectionRow } from './workspace-review-sections';
+import { WorkspaceReviewSections, type ReviewSectionRow } from './workspace-review-sections';
 import { AcceptDialog, DiscardDialog, RejectDialog, TakeOverDialog } from './review-dialogs';
 
 function fmtWhen(iso: string | null): string {
@@ -80,11 +98,28 @@ export function useReviewQueue() {
   });
 }
 
+/** "Shared by members" for one kind; null on a brain without the route. */
+export function useSharedItems(kind: SpaceKind) {
+  return useQuery({
+    queryKey: [...SHARED_ITEMS_KEY, kind],
+    queryFn: async (): Promise<SharedMemberItem[] | null> => {
+      try {
+        return (await apiFetch<{ items: SharedMemberItem[] }>(sharedItemsPath(kind))).items;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    refetchInterval: 60_000,
+  });
+}
+
 /**
- * "Waiting for approval" above a workspace's tree: this kind's rows of the
- * queue, each opening in the workspace's own pane (`onSelect`); `selectedId`
- * is the row shown there. Hidden while empty, and on a failed read (the tree
- * stays the screen).
+ * The sections above a workspace's tree: "Waiting for approval" (this
+ * kind's rows of the queue) and "Shared by members" (what active members
+ * shared with the team), each opening in the workspace's own pane
+ * (`onSelect`); `selectedId` is the row shown there. Each hides while
+ * empty, and on a failed read (the tree stays the screen).
  */
 export function ItemReviewSections({
   kind,
@@ -96,6 +131,14 @@ export function ItemReviewSections({
   onSelect: (id: string) => void;
 }) {
   const q = useReviewQueue();
+  const sharedQ = useSharedItems(kind);
+  const shared: ReviewSectionRow[] = (sharedQ.data ?? []).map((r) => ({
+    id: r.id,
+    title: r.title,
+    onSelect: () => onSelect(r.id),
+    lead: <ItemIcon emoji={r.icon ?? MEMBER_KIND[kind].icon} fallback={null} />,
+    meta: sharedRowMeta(r, fmtWhen(r.updatedAt)),
+  }));
   const rows: ReviewSectionRow[] = reviewRowsOf(q.data?.items, kind).map((r) => {
     const state = reviewStateBadge(r) ?? (r.author.role === 'client' ? 'Client' : null);
     return {
@@ -107,12 +150,7 @@ export function ItemReviewSections({
       meta: reviewRowMeta(r, fmtWhen(r.submittedAt ?? r.updatedAt)),
     };
   });
-  return (
-    <ReviewSections
-      sections={[{ id: `review-waiting-${kind}`, title: 'Waiting for approval', rows }]}
-      selectedId={selectedId}
-    />
-  );
+  return <WorkspaceReviewSections waiting={rows} shared={shared} selectedId={selectedId} />;
 }
 
 /**
@@ -206,7 +244,28 @@ const LIST_KEY: Record<SpaceKind, string> = {
  *  workspace opens it), or nothing picked. */
 export type ItemReviewDone = (opened?: string) => void;
 
-/** One waiting item in the workspace's detail pane. */
+/** A shared item as the brain answers it: its saved body and author. */
+type SharedDetail = {
+  row: { id: string; type: SpaceKind; title: string; icon: string | null; updatedAt: string };
+  body: SpaceItemBody;
+  author: SharedItemAuthor;
+};
+
+/** What the pane shows: a waiting item, or one shared with the team. */
+type PaneItem = { mode: 'waiting'; item: ReviewItem } | { mode: 'shared'; item: SharedDetail };
+
+/** The item by id: waiting for approval first (the review queue's routes),
+ *  else shared with the team. A 404 from both is "neither any more". */
+async function loadPaneItem(id: string): Promise<PaneItem> {
+  try {
+    return { mode: 'waiting', item: await memberReview.item(id) };
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 404)) throw err;
+  }
+  return { mode: 'shared', item: await apiFetch<SharedDetail>(sharedItemPath(id)) };
+}
+
+/** One waiting or shared item in the workspace's detail pane. */
 export function ItemReview({
   id,
   kind,
@@ -219,7 +278,7 @@ export function ItemReview({
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: itemKey(id),
-    queryFn: () => memberReview.item(id),
+    queryFn: () => loadPaneItem(id),
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
   });
   const refresh = useCallback(() => {
@@ -231,6 +290,7 @@ export function ItemReview({
       // flash "not waiting any more" on the way out. The workspace's list
       // and tree too: an approved item is a brain item now.
       void qc.invalidateQueries({ queryKey: QUEUE_KEY, exact: true });
+      void qc.invalidateQueries({ queryKey: SHARED_ITEMS_KEY });
       void qc.invalidateQueries({ queryKey: [LIST_KEY[kind]] });
       void qc.invalidateQueries({ queryKey: ['tree'] });
       onDone(opened);
@@ -249,12 +309,19 @@ export function ItemReview({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
         <ClipboardCheck className="size-6 opacity-60" aria-hidden />
-        <p>{reviewErrorMessage(q.error, 'Could not load this item.')}</p>
+        <p>
+          {q.error instanceof ApiError && q.error.status === 404
+            ? 'This item is not waiting or shared any more. Its author may have made it private.'
+            : reviewErrorMessage(q.error, 'Could not load this item.')}
+        </p>
       </div>
     );
   }
+  if (q.data.mode === 'shared') {
+    return <SharedItemReview kind={kind} item={q.data.item} onDone={done} />;
+  }
 
-  const row = q.data.row;
+  const row = q.data.item.row;
   const look = HEADER_LOOK[kind];
   const state = reviewStateBadge(row);
   const role = authorRoleLabel(row.author.role);
@@ -314,7 +381,83 @@ export function ItemReview({
           iconActions={iconActions}
         />
         <div className={look.body}>
-          <ReviewItemView item={q.data} />
+          <ReviewItemView item={q.data.item} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A member's item shared with the team: read only, with Unshare. Take over
+ *  is for submitted items only (the brain refuses it here). */
+function SharedItemReview({
+  kind,
+  item,
+  onDone,
+}: {
+  kind: SpaceKind;
+  item: SharedDetail;
+  onDone: ItemReviewDone;
+}) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const unshare = useMutation({
+    mutationFn: () => apiSend(`${sharedItemPath(item.row.id)}/unshare`, 'POST'),
+    onSuccess: () => {
+      toast.success(SHARED_UNSHARED_TOAST);
+      onDone();
+    },
+    onError: (e) => {
+      void qc.invalidateQueries({ queryKey: SHARED_ITEMS_KEY });
+      toast.error(
+        e instanceof ApiError && e.status === 404
+          ? 'It is not shared with the team any more.'
+          : e instanceof Error
+            ? e.message
+            : 'Could not unshare it.',
+      );
+    },
+  });
+  // The read-only view takes the review row's shape; a shared item has the
+  // fields it reads (id, title, icon) and its own byte routes.
+  const view: ReviewItem = {
+    row: { ...item.row } as unknown as ReviewItemRow,
+    body: item.body,
+  };
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+        <ItemReviewHeader
+          kind={kind}
+          icon={item.row.icon}
+          title={item.row.title}
+          textActions={
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={unshare.isPending}
+              title={SHARED_UNSHARE_HINT}
+              onClick={() => unshare.mutate()}
+            >
+              <UserMinus />
+              Unshare
+            </Button>
+          }
+          iconActions={
+            <>
+              <HeaderInfoButton label="About this item">
+                <p className="font-medium">{sharedInfoLine(item)}</p>
+                <p className="text-muted-foreground">Last changed {fmtWhen(item.row.updatedAt)}.</p>
+                <p className="text-xs text-muted-foreground">
+                  Read only: this is the version its author saved, as the team sees it.
+                </p>
+              </HeaderInfoButton>
+              <FocusToggle />
+            </>
+          }
+        />
+        <div className={HEADER_LOOK[kind].body}>
+          <ReviewItemView item={view} root={sharedItemPath} />
         </div>
       </div>
     </div>
@@ -322,11 +465,18 @@ export function ItemReview({
 }
 
 /** The saved version, read-only, through the same presenters the member
- *  reader uses; every byte comes from the submission's own routes. */
-export function ReviewItemView({ item }: { item: ReviewItem }) {
+ *  reader uses; every byte comes from the item's own routes: the
+ *  submission's, or (`root`) a shared item's. */
+export function ReviewItemView({
+  item,
+  root,
+}: {
+  item: ReviewItem;
+  root?: (id: string) => string;
+}) {
   const asset = useAssetUrl();
   const { row, body } = item;
-  const mapAsset = useCallback((p: string) => reviewAssetPath(row.id, p), [row.id]);
+  const mapAsset = useCallback((p: string) => reviewAssetPath(row.id, p, root), [row.id, root]);
   switch (body.type) {
     case 'page':
       return (
@@ -345,7 +495,7 @@ export function ReviewItemView({ item }: { item: ReviewItem }) {
       return (
         <DrawPresenter
           view={{ title: row.title, hasSvg: true }}
-          src={asset(reviewSvgPath(row.id))}
+          src={asset(reviewSvgPath(row.id, row.id, root))}
           chrome="embedded"
         />
       );
@@ -366,7 +516,7 @@ export function ReviewItemView({ item }: { item: ReviewItem }) {
             mimeType: body.file.mimeType,
             size: body.file.sizeBytes,
           }}
-          assetUrl={() => asset(reviewBytesPath(row.id))}
+          assetUrl={() => asset(reviewBytesPath(row.id, row.id, root))}
           chrome="embedded"
         />
       );

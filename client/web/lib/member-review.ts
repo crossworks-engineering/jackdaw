@@ -194,11 +194,11 @@ export function takeOverErrorMessage(err: unknown): string {
 }
 
 /** The item's own bytes, or a file in its bundle (an image a page shows). */
-export const reviewBytesPath = (id: string, node = id) =>
-  `${base(id)}/bytes${node === id ? '' : `?node=${node}`}`;
+export const reviewBytesPath = (id: string, node = id, root: (id: string) => string = base) =>
+  `${root(id)}/bytes${node === id ? '' : `?node=${node}`}`;
 /** The item's saved SVG, or a drawing in its bundle. */
-export const reviewSvgPath = (id: string, node = id) =>
-  `${base(id)}/svg${node === id ? '' : `?node=${node}`}`;
+export const reviewSvgPath = (id: string, node = id, root: (id: string) => string = base) =>
+  `${root(id)}/svg${node === id ? '' : `?node=${node}`}`;
 
 const FILE_RE = /^\/api\/files\/files\/([0-9a-f-]{36})(\?[^#]*)?$/i;
 const DRAW_RE = /^\/api\/draws\/([0-9a-f-]{36})\/svg(?:\?.*)?$/i;
@@ -210,7 +210,13 @@ const DRAW_RE = /^\/api\/draws\/([0-9a-f-]{36})\/svg(?:\?.*)?$/i;
  * routes, which serve the item's bundle and nothing else. A thumbnail stays
  * a thumbnail. Anything else passes through unchanged.
  */
-export function reviewAssetPath(submissionId: string, path: string): string {
+export function reviewAssetPath(
+  submissionId: string,
+  path: string,
+  /** The item's route root: the submission's, or a shared item's
+   *  (sharedItemPath, lib/workspace-review.ts). */
+  root: (id: string) => string = base,
+): string {
   const file = FILE_RE.exec(path);
   if (file) {
     const node = file[1]!.toLowerCase();
@@ -218,10 +224,10 @@ export function reviewAssetPath(submissionId: string, path: string): string {
     if (node !== submissionId) qs.set('node', node);
     if (new URLSearchParams(file[2]?.slice(1) ?? '').get('thumb') === '1') qs.set('thumb', '1');
     const s = qs.toString();
-    return `${base(submissionId)}/bytes${s ? `?${s}` : ''}`;
+    return `${root(submissionId)}/bytes${s ? `?${s}` : ''}`;
   }
   const draw = DRAW_RE.exec(path);
-  if (draw) return reviewSvgPath(submissionId, draw[1]!.toLowerCase());
+  if (draw) return reviewSvgPath(submissionId, draw[1]!.toLowerCase(), root);
   return path;
 }
 

@@ -7,7 +7,9 @@
  *
  * The brain's review routes are unchanged (/api/team-admin/submissions, admin
  * only, lib/member-review.ts): one queue for every kind, which each
- * workspace filters to its own. Pure helpers only.
+ * workspace filters to its own. "Shared by members" sits below it (the
+ * items members shared with the team, read only, with Unshare). Pure
+ * helpers only.
  */
 import type { ReviewItemRow } from './member-review';
 import type { SpaceKind } from './member-space';
@@ -94,3 +96,50 @@ export function reviewInfoLine(row: Pick<ReviewItemRow, 'reason' | 'author'>): s
 export function rejectConfirm(row: Pick<ReviewItemRow, 'author'>): string {
   return `It goes back to ${row.author.name || 'its author'}. They can change it and submit it again.`;
 }
+
+// ── Shared by members (Jason 2026-10-09, option 1) ──────────────────────────
+//
+// What active members shared with the team, for the admin, from the brain's
+// /api/team-admin/member-items (admin only, read at team level: never a
+// private item, never a working draft). A brain before it answers 404: the
+// section stays hidden.
+
+/** TEMPORARY contract shim until the pin bump: the author as the section
+ *  shows them (the brain's SharedItemAuthor). */
+export type SharedItemAuthor = { loginId: string | null; name: string | null; active: boolean };
+
+/** One row of "Shared by members" (the brain's SharedMemberItem). */
+export type SharedMemberItem = {
+  id: string;
+  type: SpaceKind;
+  title: string;
+  icon: string | null;
+  author: SharedItemAuthor;
+  updatedAt: string;
+};
+
+export const SHARED_ITEMS_PATH = '/api/team-admin/member-items';
+export const SHARED_ITEMS_KEY = ['team-admin', 'member-items'] as const;
+
+/** One shared item's route root (its detail, bytes, svg, unshare). */
+export const sharedItemPath = (id: string) => `${SHARED_ITEMS_PATH}/${encodeURIComponent(id)}`;
+
+/** The list for one workspace. */
+export const sharedItemsPath = (kind: SpaceKind) =>
+  `${SHARED_ITEMS_PATH}?kind=${encodeURIComponent(kind)}`;
+
+/** A shared row's one line of meta: who, and when it last changed. */
+export function sharedRowMeta(row: Pick<SharedMemberItem, 'author'>, when: string): string {
+  return `${row.author.name || 'A member'} · changed ${when}`;
+}
+
+/** The first line of a shared item's Info popover. */
+export function sharedInfoLine(row: Pick<SharedMemberItem, 'author'>): string {
+  return `Shared with the team by ${row.author.name || 'a member'}.`;
+}
+
+/** The toast after Unshare. */
+export const SHARED_UNSHARED_TOAST = 'Unshared: only its author sees it now.';
+/** Unshare's tooltip: what it does, and what it does not. */
+export const SHARED_UNSHARE_HINT =
+  'Back to private for its author. Nothing is deleted; the team no longer sees it.';
