@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { apiFetch, bounceToLogin } from '@mantle/web-ui/api-fetch';
@@ -15,8 +15,13 @@ import { AppLoader } from '@/components/app-nav/app-loader';
 import { AppInformationalNote } from '@/components/app-nav/app-informational-note';
 import { isInformational } from '@/lib/app-informational';
 import { memberAppProblem, memberAppSandboxProps, type MemberAppList } from '@/lib/member-apps';
-import { MY_APP_UNDER_REVIEW, runnableSpaceApp } from '@/lib/space-apps';
-import { useMyApps } from '@/components/member/member-my-apps';
+import {
+  MY_APP_IN_TRASH,
+  MY_APP_UNDER_REVIEW,
+  MY_APPS_KEY,
+  runnableSpaceApp,
+} from '@/lib/space-apps';
+import { useMyApps, useMyAppsTrash } from '@/components/member/member-my-apps';
 
 /**
  * A member runs one app (member logins Phase 4b): the PUBLISHED build in the
@@ -29,6 +34,7 @@ import { useMyApps } from '@/components/member/member-my-apps';
 export function MemberAppRun({ id }: { id: string }) {
   const toast = useToast();
   const router = useRouter();
+  const qc = useQueryClient();
   const list = useQuery({
     queryKey: ['member-apps'],
     queryFn: () => apiFetch<MemberAppList>('/api/member/apps'),
@@ -53,6 +59,9 @@ export function MemberAppRun({ id }: { id: string }) {
     if (isHome) router.replace('/');
   }, [isHome, router]);
   const missing = list.isSuccess && !mine.isPending && !app;
+  // Not runnable: it may be in the member's own Trash (access matrix N6).
+  const trash = useMyAppsTrash(missing);
+  const inTrash = !!trash.data?.some((a) => a.id === id.toLowerCase());
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SetPageTitle title={app?.title || 'App'} />
@@ -87,6 +96,17 @@ export function MemberAppRun({ id }: { id: string }) {
               Try again
             </Button>
           </div>
+        ) : missing && trash.isPending ? (
+          <div className="flex h-full items-center justify-center">
+            <AppLoader />
+          </div>
+        ) : inTrash ? (
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <p className="text-sm text-muted-foreground">{MY_APP_IN_TRASH}</p>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/apps#trash">Open Trash</Link>
+            </Button>
+          </div>
         ) : missing ? (
           <p className="p-4 text-sm text-muted-foreground">
             This app is not available. It may have been moved or taken back by an admin.
@@ -99,6 +119,9 @@ export function MemberAppRun({ id }: { id: string }) {
               loader={<AppLoader title={app.title} icon={app.icon} color={app.color} />}
               frame="viewport"
               onError={(m) => {
+                // Moved to Trash while open (another tab, or over MCP): the
+                // lists catch up and the screen says where it went.
+                if (built) void qc.invalidateQueries({ queryKey: MY_APPS_KEY });
                 const problem = memberAppProblem(m);
                 if ('signIn' in problem) bounceToLogin();
                 else toast.error(problem.text);

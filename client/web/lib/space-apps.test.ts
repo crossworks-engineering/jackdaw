@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  isMyAppInTrash,
+  myAppDeleteConfirm,
+  myAppRefusal,
+  myAppSnapshotPath,
+  MY_APP_DELETED_TOAST,
+  MY_APP_IN_TRASH,
+  MY_APP_RESTORED_TOAST,
+  MY_APP_SNAPSHOT_DELETED_TOAST,
+  MY_APPS_DELETED_KEY,
+  MY_APPS_DELETED_PATH,
+  MY_APPS_KEY,
+  MY_APPS_MAX,
+  MY_APPS_TRASH_INFO,
+  MY_APPS_TRASH_MAX,
   activityLabel,
   activityRefused,
   activityWho,
@@ -304,5 +319,71 @@ describe("a member app's activity", () => {
     expect(activityWrite({ detail: { slug: 'x' } })).toBeNull();
     expect(activityRefused({ detail: { refused: 'read-only' } })).toBe('read-only');
     expect(activityRefused({ detail: {} })).toBeNull();
+  });
+});
+
+describe('a member’s own trash (access matrix N6)', () => {
+  const refused = (status: number, reason?: string) =>
+    new ApiError('the brain’s words', status, reason ? { reason } : undefined);
+
+  it('builds the trash, restore and snapshot paths', () => {
+    expect(myAppActionPath('a b', 'delete')).toBe('/api/member/my-apps/a%20b/delete');
+    expect(myAppActionPath('x', 'undelete')).toBe('/api/member/my-apps/x/undelete');
+    expect(MY_APPS_DELETED_PATH).toBe('/api/member/my-apps/deleted');
+    expect(myAppSnapshotPath('x', 's/1')).toBe('/api/member/my-apps/x/history/s%2F1');
+  });
+
+  it('keeps the trash under the apps key, so every app change refreshes it', () => {
+    expect(MY_APPS_DELETED_KEY.slice(0, MY_APPS_KEY.length)).toEqual([...MY_APPS_KEY]);
+  });
+
+  it('asks a short question before Delete, with the way back', () => {
+    expect(myAppDeleteConfirm('Snag list')).toEqual({
+      title: 'Move Snag list to Trash?',
+      body: 'You can restore it from Trash.',
+    });
+    expect(myAppDeleteConfirm('  ').title).toBe('Move Untitled to Trash?');
+  });
+
+  it('knows a trashed app only by 409 deleted', () => {
+    expect(isMyAppInTrash(refused(409, 'deleted'))).toBe(true);
+    expect(isMyAppInTrash(refused(404, 'deleted'))).toBe(false);
+    expect(isMyAppInTrash(refused(409, 'frozen'))).toBe(false);
+    expect(isMyAppInTrash(new Error('x'))).toBe(false);
+    expect(isMyAppInTrash(null)).toBe(false);
+  });
+
+  it('says each refusal plainly, with the 50 app limits', () => {
+    expect(myAppRefusal(refused(409, 'deleted'))).toBe(MY_APP_IN_TRASH);
+    expect(myAppRefusal(refused(409, 'limit'))).toBe(
+      `You already have ${MY_APPS_MAX} apps, the most one member keeps. Delete one you no longer need, then restore this one.`,
+    );
+    expect(myAppRefusal(refused(409, 'trash-full'))).toContain(`at most ${MY_APPS_TRASH_MAX} apps`);
+    expect(myAppRefusal(refused(409, 'not-yours'))).toBe(
+      'You can delete only snapshots you took yourself.',
+    );
+    expect(myAppRefusal(refused(409, 'frozen'))).toMatch(/frozen/);
+    // Anything else: the brain's own message.
+    expect(myAppRefusal(refused(409, 'other'))).toBeNull();
+    expect(myAppRefusal(refused(500))).toBeNull();
+    expect(MY_APPS_MAX).toBe(50);
+    expect(MY_APPS_TRASH_MAX).toBe(50);
+  });
+
+  it('writes no submit or review words, no em dashes and no MCP tool names', () => {
+    const lines = [
+      ...MY_APPS_TRASH_INFO,
+      MY_APP_IN_TRASH,
+      MY_APP_DELETED_TOAST,
+      MY_APP_RESTORED_TOAST,
+      MY_APP_SNAPSHOT_DELETED_TOAST,
+      ...Object.values(myAppDeleteConfirm('A')),
+      ...['deleted', 'limit', 'trash-full', 'not-yours', 'frozen'].map((r) =>
+        myAppRefusal(refused(409, r))!,
+      ),
+    ];
+    for (const l of lines) {
+      expect(l).not.toMatch(/submit|review|approv|my_app|—|–/i);
+    }
   });
 });

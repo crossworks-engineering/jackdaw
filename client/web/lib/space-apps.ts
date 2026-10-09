@@ -39,12 +39,113 @@ export type SpaceAppCard = {
 export const MY_APPS_PATH = '/api/member/my-apps';
 export const MY_APPS_KEY = ['member-my-apps'] as const;
 
-export function myAppActionPath(id: string, action: 'share' | 'submit' | 'recall'): string {
+export function myAppActionPath(
+  id: string,
+  action: 'share' | 'submit' | 'recall' | 'delete' | 'undelete',
+): string {
   return `${MY_APPS_PATH}/${encodeURIComponent(id)}/${action}`;
 }
 
 export function myAppHistoryPath(id: string): string {
   return `${MY_APPS_PATH}/${encodeURIComponent(id)}/history`;
+}
+
+/** One entry of an app's history (GET /api/member/my-apps/:id/history).
+ *  `deletable`: a manual snapshot this login took, on an app that is not
+ *  submitted (absent from a brain before v0.239.76: never deletable). */
+export type MyAppHistoryEntry = {
+  id: string;
+  seq: number;
+  kind: 'version' | 'snapshot';
+  trigger: string;
+  note: string | null;
+  createdAt: string;
+  deletable?: boolean;
+};
+
+/** DELETE: one of the member's own manual snapshots. */
+export function myAppSnapshotPath(id: string, snapshotId: string): string {
+  return `${myAppHistoryPath(id)}/${encodeURIComponent(snapshotId)}`;
+}
+
+// ── A member's own trash (brain access matrix N6) ───────────────────────────
+
+/** One app in the member's trash (GET /api/member/my-apps/deleted). The
+ *  brain's `DeletedSpaceApp`. Nothing in it expires. */
+export type DeletedSpaceApp = {
+  id: string;
+  title: string;
+  description: string | null;
+  deletedAt: string;
+  version: number;
+  published: boolean;
+  hasData: boolean;
+};
+
+export const MY_APPS_DELETED_PATH = `${MY_APPS_PATH}/deleted`;
+/** Under MY_APPS_KEY, so every change to the member's apps refreshes it. */
+export const MY_APPS_DELETED_KEY = [...MY_APPS_KEY, 'deleted'] as const;
+
+/** The brain's caps: live apps per member, and apps in one trash. */
+export const MY_APPS_MAX = 50;
+export const MY_APPS_TRASH_MAX = 50;
+
+/** Delete's short confirm: the question, then what undoes it. */
+export function myAppDeleteConfirm(title: string): { title: string; body: string } {
+  return {
+    title: `Move ${title.trim() || 'Untitled'} to Trash?`,
+    body: 'You can restore it from Trash.',
+  };
+}
+
+export const MY_APP_DELETED_TOAST = 'Moved to Trash';
+export const MY_APP_RESTORED_TOAST = 'Restored. It is private now.';
+export const MY_APP_SNAPSHOT_DELETED_TOAST = 'Snapshot deleted';
+
+/** What Trash is, behind its Info button. */
+export const MY_APPS_TRASH_INFO = [
+  'An app in Trash does not run, and nobody else sees it.',
+  'Its code, data and history stay. Nothing in Trash is removed, and nothing expires.',
+  `Restore brings it back private. Trash keeps at most ${MY_APPS_TRASH_MAX} apps.`,
+];
+
+/** An app the member opened is in their trash. */
+export const MY_APP_IN_TRASH =
+  'This app is in your Trash. Restore it from Trash in Apps to use it again.';
+
+/** The brain's reason on a refused member app change, or null. */
+export function myAppRefusalReason(err: unknown): string | null {
+  const body = (err as { body?: unknown } | null)?.body;
+  const reason = (body as { reason?: unknown } | null | undefined)?.reason;
+  return typeof reason === 'string' ? reason : null;
+}
+
+/** The app is in the member's trash: the brain's 409 `deleted`. */
+export function isMyAppInTrash(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status;
+  return status === 409 && myAppRefusalReason(err) === 'deleted';
+}
+
+/** A refused Delete, Restore or snapshot delete in plain words, or null
+ *  (then the brain's own message). The brain's words name MCP tools, which
+ *  a member reading this screen does not use. */
+export function myAppRefusal(err: unknown): string | null {
+  const status = (err as { status?: unknown } | null)?.status;
+  if (status === 409) {
+    switch (myAppRefusalReason(err)) {
+      case 'deleted':
+        return MY_APP_IN_TRASH;
+      case 'trash-full':
+        return `Your Trash is full: it keeps at most ${MY_APPS_TRASH_MAX} apps. Restore one from Trash first, then try again.`;
+      case 'limit':
+        return `You already have ${MY_APPS_MAX} apps, the most one member keeps. Delete one you no longer need, then restore this one.`;
+      case 'not-yours':
+        return 'You can delete only snapshots you took yourself.';
+      case 'frozen':
+        return 'This app is frozen right now, so its snapshots cannot change.';
+    }
+  }
+  return null;
 }
 
 /** How a member builds one: no button here builds, their MCP client does. */

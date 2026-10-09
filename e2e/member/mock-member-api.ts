@@ -398,6 +398,46 @@ const PNG_1PX = Buffer.from(
   'base64',
 );
 
+/** A member-built app as GET /api/member/my-apps lists it (the brain's
+ *  SpaceAppCard). */
+export type MockSpaceApp = {
+  id: string;
+  title: string;
+  description: string | null;
+  mine: boolean;
+  authorName: string | null;
+  sharing: 'private' | 'team';
+  reviewState: 'draft' | 'submitted' | 'returned';
+  runnable: boolean;
+  hasDraft: boolean;
+  version: number;
+  updatedAt: string;
+};
+
+/** One history entry, `deletable` as the brain sends it. */
+export type MockHistoryEntry = {
+  id: string;
+  seq: number;
+  kind: 'version' | 'snapshot';
+  trigger: string;
+  note: string | null;
+  createdAt: string;
+  deletable: boolean;
+};
+
+export type MockMyApps = {
+  routes: boolean;
+  apps: MockSpaceApp[];
+  /** The member's Trash, newest delete first. */
+  trash: (MockSpaceApp & { deletedAt: string })[];
+  history: Record<string, MockHistoryEntry[]>;
+  /** The live app count the brain sees for the 50 app limit on Restore
+   *  (null: the member's own apps in `apps`). */
+  liveCount: number | null;
+  /** Every write the page sent, as `METHOD path`. */
+  writes: string[];
+};
+
 export type MockMemberApi = {
   /** The page's server draft, as the last accepted PUT left it. */
   draft: Doc | null;
@@ -430,6 +470,10 @@ export type MockMemberApi = {
   clientApps: MockApps<ClientAppCard>;
   /** Member role: the launcher's apps (C6 cards carry `dataReadOnly`). */
   memberApps: MockApps<MemberAppCard>;
+  /** Member role: the apps the member BUILT (GET /api/member/my-apps), their
+   *  Trash and each app's history (access matrix N6). `routes: false` (the
+   *  default) is a brain before member-built apps: every route a 404. */
+  myApps: MockMyApps;
   /** Member role: the one list carries CLIENT_REQUEST_ID (C5). */
   clientRequests: boolean;
   /** Client role: false makes every client route a 401 (the session ended,
@@ -769,6 +813,7 @@ export async function startMockMemberApi(
       toolCalls: [],
       ticketStatus: null,
     },
+    myApps: { routes: false, apps: [], trash: [], history: {}, liveCount: null, writes: [] },
     memberApps: {
       routes: true,
       apps: [],
@@ -2187,6 +2232,96 @@ export async function startMockMemberApi(
   };
 
   /**
+   * The routes of the apps a member builds (mantle v0.239.76): the list,
+   * the Trash (delete, undelete, the deleted list) and the history with a
+   * snapshot delete, with the brain's refusals: 409 `deleted` for an app in
+   * Trash, `trash-full` at 50 in Trash, `limit` at 50 live apps, `not-yours`
+   * for an entry that is not the member's own manual snapshot.
+   */
+  const handleMyApps = (res: ServerResponse, path: string, method: string): void => {
+    const my = state.myApps;
+    if (!my.routes) return json(res, 404, { error: 'Not found.' });
+    const inTrash = (id: string) => my.trash.find((a) => a.id === id);
+    const trashed = () =>
+      json(res, 409, {
+        ok: false,
+        error: 'This app is in your trash (my_app_deleted_list).',
+        reason: 'deleted',
+      });
+    if (path === '/api/member/my-apps' && method === 'GET')
+      return json(res, 200, { apps: my.apps });
+    if (path === '/api/member/my-apps/deleted' && method === 'GET') {
+      const apps = my.trash.map((a) => ({
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        deletedAt: a.deletedAt,
+        version: a.version,
+        published: a.runnable,
+        hasData: true,
+      }));
+      return json(res, 200, { apps });
+    }
+    const snap = /^\/api\/member\/my-apps\/([0-9a-f-]{36})\/history\/([0-9a-f-]{36})$/.exec(path);
+    if (snap && method === 'DELETE') {
+      const [, id, sid] = snap as unknown as [string, string, string];
+      my.writes.push(`DELETE ${path}`);
+      if (inTrash(id)) return trashed();
+      const entries = my.history[id] ?? [];
+      const entry = entries.find((e) => e.id === sid);
+      if (!entry) return json(res, 404, { ok: false, error: 'entry not found' });
+      if (!entry.deletable) {
+        return json(res, 409, { ok: false, error: 'Not your snapshot.', reason: 'not-yours' });
+      }
+      my.history[id] = entries.filter((e) => e.id !== sid);
+      return json(res, 200, { ok: true, deleted: sid, seq: entry.seq, freedBytes: 0 });
+    }
+    const m = /^\/api\/member\/my-apps\/([0-9a-f-]{36})\/([a-z-]+)$/.exec(path);
+    if (!m) return json(res, 404, { error: 'Not found.' });
+    const [, id, tail] = m as unknown as [string, string, string];
+    if (tail === 'history' && method === 'GET') {
+      if (inTrash(id)) return trashed();
+      return json(res, 200, { entries: my.history[id] ?? [] });
+    }
+    if (method !== 'POST') return json(res, 404, { error: 'Not found.' });
+    my.writes.push(`POST ${path}`);
+    if (tail === 'undelete') {
+      const app = inTrash(id);
+      if (!app) return json(res, 404, { ok: false, error: 'Not found.' });
+      const live = my.liveCount ?? my.apps.filter((a) => a.mine).length;
+      if (live >= 50) {
+        return json(res, 409, {
+          ok: false,
+          error: `You have ${live} apps, the most one member keeps.`,
+          reason: 'limit',
+        });
+      }
+      my.trash = my.trash.filter((a) => a.id !== id);
+      const { deletedAt: _gone, ...card } = app;
+      const back: MockSpaceApp = { ...card, sharing: 'private', reviewState: 'draft' };
+      my.apps = [back, ...my.apps];
+      return json(res, 200, { ok: true, app: back });
+    }
+    if (inTrash(id)) return trashed();
+    const app = my.apps.find((a) => a.id === id && a.mine);
+    if (!app) return json(res, 404, { ok: false, error: 'Not found.' });
+    if (tail === 'delete') {
+      if (my.trash.length >= 50) {
+        return json(res, 409, {
+          ok: false,
+          error: 'Your trash already holds 50 apps.',
+          reason: 'trash-full',
+        });
+      }
+      my.apps = my.apps.filter((a) => a.id !== id);
+      const deletedAt = new Date().toISOString();
+      my.trash = [{ ...app, sharing: 'private', reviewState: 'draft', deletedAt }, ...my.trash];
+      return json(res, 200, { ok: true, app: { id, deletedAt } });
+    }
+    return json(res, 404, { error: 'Not found.' });
+  };
+
+  /**
    * The app run routes under `prefix` (C6: /api/client/apps for a client,
    * /api/member/apps for a member), as the brain has them: the list, a frame
    * ticket, the frame document (its ticket checked), the tool broker (no
@@ -2457,6 +2592,9 @@ export async function startMockMemberApi(
     }
     if (path === '/api/member/realtime') return send(res, 200, 'text/event-stream', ':\n\n');
     if (path === '/api/member/home') return json(res, 200, { homeApp: null, hub: null });
+    if (path === '/api/member/my-apps' || path.startsWith('/api/member/my-apps/')) {
+      return handleMyApps(res, path, method);
+    }
     const memberAppList = (): MemberAppList => ({ apps: state.memberApps.apps, homeAppId: null });
     if (
       await handleApps(
