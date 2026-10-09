@@ -1,7 +1,7 @@
 import { apiUrl, resetCookieUpgrade, withAuth } from './api-fetch';
 import { setAssetToken } from './asset-url';
 import { runSignOutResets } from './session-reset';
-import { activeSession, removeSession } from './session-registry';
+import { removeActiveSession } from './session-registry';
 import { tokenStore } from './token-store';
 
 export { onSignOut } from './session-reset';
@@ -43,8 +43,9 @@ export { onSignOut } from './session-reset';
  *
  * "This session" is the ACTIVE one. Its row leaves the device's list along
  * with its bearer (a refused bearer keeps its row, to sign back in to; a
- * sign-out is the person saying they are done with it). Any other login held
- * on this device is left exactly as it was.
+ * sign-out is the person saying they are done with it). So does any other row
+ * holding the same bearer: a copy of this login, not another one. Any other
+ * login held on this device is left exactly as it was.
  */
 export async function performSignOut(): Promise<void> {
   const hadToken = tokenStore.get() !== null;
@@ -56,8 +57,8 @@ export async function performSignOut(): Promise<void> {
   } catch {
     /* network failure — still clear local state so the UI signs out */
   }
-  const session = activeSession();
-  if (session) removeSession(session.id);
+  // The row, and any copy of it holding the same bearer: that bearer is dead now.
+  removeActiveSession();
   tokenStore.clear();
   setAssetToken(null);
   resetCookieUpgrade();

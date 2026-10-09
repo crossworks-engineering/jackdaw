@@ -499,3 +499,168 @@ describe('the desktop shell', () => {
     expect(registry.setActiveSession('anything')).toBe(false);
   });
 });
+
+/**
+ * Sign-out with copy rows left by the burst (session-registry-burst.test.ts):
+ * nameless rows holding the very bearer being signed out. Each copy used to
+ * count as "the next login held here", so a sign-out probed the bearer it had
+ * just revoked once per copy before it reached the sign-in screen, and left
+ * every copy listed as signed out. The brain here revokes on mobile-logout
+ * and answers /api/shell as a real one does: 401 for a revoked bearer, the
+ * role refusal for a live member or client bearer.
+ */
+describe('signing out with copies of the login still listed', () => {
+  const roles: Record<string, 'admin' | 'member' | 'client'> = {};
+  let revoked: Set<string>;
+
+  function brain() {
+    revoked = new Set();
+    respond = (call) => {
+      const auth = bearerOf(call)?.replace(/^Bearer /, '') ?? null;
+      const path = new URL(call.url, 'https://app.example').pathname;
+      if (path === '/api/auth/mobile-logout' && auth) revoked.add(auth);
+      if (path !== '/api/shell' || !auth) return { ok: true, status: 200 };
+      if (revoked.has(auth)) return { ok: false, status: 401 };
+      const role = roles[auth] ?? 'admin';
+      if (role === 'admin') return { ok: true, status: 200 };
+      return {
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ reason: `${role}-login` }),
+      } as unknown as { ok: boolean; status: number };
+    };
+  }
+
+  /** Copy rows of the active login, added after the page's load-time repair. */
+  function addCopies(
+    registry: typeof import('./session-registry'),
+    token: string,
+    n: number,
+    vault?: ReturnType<typeof scopedVault>,
+  ) {
+    registry.listSessions(); // the load-time repair has run
+    const list = JSON.parse(map.get('mantle_sessions')!) as unknown[];
+    for (let i = 0; i < n; i++) {
+      const id = `copy${i}`;
+      list.push({
+        id,
+        origin: registry.currentBrainOrigin(),
+        email: '',
+        addedAt: 1,
+        lastUsedAt: 2e12,
+      });
+      if (vault) vault.slots.set(id, token);
+      else map.set(`mantle_token:${id}`, token);
+    }
+    map.set('mantle_sessions', JSON.stringify(list));
+  }
+
+  const probedWith = (token: string) =>
+    calls.filter((c) => c.url.endsWith('/api/shell') && bearerOf(c) === `Bearer ${token}`);
+
+  for (const role of ['admin', 'member'] as const) {
+    it(`${role}: with no other login, goes straight to the sign-in screen and lists nothing`, async () => {
+      brain();
+      roles['me.sig'] = role;
+      const { registry, switcher } = await fresh();
+      registry.signInSession({ email: 'me@example.com', token: 'me.sig', role });
+      addCopies(registry, 'me.sig', 3);
+
+      await switcher.signOutActive();
+
+      expect(probedWith('me.sig')).toEqual([]);
+      expect(registry.listSessions()).toEqual([]);
+      expect([...map.keys()].filter((k) => k.startsWith('mantle_token'))).toEqual([]);
+      expect(assigned).toEqual(['/login']);
+    });
+
+    it(`${role}: with another login held, lands on it with a page load`, async () => {
+      brain();
+      roles['me.sig'] = role;
+      roles['other.sig'] = 'member';
+      const { registry, switcher } = await fresh();
+      const other = registry.signInSession({ email: 'other@example.com', token: 'other.sig' })!;
+      registry.signInSession({ email: 'me@example.com', token: 'me.sig', role });
+      addCopies(registry, 'me.sig', 3);
+
+      await switcher.signOutActive();
+
+      expect(probedWith('me.sig')).toEqual([]);
+      expect(registry.listSessions().map((s) => s.id)).toEqual([other.id]);
+      expect(registry.activeSession()?.id).toBe(other.id);
+      expect(map.get('mantle_token')).toBe('other.sig');
+      expect(assigned).toEqual(['/']);
+    });
+  }
+
+  it('client in the desktop shell: copies in the keychain go too, and it lands on the sign-in screen', async () => {
+    brain();
+    roles['client.sig'] = 'client';
+    const vault = scopedVault();
+    stubDesktop(vault);
+    const { registry, switcher } = await fresh();
+    registry.signInSession({ email: 'c@example.com', token: 'client.sig', role: 'client' });
+    addCopies(registry, 'client.sig', 3, vault);
+
+    await switcher.signOutActive();
+
+    expect(probedWith('client.sig')).toEqual([]);
+    expect(registry.listSessions()).toEqual([]);
+    expect(vault.slots.size).toBe(0);
+    expect(assigned).toEqual(['/login']);
+  });
+
+  it('client in the desktop shell, an admin held too: lands on the admin', async () => {
+    brain();
+    roles['client.sig'] = 'client';
+    const vault = scopedVault();
+    stubDesktop(vault);
+    const { registry, switcher } = await fresh();
+    const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
+    registry.signInSession({ email: 'c@example.com', token: 'client.sig', role: 'client' });
+    addCopies(registry, 'client.sig', 3, vault);
+
+    await switcher.signOutActive();
+
+    expect(probedWith('client.sig')).toEqual([]);
+    expect(registry.listSessions().map((s) => s.id)).toEqual([admin.id]);
+    expect(assigned).toEqual(['/']);
+  });
+
+  it('a copy listed again by another tab mid-sign-out is still never landed on', async () => {
+    brain();
+    const { registry, switcher } = await fresh();
+    registry.signInSession({ email: 'me@example.com', token: 'me.sig' });
+    registry.listSessions();
+    // The other tab writes a copy back just after this tab forgot its rows.
+    const inner = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (String(url).endsWith('/api/auth/logout')) {
+          queueMicrotask(() => {
+            map.set(
+              'mantle_sessions',
+              JSON.stringify([
+                {
+                  id: 'late',
+                  origin: registry.currentBrainOrigin(),
+                  email: '',
+                  addedAt: 1,
+                  lastUsedAt: 1,
+                },
+              ]),
+            );
+            map.set('mantle_token:late', 'me.sig');
+          });
+        }
+        return inner(url, init);
+      }),
+    );
+
+    await switcher.signOutActive();
+
+    expect(probedWith('me.sig')).toEqual([]);
+    expect(assigned).toEqual(['/login']);
+  });
+});

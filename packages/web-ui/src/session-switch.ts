@@ -207,8 +207,13 @@ export async function switchSession(id: string, to: string = '/'): Promise<Switc
  * landing differs. Always ends in a page load.
  */
 export async function signOutActive(): Promise<void> {
+  const revoked = tokenStore.get();
   await performSignOut();
   for (const next of switchableSessions()) {
+    // Never "land" on the bearer just revoked: a copy of this login is not
+    // another login. performSignOut forgets copies; this holds even if one
+    // is listed again by another tab in between.
+    if (revoked !== null && sessionToken(next.id) === revoked) continue;
     if ((await switchSession(next.id)) === 'switched') return;
   }
   window.location.assign('/login');
