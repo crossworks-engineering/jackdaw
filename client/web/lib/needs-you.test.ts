@@ -48,7 +48,7 @@ describe('needs-you counts and words', () => {
   });
 
   it('goes to Review first, to Requests when only requests wait', () => {
-    expect(needsYouHref(ny({ submitted: 1, open: 1 }))).toBe('/team-admin?view=review');
+    expect(needsYouHref(ny({ submitted: 1, open: 1 }))).toBe('/review');
     expect(needsYouHref(ny({ open: 1 }))).toBe('/team-admin?view=requests');
   });
 
@@ -65,8 +65,11 @@ describe('needs-you counts and words', () => {
     expect(arrivalText(a)).toEqual({
       title: 'Waiting for your review',
       body: 'Mia sent "Pump spec" for review',
-      href: '/team-admin?view=review&item=id%201',
+      href: '/review?item=id%201',
     });
+    // A brain that names the kind: straight to the item in its workspace.
+    const typed = { kind: 'review' as const, item: { ...a.item, type: 'table' as const } };
+    expect(arrivalText(typed).href).toBe('/tables?review=id%201');
     const r = { kind: 'request' as const, item: item('t', '2026-09-28T10:00:00Z', ' ', 'Pat') };
     expect(arrivalText(r)).toEqual({
       title: 'New team request',
@@ -124,7 +127,7 @@ describe('needs-you: locked contact sharing (brain migration 0214)', () => {
     expect(needsYouHref(only)).toBe('/contacts?id=c-1');
     const both = withLocked(ny({ submitted: 2 }), 2);
     expect(needsYouLabel(both)).toBe('2 waiting for review · 2 contacts locked');
-    expect(needsYouHref(both)).toBe('/team-admin?view=review');
+    expect(needsYouHref(both)).toBe('/review');
   });
 
   it('a brain before 0214 sends no sharing: nothing changes', () => {

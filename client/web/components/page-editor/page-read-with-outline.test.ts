@@ -7,7 +7,7 @@ import type { JSONContent } from '@tiptap/core';
 import { describe, expect, it } from 'vitest';
 import { ReadOnlyItemBody, type ReaderAssets } from '@/components/member/read-only-item';
 import { SpaceItemView } from '@/components/member/space-item-view';
-import { ReviewItemView } from '@/components/team-admin/review-tab';
+import { ReviewItemView } from '@/components/review/item-review';
 import type { ReviewItem } from '@/lib/member-review';
 import type { SpaceItem } from '@/lib/member-space';
 import { PageReadWithOutline, closeThenJump, readerToc } from './page-read-with-outline';
@@ -202,7 +202,7 @@ describe('no reader draws a page without the outline wrapper', () => {
   it('nothing under member, client or team-admin imports PageView itself', () => {
     const components = fileURLToPath(new URL('..', import.meta.url));
     const seen: string[] = [];
-    for (const dir of ['member', 'client', 'team-admin']) {
+    for (const dir of ['member', 'client', 'team-admin', 'review']) {
       for (const f of readdirSync(`${components}/${dir}`)) {
         if (!f.endsWith('.tsx')) continue;
         seen.push(`${dir}/${f}`);
@@ -215,7 +215,7 @@ describe('no reader draws a page without the outline wrapper', () => {
       expect.arrayContaining([
         'member/read-only-item.tsx',
         'member/space-item-view.tsx',
-        'team-admin/review-tab.tsx',
+        'review/item-review.tsx',
       ]),
     );
   });

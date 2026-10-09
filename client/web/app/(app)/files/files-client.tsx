@@ -78,7 +78,10 @@ import {
   PrivateItemDetail,
   isPrivateRow,
   usePrivateOpen,
+  useReviewOpen,
 } from '@/components/item-list/admin-private-rows';
+import { ItemReview, ItemReviewSections } from '@/components/review/item-review';
+import { REVIEW_PARAM } from '@/lib/workspace-review';
 import { KEEP_PRIVATE_HELP, uploadPrivateFile } from '@/lib/admin-private';
 import { refusalMessage } from '@/lib/member-space';
 import { AccessControl } from '@/components/share/access-control';
@@ -186,6 +189,8 @@ function FilesView({
   privateFiles: AdminPrivateListRow[];
 }) {
   const { pid, openPrivate } = usePrivateOpen();
+  // A member's file waiting for approval, open in the pane (`?review=`).
+  const { reviewId, openReview } = useReviewOpen();
   const toAsset = useAssetUrl();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -346,6 +351,7 @@ function FilesView({
     const sp = new URLSearchParams(searchParams.toString());
     if (fileId) sp.set('file', fileId);
     else sp.delete('file');
+    sp.delete(REVIEW_PARAM);
     router.push(`/files?${sp.toString()}`);
   };
 
@@ -597,144 +603,153 @@ function FilesView({
         // three-panel default's 672px cap would be actively wrong here.
         detailFills
         list={
-          /* ── Tree rail ─────────────────────────────────────────
+          <div className="flex h-full min-h-0 flex-col">
+            {/* Members' files waiting for approval (workspace review
+                pattern), above the tree; hidden while none wait. */}
+            <ItemReviewSections kind="file" selectedId={reviewId} onSelect={openReview} />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {/* ── Tree rail ─────────────────────────────────────────
              No `border-r`: `MasterDetail`'s handle IS a 1px `bg-border` rule in
              exactly that place, so keeping the border would draw it twice.
              `h-full` because a grid item stretched to the row and a flex item
              does not — without it the tinted background stops wherever the
-             tree happens to end. */
-          showTree ? (
-            <aside className="flex h-full flex-col bg-muted/20">
-              <ItemTree
-                kind="files"
-                adapter={filesAdapter}
-                rootLabel="All files"
-                selectedItemId={pid ?? openFileId}
-                selectedFolderPath={pid || openFileId || searchActive ? null : currentPath}
-                revealPath={currentPath}
-                query={query}
-                onQueryChange={setQuery}
-                searchPlaceholder="Search files and folders…"
-                // Like New with that folder open: the dialog picks the type,
-                // and the file is made in the folder and opens there.
-                newItemInFolder={{
-                  label: 'file',
-                  icon: FileText,
-                  onCreate: (f) => {
-                    setRecentView(false);
-                    navigateFolder(f.path);
-                    setDialog({ kind: 'createFile', ext: 'md', parentPath: f.path });
-                  },
-                }}
-                onOpenFolder={(f) => {
-                  setRecentView(false);
-                  navigateFolder(f?.path ?? FILES_ROOT);
-                }}
-                onOpenItem={(item, where) => {
-                  if (item.state === 'private') {
-                    openPrivate(item.id);
-                    return;
-                  }
-                  const sp = new URLSearchParams();
-                  sp.set(
-                    'path',
-                    where.folderPath ??
-                      (where.folderId ? foldersById.get(where.folderId)?.path : null) ??
-                      FILES_ROOT,
-                  );
-                  sp.set('file', item.id);
-                  router.push(`/files?${sp.toString()}`);
-                }}
-                itemActions={(item) =>
-                  item.state === 'private' ? null : (
-                    <>
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          setDialog({
-                            kind: 'rename',
-                            target: {
-                              kind: 'file',
-                              id: item.id,
-                              filename: item.title,
-                              extension: item.subtype ?? '',
-                            },
-                          })
-                        }
-                      >
-                        <Pencil />
-                        Rename…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive-ink focus:text-destructive-ink"
-                        onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
-                      >
-                        <Trash2 />
-                        Delete…
-                      </DropdownMenuItem>
-                    </>
-                  )
-                }
-                onChanged={refresh}
-                onUnsupported={() => setTreeGone(true)}
-              />
-            </aside>
-          ) : (
-            <aside className="flex h-full flex-col bg-muted/20">
-              <div className="space-y-2 border-b border-border p-2">
-                <div className="relative">
-                  <Search
-                    className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden
+             tree happens to end. */}
+              {showTree ? (
+                <aside className="flex h-full flex-col bg-muted/20">
+                  <ItemTree
+                    kind="files"
+                    adapter={filesAdapter}
+                    rootLabel="All files"
+                    selectedItemId={reviewId ? null : (pid ?? openFileId)}
+                    selectedFolderPath={
+                      reviewId || pid || openFileId || searchActive ? null : currentPath
+                    }
+                    revealPath={currentPath}
+                    query={query}
+                    onQueryChange={setQuery}
+                    searchPlaceholder="Search files and folders…"
+                    // Like New with that folder open: the dialog picks the type,
+                    // and the file is made in the folder and opens there.
+                    newItemInFolder={{
+                      label: 'file',
+                      icon: FileText,
+                      onCreate: (f) => {
+                        setRecentView(false);
+                        navigateFolder(f.path);
+                        setDialog({ kind: 'createFile', ext: 'md', parentPath: f.path });
+                      },
+                    }}
+                    onOpenFolder={(f) => {
+                      setRecentView(false);
+                      navigateFolder(f?.path ?? FILES_ROOT);
+                    }}
+                    onOpenItem={(item, where) => {
+                      if (item.state === 'private') {
+                        openPrivate(item.id);
+                        return;
+                      }
+                      const sp = new URLSearchParams();
+                      sp.set(
+                        'path',
+                        where.folderPath ??
+                          (where.folderId ? foldersById.get(where.folderId)?.path : null) ??
+                          FILES_ROOT,
+                      );
+                      sp.set('file', item.id);
+                      router.push(`/files?${sp.toString()}`);
+                    }}
+                    itemActions={(item) =>
+                      item.state === 'private' ? null : (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              setDialog({
+                                kind: 'rename',
+                                target: {
+                                  kind: 'file',
+                                  id: item.id,
+                                  filename: item.title,
+                                  extension: item.subtype ?? '',
+                                },
+                              })
+                            }
+                          >
+                            <Pencil />
+                            Rename…
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive-ink focus:text-destructive-ink"
+                            onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
+                          >
+                            <Trash2 />
+                            Delete…
+                          </DropdownMenuItem>
+                        </>
+                      )
+                    }
+                    onChanged={refresh}
+                    onUnsupported={() => setTreeGone(true)}
                   />
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-                    placeholder="Filter folders, search files…"
-                    aria-label="Filter folders and search files"
-                    className="h-9 pl-8 pr-8"
-                  />
-                  {query && (
-                    <Button
-                      variant="ghost"
-                      size="icon-2xs"
-                      aria-label="Clear search"
-                      onClick={() => setQuery('')}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    >
-                      <X aria-hidden />
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">
-                <FolderTreeRail
-                  tree={tree}
-                  currentPath={recentView ? '' : currentPath}
-                  onNavigate={(p) => {
-                    setRecentView(false);
-                    setQuery('');
-                    navigateFolder(p);
-                  }}
-                  filter={query.trim()}
-                  recentActive={recentView}
-                  onRecent={() => setRecentView(true)}
-                  onNewFolder={(parentPath) => setDialog({ kind: 'createFolder', parentPath })}
-                  onNewFile={(parentPath) => {
-                    setRecentView(false);
-                    navigateFolder(parentPath);
-                    setDialog({ kind: 'createFile', ext: 'md', parentPath });
-                  }}
-                  onRename={(f) =>
-                    setDialog({
-                      kind: 'rename',
-                      target: { kind: 'folder', id: f.id, slug: f.slug },
-                    })
-                  }
-                />
-              </div>
-            </aside>
-          )
+                </aside>
+              ) : (
+                <aside className="flex h-full flex-col bg-muted/20">
+                  <div className="space-y-2 border-b border-border p-2">
+                    <div className="relative">
+                      <Search
+                        className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                        aria-hidden
+                      />
+                      <Input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+                        placeholder="Filter folders, search files…"
+                        aria-label="Filter folders and search files"
+                        className="h-9 pl-8 pr-8"
+                      />
+                      {query && (
+                        <Button
+                          variant="ghost"
+                          size="icon-2xs"
+                          aria-label="Clear search"
+                          onClick={() => setQuery('')}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        >
+                          <X aria-hidden />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2">
+                    <FolderTreeRail
+                      tree={tree}
+                      currentPath={recentView ? '' : currentPath}
+                      onNavigate={(p) => {
+                        setRecentView(false);
+                        setQuery('');
+                        navigateFolder(p);
+                      }}
+                      filter={query.trim()}
+                      recentActive={recentView}
+                      onRecent={() => setRecentView(true)}
+                      onNewFolder={(parentPath) => setDialog({ kind: 'createFolder', parentPath })}
+                      onNewFile={(parentPath) => {
+                        setRecentView(false);
+                        navigateFolder(parentPath);
+                        setDialog({ kind: 'createFile', ext: 'md', parentPath });
+                      }}
+                      onRename={(f) =>
+                        setDialog({
+                          kind: 'rename',
+                          target: { kind: 'folder', id: f.id, slug: f.slug },
+                        })
+                      }
+                    />
+                  </div>
+                </aside>
+              )}
+            </div>
+          </div>
         }
         detail={
           /* ── Main pane ─────────────────────────────────────────
@@ -757,7 +772,19 @@ function FilesView({
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
           >
-            {pid ? (
+            {reviewId ? (
+              <ItemReview
+                key={reviewId}
+                id={reviewId}
+                kind="file"
+                onDone={(opened) =>
+                  // Approved: it is a brain file now, with the same id.
+                  opened
+                    ? router.push(`/files?file=${encodeURIComponent(opened)}`)
+                    : openReview(null)
+                }
+              />
+            ) : pid ? (
               <PrivateItemDetail key={pid} id={pid} onClose={() => openPrivate(null)} />
             ) : openFileId ? (
               <FileEditor

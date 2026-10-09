@@ -92,7 +92,7 @@ describe('the accept dialog: where a page lands', () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const ui = readFileSync(
-      fileURLToPath(new URL('../components/team-admin/review-dialogs.tsx', import.meta.url)),
+      fileURLToPath(new URL('../components/review/review-dialogs.tsx', import.meta.url)),
       'utf8',
     );
     expect(ui).not.toContain('parentPageId');

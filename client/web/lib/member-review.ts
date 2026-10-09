@@ -99,6 +99,11 @@ export type AcceptInput = AcceptRequest & {
   audience: AccessLevel;
   folderId?: string | null;
   visibilityConfirmed?: boolean;
+  /** The pin (shim until the pin bump, the brain's AcceptRequest): the
+   *  `submittedAt` the admin was shown, null for a left-behind item. A brain
+   *  with the pin refuses 409 `changed` when the author sent it again since;
+   *  an older brain ignores it. */
+  submittedAt?: string | null;
 };
 
 /** TEMPORARY contract shim until the pin bump (the brain's

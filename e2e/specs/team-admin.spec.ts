@@ -8,8 +8,10 @@ import { expect, test } from '../lib/fixtures';
  *
  * Team admin is dissolving in parts (2026-10-09). Part 1 moved Invites,
  * Clients, What clients see and the member chats into Settings > Logins and
- * removed the Chat archive, so the tabs left are Review (the landing tab),
- * Requests, Shared links and Settings, and the old links are sent on.
+ * removed the Chat archive. Part 2 moved Review into each workspace
+ * ("Waiting for approval" above the tree), so the tabs left are Requests
+ * (the landing tab), Shared links and Settings, and the old links are sent
+ * on.
  */
 test.describe('team admin (owner, client origin)', () => {
   // Post-carve, the owner UI exists only on the CLIENT app: the same-origin
@@ -20,38 +22,36 @@ test.describe('team admin (owner, client origin)', () => {
     // Scoped to the tab strip: the sidebar now carries a "Settings" row of its
     // own (the settings hub), so an unscoped link-by-name is ambiguous.
     const tabs = ownerPage.getByRole('navigation', { name: 'Team admin' });
-    // Review is the landing tab: the review queue's grid, empty or not.
-    await expect(tabs.getByRole('link', { name: /^Review/ })).toHaveAttribute(
-      'href',
-      '/team-admin?view=review',
-      { timeout: 30_000 },
-    );
-    await expect(ownerPage.getByRole('heading', { name: 'Review', exact: true })).toBeVisible({
-      timeout: 30_000,
-    });
+    // Requests is the landing tab: empty-state or queue, either way the pane
+    // rendered.
+    const requests = ownerPage
+      .getByText(/No change requests yet/)
+      .or(ownerPage.getByRole('heading', { name: 'Change requests' }))
+      .first();
+    await expect(requests).toBeVisible({ timeout: 30_000 });
 
-    // The four tabs left, in order, and none of the ones that moved or went.
-    // (Not the "waiting in Apps" link the strip shows while a member's app
-    // waits: that is a way out, not a tab.)
-    await expect(tabs.locator('a:not([href="/apps"])')).toHaveText([
-      /^Review/,
+    // The three tabs left, in order, and none of the ones that moved or went.
+    // (Not the "N waiting in Pages" links the strip shows while something
+    // waits in a workspace: those are ways out, not tabs.)
+    await expect(tabs.locator('a[href^="/team-admin"]')).toHaveText([
       /^Requests/,
       'Shared links',
       'Settings',
     ]);
-    for (const gone of ['Chat archive', 'Member chats', 'Invites', 'Clients', 'Code holders']) {
+    for (const gone of [
+      'Review',
+      'Chat archive',
+      'Member chats',
+      'Invites',
+      'Clients',
+      'Code holders',
+    ]) {
       await expect(tabs.getByRole('link', { name: gone })).toHaveCount(0);
     }
     await expect(ownerPage.getByText(/code last used/i)).toHaveCount(0);
 
-    // Requests tab: empty-state or queue, either way the pane rendered.
     await tabs.getByRole('link', { name: /^Requests/ }).click();
-    await expect(
-      ownerPage
-        .getByText(/No change requests yet/)
-        .or(ownerPage.getByRole('heading', { name: 'Change requests' }))
-        .first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(requests).toBeVisible({ timeout: 15_000 });
 
     // Settings tab: the surface-wide switches, and no dashboard-tags card (its
     // route went with the retired /hub).
@@ -107,12 +107,22 @@ test.describe('team admin (owner, client origin)', () => {
       timeout: 30_000,
     });
 
-    // The Chat archive is gone: its old URL lands on Review.
+    // The Chat archive is gone: its old URL lands on Requests.
     await ownerPage.goto('/team-admin?contact=00000000-0000-4000-8000-000000000000');
-    await expect(ownerPage.getByRole('heading', { name: 'Review', exact: true })).toBeVisible({
+    await expect(
+      ownerPage
+        .getByText(/No change requests yet/)
+        .or(ownerPage.getByRole('heading', { name: 'Change requests' }))
+        .first(),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(ownerPage.getByRole('heading', { name: 'Chat archive' })).toHaveCount(0);
+
+    // Review moved into the workspaces: an old Review link lands on the
+    // first one with something waiting, Pages when nothing does.
+    await ownerPage.goto('/team-admin?view=review');
+    await expect(ownerPage).toHaveURL(/\/(pages|notes|tables|draw|files)(\?|$)/, {
       timeout: 30_000,
     });
-    await expect(ownerPage.getByRole('heading', { name: 'Chat archive' })).toHaveCount(0);
   });
 
   // DROPPED 2026-10-09: "Chat archive and Member chats each remember their
@@ -120,7 +130,7 @@ test.describe('team admin (owner, client origin)', () => {
   // archive removed, Member chats now a login's Chat in Settings > Logins).
   // Of the grids left, Requests and Shared links draw one only when they have
   // rows, which this brain need not have, so a two-grid width check here would
-  // skip or pass vacuously. Review's own key is held by the /team-admin row of
-  // master-detail-screens.spec.ts (team-admin-review), and Settings > Logins'
-  // by its /settings/users row (settings-users).
+  // skip or pass vacuously. Review moved into the workspaces (part 2), whose
+  // keys master-detail-screens.spec.ts holds, and Settings > Logins' is its
+  // /settings/users row (settings-users).
 });

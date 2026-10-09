@@ -1,10 +1,16 @@
 'use client';
 
 /**
- * The review actions (member logins Phase 4): Accept into the brain (the
- * admin picks the level, and for a page or files where they land), Return
- * with a note, and Discard for an item a deactivated login left behind. The
- * accept dialog also serves an admin's own private items (Phase 7).
+ * The review actions (member logins Phase 4), in the header of the item's
+ * own workspace pane since Team admin > Review went (workspace review
+ * pattern, 2026-10-09): Approve into the brain (the admin picks the level,
+ * and for a page or files where they land), Reject (back to its author, no
+ * note), Take over, and Discard for an item a deactivated login left behind.
+ * The accept dialog also serves an admin's own private items (Phase 7).
+ *
+ * Every action takes two callbacks: `onDone(opened?)` once the item left the
+ * queue (`opened`: the brain item it became, after an Approve), and
+ * `onChanged()` after a refusal, so the queue is read again.
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -77,6 +83,7 @@ import {
   type ReviewItemRow,
 } from '@/lib/member-review';
 import type { SpaceKind } from '@/lib/member-space';
+import { rejectConfirm } from '@/lib/workspace-review';
 import { FolderPickerDialog } from '@/components/item-tree/folder-picker';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import {
@@ -87,20 +94,20 @@ import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
 
 type FolderRow = { path: string; title: string; slug: string };
 
-/** Back to the queue once the item is handled: its row is gone. */
-function useBackToQueue(onDone: () => void) {
-  const router = useRouter();
-  return () => {
-    onDone();
-    router.replace('/team-admin?view=review');
-  };
-}
+/** What a review action does once it is through, or refused. */
+type ReviewActionProps = {
+  row: ReviewItemRow;
+  /** The item left the queue; `opened` is the brain item it became. */
+  onDone: (opened?: string) => void;
+  /** Refused (handled elsewhere, recalled): read the queue again. */
+  onChanged: () => void;
+};
 
-export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () => void }) {
-  const back = useBackToQueue(onDone);
+export function AcceptDialog({ row, onDone, onChanged }: ReviewActionProps) {
   return (
     <AcceptIntoBrainDialog
       item={row}
+      triggerLabel="Approve"
       authorRole={row.author.role}
       description={
         <>
@@ -112,9 +119,11 @@ export function AcceptDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
         key: ['team-admin', 'submissions', row.id, 'bundle'],
         load: (pick) => memberReview.bundle(row.id, pick),
       }}
-      accept={(input) => memberReview.accept(row.id, input)}
-      onAccepted={back}
-      onFailed={onDone}
+      // Pinned: what is approved is the version on screen (`row` is the one
+      // this pane shows), never one sent again since.
+      accept={(input) => memberReview.accept(row.id, { ...input, submittedAt: row.submittedAt })}
+      onAccepted={(res) => onDone(res.id)}
+      onFailed={onChanged}
       errorMessage={reviewErrorMessage}
     />
   );
@@ -655,9 +664,11 @@ function GoingDownList({
   );
 }
 
-export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () => void }) {
+/** Reject: back to its author, who can change it and submit it again. No
+ *  note: review flows carry no messages. On a released taken item this is a
+ *  give-back, with what was taken with it. */
+export function RejectDialog({ row, onDone, onChanged }: ReviewActionProps) {
   const toast = useToast();
-  const back = useBackToQueue(onDone);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const send = async () => {
@@ -666,55 +677,51 @@ export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
       await memberReview.giveBack(row.id);
       toast.success(`Rejected “${row.title || 'Untitled'}”: it went back to ${row.author.name}.`);
       setOpen(false);
-      back();
+      onDone();
     } catch (err) {
       toast.error(reviewErrorMessage(err, 'Could not reject this item.'));
-      onDone();
+      setOpen(false);
+      onChanged();
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+      <AlertDialogTrigger asChild>
         <Button size="sm" variant="outline">
           <Undo2 /> Reject
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reject “{row.title || 'Untitled'}”?</DialogTitle>
-          <DialogDescription>
-            It goes back to {row.author.name}. They can change it and submit it again.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button type="button" disabled={busy} onClick={() => void send()}>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reject “{row.title || 'Untitled'}”?</AlertDialogTitle>
+          <AlertDialogDescription>{rejectConfirm(row)}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <Button disabled={busy} onClick={() => void send()}>
             {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
             Reject
           </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
-export function DiscardDialog({ row, onDone }: { row: ReviewItemRow; onDone: () => void }) {
+export function DiscardDialog({ row, onDone, onChanged }: ReviewActionProps) {
   const toast = useToast();
-  const back = useBackToQueue(onDone);
   const [busy, setBusy] = useState(false);
   const discard = async () => {
     setBusy(true);
     try {
       await memberReview.discard(row.id);
       toast.success(`Discarded “${row.title || 'Untitled'}”.`);
-      back();
+      onDone();
     } catch (err) {
       toast.error(reviewErrorMessage(err, 'Could not discard this item.'));
-      onDone();
+      onChanged();
     } finally {
       setBusy(false);
     }
@@ -755,7 +762,7 @@ export function DiscardDialog({ row, onDone }: { row: ReviewItemRow; onDone: () 
  * accepts it into the brain or gives it back. Nothing is indexed or learned
  * on the way; the admin works on it in the Private view, which opens next.
  */
-export function TakeOverDialog({ row, onDone }: { row: ReviewItemRow; onDone: () => void }) {
+export function TakeOverDialog({ row, onDone, onChanged }: ReviewActionProps) {
   const toast = useToast();
   const router = useRouter();
   const qc = useQueryClient();
@@ -782,7 +789,7 @@ export function TakeOverDialog({ row, onDone }: { row: ReviewItemRow; onDone: ()
     } catch (err) {
       toast.error(takeOverErrorMessage(err));
       setOpen(false);
-      onDone();
+      onChanged();
     } finally {
       setBusy(false);
     }

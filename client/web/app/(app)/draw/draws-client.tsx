@@ -57,7 +57,9 @@ import {
   adminStateOf,
   isPrivateRow,
   usePrivateOpen,
+  useReviewOpen,
 } from '@/components/item-list/admin-private-rows';
+import { ItemReview, ItemReviewSections } from '@/components/review/item-review';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
@@ -141,6 +143,8 @@ export function DrawsClient() {
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
   const { pid, openPrivate } = usePrivateOpen();
+  // A member's drawing waiting for approval, open in the pane (`?review=`).
+  const { reviewId, openReview } = useReviewOpen();
   const [details, changeDetails] = useCardDetails('mantle_draws_card_details_v1');
 
   // The item tree when this brain serves it for drawings (docs/folder-tree.md);
@@ -235,7 +239,7 @@ export function DrawsClient() {
   function select(id: string) {
     setSelectedId(id);
     syncSelectionParam('id', id);
-    if (pid) openPrivate(null);
+    if (pid || reviewId) openPrivate(null);
   }
 
   async function createDraw() {
@@ -302,172 +306,194 @@ export function DrawsClient() {
         // note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          showTree ? (
-            <aside className="flex h-full flex-col bg-muted/20">
-              <ItemTree
-                kind="draw"
-                adapter={drawAdapter}
-                selectedItemId={privateOpen ?? activeId}
-                query={treeQuery}
-                onQueryChange={setTreeQuery}
-                searchPlaceholder="Search drawings and folders…"
-                newItemInFolder={{ label: 'drawing', onCreate: (f) => openCreate(f) }}
-                actions={<NewButton onClick={() => openCreate()} busy={creating} />}
-                onOpenItem={(item) =>
-                  item.state === 'private' ? openPrivate(item.id) : select(item.id)
-                }
-                itemActions={(item) =>
-                  item.state === 'private' ? null : (
-                    <DropdownMenuItem
-                      className="text-destructive-ink focus:text-destructive-ink"
-                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                    >
-                      <Trash2 />
-                      Delete…
-                    </DropdownMenuItem>
-                  )
-                }
-                // A share or a move changes the level the open item is read
-                // at: its header badge and client thread follow.
-                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['draws'] })}
-                onUnsupported={() => setTreeGone(true)}
-              />
-            </aside>
-          ) : (
-            <>
-              <ItemListHeader
-                search={searchInput}
-                onSearch={setSearchInput}
-                placeholder="Search drawings…"
-                actions={<NewButton onClick={() => openCreate()} busy={creating} />}
-              >
-                <SortMenu
-                  value={sort}
-                  labels={SORT_LABELS}
-                  onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
-                />
-                <TagFilter
-                  tags={listQuery.data?.tags ?? []}
-                  activeTag={tag || null}
-                  onSelect={(t) => go({ tag: t, page: null, pid: null })}
-                  details={details}
-                  onDetailsChange={changeDetails}
-                  allLabel="All drawings"
-                />
-                <StateFilter
-                  value={state}
-                  options={ADMIN_STATE_OPTIONS}
-                  onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
-                />
-                {tag ? (
-                  <ClearFilter
-                    onClear={() => go({ tag: null, page: null })}
-                    title="Clear tag filter"
+          <div className="flex h-full min-h-0 flex-col">
+            {/* Members' drawings waiting for approval (workspace review
+                pattern), above the tree; hidden while none wait. */}
+            <ItemReviewSections kind="draw" selectedId={reviewId} onSelect={openReview} />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {showTree ? (
+                <aside className="flex h-full flex-col bg-muted/20">
+                  <ItemTree
+                    kind="draw"
+                    adapter={drawAdapter}
+                    selectedItemId={reviewId ? null : (privateOpen ?? activeId)}
+                    query={treeQuery}
+                    onQueryChange={setTreeQuery}
+                    searchPlaceholder="Search drawings and folders…"
+                    newItemInFolder={{ label: 'drawing', onCreate: (f) => openCreate(f) }}
+                    actions={<NewButton onClick={() => openCreate()} busy={creating} />}
+                    onOpenItem={(item) =>
+                      item.state === 'private' ? openPrivate(item.id) : select(item.id)
+                    }
+                    itemActions={(item) =>
+                      item.state === 'private' ? null : (
+                        <DropdownMenuItem
+                          className="text-destructive-ink focus:text-destructive-ink"
+                          onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                        >
+                          <Trash2 />
+                          Delete…
+                        </DropdownMenuItem>
+                      )
+                    }
+                    // A share or a move changes the level the open item is read
+                    // at: its header badge and client thread follow.
+                    onChanged={() => void queryClient.invalidateQueries({ queryKey: ['draws'] })}
+                    onUnsupported={() => setTreeGone(true)}
                   />
-                ) : null}
-              </ItemListHeader>
-
-              <ItemListScroll pending={pending}>
-                {rows.length === 0 && (query || tag || state !== 'all') ? (
-                  <div className="space-y-3 px-1 py-8 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      {state === 'private' && !query && !tag
-                        ? 'You have no private drawings. Only you would see them, until you accept one into the brain.'
-                        : 'Nothing matches these filters.'}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => go({ q: null, tag: null, state: null, page: null })}
-                    >
-                      Clear filters
-                    </Button>
-                  </div>
-                ) : rows.length === 0 ? (
-                  <div className="space-y-3 px-1 py-8 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      No drawings yet. Sketch an idea, an architecture, a plan. Commits land in the
-                      brain like every other content type.
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openCreate()}
-                      disabled={creating}
-                    >
-                      {creating ? <Spinner /> : <Plus />}
-                      New drawing
-                    </Button>
-                  </div>
-                ) : (
-                  rows.map((d) =>
-                    isPrivateRow(d) ? (
-                      <PrivateItemCard
-                        key={d.id}
-                        row={d}
-                        selected={privateOpen === d.id}
-                        onSelect={() => openPrivate(d.id)}
+                </aside>
+              ) : (
+                <>
+                  <ItemListHeader
+                    search={searchInput}
+                    onSearch={setSearchInput}
+                    placeholder="Search drawings…"
+                    actions={<NewButton onClick={() => openCreate()} busy={creating} />}
+                  >
+                    <SortMenu
+                      value={sort}
+                      labels={SORT_LABELS}
+                      onChange={(v) =>
+                        go({ sort: v === 'edited' ? null : v, page: null, pid: null })
+                      }
+                    />
+                    <TagFilter
+                      tags={listQuery.data?.tags ?? []}
+                      activeTag={tag || null}
+                      onSelect={(t) => go({ tag: t, page: null, pid: null })}
+                      details={details}
+                      onDetailsChange={changeDetails}
+                      allLabel="All drawings"
+                    />
+                    <StateFilter
+                      value={state}
+                      options={ADMIN_STATE_OPTIONS}
+                      onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
+                    />
+                    {tag ? (
+                      <ClearFilter
+                        onClear={() => go({ tag: null, page: null })}
+                        title="Clear tag filter"
                       />
-                    ) : (
-                      <ItemCard
-                        key={d.id}
-                        id={d.id}
-                        kind="draw"
-                        title={d.title}
-                        icon={<ItemIcon emoji={d.icon} fallback={<PenTool />} />}
-                        badge={
-                          <>
-                            {/* A dot, not a word: the row is a scan target and the
-                                preview pane carries the full explanation. */}
-                            {d.hasDraft && (
-                              <span
-                                className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
-                                title="Uncommitted edits"
-                                aria-label="Uncommitted edits"
-                              />
-                            )}
-                            <AudienceBadge
-                              level={d.audience}
-                              inherited={d.inherited}
-                              className="mt-0.5"
-                            />
-                          </>
-                        }
-                        selected={activeId === d.id}
-                        onSelect={() => select(d.id)}
-                        updatedAt={d.updatedAt}
-                      >
-                        {details && d.summary ? (
-                          <p className="line-clamp-2 text-xs text-muted-foreground">{d.summary}</p>
-                        ) : null}
-                        {details && d.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {d.tags.map((t) => (
-                              <TagPill key={t} tag={t} />
-                            ))}
-                          </div>
-                        ) : null}
-                      </ItemCard>
-                    ),
-                  )
-                )}
-              </ItemListScroll>
+                    ) : null}
+                  </ItemListHeader>
 
-              <ListPager
-                page={page}
-                total={listQuery.data?.total ?? 0}
-                pageSize={listQuery.data?.pageSize ?? 50}
-                pending={pending}
-                onGo={(p) => go({ page: p > 1 ? p : null })}
-                noun={{ one: 'drawing', many: 'drawings' }}
-              />
-            </>
-          )
+                  <ItemListScroll pending={pending}>
+                    {rows.length === 0 && (query || tag || state !== 'all') ? (
+                      <div className="space-y-3 px-1 py-8 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          {state === 'private' && !query && !tag
+                            ? 'You have no private drawings. Only you would see them, until you accept one into the brain.'
+                            : 'Nothing matches these filters.'}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => go({ q: null, tag: null, state: null, page: null })}
+                        >
+                          Clear filters
+                        </Button>
+                      </div>
+                    ) : rows.length === 0 ? (
+                      <div className="space-y-3 px-1 py-8 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          No drawings yet. Sketch an idea, an architecture, a plan. Commits land in
+                          the brain like every other content type.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openCreate()}
+                          disabled={creating}
+                        >
+                          {creating ? <Spinner /> : <Plus />}
+                          New drawing
+                        </Button>
+                      </div>
+                    ) : (
+                      rows.map((d) =>
+                        isPrivateRow(d) ? (
+                          <PrivateItemCard
+                            key={d.id}
+                            row={d}
+                            selected={!reviewId && privateOpen === d.id}
+                            onSelect={() => openPrivate(d.id)}
+                          />
+                        ) : (
+                          <ItemCard
+                            key={d.id}
+                            id={d.id}
+                            kind="draw"
+                            title={d.title}
+                            icon={<ItemIcon emoji={d.icon} fallback={<PenTool />} />}
+                            badge={
+                              <>
+                                {/* A dot, not a word: the row is a scan target and the
+                                preview pane carries the full explanation. */}
+                                {d.hasDraft && (
+                                  <span
+                                    className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
+                                    title="Uncommitted edits"
+                                    aria-label="Uncommitted edits"
+                                  />
+                                )}
+                                <AudienceBadge
+                                  level={d.audience}
+                                  inherited={d.inherited}
+                                  className="mt-0.5"
+                                />
+                              </>
+                            }
+                            selected={!reviewId && activeId === d.id}
+                            onSelect={() => select(d.id)}
+                            updatedAt={d.updatedAt}
+                          >
+                            {details && d.summary ? (
+                              <p className="line-clamp-2 text-xs text-muted-foreground">
+                                {d.summary}
+                              </p>
+                            ) : null}
+                            {details && d.tags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {d.tags.map((t) => (
+                                  <TagPill key={t} tag={t} />
+                                ))}
+                              </div>
+                            ) : null}
+                          </ItemCard>
+                        ),
+                      )
+                    )}
+                  </ItemListScroll>
+
+                  <ListPager
+                    page={page}
+                    total={listQuery.data?.total ?? 0}
+                    pageSize={listQuery.data?.pageSize ?? 50}
+                    pending={pending}
+                    onGo={(p) => go({ page: p > 1 ? p : null })}
+                    noun={{ one: 'drawing', many: 'drawings' }}
+                  />
+                </>
+              )}
+            </div>
+          </div>
         }
         // No wrapper: the preview is a plain document with no pinned header of
         // its own, so `MasterDetail`'s pane is the only scroller.
         detail={
-          privateOpen ? (
+          reviewId ? (
+            <ItemReview
+              key={reviewId}
+              id={reviewId}
+              kind="draw"
+              onDone={(opened) => {
+                // Approved: it is a brain drawing now, with the same id.
+                if (opened) setSelectedId(opened);
+                openReview(null);
+              }}
+            />
+          ) : privateOpen ? (
             <div className="relative h-full min-h-0">
               <PrivateItemDetail
                 key={privateOpen}
@@ -616,7 +642,7 @@ function DrawPreview({
     // Full-width, start-aligned — the same clean preview shell as /pages
     // (no centred max-w column, actions top-right and out of the way).
     <div className="w-full space-y-4 p-6">
-      <div className="flex items-start justify-between gap-3">
+      <div data-testid="item-header" className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
             <span aria-hidden>{draw.icon ?? '✏️'}</span>

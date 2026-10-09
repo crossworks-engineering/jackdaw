@@ -14,7 +14,8 @@ import {
 } from './mock-member-api';
 
 /**
- * Take over (audit F07), the admin's side: from Team admin > Review an admin
+ * Take over (audit F07), the admin's side: from Pages > Waiting for approval
+ * (workspace review pattern; Team admin > Review went on 2026-10-09) an admin
  * takes a member's submitted item into their own private items, then works
  * on it there and gives it back or accepts it into the brain. Runs against
  * the in-memory API in its admin role (mock-member-api.ts), no brain.
@@ -28,7 +29,7 @@ test.afterEach(async () => {
   await api.close();
 });
 
-const reviewItem = (id: string) => `/team-admin?view=review&item=${id}`;
+const reviewItem = (id: string) => `/pages?review=${id}`;
 
 test('Take over asks first, names what moves, and opens it in the Pages list', async ({ page }) => {
   // What an admin's private item never asks: the member routes (sharing,
@@ -89,7 +90,7 @@ test('a refused Take over says why and stays on the queue', async ({ page }) => 
   await expect(page.getByText(/not waiting for review any more/)).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page).toHaveURL(/\/team-admin\?view=review/);
+  await expect(page).toHaveURL(new RegExp(`/pages\\?review=${SUBMITTED_ID}`));
 
   api.admin.takeOverAnswer = {
     status: 409,
@@ -109,10 +110,14 @@ test('a released item says so, can be taken over again, and takes no comments', 
   await expect(page.getByRole('heading', { name: RELEASED_TITLE })).toBeVisible({
     timeout: 60_000,
   });
-  await expect(page.getByText(/Released: the admin who took this over/)).toBeVisible();
+  // The state is the one small badge, on the card and in the header; the
+  // longer words are behind Info.
   await expect(
     page.getByRole('listitem').filter({ hasText: RELEASED_TITLE }).first(),
-  ).toContainText('released');
+  ).toContainText('Released');
+  await page.getByRole('button', { name: 'About this review' }).click();
+  await expect(page.getByText(/Released: the admin who took this over/)).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Take over' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Reply to the author' })).toHaveCount(0);
 });

@@ -47,7 +47,7 @@ import {
   type AdminSpaceItemRow,
   type SpaceItem,
 } from '@/lib/member-space';
-import { AcceptIntoBrainDialog } from '@/components/team-admin/review-dialogs';
+import { AcceptIntoBrainDialog } from '@/components/review/review-dialogs';
 import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { CLIENT_REQUESTS_KEY } from '@/lib/client-requests';

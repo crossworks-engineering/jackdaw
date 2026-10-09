@@ -90,12 +90,10 @@ const SCREENS = [
     id: 'sandboxes',
     needsFeature: /Sandboxes are (switched off on this box|not enabled)/,
   },
-  // Team admin keeps one grid per tab, each under its own key. The row below
-  // lands on Review, the landing tab, whose grid is there even with nothing
-  // waiting (Requests and Shared links show an empty state instead until
-  // they have rows). Invites, Clients and the member chats moved into the
+  // Team admin has no row: Review moved into the workspaces (part 2), and
+  // the grids left (Requests, Shared links) show an empty state until they
+  // have rows. Invites, Clients and the member chats moved into the
   // Settings > Logins row above.
-  { path: '/team-admin', id: 'team-admin-review' },
 ] as const;
 
 /**

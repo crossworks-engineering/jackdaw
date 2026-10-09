@@ -5,10 +5,8 @@
  * (2026-10-09: Team admin dissolves in parts; approvals and member management
  * move to where they belong).
  *
- * Tabs: Review · Requests · Shared links · Settings. Review (the landing
- * tab) = member items submitted for review, and what deactivated logins left
- * shared (member logins Phase 4). Requests = change requests filed through
- * the team agent. Settings = Member chat (the team agent's level), the read
+ * Tabs: Requests · Shared links · Settings. Requests (the landing tab) =
+ * change requests filed through the team agent. Settings = Member chat (the team agent's level), the read
  * posture and the member home app.
  *
  * Moved to Settings > Logins (part 1): Invites, Member chats (a login's Chat
@@ -16,17 +14,23 @@
  * chats, client-logins, clients) are sent there (lib/logins-nav.ts), and the
  * brain routes behind them are unchanged. Chat archive (the retired team
  * portal's read-only chat) was removed: its old URL (?contact=) and an old
- * ?view=topics land on Review. App review and Member apps moved to Apps.
+ * ?view=topics land on Requests. App review and Member apps moved to Apps.
+ *
+ * Moved into each workspace (part 2): Review. A member's submitted page,
+ * note, table, drawing or file waits in its own screen under "Waiting for
+ * approval"; the strip only links "N waiting in Pages" and so on, and an
+ * old ?view=review[&item=] link lands on the item there (/review).
  *
  * Data arrives per tab from GET /api/team-admin/{requests,shares,settings}
- * and the review queue via apiFetch (owner bearer cross-origin, cookie
+ * via apiFetch (owner bearer cross-origin, cookie
  * same-origin); this app is zero-secret and reads no DB. URL-driven
  * (?view/item/share), so deep links keep working.
  */
 import { useNeedsYou } from '@/components/needs-you/use-needs-you';
 import { useMemberAppsForReview } from '@/components/app-nav/member-apps-review';
 import { waitingInAppsLabel } from '@/lib/space-apps';
-import { requestsOpen, reviewWaiting } from '@/lib/needs-you';
+import { requestsOpen } from '@/lib/needs-you';
+import { waitingByWorkspace } from '@/lib/workspace-review';
 import { movedTeamAdminHref } from '@/lib/logins-nav';
 import Link from 'next/link';
 import { use, useEffect, useState, type ReactNode } from 'react';
@@ -50,7 +54,8 @@ import { RequestReply } from '@/components/team-chat/request-reply';
 import { Inbox, CheckCircle2 } from 'lucide-react';
 import { TeamAgentAccessCard } from '@/components/team-admin/team-agent-access';
 import type { TeamAgentAccess } from '@/lib/team-agent-access';
-import { ReviewPanel, useReviewQueue } from '@/components/team-admin/review-tab';
+import { useReviewQueue } from '@/components/review/item-review';
+import { ReviewRedirect } from '@/components/review/review-redirect';
 import {
   canReplyToRequest,
   isClientRequest,
@@ -117,8 +122,7 @@ function Loading() {
   );
 }
 
-/** A tab whose first load failed: says so, with Retry (the Review tab's
- *  block). Without it a 403, a 500 or a dropped network left
+/** A tab whose first load failed: says so, with Retry. Without it a 403, a 500 or a dropped network left
  *  "Loading…" up for ever: these queries retry once and never refetch on
  *  focus. */
 function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
@@ -153,20 +157,17 @@ function TeamTabs({
   active,
   openRequestCount,
 }: {
-  active: 'review' | 'requests' | 'shares' | 'settings';
+  active: 'requests' | 'shares' | 'settings';
   openRequestCount: number;
 }) {
-  // The brain's live counts (the same numbers as the rail notice), so every
-  // tab shows both badges; the queue and this tab's own answer stand in
-  // until they load, or on a brain that predates the count.
-  // Waiting items only: what deactivated logins left behind is not urgent.
+  // The brain's live count (the same number as the rail notice); this tab's
+  // own answer stands in until it loads, or on a brain that predates it.
   const needsYou = useNeedsYou();
-  const queued = useReviewQueue().data?.counts.submitted ?? 0;
-  const reviewCount = needsYou ? reviewWaiting(needsYou) : queued;
   const requestCount = needsYou ? requestsOpen(needsYou) : openRequestCount;
-  // Members' apps are reviewed in Apps now (workspace review pattern): only
-  // a link here, while something waits. Null on an older brain.
+  // Members' work is reviewed in its own workspace now (workspace review
+  // pattern): only a link here per workspace, while something waits there.
   const appsWaiting = waitingInAppsLabel(useMemberAppsForReview().data?.waiting.length ?? 0);
+  const itemsWaiting = waitingByWorkspace(useReviewQueue().data?.items);
   const tab = (label: string, href: string, isActive: boolean, badge?: number) => (
     <Link
       href={href}
@@ -195,18 +196,23 @@ function TeamTabs({
       aria-label="Team admin"
       className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-3 scrollbar-thin"
     >
-      {tab('Review', '/team-admin?view=review', active === 'review', reviewCount)}
       {tab('Requests', '/team-admin?view=requests', active === 'requests', requestCount)}
       {tab('Shared links', '/team-admin?view=shares', active === 'shares')}
       {tab('Settings', '/team-admin?view=settings', active === 'settings')}
-      {appsWaiting ? (
-        <Link
-          href="/apps"
-          className="ml-auto shrink-0 whitespace-nowrap px-2 py-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          {appsWaiting}
-        </Link>
-      ) : null}
+      {[...(appsWaiting ? [{ label: appsWaiting, href: '/apps' }] : []), ...itemsWaiting].map(
+        (w, i) => (
+          <Link
+            key={w.href}
+            href={w.href}
+            className={cn(
+              'shrink-0 whitespace-nowrap px-2 py-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline',
+              i === 0 && 'ml-auto',
+            )}
+          >
+            {w.label}
+          </Link>
+        ),
+      )}
     </nav>
   );
 }
@@ -490,7 +496,7 @@ export default function TeamAdminPage({
     view?: string;
     /** An old Member chats link's login: its Chat in Settings > Logins. */
     login?: string;
-    /** The selected item on the Review tab. */
+    /** The item an old Team admin > Review link named. */
     item?: string;
     /** The selected link on the Shared links tab. */
     share?: string;
@@ -505,12 +511,10 @@ export default function TeamAdminPage({
   if (view === 'app-review' || view === 'member-apps') return <Moved href="/apps" where="Apps" />;
   if (view === 'settings') return <SettingsTab />;
   if (view === 'shares') return <SharesTab share={share} />;
-  if (view === 'requests') return <RequestsTab />;
-  // Review is the landing tab; an old Chat archive link (?contact=) or
+  // Review moved into each workspace (workspace review pattern): an old
+  // link lands on the item there.
+  if (view === 'review') return <ReviewRedirect item={item ?? null} />;
+  // Requests is the landing tab; an old Chat archive link (?contact=) or
   // ?view=topics lands here too.
-  return (
-    <Tab active="review">
-      <ReviewPanel itemId={item} />
-    </Tab>
-  );
+  return <RequestsTab />;
 }

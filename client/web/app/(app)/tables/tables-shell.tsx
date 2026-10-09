@@ -63,7 +63,9 @@ import {
   adminStateOf,
   isPrivateRow,
   usePrivateOpen,
+  useReviewOpen,
 } from '@/components/item-list/admin-private-rows';
+import { ItemReview, ItemReviewSections } from '@/components/review/item-review';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
@@ -114,6 +116,8 @@ export function TablesShell() {
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
   const { pid, openPrivate } = usePrivateOpen();
+  // A member's table waiting for approval, open in the pane (`?review=`).
+  const { reviewId, openReview } = useReviewOpen();
   const [details, changeDetails] = useCardDetails('mantle_tables_card_details_v1');
 
   // The item tree when this brain serves it for tables (docs/folder-tree.md);
@@ -213,9 +217,9 @@ export function TablesShell() {
     setPendingId(null);
   }, [selectedId]);
   const selectTable = (id: string) => {
-    if (id === selectedId) return;
+    if (id === selectedId && !reviewId) return;
     setPendingId(id);
-    go({ selected: id, pid: null });
+    go({ selected: id, pid: null, review: null });
   };
 
   // The WIDTH is `MasterDetail`'s now, under `master-detail:tables`.
@@ -370,176 +374,199 @@ export function TablesShell() {
         // round trip — see the prop's note in master-detail.tsx.
         listCollapsed={collapsed}
         list={
-          showTree ? (
-            <aside className="flex h-full flex-col bg-muted/20">
-              <ItemTree
-                kind="tables"
-                adapter={tablesAdapter}
-                selectedItemId={privateOpen ?? pendingId ?? selectedId}
-                query={treeQuery}
-                onQueryChange={setTreeQuery}
-                searchPlaceholder="Search tables and folders…"
-                newItemInFolder={{ label: 'table', icon: Table2, onCreate: (f) => openCreate(f) }}
-                actions={listActions}
-                onOpenItem={(item) =>
-                  item.state === 'private' ? openPrivate(item.id) : selectTable(item.id)
-                }
-                itemActions={(item) =>
-                  item.state === 'private' ? null : (
-                    <DropdownMenuItem
-                      className="text-destructive-ink focus:text-destructive-ink"
-                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                    >
-                      <Trash2 />
-                      Delete…
-                    </DropdownMenuItem>
-                  )
-                }
-                // A share or a move changes the level the open item is read
-                // at: its header badge and client thread follow.
-                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['tables'] })}
-                onUnsupported={() => setTreeGone(true)}
-              />
-            </aside>
-          ) : (
-            <>
-              <ItemListHeader
-                search={searchInput}
-                onSearch={setSearchInput}
-                placeholder="Search tables…"
-                actions={listActions}
-              >
-                <SortMenu
-                  value={sort}
-                  labels={SORT_LABELS}
-                  onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
-                />
-                <TagFilter
-                  tags={tags}
-                  activeTag={activeTag}
-                  onSelect={(t) => go({ tag: t, page: null, pid: null })}
-                  details={details}
-                  onDetailsChange={changeDetails}
-                  allLabel="All tables"
-                />
-                <StateFilter
-                  value={state}
-                  options={ADMIN_STATE_OPTIONS}
-                  onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
-                />
-                {activeTag && (
-                  <ClearFilter
-                    onClear={() => go({ tag: null, page: null })}
-                    title="Clear tag filter"
+          <div className="flex h-full min-h-0 flex-col">
+            {/* Members' tables waiting for approval (workspace review
+                pattern), above the tree; hidden while none wait. */}
+            <ItemReviewSections kind="table" selectedId={reviewId} onSelect={openReview} />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {showTree ? (
+                <aside className="flex h-full flex-col bg-muted/20">
+                  <ItemTree
+                    kind="tables"
+                    adapter={tablesAdapter}
+                    selectedItemId={reviewId ? null : (privateOpen ?? pendingId ?? selectedId)}
+                    query={treeQuery}
+                    onQueryChange={setTreeQuery}
+                    searchPlaceholder="Search tables and folders…"
+                    newItemInFolder={{
+                      label: 'table',
+                      icon: Table2,
+                      onCreate: (f) => openCreate(f),
+                    }}
+                    actions={listActions}
+                    onOpenItem={(item) =>
+                      item.state === 'private' ? openPrivate(item.id) : selectTable(item.id)
+                    }
+                    itemActions={(item) =>
+                      item.state === 'private' ? null : (
+                        <DropdownMenuItem
+                          className="text-destructive-ink focus:text-destructive-ink"
+                          onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                        >
+                          <Trash2 />
+                          Delete…
+                        </DropdownMenuItem>
+                      )
+                    }
+                    // A share or a move changes the level the open item is read
+                    // at: its header badge and client thread follow.
+                    onChanged={() => void queryClient.invalidateQueries({ queryKey: ['tables'] })}
+                    onUnsupported={() => setTreeGone(true)}
                   />
-                )}
-              </ItemListHeader>
-
-              <ItemListScroll pending={navPending}>
-                {rows.length === 0 ? (
-                  <ItemListEmpty>
-                    {state === 'private' && !query
-                      ? 'You have no private tables. Only you would see them, until you accept one into the brain.'
-                      : query || activeTag
-                        ? 'No tables match your search or filter.'
-                        : 'No tables yet.'}
-                  </ItemListEmpty>
-                ) : (
-                  rows.map((t) =>
-                    isPrivateRow(t) ? (
-                      <PrivateItemCard
-                        key={t.id}
-                        row={t}
-                        selected={privateOpen === t.id}
-                        onSelect={() => openPrivate(t.id)}
+                </aside>
+              ) : (
+                <>
+                  <ItemListHeader
+                    search={searchInput}
+                    onSearch={setSearchInput}
+                    placeholder="Search tables…"
+                    actions={listActions}
+                  >
+                    <SortMenu
+                      value={sort}
+                      labels={SORT_LABELS}
+                      onChange={(v) =>
+                        go({ sort: v === 'edited' ? null : v, page: null, pid: null })
+                      }
+                    />
+                    <TagFilter
+                      tags={tags}
+                      activeTag={activeTag}
+                      onSelect={(t) => go({ tag: t, page: null, pid: null })}
+                      details={details}
+                      onDetailsChange={changeDetails}
+                      allLabel="All tables"
+                    />
+                    <StateFilter
+                      value={state}
+                      options={ADMIN_STATE_OPTIONS}
+                      onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
+                    />
+                    {activeTag && (
+                      <ClearFilter
+                        onClear={() => go({ tag: null, page: null })}
+                        title="Clear tag filter"
                       />
+                    )}
+                  </ItemListHeader>
+
+                  <ItemListScroll pending={navPending}>
+                    {rows.length === 0 ? (
+                      <ItemListEmpty>
+                        {state === 'private' && !query
+                          ? 'You have no private tables. Only you would see them, until you accept one into the brain.'
+                          : query || activeTag
+                            ? 'No tables match your search or filter.'
+                            : 'No tables yet.'}
+                      </ItemListEmpty>
                     ) : (
-                      <ItemCard
-                        key={t.id}
-                        id={t.id}
-                        kind="table"
-                        title={t.title}
-                        icon={
-                          pendingId === t.id ? (
-                            <ItemIcon
-                              fallback={
-                                <Loader2
-                                  className="animate-spin text-muted-foreground"
-                                  aria-hidden
-                                />
-                              }
-                            />
-                          ) : (
-                            <ItemIcon emoji={t.icon || '📊'} fallback={null} />
-                          )
-                        }
-                        badge={
-                          <AudienceBadge
-                            level={t.audience}
-                            inherited={inheritedOf(t)}
-                            className="mt-0.5"
+                      rows.map((t) =>
+                        isPrivateRow(t) ? (
+                          <PrivateItemCard
+                            key={t.id}
+                            row={t}
+                            selected={!reviewId && privateOpen === t.id}
+                            onSelect={() => openPrivate(t.id)}
                           />
-                        }
-                        selected={selectedId === t.id || pendingId === t.id}
-                        onSelect={() => selectTable(t.id)}
-                        footerStart={
-                          <>
-                            <UpdatedStamp at={t.updatedAt} />
-                            <span className="truncate text-xs text-muted-foreground tabular-nums">
-                              · {t.columnCount} cols · {t.rowCount} rows
-                            </span>
-                          </>
-                        }
-                        actions={
-                          <ItemCardAction
-                            label={`Delete ${t.title}`}
-                            title="Delete table"
-                            destructive
-                            onClick={() => setDeleteTarget(t)}
+                        ) : (
+                          <ItemCard
+                            key={t.id}
+                            id={t.id}
+                            kind="table"
+                            title={t.title}
+                            icon={
+                              pendingId === t.id ? (
+                                <ItemIcon
+                                  fallback={
+                                    <Loader2
+                                      className="animate-spin text-muted-foreground"
+                                      aria-hidden
+                                    />
+                                  }
+                                />
+                              ) : (
+                                <ItemIcon emoji={t.icon || '📊'} fallback={null} />
+                              )
+                            }
+                            badge={
+                              <AudienceBadge
+                                level={t.audience}
+                                inherited={inheritedOf(t)}
+                                className="mt-0.5"
+                              />
+                            }
+                            selected={!reviewId && (selectedId === t.id || pendingId === t.id)}
+                            onSelect={() => selectTable(t.id)}
+                            footerStart={
+                              <>
+                                <UpdatedStamp at={t.updatedAt} />
+                                <span className="truncate text-xs text-muted-foreground tabular-nums">
+                                  · {t.columnCount} cols · {t.rowCount} rows
+                                </span>
+                              </>
+                            }
+                            actions={
+                              <ItemCardAction
+                                label={`Delete ${t.title}`}
+                                title="Delete table"
+                                destructive
+                                onClick={() => setDeleteTarget(t)}
+                              >
+                                <Trash2 />
+                              </ItemCardAction>
+                            }
                           >
-                            <Trash2 />
-                          </ItemCardAction>
-                        }
-                      >
-                        {/* App-bound export: read-only here, edited in the app.
+                            {/* App-bound export: read-only here, edited in the app.
                             The card is one big click target, so the chip is a
                             plain badge; the DETAIL's badge is the link. */}
-                        {t.appLink && (
-                          <Badge variant="secondary" className="gap-1 font-normal">
-                            <AppWindow className="size-3" aria-hidden />
-                            App table{t.appLink.appName ? ` · ${t.appLink.appName}` : ''}
-                          </Badge>
-                        )}
-                        {details && t.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {t.tags.map((tag) => (
-                              <TagPill key={tag} tag={tag} />
-                            ))}
-                          </div>
-                        )}
-                      </ItemCard>
-                    ),
-                  )
-                )}
-              </ItemListScroll>
+                            {t.appLink && (
+                              <Badge variant="secondary" className="gap-1 font-normal">
+                                <AppWindow className="size-3" aria-hidden />
+                                App table{t.appLink.appName ? ` · ${t.appLink.appName}` : ''}
+                              </Badge>
+                            )}
+                            {details && t.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {t.tags.map((tag) => (
+                                  <TagPill key={tag} tag={tag} />
+                                ))}
+                              </div>
+                            )}
+                          </ItemCard>
+                        ),
+                      )
+                    )}
+                  </ItemListScroll>
 
-              <ListPager
-                page={page}
-                total={total}
-                pageSize={pageSize}
-                pending={navPending}
-                onGo={(p) => go({ page: p > 1 ? p : null })}
-                noun={{ one: 'table', many: 'tables' }}
-              />
-            </>
-          )
+                  <ListPager
+                    page={page}
+                    total={total}
+                    pageSize={pageSize}
+                    pending={navPending}
+                    onGo={(p) => go({ page: p > 1 ? p : null })}
+                    noun={{ one: 'table', many: 'tables' }}
+                  />
+                </>
+              )}
+            </div>
+          </div>
         }
         // The editor brings its own sticky toolbar above a scrolling grid, so
         // it keeps its own scroller. `h-full overflow-hidden` means the pane's
         // scroller can never overflow, so only one bar is ever painted.
         detail={
           <div className="relative h-full overflow-hidden">
-            {privateOpen ? (
+            {reviewId ? (
+              <ItemReview
+                key={reviewId}
+                id={reviewId}
+                kind="table"
+                onDone={(opened) =>
+                  // Approved: it is a brain table now, with the same id.
+                  go(opened ? { selected: opened, review: null } : { review: null })
+                }
+              />
+            ) : privateOpen ? (
               <PrivateItemDetail
                 key={privateOpen}
                 id={privateOpen}

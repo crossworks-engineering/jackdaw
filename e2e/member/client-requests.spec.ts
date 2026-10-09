@@ -328,19 +328,26 @@ test.describe('the admin side', () => {
     await signInAsAdmin(context, baseURL!);
   });
 
-  test('a client’s item in Review wears the Client badge; Accept starts at Team, the tick before Client', async ({
+  test('a client’s item waiting in Pages wears the Client badge; Approve starts at Team, the tick before Client', async ({
     page,
   }) => {
     api.admin.queue = [CLIENT_SUBMISSION_ID];
+    // An old Team admin > Review link lands on the item in its workspace.
     await page.goto(`/team-admin?view=review&item=${CLIENT_SUBMISSION_ID}`);
+    await expect(page).toHaveURL(new RegExp(`/pages\\?review=${CLIENT_SUBMISSION_ID}`), {
+      timeout: 60_000,
+    });
     await expect(page.getByRole('heading', { name: CLIENT_SUBMISSION_TITLE })).toBeVisible({
       timeout: 60_000,
     });
-    const queue = page.getByRole('region', { name: 'Waiting for review' });
+    const queue = page.getByRole('region', { name: 'Waiting for approval' });
     await expect(queue.getByText('Client', { exact: true })).toBeVisible();
-    await expect(page.getByText(`Page by ${CLIENT_NAME}`)).toContainText('Client');
+    await page.getByRole('button', { name: 'About this review' }).click();
+    await expect(page.getByRole('dialog')).toContainText(`${CLIENT_NAME}`);
+    await expect(page.getByRole('dialog')).toContainText('Client');
+    await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'Accept', exact: true }).click();
+    await page.getByRole('button', { name: 'Approve', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('A client wrote this. It starts at Team.');
     await expect(dialog.getByRole('radio', { name: 'Team' })).toHaveAttribute(

@@ -148,7 +148,10 @@ export function FileEditor({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex items-center gap-3 border-b border-border px-6 py-2">
+      <header
+        data-testid="item-header"
+        className="flex items-center gap-3 border-b border-border px-6 py-2"
+      >
         {(() => {
           const d = describeFile(file.mimeType, file.filename);
           const Icon = d.icon;

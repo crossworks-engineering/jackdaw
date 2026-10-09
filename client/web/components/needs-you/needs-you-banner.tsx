@@ -3,8 +3,8 @@
 /**
  * "Needs you" notice at the top of the rail, beside the update notice: how
  * much waits for an admin ("2 waiting for review · 1 open request"), live.
- * Renders NOTHING when nothing waits. Clicking opens Team admin > Review
- * (or Requests when only requests wait). In the collapsed icon rail the
+ * Renders NOTHING when nothing waits. Clicking opens the first workspace
+ * with an item waiting for approval (or Requests when only requests wait). In the collapsed icon rail the
  * label hides and the icon carries the count.
  */
 import Link from 'next/link';

@@ -15,6 +15,7 @@ import {
   providerAlertsOf,
   type ProviderAlert,
 } from './provider-alerts';
+import { reviewItemHref } from './workspace-review';
 
 export type { NeedsYou, NeedsYouItem };
 
@@ -22,10 +23,13 @@ export const NEEDS_YOU_KEY = ['needs-you'] as const;
 /** The change type the owner live stream sends (mantle migration 0186). */
 export const NEEDS_YOU_REALTIME_TYPE = 'needs_you';
 
-export const REVIEW_HREF = '/team-admin?view=review';
+/** Review lives in each workspace since 2026-10-09 (workspace review
+ *  pattern): /review forwards to the first workspace with something waiting,
+ *  or to the item it names. */
+export const REVIEW_HREF = '/review';
 export const REQUESTS_HREF = '/team-admin?view=requests';
 
-/** Submitted items only, as the Review tab badge always counted: what
+/** Submitted items only, as the old Review tab badge counted: what
  *  deactivated logins left behind is not urgent (it stays in the list). The
  *  rail, the tab badge and the dock all count this. */
 export const reviewWaiting = (n: NeedsYou | null | undefined): number =>
@@ -117,9 +121,18 @@ export function arrivalText(a: Arrival): { title: string; body: string; href: st
     ? {
         title: 'Waiting for your review',
         body: `${a.item.from} sent ${what} for review`,
-        href: `${REVIEW_HREF}&item=${encodeURIComponent(a.item.id)}`,
+        href: reviewArrivalHref(a.item),
       }
     : { title: 'New team request', body: `${a.item.from}: ${what}`, href: REQUESTS_HREF };
+}
+
+/** Where a review arrival opens: the item in its own workspace when the
+ *  brain names its kind (NeedsYouItem.type, brains with the workspace
+ *  review), else /review, which finds it. */
+export function reviewArrivalHref(item: NeedsYouItem & { type?: string }): string {
+  return item.type
+    ? reviewItemHref(item.type, item.id)
+    : `${REVIEW_HREF}?item=${encodeURIComponent(item.id)}`;
 }
 
 const COUNT_PREFIX = /^\(\d+\+?\) /;
