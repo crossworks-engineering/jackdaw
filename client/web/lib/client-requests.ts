@@ -89,7 +89,7 @@ const STATE_LABEL: Record<ClientItemFilter, string> = {
   all: 'All items',
   private: 'Private',
   submitted: 'Submitted',
-  returned: 'Returned',
+  returned: 'Rejected',
   // A client never reads a staff role (audit U3): a reviewer holds it.
   'with-admin': 'With the team',
   accepted: 'Accepted',

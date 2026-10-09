@@ -15,7 +15,7 @@ const LABEL: Record<ItemState, string> = {
   private: 'private',
   draft: 'draft',
   submitted: 'submitted',
-  returned: 'returned',
+  returned: 'rejected',
   'with-admin': 'with admin',
 };
 
@@ -24,7 +24,7 @@ const TITLE: Record<ItemState, string> = {
   private: 'Private: only you can see it',
   draft: 'A draft shared with the team',
   submitted: 'Submitted: waiting for an admin to review it',
-  returned: 'Returned: an admin sent it back with a note',
+  returned: 'Rejected: change it and submit it again',
   'with-admin': 'An admin is working on it',
 };
 
@@ -37,7 +37,7 @@ const CLIENT_LABEL: Record<ItemState, string> = { ...LABEL, 'with-admin': 'with 
 const CLIENT_TITLE: Record<ItemState, string> = {
   ...TITLE,
   submitted: 'Submitted: waiting for review',
-  returned: 'Returned: the reviewer sent it back with a note',
+  returned: 'Rejected: change it and submit it again',
   'with-admin': 'The team is working on it',
 };
 

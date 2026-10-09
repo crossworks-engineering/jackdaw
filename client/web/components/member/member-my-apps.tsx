@@ -145,7 +145,7 @@ function MyAppRow({ app }: { app: SpaceAppCard }) {
             </Badge>
           ) : app.mine && app.reviewState === 'returned' ? (
             <Badge variant="outline" className="shrink-0">
-              Sent back
+              Rejected
             </Badge>
           ) : null}
           <AppDataPills app={app} />

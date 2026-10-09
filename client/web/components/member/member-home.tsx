@@ -164,7 +164,7 @@ export function MemberHome() {
           <MessageSquare /> Ask the assistant
         </Button>
       </header>
-      <Section title="Returned to you" entries={returned} src="mine" />
+      <Section title="Rejected" entries={returned} src="mine" />
       <Section title="Waiting for review" entries={submitted} src="mine" />
       <Section
         title="With an admin"

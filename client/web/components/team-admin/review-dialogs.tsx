@@ -664,11 +664,11 @@ export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
     setBusy(true);
     try {
       await memberReview.giveBack(row.id);
-      toast.success(`Returned “${row.title || 'Untitled'}” to ${row.author.name}.`);
+      toast.success(`Rejected “${row.title || 'Untitled'}”: it went back to ${row.author.name}.`);
       setOpen(false);
       back();
     } catch (err) {
-      toast.error(reviewErrorMessage(err, 'Could not return this item.'));
+      toast.error(reviewErrorMessage(err, 'Could not reject this item.'));
       onDone();
     } finally {
       setBusy(false);
@@ -678,14 +678,14 @@ export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          <Undo2 /> Return
+          <Undo2 /> Reject
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Return to {row.author.name}</DialogTitle>
+          <DialogTitle>Reject “{row.title || 'Untitled'}”?</DialogTitle>
           <DialogDescription>
-            The item goes back to its author. They can change it and submit it again.
+            It goes back to {row.author.name}. They can change it and submit it again.
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end gap-2">
@@ -694,7 +694,7 @@ export function ReturnDialog({ row, onDone }: { row: ReviewItemRow; onDone: () =
           </Button>
           <Button type="button" disabled={busy} onClick={() => void send()}>
             {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
-            Return
+            Reject
           </Button>
         </div>
       </DialogContent>

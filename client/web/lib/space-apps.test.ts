@@ -85,10 +85,10 @@ describe("a member's own app", () => {
     expect(spaceAppSubmitHint(sub)).toBeNull();
   });
 
-  it('a sent back app says so, with no note, and may be submitted again', () => {
+  it('a rejected app says so, with no note, and may be submitted again', () => {
     const back = { ...APP, reviewState: 'returned' };
     expect(spaceAppStatus(back)).toBe(
-      'Sent back by an admin. Private. Change it and submit it again.',
+      'Rejected by an admin. Private. Change it and submit it again.',
     );
     expect(spaceAppActions(back).submit).toBe(true);
   });
@@ -213,7 +213,7 @@ describe("an admin's review of a member app, in Apps", () => {
     );
   });
 
-  it('says where Send back takes it, with no note', () => {
+  it('says where Reject takes it, with no note', () => {
     expect(sendBackConfirm({ author })).toBe(
       'It goes back to Sam. They can change it and submit it again.',
     );

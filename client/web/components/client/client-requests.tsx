@@ -65,7 +65,7 @@ import { ClientChatLauncher } from './client-chat';
  *
  * An own item opens in the member's item view under the client routes
  * (MineItem under `clientSpace`): edit, Save version, Submit, Recall, Delete,
- * the Returned banner with the reviewer's note, and the review talk while
+ * the Rejected line, and the review talk while
  * submitted. A client never shares and has no Team drafts; it makes pages
  * and notes and uploads files (20 MB a file), nothing else.
  *

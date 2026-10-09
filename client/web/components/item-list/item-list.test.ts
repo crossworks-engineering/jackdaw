@@ -67,7 +67,7 @@ describe('StatePill', () => {
       'private',
       'draft',
       'submitted',
-      'returned',
+      'rejected',
       'with admin',
     ]);
     for (const s of states) {
@@ -88,7 +88,7 @@ describe('StatePill', () => {
       expect(stateTitle(s, true)).not.toMatch(/admin/i);
     }
     expect(stateLabel('with-admin', true)).toBe('with the team');
-    expect(stateTitle('returned', true)).toBe('Returned: the reviewer sent it back with a note');
+    expect(stateTitle('returned', true)).toBe('Rejected: change it and submit it again');
     // The member's and the admin's own words stay.
     expect(stateLabel('with-admin')).toBe('with admin');
     expect(stateTitle('submitted')).toMatch(/admin/);

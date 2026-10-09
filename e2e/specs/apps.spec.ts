@@ -424,7 +424,7 @@ test.describe('apps', () => {
     const words = header.getByTestId('app-header-text-actions');
     const icons = header.getByTestId('app-header-icon-actions');
     await expect(words.getByRole('button', { name: 'Approve' })).toBeVisible();
-    await expect(words.getByRole('button', { name: 'Send back' })).toBeVisible();
+    await expect(words.getByRole('button', { name: 'Reject' })).toBeVisible();
     await expect(icons.getByRole('button', { name: 'Restart test' })).toBeVisible();
     const w = (await words.boundingBox())!;
     const i = (await icons.boundingBox())!;

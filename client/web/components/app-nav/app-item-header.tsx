@@ -15,7 +15,7 @@ import { AppTile } from './app-tile';
  * notice) goes behind an Info button in the icon group: `HeaderInfoButton`.
  *
  * The actions follow one rule (2026-10-09): the buttons with words (Approve,
- * Send back, the View menu) come first, and the icon-only set every app has
+ * Reject, the View menu) come first, and the icon-only set every app has
  * (Access, Focus, Open, Delete, Restart test) sits at the far right, in that
  * group. An icon-only button always carries its name (aria-label) and a
  * tooltip: use `HeaderIconButton`.

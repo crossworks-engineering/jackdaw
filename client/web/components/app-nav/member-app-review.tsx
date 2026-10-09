@@ -328,8 +328,8 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
   });
   const sendBack = useMutation({
     mutationFn: () => apiSend(reviewAppPath(app.id, 'send-back'), 'POST'),
-    onSuccess: () => leave(`Sent back to ${app.author.name ?? 'its author'}`),
-    onError: fail('Could not send it back.'),
+    onSuccess: () => leave(`Rejected: it went back to ${app.author.name ?? 'its author'}`),
+    onError: fail('Could not reject it.'),
   });
   const unshare = useMutation({
     mutationFn: () => apiSend(reviewAppPath(app.id, 'unshare'), 'POST'),
@@ -375,7 +375,7 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
             onClick={() => setConfirmSendBack(true)}
           >
             <Undo2 />
-            Send back
+            Reject
           </Button>
         </>
       ) : app.sharing === 'team' ? (
@@ -669,7 +669,7 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
       <AlertDialog open={confirmSendBack} onOpenChange={setConfirmSendBack}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Send “{app.title || 'Untitled'}” back?</AlertDialogTitle>
+            <AlertDialogTitle>Reject “{app.title || 'Untitled'}”?</AlertDialogTitle>
             <AlertDialogDescription>{sendBackConfirm(app)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -680,7 +680,7 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
                 sendBack.mutate();
               }}
             >
-              Send back
+              Reject
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

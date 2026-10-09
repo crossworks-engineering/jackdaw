@@ -238,7 +238,7 @@ export function listPath(
 
 /**
  * Mine filtered by review state (`?review=` takes a comma list), for the
- * member home's Returned and Waiting for review lists: read from the whole
+ * member home's Rejected and Waiting for review lists: read from the whole
  * space, not picked out of the newest page. A brain older than the filter
  * ignores it and answers the newest page, which `splitByReview` still sorts.
  */
@@ -262,7 +262,7 @@ export function splitByReview<T extends Pick<SpaceItemRow, 'reviewState'>>(
 const REVIEW_LABEL: Record<SpaceItemState, string | null> = {
   draft: null,
   submitted: 'Submitted',
-  returned: 'Returned',
+  returned: 'Rejected',
   accepted: 'Accepted',
   // An admin's row for an item taken over: its "From <member>" badge says it.
   taken: null,

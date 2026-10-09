@@ -70,7 +70,7 @@ export function spaceAppStatus(app: SpaceAppCard): string {
   }
   const runs = app.runnable ? '' : '. Not published yet';
   if (app.reviewState === 'returned') {
-    return `Sent back by an admin. ${base}${runs}. Change it and submit it again.`;
+    return `Rejected by an admin. ${base}${runs}. Change it and submit it again.`;
   }
   return `${base}${runs}.`;
 }
@@ -231,7 +231,7 @@ export function reviewAppChanged(version: number): string {
   return `This app changed since you opened it: it is now version ${version}. The test restarted on it. Read it again, then approve.`;
 }
 
-/** What Send back does, in the confirm. */
+/** What Reject does, in the confirm. */
 export function sendBackConfirm(app: Pick<ReviewAppDetail, 'author'>): string {
   return `It goes back to ${authorOf(app)}. They can change it and submit it again.`;
 }

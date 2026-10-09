@@ -517,7 +517,7 @@ function MineItemLoaded({
         {/* No reviewer note (review flows carry no messages, 2026-10-09). */}
         {row.reviewState === 'returned' ? (
           <p className="text-sm text-muted-foreground">
-            Sent back by the reviewer. Change it and submit it again.
+            Rejected by the reviewer. Change it and submit it again.
           </p>
         ) : null}
         {row.reviewState === 'submitted' ? (

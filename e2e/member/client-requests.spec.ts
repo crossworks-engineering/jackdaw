@@ -73,7 +73,7 @@ test.describe('My requests', () => {
     await expect(card(page, CLIENT_SUBMITTED_TITLE).locator('[data-state]')).toHaveText(
       'submitted',
     );
-    await expect(card(page, CLIENT_RETURNED_TITLE).locator('[data-state]')).toHaveText('returned');
+    await expect(card(page, CLIENT_RETURNED_TITLE).locator('[data-state]')).toHaveText('rejected');
     // An accepted row wears no pill; it says when it was accepted.
     await expect(card(page, CLIENT_ACCEPTED_TITLE).locator('[data-state]')).toHaveCount(0);
     await expect(card(page, CLIENT_ACCEPTED_TITLE)).toContainText('accepted');
@@ -123,9 +123,9 @@ test.describe('My requests', () => {
     expect(api.clientCalls).toEqual([]);
   });
 
-  test('a returned item says so, with no note, and can go again', async ({ page }) => {
+  test('a rejected item says so, with no note, and can go again', async ({ page }) => {
     await page.goto(`/?view=requests&id=${CLIENT_RETURNED_ID}`);
-    await expect(page.getByText('Sent back by the reviewer')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('Rejected by the reviewer')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(CLIENT_RETURNED_NOTE)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Resubmit' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
@@ -192,14 +192,14 @@ test.describe('My requests', () => {
     await expect(requests(page).getByRole('listitem')).toHaveCount(4, { timeout: 60_000 });
 
     await page.getByRole('button', { name: 'All items', exact: true }).click();
-    await page.getByRole('menuitemradio', { name: 'Returned' }).click();
+    await page.getByRole('menuitemradio', { name: 'Rejected' }).click();
     await expect(page).toHaveURL(/[?&]state=returned/);
     await expect(page).toHaveURL(/[?&]view=requests/);
     await expect(requests(page).getByRole('listitem')).toHaveCount(1);
     await expect(requests(page)).toContainText(CLIENT_RETURNED_TITLE);
     expect(api.clientOwn.itemsStates).toContain('returned');
 
-    await page.getByRole('button', { name: 'Returned', exact: true }).click();
+    await page.getByRole('button', { name: 'Rejected', exact: true }).click();
     await page.getByRole('menuitemradio', { name: 'Accepted' }).click();
     await expect(requests(page).getByRole('listitem')).toHaveCount(1);
     await expect(requests(page)).toContainText(CLIENT_ACCEPTED_TITLE);
