@@ -239,7 +239,7 @@ export function LiveColumn({
                 of the screen to reach for when shrinking this one. The
                 collapsed rail's own expand button is the mirror of this. */}
             <Button
-              type="button"
+              variant="ghost"
               onClick={onToggle}
               aria-label="Collapse activity"
               title="Collapse activity (⌘J)"

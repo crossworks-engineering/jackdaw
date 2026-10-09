@@ -1,7 +1,14 @@
 import { RuleTester } from 'eslint';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error — plain-JS rule module, no types shipped.
-import { findMismatches, rule, inkRule } from './pair-fill-foreground.mjs';
+import {
+  findMismatches,
+  findVariantMismatches,
+  rule,
+  inkRule,
+  VARIANT_FILLS,
+  // @ts-expect-error — plain-JS rule module, no types shipped.
+} from './pair-fill-foreground.mjs';
 
 /**
  * The rule's whole value is its PRECISION. A pairing rule that fires on the
@@ -135,5 +142,101 @@ describe('the ESLint rule wiring', () => {
         },
       ],
     });
+  });
+});
+
+describe('fills painted by a component variant', () => {
+  const tester = () =>
+    new RuleTester({
+      languageOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        parserOptions: { ecmaFeatures: { jsx: true } },
+      },
+    });
+
+  it('catches the shape that shipped: a variant-less <Button> with a muted ink', () => {
+    // The live column's collapse control: `<Button>` (so `default`, so
+    // `bg-primary`) with the raw button's old `text-muted-foreground`. The
+    // caller's ink wins in tailwind-merge, the fill stays. A primary square
+    // with a near-invisible icon on it, on the default dark theme.
+    tester().run('pair-fill-foreground', rule, {
+      valid: [
+        // The fix: an unfilled variant for a quiet control.
+        { code: '<Button variant="ghost" className="text-muted-foreground" />' },
+        { code: '<Button variant="outline" className="text-muted-foreground" />' },
+        // A filled button that keeps its own ink.
+        { code: '<Button>Save</Button>' },
+        { code: '<Button className="w-full" />' },
+        // The caller replaced the fill, so the variant ink is not in play.
+        { code: '<Button className="bg-transparent text-muted-foreground" />' },
+        // Variant and ink branch on the same test: muted only meets outline.
+        {
+          code: "<Button variant={on ? 'default' : 'outline'} className={on ? undefined : 'text-muted-foreground'} />",
+        },
+        // A variant the rule cannot resolve statically is left alone.
+        { code: '<Button variant={v} className="text-muted-foreground" />' },
+        { code: '<Badge variant="outline" className="text-muted-foreground" />' },
+        // Children wearing the fill's own ink.
+        { code: '<Button><Icon className="text-primary-foreground" /></Button>' },
+        { code: '<Button variant="ghost"><Icon className="text-muted-foreground" /></Button>' },
+      ],
+      invalid: [
+        {
+          code: '<Button className="size-7 text-muted-foreground hover:bg-foreground/[0.06]" />',
+          errors: [{ messageId: 'variantMismatch' }],
+        },
+        {
+          code: '<Button variant="secondary" className="text-muted-foreground" />',
+          errors: [{ messageId: 'variantMismatch' }],
+        },
+        {
+          code: '<Badge className="text-muted-foreground" />',
+          errors: [{ messageId: 'variantMismatch' }],
+        },
+        {
+          code: "<Button variant={on ? 'default' : 'ghost'} className=\"text-muted-foreground\" />",
+          errors: [{ messageId: 'variantMismatch' }],
+        },
+        {
+          code: "cn(buttonVariants({ variant: 'destructive' }), 'text-muted-foreground')",
+          errors: [{ messageId: 'variantMismatch' }],
+        },
+        // The same bug one level down: an icon inside a filled button.
+        {
+          code: '<Button><Icon className="size-4 text-muted-foreground" /></Button>',
+          errors: [{ messageId: 'variantMismatch' }],
+        },
+      ],
+    });
+  });
+
+  it('judges the dark-mode resting ink as well', () => {
+    // mail-nav had `dark:text-muted-foreground` on a count inside the active
+    // (primary-filled) folder link.
+    const flags = (fill: string, s: string) =>
+      findVariantMismatches(fill, [s]).map((m: { ink: string }) => m.ink);
+    expect(flags('primary', 'ml-auto dark:text-muted-foreground')).toEqual(['muted-foreground']);
+    expect(flags('primary', 'dark:text-muted-foreground text-primary-foreground')).toEqual([
+      'muted-foreground',
+    ]);
+    expect(flags('primary', 'ml-auto')).toEqual([]);
+  });
+
+  it('stays in step with the cva tables it mirrors', () => {
+    // If someone adds a filled variant to Button or Badge, the rule must learn
+    // it, or that variant can ship the same bug unchecked.
+    const filledIn = (path: string) => {
+      const src = readFileSync(new URL(path, import.meta.url), 'utf8');
+      const out: Record<string, string> = {};
+      for (const m of src.matchAll(/^\s*(\w+):\s*\n?\s*'([^']*)'/gm)) {
+        const fill = /(?:^|\s)bg-([a-z-]+)(?=\s|$)/.exec(m[2]!)?.[1];
+        if (fill && fill !== 'transparent' && m[2]!.includes(`text-${fill}-foreground`))
+          out[m[1]!] = fill;
+      }
+      return out;
+    };
+    expect(filledIn('../packages/web-ui/src/ui/button.tsx')).toEqual(VARIANT_FILLS.Button);
+    expect(filledIn('../packages/web-ui/src/ui/badge.tsx')).toEqual(VARIANT_FILLS.Badge);
   });
 });
