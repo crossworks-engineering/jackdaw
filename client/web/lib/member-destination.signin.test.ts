@@ -68,6 +68,19 @@ describe('destinationAfterSignIn', () => {
     expect(probe.asked).toEqual(['/api/member/shell', '/api/client/shell']);
   });
 
+  it('sends a member or an admin back to the MCP consent page, never a client', async () => {
+    const consent = '/api/oauth/authorize?response_type=code&client_id=c1&state=s';
+    probe.answer = () => ({ role: 'member' });
+    expect(await destinationAfterSignIn(consent)).toBe(consent);
+    // Any other /api path is still not a member's place.
+    expect(await destinationAfterSignIn('/api/oauth/token')).toBe('/');
+    probe.answer = () => refused('admin-login');
+    expect(await destinationAfterSignIn(consent)).toBe(consent);
+    probe.answer = (path) =>
+      path === '/api/client/shell' ? { role: 'client' } : refused('client-login');
+    expect(await destinationAfterSignIn(consent)).toBe('/');
+  });
+
   it('asks nothing more of a member or an admin', async () => {
     probe.answer = () => ({ role: 'member' });
     await destinationAfterSignIn(null);

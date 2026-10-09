@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { destinationAfterSignIn } from '@/lib/member-destination';
+import { goAfterSignIn } from '@/lib/oauth-consent';
 import { useRouter } from 'next/navigation';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -220,14 +221,20 @@ export function LoginForm({
         // would carry that heap into the new login (sign-out.ts tells the
         // story); a page load is the guarantee. The destination is the one any
         // sign-in gets, so the role hints describe the login just added.
-        window.location.assign(await destinationAfterSignIn(next));
+        await goAfterSignIn(await destinationAfterSignIn(next), (to) => window.location.assign(to));
         return;
       }
 
       // New accounts go straight into onboarding; returning users to where
       // they were headed (AppShell redirects to /onboarding if not yet done).
-      router.push(isSignup ? '/onboarding' : await destinationAfterSignIn(next));
-      router.refresh();
+      // A sign-in the MCP consent page sent here goes back to it, as a page
+      // load (lib/oauth-consent.ts).
+      const go = (to: string) => {
+        router.push(to);
+        router.refresh();
+      };
+      if (isSignup) go('/onboarding');
+      else await goAfterSignIn(await destinationAfterSignIn(next), go);
     } catch (err) {
       setError(signInErrorMessage(err));
     } finally {

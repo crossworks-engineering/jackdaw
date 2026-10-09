@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { destinationAfterSignIn } from '@/lib/member-destination';
+import { goAfterSignIn } from '@/lib/oauth-consent';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
@@ -60,7 +61,9 @@ export function LoginClient({
       // cookie store; localStorage flushes eagerly) — and without it the
       // middleware redirects the bounce right back here, a deadlock.
       tokenStore.markPresence();
-      void destinationAfterSignIn(next).then((to) => router.replace(to));
+      // Back to the MCP consent page when that is where the brain sent this
+      // browser from (lib/oauth-consent.ts), else into the app.
+      void destinationAfterSignIn(next).then((to) => goAfterSignIn(to, (t) => router.replace(t)));
     }
   }, [router, next, add]);
 

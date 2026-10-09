@@ -2,6 +2,7 @@ import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import type { LoginRefused, LoginRefusedReason } from '@mantle/client-types';
 import { MEMBER_HINT_COOKIE, memberMayOpen } from './member-surface';
 import { CLIENT_HINT_COOKIE } from './client-surface';
+import { oauthConsentNext } from './oauth-consent';
 
 function setHint(name: string, on: boolean): void {
   if (typeof document === 'undefined') return;
@@ -77,8 +78,9 @@ export function onboardingExitFor(err: unknown): '/' | null {
 
 /**
  * After sign-in: a member goes to the member home (or `next` when a member may
- * open it), a client login to `/` (the client home; no deep link into the
- * owner screens is carried), anyone else to `next` (or /). Asks the member
+ * open it, or when `next` is the brain's MCP consent page: lib/oauth-consent),
+ * a client login to `/` (the client home; no deep link into the owner screens
+ * is carried), anyone else to `next` (or /). Asks the member
  * shell, which answers only a member; a client refusal there asks the client
  * shell too, and sets the client hint when it answers (a brain without the
  * client routes leaves the hint off: the shell shows the plain client screen).
@@ -91,7 +93,7 @@ export async function destinationAfterSignIn(next: string | null | undefined): P
     await apiFetch('/api/member/shell');
     setMemberHint(true);
     setClientHint(false);
-    return memberHome(next);
+    return oauthConsentNext(next) ?? memberHome(next);
   } catch (err) {
     setMemberHint(false);
     if (isClientLoginRefusal(err)) {
