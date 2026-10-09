@@ -80,10 +80,16 @@ const SCREENS = [
   // keeps its own header/toolbar/scroller structure, so the one-scrollbar check
   // below is the interesting one here.
   { path: '/files', id: 'files' },
-  // A box with the `sandboxes` compose profile off renders an explainer instead
-  // of the screen, so this row SKIPS itself there rather than failing. Said out
-  // loud, because a silently-skipped row is indistinguishable from a passing one.
-  { path: '/sandboxes', id: 'sandboxes', needsFeature: /Sandboxes are not enabled/ },
+  // A box with sandboxes off renders an explainer instead of the screen, so this
+  // row SKIPS itself there rather than failing. Said out loud, because a
+  // silently-skipped row is indistinguishable from a passing one. The copy is
+  // "switched off on this box" since Service switches (Settings > Services);
+  // older brains still say "not enabled", so both match.
+  {
+    path: '/sandboxes',
+    id: 'sandboxes',
+    needsFeature: /Sandboxes are (switched off on this box|not enabled)/,
+  },
   // Two grids in ONE file, one per tab, so they take two keys rather than
   // sharing a width: a member list and a forum topic list are different
   // lengths and a width dragged for one has no business setting the other.
