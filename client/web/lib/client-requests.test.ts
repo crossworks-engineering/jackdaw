@@ -244,7 +244,7 @@ describe('askUnlessMissing', () => {
     const missing = async () => {
       throw new ApiError('Not found.', 404);
     };
-    await expect(askUnlessMissing('/api/x/comments', missing)).rejects.toBeInstanceOf(ApiError);
-    await expect(askUnlessMissing('/api/y/comments', async () => 'ok')).resolves.toBe('ok');
+    await expect(askUnlessMissing('/api/x/items', missing)).rejects.toBeInstanceOf(ApiError);
+    await expect(askUnlessMissing('/api/y/items', async () => 'ok')).resolves.toBe('ok');
   });
 });

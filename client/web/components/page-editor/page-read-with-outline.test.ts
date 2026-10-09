@@ -171,7 +171,6 @@ const reviewItem = (content: JSONContent) =>
   ({
     row: { id: 'i-3', type: 'page', title: 'A page', icon: null },
     body: { type: 'page', page: { doc: content, draft: null } },
-    comments: [],
   }) as unknown as ReviewItem;
 
 describe('the outline in each reader', () => {
