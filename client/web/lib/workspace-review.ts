@@ -138,6 +138,11 @@ export function sharedInfoLine(row: Pick<SharedMemberItem, 'author'>): string {
   return `Shared with the team by ${row.author.name || 'a member'}.`;
 }
 
+/** The Unshare confirm: who keeps it, and that nothing is deleted. */
+export function unshareConfirm(row: Pick<SharedMemberItem, 'author'>): string {
+  return `It goes back to private for ${row.author.name || 'its author'}, who keeps it. The team no longer sees it. Nothing is deleted.`;
+}
+
 /** The toast after Unshare. */
 export const SHARED_UNSHARED_TOAST = 'Unshared: only its author sees it now.';
 /** Unshare's tooltip: what it does, and what it does not. */

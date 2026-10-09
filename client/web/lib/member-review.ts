@@ -100,9 +100,9 @@ export type AcceptInput = AcceptRequest & {
   folderId?: string | null;
   visibilityConfirmed?: boolean;
   /** The pin (shim until the pin bump, the brain's AcceptRequest): the
-   *  `submittedAt` the admin was shown, null for a left-behind item. A brain
-   *  with the pin refuses 409 `changed` when the author sent it again since;
-   *  an older brain ignores it. */
+   *  `submittedAt` the admin was shown, null for a left-behind item never
+   *  submitted. The brain requires it: missing, or the author sent it again
+   *  since, is 409 `changed` (an older brain ignores it). */
   submittedAt?: string | null;
 };
 

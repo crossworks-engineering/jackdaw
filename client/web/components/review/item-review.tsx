@@ -29,6 +29,17 @@ import { ClipboardCheck, Unlock, UserMinus, UserX } from 'lucide-react';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -71,6 +82,7 @@ import {
   sharedItemPath,
   sharedItemsPath,
   sharedRowMeta,
+  unshareConfirm,
   type SharedItemAuthor,
   type SharedMemberItem,
 } from '@/lib/workspace-review';
@@ -435,16 +447,29 @@ function SharedItemReview({
           icon={item.row.icon}
           title={item.row.title}
           textActions={
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={unshare.isPending}
-              title={SHARED_UNSHARE_HINT}
-              onClick={() => unshare.mutate()}
-            >
-              <UserMinus />
-              Unshare
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={unshare.isPending}
+                  title={SHARED_UNSHARE_HINT}
+                >
+                  <UserMinus />
+                  Unshare
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Unshare “{item.row.title || 'Untitled'}”?</AlertDialogTitle>
+                  <AlertDialogDescription>{unshareConfirm(item)}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => unshare.mutate()}>Unshare</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           }
           iconActions={
             <>

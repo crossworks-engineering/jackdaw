@@ -8,6 +8,7 @@ import {
   sharedItemPath,
   sharedItemsPath,
   sharedRowMeta,
+  unshareConfirm,
   reviewItemHref,
   reviewRowMeta,
   reviewRowsOf,
@@ -85,6 +86,9 @@ describe('workspace review', () => {
     const author = { loginId: 'l1', name: 'Mia', active: true };
     expect(sharedRowMeta({ author }, 'Oct 9')).toBe('Mia · changed Oct 9');
     expect(sharedInfoLine({ author })).toBe('Shared with the team by Mia.');
+    expect(unshareConfirm({ author })).toBe(
+      'It goes back to private for Mia, who keeps it. The team no longer sees it. Nothing is deleted.',
+    );
     expect(sharedInfoLine({ author: { ...author, name: null } })).toBe(
       'Shared with the team by a member.',
     );

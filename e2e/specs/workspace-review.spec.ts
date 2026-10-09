@@ -291,7 +291,14 @@ test.describe('workspace review', () => {
     await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}workspace-shared-note.png` });
     const sharedHeight = (await header.boundingBox())!.height;
 
+    // Unshare asks first; Cancel changes nothing.
     await words.getByRole('button', { name: 'Unshare' }).click();
+    const confirm = ownerPage.getByRole('alertdialog');
+    await expect(confirm).toContainText('Nothing is deleted.');
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    expect(unshares).toEqual([]);
+    await words.getByRole('button', { name: 'Unshare' }).click();
+    await ownerPage.getByRole('alertdialog').getByRole('button', { name: 'Unshare' }).click();
     await expect(ownerPage.getByText('Unshared: only its author sees it now.')).toBeVisible();
     expect(unshares).toEqual([id]);
     await expect(list.getByRole('region', { name: 'Shared by members' })).toHaveCount(0);
