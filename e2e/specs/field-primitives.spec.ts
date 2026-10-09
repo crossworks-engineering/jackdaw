@@ -24,8 +24,9 @@ test.describe('field primitives', () => {
     ownerApi,
     ownerPage,
   }) => {
-    // A task, so the detail pane renders its comment composer — the Textarea.
-    // The list's search box is the Input. Both live on this one screen.
+    // A task, so its Edit form renders the Notes field: the Textarea. The
+    // list's search box is the Input. Both live on this one screen. (Tasks
+    // had a comment composer here until comments were removed, 2026-10-09.)
     const marker = `E2E field sizes ${Date.now()}`;
     const created = await ownerApi.post('/api/tasks', { data: { title: `${marker} probe` } });
     expect(created.status()).toBe(201);
@@ -39,7 +40,8 @@ test.describe('field primitives', () => {
       await ownerPage.goto(`/tasks?selected=${task.id}`);
 
       const input = ownerPage.getByRole('textbox', { name: 'Search tasks' });
-      const textarea = ownerPage.getByPlaceholder(/Write a comment/);
+      await ownerPage.getByRole('button', { name: 'Edit', exact: true }).click();
+      const textarea = ownerPage.getByPlaceholder(/Anything to remember about this task/);
       await expect(input).toBeVisible();
       await expect(textarea).toBeVisible();
 
