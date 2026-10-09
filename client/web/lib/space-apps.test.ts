@@ -210,6 +210,12 @@ describe("an admin's review of a member app, in Apps", () => {
     );
   });
 
+  it('says where Send back takes it, with no note', () => {
+    expect(sendBackConfirm({ author })).toBe(
+      'It goes back to Sam. They can change it and submit it again.',
+    );
+  });
+
   it('links to Apps from Team admin only when something waits', () => {
     expect(waitingInAppsLabel(0)).toBeNull();
     expect(waitingInAppsLabel(2)).toBe('2 waiting in Apps');

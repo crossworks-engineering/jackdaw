@@ -212,7 +212,7 @@ export const REVIEW_TEST_ENDED = 'The test run ended. Start it again to keep tes
 
 /** What Send back does, in the confirm. */
 export function sendBackConfirm(app: Pick<ReviewAppDetail, 'author'>): string {
-  return `It goes back to ${authorOf(app)} as sent back. They can change it and submit it again.`;
+  return `It goes back to ${authorOf(app)}. They can change it and submit it again.`;
 }
 
 /** The Team admin link to what waits in Apps, or null when nothing does. */
