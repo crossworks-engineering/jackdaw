@@ -21,6 +21,7 @@ import { AppTile } from './app-tile';
  * tooltip: use `HeaderIconButton`.
  */
 export function AppItemHeader({
+  lead,
   icon,
   color,
   title,
@@ -28,7 +29,12 @@ export function AppItemHeader({
   subtitle,
   textActions,
   iconActions,
+  tile,
 }: {
+  /** Before the tile: a way back (the app's own screen). */
+  lead?: ReactNode;
+  /** In place of the plain tile (the editor's look picker). */
+  tile?: ReactNode;
   icon: string | null;
   color: AppTint | null;
   title: string;
@@ -47,8 +53,9 @@ export function AppItemHeader({
       className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-4 py-3"
     >
       <div className="flex min-w-0 flex-1 basis-64 items-center gap-3">
+        {lead}
         <h2 className="flex min-w-0 shrink-0 items-center gap-2 text-lg font-semibold">
-          <AppTile icon={icon} color={color} size="md" />
+          {tile ?? <AppTile icon={icon} color={color} size="md" />}
           <span className="min-w-0 truncate">{title || 'Untitled'}</span>
           {badges}
         </h2>

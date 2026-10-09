@@ -32,9 +32,10 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { AppTile } from '@/components/app-nav/app-tile';
-import { AppInformationalSwitch } from '@/components/app-nav/app-informational-switch';
-import { AppMcpAccessSwitch } from '@/components/app-nav/app-mcp-access-switch';
-import { AppTrustToolsSwitch } from '@/components/app-nav/app-trust-tools-switch';
+import { AppSettingsButton } from '@/components/app-nav/app-settings-button';
+import { AppItemHeader, HeaderInfoButton } from '@/components/app-nav/app-item-header';
+import { AppTreePills } from '@/components/app-nav/app-tree-pills';
+import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useAppNav } from '@/components/app-nav/use-app-nav';
 import { AccessControl } from '@/components/share/access-control';
 import { AudienceBadge } from '@/components/share/audience-badge';
@@ -50,7 +51,7 @@ import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import type { AppDetail } from '@mantle/client-types';
-import { appDetailQuery } from '@/lib/apps-screen';
+import { APP_SHARE_HINT, appDetailQuery } from '@/lib/apps-screen';
 
 type BuildMsg = { text: string; location: { file: string; line: number; column: number } | null };
 
@@ -145,6 +146,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
   const color = face ? face.color : app.color;
 
   const source = app.draft ?? app.source;
+  const toolSlugs = app.manifest?.toolSlugs ?? [];
   // Editable working copy of the source tree. Re-synced from the server on every
   // reload (build / publish / discard / assist), which also drops local edits.
   const [files, setFiles] = useState<Record<string, string>>(source.files);
@@ -353,110 +355,135 @@ function AppDetailView({ app }: { app: AppDetail }) {
     <div className="flex h-full min-h-0 flex-col">
       <SetPageTitle title={app.title} />
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        {/* One row: title, then the actions with the View menu last. It wraps
-            only when the pane is too narrow (a phone). */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <BackLink href="/apps">Apps</BackLink>
-            <span className="flex min-w-0 items-center gap-2 font-semibold">
-              <AppLookPicker
-                icon={icon}
-                color={color}
-                label={app.title}
-                onChange={(l) => void setAppLook(app.id, l)}
-                align="start"
-                trigger={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Change icon and colour"
-                    title="Change icon and colour"
-                  >
-                    <AppTile icon={icon} color={color} size="md" />
-                  </Button>
-                }
-              />
-              <span className="min-w-0 truncate">{app.title}</span>
+        {/* The one app header (AppItemHeader), as in the Apps pane: one row.
+            Buttons with words (Preview, Discard, Commit, the View menu) on the
+            left, the icon-only group on the right (About, App settings,
+            Access, Focus). */}
+        <AppItemHeader
+          lead={<BackLink href="/apps">Apps</BackLink>}
+          icon={icon}
+          color={color}
+          tile={
+            <AppLookPicker
+              icon={icon}
+              color={color}
+              label={app.title}
+              onChange={(l) => void setAppLook(app.id, l)}
+              align="start"
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Change icon and colour"
+                  title="Change icon and colour"
+                >
+                  <AppTile icon={icon} color={color} size="md" />
+                </Button>
+              }
+            />
+          }
+          title={app.title}
+          badges={
+            <>
               {app.hasDraft && (
                 <Badge variant="secondary" className="shrink-0">
                   unpublished draft
                 </Badge>
               )}
+              <AppTreePills id={app.id} />
               <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
-            </span>
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={preview}
-              disabled={busy !== null}
-              title="Compile the draft and refresh the preview. It does not go live."
-            >
-              <Eye />
-              Preview
-            </Button>
-            {app.hasDraft && (
+            </>
+          }
+          subtitle={app.description ?? app.summary}
+          textActions={
+            <>
               <Button
                 size="sm"
-                variant="ghost"
-                onClick={() => setConfirmDiscard(true)}
+                variant="outline"
+                onClick={preview}
                 disabled={busy !== null}
+                title="Compile the draft and refresh the preview. It does not go live."
               >
-                <Undo2 />
-                {busy === 'discard' ? 'Discarding…' : 'Discard'}
+                <Eye />
+                Preview
               </Button>
-            )}
-            {/* Commit compiles the draft itself, so it gates on there being
-              something staged, not on a build having been run by hand. */}
-            <Button
-              size="sm"
-              onClick={commit}
-              disabled={busy !== null || (!app.hasDraft && !dirty)}
-              title="Compile the draft and make it live"
-            >
-              <GitCommitHorizontal />
-              Commit
-            </Button>
-            {/* Share the published app at a public full-screen /s/<token> URL.
-              Only once there's a published build to point the link at. */}
-            {app.publishedBuild?.ok && (
-              <AccessControl
-                nodeId={app.id}
-                hint="At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data."
-              />
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              {app.hasDraft && (
                 <Button
                   size="sm"
                   variant="ghost"
-                  aria-label={`View: ${viewLabel(tab)}`}
-                  title="Switch view"
+                  onClick={() => setConfirmDiscard(true)}
+                  disabled={busy !== null}
                 >
-                  {viewLabel(tab)}
-                  <ChevronDown className="opacity-60" />
+                  <Undo2 />
+                  {busy === 'discard' ? 'Discarding…' : 'Discard'}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup value={tab} onValueChange={setTab}>
-                  {VIEWS.map((v) => (
-                    <DropdownMenuRadioItem key={v.value} value={v.value}>
-                      {v.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        {/* Informational (C6): members and clients only read its data. */}
-        <AppInformationalSwitch app={app} />
-        {/* MCP access (team apps Phase 1): their own MCP reaches its data. */}
-        <AppMcpAccessSwitch app={app} />
-        {/* Trust its tools (team apps Phase 3): the author ceiling. */}
-        <AppTrustToolsSwitch app={app} />
+              )}
+              {/* Commit compiles the draft itself, so it gates on there being
+                  something staged, not on a build having been run by hand. */}
+              <Button
+                size="sm"
+                onClick={commit}
+                disabled={busy !== null || (!app.hasDraft && !dirty)}
+                title="Compile the draft and make it live"
+              >
+                <GitCommitHorizontal />
+                Commit
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`View: ${viewLabel(tab)}`}
+                    title="Switch view"
+                  >
+                    {viewLabel(tab)}
+                    <ChevronDown className="opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuRadioGroup value={tab} onValueChange={setTab}>
+                    {VIEWS.map((v) => (
+                      <DropdownMenuRadioItem key={v.value} value={v.value}>
+                        {v.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          }
+          iconActions={
+            <>
+              <HeaderInfoButton>
+                <p className="font-medium">{app.title || 'Untitled'}</p>
+                {(app.description ?? app.summary) ? (
+                  <p className="text-muted-foreground">{app.description ?? app.summary}</p>
+                ) : null}
+                <p className="text-muted-foreground">
+                  {app.hasDraft
+                    ? 'It has an unpublished draft: Commit makes it live.'
+                    : app.publishedBuild?.ok
+                      ? 'The live app is the last commit.'
+                      : 'It has no published build yet: Commit builds and publishes it.'}
+                </p>
+                <p className="text-muted-foreground">
+                  {toolSlugs.length
+                    ? `Its tools: ${toolSlugs.join(', ')}.`
+                    : 'It declares no tools.'}
+                </p>
+              </HeaderInfoButton>
+              {/* Informational, MCP access and Trust its tools. */}
+              <AppSettingsButton app={app} />
+              {/* The level, once there is a published build to share. */}
+              {app.publishedBuild?.ok && (
+                <AccessControl nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />
+              )}
+              <FocusToggle />
+            </>
+          }
+        />
 
         {/* Builder — the live preview. Ask Appsmith to edit the app via the
             global assistant (⌘I), auto-armed for this app. */}

@@ -467,4 +467,58 @@ test.describe('apps', () => {
       })
       .toBe(`/apps?review=${id}`);
   });
+  test('the app editor wears the same one-row header as the Apps pane', async ({
+    ownerApi,
+    ownerPage,
+  }) => {
+    await withApp(ownerApi, async (app) => {
+      // At Team, so the admin's switches (MCP access, Informational) apply.
+      const shared = await ownerApi.patch(`/api/access/nodes/${app.id}`, {
+        data: { audience: 'team' },
+      });
+      expect(shared.status(), await shared.text()).toBeLessThan(300);
+      await ownerPage.setViewportSize({ width: 1600, height: 900 });
+
+      await ownerPage.goto(`/apps?id=${app.id}`);
+      const paneHeader = ownerPage.locator('[data-testid="detail"]').getByTestId('app-item-header');
+      await expect(paneHeader.getByRole('heading', { name: app.title })).toBeVisible();
+      const paneHeight = (await paneHeader.boundingBox())!.height;
+
+      await ownerPage.goto(`/apps/${app.id}`);
+      const header = ownerPage.getByTestId('app-item-header');
+      await expect(header).toHaveCount(1);
+      await expect(header.getByRole('heading', { name: app.title })).toBeVisible();
+      const words = header.getByTestId('app-header-text-actions');
+      const icons = header.getByTestId('app-header-icon-actions');
+      await expect(words.getByRole('button', { name: 'Preview' })).toBeVisible();
+      await expect(words.getByRole('button', { name: 'Commit' })).toBeVisible();
+      await expect(words.getByRole('button', { name: /^View:/ })).toBeVisible();
+      const w = (await words.boundingBox())!;
+      const i = (await icons.boundingBox())!;
+      expect(w.x + w.width, 'the worded buttons must sit left of the icons').toBeLessThanOrEqual(
+        i.x,
+      );
+      for (const el of await icons.locator(':scope > button, :scope > a').all()) {
+        expect(
+          await el.getAttribute('aria-label'),
+          'an icon-only button with no name',
+        ).toBeTruthy();
+        expect(await el.getAttribute('title'), 'an icon-only button with no tooltip').toBeTruthy();
+      }
+      // One row, the same height as the pane's header for the same app.
+      const height = (await header.boundingBox())!.height;
+      expect(Math.abs(height - paneHeight), 'the editor header is taller').toBeLessThanOrEqual(1);
+
+      // The extra words behind Info; the switches behind App settings.
+      await icons.getByRole('button', { name: 'About this app' }).click();
+      await expect(ownerPage.getByRole('dialog')).toContainText('It declares no tools.');
+      await ownerPage.keyboard.press('Escape');
+      await icons.getByRole('button', { name: 'App settings' }).click();
+      const settings = ownerPage.getByRole('dialog', { name: 'App settings' });
+      await expect(settings.getByRole('switch').first()).toBeVisible();
+      await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-editor-settings.png` });
+      await ownerPage.keyboard.press('Escape');
+      await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-editor-header.png` });
+    });
+  });
 });

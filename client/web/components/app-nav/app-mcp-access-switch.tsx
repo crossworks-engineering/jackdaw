@@ -53,7 +53,7 @@ export function AppMcpAccessSwitch({ app }: { app: AppDetail }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
       <Switch
         id={id}
         checked={on}
