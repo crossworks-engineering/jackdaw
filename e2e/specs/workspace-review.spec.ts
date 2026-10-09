@@ -215,4 +215,47 @@ test.describe('workspace review', () => {
       }
     });
   }
+
+  test('at phone width the review pane fits: no sideways scroll', async ({
+    ownerPage,
+    serverURL,
+  }) => {
+    const id = ID.page;
+    const row = {
+      id,
+      type: 'page',
+      title: 'E2E waiting page with a long title that has to fit a phone',
+      icon: null,
+      sharing: 'private',
+      reviewState: 'submitted',
+      submittedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      reason: 'submitted',
+      author: { loginId: null, name: 'A member', email: null, inactive: false, role: 'member' },
+    };
+    await ownerPage.route(`${serverURL}/api/team-admin/submissions**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const body =
+        path === '/api/team-admin/submissions'
+          ? { items: [row], counts: { submitted: 1, leftBehind: 0 } }
+          : path === `/api/team-admin/submissions/${id}`
+            ? { row, body: bodyOf('page', row.title), comments: [] }
+            : null;
+      return route.fulfill({
+        status: body ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(body ?? { error: 'not found' }),
+      });
+    });
+    await ownerPage.setViewportSize({ width: 390, height: 844 });
+    await ownerPage.goto(`/pages?review=${id}`);
+    const header = ownerPage.getByTestId('item-review-header');
+    await expect(header.getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 60_000 });
+    await expect(header.getByRole('button', { name: 'About this review' })).toBeVisible();
+    const overflow = await ownerPage.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, 'the page scrolls sideways at phone width').toBeLessThanOrEqual(0);
+    await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}workspace-review-phone.png` });
+  });
 });
