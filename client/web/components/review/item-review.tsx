@@ -213,8 +213,11 @@ function ItemReviewHeader({
         <span className="min-w-0 truncate">{title || 'Untitled'}</span>
         {badge}
       </h2>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <div data-testid="review-header-text-actions" className="flex flex-wrap items-center gap-2">
+      <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
+        <div
+          data-testid="review-header-text-actions"
+          className="flex max-w-full flex-wrap items-center gap-2"
+        >
           {textActions}
         </div>
         <div

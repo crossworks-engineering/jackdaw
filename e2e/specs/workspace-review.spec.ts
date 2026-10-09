@@ -348,6 +348,11 @@ test.describe('workspace review', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow, 'the page scrolls sideways at phone width').toBeLessThanOrEqual(0);
+    // Every action is on screen: the groups wrap, nothing is cut off.
+    for (const b of await header.getByRole('button').all()) {
+      const box = (await b.boundingBox())!;
+      expect(box.x + box.width, 'a header button is cut off').toBeLessThanOrEqual(390);
+    }
     await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}workspace-review-phone.png` });
   });
 });
