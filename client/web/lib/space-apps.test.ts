@@ -228,7 +228,9 @@ describe("an admin's review of a member app, in Apps", () => {
     expect(reviewBrokerOutcome(403, { ok: false, error: 'x' })).toBeNull();
     expect(reviewBrokerOutcome(409, { ok: false, reason: 'changed' })).toBeNull();
     expect(reviewBrokerOutcome(200, null)).toBeNull();
-    expect(REVIEW_TEST_BLOCKED).toBe('Test mode blocks tools that change data.');
+    expect(REVIEW_TEST_BLOCKED).toBe(
+      'Test mode blocks tools that change data or reach outside the brain.',
+    );
     expect(reviewAppChanged(3)).toMatch(/now version 3/);
   });
 

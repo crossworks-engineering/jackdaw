@@ -10,6 +10,7 @@
  * self-accept into the brain. `spaceClient(base)` serves both.
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import { OLDER_BRAIN_RETURN_NOTE } from './review-no-note';
 import type { TableDetail } from '@mantle/content-core/table-model';
 import type {
   AccessLevel,
@@ -450,7 +451,9 @@ export const adminSpace = {
    *  with everything taken with it (audit F07). No note: review flows carry
    *  no messages (2026-10-09). */
   giveBack: (id: string) =>
-    apiSend<GiveBackResult>(`${ownItemPath(id, ADMIN_API_BASE)}/give-back`, 'POST'),
+    apiSend<GiveBackResult>(`${ownItemPath(id, ADMIN_API_BASE)}/give-back`, 'POST', {
+      note: OLDER_BRAIN_RETURN_NOTE,
+    }),
 };
 
 export type AdminSpaceClient = typeof adminSpace;

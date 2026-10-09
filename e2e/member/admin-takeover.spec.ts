@@ -131,7 +131,8 @@ test('Give back sends no note, and the item leaves the Pages list', async ({ pag
   await expect(page.getByText(`Gave “${SUBMITTED_TITLE}” back to ${MEMBER_NAME}.`)).toBeVisible({
     timeout: 15_000,
   });
-  expect(api.admin.giveBacks).toEqual([{ id: SUBMITTED_ID }]);
+  // Only the fixed line an older brain needs (client/web/lib/review-no-note.ts).
+  expect(api.admin.giveBacks).toEqual([{ id: SUBMITTED_ID, note: 'Sent back for changes.' }]);
   await expect(page.locator(`[data-item-id="${SUBMITTED_ID}"]`)).toHaveCount(0);
   await expect(page.locator(`[data-item-id="${ADMIN_OWN_ID}"]`)).toBeVisible();
 });

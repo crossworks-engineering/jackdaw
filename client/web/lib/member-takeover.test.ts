@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OLDER_BRAIN_RETURN_NOTE } from './review-no-note';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   WITH_ADMIN_TEXT,
@@ -306,10 +307,32 @@ describe('the take over and give back routes', () => {
     ]);
   });
 
-  it('Give back posts to the admin’s own item, with no note', async () => {
+  it('Give back posts to the admin’s own item, with only the older-brain note', async () => {
     await adminSpace.giveBack(OWN);
     expect(calls).toEqual([
-      { method: 'POST', url: `/api/admin/space/${OWN}/give-back`, body: undefined },
+      {
+        method: 'POST',
+        url: `/api/admin/space/${OWN}/give-back`,
+        body: { note: OLDER_BRAIN_RETURN_NOTE },
+      },
     ]);
+  });
+
+  it('Return posts to the submission, with only the older-brain note', async () => {
+    await memberReview.giveBack(OWN);
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        url: `/api/team-admin/submissions/${OWN}/return`,
+        body: { note: OLDER_BRAIN_RETURN_NOTE },
+      },
+    ]);
+  });
+
+  it('the older-brain note is never empty (an older brain refuses an empty one)', () => {
+    expect(OLDER_BRAIN_RETURN_NOTE.trim().length).toBeGreaterThan(0);
+    expect(OLDER_BRAIN_RETURN_NOTE).not.toMatch(
+      new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`),
+    );
   });
 });

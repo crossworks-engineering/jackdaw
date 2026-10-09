@@ -212,7 +212,8 @@ export const REVIEW_TEST_ENDED = 'The test run ended. Start it again to keep tes
 
 /** A test refused a tool that writes or reaches outside (the brain's
  *  reason 'review-test-read-only'). */
-export const REVIEW_TEST_BLOCKED = 'Test mode blocks tools that change data.';
+export const REVIEW_TEST_BLOCKED =
+  'Test mode blocks tools that change data or reach outside the brain.';
 
 /** What a test broker answer means for the screen: the copy is gone
  *  (409 `test-ended`: idle too long, dropped for a newer copy, or ended in

@@ -20,6 +20,7 @@ import type {
   ReviewAuthorView,
 } from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
+import { OLDER_BRAIN_RETURN_NOTE } from './review-no-note';
 import type {
   TreeCrumb,
   TreeKind,
@@ -160,8 +161,11 @@ export const memberReview = {
     apiSend(`${base(id)}/comments/${encodeURIComponent(commentId)}`, 'DELETE'),
   accept: (id: string, input: AcceptInput) =>
     apiSend<AcceptResult>(`${base(id)}/accept`, 'POST', input),
-  /** Back to its author, no note (review flows carry no messages). */
-  giveBack: (id: string) => apiSend(`${base(id)}/return`, 'POST'),
+  /** Back to its author. No note of the admin's (review flows carry no
+   *  messages); OLDER_BRAIN_RETURN_NOTE only satisfies a brain that still
+   *  requires one, and a current brain ignores it. */
+  giveBack: (id: string) =>
+    apiSend(`${base(id)}/return`, 'POST', { note: OLDER_BRAIN_RETURN_NOTE }),
   discard: (id: string) => apiSend(`${base(id)}/discard`, 'POST'),
   /** Into the acting admin's own private space, with its bundle (audit F07). */
   takeOver: (id: string) => apiSend<TakeOverResult>(`${base(id)}/take-over`, 'POST'),
