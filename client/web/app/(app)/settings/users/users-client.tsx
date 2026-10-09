@@ -211,9 +211,16 @@ function ListSectionHeading({
       <h2 id={id} className="flex items-center gap-1.5 text-xs font-semibold">
         {title}
         {count ? (
-          <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground">
-            {count}
-          </span>
+          <>
+            {/* The dot is for the eye; the heading's name stays the word. */}
+            <span
+              aria-hidden
+              className="inline-flex min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground"
+            >
+              {count}
+            </span>
+            <span className="sr-only">({count})</span>
+          </>
         ) : null}
       </h2>
       {action}
@@ -717,7 +724,7 @@ function UserDetail({
                 id="display-name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g. Ronnie van Zyl"
+                placeholder="Their full name"
                 aria-describedby={hintId('display-name')}
               />
               <FieldHint id="display-name">
@@ -1425,7 +1432,7 @@ function AddUserDialog({
               id="new-user-display-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="e.g. Ronnie van Zyl"
+              placeholder="Their full name"
               aria-describedby={hintId('new-user-display-name')}
             />
             <FieldHint id="new-user-display-name">

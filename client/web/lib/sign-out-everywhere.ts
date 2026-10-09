@@ -7,7 +7,7 @@
  *    or member, signs ITSELF out everywhere. This browser's session ends too,
  *    so the caller then runs the ordinary sign-out and goes to /login.
  *  - PATCH /api/users/:id `{ signOut: true }`: an admin signs another login
- *    out everywhere (Settings > Users). Admin only.
+ *    out everywhere (Settings > Logins). Admin only.
  *
  * Raw fetch, as the password helpers do (member-password.ts): `apiFetch`
  * reads every 401 as a dead session and bounces the browser, and here the

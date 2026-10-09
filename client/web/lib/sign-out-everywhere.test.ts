@@ -131,7 +131,7 @@ describe('the screens that offer it', () => {
     );
   });
 
-  it('Settings > Users signs a login out everywhere from its Devices card', () => {
+  it('Settings > Logins signs a login out everywhere from its Devices card', () => {
     const users = src('../app/(app)/settings/users/users-client.tsx');
     expect(users).toContain('<SignOutEverywhereButton user={user} isSelf={isSelf} />');
     expect(users).toContain(

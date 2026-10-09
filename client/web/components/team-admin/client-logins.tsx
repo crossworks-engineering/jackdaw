@@ -598,7 +598,7 @@ export function AddClientDialog({
                 id="client-add-name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={contact ? contactLabel(contact) : 'e.g. Sam Botha'}
+                placeholder={contact ? contactLabel(contact) : 'Their full name'}
               />
             </Field>
             <FieldError id="client-add-error">{formError}</FieldError>

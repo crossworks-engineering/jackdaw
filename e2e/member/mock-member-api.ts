@@ -390,7 +390,7 @@ export const INVITE_GOOD_CODE = 'GoodCode2345abcd';
 export const OLD_TEAM_CODE = 'Xy7kPq2M';
 export const INVITE_STALE_CODE = 'StaleCode234abcd';
 export const INVITE_EMAIL = 'sam@example.com';
-export const INVITE_NAME = 'Sam Botha';
+export const INVITE_NAME = 'Alex Example';
 export const INVITE_SITE = 'Field Office';
 
 const PNG_1PX = Buffer.from(

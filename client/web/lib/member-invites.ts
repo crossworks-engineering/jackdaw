@@ -55,9 +55,9 @@ export function inviteCreateErrorText(
 ): string {
   switch (body?.reason) {
     case 'email-has-login':
-      return 'Someone already signs in with that email. Find them in Settings > Users.';
+      return 'Someone already signs in with that email. Find them in Settings > Logins.';
     case 'contact-has-login':
-      return 'This contact already has a login. Find them in Settings > Users.';
+      return 'This contact already has a login. Find them in Settings > Logins.';
     case 'no-email':
       return 'This contact has no email address. Enter the email the invite is for.';
     case 'contact-not-found':

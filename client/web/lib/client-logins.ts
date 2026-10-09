@@ -113,7 +113,7 @@ export function clientActionConfirm(
     case 'revoke':
       return {
         title: `Revoke the sign-in link for ${name}?`,
-        body: 'The link stops working now. Sessions it already started stay signed in; End sessions ends those.',
+        body: 'The link stops working now. Sessions it already started stay signed in; Sign out everywhere ends those.',
         action: 'Revoke',
       };
     case 'end':

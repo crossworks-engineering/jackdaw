@@ -286,7 +286,7 @@ export function InviteDialog({
                     id="invite-name"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder={contact?.name ?? 'e.g. Sam Botha'}
+                    placeholder={contact?.name ?? 'Their full name'}
                     aria-describedby="invite-name-hint"
                   />
                   <FieldDescription id="invite-name-hint">
