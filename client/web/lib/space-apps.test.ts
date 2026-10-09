@@ -12,6 +12,7 @@ import {
   REVIEW_TEST_NOTE,
   reviewAppChanged,
   reviewBrokerOutcome,
+  reviewTeamRulesRefused,
   reviewAppHref,
   reviewAppPath,
   reviewBannerText,
@@ -232,6 +233,17 @@ describe("an admin's review of a member app, in Apps", () => {
       'Test mode blocks tools that change data or reach outside the brain.',
     );
     expect(reviewAppChanged(3)).toMatch(/now version 3/);
+  });
+
+  it('says a team-rules refusal as that, never as test mode (access matrix T22)', () => {
+    const why = "The tool 'x' is not in a team-level tool group, so team members can't use it.";
+    expect(reviewBrokerOutcome(403, { ok: false, error: why, reason: 'team-rules' })).toBe(
+      'team-rules',
+    );
+    expect(reviewTeamRulesRefused(why)).toBe(
+      `The team rules refuse this tool, so it fails for members too, not only in this test. ${why}`,
+    );
+    expect(reviewTeamRulesRefused(undefined)).not.toMatch(/Test mode/);
   });
 
   it('links to Apps from Team admin only when something waits', () => {

@@ -87,6 +87,7 @@ import {
   reviewAppPath,
   reviewBannerText,
   reviewKind,
+  reviewTeamRulesRefused,
   sendBackConfirm,
   submissionFiles,
   type AppAcceptLevel,
@@ -236,13 +237,19 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
 
   const test = useTestRun(app.id, app.runnable);
   // The sandbox's broker calls go through here: a gone copy switches the
-  // screen to its ended state, and a tool test mode blocks is said as that
-  // (and answered to the app as a plain refusal, so the sandbox does not
-  // call it an undeclared tool).
-  const onBroker = useRef({ ended: test.ended, blocked: () => {} });
+  // screen to its ended state, a tool test mode blocks is said as that, and
+  // a declared tool the team rules refuse is said as THAT, in the rule's
+  // words (it fails for members too). Both are answered to the app as a
+  // plain refusal, so the sandbox does not call them undeclared tools.
+  const onBroker = useRef({
+    ended: test.ended,
+    blocked: () => {},
+    teamRules: (_why: unknown) => {},
+  });
   onBroker.current = {
     ended: test.ended,
     blocked: () => toast.info(REVIEW_TEST_BLOCKED),
+    teamRules: (why: unknown) => toast.error(reviewTeamRulesRefused(why)),
   };
   const sandbox = useMemo(
     () => ({
@@ -256,8 +263,9 @@ function ReviewView({ app, onDone }: { app: ReviewAppDetail; onDone: ReviewDone 
           .catch(() => null);
         const outcome = reviewBrokerOutcome(res.status, body);
         if (outcome === 'ended') onBroker.current.ended();
-        if (outcome === 'blocked') {
-          onBroker.current.blocked();
+        if (outcome === 'blocked' || outcome === 'team-rules') {
+          if (outcome === 'blocked') onBroker.current.blocked();
+          else onBroker.current.teamRules((body as { error?: unknown } | null)?.error);
           return new Response(JSON.stringify(body), {
             status: 200,
             headers: { 'content-type': 'application/json' },

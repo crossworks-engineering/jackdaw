@@ -215,13 +215,26 @@ export const REVIEW_TEST_ENDED = 'The test run ended. Start it again to keep tes
 export const REVIEW_TEST_BLOCKED =
   'Test mode blocks tools that change data or reach outside the brain.';
 
+/** A declared tool the team rules refuse (the brain's reason 'team-rules'):
+ *  not test mode, so it fails in every member's run too. `why` is the
+ *  brain's own words for the rule. */
+export function reviewTeamRulesRefused(why: unknown): string {
+  const rule = typeof why === 'string' && why.trim() ? ` ${why.trim()}` : '';
+  return `The team rules refuse this tool, so it fails for members too, not only in this test.${rule}`;
+}
+
 /** What a test broker answer means for the screen: the copy is gone
  *  (409 `test-ended`: idle too long, dropped for a newer copy, or ended in
- *  another tab), a tool test mode blocks, or nothing special. */
-export function reviewBrokerOutcome(status: number, body: unknown): 'ended' | 'blocked' | null {
+ *  another tab), a tool test mode blocks, a tool the team rules refuse, or
+ *  nothing special. */
+export function reviewBrokerOutcome(
+  status: number,
+  body: unknown,
+): 'ended' | 'blocked' | 'team-rules' | null {
   const reason = (body as { reason?: unknown } | null)?.reason;
   if (status === 409 && reason === 'test-ended') return 'ended';
   if (status === 403 && reason === 'review-test-read-only') return 'blocked';
+  if (status === 403 && reason === 'team-rules') return 'team-rules';
   return null;
 }
 
