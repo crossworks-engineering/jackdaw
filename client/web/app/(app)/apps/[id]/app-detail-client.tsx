@@ -1,6 +1,5 @@
 'use client';
 
-import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Eye, GitCommitHorizontal, Undo2, Save, WandSparkles } from 'lucide-react';
@@ -37,8 +36,8 @@ import { AppItemHeader, HeaderInfoButton } from '@/components/app-nav/app-item-h
 import { AppTreePills } from '@/components/app-nav/app-tree-pills';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useAppNav } from '@/components/app-nav/use-app-nav';
-import { AccessControl } from '@/components/share/access-control';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { GrantAccessControl } from '@/components/share/grant-access';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { AppSandbox } from '@mantle/share-ui/app-sandbox';
 import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { useAppToolConfirm } from '@/components/app-nav/use-app-tool-confirm';
@@ -392,7 +391,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
                 </Badge>
               )}
               <AppTreePills id={app.id} />
-              <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
+              <WorkspaceChips item={app} hub={app.isHub} />
             </>
           }
           subtitle={app.description ?? app.summary}
@@ -474,11 +473,11 @@ function AppDetailView({ app }: { app: AppDetail }) {
                     : 'It declares no tools.'}
                 </p>
               </HeaderInfoButton>
-              {/* Informational, MCP access and Trust its tools. */}
+              {/* Trust its tools. Informational and MCP access are in Access. */}
               <AppSettingsButton app={app} />
               {/* The level, once there is a published build to share. */}
               {app.publishedBuild?.ok && (
-                <AccessControl nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />
+                <GrantAccessControl type="app" nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />
               )}
               <FocusToggle />
             </>

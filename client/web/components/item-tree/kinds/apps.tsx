@@ -1,6 +1,6 @@
 import { AppTile } from '@/components/app-nav/app-tile';
 import { AppTreePills } from '@/components/app-nav/app-tree-pills';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import type { TreeKindAdapter } from './types';
 
 /** Apps: the app's own tile (its icon and colour, the face every surface
@@ -13,7 +13,7 @@ export const appsAdapter: TreeKindAdapter = {
   status: (item) => (
     <span className="flex shrink-0 items-center gap-1">
       <AppTreePills id={item.id} />
-      <AudienceBadge level={item.level} className="px-1.5 py-0 text-[10px]" />
+      <WorkspaceChips item={item} compact />
     </span>
   ),
 };

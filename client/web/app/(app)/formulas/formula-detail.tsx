@@ -1,9 +1,8 @@
 'use client';
 
-import { inheritedOf } from '@/lib/access-levels';
 import { Fragment, useMemo, useState } from 'react';
 import type { AccessLevel } from '@mantle/client-types';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import katex from 'katex';
 import { AlertTriangle, Pencil, Sigma, Trash2 } from 'lucide-react';
 import type { CoverageGap, FormulaSpec, FormulaValue } from '@mantle/content-core/formula-spec';
@@ -52,7 +51,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { parseInputText } from '@mantle/content-core/formula-eval';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { JsonView } from '@mantle/web-ui/ui/json-view';
 
 export type FormulaRow = {
@@ -299,7 +298,7 @@ export function FormulaDetail({
                 {spec.unitSystem}
               </Badge>
             ) : null}
-            <AudienceBadge level={formula.audience} inherited={inheritedOf(formula)} />
+            <WorkspaceChips item={formula} />
           </h2>
           {cite ? <p className="mt-1 text-xs text-muted-foreground">{cite}</p> : null}
         </div>
@@ -311,10 +310,11 @@ export function FormulaDetail({
               not a member kind (MEMBER_KIND), so no member screen lists one
               at Team. Until one does, the link must be passed along
               directly. */}
-          <AccessControl
+          <GrantAccessControl
+            type="formula"
             nodeId={formula.id}
             iconOnly
-            hint="Members don’t see formulas in their screens yet: at Public, send the link directly."
+            hint="Formulas do not show in the lists of other users yet. Send the open link directly."
           />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil />

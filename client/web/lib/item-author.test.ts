@@ -31,10 +31,7 @@ describe('item author', () => {
     const { fileURLToPath } = await import('node:url');
     const read = (rel: string) =>
       readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
-    for (const rel of [
-      '../components/member/member-reader.tsx',
-      '../components/share/access-control.tsx',
-    ]) {
+    for (const rel of ['../components/member/member-reader.tsx']) {
       const src = read(rel);
       expect(src, rel).not.toContain('Member-authored');
       expect(src, rel).toMatch(/authorBadgeText\(/);

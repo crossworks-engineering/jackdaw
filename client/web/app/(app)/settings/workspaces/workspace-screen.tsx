@@ -598,7 +598,7 @@ function AddUser({
         </p>
       ) : ready && search.hits && hits.length === 0 && !search.hasMore ? (
         <p className="text-sm text-muted-foreground">No other users match.</p>
-      ) : hits.length > 0 ? (
+      ) : ready && hits.length > 0 ? (
         <div>
           <ul className="-mx-1 max-h-56 overflow-y-auto rounded-md border border-border px-1 scrollbar-thin">
             {hits.map((h) => {

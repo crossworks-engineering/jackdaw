@@ -1302,7 +1302,8 @@ function AddUserDialog({
       // No role on this screen (workspaces W5a): a new login starts with the
       // least, and what it reads comes from the workspaces it is added to on
       // the Workspaces screen. The brain still takes `role` until it drops
-      // roles, and its default there is admin, so the least is said out loud.
+      // roles; its default is member too (W5a contract change 21), and the
+      // UI still says the least out loud so an older brain makes the same.
       const res = await apiSend<{ id: string }>('/api/users', 'POST', {
         email: email.trim(),
         password,

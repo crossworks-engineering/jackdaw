@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import type { TreeItem, TreeKind } from '@mantle/web-ui/types/tree';
 import { StatePill } from '@/components/item-list/state-pill';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import type { TreeKindAdapter } from './types';
 
 /**
@@ -41,7 +41,7 @@ function SimpleStatus({ item }: { item: TreeItem }) {
       {item.state ? (
         <StatePill state={item.state} className="px-1.5 py-0 text-[10px]" />
       ) : (
-        <AudienceBadge level={item.level} className="px-1.5 py-0 text-[10px]" />
+        <WorkspaceChips item={item} compact />
       )}
       {item.subtype && (
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">

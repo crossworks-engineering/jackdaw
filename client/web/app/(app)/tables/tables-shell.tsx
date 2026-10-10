@@ -1,9 +1,8 @@
 'use client';
 
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
-import { inheritedOf } from '@/lib/access-levels';
 import { useCallback, useEffect, useState } from 'react';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -488,13 +487,7 @@ export function TablesShell() {
                                 <ItemIcon emoji={t.icon || '📊'} fallback={null} />
                               )
                             }
-                            badge={
-                              <AudienceBadge
-                                level={t.audience}
-                                inherited={inheritedOf(t)}
-                                className="mt-0.5"
-                              />
-                            }
+                            badge={<WorkspaceChips item={t} className="mt-0.5" />}
                             selected={!reviewId && (selectedId === t.id || pendingId === t.id)}
                             onSelect={() => selectTable(t.id)}
                             footerStart={

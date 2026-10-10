@@ -2,7 +2,7 @@ import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { cn } from '@mantle/web-ui/lib/utils';
 import type { TreeItem } from '@mantle/web-ui/types/tree';
 import { StatePill } from '@/components/item-list/state-pill';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import type { TreeKindAdapter } from './types';
 
 /** Files: the file type's icon in its conventional tint, then the state pill
@@ -28,7 +28,7 @@ function FileStatus({ item }: { item: TreeItem }) {
       {item.state ? (
         <StatePill state={item.state} className="px-1.5 py-0 text-[10px]" />
       ) : (
-        <AudienceBadge level={item.level} className="px-1.5 py-0 text-[10px]" />
+        <WorkspaceChips item={item} compact />
       )}
       {item.subtype && (
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">

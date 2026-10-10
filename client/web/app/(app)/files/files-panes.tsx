@@ -8,8 +8,7 @@
  * already standalone, just living in the wrong file. No signatures changed.
  */
 import { useMemo, useState } from 'react';
-import { AudienceBadge } from '@/components/share/audience-badge';
-import { effectiveOf } from '@/lib/access-levels';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { Folder } from 'lucide-react';
@@ -84,10 +83,7 @@ export function ChildFolders({
                   <ListCardTitle className="min-w-0">{f.slug}</ListCardTitle>
                   {/* A folder shared itself is read at its share too, and one
                       below a shared folder at that folder's. */}
-                  <AudienceBadge
-                    level={f.audience && f.share ? effectiveOf(f.audience, f.share) : f.audience}
-                    inherited={f.inherited}
-                  />
+                  <WorkspaceChips item={f} />
                 </div>
                 <ListCardMeta>{folderCounts(f)}</ListCardMeta>
               </div>

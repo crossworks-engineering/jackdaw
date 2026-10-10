@@ -8,6 +8,12 @@ import type { TreeFolder, TreeKind } from '@mantle/web-ui/types/tree';
 import { moveTreeItems, treeKey } from './tree-api';
 import { seenOf, visibilityRefusal } from './sharing';
 import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confirm';
+import {
+  MoveGrantsDialog,
+  fetchMovePreview,
+  type MoveTarget,
+} from '@/components/share/grant-dialogs';
+import { moveChangesAccess, type MovePreview } from '@/lib/grants';
 
 /**
  * Files a new item in a folder of the owner's tree: the section created it
@@ -24,6 +30,10 @@ export function useFileNewItem(
   const qc = useQueryClient();
   const toast = useToast();
   const [pending, setPending] = useState<PendingConfirm | null>(null);
+  const [grantMove, setGrantMove] = useState<{
+    target: MoveTarget;
+    preview: MovePreview;
+  } | null>(null);
   // The open question's promise, and whether "go ahead" was chosen (then the
   // confirmed move settles it, not the dialog closing).
   const settle = useRef<(() => void) | null>(null);
@@ -61,22 +71,54 @@ export function useFileNewItem(
           void qc.invalidateQueries({ queryKey: treeKey(kind) });
           resolve();
         };
-        void attempt(false);
+        // W5b, S6: the item takes the folder's workspaces. Say which first
+        // ("This will also be visible to: ..."); a brain before W5b, or a
+        // folder that adds none, files it as before.
+        fetchMovePreview([id], { toFolderId: folder.id }).then(
+          (preview) => {
+            if (!moveChangesAccess(preview)) return void attempt(false);
+            settle.current = resolve;
+            setGrantMove({
+              preview,
+              target: {
+                nodeIds: [id],
+                action: `Put the new ${noun} in “${folder.name}”.`,
+                to: { toFolderId: folder.id },
+                onMoved: () => void qc.invalidateQueries({ queryKey: treeKey(kind) }),
+              },
+            });
+          },
+          () => void attempt(false),
+        );
       }),
     [kind, noun, qc, toast],
   );
 
+  const closeGrantMove = useCallback(() => {
+    setGrantMove(null);
+    // Moved or cancelled (it stays at the top level): the section opens it.
+    settle.current?.();
+    settle.current = null;
+  }, []);
+
   const confirm = (
-    <VisibilityConfirmDialog
-      pending={pending}
-      onOpenChange={(o) => {
-        if (o) return;
-        setPending(null);
-        // A cancel keeps the item at the top level; the section opens it.
-        if (!going.current) settle.current?.();
-        settle.current = null;
-      }}
-    />
+    <>
+      <MoveGrantsDialog
+        target={grantMove?.target ?? null}
+        preview={grantMove?.preview ?? null}
+        onClose={closeGrantMove}
+      />
+      <VisibilityConfirmDialog
+        pending={pending}
+        onOpenChange={(o) => {
+          if (o) return;
+          setPending(null);
+          // A cancel keeps the item at the top level; the section opens it.
+          if (!going.current) settle.current?.();
+          settle.current = null;
+        }}
+      />
+    </>
   );
   return { fileNew, confirm };
 }

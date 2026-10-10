@@ -48,20 +48,33 @@ export const treeScope = (kind: TreeKind, source: TreeSource = 'owner'): string 
 export const treeKey = (kind: TreeKind, source: TreeSource = 'owner') =>
   ['tree', treeScope(kind, source)] as const;
 
+/** `ws`: the switcher's workspace (W5b; null = all). It ends every list key,
+ *  so a switch loads the lists again and a `['tree', scope]` refresh still
+ *  reaches them all. Only the owner's tree takes it. */
 export const folderKey = (
   kind: TreeKind,
   folderId: string | null,
   sort: TreeSort,
   source: TreeSource = 'owner',
-) => ['tree', treeScope(kind, source), 'folder', folderId ?? 'root', sort] as const;
+  ws: string | null = null,
+) => ['tree', treeScope(kind, source), 'folder', folderId ?? 'root', sort, ws ?? 'all'] as const;
 
 export const searchKey = (
   kind: TreeKind,
   q: string,
   filter: TreeFilter = {},
   source: TreeSource = 'owner',
+  ws: string | null = null,
 ) =>
-  ['tree', treeScope(kind, source), 'search', q, filter.level ?? null, filter.tag ?? null] as const;
+  [
+    'tree',
+    treeScope(kind, source),
+    'search',
+    q,
+    filter.level ?? null,
+    filter.tag ?? null,
+    ws ?? 'all',
+  ] as const;
 
 export const tagsKey = (kind: TreeKind) => ['tree', kind, 'tags'] as const;
 
@@ -81,8 +94,9 @@ export function folderUrl(
   sort: TreeSort,
   cursor: string | null,
   source: TreeSource = 'owner',
+  ws: string | null = null,
 ): string {
-  return `${BASE[source]}/${kind}${query({ folder: folderId, sort, cursor })}`;
+  return `${BASE[source]}/${kind}${query({ folder: folderId, sort, cursor, ws: source === 'owner' ? ws : null })}`;
 }
 
 /** An empty `q` is the A to Z view: every item by name, no folders. A
@@ -93,10 +107,11 @@ export function searchUrl(
   cursor: string | null,
   filter: TreeFilter = {},
   source: TreeSource = 'owner',
+  ws: string | null = null,
 ): string {
   // A reader's search takes no level or tag (it is not offered one).
   const rest = query(
-    source === 'owner' ? { cursor, level: filter.level, tag: filter.tag } : { cursor },
+    source === 'owner' ? { cursor, level: filter.level, tag: filter.tag, ws } : { cursor },
   ).replace(/^\?/, '&');
   return `${BASE[source]}/${kind}/search?q=${encodeURIComponent(q.trim())}${rest}`;
 }
@@ -147,8 +162,9 @@ export const fetchFolderPage = (
   sort: TreeSort,
   cursor: string | null,
   source: TreeSource = 'owner',
+  ws: string | null = null,
 ): Promise<TreeFolderPage> => {
-  const url = folderUrl(kind, folderId, sort, cursor, source);
+  const url = folderUrl(kind, folderId, sort, cursor, source, ws);
   return source === 'client'
     ? apiFetch<ClientTreeFolderPage>(url).then(clientPageAsTree)
     : apiFetch<TreeFolderPage>(url);
@@ -160,8 +176,9 @@ export const fetchSearch = (
   cursor: string | null,
   filter: TreeFilter = {},
   source: TreeSource = 'owner',
+  ws: string | null = null,
 ): Promise<TreeSearchResult> => {
-  const url = searchUrl(kind, q, cursor, filter, source);
+  const url = searchUrl(kind, q, cursor, filter, source, ws);
   return source === 'client'
     ? apiFetch<ClientTreeSearchResult>(url).then(clientSearchAsTree)
     : apiFetch<TreeSearchResult>(url);

@@ -1,6 +1,6 @@
 'use client';
 
-import { inheritedOf } from '@/lib/access-levels';
+import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,8 +40,8 @@ import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { useAppToolConfirm } from '@/components/app-nav/use-app-tool-confirm';
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
-import { AccessControl } from '@/components/share/access-control';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { GrantAccessControl } from '@/components/share/grant-access';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppDetail, AppRow } from '@mantle/client-types';
@@ -151,11 +151,14 @@ export function AppsClient() {
     return () => clearTimeout(t);
   }, [showTree, searchInput, query, go]);
 
+  // The switcher's workspace (W5b): the list shows its items only.
+  const ws = useListWorkspace();
   const listQuery = useQuery({
-    queryKey: ['apps', { query, page }],
+    queryKey: ['apps', { query, page, ws }],
     queryFn: () => {
       const qs = new URLSearchParams({ page: String(page) });
       if (query) qs.set('q', query);
+      if (ws) qs.set('ws', ws);
       return apiFetch<AppsPage>(`/api/apps?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
@@ -312,12 +315,7 @@ export function AppsClient() {
                                 />
                               )}
                               <AppTreePills id={app.id} />
-                              <AudienceBadge
-                                level={app.audience}
-                                inherited={inheritedOf(app)}
-                                hub={app.isHub}
-                                className="mt-0.5"
-                              />
+                              <WorkspaceChips item={app} hub={app.isHub} className="mt-0.5" />
                             </span>
                           }
                           selected={activeId === app.id}
@@ -455,14 +453,16 @@ function AppPreview({
               </Badge>
             )}
             <AppTreePills id={app.id} />
-            <AudienceBadge level={app.audience} inherited={inheritedOf(app)} hub={app.isHub} />
+            <WorkspaceChips item={app} hub={app.isHub} />
           </>
         }
         subtitle={app.description ?? app.summary}
         iconActions={
           <>
             {/* The level control, once there is a published build to share. */}
-            {hasBuild && <AccessControl nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />}
+            {hasBuild && (
+              <GrantAccessControl type="app" nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />
+            )}
             {/* Survives focus mode (the shell's chrome does not), so it is the
                 whole control: enter and exit. */}
             <FocusToggle />

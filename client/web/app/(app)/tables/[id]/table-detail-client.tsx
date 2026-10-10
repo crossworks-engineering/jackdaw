@@ -41,7 +41,7 @@ import {
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { ExportMenu } from '@/components/export/export-menu';
 import { EmojiPicker } from '@/components/emoji-picker';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { TableGrid } from '@/components/table-grid/table-grid';
 import { SurfaceErrorBoundary } from '@mantle/web-ui/ui/error-boundary';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
@@ -570,10 +570,11 @@ export function TableDetailClient({
             </Button>
           )}
           <ExportMenu nodeId={initial.id} kind="table" />
-          <AccessControl
+          <GrantAccessControl
+            type="table"
             nodeId={initial.id}
             iconOnly
-            hint="Members and link holders always see the last committed version, never your draft."
+            hint="Others and link holders always see the last committed version, never your draft."
           />
           {dirty && (
             <Button

@@ -88,6 +88,6 @@ export const APP_DELETE_CONFIRM =
 export const APP_DELETED_TOAST =
   'Moved to the trash. Restore it under Recently deleted apps for 30 days.';
 
-/** The hint beside the level control: what Team means for an app. */
+/** The hint under the Access panel: what a workspace grant means for an app. */
 export const APP_SHARE_HINT =
-  'At Team, members can use the app’s Mantle tools and write to its data, and every action is audited to that member. A public link can only read the app’s own data.';
+  'Users in a workspace it is shared with can run the app and use its Mantle tools. With Write on, they also change its data. Every action is audited to that user. An open link can only read the app’s own data.';

@@ -27,7 +27,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { useNow } from '@/components/use-now';
@@ -271,7 +271,7 @@ export function EventDetail({
               <span className="min-w-0 truncate">{meta.title}</span>
             </h2>
             <div className="flex shrink-0 items-center gap-2">
-              <AccessControl nodeId={meta.id} iconOnly />
+              <GrantAccessControl type="event" nodeId={meta.id} iconOnly />
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
               </Button>

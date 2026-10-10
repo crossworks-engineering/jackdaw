@@ -10,13 +10,12 @@ describe('hasAppSettings', () => {
     expect(hasAppSettings(app({}))).toBe(false);
   });
 
-  it('is false for an admin-only app with the flags off', () => {
-    expect(hasAppSettings(app({ dataReadOnly: false, mcpAccess: false }))).toBe(false);
+  it('is false for Informational and MCP access alone: they live in the Access panel', () => {
+    expect(hasAppSettings(app({ audience: 'team', dataReadOnly: false }))).toBe(false);
+    expect(hasAppSettings(app({ mcpAccess: true }))).toBe(false);
   });
 
-  it('is true once a switch has something to say', () => {
-    expect(hasAppSettings(app({ audience: 'team', dataReadOnly: false }))).toBe(true);
-    expect(hasAppSettings(app({ mcpAccess: true }))).toBe(true);
+  it('is true when Trust its tools has something to say', () => {
     expect(hasAppSettings(app({ authorLevel: 'team' }))).toBe(true);
     expect(hasAppSettings(app({ authorLevel: 'admin', authorCeilingSeen: true }))).toBe(true);
   });

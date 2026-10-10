@@ -214,7 +214,7 @@ export const ADMIN_MODERATED_TEXT = 'Admin users moderate this workspace.';
 export const HAS_HISTORY_TEXT = 'Has history: clone to use elsewhere.';
 
 /** The switcher's note while it filters nothing (W5a). */
-export const SWITCHER_NOTE = 'Lists show items from all your workspaces for now.';
+export const SWITCHER_NOTE = 'Lists show the items of the workspace you pick.';
 
 export const ALL_WORKSPACES_LABEL = 'All my workspaces';
 

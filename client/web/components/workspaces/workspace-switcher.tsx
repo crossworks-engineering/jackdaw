@@ -42,7 +42,7 @@ export function switcherOptions(workspaces: readonly ShellWorkspace[]): Switcher
 /**
  * The workspace switcher (plan 7.1): in the rail head under the brand, and in
  * the phone bar. It lists the login's workspaces and keeps the choice per
- * login. In W5a it filters nothing, and the menu says so.
+ * login. The lists follow it (useListWorkspace, W5b).
  *
  * Renders nothing for a brain that sends no workspaces (before W5a).
  */

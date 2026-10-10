@@ -1,5 +1,13 @@
 'use client';
 
+import { GrantAccessDialog } from '@/components/share/grant-access';
+import {
+  MoveGrantsDialog,
+  fetchMovePreview,
+  type MoveTarget as GrantMoveTarget,
+} from '@/components/share/grant-dialogs';
+import { grantErrorText, isNoGrants, moveChangesAccess, type MovePreview } from '@/lib/grants';
+import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
   useEffect,
@@ -51,9 +59,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
 import {
@@ -65,7 +70,6 @@ import {
   type TreeFolderPage,
   type TreeItem,
   type TreeKind,
-  type TreeShareLevel,
   type TreeSort,
 } from '@mantle/web-ui/types/tree';
 import type { AccessLevel } from '@mantle/client-types';
@@ -124,14 +128,7 @@ import {
   VirtualRows,
 } from './tree-rows';
 import { FolderPickerDialog } from './folder-picker';
-import {
-  canShareFolder,
-  SHARE_LABEL,
-  SHARE_WHO,
-  seenOf,
-  shareLevelsOf,
-  visibilityRefusal,
-} from './sharing';
+import { canGrantFolder, SHARE_WHO, seenOf, visibilityRefusal } from './sharing';
 import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confirm';
 
 /**
@@ -296,6 +293,7 @@ export function ItemTree({
 }) {
   const spec = TREE_KIND_SPECS[kind];
   const qc = useQueryClient();
+  const ws = useListWorkspace();
   const toast = useToast();
   const owner = source === 'owner';
   const member = source === 'member';
@@ -360,6 +358,13 @@ export function ItemTree({
   const [lookFor, setLookFor] = useState<{ key: string; folder: TreeFolder } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  // W5b: a folder's Access panel, and a move that changes who sees items.
+  const [accessFolder, setAccessFolder] = useState<TreeFolder | null>(null);
+  const [grantMove, setGrantMove] = useState<{
+    target: GrantMoveTarget;
+    preview: MovePreview;
+  } | null>(null);
+  const closeGrantMove = useCallback(() => setGrantMove(null), []);
 
   // Items picked for a move (cmd/ctrl or shift click), in pick order, and
   // the anchor a shift-click ranges from. Kept by id, so the pick survives
@@ -495,10 +500,6 @@ export function ItemTree({
       opts.onDone,
     );
 
-  const shareFolder = (folder: TreeFolder, share: TreeShareLevel | null) => {
-    if (share !== folder.share) void patchFolder(folder, { share });
-  };
-
   // ── Queries beside the tree ───────────────────────────────────────────
   const pinsQ = useQuery({
     queryKey: marksKey(kind, 'pinned'),
@@ -518,8 +519,8 @@ export function ItemTree({
   // filter narrows either.
   const flatTerm = searching ? term : '';
   const flatQ = useInfiniteQuery({
-    queryKey: searchKey(kind, flatTerm, filter, source),
-    queryFn: ({ pageParam }) => fetchSearch(kind, flatTerm, pageParam, filter, source),
+    queryKey: searchKey(kind, flatTerm, filter, source, ws),
+    queryFn: ({ pageParam }) => fetchSearch(kind, flatTerm, pageParam, filter, source, ws),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: searching ? term.length > 0 : view === 'az' || filtering,
@@ -584,7 +585,47 @@ export function ItemTree({
   /** Move items (one, or the pick) into a folder; null = the top level. A
    *  move that partly failed still shows what did move, and keeps the ones
    *  that did not picked, to try again. */
-  const moveItems = (items: readonly TreeItem[], dest: Pick<TreeFolder, 'id' | 'name'> | null) =>
+  const moveItems = async (
+    items: readonly TreeItem[],
+    dest: Pick<TreeFolder, 'id' | 'name'> | null,
+  ) => {
+    const action =
+      items.length === 1
+        ? `Move “${items[0]!.title}” ${into(dest?.name)}.`
+        : `Move ${items.length} ${adapter.noun.many} ${into(dest?.name)}.`;
+    const after = () => {
+      refresh();
+      onChanged?.();
+      if (items.length > 1) clearPicked();
+      if (dest) setOpen(dest.id, true);
+    };
+    // W5b: a move that changes who sees the items says so first ("This will
+    // also be visible to: ...", 21.8 row 1) and goes through /api/grants.
+    // A move that changes nothing, or a brain before W5b, moves as before.
+    if (writer === 'owner') {
+      const ids = items.map((i) => i.id);
+      const to = { toFolderId: dest?.id ?? null };
+      try {
+        const preview = await fetchMovePreview(ids, to);
+        if (moveChangesAccess(preview)) {
+          setGrantMove({ target: { nodeIds: ids, action, to, onMoved: after }, preview });
+          return;
+        }
+      } catch (err) {
+        if (!isNoGrants(err)) {
+          toast.error(grantErrorText(err, 'Could not check who would see it'));
+          return;
+        }
+      }
+    }
+    return moveItemsByTree(items, dest, action);
+  };
+
+  const moveItemsByTree = (
+    items: readonly TreeItem[],
+    dest: Pick<TreeFolder, 'id' | 'name'> | null,
+    action: string,
+  ) =>
     guarded(
       async (confirm, seen) => {
         const res = await moveTreeItems(
@@ -609,13 +650,7 @@ export function ItemTree({
         if (dest) setOpen(dest.id, true);
       },
       `Could not move the ${items.length === 1 ? adapter.noun.one : adapter.noun.many}`,
-      {
-        action:
-          items.length === 1
-            ? `Move “${items[0]!.title}” ${into(dest?.name)}.`
-            : `Move ${items.length} ${adapter.noun.many} ${into(dest?.name)}.`,
-        verb: 'Move',
-      },
+      { action, verb: 'Move' },
     );
 
   /** What a move of `item` carries: the whole pick when it is part of it. */
@@ -634,6 +669,9 @@ export function ItemTree({
     void write(() => setTreeItemPinned(item.id, !pinned.has(item.id)), 'Could not change the pin');
 
   // ── Menus ─────────────────────────────────────────────────────────────
+  // After the menu's own close, as for the look picker below.
+  const openAccess = (folder: TreeFolder) => window.setTimeout(() => setAccessFolder(folder), 0);
+
   const openLook = (key: string, folder: TreeFolder) =>
     // After the menu's own close has run, so the picker isn't born into it.
     window.setTimeout(() => setLookFor({ key, folder }), 0);
@@ -685,34 +723,11 @@ export function ItemTree({
                 Icon and colour…
               </DropdownMenuItem>
             )}
-            {owner && canShareFolder(kind, folder) && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Share2 />
-                  Share
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-60">
-                  <DropdownMenuRadioGroup
-                    value={folder.share ?? 'none'}
-                    onValueChange={(v) =>
-                      shareFolder(folder, v === 'none' ? null : (v as TreeShareLevel))
-                    }
-                  >
-                    <DropdownMenuRadioItem value="none">Not shared</DropdownMenuRadioItem>
-                    {shareLevelsOf(kind).map((l) => (
-                      <DropdownMenuRadioItem key={l} value={l}>
-                        {SHARE_LABEL[l]}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                  <DropdownMenuSeparator />
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                    {folder.inherited
-                      ? `A folder above already shares it with ${SHARE_WHO[folder.inherited]}.`
-                      : 'Everything in it, now and later.'}
-                  </p>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+            {owner && canGrantFolder(kind, folder) && (
+              <DropdownMenuItem onSelect={() => openAccess(folder)}>
+                <Share2 />
+                Access…
+              </DropdownMenuItem>
             )}
             {mine(folder) && <DropdownMenuSeparator />}
             {!folder.system && mine(folder) && (
@@ -1499,6 +1514,16 @@ export function ItemTree({
       <VisibilityConfirmDialog
         pending={pendingConfirm}
         onOpenChange={(o) => !o && setPendingConfirm(null)}
+      />
+      <GrantAccessDialog
+        nodeId={accessFolder?.id ?? null}
+        title={accessFolder?.name ?? ''}
+        onOpenChange={(o) => !o && setAccessFolder(null)}
+      />
+      <MoveGrantsDialog
+        target={grantMove?.target ?? null}
+        preview={grantMove?.preview ?? null}
+        onClose={closeGrantMove}
       />
       <FolderPickerDialog
         kind={kind}

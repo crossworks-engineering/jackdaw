@@ -1,8 +1,9 @@
 'use client';
 
+import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Pencil, Sparkles, Trash2 } from 'lucide-react';
@@ -17,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportButton } from '@/components/export/export-button';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { TagPill } from '@mantle/web-ui/tag-pill';
@@ -108,8 +109,10 @@ export function NotesClient() {
   const showTree = treeServes === true && !treeGone;
   const [treeQuery, setTreeQuery] = useTreeSearch();
 
+  // The switcher's workspace (W5b): the list shows its items only.
+  const ws = useListWorkspace();
   const listQuery = useQuery({
-    queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, state }],
+    queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, state, ws }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
@@ -117,6 +120,7 @@ export function NotesClient() {
       if (showDigests) qs.set('digests', '1');
       if (page > 1) qs.set('page', String(page));
       qs.set('state', state);
+      if (ws) qs.set('ws', ws);
       return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
@@ -479,13 +483,7 @@ export function NotesClient() {
                             kind="note"
                             title={n.title}
                             icon={<ItemIcon fallback={<FileText />} />}
-                            badge={
-                              <AudienceBadge
-                                level={n.audience}
-                                inherited={n.inherited}
-                                className="mt-0.5"
-                              />
-                            }
+                            badge={<WorkspaceChips item={n} className="mt-0.5" />}
                             selected={
                               !reviewId && !privateOpen && selected?.id === n.id && !creating
                             }
@@ -642,7 +640,7 @@ function NotePreview({
         <div className="min-w-0 flex-1">
           <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold">
             <span className="min-w-0 truncate">{note.title}</span>
-            <AudienceBadge level={note.audience} inherited={note.inherited} />
+            <WorkspaceChips item={note} />
           </h2>
           {note.tags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
@@ -654,7 +652,7 @@ function NotePreview({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <ExportButton nodeId={note.id} label="Word" />
-          <AccessControl nodeId={note.id} />
+          <GrantAccessControl type="note" nodeId={note.id} />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil /> Edit
           </Button>

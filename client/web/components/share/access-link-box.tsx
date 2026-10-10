@@ -1,84 +1,89 @@
 'use client';
 
-import { Check, Copy, Link2Off } from 'lucide-react';
-import type { AccessLevel, AccessLinkView } from '@mantle/client-types';
+import { Check, Copy, Link2, Link2Off, Loader2 } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Input } from '@mantle/web-ui/ui/input';
-// Relative, not '@/': the node test runner renders this (access-link-box.test.ts).
-import {
-  LEVEL_ORDER,
-  OLD_CLIENT_LINK,
-  isOldClientLink,
-  showsLink,
-  takesLink,
-} from '../../lib/access-levels';
+
+/** The one line under the link: what an open link is (plan 8.1). */
+export const OPEN_LINK_TEXT = 'Anyone with the link can open it, with no login.';
+
+/** An open link exists, but this user may not see or stop it. */
+export const HAS_LINK_TEXT = 'It has an open link. A user who may change it can see the link.';
 
 /**
- * The link part of the Access control. Public is the only level with an open
- * link (client logins C1), so the link box and Copy show there and nowhere
- * else. A client item never gets one: clients sign in to read it. An old
- * link made on it before that (live only on a brain before client logins C3,
- * which retired them all) is named, never offered to copy, and can be
- * revoked right here (the item stays at Client). `open` is the levels this brain makes a link at: a brain
- * before C1 made one at client too, and there the box shows at Client as it
- * always did.
+ * The open link part of the Access panel (plan 8.1, kept under the
+ * workspaces). A link is a per-item open door for people with no login; it is
+ * not a workspace. A user who may change the item (an app: its home
+ * Moderator) makes, copies and stops it; anyone else reads only that one
+ * exists. Pure: the panel loads and writes.
  */
 export function AccessLinkBox({
-  level,
-  canLower,
-  share,
   url,
+  hasLink,
+  mayLink,
   copied,
+  busy = false,
+  warning,
   onCopy,
-  open = LEVEL_ORDER.filter(showsLink),
-  onRevoke,
+  onMake,
+  onStop,
 }: {
-  level: AccessLevel;
-  canLower: boolean;
-  share: AccessLinkView | null;
-  /** The link's absolute address (the server origin's `/s/…`). */
-  url: string;
+  /** The link's absolute address, or null when there is none (or this user
+   *  may not see it). */
+  url: string | null;
+  hasLink: boolean;
+  mayLink: boolean;
   copied: boolean;
+  busy?: boolean;
+  /** Shown above "Make an open link" (an app a contact writes, L21). */
+  warning?: React.ReactNode;
   onCopy: () => void;
-  /** The levels this brain makes an open link at (default: public only). */
-  open?: readonly AccessLevel[];
-  /** Revoke an old client link (it asks first). */
-  onRevoke?: () => void;
+  onMake: () => void;
+  onStop: () => void;
 }) {
-  if (!canLower) return null;
-  if (isOldClientLink(level) && !takesLink(level, open)) {
-    return share ? (
-      <div className="space-y-2 border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">
-          {OLD_CLIENT_LINK}. It still opens until it is revoked.
-        </p>
-        {onRevoke ? (
-          <Button size="sm" variant="outline" onClick={onRevoke}>
-            <Link2Off aria-hidden />
-            Revoke link (stays at Client)
-          </Button>
-        ) : null}
-      </div>
-    ) : null;
-  }
-  if (!takesLink(level, open)) return null;
+  if (!mayLink && !hasLink) return null;
   return (
-    <div className="border-t border-border pt-3">
-      {share ? (
-        <div className="flex items-center gap-2">
-          <Input
-            readOnly
-            value={url}
-            className="h-8 text-xs"
-            aria-label="Link"
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <Button size="icon-xs" variant="outline" onClick={onCopy} aria-label="Copy link">
-            {copied ? <Check /> : <Copy />}
+    <div className="space-y-2 border-t border-border pt-3">
+      <p className="text-sm font-medium">Open link</p>
+      {url ? (
+        <>
+          <div className="flex items-center gap-2">
+            <Input
+              readOnly
+              value={url}
+              className="h-8 text-xs"
+              aria-label="Link"
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button size="icon-xs" variant="outline" aria-label="Copy link" onClick={onCopy}>
+              {copied ? <Check /> : <Copy />}
+            </Button>
+            {mayLink && (
+              <Button
+                size="icon-xs"
+                variant="outline"
+                aria-label="Stop the link"
+                title="Stop the link"
+                disabled={busy}
+                onClick={onStop}
+              >
+                <Link2Off />
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{OPEN_LINK_TEXT}</p>
+        </>
+      ) : mayLink ? (
+        <>
+          {warning}
+          <Button size="sm" variant="outline" disabled={busy} onClick={onMake}>
+            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Link2 />}
+            Make an open link
           </Button>
-        </div>
+          <p className="text-xs text-muted-foreground">{OPEN_LINK_TEXT}</p>
+        </>
       ) : (
-        <p className="text-xs text-muted-foreground">This item has no link.</p>
+        <p className="text-xs text-muted-foreground">{HAS_LINK_TEXT}</p>
       )}
     </div>
   );

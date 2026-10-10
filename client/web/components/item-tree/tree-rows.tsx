@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceChips } from '@/components/share/workspace-chips';
+import { workspacesOf } from '@/lib/grants';
+import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
   useEffect,
@@ -111,9 +114,10 @@ function FolderLoader({
   onUnsupported?: () => void;
 }) {
   const qc = useQueryClient();
+  const ws = useListWorkspace();
   const q = useInfiniteQuery({
-    queryKey: folderKey(kind, folderId, sort, source),
-    queryFn: ({ pageParam }) => fetchFolderPage(kind, folderId, sort, pageParam, source),
+    queryKey: folderKey(kind, folderId, sort, source, ws),
+    queryFn: ({ pageParam }) => fetchFolderPage(kind, folderId, sort, pageParam, source, ws),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     // A 404 is a brain without the tree (the root) or a folder deleted
@@ -226,10 +230,11 @@ export function useFolderRows({
   onUnsupported?: () => void;
 }): { rows: TreeRow[]; loaders: ReactNode; handles: Map<string, FolderHandle> } {
   const qc = useQueryClient();
+  const ws = useListWorkspace();
   useFolderCacheVersion(kind, source);
   const handles = useRef(new Map<string, FolderHandle>()).current;
   const { rows, needed } = flattenTree(
-    (folderId) => readFolderLoad(qc.getQueryState(folderKey(kind, folderId, sort, source))),
+    (folderId) => readFolderLoad(qc.getQueryState(folderKey(kind, folderId, sort, source, ws))),
     isOpen,
     { foldersOnly, emptyText, goneText },
   );
@@ -450,8 +455,9 @@ export function TreeRowShell({
   );
 }
 
-/** The shared glyph on a folder row: people for the team, a handshake for
- *  clients. A share taken from a folder above is drawn quieter. */
+/** The shared mark on a folder row: its workspaces as chips (W5b), else on
+ *  an older brain the level glyph: people for the team, a handshake for
+ *  clients, a share taken from a folder above drawn quieter. */
 export function ShareGlyph({
   folder,
   selected = false,
@@ -459,6 +465,7 @@ export function ShareGlyph({
   folder: Pick<TreeFolder, 'share' | 'inherited'>;
   selected?: boolean;
 }) {
+  if (workspacesOf(folder).length > 0) return <WorkspaceChips item={folder} compact />;
   const shown = shownShare(folder);
   if (!shown) return null;
   const Icon = shown.level === 'team' ? Users : Handshake;

@@ -1,8 +1,7 @@
 'use client';
 
-import { inheritedOf } from '@/lib/access-levels';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import YAML from 'yaml';
@@ -449,7 +448,7 @@ export function FormulasClient() {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <ListCardTitle className="min-w-0">{f.title}</ListCardTitle>
-                                <AudienceBadge level={f.audience} inherited={inheritedOf(f)} />
+                                <WorkspaceChips item={f} />
                               </div>
                               {f.spec?.source?.standard ? (
                                 <ListCardMeta>{f.spec.source.standard}</ListCardMeta>

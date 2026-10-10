@@ -1,5 +1,6 @@
 'use client';
 
+import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
   useEffect,
@@ -11,7 +12,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { revealInFolds } from '@mantle/share-ui/heading-fold-dom';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/react';
@@ -112,7 +113,7 @@ import { useFileNewItem } from '@/components/item-tree/use-file-new-item';
 import { visibilityRefusal } from '@/components/item-tree/sharing';
 import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import { PageView } from '@/components/page-editor/page-view';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { PageOutline } from '@mantle/web-ui/page-outline';
 import { buildPageToc } from '@mantle/content-core/page-toc';
 import { FocusToggle } from '@/components/layout/focus-toggle';
@@ -234,8 +235,10 @@ export function PagesClient() {
     if (pickedFolder && !treeFolder) setTreeFolder(null);
   }, [pickedFolder, treeFolder]);
 
+  // The switcher's workspace (W5b): the list shows its items only.
+  const ws = useListWorkspace();
   const listQuery = useQuery({
-    queryKey: ['pages', { q: query, tag: activeTag, sort, page, state }],
+    queryKey: ['pages', { q: query, tag: activeTag, sort, page, state, ws }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
@@ -243,6 +246,7 @@ export function PagesClient() {
       if (sort !== 'edited') qs.set('sort', sort);
       if (page > 1) qs.set('page', String(page));
       qs.set('state', state);
+      if (ws) qs.set('ws', ws);
       return apiFetch<PagesListResponse>(`/api/pages?${qs.toString()}`);
     },
     placeholderData: (prev) => prev, // keep the list visible while paging/filtering
@@ -1119,7 +1123,7 @@ function PageCard({
       kind="page"
       title={row.title}
       icon={<ItemIcon emoji={row.icon ?? '📄'} fallback={null} />}
-      badge={<AudienceBadge level={row.audience} className="mt-0.5" />}
+      badge={<WorkspaceChips item={row} className="mt-0.5" />}
       selected={selected}
       dimmed={dragging}
       highlight={nesting}
@@ -1384,7 +1388,7 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               Draft · uncommitted
             </span>
           )}
-          <AudienceBadge level={row.audience} />
+          <WorkspaceChips item={row} />
         </h2>
         <div className="flex shrink-0 gap-2">
           <ExportMenu nodeId={row.id} />
@@ -1393,7 +1397,7 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               serves the last COMMITTED page — which is what /s renders in any
               case. The "Draft · uncommitted" badge beside the title is what
               says so. */}
-          <AccessControl nodeId={row.id} />
+          <GrantAccessControl type="page" nodeId={row.id} />
           {/* This header survives focus mode (the shell's chrome doesn't), so
               the toggle here is the whole control, enter and exit. */}
           <FocusToggle />

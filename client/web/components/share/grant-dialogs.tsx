@@ -1,0 +1,256 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@mantle/web-ui/ui/alert-dialog';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
+import { useToast } from '@mantle/web-ui/ui/toast';
+import { apiSend } from '@mantle/web-ui/api-fetch';
+// Relative, not '@/': the node test runner renders these (grant-dialogs.test.ts).
+import {
+  alsoVisibleLine,
+  grantErrorText,
+  keepReadableLabel,
+  removedLine,
+  type MovePreview,
+  type MoveTo,
+} from '../../lib/grants';
+
+/** A grant write that waits for a yes: a folder change (how many items gain
+ *  or lose), or a new holder on an app (both effects, 21.8 row 13). */
+export type PendingGrantConfirm = {
+  title: string;
+  lines: string[];
+  note?: string;
+  /** The button that goes ahead ("Share", "Remove"). */
+  verb: string;
+  /** Nothing to go ahead with (too many items): Cancel only. */
+  blocked?: boolean;
+  run: () => Promise<void>;
+};
+
+export function GrantConfirmDialog({
+  pending,
+  onClose,
+}: {
+  pending: PendingGrantConfirm | null;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <AlertDialog open={pending !== null} onOpenChange={(o) => !o && !busy && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{pending?.title}</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-1.5">
+              {pending?.lines.map((l) => (
+                <p key={l}>{l}</p>
+              ))}
+              {pending?.note && <p className="text-xs">{pending.note}</p>}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          {!pending?.blocked && (
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                // Stay open while it writes; close when it is done.
+                e.preventDefault();
+                if (!pending) return;
+                setBusy(true);
+                void pending.run().finally(() => {
+                  setBusy(false);
+                  onClose();
+                });
+              }}
+            >
+              {busy && <Loader2 className="animate-spin" aria-hidden />}
+              {pending?.verb}
+            </AlertDialogAction>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** A move that may change who sees the items (21.8 rows 1 and 9). */
+export type MoveTarget = {
+  nodeIds: string[];
+  /** "Move “Plan” to Sales." */
+  action: string;
+  to: MoveTo;
+  /** The old home, on a move to another workspace: the dialog offers "Keep
+   *  it readable in H" (contract change 12: only the old home). */
+  oldHome?: { wsId: string; name: string };
+  /** After the move is written. */
+  onMoved?: () => void;
+};
+
+/** POST /api/grants/move/preview. */
+export const fetchMovePreview = (nodeIds: string[], to: MoveTo) =>
+  apiSend<MovePreview>('/api/grants/move/preview', 'POST', { nodeIds, ...to });
+
+/** POST /api/grants/move: `{ moved, failed }`. The dialog showed what
+ *  changes, so it goes with `confirm`. */
+export const sendMove = (nodeIds: string[], to: MoveTo, keepReadableIn: string | null) =>
+  apiSend<{ moved: number; failed: { id: string; error: string }[] }>('/api/grants/move', 'POST', {
+    nodeIds,
+    ...to,
+    confirm: true,
+    ...(keepReadableIn ? { keepReadableIn } : {}),
+  });
+
+/**
+ * The move dialog: what the item becomes visible to ("This will also be
+ * visible to: ..."), where it stops being read, and for each of those "Keep
+ * it readable in H" (a hand grant, Write off). `preview` may come from the
+ * caller (the tree asks first, to skip the dialog when nothing changes).
+ */
+export function MoveGrantsDialog({
+  target,
+  preview: given,
+  onClose,
+}: {
+  target: MoveTarget | null;
+  preview?: MovePreview | null;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const [loaded, setLoaded] = useState<{ target: MoveTarget; preview: MovePreview } | null>(null);
+  const [keep, setKeep] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setKeep(false);
+    if (!target) return;
+    if (given) {
+      setLoaded({ target, preview: given });
+      return;
+    }
+    setLoaded(null);
+    let live = true;
+    fetchMovePreview(target.nodeIds, target.to).then(
+      (p) => live && setLoaded({ target, preview: p }),
+      (e) => {
+        if (!live) return;
+        toast.error(grantErrorText(e, 'Could not check who would see it'));
+        onClose();
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [target, given, toast, onClose]);
+
+  const preview = loaded?.target === target ? loaded.preview : null;
+
+  const move = async () => {
+    if (!target) return;
+    setBusy(true);
+    try {
+      const res = await sendMove(
+        target.nodeIds,
+        target.to,
+        keep && target.oldHome ? target.oldHome.wsId : null,
+      );
+      if (res?.failed?.length) {
+        toast.error(
+          `Could not move ${res.failed.length === 1 ? 'one item' : `${res.failed.length} items`}: ${res.failed[0]!.error}`,
+        );
+      }
+      target.onMoved?.();
+      onClose();
+    } catch (e) {
+      toast.error(grantErrorText(e, 'Could not move it'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={target !== null} onOpenChange={(o) => !o && !busy && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Move and change who can see it?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-1.5">
+              <p>{target?.action}</p>
+              {!preview ? (
+                <p className="flex items-center gap-1 text-xs">
+                  <Loader2 className="size-3 animate-spin" aria-hidden /> Checking…
+                </p>
+              ) : (
+                <MovePreviewLines
+                  preview={preview}
+                  oldHome={target?.oldHome}
+                  keep={keep}
+                  onKeep={setKeep}
+                  busy={busy}
+                />
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy || !preview}
+            onClick={(e) => {
+              e.preventDefault();
+              void move();
+            }}
+          >
+            {busy && <Loader2 className="animate-spin" aria-hidden />}
+            Move
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** The preview's lines and, on a move from the old home, the "Keep it
+ *  readable in H" tick (a hand grant there, Write off). */
+export function MovePreviewLines({
+  preview,
+  oldHome,
+  keep,
+  onKeep,
+  busy = false,
+}: {
+  preview: MovePreview;
+  oldHome?: { wsId: string; name: string };
+  keep: boolean;
+  onKeep: (next: boolean) => void;
+  busy?: boolean;
+}) {
+  const also = alsoVisibleLine(preview);
+  const gone = removedLine(preview);
+  const offerKeep = !!oldHome && preview.removedFrom.some((w) => w.wsId === oldHome.wsId);
+  return (
+    <>
+      {also && <p className="text-foreground">{also}</p>}
+      {gone && <p>{gone}</p>}
+      {!also && !gone && <p>Who can see it does not change.</p>}
+      {offerKeep && (
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <Checkbox checked={keep} disabled={busy} onCheckedChange={(v) => onKeep(v === true)} />
+          {keepReadableLabel(oldHome.name)}
+        </label>
+      )}
+    </>
+  );
+}

@@ -35,6 +35,15 @@ export function canShareFolder(kind: TreeKind, folder: TreeFolder): boolean {
   return shareLevelsOf(kind).length > 0 && !folder.system && folder.inherited !== undefined;
 }
 
+/**
+ * Whether the folder's menu offers Access (W5b: the Grant Access panel on
+ * the folder). Not on the admin-only kinds and not on a system folder
+ * (Auto-filed). The panel itself says when the brain has no grants yet.
+ */
+export function canGrantFolder(kind: TreeKind, folder: TreeFolder): boolean {
+  return shareLevelsOf(kind).length > 0 && !folder.system;
+}
+
 export const SHARE_LABEL: Record<TreeShareLevel, string> = {
   team: 'Team',
   client: 'Clients',

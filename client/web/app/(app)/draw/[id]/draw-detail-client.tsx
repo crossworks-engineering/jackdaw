@@ -17,7 +17,7 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { TagInput } from '@/components/tag-input';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { FocusToggle } from '@/components/layout/focus-toggle';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { SetPageTitle } from '@/components/layout/page-title';
@@ -528,7 +528,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
           </Button>
           {/* Share publishes first (beforeEnable=commit, the pages pattern) so
               the minted link never points at a stale or absent snapshot. */}
-          <AccessControl nodeId={initial.id} beforeEnable={commit} />
+          <GrantAccessControl type="draw" nodeId={initial.id} beforeEnable={commit} />
           <ExportMenu nodeId={initial.id} kind="draw" />
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the

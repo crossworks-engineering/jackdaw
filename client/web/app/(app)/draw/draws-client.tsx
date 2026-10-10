@@ -3,7 +3,7 @@
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AccessLevel } from '@mantle/client-types';
-import { AudienceBadge } from '@/components/share/audience-badge';
+import { WorkspaceChips } from '@/components/share/workspace-chips';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,7 +32,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { syncSelectionParam } from '@/lib/url-sync';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { drawSnapshotClass } from '@/components/draw/snapshot-theme';
-import { AccessControl } from '@/components/share/access-control';
+import { GrantAccessControl } from '@/components/share/grant-access';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { DrawViewer } from '@/components/draw/draw-viewer';
 import { Move } from 'lucide-react';
@@ -437,11 +437,7 @@ export function DrawsClient() {
                                     aria-label="Uncommitted edits"
                                   />
                                 )}
-                                <AudienceBadge
-                                  level={d.audience}
-                                  inherited={d.inherited}
-                                  className="mt-0.5"
-                                />
+                                <WorkspaceChips item={d} className="mt-0.5" />
                               </>
                             }
                             selected={!reviewId && activeId === d.id}
@@ -657,7 +653,7 @@ function DrawPreview({
                 Draft · uncommitted
               </span>
             )}
-            <AudienceBadge level={draw.audience} inherited={draw.inherited} />
+            <WorkspaceChips item={draw} />
           </h2>
           {/* The user's own one-liner wins; the extractor's summary fills in
               when none was written. */}
@@ -672,7 +668,7 @@ function DrawPreview({
               the editor, which a list screen cannot do, so the link serves the
               last COMMITTED scene. The "Draft · uncommitted" badge says when
               that is behind. */}
-          <AccessControl nodeId={draw.id} />
+          <GrantAccessControl type="draw" nodeId={draw.id} />
           {/* The snapshot can't be panned or zoomed, so a diagram bigger than
               the pane was unreadable without opening it for EDITING. This
               mounts the real canvas in upstream's view mode instead: pan and
