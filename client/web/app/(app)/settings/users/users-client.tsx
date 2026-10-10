@@ -104,6 +104,11 @@ import {
 } from '@/components/team-admin/client-logins';
 import { ClientReportPanel } from '@/components/team-admin/client-report';
 import { PairPhoneCard } from './pair-phone-card';
+import { LoginWorkspaces } from './login-workspaces';
+
+/** The role a new login is made with. Not a choice on this screen: the
+ *  brain's least (workspaces W5a). */
+export const NEW_LOGIN_ROLE = 'member';
 
 type UserRow = {
   id: string;
@@ -124,40 +129,6 @@ type UserRow = {
   contactId: string | null;
   disabledAt: string | null;
 };
-
-/** Admin or Member. Member logins are always on (Phase 6 removed the
- *  MANTLE_MEMBERS flag). A member login IS the team member: users are the
- *  team, so no contact is picked (Jason, 2026-09-26). */
-function RoleFields({
-  idPrefix,
-  role,
-  onRoleChange,
-}: {
-  idPrefix: string;
-  role: 'admin' | 'member';
-  onRoleChange: (role: 'admin' | 'member') => void;
-}) {
-  const roleId = `${idPrefix}-role`;
-  return (
-    <Field>
-      <FieldLabel htmlFor={roleId}>Role</FieldLabel>
-      <Select value={role} onValueChange={(v) => onRoleChange(v as 'admin' | 'member')}>
-        <SelectTrigger id={roleId} aria-describedby={hintId(roleId)}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="admin">Admin: the whole brain</SelectItem>
-          <SelectItem value="member">Member: team-level items and chat only</SelectItem>
-        </SelectContent>
-      </Select>
-      <FieldHint id={roleId}>
-        {role === 'member'
-          ? 'A member sees only what is set to Team (or lower), in their own space at /m. They never see admin screens.'
-          : 'An admin is a full co-owner of this brain.'}
-      </FieldHint>
-    </Field>
-  );
-}
 
 /** One option in the "copy from" picker. */
 type SourceAgent = { id: string; slug: string; name: string; role: string; model: string };
@@ -244,11 +215,6 @@ function LoginCard({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {user.displayName || user.email}
         </span>
-        {user.role === 'member' && (
-          <Badge variant="secondary" className="shrink-0">
-            Member
-          </Badge>
-        )}
         {user.disabledAt && (
           <Badge variant="outline" className="shrink-0">
             Disabled
@@ -398,7 +364,7 @@ export function UsersClient() {
           <>
             <div className="flex items-center justify-between gap-2 border-b border-border p-3">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Logins
+                Users
               </h2>
               <div className="flex shrink-0 items-center gap-2">
                 <Button
@@ -411,7 +377,7 @@ export function UsersClient() {
                   <MailPlus /> Invite
                 </Button>
                 <Button size="sm" onClick={() => setAddOpen(true)}>
-                  <Plus /> Add login
+                  <Plus /> Add user
                 </Button>
               </div>
             </div>
@@ -621,11 +587,9 @@ function ClientReportPane({ query }: { query: ReturnType<typeof useClientReport>
 /** What a login is, in a sentence: the Info button's text. */
 function loginAbout(user: UserRow): string {
   if (user.isOwner) return 'The anchor login. The brain is keyed to it, so it can’t be deleted.';
-  if (user.role === 'member')
-    return 'A member login: team-level items and chat only, at /m. Admin screens refuse it.';
   if (user.role === 'client')
     return 'A client login: client-level items only, signed in with a link issued below.';
-  return 'Another way into this brain. Same brain, same data, same settings: actions are recorded under this identity.';
+  return 'A login. What it reads comes from its workspaces, not from this screen. Its actions are recorded under this identity.';
 }
 
 function UserDetail({
@@ -687,7 +651,6 @@ function UserDetail({
               </Badge>
             )}
             {isSelf && <Badge variant="outline">You</Badge>}
-            {user.role === 'member' && <Badge variant="secondary">Member</Badge>}
             {user.role === 'client' && <Badge variant="outline">Client</Badge>}
             {user.disabledAt && <Badge variant="outline">Disabled</Badge>}
           </>
@@ -735,6 +698,7 @@ function UserDetail({
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Created</div>
               <div className="mt-0.5">{formatDateTime(user.createdAt)}</div>
             </div>
+            <LoginWorkspaces loginId={user.id} />
             <div>
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
                 Last login
@@ -799,34 +763,16 @@ function UserDetail({
 }
 
 /**
- * Role and access for one login (member logins, Phase 1): admin or member
- * (a member login is the team member itself), and a Disabled switch that stops the
- * login at once (sessions are re-checked every request; bearers are revoked).
- * A client login shows its role and no role change: the brain refuses one to
- * or from client (client logins C2).
+ * Account state for one login: a Disabled switch that stops the login at
+ * once (sessions are re-checked every request; bearers are revoked). No role
+ * here: what a login may do comes from its workspaces (workspaces W5a, plan
+ * 21.9: logins carry no permission). A client login keeps its note until the
+ * client portal goes (W5c).
  * Never shown for the anchor or your own login.
  */
 function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void }) {
   const toast = useToast();
-  const [role, setRole] = useState<'admin' | 'member'>(
-    user.role === 'client' ? 'member' : user.role,
-  );
   const [saving, setSaving] = useState(false);
-  const dirty = role !== user.role;
-
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await apiSend(`/api/users/${user.id}`, 'PATCH', { role });
-      onChanged();
-      toast.success(role === 'member' ? 'Now a member login' : 'Now an admin login');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const setDisabled = async (disabled: boolean) => {
     setSaving(true);
@@ -859,21 +805,12 @@ function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void 
       </div>
       {user.role === 'client' ? (
         <div className="border-t border-border pt-4">
-          <div className="text-sm font-medium">Role</div>
-          <p className="mt-0.5 text-sm">Client</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             A client login stays a client. To give this person more, delete the client login and
-            invite them as a member.
+            invite them again.
           </p>
         </div>
-      ) : (
-        <form onSubmit={save} noValidate className="space-y-3 border-t border-border pt-4">
-          <RoleFields idPrefix={`user-${user.id}`} role={role} onRoleChange={setRole} />
-          <SubmitButton pending={saving} disabled={!dirty}>
-            Save role
-          </SubmitButton>
-        </form>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1340,12 +1277,8 @@ function AddUserDialog({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [role, setRole] = useState<'admin' | 'member'>('admin');
   const [displayName, setDisplayName] = useState('');
-  const [agentName, setAgentName] = useState('');
-  const [sourceAgentId, setSourceAgentId] = useState('');
   const [pending, setPending] = useState(false);
-  const sources = useSourceAgents();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1366,29 +1299,20 @@ function AddUserDialog({
     setErrors({});
     setPending(true);
     try {
-      // A blank assistant name means "share the brain default", exactly as every
-      // login behaved before per-login assistants existed.
-      const wantsAgent = role === 'admin' && agentName.trim().length > 0;
-      const source = sourceAgentId || sources.data?.[0]?.id;
-      if (wantsAgent && !source) {
-        toast.error('No agent available to copy from.');
-        return;
-      }
-      const res = await apiSend<{ id: string; agentError: string | null }>('/api/users', 'POST', {
+      // No role on this screen (workspaces W5a): a new login starts with the
+      // least, and what it reads comes from the workspaces it is added to on
+      // the Workspaces screen. The brain still takes `role` until it drops
+      // roles, and its default there is admin, so the least is said out loud.
+      const res = await apiSend<{ id: string }>('/api/users', 'POST', {
         email: email.trim(),
         password,
         displayName: displayName.trim() || undefined,
-        ...(wantsAgent ? { agent: { name: agentName.trim(), sourceAgentId: source } } : {}),
-        ...(role === 'member' ? { role } : {}),
+        role: NEW_LOGIN_ROLE,
       });
-      if (res.agentError) toast.error(res.agentError);
-      else toast.success(wantsAgent ? 'Login and assistant added' : 'User added');
+      toast.success('User added');
       setEmail('');
       setPassword('');
       setDisplayName('');
-      setAgentName('');
-      setSourceAgentId('');
-      setRole('admin');
       onOpenChange(false);
       onCreated(res.id);
     } catch (err) {
@@ -1402,10 +1326,10 @@ function AddUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add login</DialogTitle>
+          <DialogTitle>Add user</DialogTitle>
           <DialogDescription>
-            Another way into this brain — same data, same settings, no separate account. Share the
-            starting password; it can be changed after signing in.
+            A login for one person. Share the starting password; they can change it after they sign
+            in. Then add them to workspaces on the Workspaces screen: that decides what they read.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="space-y-3">
@@ -1467,19 +1391,8 @@ function AddUserDialog({
               Falls back to the email address when blank.
             </FieldHint>
           </Field>
-          <RoleFields idPrefix="new-user" role={role} onRoleChange={setRole} />
-          {role === 'admin' && (
-            <AssistantFields
-              idPrefix="new-user"
-              name={agentName}
-              onNameChange={setAgentName}
-              sourceAgentId={sourceAgentId}
-              onSourceAgentIdChange={setSourceAgentId}
-              sources={sources.data ?? []}
-            />
-          )}
           <div className="flex justify-end pt-1">
-            <SubmitButton pending={pending}>Add login</SubmitButton>
+            <SubmitButton pending={pending}>Add user</SubmitButton>
           </div>
         </form>
       </DialogContent>

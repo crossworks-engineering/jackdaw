@@ -5,6 +5,7 @@ import {
   FolderTree,
   Home,
   KeyRound,
+  Layers,
   MessageSquare,
   PenTool,
   Plug,
@@ -42,12 +43,15 @@ export const MEMBER_NAV: { label: string; items: MemberNavItem[] }[] = [
     ],
   },
   { label: 'Assistant', items: [{ name: 'Chat', href: '#chat', icon: MessageSquare, chat: true }] },
-  // Their own MCP view (team apps Phase 1) and their own API keys, for
-  // scripts and MCP clients (brain migration 0232).
+  // Their own MCP view (team apps Phase 1), their workspaces (W5a) and their
+  // own API keys, for scripts and MCP clients (brain migration 0232).
   {
     label: 'You',
     items: [
       { name: 'MCP', href: '/settings/mcp', icon: Plug },
+      // The workspaces they are in (workspaces W5a): read, or manage as a
+      // Moderator. Members read GET /api/workspaces (their shell has none).
+      { name: 'Workspaces', href: '/settings/workspaces', icon: Layers },
       { name: 'API access', href: '/settings/api-access', icon: KeyRound },
     ],
   },

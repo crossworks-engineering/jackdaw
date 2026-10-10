@@ -65,6 +65,7 @@ import { NeedsYouWatcher } from '@/components/needs-you/needs-you-watcher';
 import { PickMode } from '@/components/assistant/pick-mode';
 import { ZenModeContext } from '@/components/layout/zen-mode';
 import { SearchPalette } from '@/components/search/search-palette';
+import { WorkspaceSwitcher } from '@/components/workspaces/workspace-switcher';
 import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
 import { ShellRoleGate, ViewerRoleProvider } from '@/components/member/viewer-role';
 import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
@@ -151,6 +152,12 @@ type ShellData = {
   fontLogoSize: string | null;
   fontTitleSize: string | null;
   fontProseSize: string | null;
+  /** The login's workspaces (W5a); absent before W5a. The switcher lists
+   *  them (components/workspaces/workspace-switcher.tsx). */
+  workspaces?: { id: string; name: string; isAdmin: boolean; moderator: boolean }[];
+  /** The Admin areas this login may manage (plan 1.4, requireArea); absent
+   *  before W5a, which means all of them. */
+  areas?: string[];
   /** Short-lived asset-access token for browser-native srcs in detached mode
    *  (see lib/asset-url). Absent/ignored same-origin. */
   assetToken?: string;
@@ -672,6 +679,10 @@ function ShellFrame({
         logoDarkVersion={brand?.logoDarkVersion ?? null}
         inDrawer={inDrawer}
         onNavigate={onNavigate}
+        // A member's shell has no workspaces route yet (members move to this
+        // shell in W5c); the switcher renders nothing for a brain that sends
+        // none.
+        switcher={isMember ? null : <WorkspaceSwitcher onNavigate={onNavigate} />}
       />
       <RailControls
         identity={identity}
@@ -775,6 +786,7 @@ function ShellFrame({
             onMenuClick={() => setMobileOpen(true)}
             onSearchClick={isMember ? undefined : () => setSearchOpen(true)}
             member={isMember}
+            switcher={isMember ? null : <WorkspaceSwitcher variant="bar" />}
           />
         )}
 

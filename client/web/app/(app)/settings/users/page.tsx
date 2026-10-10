@@ -11,7 +11,7 @@ import { UsersClient } from './users-client';
 export default async function UsersSettingsPage() {
   return (
     <>
-      <SetPageTitle title="Logins" />
+      <SetPageTitle title="Users" />
       <UsersClient />
     </>
   );

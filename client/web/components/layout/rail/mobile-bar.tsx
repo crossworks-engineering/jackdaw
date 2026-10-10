@@ -35,6 +35,7 @@ export function MobileBar({
   onSearchClick,
   member = false,
   client = false,
+  switcher,
 }: {
   identity: ProfileIdentity;
   siteName?: string | null;
@@ -48,6 +49,8 @@ export function MobileBar({
   member?: boolean;
   /** A client login: the client's short menu (see ProfileMenu). */
   client?: boolean;
+  /** The workspace switcher's icon form (plan 7.1). */
+  switcher?: React.ReactNode;
 }) {
   // As in the rail: an unnamed brain wears the brand art rather than the
   // brand's name set in type. There is no collapsed state here — the bar is
@@ -97,6 +100,7 @@ export function MobileBar({
         />
       </Link>
 
+      {switcher}
       {onSearchClick ? (
         <Button variant="ghost" size="icon" onClick={onSearchClick} aria-label="Search">
           <Search />

@@ -1,4 +1,4 @@
-import { Power } from 'lucide-react';
+import { Layers, Power } from 'lucide-react';
 import {
   NAV_GROUPS as SHARED_NAV_GROUPS,
   navItemMatches,
@@ -45,7 +45,36 @@ export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item
     after: '/settings/updates',
     item: { name: 'Services', href: '/settings/services', icon: Power },
   },
+  {
+    // Workspaces (plan 4887b8e7, W5a): the list and the one workspace screen.
+    group: 'Settings',
+    after: '/settings/users',
+    item: { name: 'Workspaces', href: '/settings/workspaces', icon: Layers },
+  },
 ];
+
+/**
+ * Rows this client names differently from the pinned shared list. Logins is
+ * Users since workspaces (W5a): a user is a login, and the screen holds
+ * account actions only. Remove an entry once the shared list carries the name.
+ */
+export const RENAMED_NAV_ITEMS: Readonly<Record<string, string>> = {
+  '/settings/users': 'Users',
+};
+
+/** Pure, so the renames are unit-tested against any list. */
+export function withRenamed(
+  groups: readonly NavGroup[],
+  renamed: Readonly<Record<string, string>> = RENAMED_NAV_ITEMS,
+): NavGroup[] {
+  return groups.map((g) => ({
+    ...g,
+    items: g.items.map((i) => {
+      const name = renamed[i.href];
+      return name ? { ...i, name } : i;
+    }),
+  }));
+}
 
 /** Pure, so the placement is unit-tested against any list. */
 export function withAdded(
@@ -67,7 +96,7 @@ export function withAdded(
 
 // These three shadow the shared module's own exports of the same names (a
 // local export wins over `export *`), so every consumer gets the filtered list.
-export const NAV_GROUPS: NavGroup[] = withAdded(withoutRetired(SHARED_NAV_GROUPS));
+export const NAV_GROUPS: NavGroup[] = withRenamed(withAdded(withoutRetired(SHARED_NAV_GROUPS)));
 
 /** Flat list of every nav item, in sidebar order. */
 export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);

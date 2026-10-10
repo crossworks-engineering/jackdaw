@@ -7,6 +7,7 @@ import {
   NAV_GROUPS,
   matchNavItem,
   withAdded,
+  withRenamed,
   withoutRetired,
   type NavGroup,
 } from './nav-items';
@@ -113,5 +114,24 @@ describe('nav items this client adds before the shared list names them', () => {
       '/settings/services',
       '/debug',
     ]);
+  });
+});
+
+describe('workspaces (W5a) in the nav', () => {
+  it('adds Workspaces after Users in Settings', () => {
+    const settings = NAV_GROUPS.find((g) => g.label === 'Settings')!;
+    const at = settings.items.findIndex((i) => i.href === '/settings/users');
+    expect(at).toBeGreaterThan(-1);
+    expect(settings.items[at + 1]?.href).toBe('/settings/workspaces');
+    expect(matchNavItem('/settings/workspaces')?.name).toBe('Workspaces');
+  });
+
+  it('names the logins screen Users', () => {
+    expect(matchNavItem('/settings/users')?.name).toBe('Users');
+    const groups: NavGroup[] = [
+      { label: 'Settings', items: [{ name: 'Logins', href: '/settings/users', icon }] },
+    ];
+    expect(withRenamed(groups)[0]!.items[0]!.name).toBe('Users');
+    expect(withRenamed(groups, {})).toEqual(groups);
   });
 });

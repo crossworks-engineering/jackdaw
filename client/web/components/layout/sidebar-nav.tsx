@@ -20,6 +20,8 @@ import { useRealtime } from '@/components/realtime/use-realtime';
 import { activeNavHref } from '@/lib/nav-active';
 import { favoriteItems, useNavFavorites } from '@/lib/nav-favorites';
 import { NAV_SCOPES, scopeGroups, useNavScope } from '@/lib/nav-scope';
+import { navWithAreas } from '@/lib/workspaces';
+import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
 import {
   NAV_GROUPS,
   type NavGroup as BaseNavGroup,
@@ -63,7 +65,11 @@ export function SidebarNav({
   // Every screen is a row again. Thirteen of them were briefly folded behind a
   // single "Settings" row pointing at a card hub; that is undone, so the menu
   // filter finds "Backups" or "Audit log" by typing again rather than only ⌘K.
-  const groups: NavGroup[] = NAV_GROUPS.map((g) => ({
+  //
+  // Screens the login may not manage are not offered (plan 7.1: they hide by
+  // the areas /api/shell names; a brain before W5a names none, so all show).
+  const areas = useShellWorkspaces()?.areas;
+  const groups: NavGroup[] = navWithAreas(NAV_GROUPS, areas).map((g) => ({
     ...g,
     items: g.items.map((item) =>
       item.href === '/pending' ? { ...item, badge: pendingApprovals } : item,
