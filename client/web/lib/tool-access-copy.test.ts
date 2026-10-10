@@ -5,11 +5,11 @@
 import { describe, expect, it } from 'vitest';
 import { blockedReason, toolAccessBadge, toolAccessCopy } from './tool-access-copy';
 import {
-  CONNECTOR_LEVEL_MEANING,
-  connectorLevelConfirmNote,
-  connectorLevelNeedsConfirm,
+  CONNECTOR_WORKSPACES_NOTE,
+  GROUP_LEVEL_MEANING,
   groupLevelMeaning,
   isConnectorGroup,
+  levelNeedsConfirm,
 } from './tool-group-level';
 import { connectorLine } from './member-mcp';
 
@@ -20,8 +20,13 @@ describe('the switch on an outside tool', () => {
   it('is the read-only mark on a connector tool', () => {
     const c = toolAccessCopy('mcp');
     expect(c.label).toBe('Read-only');
-    expect(c.hint).toMatch(/connector's level/);
+    // Contract 28: workspaces decide who uses a connector, not its level.
+    expect(c.hint).toMatch(/workspace screen/);
+    expect(c.hint).not.toMatch(/level/);
     expect(c.hint).toMatch(/Write switch/);
+    for (const t of [c.hint, c.warn, c.stale, ...c.dialogBody]) {
+      expect(t).not.toMatch(/connector.s level|public agents|contact link/);
+    }
     expect(c.dialogTitle('mcp_x_q')).toBe('Mark “mcp_x_q” as read-only?');
   });
 
@@ -54,48 +59,33 @@ describe("a connector group's level", () => {
   const connector = { integration: { mcp: { url: 'https://x.example/mcp' } } };
   const plain = { integration: null };
 
-  it('says who uses the connector, and a plain group keeps its words', () => {
+  it('says the workspaces share a connector, not its level (contracts 21, 28)', () => {
     expect(isConnectorGroup(connector)).toBe(true);
     expect(isConnectorGroup(plain)).toBe(false);
     expect(
       isConnectorGroup({ integration: { openapi: { url: 'https://x.example/o.json' } } } as never),
     ).toBe(false);
     expect(isConnectorGroup({})).toBe(false);
-    expect(groupLevelMeaning(connector, 'team')).toBe(CONNECTOR_LEVEL_MEANING.team);
-    expect(groupLevelMeaning(connector, 'team')).toMatch(/own MCP/);
-    expect(groupLevelMeaning(plain, 'team')).not.toMatch(/own MCP/);
-    for (const m of Object.values(CONNECTOR_LEVEL_MEANING)) expect(m).not.toMatch(DASHES);
-  });
-
-  it('tells public agents and contacts they get only read-only tools', () => {
-    expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/public agents/);
-    expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/only its read-only tools/);
-    // A client never reaches a public connector, and a client agent's grant
-    // gives clients nothing (access matrix N10).
-    expect(CONNECTOR_LEVEL_MEANING.public).toMatch(/Not clients/);
-    expect(CONNECTOR_LEVEL_MEANING.client).not.toMatch(/client agents/);
-    expect(connectorLevelConfirmNote('public')).toMatch(/only the tools marked read-only/);
-    expect(connectorLevelConfirmNote('team')).not.toMatch(/public agents/);
-    expect(toolAccessCopy('mcp').hint).toMatch(
-      /Contacts and public agents only ever get marked tools/,
+    expect(groupLevelMeaning(connector, 'team')).toBe(
+      `${GROUP_LEVEL_MEANING.team} ${CONNECTOR_WORKSPACES_NOTE}`,
     );
-    expect(toolAccessCopy('mcp').dialogBody[0]).toMatch(/public agents get it too/);
-    for (const l of ['admin', 'team', 'client', 'public'] as const) {
-      expect(connectorLevelConfirmNote(l)).not.toMatch(DASHES);
-    }
+    expect(groupLevelMeaning(connector, 'team')).not.toMatch(/own MCP/);
+    expect(groupLevelMeaning(plain, 'team')).toBe(GROUP_LEVEL_MEANING.team);
+    expect(CONNECTOR_WORKSPACES_NOTE).not.toMatch(DASHES);
   });
 
-  it('asks before every move below admin', () => {
-    expect(connectorLevelNeedsConfirm('admin', 'team')).toBe(true);
-    expect(connectorLevelNeedsConfirm('team', 'client')).toBe(true);
-    expect(connectorLevelNeedsConfirm('team', 'admin')).toBe(false);
-    expect(connectorLevelNeedsConfirm('team', 'team')).toBe(false);
+  it('asks before client or public only, connector or not', () => {
+    expect(levelNeedsConfirm('admin', 'team')).toBe(false);
+    expect(levelNeedsConfirm('team', 'client')).toBe(true);
+    expect(levelNeedsConfirm('team', 'public')).toBe(true);
+    expect(levelNeedsConfirm('team', 'team')).toBe(false);
   });
 });
 
 describe('a connector on the member MCP screen', () => {
   it('names its reads, and its writes with the Write switch', () => {
-    const c = { id: 'g', name: 'Site data', level: 'team', readTools: 3, writeTools: 1 };
+    // No `level` since W5b2 (contract 28).
+    const c = { id: 'g', name: 'Site data', readTools: 3, writeTools: 1 };
     expect(connectorLine(c, true)).toBe('3 read tools, 1 tool that changes data');
     expect(connectorLine({ ...c, writeTools: 2 }, true)).toBe(
       '3 read tools, 2 tools that change data',

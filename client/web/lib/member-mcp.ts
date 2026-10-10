@@ -4,43 +4,21 @@
  * /api/member/mcp/clients/:id). The pure half, pinned by member-mcp.test.ts:
  * the answer's shape, the access words and the connect commands.
  *
- * The types mirror `MemberMcpView` in @mantle/client-types (dto/member-mcp);
- * they live here until the contract pin carries them.
+ * The wire shapes are lib/contract/member-mcp.ts: a verbatim copy of mantle
+ * packages/client-types/src/dto/member-mcp.ts (brain W5b2 part B,
+ * 69a2ccd15). A connector carries no level any more (contract 28): the
+ * member's workspaces decide which connectors they reach.
  */
 
-export type MemberMcpClient = {
-  id: string;
-  clientName: string | null;
-  connectedAt: string;
-  lastUsedAt: string | null;
-  activeTokens: number;
-};
-
-export type MemberMcpView = {
-  /** The box-level remote MCP switch (an admin's). */
-  remoteEnabled: boolean;
-  connectorUrl: string;
-  /** The member's own switches, set by an admin. */
-  access: { enabled: boolean; writeEnabled: boolean };
-  /** The clients this member connected, never another login's. */
-  clients: MemberMcpClient[];
-  /** The connectors open at the member's level (brain team apps Phase 2).
-   *  Absent from an older brain. */
-  connectors?: MemberMcpConnector[];
-};
-
-/** One connector open to the member: its read and write tool counts. */
-export type MemberMcpConnector = {
-  id: string;
-  name: string;
-  level: string;
-  readTools: number;
-  writeTools: number;
-};
+export type { MemberMcpClient, MemberMcpConnector, MemberMcpView } from './contract/member-mcp';
+import type { MemberMcpConnector, MemberMcpView } from './contract/member-mcp';
 
 /** One line per connector: what the member may do with it, from their
  *  Write switch. */
-export function connectorLine(c: MemberMcpConnector, writeEnabled: boolean): string {
+export function connectorLine(
+  c: Pick<MemberMcpConnector, 'readTools' | 'writeTools'>,
+  writeEnabled: boolean,
+): string {
   const reads = `${c.readTools} read tool${c.readTools === 1 ? '' : 's'}`;
   if (c.writeTools === 0) return reads;
   const writes =

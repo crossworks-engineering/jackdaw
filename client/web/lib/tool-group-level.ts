@@ -3,9 +3,10 @@
  * agent may hold a group only at a level it reads (a team agent holds team,
  * client and public groups; client and public are siblings), and a team app
  * calls a built-in tool only while an ENABLED group at team level or lower
- * holds it. An MCP CONNECTOR group's level also decides who may use its
- * tools, on their own MCP and in apps (brain team apps Phase 2), and a tool's
- * read-only mark decides read or write. A single http tool follows its own
+ * holds it. An MCP CONNECTOR group's level no longer shares the connector
+ * (W5b2 contracts 21 and 28): people and apps reach a connector through the
+ * workspaces that hold it, set on the workspace screen. Its level still
+ * decides which agents may hold the group, until W7. A single http tool follows its own
  * "External access" switch. Set with `PATCH /api/access/tool-groups/:slug { audience }`;
  * the brain refuses a level that an agent holding the group cannot read
  * (code `group_above_agent`, naming each agent). See the brain's
@@ -30,35 +31,12 @@ export const GROUP_LEVEL_MEANING: Record<AccessLevel, string> = {
   public: 'Public: public agents may use these tools too, when granted. Team apps may as well.',
 };
 
-/**
- * A CONNECTOR group's level (brain team apps Phase 2): it decides who may use
- * the connector's tools, as the level on an item does, on their own MCP and
- * in the apps they run. A tool without the read-only mark changes data.
- */
-export const CONNECTOR_LEVEL_MEANING: Record<AccessLevel, string> = {
-  admin:
-    'Admin: only admins and admin agents use this connector. Members, clients and shared apps cannot.',
-  team: 'Team: members use every tool of this connector, from their own MCP and in the apps they run. Tools without the read-only mark can change data.',
-  client:
-    'Client: clients use it too, from their own MCP and in client apps, and so do members. Tools without the read-only mark can change data.',
-  public:
-    'Public: members use every tool; contacts on an app’s contact link and public agents granted it use only its read-only tools. Not clients: they use client-level connectors only.',
-};
+/** Under a connector group's level: the level does not share the connector
+ *  (contracts 21 and 28); its workspaces do. */
+export const CONNECTOR_WORKSPACES_NOTE =
+  'People and apps use this connector through the workspaces that hold it (Settings > Workspaces). The level does not share it.';
 
-/**
- * The second line of the confirm dialog before a connector moves to `level`.
- * Contacts and public agents only ever get the tools marked read-only
- * (contacts read only, brain team apps Phase 2).
- */
-export function connectorLevelConfirmNote(level: AccessLevel): string {
-  const all =
-    'Everyone at this level may use every tool of this connector, the ones that change data included, and read everything it reaches. Keep a source with secret parts at admin level.';
-  if (level !== 'public') return all;
-  return `${all} Contacts and public agents get only the tools marked read-only.`;
-}
-
-/** Is this group an MCP connector (its level then opens its tools to logins
- *  and apps). An OpenAPI or plain group is not. */
+/** Is this group an MCP connector. An OpenAPI or plain group is not. */
 export function isConnectorGroup(group: { integration?: { mcp?: unknown } | null }): boolean {
   return !!group.integration?.mcp;
 }
@@ -68,16 +46,9 @@ export function groupLevelMeaning(
   group: { integration?: { mcp?: unknown } | null },
   level: AccessLevel,
 ): string {
-  return isConnectorGroup(group) ? CONNECTOR_LEVEL_MEANING[level] : GROUP_LEVEL_MEANING[level];
-}
-
-/** A connector below admin opens its tools to members, clients or links:
- *  every move below admin asks first. */
-export function connectorLevelNeedsConfirm(
-  from: AccessLevel | undefined,
-  to: AccessLevel,
-): boolean {
-  return from !== to && to !== 'admin';
+  return isConnectorGroup(group)
+    ? `${GROUP_LEVEL_MEANING[level]} ${CONNECTOR_WORKSPACES_NOTE}`
+    : GROUP_LEVEL_MEANING[level];
 }
 
 /** Shown in place of the selector when the brain does not send the level. */

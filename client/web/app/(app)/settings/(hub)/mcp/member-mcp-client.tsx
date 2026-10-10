@@ -201,7 +201,7 @@ export function MemberMcpClient() {
           </div>
         </section>
 
-        {/* Data sources (connectors) open at the member's level */}
+        {/* Data sources (connectors) the member's workspaces hold (contract 28) */}
         {view.connectors !== undefined && (
           <section className="rounded-xl border border-border bg-card">
             <div className="flex items-start gap-3 border-b border-border p-4 md:p-5">
@@ -211,8 +211,8 @@ export function MemberMcpClient() {
               <div>
                 <h2 className="text-sm font-semibold">Data sources you can use</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Connectors an admin opened to the team. Their tools are on your MCP and in the
-                  apps you run.
+                  Connectors your workspaces hold. Their tools are on your MCP and in the apps you
+                  run.
                 </p>
               </div>
             </div>

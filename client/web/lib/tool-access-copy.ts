@@ -2,8 +2,9 @@
  * The words on the switch of an outside tool (Settings > Tools). Since brain
  * team apps Phase 2 one switch means two things:
  *
- *  - on a CONNECTOR tool (mcp) it is the READ-ONLY MARK: the connector's
- *    level decides who may use the tool, and the mark decides whether a call
+ *  - on a CONNECTOR tool (mcp) it is the READ-ONLY MARK: the workspaces
+ *    that hold the connector decide who may use the tool (W5b2 contract 28,
+ *    no connector level any more), and the mark decides whether a call
  *    reads (marked) or changes data (unmarked);
  *  - on an http tool it is "External access", as before: shared apps may
  *    call it at all only while it is on.
@@ -24,14 +25,14 @@ export type ToolAccessCopy = {
 
 const MARK: ToolAccessCopy = {
   label: 'Read-only',
-  hint: "Marks this connector tool as one that only reads. Who may use it is the connector's level (Settings > Tool groups). Without the mark the tool counts as changing data: apps of members and clients at the connector's level may call it, and their MCP only with the Write switch on. Contacts and public agents only ever get marked tools.",
-  warn: 'Everyone at the connector’s level can call its tools by hand, with any input. If a tool takes free SQL, they can read anything the connector can read.',
+  hint: 'Marks this connector tool as one that only reads. Who may use it is set on each workspace screen (Connectors). Without the mark the tool counts as changing data: it runs only in a workspace with the connector’s Write tick on, for that workspace’s Moderators, and over MCP only with the Write switch on. Open links never use it.',
+  warn: 'Every user of a workspace that holds the connector can call its tools by hand, with any input. If a tool takes free SQL, they can read anything the connector can read.',
   stale:
-    'This tool changed after it was marked, so members, clients and apps can’t use it now. Mark it again to confirm the new version.',
+    'This tool changed after it was marked, so users and apps cannot use it now. Mark it again to confirm the new version.',
   dialogTitle: (slug) => `Mark “${slug}” as read-only?`,
   dialogBody: [
-    'A read-only tool is offered to every member or client at the connector’s level, also on their MCP without the Write switch, and in every app at that level. On a public connector, contacts on an app’s contact link and public agents get it too.',
-    'The brain can’t see what an outside tool does. Mark only a tool that reads data and never changes it. Every call is logged with who made it.',
+    'A read-only tool is offered to every user of a workspace that holds the connector, also on their MCP without the Write switch, and in the apps those workspaces hold.',
+    'The brain cannot see what an outside tool does. Mark only a tool that reads data and never changes it. Every call is logged with who made it.',
   ],
   action: 'Mark read-only',
   toastOn: 'Marked read-only',
