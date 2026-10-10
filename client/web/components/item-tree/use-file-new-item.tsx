@@ -9,6 +9,7 @@ import { moveTreeItems, treeKey } from './tree-api';
 import { seenOf, visibilityRefusal } from './sharing';
 import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confirm';
 import {
+  CREATE_HERE_TITLE,
   MoveGrantsDialog,
   fetchMovePreview,
   type MoveTarget,
@@ -83,7 +84,9 @@ export function useFileNewItem(
               target: {
                 nodeIds: [id],
                 action: `Put the new ${noun} in “${folder.name}”.`,
+                title: CREATE_HERE_TITLE,
                 to: { toFolderId: folder.id },
+                ...(kind === 'apps' ? { app: {} } : {}),
                 onMoved: () => void qc.invalidateQueries({ queryKey: treeKey(kind) }),
               },
             });

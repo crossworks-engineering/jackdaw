@@ -1,5 +1,6 @@
 'use client';
 
+import { noteListAnswer } from '@/lib/workspace-filter';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -159,7 +160,7 @@ export function AppsClient() {
       const qs = new URLSearchParams({ page: String(page) });
       if (query) qs.set('q', query);
       if (ws) qs.set('ws', ws);
-      return apiFetch<AppsPage>(`/api/apps?${qs.toString()}`);
+      return apiFetch<AppsPage>(`/api/apps?${qs.toString()}`).then((r) => noteListAnswer(r, ws));
     },
     placeholderData: (prev) => prev,
     enabled: treeServes !== undefined && !showTree,

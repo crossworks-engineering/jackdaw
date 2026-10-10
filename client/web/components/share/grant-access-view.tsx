@@ -19,7 +19,8 @@ import {
   NO_ADDABLE_TEXT,
   READ_ONLY_PANEL_TEXT,
   embedsLine,
-  rowActions,
+  rowActionsFor,
+  rowHasControls,
   rowNote,
   sortAddable,
   sortRows,
@@ -57,6 +58,7 @@ export function GrantAccessView({
   type,
   hint,
   link,
+  moderated,
   ...on
 }: {
   view: GrantsView;
@@ -68,6 +70,9 @@ export function GrantAccessView({
   hint?: string;
   /** The open link and the contact shares, under the rows (8.1, kept). */
   link?: ReactNode;
+  /** The workspaces this user moderates: a row there may be removed, or
+   *  its Write turned off, without managing the item (contract 10). */
+  moderated?: ReadonlySet<string>;
 } & GrantAccessHandlers) {
   const manage = view.mayManage;
   const rows = sortRows(view.rows);
@@ -92,7 +97,8 @@ export function GrantAccessView({
         {!manage && <p className="text-xs text-muted-foreground">{READ_ONLY_PANEL_TEXT}</p>}
         <ul aria-label="Workspaces" className="space-y-1.5">
           {rows.map((row) => {
-            const can = rowActions(row);
+            const can = rowActionsFor(row, manage, moderated?.has(row.wsId) === true);
+            const controls = rowHasControls(can);
             const note = rowNote(row);
             return (
               <li
@@ -122,7 +128,7 @@ export function GrantAccessView({
                     </p>
                   )}
                 </div>
-                {manage && !row.bridgeOwned ? (
+                {controls || (manage && !row.bridgeOwned && !row.excluded) ? (
                   <>
                     {can.changeHere && (
                       <Button
@@ -161,7 +167,7 @@ export function GrantAccessView({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
-                    {!row.excluded && (
+                    {!row.excluded && (manage || can.write) && (
                       <Switch
                         checked={row.write}
                         disabled={busy || !can.write}

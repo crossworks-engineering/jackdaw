@@ -12,17 +12,25 @@ import {
   folderPreviewUrl,
   grantErrorCode,
   grantErrorText,
-  isTooBig,
   lostSight,
   moveChangesAccess,
   removedLine,
   rowActions,
+  rowActionsFor,
+  addRequest,
+  removeRequest,
+  folderConfirm,
+  isItemGone,
+  isNoGrants,
+  uploadVisibleTo,
+  uploadLine,
+  appMoveLines,
+  needsConfirm,
   rowNote,
   skippedText,
   sortAddable,
   sortRows,
   withConfirm,
-  withWs,
   workspacesOf,
   type GrantRow,
 } from './grants';
@@ -193,8 +201,19 @@ describe('writes and errors', () => {
   it('knows the { visible: false } answer and counts skipped embeds', () => {
     expect(lostSight({ visible: false })).toBe(true);
     expect(lostSight({ rows: [] })).toBe(false);
-    expect(skippedText(0)).toBeNull();
-    expect(skippedText(2)).toBe('2 embeds were not shared: you may not share them there.');
+    expect(skippedText([])).toBeNull();
+    const sk = (code: string) => ({ nodeId: 'n', wsId: 'w', code });
+    expect(skippedText([sk('forbidden'), sk('forbidden')])).toBe(
+      '2 embeds were not shared: you may not share it there.',
+    );
+    expect(skippedText([sk('bridge_owned')])).toBe(
+      'One embed was not shared: it follows its level until grants become the truth.',
+    );
+    // An embedded app is asked again, not reported as refused.
+    expect(skippedText([sk('confirm_required')])).toBeNull();
+    expect(needsConfirm([sk('forbidden'), sk('confirm_required')])).toEqual([
+      sk('confirm_required'),
+    ]);
   });
 
   it('shows the brain words as is and reads the code', () => {
@@ -204,15 +223,97 @@ describe('writes and errors', () => {
     });
     expect(grantErrorText(e, 'x')).toBe('This folder holds too many items.');
     expect(grantErrorCode(e)).toBe('too_big');
-    expect(isTooBig(e)).toBe(true);
+    expect(isItemGone(e)).toBe(false);
     expect(grantErrorText(new Error('boom'), 'Could not share it')).toBe('Could not share it');
   });
 });
 
-describe('the switcher filter', () => {
-  it('adds ws to a list URL only when a workspace is picked', () => {
-    expect(withWs('/api/pages', 'w1')).toBe('/api/pages?ws=w1');
-    expect(withWs('/api/pages?q=a', 'w1')).toBe('/api/pages?q=a&ws=w1');
-    expect(withWs('/api/pages', null)).toBe('/api/pages');
+describe('who may change a row (contract 10)', () => {
+  it('a Moderator of only that workspace may remove the row or turn Write off', () => {
+    expect(rowActionsFor(row({ write: true }), false, true)).toMatchObject({
+      write: true,
+      remove: true,
+      changeHere: false,
+      restore: false,
+      move: false,
+      writeOffOnly: true,
+    });
+    // Write is off already: nothing to turn off, only remove.
+    expect(rowActionsFor(row({ write: false }), false, true)).toMatchObject({
+      write: false,
+      remove: true,
+    });
+  });
+
+  it('not on the home, a bridge row or a row they do not moderate', () => {
+    expect(rowActionsFor(row({ isHome: true }), false, true).remove).toBe(false);
+    expect(rowActionsFor(row({ bridgeOwned: true }), false, true).remove).toBe(false);
+    expect(rowActionsFor(row(), false, false).remove).toBe(false);
+  });
+});
+
+describe('what a write sends', () => {
+  it('a folder add and an app add send confirm, a plain add does not', () => {
+    expect(addRequest('f', 'w', 'branch').body).toEqual({ wsId: 'w', confirm: true });
+    expect(addRequest('a', 'w', 'app').body).toEqual({ wsId: 'w', confirm: true });
+    expect(addRequest('p', 'w', 'page')).toEqual({
+      url: '/api/grants/p',
+      method: 'POST',
+      body: { wsId: 'w' },
+    });
+  });
+
+  it('a folder remove goes with ?confirm=1', () => {
+    expect(removeRequest('f', 'w', 'branch').url).toBe('/api/grants/f/w?confirm=1');
+    expect(removeRequest('p', 'w', 'page').url).toBe('/api/grants/p/w');
+  });
+
+  it('a too-big folder blocks the confirm, with the words to share sub-folders', () => {
+    const c = folderConfirm({ add: 'w', name: 'Sales' }, { gain: 0, lose: 0, tooBig: true });
+    expect(c.blocked).toBe(true);
+    expect(c.lines[0]).toContain('Share the sub-folders one by one');
+    expect(folderConfirm({ add: 'w', name: 'Sales' }, { gain: 2, lose: 0, tooBig: false })).toEqual(
+      { title: 'Share this folder with Sales?', lines: ['2 items gain Sales.'], blocked: false },
+    );
+  });
+
+  it('an old brain (no code) is told apart from a hidden item (a code)', () => {
+    const old = new ApiError('Not found', 404);
+    const gone = new ApiError('not found', 404, { error: 'not found', code: 'not_found' });
+    expect(isNoGrants(old)).toBe(true);
+    expect(isItemGone(old)).toBe(false);
+    expect(isNoGrants(gone)).toBe(false);
+    expect(isItemGone(gone)).toBe(true);
+  });
+});
+
+describe('upload into a folder (S6)', () => {
+  it('names every workspace when the folder is shared beyond its home', () => {
+    const rows = [
+      row({ wsId: 'h', name: 'Admin', isHome: true }),
+      row({ wsId: 's', name: 'Sales' }),
+      row({ wsId: 'x', name: 'Board', excluded: true, viaFolder: { id: 'f', title: 'F' } }),
+    ];
+    expect(uploadVisibleTo({ rows })).toEqual(['Admin', 'Sales']);
+    expect(uploadLine(['Admin', 'Sales'], 2)).toBe(
+      'These 2 files will also be visible to: Admin, Sales.',
+    );
+  });
+
+  it('asks nothing for a folder only its home reads', () => {
+    expect(uploadVisibleTo({ rows: [row({ isHome: true })] })).toBeNull();
+    expect(uploadVisibleTo(null)).toBeNull();
+  });
+});
+
+describe('an app move (S7)', () => {
+  it('says both effects', () => {
+    expect(appMoveLines(['Sales'], ['Team', 'Sales'])).toEqual([
+      "This app's data becomes visible to Sales.",
+      'This app will then read only items that Team and Sales both hold.',
+    ]);
+    expect(appMoveLines(['Sales'])[1]).toBe(
+      'This app will then read only items that every workspace it is in holds.',
+    );
   });
 });

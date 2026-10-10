@@ -1,5 +1,6 @@
 'use client';
 
+import { useWsFilterHonoured } from '@/lib/workspace-filter';
 import Link from 'next/link';
 import { ChevronsUpDown, Layers } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -18,7 +19,7 @@ import {
 import {
   ALL_WORKSPACES,
   ALL_WORKSPACES_LABEL,
-  SWITCHER_NOTE,
+  switcherNote,
   currentWorkspaceLabel,
   resolveCurrentWorkspace,
   sortWorkspaces,
@@ -57,6 +58,7 @@ export function WorkspaceSwitcher({
 }) {
   const info = useShellWorkspaces();
   const [stored, setStored] = useCurrentWorkspace(info?.login);
+  const honoured = useWsFilterHonoured();
   if (!info?.hasWorkspaces) return null;
   const current = resolveCurrentWorkspace(stored, info.workspaces);
   return (
@@ -66,6 +68,7 @@ export function WorkspaceSwitcher({
       current={current}
       onChange={(id) => setStored(id === ALL_WORKSPACES ? null : id)}
       onNavigate={onNavigate}
+      honoured={honoured}
     />
   );
 }
@@ -76,12 +79,15 @@ export function WorkspaceSwitcherView({
   current,
   onChange,
   onNavigate,
+  honoured = false,
 }: {
   variant: 'rail' | 'bar';
   workspaces: readonly ShellWorkspace[];
   current: string;
   onChange: (id: string) => void;
   onNavigate?: () => void;
+  /** The brain filters lists by workspace (seen in a list answer). */
+  honoured?: boolean;
 }) {
   const label = currentWorkspaceLabel(current, workspaces);
   const options = switcherOptions(workspaces);
@@ -131,7 +137,7 @@ export function WorkspaceSwitcherView({
           ))}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">{SWITCHER_NOTE}</p>
+        <p className="px-2 py-1.5 text-xs text-muted-foreground">{switcherNote(honoured)}</p>
         <DropdownMenuItem asChild>
           <Link href="/settings/workspaces" onClick={onNavigate}>
             Manage workspaces

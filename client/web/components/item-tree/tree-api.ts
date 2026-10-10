@@ -4,6 +4,7 @@
  * `['tree', kind]`, so one invalidation refreshes every open folder, the
  * flat views and the pins together.
  */
+import { noteListAnswer } from '@/lib/workspace-filter';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { AppTint } from '@mantle/client-types/app-nav';
 import type {
@@ -167,7 +168,7 @@ export const fetchFolderPage = (
   const url = folderUrl(kind, folderId, sort, cursor, source, ws);
   return source === 'client'
     ? apiFetch<ClientTreeFolderPage>(url).then(clientPageAsTree)
-    : apiFetch<TreeFolderPage>(url);
+    : apiFetch<TreeFolderPage>(url).then((r) => noteListAnswer(r, ws));
 };
 
 export const fetchSearch = (
@@ -181,7 +182,7 @@ export const fetchSearch = (
   const url = searchUrl(kind, q, cursor, filter, source, ws);
   return source === 'client'
     ? apiFetch<ClientTreeSearchResult>(url).then(clientSearchAsTree)
-    : apiFetch<TreeSearchResult>(url);
+    : apiFetch<TreeSearchResult>(url).then((r) => noteListAnswer(r, ws));
 };
 
 export const fetchTags = (kind: TreeKind) => apiFetch<TreeTagList>(`/api/tree/${kind}/tags`);

@@ -472,11 +472,6 @@ test.describe('apps', () => {
     ownerPage,
   }) => {
     await withApp(ownerApi, async (app) => {
-      // At Team, so the admin's switches (MCP access, Informational) apply.
-      const shared = await ownerApi.patch(`/api/access/nodes/${app.id}`, {
-        data: { audience: 'team' },
-      });
-      expect(shared.status(), await shared.text()).toBeLessThan(300);
       await ownerPage.setViewportSize({ width: 1600, height: 900 });
 
       await ownerPage.goto(`/apps?id=${app.id}`);
@@ -509,14 +504,14 @@ test.describe('apps', () => {
       const height = (await header.boundingBox())!.height;
       expect(Math.abs(height - paneHeight), 'the editor header is taller').toBeLessThanOrEqual(1);
 
-      // The extra words behind Info; the switches behind App settings.
+      // The extra words behind Info; MCP access in the Access panel (W5b:
+      // it left App settings, and Informational is each grant's Write).
       await icons.getByRole('button', { name: 'About this app' }).click();
       await expect(ownerPage.getByRole('dialog')).toContainText('It declares no tools.');
       await ownerPage.keyboard.press('Escape');
-      await icons.getByRole('button', { name: 'App settings' }).click();
-      const settings = ownerPage.getByRole('dialog', { name: 'App settings' });
-      await expect(settings.getByRole('switch').first()).toBeVisible();
-      await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-editor-settings.png` });
+      await icons.getByRole('button', { name: 'Access' }).click();
+      await expect(ownerPage.getByRole('switch', { name: 'MCP access' })).toBeVisible();
+      await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-editor-access.png` });
       await ownerPage.keyboard.press('Escape');
       await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-editor-header.png` });
     });

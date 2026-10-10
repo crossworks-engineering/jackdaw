@@ -1,5 +1,13 @@
 'use client';
 
+import {
+  grantsKey,
+  grantsUrl,
+  isNoGrants,
+  uploadLine,
+  uploadVisibleTo,
+  type GrantsView,
+} from '@/lib/grants';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -362,10 +370,20 @@ function FilesView({
   const { enqueue } = useUploads();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const triggerUpload = () => fileInputRef.current?.click();
-  // Into a folder shared with the team or clients, what lands is read by
-  // them at once: asked once per upload, then sent with `confirm` (the brain
-  // refuses it without, 409).
-  const share = folderShareOf(currentFolder);
+  // Into a folder shared beyond its home, what lands is read there at once
+  // (S6): asked once per upload, then sent with `confirm` (the brain refuses
+  // it without, 409). Who reads it comes from the folder's grants; a brain
+  // before W5b says it by the folder's level.
+  const folderGrants = useQuery({
+    queryKey: grantsKey(currentFolder?.id ?? 'none'),
+    queryFn: () => apiFetch<GrantsView>(grantsUrl(currentFolder!.id)),
+    enabled: !!currentFolder,
+    retry: false,
+  });
+  const visibleTo = currentFolder ? uploadVisibleTo(folderGrants.data) : null;
+  const share =
+    folderGrants.isError && isNoGrants(folderGrants.error) ? folderShareOf(currentFolder) : null;
+  const asksOnUpload = visibleTo !== null || share !== null;
   // `tree`: a folder upload, whose files land in the folders it makes.
   const [sharedUpload, setSharedUpload] = useState<{
     files: File[];
@@ -375,7 +393,7 @@ function FilesView({
   const upload = (list: FileList | File[]) => {
     const picked = Array.from(list);
     if (!picked.length) return;
-    if (share) setSharedUpload({ files: picked, path: currentPath });
+    if (asksOnUpload) setSharedUpload({ files: picked, path: currentPath });
     else enqueue(picked, currentPath);
   };
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -418,7 +436,7 @@ function FilesView({
       return;
     }
     const files = plan.batches.flatMap((b) => b.files);
-    if (share) setSharedUpload({ files, path: currentPath, tree: plan });
+    if (asksOnUpload) setSharedUpload({ files, path: currentPath, tree: plan });
     else void sendTree(plan, false);
   };
   const onFolderInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1255,7 +1273,11 @@ function FilesView({
                       <span>
                         Drop to upload to <code className="ml-1 font-mono">{currentPath}</code>
                       </span>
-                      {share ? (
+                      {visibleTo ? (
+                        <span className="text-xs font-normal">
+                          Also visible to: {visibleTo.join(', ')}
+                        </span>
+                      ) : share ? (
                         <span className="text-xs font-normal">
                           {share === 'client'
                             ? 'Clients read everything in this folder.'
@@ -1616,7 +1638,11 @@ function FilesView({
               to a shared folder?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {share && sharedUpload ? sharedUploadLine(share, sharedUpload.files.length) : null}
+              {sharedUpload && visibleTo
+                ? uploadLine(visibleTo, sharedUpload.files.length)
+                : share && sharedUpload
+                  ? sharedUploadLine(share, sharedUpload.files.length)
+                  : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

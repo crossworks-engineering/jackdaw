@@ -175,3 +175,19 @@ describe('GrantAccessView read only', () => {
     expect(html).not.toContain('Grant these too');
   });
 });
+
+describe('GrantAccessView for a Moderator of one row only (contract 10)', () => {
+  const html = render(view({ mayManage: false }), { moderated: new Set(['ops']) });
+
+  it('the Ops row gets remove and its Write switch (to turn off)', () => {
+    expect(html).toContain('aria-label="Remove Ops"');
+    expect(html).toContain('aria-label="Users in Ops can change it"');
+  });
+
+  it('other rows stay read only, and no manage controls show', () => {
+    expect(html).not.toContain('aria-label="Remove Sales"');
+    expect(html).not.toContain('Add workspace');
+    expect(html).not.toContain('Change here');
+    expect(html).not.toContain('Move…');
+  });
+});

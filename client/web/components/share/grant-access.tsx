@@ -20,19 +20,26 @@ import { queryKeysForType } from '@/lib/access-levels';
 import { openLinkReadsContactWrites } from '@/lib/contact-shares';
 import {
   FOLDER_CONFIRM_NOTE,
-  TOO_BIG_TEXT,
   appHolderLines,
-  folderConfirmText,
   folderPreviewUrl,
   grantErrorText,
   grantUrl,
   grantsKey,
   grantsUrl,
   isNoGrants,
+  withConfirm,
+  isItemGone,
+  ITEM_GONE_TEXT,
+  addRequest,
+  removeRequest,
+  folderConfirm,
+  needsConfirm,
+  appMoveLines,
+  type GrantsWriteResponse,
+  type SkippedEmbed,
   LOST_SIGHT_TEXT,
   lostSight,
   skippedText,
-  withConfirm,
   type FolderGrantPreview,
   type GrantChange,
   type GrantRow,
@@ -50,6 +57,12 @@ import {
   type PendingGrantConfirm,
 } from './grant-dialogs';
 import { RevokeLinkDialog, type RevokeTarget } from './revoke-link-dialog';
+
+/** The `skipped` pairs of a write answer (contract 11), else none. */
+function skippedOf(res: unknown): SkippedEmbed[] {
+  const raw = (res as { skipped?: unknown } | null | undefined)?.skipped;
+  return Array.isArray(raw) ? (raw as SkippedEmbed[]) : [];
+}
 
 /** The dialogs the panel asks for. They live beside the popover, never in
  *  it: a modal over an open popover would take its focus and close it. */
@@ -152,7 +165,7 @@ export function GrantAccessControl({
             {!iconOnly && 'Access'}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-96">
+        <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))]">
           {open && (
             <GrantAccessPanel
               nodeId={nodeId}
@@ -216,6 +229,7 @@ function GrantAccessPanel({
   const qc = useQueryClient();
   const shell = useShellWorkspaces();
   const adminWsId = shell?.workspaces.find((w) => w.isAdmin)?.id ?? null;
+  const moderated = new Set(shell?.workspaces.filter((w) => w.moderator).map((w) => w.id));
   const [busy, setBusy] = useState(false);
   const q = useQuery({
     queryKey: grantsKey(nodeId),
@@ -248,14 +262,12 @@ function GrantAccessPanel({
       if (lostSight(res)) {
         toast.success(LOST_SIGHT_TEXT);
       } else {
-        const skipped = skippedText(
-          (res as { skipped?: unknown[] } | undefined)?.skipped?.length ?? 0,
-        );
+        const skipped = skippedText(skippedOf(res));
         if (skipped) toast.error(skipped);
       }
     } catch (e) {
       if (current.current === id && !(e instanceof ApiError && e.status === 401)) {
-        toast.error(grantErrorText(e, failure));
+        toast.error(isItemGone(e) ? ITEM_GONE_TEXT : grantErrorText(e, failure));
       }
     } finally {
       setBusy(false);
@@ -276,18 +288,13 @@ function GrantAccessPanel({
         return;
       }
     }
+    const words = folderConfirm(change, preview);
     asks.confirm({
-      title: change.add
-        ? `Share this folder with ${change.name}?`
-        : `Remove ${change.name} from this folder?`,
-      lines: preview
-        ? preview.tooBig
-          ? [TOO_BIG_TEXT]
-          : [folderConfirmText(change, preview)]
-        : ['Items in it take this change.'],
+      title: words.title,
+      lines: words.lines,
+      blocked: words.blocked,
       note: FOLDER_CONFIRM_NOTE,
       verb,
-      blocked: preview?.tooBig === true,
       run: () => write(run, 'Could not change the folder'),
     });
   };
@@ -295,10 +302,10 @@ function GrantAccessPanel({
   const holders = (view?.rows ?? []).filter((r) => !r.excluded).map((r) => r.name);
 
   const onAdd = async (ws: { wsId: string; name: string }) => {
-    const post = (confirm: boolean) =>
-      apiSend(grantsUrl(nodeId), 'POST', { wsId: ws.wsId, ...(confirm ? { confirm: true } : {}) });
+    const req = addRequest(nodeId, ws.wsId, type);
+    const post = () => apiSend(req.url, req.method, req.body);
     if (folder) {
-      await askFolder({ add: ws.wsId, name: ws.name }, 'Share', () => post(true));
+      await askFolder({ add: ws.wsId, name: ws.name }, 'Share', post);
       return;
     }
     if (type === 'app') {
@@ -321,25 +328,25 @@ function GrantAccessPanel({
         run: () =>
           write(async () => {
             await beforeEnable?.();
-            return post(true);
+            return post();
           }, 'Could not share it'),
       });
       return;
     }
     await write(async () => {
       await beforeEnable?.();
-      return post(false);
+      return post();
     }, 'Could not share it');
   };
 
   const onRemove = (row: GrantRow) => {
-    const del = (confirm: boolean) =>
-      apiSend(withConfirm(grantUrl(nodeId, row.wsId), confirm), 'DELETE');
+    const req = removeRequest(nodeId, row.wsId, type);
+    const del = () => apiSend(req.url, req.method);
     if (folder) {
-      void askFolder({ remove: row.wsId, name: row.name }, 'Remove', () => del(true));
+      void askFolder({ remove: row.wsId, name: row.name }, 'Remove', del);
       return;
     }
-    void write(() => del(false), 'Could not remove it');
+    void write(del, 'Could not remove it');
   };
 
   const onWrite = (row: GrantRow, on: boolean) =>
@@ -364,14 +371,32 @@ function GrantAccessPanel({
       'Could not change it here',
     );
 
-  const onGrantEmbeds = () =>
-    void write(
-      () =>
-        apiSend(`${grantsUrl(nodeId)}/embeds`, 'POST', {
-          wsIds: (view?.rows ?? []).filter((r) => !r.excluded).map((r) => r.wsId),
-        }),
-      'Could not share what it embeds',
-    );
+  const onGrantEmbeds = () => {
+    const wsIds = (view?.rows ?? []).filter((r) => !r.excluded).map((r) => r.wsId);
+    const send = (confirm: boolean) =>
+      apiSend<GrantsWriteResponse>(`${grantsUrl(nodeId)}/embeds`, 'POST', {
+        wsIds,
+        ...(confirm ? { confirm: true } : {}),
+      });
+    void write(async () => {
+      const res = await send(false);
+      // An embedded app needs a yes first (contract 11): both effects, then
+      // the same write with confirm.
+      const ask = needsConfirm(skippedOf(res));
+      if (ask.length > 0) {
+        const names = (view?.rows ?? [])
+          .filter((r) => ask.some((a) => a.wsId === r.wsId))
+          .map((r) => r.name);
+        asks.confirm({
+          title: ask.length === 1 ? 'Share the embedded app too?' : 'Share the embedded apps too?',
+          lines: appMoveLines(names),
+          verb: 'Share',
+          run: () => write(() => send(true), 'Could not share what it embeds'),
+        });
+      }
+      return res;
+    }, 'Could not share what it embeds');
+  };
 
   const onMcpAccess = (on: boolean) =>
     void write(async () => {
@@ -386,6 +411,19 @@ function GrantAccessPanel({
       action: `Move “${title || 'this item'}” to ${ws.name}.`,
       to: { toWorkspaceId: ws.wsId },
       oldHome: view?.home.name ? { wsId: view.home.wsId, name: view.home.name } : undefined,
+      // An app: the move's new workspaces see its data (S7); its holders
+      // after the move are these rows less the home, plus the target.
+      app:
+        type === 'app'
+          ? {
+              holders: [
+                ...(view?.rows ?? [])
+                  .filter((r) => !r.excluded && !r.isHome && r.wsId !== ws.wsId)
+                  .map((r) => r.name),
+                ws.name,
+              ],
+            }
+          : undefined,
       onMoved: refresh,
     });
 
@@ -395,6 +433,8 @@ function GrantAccessPanel({
         {q.isError ? (
           isNoGrants(q.error) ? (
             'Workspaces need a newer brain. Update the brain in Settings > Updates.'
+          ) : isItemGone(q.error) ? (
+            ITEM_GONE_TEXT
           ) : (
             grantErrorText(q.error, 'Could not load who can see this.')
           )
@@ -422,6 +462,7 @@ function GrantAccessPanel({
       onMove={onMove}
       onGrantEmbeds={onGrantEmbeds}
       onMcpAccess={onMcpAccess}
+      moderated={moderated}
       link={
         <OpenLinkPart
           nodeId={nodeId}

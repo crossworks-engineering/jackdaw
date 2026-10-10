@@ -216,6 +216,12 @@ export const HAS_HISTORY_TEXT = 'Has history: clone to use elsewhere.';
 /** The switcher's note while it filters nothing (W5a). */
 export const SWITCHER_NOTE = 'Lists show the items of the workspace you pick.';
 
+/** Said until the brain is seen filtering a list (useWsFilterHonoured). */
+export const SWITCHER_NOTE_ALL = 'Lists show items from all your workspaces for now.';
+
+/** The switcher's note: never claims a filter the brain does not apply. */
+export const switcherNote = (honoured: boolean) => (honoured ? SWITCHER_NOTE : SWITCHER_NOTE_ALL);
+
 export const ALL_WORKSPACES_LABEL = 'All my workspaces';
 
 function plural(n: number, one: string, many = `${one}s`): string {

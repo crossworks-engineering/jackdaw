@@ -17,6 +17,7 @@ import { expect, test } from '../lib/fixtures';
  * app. It creates and deletes its own contacts, page and app.
  */
 
+/** GET /api/grants/:nodeId: the contact shares ride on the Access panel's view. */
 type AccessView = {
   contactShares?: Array<{ shareId: string; contactId: string; name: string; path: string }>;
 };
@@ -119,7 +120,7 @@ test.describe('contact shares', () => {
       await shareInUi(ownerPage, marker, ['Ann', 'Ben']);
 
       const linkOf = async (nodeId: string) => {
-        const view = await json<AccessView>(await ownerApi.get(`/api/access/nodes/${nodeId}`));
+        const view = await json<AccessView>(await ownerApi.get(`/api/grants/${nodeId}`));
         const mine = view.contactShares?.find((s) => s.contactId === ann);
         expect(mine, `no share for Ann on ${nodeId}`).toBeTruthy();
         expect(view.contactShares).toHaveLength(2);

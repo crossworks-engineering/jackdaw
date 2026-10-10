@@ -5,7 +5,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { MovePreviewLines } from './grant-dialogs';
+import { CREATE_HERE_TITLE, MOVE_TITLE, MovePreviewLines } from './grant-dialogs';
 
 const lines = (over: Record<string, unknown>) =>
   renderToStaticMarkup(
@@ -47,5 +47,32 @@ describe('MovePreviewLines', () => {
 
   it('says when nothing changes', () => {
     expect(lines({})).toContain('Who can see it does not change.');
+  });
+});
+
+describe('MovePreviewLines, fix round 1', () => {
+  const p = {
+    alsoVisibleTo: [{ wsId: 's', name: 'Sales' }],
+    removedFrom: [{ wsId: 'h', name: 'Team' }],
+  };
+
+  it('ticking Keep it readable changes the no-longer line', () => {
+    const off = lines({ preview: p, oldHome: { wsId: 'h', name: 'Team' }, keep: false });
+    expect(off).toContain('It will no longer be readable in: Team.');
+    const on = lines({ preview: p, oldHome: { wsId: 'h', name: 'Team' }, keep: true });
+    expect(on).not.toContain('It will no longer be readable in');
+    expect(on).toContain('It stays readable in Team, read only.');
+  });
+
+  it('an app move says both effects of its new workspaces', () => {
+    const html = lines({ preview: p, app: { holders: ['Board', 'Sales'] } });
+    expect(html).toContain('This app&#x27;s data becomes visible to Sales.');
+    expect(html).toContain('This app will then read only items that Board and Sales both hold.');
+    expect(lines({ preview: p })).not.toContain('This app');
+  });
+
+  it('a create in a folder has its own title, not Move', () => {
+    expect(CREATE_HERE_TITLE).toBe('Create here and change who can see it?');
+    expect(MOVE_TITLE).not.toBe(CREATE_HERE_TITLE);
   });
 });

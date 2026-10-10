@@ -1,5 +1,6 @@
 'use client';
 
+import { noteListAnswer } from '@/lib/workspace-filter';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
@@ -121,7 +122,9 @@ export function NotesClient() {
       if (page > 1) qs.set('page', String(page));
       qs.set('state', state);
       if (ws) qs.set('ws', ws);
-      return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`);
+      return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`).then((r) =>
+        noteListAnswer(r, ws),
+      );
     },
     placeholderData: (prev) => prev,
     enabled: !showTree,

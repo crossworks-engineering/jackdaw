@@ -72,9 +72,7 @@ import {
   type TreeKind,
   type TreeSort,
 } from '@mantle/web-ui/types/tree';
-import type { AccessLevel } from '@mantle/client-types';
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
-import { LEVEL_LABEL, LEVEL_ORDER } from '@/lib/access-levels';
 import { DeleteFolderDialog, FolderNameDialog } from '@/components/app-nav/folder-dialogs';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { usePersistedState } from '@/lib/use-persisted-state';
@@ -332,7 +330,7 @@ export function ItemTree({
   // flat by name, like A to Z. Not remembered: a filter left on from last
   // time would quietly hide things.
   const [filter, setFilter] = useState<TreeFilter>({});
-  const filtering = filter.level !== undefined || filter.tag !== undefined;
+  const filtering = filter.tag !== undefined;
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const tagsQ = useQuery({
     queryKey: tagsKey(kind),
@@ -608,7 +606,16 @@ export function ItemTree({
       try {
         const preview = await fetchMovePreview(ids, to);
         if (moveChangesAccess(preview)) {
-          setGrantMove({ target: { nodeIds: ids, action, to, onMoved: after }, preview });
+          setGrantMove({
+            target: {
+              nodeIds: ids,
+              action,
+              to,
+              onMoved: after,
+              ...(kind === 'apps' ? { app: {} } : {}),
+            },
+            preview,
+          });
           return;
         }
       } catch (err) {
@@ -1284,27 +1291,10 @@ export function ItemTree({
                         {owner && <DropdownMenuSeparator />}
                       </>
                     )}
-                    {/* Levels and tags are the owner's to filter by. */}
+                    {/* Tags are the owner's to filter by. Levels are gone (W5b):
+                        the workspace switcher narrows the lists instead. */}
                     {owner && (
                       <>
-                        <DropdownMenuLabel>State</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={filter.level ?? 'any'}
-                          onValueChange={(v) =>
-                            setFilter((f) => ({
-                              ...f,
-                              level: v === 'any' ? undefined : (v as AccessLevel),
-                            }))
-                          }
-                        >
-                          <DropdownMenuRadioItem value="any">Any</DropdownMenuRadioItem>
-                          {LEVEL_ORDER.map((l) => (
-                            <DropdownMenuRadioItem key={l} value={l}>
-                              {l === 'admin' ? 'Admin only' : LEVEL_LABEL[l]}
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                        <DropdownMenuSeparator />
                         <DropdownMenuLabel>Tag</DropdownMenuLabel>
                         <DropdownMenuRadioGroup
                           value={filter.tag ?? ''}
@@ -1347,13 +1337,7 @@ export function ItemTree({
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <ListFilter className="size-3.5 shrink-0" aria-hidden />
               <span className="min-w-0 flex-1 truncate">
-                {[
-                  filter.level &&
-                    (filter.level === 'admin' ? 'Admin only' : LEVEL_LABEL[filter.level]),
-                  filter.tag && `tagged “${filter.tag}”`,
-                ]
-                  .filter(Boolean)
-                  .join(', ')}
+                {filter.tag && `tagged “${filter.tag}”`}
               </span>
               <Button
                 variant="link"

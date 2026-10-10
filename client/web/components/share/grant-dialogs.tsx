@@ -18,6 +18,8 @@ import { apiSend } from '@mantle/web-ui/api-fetch';
 // Relative, not '@/': the node test runner renders these (grant-dialogs.test.ts).
 import {
   alsoVisibleLine,
+  appMoveLines,
+  keptLine,
   grantErrorText,
   keepReadableLabel,
   removedLine,
@@ -95,6 +97,12 @@ export type MoveTarget = {
   /** The old home, on a move to another workspace: the dialog offers "Keep
    *  it readable in H" (contract change 12: only the old home). */
   oldHome?: { wsId: string; name: string };
+  /** An app: the confirm also says what its new workspaces see and what it
+   *  will read (S7, 21.8 row 13). `holders`: its workspaces after the move,
+   *  when known. */
+  app?: { holders?: string[] };
+  /** The dialog's title; a move by default. */
+  title?: string;
   /** After the move is written. */
   onMoved?: () => void;
 };
@@ -184,7 +192,7 @@ export function MoveGrantsDialog({
     <AlertDialog open={target !== null} onOpenChange={(o) => !o && !busy && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Move and change who can see it?</AlertDialogTitle>
+          <AlertDialogTitle>{target?.title ?? MOVE_TITLE}</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-1.5">
               <p>{target?.action}</p>
@@ -196,6 +204,7 @@ export function MoveGrantsDialog({
                 <MovePreviewLines
                   preview={preview}
                   oldHome={target?.oldHome}
+                  app={target?.app}
                   keep={keep}
                   onKeep={setKeep}
                   busy={busy}
@@ -222,29 +231,49 @@ export function MoveGrantsDialog({
   );
 }
 
+export const MOVE_TITLE = 'Move and change who can see it?';
+export const CREATE_HERE_TITLE = 'Create here and change who can see it?';
+
 /** The preview's lines and, on a move from the old home, the "Keep it
- *  readable in H" tick (a hand grant there, Write off). */
+ *  readable in H" tick (a hand grant there, Write off). An app adds both
+ *  effects of its new workspaces. */
 export function MovePreviewLines({
   preview,
   oldHome,
+  app,
   keep,
   onKeep,
   busy = false,
 }: {
   preview: MovePreview;
   oldHome?: { wsId: string; name: string };
+  app?: { holders?: string[] };
   keep: boolean;
   onKeep: (next: boolean) => void;
   busy?: boolean;
 }) {
-  const also = alsoVisibleLine(preview);
-  const gone = removedLine(preview);
   const offerKeep = !!oldHome && preview.removedFrom.some((w) => w.wsId === oldHome.wsId);
+  const kept = offerKeep && keep ? oldHome.wsId : null;
+  const also = alsoVisibleLine(preview);
+  const gone = removedLine(preview, kept);
+  const appLines =
+    app && preview.alsoVisibleTo.length > 0
+      ? appMoveLines(
+          preview.alsoVisibleTo.map((w) => w.name),
+          app.holders,
+        )
+      : [];
   return (
     <>
       {also && <p className="text-foreground">{also}</p>}
+      {appLines.map((l) => (
+        <p key={l} className="text-foreground">
+          {l}
+        </p>
+      ))}
       {gone && <p>{gone}</p>}
-      {!also && !gone && <p>Who can see it does not change.</p>}
+      {kept && <p>{keptLine(oldHome!.name)}</p>}
+      {!also && !gone && !kept && <p>Who can see it does not change.</p>}
       {offerKeep && (
         <label className="flex items-center gap-2 text-sm text-foreground">
           <Checkbox checked={keep} disabled={busy} onCheckedChange={(v) => onKeep(v === true)} />

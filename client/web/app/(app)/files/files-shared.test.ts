@@ -124,7 +124,14 @@ describe('Files asks before a shared folder exposes what lands in it', () => {
 
   it('an upload into a shared folder asks once, then sends confirm', () => {
     const src = read('./files-client.tsx');
-    expect(src).toContain('if (share) setSharedUpload({ files: picked, path: currentPath });');
+    // W5b: asked when the folder's grants reach beyond its home (or, on a
+    // brain before W5b, by its level).
+    expect(src).toContain(
+      'const visibleTo = currentFolder ? uploadVisibleTo(folderGrants.data) : null;',
+    );
+    expect(src).toContain(
+      'if (asksOnUpload) setSharedUpload({ files: picked, path: currentPath });',
+    );
     expect(src).toContain('enqueue(sharedUpload.files, sharedUpload.path, { confirm: true });');
     expect(src).toContain('if (e.dataTransfer.files?.length) upload(e.dataTransfer.files);');
   });

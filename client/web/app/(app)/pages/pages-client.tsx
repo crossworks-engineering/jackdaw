@@ -1,5 +1,6 @@
 'use client';
 
+import { noteListAnswer } from '@/lib/workspace-filter';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
@@ -247,7 +248,9 @@ export function PagesClient() {
       if (page > 1) qs.set('page', String(page));
       qs.set('state', state);
       if (ws) qs.set('ws', ws);
-      return apiFetch<PagesListResponse>(`/api/pages?${qs.toString()}`);
+      return apiFetch<PagesListResponse>(`/api/pages?${qs.toString()}`).then((r) =>
+        noteListAnswer(r, ws),
+      );
     },
     placeholderData: (prev) => prev, // keep the list visible while paging/filtering
     enabled: !showTree,

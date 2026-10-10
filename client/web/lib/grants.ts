@@ -70,11 +70,36 @@ export const lostSight = (r: unknown): r is { visible: false } =>
 
 export const LOST_SIGHT_TEXT = 'Done. You can no longer see this item.';
 
-/** The embeds write: how many pairs the caller may not grant. */
-export function skippedText(n: number): string | null {
-  if (n <= 0) return null;
-  return `${n === 1 ? 'One embed was' : `${n} embeds were`} not shared: you may not share ${n === 1 ? 'it' : 'them'} there.`;
+/** One pair the embeds write did not grant (contract change 11). */
+export type SkippedEmbed = { nodeId: string; wsId: string; code: string };
+
+const SKIP_REASON: Record<string, string> = {
+  forbidden: 'you may not share it there',
+  bridge_owned: 'it follows its level until grants become the truth',
+  kind_not_allowed: 'that kind of item cannot be shared',
+  confirm_required: 'an app needs a yes first',
+};
+
+/** Why embeds were not shared, one sentence per reason. Null when none.
+ *  `confirm_required` pairs are asked again, so they are left out here. */
+export function skippedText(skipped: readonly SkippedEmbed[]): string | null {
+  const counts = new Map<string, number>();
+  for (const s of skipped) {
+    if (s.code === 'confirm_required') continue;
+    counts.set(s.code, (counts.get(s.code) ?? 0) + 1);
+  }
+  if (counts.size === 0) return null;
+  return [...counts]
+    .map(([code, n]) => {
+      const reason = SKIP_REASON[code] ?? `the brain said ${code}`;
+      return `${n === 1 ? 'One embed was' : `${n} embeds were`} not shared: ${reason}.`;
+    })
+    .join(' ');
 }
+
+/** The embed pairs the brain wants a yes for (an embedded app). */
+export const needsConfirm = (skipped: readonly SkippedEmbed[]) =>
+  skipped.filter((s) => s.code === 'confirm_required');
 
 /** GET /api/grants/:id/preview: how many items gain or lose. */
 export type FolderGrantPreview = {
@@ -167,6 +192,28 @@ export function rowActions(row: GrantRow): {
     move: row.isHome,
   };
 }
+
+/**
+ * What a row offers this user (contract change 10). A Moderator of the
+ * item's home gets rowActions. A Moderator of only that row's workspace may
+ * remove the row or turn its Write off, nothing more. Anyone else reads.
+ */
+export function rowActionsFor(
+  row: GrantRow,
+  manage: boolean,
+  moderatesRow: boolean,
+): ReturnType<typeof rowActions> & { writeOffOnly: boolean } {
+  if (manage) return { ...rowActions(row), writeOffOnly: false };
+  const none = { write: false, remove: false, restore: false, changeHere: false, move: false };
+  if (!moderatesRow || row.isHome || row.bridgeOwned || row.excluded) {
+    return { ...none, writeOffOnly: false };
+  }
+  return { ...none, write: row.write && row.viaFolder === null, remove: true, writeOffOnly: true };
+}
+
+/** Does this row show controls at all. */
+export const rowHasControls = (a: ReturnType<typeof rowActions>) =>
+  a.write || a.remove || a.restore || a.changeHere || a.move;
 
 /** "Add workspace" choices: the Admin workspace first for an Admin user
  *  (21.8: "Add Admin" is the first choice), then by name. */
@@ -287,9 +334,27 @@ export function alsoVisibleLine(p: Pick<MovePreview, 'alsoVisibleTo'>): string |
 }
 
 /** "It will no longer be readable in: ..." (21.8 row 9), or null. */
-export function removedLine(p: Pick<MovePreview, 'removedFrom'>): string | null {
-  if (!p.removedFrom.length) return null;
-  return `It will no longer be readable in: ${p.removedFrom.map((w) => w.name).join(', ')}.`;
+export function removedLine(
+  p: Pick<MovePreview, 'removedFrom'>,
+  kept: string | null = null,
+): string | null {
+  const gone = p.removedFrom.filter((w) => w.wsId !== kept);
+  if (!gone.length) return null;
+  return `It will no longer be readable in: ${gone.map((w) => w.name).join(', ')}.`;
+}
+
+/** The line once "Keep it readable in H" is ticked. */
+export const keptLine = (name: string) => `It stays readable in ${name}, read only.`;
+
+/** A move of an app that adds workspaces (S7, 21.8 row 13): both effects.
+ *  `holders`: the app's workspaces after the move, when known. */
+export function appMoveLines(added: readonly string[], holders?: readonly string[]): string[] {
+  const data = `This app's data becomes visible to ${joinAnd(added)}.`;
+  const reads =
+    holders && holders.length > 1
+      ? `This app will then read only items that ${joinAnd(holders)} ${holders.length === 2 ? 'both' : 'all'} hold.`
+      : 'This app will then read only items that every workspace it is in holds.';
+  return [data, reads];
 }
 
 /** A move that changes nothing about who sees it needs no confirm. */
@@ -312,16 +377,72 @@ export function grantErrorCode(err: unknown): string | null {
   return typeof code === 'string' ? code : null;
 }
 
-/** A 409 too_big from a folder write. */
-export const isTooBig = (err: unknown) => grantErrorCode(err) === 'too_big';
+/** A brain before W5b has no /api/grants: its 404 carries no grants code. */
+export const isNoGrants = (err: unknown) =>
+  err instanceof ApiError && err.status === 404 && grantErrorCode(err) === null;
 
-/** A brain before W5b has no /api/grants. */
-export const isNoGrants = (err: unknown) => err instanceof ApiError && err.status === 404;
+/** The item is hidden from this user or removed (a 404 with the brain's
+ *  code), not an old brain. */
+export const isItemGone = (err: unknown) =>
+  err instanceof ApiError && err.status === 404 && grantErrorCode(err) !== null;
 
-// ── The switcher filter ─────────────────────────────────────────────────
+export const ITEM_GONE_TEXT = 'This item is no longer visible to you.';
 
-/** Add `ws` to a list URL when a workspace is picked (null = all). */
-export function withWs(url: string, ws: string | null | undefined): string {
-  if (!ws) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}ws=${enc(ws)}`;
+// ── What a write sends (pure, so the confirm rules are tested) ────────
+
+export type GrantRequest = { url: string; method: 'POST' | 'PATCH' | 'DELETE'; body?: object };
+
+/** Adding a workspace: a folder and an app need `confirm` (contract 2, 3). */
+export function addRequest(nodeId: string, wsId: string, type: string | undefined): GrantRequest {
+  const confirm = type === 'branch' || type === 'app';
+  return {
+    url: grantsUrl(nodeId),
+    method: 'POST',
+    body: { wsId, ...(confirm ? { confirm: true } : {}) },
+  };
+}
+
+/** Removing a row: a folder's goes with `?confirm=1`. */
+export function removeRequest(
+  nodeId: string,
+  wsId: string,
+  type: string | undefined,
+): GrantRequest {
+  return { url: withConfirm(grantUrl(nodeId, wsId), type === 'branch'), method: 'DELETE' };
+}
+
+/** The folder confirm's words, or Cancel only when it is too big. */
+export function folderConfirm(
+  change: GrantChange,
+  preview: FolderGrantPreview | null,
+): { title: string; lines: string[]; blocked: boolean } {
+  return {
+    title: change.add
+      ? `Share this folder with ${change.name}?`
+      : `Remove ${change.name} from this folder?`,
+    lines: preview
+      ? preview.tooBig
+        ? [TOO_BIG_TEXT]
+        : [folderConfirmText(change, preview)]
+      : ['Items in it take this change.'],
+    blocked: preview?.tooBig === true,
+  };
+}
+
+// ── Upload into a folder ────────────────────────────────────────────────
+
+/** Who reads what lands in a folder (S6), when it is shared beyond its home:
+ *  every row that is not removed here. Null when nobody else reads it. */
+export function uploadVisibleTo(
+  view: Pick<GrantsView, 'rows'> | null | undefined,
+): string[] | null {
+  const live = (view?.rows ?? []).filter((r) => !r.excluded);
+  if (!live.some((r) => !r.isHome)) return null;
+  return live.map((r) => r.name);
+}
+
+/** The question before an upload into a shared folder. */
+export function uploadLine(names: readonly string[], count: number): string {
+  const what = count === 1 ? 'This file' : `These ${count} files`;
+  return `${what} will also be visible to: ${names.join(', ')}.`;
 }
