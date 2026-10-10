@@ -255,4 +255,16 @@ describe('the accept dialog: a shared folder where it lands (folder plan phase 5
       'Accepted “Plan” into the brain at Client.',
     );
   });
+
+  it('a W5b2 brain: says what Team gained from teamGranted, not a level (contract 31)', () => {
+    expect(acceptedLine('Plan', { audience: 'team', readAt: 'team', teamGranted: ['p1'] })).toBe(
+      'Accepted “Plan” into the brain. Team can now read it.',
+    );
+    expect(acceptedLine('Plan', { audience: 'client', teamGranted: ['p1', 'i1', 'i2'] })).toBe(
+      'Accepted “Plan” into the brain. Team can now read 3 items from it.',
+    );
+    expect(acceptedLine('Plan', { audience: 'admin', readAt: 'team', teamGranted: [] })).toBe(
+      'Accepted “Plan” into the brain.',
+    );
+  });
 });

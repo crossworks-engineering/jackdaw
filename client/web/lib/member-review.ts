@@ -133,6 +133,10 @@ export type AcceptResult = {
   moved: BundleItem[];
   linksStayingBehind: number;
   levelWarning?: string;
+  /** The moved items given a Team read grant (W5b2 contract 31): a team,
+   *  client or public choice adds one, admin none. Absent from a brain
+   *  before W5b2. */
+  teamGranted?: string[];
 };
 
 const base = (id: string) => `/api/team-admin/submissions/${encodeURIComponent(id)}`;
@@ -382,9 +386,16 @@ export function acceptVisibilityRefusal(err: unknown): TreeVisibilityRefusal | n
  *  can open above the one chosen (a brain before it says only `audience`). */
 export function acceptedLine(
   title: string,
-  res: Pick<AcceptResult, 'audience' | 'readAt'>,
+  res: Pick<AcceptResult, 'audience' | 'readAt' | 'teamGranted'>,
 ): string {
   const name = `“${title || 'Untitled'}”`;
+  // A W5b2 brain turns the choice into grants (contract 22 and 31): say
+  // what Team gained, not a level.
+  if (Array.isArray(res.teamGranted)) {
+    const n = res.teamGranted.length;
+    if (n === 0) return `Accepted ${name} into the brain.`;
+    return `Accepted ${name} into the brain. Team can now read ${n === 1 ? 'it' : `${n} items from it`}.`;
+  }
   const at = res.readAt ?? res.audience;
   if (at !== res.audience) {
     return `Accepted ${name} into the brain at ${LEVEL_LABEL[res.audience]}. Its folder shares it, so it is read at ${LEVEL_LABEL[at]}.`;

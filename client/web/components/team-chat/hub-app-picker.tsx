@@ -5,10 +5,10 @@
  * member login sees as their home (PUT/DELETE /api/team-admin/hub-app; the
  * route keeps its name from the retired team-code /hub, its first reader).
  * Designating requires a published build (enforced server-side); clearing
- * reverts members to the built-in home. Designating puts an app still at
- * admin at team, so every member can run it (members run apps by level; no
- * link is made, team links are retired). Undesignating leaves the level
- * alone (change it from the app's own Access control if wanted).
+ * reverts members to the built-in home. Only an app the Team workspace reads
+ * can be the home (W5b2, contract 31): the brain refuses another with 409
+ * `not_in_team` and changes no grant itself. Undesignating leaves the
+ * grants alone.
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,7 +23,12 @@ import {
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
-import { hubAppSetMessage, type HubAppSetResponse } from '@/lib/hub-app';
+import {
+  HUB_NOT_IN_TEAM_TEXT,
+  hubAppSetMessage,
+  isNotInTeam,
+  type HubAppSetResponse,
+} from '@/lib/hub-app';
 
 const BUILT_IN = '__built_in__';
 
@@ -58,7 +63,13 @@ export function HubAppPicker({
       router.refresh();
     } catch (err) {
       setValue(prev); // revert
-      toast.error(err instanceof Error ? err.message : 'Could not update the home app.');
+      toast.error(
+        isNotInTeam(err)
+          ? HUB_NOT_IN_TEAM_TEXT
+          : err instanceof Error
+            ? err.message
+            : 'Could not update the home app.',
+      );
     } finally {
       setPending(false);
     }
@@ -84,8 +95,8 @@ export function HubAppPicker({
         </SelectContent>
       </Select>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        A published app shown as the members&rsquo; home. Choosing one sets it to Team level, so
-        every member can run it. Falls back to the built-in home if the app breaks.
+        A published app shown as the members&rsquo; home. Team must see it: add Team in the
+        app&rsquo;s Access panel first. Falls back to the built-in home if the app breaks.
       </p>
     </div>
   );
