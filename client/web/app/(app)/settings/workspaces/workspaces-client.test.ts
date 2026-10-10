@@ -40,6 +40,8 @@ function ws(id: string, name: string, over: Partial<Workspace> = {}): Workspace 
     userCount: 1,
     resourceCount: 0,
     me: { member: true, moderator: false },
+    // Admin and Team are the built-in two (the brain always sends it).
+    builtIn: over.isAdmin === true || over.adminModerated === true,
     ...over,
   };
 }

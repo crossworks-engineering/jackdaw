@@ -2,9 +2,9 @@
  * The ONE workspace screen (W5a, plan 1.4): a Moderator (or a login with the
  * users area) gets the controls; a plain user reads the same sections with
  * none. Within the controls the contact is an Admin user's, the assistant
- * needs the Assistants area, an Admin user's Moderator row is an Admin
- * user's, and a bridge-kept connector row has none. The no-magic lines (plan
- * 21.8) show when they apply.
+ * needs the Assistants area and an Admin user's Moderator row is an Admin
+ * user's. Every connector row takes its controls, Admin and Team too
+ * (contract 24). The no-magic lines (plan 21.8) show when they apply.
  */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -16,7 +16,6 @@ import {
   ADMIN_MODERATED_TEXT,
   BUILT_IN_NAME_HINT,
   HAS_HISTORY_TEXT,
-  RESOURCE_LOCKED_TEXT,
   workspaceKey,
   type Workspace,
   type WorkspaceDetail,
@@ -75,11 +74,13 @@ function detail(over: Partial<Workspace> = {}, extra: Partial<WorkspaceDetail> =
         email: 'own@x.test',
         moderator: false,
         adminViaArea: true,
+        addedBy: null,
+        addedAt: '2026-10-10T09:00:00.000Z',
       },
     ],
     resources: [
-      { kind: 'connector', id: 'drive', name: 'Drive', write: true, locked: false },
-      { kind: 'connector', id: 'mail', name: 'Mail', write: true, locked: true },
+      { kind: 'connector', id: 'drive', name: 'Drive', write: true },
+      { kind: 'connector', id: 'mail', name: 'Mail', write: true },
     ],
     hasHistory: true,
     ...extra,
@@ -179,10 +180,10 @@ describe('WorkspaceSections, Admin user view', () => {
     expect(html).toContain('Add a connector');
   });
 
-  it('a connector the level bridge keeps has no controls, and says why', () => {
-    expect(html).not.toContain('id="workspace-write-connector-mail"');
-    expect(html).not.toContain('aria-label="Remove Mail"');
-    expect(html).toContain(RESOURCE_LOCKED_TEXT);
+  it('every connector row has its Write tick and Remove (no bridge lock)', () => {
+    expect(html).toContain('id="workspace-write-connector-mail"');
+    expect(html).toContain('aria-label="Remove Mail"');
+    expect(html).not.toMatch(/connector level/);
   });
 
   it('no em or en dashes in the screen', () => {
@@ -386,7 +387,7 @@ describe('built-in workspaces (Admin and Team)', () => {
     ['Team (builtIn)', teamNow],
     ['Admin (fallback)', admin],
   ] as const) {
-    it(`${label}: no Archive, the name is read only, no connector picker`, () => {
+    it(`${label}: no Archive, the name is read only, connectors as any workspace`, () => {
       const html = render(
         createElement(WorkspaceScreen, {
           workspace: d.workspace,
@@ -398,9 +399,10 @@ describe('built-in workspaces (Admin and Team)', () => {
       expect(html).not.toContain('aria-label="Archive workspace"');
       expect(html).toMatch(/<input[^>]*id="workspace-name"[^>]*readOnly=""/);
       expect(html).toContain(BUILT_IN_NAME_HINT);
-      expect(html).not.toContain('Add a connector');
-      // Said once, for the section, not once per row as well.
-      expect(html.split(RESOURCE_LOCKED_TEXT).length - 1).toBe(1);
+      // Contract 24: Admin and Team attach connectors here like any other.
+      expect(html).toContain('Add a connector');
+      expect(html).toContain('aria-label="Remove Mail"');
+      expect(html).not.toMatch(/connector level/);
     });
   }
 

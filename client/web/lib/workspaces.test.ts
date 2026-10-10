@@ -25,7 +25,6 @@ import {
   canRemoveUser,
   isBuiltIn,
   userSearchPaged,
-  resourceEditable,
   userSearchMin,
   currentWorkspaceLabel,
   hasArea,
@@ -58,6 +57,8 @@ function ws(over: Partial<Workspace> = {}): Workspace {
     userCount: 2,
     resourceCount: 1,
     me: { member: true, moderator: false },
+    // Admin and Team are the built-in two (the brain always sends it).
+    builtIn: over.isAdmin === true || over.adminModerated === true,
     ...over,
   };
 }
@@ -199,12 +200,6 @@ describe('who may change what', () => {
       'Bo stops reading the items shared with Team, unless another of their workspaces has them.',
     );
   });
-
-  it('a connector row the level bridge keeps has no controls', () => {
-    expect(resourceEditable({ locked: true })).toBe(false);
-    expect(resourceEditable({ locked: false })).toBe(true);
-    expect(resourceEditable({})).toBe(true);
-  });
 });
 
 describe('words', () => {
@@ -307,7 +302,7 @@ describe('lists', () => {
 
   it('offers only connectors not on the workspace yet', () => {
     const all = [{ slug: 'drive' }, { slug: 'crm' }];
-    const held = [{ kind: 'connector', id: 'drive', name: 'Drive', write: false }];
+    const held = [{ kind: 'connector' as const, id: 'drive', name: 'Drive', write: false }];
     expect(addableResources(all, held, 'connector').map((c) => c.slug)).toEqual(['crm']);
   });
 
@@ -320,6 +315,8 @@ describe('lists', () => {
         email: `${loginId}@x.test`,
         moderator: false,
         adminViaArea: false,
+        addedBy: null,
+        addedAt: '2026-10-10T09:00:00.000Z',
       })),
       resources: [],
       hasHistory: false,

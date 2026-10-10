@@ -43,7 +43,6 @@ import {
   ADMIN_MODERATED_TEXT,
   HAS_HISTORY_TEXT,
   RESOURCE_KINDS,
-  RESOURCE_LOCKED_TEXT,
   addableHits,
   addableResources,
   archiveBlocked,
@@ -60,7 +59,6 @@ import {
   userSearchPaged,
   canSetContact,
   removeUserText,
-  resourceEditable,
   userLabel,
   userSearchMin,
   userSearchReady,
@@ -822,9 +820,6 @@ function ResourceSection({
   manage: boolean;
 }) {
   const rows = detail.resources.filter((r) => r.kind === spec.kind);
-  // Admin and Team: their connectors follow the connector bridge until W5b
-  // (409 bridge_owned), so no picker; the section says why, once.
-  const builtIn = isBuiltIn(detail.workspace);
   return (
     <Section title={spec.label} labelledBy={`workspace-${spec.kind}`} description={spec.writeHint}>
       {rows.length === 0 ? (
@@ -837,16 +832,12 @@ function ResourceSection({
               workspaceId={detail.workspace.id}
               resource={r}
               manage={manage}
-              lockSaid={builtIn}
             />
           ))}
         </ul>
       )}
-      {builtIn ? (
-        <p className="text-xs text-muted-foreground">{RESOURCE_LOCKED_TEXT}</p>
-      ) : manage && spec.kind === 'connector' ? (
-        <AddConnector detail={detail} spec={spec} />
-      ) : null}
+      {/* Admin and Team attach connectors here like any workspace (contract 24). */}
+      {manage && spec.kind === 'connector' ? <AddConnector detail={detail} spec={spec} /> : null}
     </Section>
   );
 }
@@ -855,19 +846,16 @@ function ResourceRow({
   workspaceId,
   resource: r,
   manage,
-  lockSaid,
 }: {
   workspaceId: string;
   resource: WorkspaceResource;
   manage: boolean;
-  /** The section already says the rows are locked. */
-  lockSaid: boolean;
 }) {
   const toast = useToast();
   const actions = useWorkspaceActions();
   const [pending, setPending] = useState(false);
   const tickId = `workspace-write-${r.kind}-${r.id}`;
-  const editable = manage && resourceEditable(r);
+  const editable = manage;
 
   const run = async (p: () => Promise<unknown>) => {
     setPending(true);
@@ -884,9 +872,6 @@ function ResourceRow({
     <li className="flex items-center gap-3 py-2" data-testid="workspace-resource">
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{r.name}</div>
-        {r.locked && !lockSaid ? (
-          <div className="truncate text-xs text-muted-foreground">{RESOURCE_LOCKED_TEXT}</div>
-        ) : null}
       </div>
       {editable ? (
         <div className="flex shrink-0 items-center gap-2">

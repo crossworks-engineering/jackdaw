@@ -1,81 +1,36 @@
 /**
- * Workspaces (plan 4887b8e7, phase W5a): the wire shapes of /api/workspaces
- * and the pure rules the screens follow, so each rule is unit-tested
- * (workspaces.test.ts) without a browser.
+ * Workspaces (plan 4887b8e7, phases W5a and W5b2): the pure rules the
+ * workspace screens and the switcher follow, so each rule is unit-tested
+ * (workspaces.test.ts) without a browser. The switcher filters the lists
+ * that echo the workspace they were asked for (lib/workspace-filter.ts).
  *
- * W5a manages workspaces only. Nothing here changes who reads what: the
- * switcher lists workspaces and filters nothing yet (W5b).
- *
- * The types are local until @crossworks/client-types publishes them; switch
- * the imports then and delete these.
+ * The wire shapes are lib/contract/workspaces.ts: a verbatim copy of mantle
+ * packages/client-types/src/dto/workspaces.ts (brain W5b2 part B,
+ * 69a2ccd15). Replace the copy by hand when the brain's file changes.
  */
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 
-/** One workspace as GET /api/workspaces lists it. */
-export type Workspace = {
-  id: string;
-  name: string;
-  description: string;
-  /** A contact this workspace is for. Information only, never a permission. */
-  contactNodeId: string | null;
-  assistant: { id: string; name: string } | null;
-  /** The one Admin workspace: its users manage the brain. */
-  isAdmin: boolean;
-  /** Admin users are Moderators here (plan 21.8 row 2). */
-  adminModerated: boolean;
-  archived: boolean;
-  /** Admin and Team (contract change 20): no archive, no rename, and their
-   *  connectors follow the connector bridge until W5b. Absent from a brain
-   *  before brain round 3: see isBuiltIn. */
-  builtIn?: boolean;
-  userCount: number;
-  resourceCount: number;
-  /** The signed-in login's place in it. */
-  me: { member: boolean; moderator: boolean };
-};
+import type {
+  ShellWorkspace,
+  Workspace,
+  WorkspaceArchivePreview,
+  WorkspaceDetailResponse as WorkspaceDetail,
+  WorkspaceResource,
+  WorkspaceUser,
+  WorkspaceUserSearchHit as UserSearchHit,
+} from './contract/workspaces';
 
-export type WorkspaceUser = {
-  loginId: string;
-  name: string | null;
-  email: string;
-  moderator: boolean;
-  /** A Moderator because they are an Admin user and Admin users moderate
-   *  this workspace (Team): nobody demotes or removes them here (409
-   *  admin_kept); they stop by leaving the Admin workspace. */
-  adminViaArea: boolean;
-  /** Who added them: display name, else email. null when unknown (the
-   *  adder's login is gone, or a migration or bridge added them). */
-  addedBy?: { loginId: string; name: string } | null;
-  /** When they were added (ISO 8601). */
-  addedAt?: string;
-};
+export type {
+  ShellWorkspace,
+  Workspace,
+  WorkspaceDetailResponse as WorkspaceDetail,
+  WorkspaceResource,
+  WorkspaceUser,
+  WorkspaceUserSearchHit as UserSearchHit,
+} from './contract/workspaces';
 
-export type WorkspaceResource = {
-  kind: string;
-  id: string;
-  name: string;
-  write: boolean;
-  /** Kept by a level bridge until W5b (the Admin and Team connectors follow
-   *  each connector's level): shown, not changed here. */
-  locked?: boolean;
-};
-
-/** GET /api/workspaces/:id */
-export type WorkspaceDetail = {
-  workspace: Workspace;
-  users: WorkspaceUser[];
-  resources: WorkspaceResource[];
-  /** The assistant has history in this workspace: it stays here. */
-  hasHistory: boolean;
-};
-
-export type ArchivePreview = { grantCount: number; itemCount: number };
-
-export type UserSearchHit = { loginId: string; name: string | null; email: string };
-
-/** What GET /api/shell adds for workspaces. */
-export type ShellWorkspace = { id: string; name: string; isAdmin: boolean; moderator: boolean };
+export type ArchivePreview = WorkspaceArchivePreview;
 
 export const WORKSPACES_KEY = ['workspaces'] as const;
 export const workspaceKey = (id: string) => ['workspaces', id] as const;
@@ -151,7 +106,9 @@ export function canManageWorkspace(
 
 /** Admin and Team: the brain's `builtIn`, else (a brain before contract
  *  change 20) the two marks only they carry. */
-export function isBuiltIn(ws: Pick<Workspace, 'builtIn' | 'isAdmin' | 'adminModerated'>): boolean {
+export function isBuiltIn(
+  ws: Pick<Workspace, 'isAdmin' | 'adminModerated'> & { builtIn?: boolean },
+): boolean {
   return ws.builtIn ?? (ws.isAdmin || ws.adminModerated);
 }
 
@@ -162,7 +119,7 @@ export const BUILT_IN_NAME_HINT = 'Built-in workspaces keep their names.';
 /** Whether the screen offers Archive: a managed workspace that is not built
  *  in (the brain refuses Admin and Team). */
 export function canArchiveWorkspace(
-  ws: Pick<Workspace, 'me' | 'archived' | 'isAdmin' | 'adminModerated' | 'builtIn'>,
+  ws: Pick<Workspace, 'me' | 'archived' | 'isAdmin' | 'adminModerated'> & { builtIn?: boolean },
   areas: readonly string[] | null | undefined,
 ): boolean {
   return !isBuiltIn(ws) && canManageWorkspace(ws, areas);
@@ -198,7 +155,9 @@ export function canChangeUser(user: Pick<WorkspaceUser, 'adminViaArea'>): boolea
 
 /** "Added by NAME on DATE" (plan S1: every add shows on the screen), or
  *  null when the brain sends no date. */
-export function addedText(user: Pick<WorkspaceUser, 'addedBy' | 'addedAt'>): string | null {
+export function addedText(
+  user: Partial<Pick<WorkspaceUser, 'addedBy' | 'addedAt'>>,
+): string | null {
   if (!user.addedAt || Number.isNaN(new Date(user.addedAt).getTime())) return null;
   const on = formatDate(user.addedAt);
   return user.addedBy?.name ? `Added by ${user.addedBy.name} on ${on}` : `Added on ${on}`;
@@ -370,14 +329,6 @@ export const RESOURCE_KINDS: readonly ResourceKind[] = [
       'Write on: Moderators can use the tools that change data. Off, or for other users: read tools only.',
   },
 ];
-
-/** A row's controls: none for a locked (bridge-kept) row. */
-export function resourceEditable(r: Pick<WorkspaceResource, 'locked'>): boolean {
-  return !r.locked;
-}
-
-/** What a locked row says instead of its controls. */
-export const RESOURCE_LOCKED_TEXT = 'Set by the connector level for now.';
 
 /** The connectors not on the workspace yet, by slug. */
 export function addableResources<T extends { slug: string }>(
