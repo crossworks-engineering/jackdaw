@@ -34,8 +34,20 @@ export type {
 /** A workspace as a list row or a chip names it. */
 export type WorkspaceRef = ListWorkspace;
 
-/** GET /api/grants/:nodeId. */
-export type GrantsView = GrantsResponse;
+/** One entry of an open link's served list. The 69a2ccd15 brain sends a
+ *  bare id; contract change 35 sends `{ nodeId, title }` (title null when
+ *  the caller cannot read the item). Both are read until the copy in
+ *  lib/contract/grants.ts is replaced. */
+export type ServedEntry = string | { nodeId: string; title: string | null };
+
+/** GET /api/grants/:nodeId, its served list in either shape. */
+export type GrantsView = Omit<GrantsResponse, 'link'> & {
+  link: { id: string; path: string; served: ServedEntry[] } | null;
+};
+
+/** A served entry's id, lower-case. */
+export const servedId = (e: ServedEntry): string =>
+  (typeof e === 'string' ? e : e.nodeId).toLowerCase();
 
 export const lostSight = (r: unknown): r is { visible: false } =>
   !!r && typeof r === 'object' && (r as { visible?: unknown }).visible === false;
@@ -414,9 +426,9 @@ export type ServeRow = { nodeId: string; title: string; kind: string; served: bo
 /** The panel's served list: each item the user may put on the link, ticked
  *  when the link serves it. Ids compare lower-case (the brain stores them so). */
 export function serveRows(
-  view: Pick<GrantsResponse, 'link' | 'serveCandidates'> | null | undefined,
+  view: Pick<GrantsView, 'link' | 'serveCandidates'> | null | undefined,
 ): ServeRow[] {
-  const served = new Set((view?.link?.served ?? []).map((id) => id.toLowerCase()));
+  const served = new Set((view?.link?.served ?? []).map(servedId));
   return (view?.serveCandidates ?? []).map((c) => ({
     nodeId: c.nodeId,
     title: c.title,
@@ -426,27 +438,30 @@ export function serveRows(
 }
 
 /** Served items this user cannot change here (not among the candidates):
- *  they stay on the list on every write. */
+ *  they stay on the list on every write. `title` null: not known (an old
+ *  brain) or the user cannot read it. */
 export function servedElsewhere(
-  view: Pick<GrantsResponse, 'link' | 'serveCandidates'> | null | undefined,
-): string[] {
+  view: Pick<GrantsView, 'link' | 'serveCandidates'> | null | undefined,
+): { nodeId: string; title: string | null }[] {
   const offered = new Set((view?.serveCandidates ?? []).map((c) => c.nodeId.toLowerCase()));
-  return (view?.link?.served ?? []).filter((id) => !offered.has(id.toLowerCase()));
+  return (view?.link?.served ?? [])
+    .filter((e) => !offered.has(servedId(e)))
+    .map((e) => ({ nodeId: servedId(e), title: typeof e === 'string' ? null : e.title }));
 }
 
 /** The served list after ticking (`on`) or clearing items. The list is sent
  *  whole (PATCH /api/shares/:id { serve }): items the user cannot change
  *  stay on it. */
 export function nextServed(
-  view: Pick<GrantsResponse, 'link' | 'serveCandidates'>,
+  view: Pick<GrantsView, 'link' | 'serveCandidates'>,
   ids: readonly string[],
   on: boolean,
 ): string[] {
   const change = new Set(ids.map((id) => id.toLowerCase()));
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const id of view.link?.served ?? []) {
-    const k = id.toLowerCase();
+  for (const e of view.link?.served ?? []) {
+    const k = servedId(e);
     if (seen.has(k) || (!on && change.has(k))) continue;
     seen.add(k);
     out.push(k);
@@ -492,10 +507,24 @@ export function servedCountText(n: number): string {
   return `The link also shows ${n === 1 ? 'one item' : `${n} items`}.`;
 }
 
-/** Served items this user cannot change here. Null when none. */
-export function servedElsewhereText(n: number): string | null {
+/** Served items this user cannot change here, named when the brain sends
+ *  their titles. Null when none. */
+export function servedElsewhereText(items: readonly { title: string | null }[]): string | null {
+  const n = items.length;
   if (n === 0) return null;
-  return `${n === 1 ? 'One more item stays' : `${n} more items stay`} on the list. You cannot change ${n === 1 ? 'it' : 'them'} here.`;
+  const named = items.map((i) => i.title).filter((t): t is string => !!t);
+  const hidden = n - named.length;
+  const names = [
+    ...named,
+    ...(hidden
+      ? [hidden === 1 ? 'one item you cannot open' : `${hidden} items you cannot open`]
+      : []),
+  ];
+  const lead = n === 1 ? 'One more item stays' : `${n} more items stay`;
+  const it = n === 1 ? 'it' : 'them';
+  return named.length
+    ? `${lead} on the list: ${names.join(', ')}. You cannot change ${it} here.`
+    : `${lead} on the list. You cannot change ${it} here.`;
 }
 
 /** A folder offers its first FOLDER_SERVE_OFFER_MAX items only. */

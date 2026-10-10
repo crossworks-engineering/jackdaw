@@ -40,13 +40,13 @@ export function LinkServedList({
 }: {
   rows: readonly ServeRow[];
   /** Served items this user cannot change here (they stay served). */
-  elsewhere: number;
+  elsewhere: readonly { title: string | null }[];
   type: string | undefined;
   busy: boolean;
   /** Tick (`on`) or clear these items. */
   onToggle: (ids: string[], on: boolean) => void;
 }) {
-  const served = rows.filter((r) => r.served).length + elsewhere;
+  const served = rows.filter((r) => r.served).length + elsewhere.length;
   const other = servedElsewhereText(elsewhere);
   if (rows.length === 0) {
     return (

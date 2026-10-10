@@ -327,6 +327,26 @@ describe('an app move (S7)', () => {
   });
 });
 
+describe('the served list in the contract 35 shape ({nodeId, title})', () => {
+  const view = {
+    link: {
+      id: 's1',
+      path: '/s/tok',
+      served: [
+        { nodeId: 'AAA', title: 'Photo' },
+        { nodeId: 'zzz', title: null },
+      ],
+    },
+    serveCandidates: [{ nodeId: 'aaa', title: 'Photo', kind: 'file' }],
+  };
+  it('ticks, keeps and sends ids the same as the bare-id shape', () => {
+    expect(serveRows(view)[0]!.served).toBe(true);
+    expect(servedElsewhere(view)).toEqual([{ nodeId: 'zzz', title: null }]);
+    expect(nextServed(view, ['aaa'], false)).toEqual(['zzz']);
+    expect(nextServed(view, ['bbb'], true)).toEqual(['aaa', 'zzz', 'bbb']);
+  });
+});
+
 describe('the open link serves a list (contract 30, 32)', () => {
   const view = {
     link: { id: 's1', path: '/s/tok', served: ['aaa', 'zzz'] },
@@ -346,7 +366,7 @@ describe('the open link serves a list (contract 30, 32)', () => {
   });
 
   it('keeps served items the user cannot change on every write', () => {
-    expect(servedElsewhere(view)).toEqual(['zzz']);
+    expect(servedElsewhere(view)).toEqual([{ nodeId: 'zzz', title: null }]);
     expect(nextServed(view, ['bbb'], true)).toEqual(['aaa', 'zzz', 'bbb']);
     expect(nextServed(view, ['AAA'], false)).toEqual(['zzz']);
     // Ticking one already served changes nothing; no repeats.
@@ -372,9 +392,12 @@ describe('the open link serves a list (contract 30, 32)', () => {
     expect(servedCountText(0)).toBe('The link shows only this item.');
     expect(servedCountText(1)).toBe('The link also shows one item.');
     expect(servedCountText(3)).toBe('The link also shows 3 items.');
-    expect(servedElsewhereText(0)).toBeNull();
-    expect(servedElsewhereText(2)).toBe(
+    expect(servedElsewhereText([])).toBeNull();
+    expect(servedElsewhereText([{ title: null }, { title: null }])).toBe(
       '2 more items stay on the list. You cannot change them here.',
+    );
+    expect(servedElsewhereText([{ title: 'Logo' }, { title: null }])).toBe(
+      '2 more items stay on the list: Logo, one item you cannot open. You cannot change them here.',
     );
     expect(serveCappedText('branch', FOLDER_SERVE_OFFER_MAX)).toBe(
       'This list shows the first 500 items in the folder.',

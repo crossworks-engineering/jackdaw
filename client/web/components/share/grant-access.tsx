@@ -573,7 +573,7 @@ function OpenLinkPart({
         served={
           <LinkServedList
             rows={serveRows(view)}
-            elsewhere={servedElsewhere(view).length}
+            elsewhere={servedElsewhere(view)}
             type={type}
             busy={busy}
             onToggle={(ids, on) => void serve(ids, on)}

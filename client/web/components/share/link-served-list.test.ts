@@ -20,7 +20,7 @@ const render = (rows: ServeRow[], extra: Record<string, unknown> = {}) =>
   renderToStaticMarkup(
     createElement(LinkServedList, {
       rows,
-      elsewhere: 0,
+      elsewhere: [],
       type: 'page',
       busy: false,
       onToggle: () => {},
@@ -49,7 +49,7 @@ describe('LinkServedList', () => {
   });
 
   it('with no candidates: only the count, and the items it cannot change', () => {
-    const html = render([], { elsewhere: 2 });
+    const html = render([], { elsewhere: [{ title: null }, { title: null }] });
     expect(html).not.toContain('<ul');
     expect(html).toContain('The link also shows 2 items.');
     expect(html).toContain('2 more items stay on the list.');
