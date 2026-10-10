@@ -24,6 +24,7 @@ export function AccessLinkBox({
   copied,
   busy = false,
   warning,
+  served,
   onCopy,
   onMake,
   onStop,
@@ -37,6 +38,8 @@ export function AccessLinkBox({
   busy?: boolean;
   /** Shown above "Make an open link" (an app a contact writes, L21). */
   warning?: React.ReactNode;
+  /** What the link shows besides its item (contract 30), under a live link. */
+  served?: React.ReactNode;
   onCopy: () => void;
   onMake: () => void;
   onStop: () => void;
@@ -72,6 +75,7 @@ export function AccessLinkBox({
             )}
           </div>
           <p className="text-xs text-muted-foreground">{OPEN_LINK_TEXT}</p>
+          {mayLink && served}
         </>
       ) : mayLink ? (
         <>

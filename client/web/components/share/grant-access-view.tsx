@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { FolderOpen, Lock, Plus, X } from 'lucide-react';
+import { FolderOpen, Plus, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   DropdownMenu,
@@ -14,7 +14,6 @@ import { Switch } from '@mantle/web-ui/ui/switch';
 // Relative, not '@/': the node test runner renders this (grant-access-view.test.ts).
 import {
   APP_MCP_HINT,
-  BRIDGE_OWNED_TEXT,
   APP_MCP_LABEL,
   NO_ADDABLE_TEXT,
   READ_ONLY_PANEL_TEXT,
@@ -121,14 +120,8 @@ export function GrantAccessView({
                       <span className="min-w-0 truncate">{note}</span>
                     </p>
                   )}
-                  {row.bridgeOwned && manage && (
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Lock className="size-3 shrink-0" aria-hidden />
-                      <span className="min-w-0">{BRIDGE_OWNED_TEXT}</span>
-                    </p>
-                  )}
                 </div>
-                {controls || (manage && !row.bridgeOwned && !row.excluded) ? (
+                {controls || (manage && !row.excluded) ? (
                   <>
                     {can.changeHere && (
                       <Button

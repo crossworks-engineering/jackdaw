@@ -44,10 +44,16 @@ import {
   type GrantChange,
   type GrantRow,
   type GrantsView,
+  linkCreateRequest,
+  linkServeRequest,
+  nextServed,
+  serveRows,
+  servedElsewhere,
 } from '@/lib/grants';
 import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
 import { AccessLinkBox } from './access-link-box';
+import { LinkServedList } from './link-served-list';
 import { ContactShareSection, OpenLinkDataWarning } from './contact-share-section';
 import { GrantAccessView } from './grant-access-view';
 import {
@@ -410,7 +416,10 @@ function GrantAccessPanel({
       nodeIds: [nodeId],
       action: `Move “${title || 'this item'}” to ${ws.name}.`,
       to: { toWorkspaceId: ws.wsId },
-      oldHome: view?.home.name ? { wsId: view.home.wsId, name: view.home.name } : undefined,
+      oldHome:
+        view?.home.name && view.home.wsId
+          ? { wsId: view.home.wsId, name: view.home.name }
+          : undefined,
       // An app: the move's new workspaces see its data (S7); its holders
       // after the move are these rows less the home, plus the target.
       app:
@@ -519,12 +528,31 @@ function OpenLinkPart({
     setBusy(true);
     try {
       await beforeEnable?.();
-      await apiSend('/api/shares', 'POST', { nodeId });
+      const req = linkCreateRequest(nodeId);
+      await apiSend(req.url, req.method, req.body);
       invalidateLinkQueries(qc);
       onChanged();
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 401)) {
         toast.error(grantErrorText(e, 'Could not make the link'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Tick or clear items on the link's served list (PATCH, the whole list). */
+  const serve = async (ids: string[], on: boolean) => {
+    if (!link) return;
+    setBusy(true);
+    try {
+      const req = linkServeRequest(link.id, nextServed(view, ids, on));
+      await apiSend(req.url, req.method, req.body);
+      invalidateLinkQueries(qc);
+      onChanged();
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 401)) {
+        toast.error(grantErrorText(e, 'Could not change what the link shows'));
       }
     } finally {
       setBusy(false);
@@ -542,6 +570,15 @@ function OpenLinkPart({
         copied={copied}
         busy={busy}
         warning={warn ? <OpenLinkDataWarning /> : null}
+        served={
+          <LinkServedList
+            rows={serveRows(view)}
+            elsewhere={servedElsewhere(view).length}
+            type={type}
+            busy={busy}
+            onToggle={(ids, on) => void serve(ids, on)}
+          />
+        }
         onCopy={() =>
           void copyText(url).then(
             () => {

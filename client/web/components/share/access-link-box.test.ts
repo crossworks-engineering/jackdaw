@@ -45,6 +45,17 @@ describe('AccessLinkBox', () => {
     expect(html).not.toContain('Make an open link');
   });
 
+  it('shows the served list under a live link only (contract 30)', () => {
+    const list = createElement('p', null, 'SERVED');
+    expect(
+      box({ mayLink: true, hasLink: true, url: 'https://brain.example/s/tok', served: list }),
+    ).toContain('SERVED');
+    expect(box({ mayLink: true, served: list })).not.toContain('SERVED');
+    expect(box({ hasLink: true, url: 'https://brain.example/s/tok', served: list })).not.toContain(
+      'SERVED',
+    );
+  });
+
   it('nothing with no link and no right', () => {
     expect(box({})).toBe('');
   });

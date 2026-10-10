@@ -33,6 +33,16 @@ import {
   withConfirm,
   workspacesOf,
   type GrantRow,
+  type SkippedEmbed,
+  FOLDER_SERVE_OFFER_MAX,
+  linkCreateRequest,
+  linkServeRequest,
+  nextServed,
+  serveCappedText,
+  serveRows,
+  servedCountText,
+  servedElsewhere,
+  servedElsewhereText,
 } from './grants';
 
 const row = (over: Partial<GrantRow> = {}): GrantRow => ({
@@ -96,13 +106,13 @@ describe('rows', () => {
     });
   });
 
-  it('a bridge-kept row offers nothing (409 bridge_owned)', () => {
-    expect(rowActions(row({ bridgeOwned: true, isHome: true }))).toEqual({
-      write: false,
+  it('an Admin or Team home row offers Write and Move like any home (contract 23)', () => {
+    expect(rowActions(row({ wsId: 'team', name: 'Team', isHome: true }))).toEqual({
+      write: true,
       remove: false,
       restore: false,
       changeHere: false,
-      move: false,
+      move: true,
     });
   });
 
@@ -202,13 +212,12 @@ describe('writes and errors', () => {
     expect(lostSight({ visible: false })).toBe(true);
     expect(lostSight({ rows: [] })).toBe(false);
     expect(skippedText([])).toBeNull();
-    const sk = (code: string) => ({ nodeId: 'n', wsId: 'w', code });
+    const sk = (code: string) => ({ nodeId: 'n', wsId: 'w', code: code as SkippedEmbed['code'] });
     expect(skippedText([sk('forbidden'), sk('forbidden')])).toBe(
       '2 embeds were not shared: you may not share it there.',
     );
-    expect(skippedText([sk('bridge_owned')])).toBe(
-      'One embed was not shared: it follows its level until grants become the truth.',
-    );
+    // A code this UI does not know is named as the brain sent it.
+    expect(skippedText([sk('too_big')])).toBe('One embed was not shared: the brain said too_big.');
     // An embedded app is asked again, not reported as refused.
     expect(skippedText([sk('confirm_required')])).toBeNull();
     expect(needsConfirm([sk('forbidden'), sk('confirm_required')])).toEqual([
@@ -245,9 +254,9 @@ describe('who may change a row (contract 10)', () => {
     });
   });
 
-  it('not on the home, a bridge row or a row they do not moderate', () => {
+  it('not on the home, a removed row or a row they do not moderate', () => {
     expect(rowActionsFor(row({ isHome: true }), false, true).remove).toBe(false);
-    expect(rowActionsFor(row({ bridgeOwned: true }), false, true).remove).toBe(false);
+    expect(rowActionsFor(row({ excluded: true }), false, true).remove).toBe(false);
     expect(rowActionsFor(row(), false, false).remove).toBe(false);
   });
 });
@@ -315,5 +324,62 @@ describe('an app move (S7)', () => {
     expect(appMoveLines(['Sales'])[1]).toBe(
       'This app will then read only items that every workspace it is in holds.',
     );
+  });
+});
+
+describe('the open link serves a list (contract 30, 32)', () => {
+  const view = {
+    link: { id: 's1', path: '/s/tok', served: ['aaa', 'zzz'] },
+    serveCandidates: [
+      { nodeId: 'AAA', title: 'Photo', kind: 'file' },
+      { nodeId: 'bbb', title: 'Plan', kind: 'page' },
+    ],
+  };
+
+  it('ticks the candidates the link serves (ids compare lower-case)', () => {
+    expect(serveRows(view)).toEqual([
+      { nodeId: 'AAA', title: 'Photo', kind: 'file', served: true },
+      { nodeId: 'bbb', title: 'Plan', kind: 'page', served: false },
+    ]);
+    expect(serveRows(null)).toEqual([]);
+    expect(serveRows({ link: null, serveCandidates: view.serveCandidates })[0]!.served).toBe(false);
+  });
+
+  it('keeps served items the user cannot change on every write', () => {
+    expect(servedElsewhere(view)).toEqual(['zzz']);
+    expect(nextServed(view, ['bbb'], true)).toEqual(['aaa', 'zzz', 'bbb']);
+    expect(nextServed(view, ['AAA'], false)).toEqual(['zzz']);
+    // Ticking one already served changes nothing; no repeats.
+    expect(nextServed(view, ['aaa'], true)).toEqual(['aaa', 'zzz']);
+    expect(nextServed({ link: null, serveCandidates: [] }, ['x'], true)).toEqual(['x']);
+  });
+
+  it('sends POST /api/shares {nodeId, serve?} and PATCH /api/shares/:id {serve}', () => {
+    expect(linkCreateRequest('n1')).toEqual({
+      url: '/api/shares',
+      method: 'POST',
+      body: { nodeId: 'n1' },
+    });
+    expect(linkCreateRequest('n1', ['a']).body).toEqual({ nodeId: 'n1', serve: ['a'] });
+    expect(linkServeRequest('s 1', ['a', 'b'])).toEqual({
+      url: '/api/shares/s%201',
+      method: 'PATCH',
+      body: { serve: ['a', 'b'] },
+    });
+  });
+
+  it('says what the link shows, what stays and when a folder list is cut', () => {
+    expect(servedCountText(0)).toBe('The link shows only this item.');
+    expect(servedCountText(1)).toBe('The link also shows one item.');
+    expect(servedCountText(3)).toBe('The link also shows 3 items.');
+    expect(servedElsewhereText(0)).toBeNull();
+    expect(servedElsewhereText(2)).toBe(
+      '2 more items stay on the list. You cannot change them here.',
+    );
+    expect(serveCappedText('branch', FOLDER_SERVE_OFFER_MAX)).toBe(
+      'This list shows the first 500 items in the folder.',
+    );
+    expect(serveCappedText('branch', 12)).toBeNull();
+    expect(serveCappedText('page', 900)).toBeNull();
   });
 });

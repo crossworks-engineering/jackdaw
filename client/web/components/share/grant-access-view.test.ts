@@ -2,14 +2,14 @@
  * The Grant Access panel's body (W5b2, plan 7.1): a Moderator gets the
  * controls (Write switch, remove, Change here, Restore, Move, Add
  * workspace, Grant these too, MCP access); a user who may not manage reads
- * the same rows with none. Bridge-kept rows are locked.
+ * the same rows with none. Admin and Team rows take the same controls as
+ * any other row (contract 23: no bridge rows).
  */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   APP_MCP_LABEL,
-  BRIDGE_OWNED_TEXT,
   NO_ADDABLE_TEXT,
   READ_ONLY_PANEL_TEXT,
   type GrantsView,
@@ -30,6 +30,7 @@ const handlers = {
 
 function view(over: Partial<GrantsView> = {}): GrantsView {
   return {
+    item: { id: 'n1', title: 'Plan', type: 'page' },
     home: { wsId: 'team', name: 'Team' },
     rows: [
       {
@@ -70,6 +71,11 @@ function view(over: Partial<GrantsView> = {}): GrantsView {
       { wsId: 'admin', name: 'Admin' },
     ],
     mayManage: true,
+    mayLink: true,
+    hasLink: false,
+    link: null,
+    serveCandidates: [],
+    contactShares: null,
     embedsNotGranted: [],
     ...over,
   };
@@ -139,13 +145,23 @@ describe('GrantAccessView for a Moderator', () => {
     expect(out).toContain('aria-label="MCP access"');
   });
 
-  it('a bridge-kept row is locked: no switch, no remove', () => {
+  it('an Admin row is like any other: its Write switch and Remove (no bridge lock)', () => {
     const v = view();
-    v.rows = v.rows.map((r) => (r.wsId === 'ops' ? { ...r, bridgeOwned: true } : r));
+    v.rows = [
+      ...v.rows,
+      {
+        wsId: 'admin',
+        name: 'Admin',
+        write: true,
+        isHome: false,
+        viaFolder: null,
+        excluded: false,
+      },
+    ];
     const out = render(v);
-    expect(out).toContain(BRIDGE_OWNED_TEXT);
-    expect(out).not.toContain('aria-label="Remove Ops"');
-    expect(out).not.toContain('aria-label="Users in Ops can change it"');
+    expect(out).toContain('aria-label="Remove Admin"');
+    expect(out).toContain('aria-label="Users in Admin can change it"');
+    expect(out).not.toMatch(/until grants become the truth/);
   });
 });
 
