@@ -21,7 +21,10 @@ import {
   canSetConnectors,
   canSetContact,
   removeUserText,
-  isAdminUser,
+  BUILT_IN_NAME_HINT,
+  canRemoveUser,
+  isBuiltIn,
+  userSearchPaged,
   resourceEditable,
   userSearchMin,
   currentWorkspaceLabel,
@@ -137,14 +140,31 @@ describe('who may change what', () => {
     expect(canArchiveWorkspace(ws({ isAdmin: true, me: mod }), ['users'])).toBe(false);
   });
 
-  it('an Admin user is one the brain names areas for', () => {
-    expect(isAdminUser(['settings'])).toBe(true);
-    expect(isAdminUser([])).toBe(false);
-    expect(isAdminUser(undefined)).toBe(true);
+  it('built in: the brain says so, else Admin or an Admin-moderated workspace', () => {
+    expect(isBuiltIn({ builtIn: true, isAdmin: false, adminModerated: false })).toBe(true);
+    expect(isBuiltIn({ builtIn: false, isAdmin: false, adminModerated: true })).toBe(false);
+    expect(isBuiltIn({ isAdmin: true, adminModerated: false })).toBe(true);
+    expect(isBuiltIn({ isAdmin: false, adminModerated: true })).toBe(true);
+    expect(isBuiltIn({ isAdmin: false, adminModerated: false })).toBe(false);
+    expect(BUILT_IN_NAME_HINT).toBe('Built-in workspaces keep their names.');
+  });
+
+  it('Team is never offered Archive, even to its Moderator with the users area', () => {
+    const mod = { member: true, moderator: true };
+    expect(canArchiveWorkspace(ws({ adminModerated: true, me: mod }), ['users'])).toBe(false);
+    expect(canArchiveWorkspace(ws({ builtIn: true, me: mod }), ['users'])).toBe(false);
+  });
+
+  it('no Remove on your own row in Admin', () => {
+    expect(canRemoveUser({ isAdmin: true }, { email: 'Me@x.test' }, 'me@X.test')).toBe(false);
+    expect(canRemoveUser({ isAdmin: true }, { email: 'b@x.test' }, 'me@x.test')).toBe(true);
+    expect(canRemoveUser({ isAdmin: false }, { email: 'me@x.test' }, 'me@x.test')).toBe(true);
+    expect(canRemoveUser({ isAdmin: true }, { email: 'me@x.test' }, null)).toBe(true);
   });
 
   it('the contact is set by an Admin user; the assistant needs the Assistants area', () => {
-    expect(canSetContact(['settings'])).toBe(true);
+    expect(canSetContact(['users'])).toBe(true);
+    expect(canSetContact(['settings'])).toBe(false);
     expect(canSetContact([])).toBe(false);
     expect(canPickAssistant(['assistants'])).toBe(true);
     expect(canPickAssistant(['settings'])).toBe(false);
@@ -260,6 +280,9 @@ describe('lists', () => {
   it('user search starts at three characters for a Moderator, at none for an Admin user', () => {
     expect(userSearchMin([])).toBe(3);
     expect(userSearchMin(['users'])).toBe(0);
+    expect(userSearchMin(['settings'])).toBe(3);
+    expect(userSearchPaged(['users'])).toBe(true);
+    expect(userSearchPaged(['settings', 'keys'])).toBe(false);
     expect(userSearchReady(' ab ')).toBe(false);
     expect(userSearchReady(' abc ')).toBe(true);
     expect(userSearchReady('', 0)).toBe(true);

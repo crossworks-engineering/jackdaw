@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import {
+  USER_SEARCH_DEBOUNCE_MS,
   WORKSPACES_KEY,
   nextUserSearchOffset,
   userSearchReady,
@@ -34,13 +36,25 @@ export function useWorkspaceDetail(id: string | null) {
   });
 }
 
+/** `value`, once it has stopped changing for `ms`. */
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
 /**
  * GET /api/workspaces/user-search?q=&offset= (from `min` characters: three
- * for a Moderator; an Admin user may send none). An Admin user's answer
- * comes in pages of 50, fetched on `loadMore`; a Moderator's is one answer.
+ * for a Moderator; an Admin user may send none). The term is debounced, and
+ * nothing is asked until `enabled` (the add-user picker is open), so opening
+ * the screen sends no empty search. An Admin user's answer comes in pages of
+ * 50, fetched on `loadMore`; a Moderator's is one answer.
  */
 export function useUserSearch(q: string, enabled: boolean, min: number, paged: boolean) {
-  const term = q.trim();
+  const term = useDebounced(q.trim(), USER_SEARCH_DEBOUNCE_MS);
   const query = useInfiniteQuery({
     queryKey: ['workspaces', 'user-search', term, paged],
     queryFn: ({ pageParam }) =>
@@ -96,8 +110,15 @@ export function useWorkspaceActions() {
       },
     ) => after<unknown>(id)(apiSend(one(id), 'PATCH', body)),
     archive: (id: string) => after<unknown>(id)(apiSend(`${one(id)}/archive`, 'POST')),
-    addUser: (id: string, loginId: string, moderator = false) =>
-      after<unknown>(id)(apiSend(`${one(id)}/users`, 'POST', { loginId, moderator })),
+    // `moderator` only when asked for: left out, the brain's default applies
+    // (a Moderator in Admin, plan S1; Admin users in Team; else not).
+    addUser: (id: string, loginId: string, moderator?: boolean) =>
+      after<unknown>(id)(
+        apiSend(`${one(id)}/users`, 'POST', {
+          loginId,
+          ...(moderator === undefined ? {} : { moderator }),
+        }),
+      ),
     setModerator: (id: string, loginId: string, moderator: boolean) =>
       after<unknown>(id)(
         apiSend(`${one(id)}/users/${encodeURIComponent(loginId)}`, 'PATCH', { moderator }),

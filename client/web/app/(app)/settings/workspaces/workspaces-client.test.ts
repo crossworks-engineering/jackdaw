@@ -99,3 +99,43 @@ describe('WorkspacesView', () => {
     expect(detailPart(render(['users'], 'w-team'))).toMatch(/<h2[^>]*>.*Team/);
   });
 });
+
+describe('WorkspacesClient for a member', () => {
+  it('never offers the Admin parts, even with areas left in the cache', async () => {
+    const { WorkspacesClient } = await import('./workspaces-client');
+    const { ViewerRoleProvider } = await import('@/components/member/viewer-role');
+    const { workspaceKey } = await import('@/lib/workspaces');
+    const team = ws('w-field', 'Field crew', {
+      me: { member: true, moderator: true },
+      contactNodeId: 'c1',
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['workspaces'], [team]);
+    client.setQueryData(workspaceKey(team.id), {
+      workspace: team,
+      users: [],
+      resources: [],
+      hasHistory: false,
+    });
+    // A stale admin shell in this browser must not count for a member.
+    client.setQueryData(['shell'], { areas: ['users', 'assistants', 'connectors'] });
+    client.setQueryData(['workspaces', 'connector-options'], [{ slug: 'crm', name: 'CRM' }]);
+    const html = renderToStaticMarkup(
+      createElement(QueryClientProvider, {
+        client,
+        children: createElement(ViewerRoleProvider, {
+          role: 'member',
+          children: createElement(ToastProvider, null, createElement(WorkspacesClient)),
+        }),
+      }),
+    );
+    expect(html).toContain('Field crew');
+    // Moderator controls, but no Admin parts.
+    expect(html).toContain('id="workspace-name"');
+    expect(html).toContain('Type at least 3 letters.');
+    expect(html).not.toContain('placeholder="Search contacts"');
+    expect(html).toContain('Set by an Admin user');
+    expect(html).not.toContain('id="workspace-assistant-pick"');
+    expect(html).not.toContain('Add a connector');
+  });
+});

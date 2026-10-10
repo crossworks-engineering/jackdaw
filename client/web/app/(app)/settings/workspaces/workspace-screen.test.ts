@@ -14,6 +14,7 @@ import { ToastProvider } from '@mantle/web-ui/ui/toast';
 import {
   ADMIN_ADD_TEXT,
   ADMIN_MODERATED_TEXT,
+  BUILT_IN_NAME_HINT,
   HAS_HISTORY_TEXT,
   RESOURCE_LOCKED_TEXT,
   workspaceKey,
@@ -34,6 +35,10 @@ function ws(over: Partial<Workspace> = {}): Workspace {
     assistant: { id: 'ag1', name: 'Team assistant' },
     isAdmin: false,
     adminModerated: true,
+    // Not built in: the sections below test the controls of a workspace that
+    // may be renamed, archived and given connectors. Built-ins are tested on
+    // their own further down.
+    builtIn: false,
     archived: false,
     userCount: 2,
     resourceCount: 1,
@@ -310,7 +315,13 @@ describe('WorkspaceScreen header', () => {
   });
 
   it('Admin has no Archive, even for the users area', () => {
-    const d = detail({ id: 'w-admin', name: 'Admin', isAdmin: true, adminModerated: false });
+    const d = detail({
+      id: 'w-admin',
+      name: 'Admin',
+      isAdmin: true,
+      adminModerated: false,
+      builtIn: undefined,
+    });
     const html = render(
       createElement(WorkspaceScreen, {
         workspace: d.workspace,
@@ -350,5 +361,124 @@ describe('WorkspaceScreen header', () => {
     expect(html).toContain('>Archived<');
     expect(html).not.toContain('aria-label="Archive workspace"');
     expect(html).not.toContain('role="checkbox"');
+  });
+});
+
+describe('built-in workspaces (Admin and Team)', () => {
+  const seed = (d: WorkspaceDetail) => (c: QueryClient) => {
+    c.setQueryData(workspaceKey(d.workspace.id), d);
+    options(c);
+  };
+  // Team from a brain before contract change 20 (no builtIn): the fallback.
+  const team = detail({ builtIn: undefined, adminModerated: true });
+  // Team as the brain sends it after change 20.
+  const teamNow = detail({ builtIn: true, adminModerated: true });
+  const admin = detail({
+    id: 'w-admin',
+    name: 'Admin',
+    isAdmin: true,
+    adminModerated: false,
+    builtIn: undefined,
+  });
+
+  for (const [label, d] of [
+    ['Team (fallback)', team],
+    ['Team (builtIn)', teamNow],
+    ['Admin (fallback)', admin],
+  ] as const) {
+    it(`${label}: no Archive, the name is read only, no connector picker`, () => {
+      const html = render(
+        createElement(WorkspaceScreen, {
+          workspace: d.workspace,
+          areas: ADMIN_AREAS,
+          onArchived: () => {},
+        }),
+        seed(d),
+      );
+      expect(html).not.toContain('aria-label="Archive workspace"');
+      expect(html).toMatch(/<input[^>]*id="workspace-name"[^>]*readOnly=""/);
+      expect(html).toContain(BUILT_IN_NAME_HINT);
+      expect(html).not.toContain('Add a connector');
+      // Said once, for the section, not once per row as well.
+      expect(html.split(RESOURCE_LOCKED_TEXT).length - 1).toBe(1);
+    });
+  }
+
+  it('a workspace that is not built in keeps its name field and Archive', () => {
+    const d = detail({ builtIn: false, adminModerated: false });
+    const html = render(
+      createElement(WorkspaceScreen, {
+        workspace: d.workspace,
+        areas: ADMIN_AREAS,
+        onArchived: () => {},
+      }),
+      seed(d),
+    );
+    expect(html).toContain('aria-label="Archive workspace"');
+    expect(html).not.toMatch(/<input[^>]*id="workspace-name"[^>]*readOnly=""/);
+    expect(html).not.toContain(BUILT_IN_NAME_HINT);
+    expect(html).toContain('Add a connector');
+  });
+});
+
+describe('the Admin workspace: your own row', () => {
+  it('has no Remove for the viewer; other Admin users keep theirs', () => {
+    const d = detail(
+      { id: 'w-admin', name: 'Admin', isAdmin: true, adminModerated: false },
+      {
+        users: [
+          {
+            loginId: 'l-me',
+            name: 'Me',
+            email: 'Me@X.test',
+            moderator: true,
+            adminViaArea: false,
+            addedBy: null,
+            addedAt: '2026-10-10T09:00:00.000Z',
+          },
+          {
+            loginId: 'l-other',
+            name: 'Other',
+            email: 'other@x.test',
+            moderator: true,
+            adminViaArea: false,
+            addedBy: null,
+            addedAt: '2026-10-10T09:00:00.000Z',
+          },
+        ],
+      },
+    );
+    const html = render(
+      createElement(WorkspaceSections, { detail: d, manage: true, areas: ADMIN_AREAS }),
+      (c) => {
+        c.setQueryData(['shell'], { email: 'me@x.test', areas: ADMIN_AREAS, workspaces: [] });
+        options(c);
+      },
+    );
+    expect(html).not.toContain('aria-label="Remove Me"');
+    expect(html).toContain('aria-label="Remove Other"');
+  });
+});
+
+describe('user search on screen open', () => {
+  it('sends nothing until the add-user picker opens, the empty Admin search included', () => {
+    const client = new QueryClient();
+    options(client);
+    renderToStaticMarkup(
+      createElement(QueryClientProvider, {
+        client,
+        children: createElement(
+          ToastProvider,
+          null,
+          createElement(WorkspaceSections, { detail: detail(), manage: true, areas: ADMIN_AREAS }),
+        ),
+      }),
+    );
+    const search = client
+      .getQueryCache()
+      .find({ queryKey: ['workspaces', 'user-search'], exact: false });
+    expect(search).toBeDefined();
+    expect(search!.isDisabled()).toBe(true);
+    expect(search!.state.data).toBeUndefined();
   });
 });

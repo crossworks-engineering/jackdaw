@@ -54,7 +54,10 @@ import {
   canPickAssistant,
   addedText,
   canSetConnectors,
-  isAdminUser,
+  BUILT_IN_NAME_HINT,
+  canRemoveUser,
+  isBuiltIn,
+  userSearchPaged,
   canSetContact,
   removeUserText,
   resourceEditable,
@@ -76,6 +79,7 @@ import {
   useWorkspaceActions,
   useWorkspaceDetail,
 } from '@/components/workspaces/workspace-queries';
+import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
 
 /** A contact is set, but this login does not read contacts. */
 const CONTACT_SET_TEXT = 'Set by an Admin user';
@@ -290,6 +294,8 @@ function AboutForm({
   const [contact, setContact] = useState<PickedContact | null | undefined>(undefined);
   const [nameError, setNameError] = useState<string>();
   const [pending, setPending] = useState(false);
+  // Admin and Team keep their names (change 19: 409 reserved_name).
+  const nameFixed = isBuiltIn(ws);
 
   const savedContact: PickedContact | null =
     ws.contactNodeId && contactQuery.data
@@ -317,7 +323,7 @@ function AboutForm({
     setPending(true);
     try {
       await actions.update(ws.id, {
-        name: name.trim(),
+        ...(nameFixed ? {} : { name: name.trim() }),
         description: description.trim(),
         ...(contactEditable ? { contactNodeId: contactId } : {}),
       });
@@ -339,10 +345,16 @@ function AboutForm({
             id="workspace-name"
             value={name}
             maxLength={120}
+            readOnly={nameFixed}
             onChange={(e) => setName(e.target.value)}
             aria-invalid={!!nameError || undefined}
-            aria-describedby={nameError ? 'workspace-name-error' : undefined}
+            aria-describedby={
+              [nameFixed ? hintId('workspace-name') : '', nameError ? 'workspace-name-error' : '']
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
           />
+          {nameFixed ? <FieldHint id="workspace-name">{BUILT_IN_NAME_HINT}</FieldHint> : null}
           <FieldError id="workspace-name-error">{nameError}</FieldError>
         </Field>
         <Field>
@@ -399,6 +411,8 @@ function UsersSection({
 }) {
   const { workspace: ws, users } = detail;
   const [removing, setRemoving] = useState<WorkspaceUser | null>(null);
+  // Who is looking (the shell names the login), for their own row in Admin.
+  const viewerEmail = useShellWorkspaces()?.login;
   return (
     <Section
       title="Users"
@@ -425,13 +439,14 @@ function UsersSection({
               user={u}
               manage={manage}
               changeable={manage && canChangeUser(u)}
+              removable={manage && canChangeUser(u) && canRemoveUser(ws, u, viewerEmail)}
               onRemove={() => setRemoving(u)}
             />
           ))}
         </ul>
       )}
       {manage ? (
-        <AddUser detail={detail} min={userSearchMin(areas)} paged={isAdminUser(areas)} />
+        <AddUser detail={detail} min={userSearchMin(areas)} paged={userSearchPaged(areas)} />
       ) : null}
       {removing ? (
         <RemoveUserDialog
@@ -449,6 +464,7 @@ function UserRow({
   user: u,
   manage,
   changeable,
+  removable,
   onRemove,
 }: {
   workspaceId: string;
@@ -456,6 +472,8 @@ function UserRow({
   manage: boolean;
   /** Its tick and Remove: never on an Admin user kept in Team. */
   changeable: boolean;
+  /** Remove: as `changeable`, and never the viewer's own row in Admin. */
+  removable: boolean;
   onRemove: () => void;
 }) {
   const toast = useToast();
@@ -502,7 +520,7 @@ function UserRow({
           Moderator
         </Badge>
       ) : null}
-      {changeable ? (
+      {removable ? (
         <Button
           type="button"
           size="icon-sm"
@@ -533,9 +551,12 @@ function AddUser({
   const actions = useWorkspaceActions();
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState<string | null>(null);
-  const search = useUserSearch(q, true, min, paged);
+  // The picker opens on focus or a key: no search (an Admin user's empty
+  // one included) is sent just for opening the screen.
+  const [opened, setOpened] = useState(false);
+  const search = useUserSearch(q, opened, min, paged);
   const hits = addableHits(search.hits ?? [], detail.users);
-  const ready = userSearchReady(q, min);
+  const ready = opened && userSearchReady(q, min);
 
   const add = async (loginId: string, name: string) => {
     setAdding(loginId);
@@ -556,7 +577,11 @@ function AddUser({
       <Input
         id="workspace-user-search"
         value={q}
-        onChange={(e) => setQ(e.target.value)}
+        onFocus={() => setOpened(true)}
+        onChange={(e) => {
+          setOpened(true);
+          setQ(e.target.value);
+        }}
         placeholder="Search by name or email"
         autoComplete="off"
         aria-describedby={hintId('workspace-user-search')}
@@ -797,6 +822,9 @@ function ResourceSection({
   manage: boolean;
 }) {
   const rows = detail.resources.filter((r) => r.kind === spec.kind);
+  // Admin and Team: their connectors follow the connector bridge until W5b
+  // (409 bridge_owned), so no picker; the section says why, once.
+  const builtIn = isBuiltIn(detail.workspace);
   return (
     <Section title={spec.label} labelledBy={`workspace-${spec.kind}`} description={spec.writeHint}>
       {rows.length === 0 ? (
@@ -809,11 +837,16 @@ function ResourceSection({
               workspaceId={detail.workspace.id}
               resource={r}
               manage={manage}
+              lockSaid={builtIn}
             />
           ))}
         </ul>
       )}
-      {manage && spec.kind === 'connector' ? <AddConnector detail={detail} spec={spec} /> : null}
+      {builtIn ? (
+        <p className="text-xs text-muted-foreground">{RESOURCE_LOCKED_TEXT}</p>
+      ) : manage && spec.kind === 'connector' ? (
+        <AddConnector detail={detail} spec={spec} />
+      ) : null}
     </Section>
   );
 }
@@ -822,10 +855,13 @@ function ResourceRow({
   workspaceId,
   resource: r,
   manage,
+  lockSaid,
 }: {
   workspaceId: string;
   resource: WorkspaceResource;
   manage: boolean;
+  /** The section already says the rows are locked. */
+  lockSaid: boolean;
 }) {
   const toast = useToast();
   const actions = useWorkspaceActions();
@@ -848,7 +884,7 @@ function ResourceRow({
     <li className="flex items-center gap-3 py-2" data-testid="workspace-resource">
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{r.name}</div>
-        {r.locked ? (
+        {r.locked && !lockSaid ? (
           <div className="truncate text-xs text-muted-foreground">{RESOURCE_LOCKED_TEXT}</div>
         ) : null}
       </div>

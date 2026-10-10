@@ -25,6 +25,10 @@ export type Workspace = {
   /** Admin users are Moderators here (plan 21.8 row 2). */
   adminModerated: boolean;
   archived: boolean;
+  /** Admin and Team (contract change 20): no archive, no rename, and their
+   *  connectors follow the connector bridge until W5b. Absent from a brain
+   *  before brain round 3: see isBuiltIn. */
+  builtIn?: boolean;
   userCount: number;
   resourceCount: number;
   /** The signed-in login's place in it. */
@@ -145,25 +149,40 @@ export function canManageWorkspace(
   return ws.me.moderator || hasArea(areas, 'users');
 }
 
-/** Whether the screen offers Archive: a managed workspace that is not the
- *  Admin workspace (there is always one). */
+/** Admin and Team: the brain's `builtIn`, else (a brain before contract
+ *  change 20) the two marks only they carry. */
+export function isBuiltIn(ws: Pick<Workspace, 'builtIn' | 'isAdmin' | 'adminModerated'>): boolean {
+  return ws.builtIn ?? (ws.isAdmin || ws.adminModerated);
+}
+
+/** What the name field says on a built-in workspace (change 19: 409
+ *  reserved_name on a rename). */
+export const BUILT_IN_NAME_HINT = 'Built-in workspaces keep their names.';
+
+/** Whether the screen offers Archive: a managed workspace that is not built
+ *  in (the brain refuses Admin and Team). */
 export function canArchiveWorkspace(
-  ws: Pick<Workspace, 'me' | 'archived' | 'isAdmin'>,
+  ws: Pick<Workspace, 'me' | 'archived' | 'isAdmin' | 'adminModerated' | 'builtIn'>,
   areas: readonly string[] | null | undefined,
 ): boolean {
-  return !ws.isAdmin && canManageWorkspace(ws, areas);
+  return !isBuiltIn(ws) && canManageWorkspace(ws, areas);
 }
 
-/** An Admin user: a user of the Admin workspace. The brain names areas only
- *  for them ([] for anyone else); a brain that names none serves /api/shell
- *  to admins only. */
-export function isAdminUser(areas: readonly string[] | null | undefined): boolean {
-  return areas == null || areas.length > 0;
-}
-
-/** The contact is set by an Admin user (the brain refuses anyone else). */
+/** The contact is set by an Admin user (the brain refuses anyone else),
+ *  read here as the Users and workspaces area. */
 export function canSetContact(areas: readonly string[] | null | undefined): boolean {
-  return isAdminUser(areas);
+  return hasArea(areas, 'users');
+}
+
+/** Remove on a user row: never the viewer's own row in Admin (leaving Admin
+ *  is the change to a member login; the brain refuses it, 403 self_demote). */
+export function canRemoveUser(
+  ws: Pick<Workspace, 'isAdmin'>,
+  user: Pick<WorkspaceUser, 'email'>,
+  viewerEmail: string | null | undefined,
+): boolean {
+  if (!ws.isAdmin || !viewerEmail) return true;
+  return user.email.trim().toLowerCase() !== viewerEmail.trim().toLowerCase();
 }
 
 /** The assistant is picked with the Assistants area. */
@@ -265,8 +284,16 @@ export function sortWorkspaces<T extends Pick<Workspace, 'name' | 'isAdmin' | 'a
 export const USER_SEARCH_MIN = 3;
 
 export function userSearchMin(areas: readonly string[] | null | undefined): number {
-  return isAdminUser(areas) ? 0 : USER_SEARCH_MIN;
+  return userSearchPaged(areas) ? 0 : USER_SEARCH_MIN;
 }
+
+/** The full user list, in pages: the Users and workspaces area. */
+export function userSearchPaged(areas: readonly string[] | null | undefined): boolean {
+  return hasArea(areas, 'users');
+}
+
+/** How long user search waits after the last key. */
+export const USER_SEARCH_DEBOUNCE_MS = 250;
 
 export function userSearchReady(q: string, min = USER_SEARCH_MIN): boolean {
   return q.trim().length >= min;
