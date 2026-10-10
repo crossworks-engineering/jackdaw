@@ -2,36 +2,13 @@
  * The pure half of Settings > API access (brain migration 0232): labels,
  * the create body, the order of the list, and the example commands shown
  * with a new key. No React, so api-access-model.test.ts can pin it.
+ *
+ * A key acts exactly as the login that made it (workspaces W5b2, contract
+ * 25): the brain ignores a key's access and areas, so the screen no longer
+ * offers them. The create body still carries both (the brain's schema asks
+ * for them): read and write, every area.
  */
-import type {
-  AccessKeyAccess,
-  AccessKeyArea,
-  AccessKeyCreateInput,
-  AccessKeyView,
-} from '@mantle/client-types';
-
-/** `app_data` (brain team apps Phase 1): the data of mini apps an admin
- *  opened to MCP. Named here before the contract pin lists it, so the
- *  screen labels it on a brain that sends it. */
-export const AREA_LABEL: Record<AccessKeyArea | 'app_data', string> = {
-  // Search reads every kind of item, email and journal included.
-  search: 'Search (every kind)',
-  pages: 'Pages',
-  notes: 'Notes',
-  tasks: 'Tasks',
-  tables: 'Tables',
-  files: 'Files',
-  calendar: 'Calendar',
-  contacts: 'Contacts',
-  journal: 'Journal',
-  apps: 'Apps',
-  app_data: 'App data (MCP)',
-};
-
-export const ACCESS_LABEL: Record<AccessKeyAccess, string> = {
-  read: 'Read only',
-  read_write: 'Read and write',
-};
+import type { AccessKeyCreateInput, AccessKeyView } from '@mantle/client-types';
 
 /** The expiry choices, in days; `never` is no expiry. */
 export const EXPIRY_CHOICES = ['30', '90', '365', 'never'] as const;
@@ -67,9 +44,6 @@ export function defaultExpiryChoice(
 
 export type CreateForm = {
   name: string;
-  access: AccessKeyAccess;
-  allAreas: boolean;
-  areas: AccessKeyArea[];
   expiry: ExpiryChoice;
   /** Comma or space separated tool slugs (an admin's own key only). */
   riskyTools: string;
@@ -90,14 +64,11 @@ export function createBody(
   rules: CreateRules,
 ):
   | { body: AccessKeyCreateInput }
-  | { error: string; field: 'name' | 'areas' | 'riskyTools' | 'expiry' | 'password' } {
+  | { error: string; field: 'name' | 'riskyTools' | 'expiry' | 'password' } {
   const { isAdmin } = rules;
   const name = form.name.trim();
   if (!name) return { error: 'Name the key, for example "Backup script".', field: 'name' };
   if (name.length > 100) return { error: 'Use 100 characters or fewer.', field: 'name' };
-  if (!form.allAreas && form.areas.length === 0) {
-    return { error: 'Pick at least one area, or allow all areas.', field: 'areas' };
-  }
   const risky = isAdmin
     ? form.riskyTools
         .split(/[\s,]+/)
@@ -116,8 +87,10 @@ export function createBody(
   return {
     body: {
       name,
-      access: form.access,
-      areas: form.allAreas ? null : [...new Set(form.areas)],
+      // Ignored by the brain since W5b2 (the key acts as its login); its
+      // schema still asks for both.
+      access: 'read_write',
+      areas: null,
       expiresInDays: form.expiry === 'never' ? null : Number(form.expiry),
       ...(risky.length ? { riskyTools: [...new Set(risky)] } : {}),
       ...(rules.needsPassword ? { password: form.password } : {}),
@@ -125,10 +98,11 @@ export function createBody(
   };
 }
 
-/** What a key may do, in one line. */
-export function scopeLine(key: Pick<AccessKeyView, 'access' | 'areas'>): string {
-  const areas = key.areas ? key.areas.map((a) => AREA_LABEL[a]).join(', ') : 'All areas';
-  return `${ACCESS_LABEL[key.access]} · ${areas}`;
+/** What a key may do, in one line: what its login may do (contract 25).
+ *  Old keys still store an access and areas; the brain ignores both. */
+export const KEY_SCOPE_TEXT = 'Same rights as its login';
+export function scopeLine(_key?: Pick<AccessKeyView, 'access' | 'areas'>): string {
+  return KEY_SCOPE_TEXT;
 }
 
 /** Live keys first, then ended ones; newest first inside each. */
