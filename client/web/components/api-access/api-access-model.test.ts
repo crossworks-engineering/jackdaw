@@ -16,6 +16,9 @@ import {
 
 const form = (patch: Partial<CreateForm> = {}): CreateForm => ({
   name: 'Backup script',
+  access: 'read',
+  allAreas: true,
+  areas: [],
   expiry: '90',
   riskyTools: '',
   password: '',
@@ -44,20 +47,26 @@ const key = (patch: Partial<AccessKeyView>): AccessKeyView => ({
 });
 
 describe('API access: create body', () => {
-  it('a key acts as its login (contract 25): read and write, every area, never a login', () => {
+  it('sends all areas as null, never a login, and the expiry in days', () => {
     expect(createBody(form(), ADMIN)).toEqual({
-      body: { name: 'Backup script', access: 'read_write', areas: null, expiresInDays: 90 },
+      body: { name: 'Backup script', access: 'read', areas: null, expiresInDays: 90 },
     });
-    const never = createBody(form({ expiry: 'never' }), ADMIN);
+    const never = createBody(form({ expiry: 'never', access: 'read_write' }), ADMIN);
     expect(never).toEqual({
       body: { name: 'Backup script', access: 'read_write', areas: null, expiresInDays: null },
     });
-    const member = createBody(form(), MEMBER);
-    expect('body' in member && member.body).toMatchObject({ access: 'read_write', areas: null });
+  });
+
+  it('sends the ticked areas once each', () => {
+    const r = createBody(form({ allAreas: false, areas: ['tasks', 'pages', 'tasks'] }), MEMBER);
+    expect('body' in r && r.body.areas).toEqual(['tasks', 'pages']);
   });
 
   it('names the field that is wrong', () => {
     expect(createBody(form({ name: '  ' }), ADMIN)).toMatchObject({ field: 'name' });
+    expect(createBody(form({ allAreas: false, areas: [] }), ADMIN)).toMatchObject({
+      field: 'areas',
+    });
     expect(createBody(form({ riskyTools: 'email_send, Bad-Name' }), ADMIN)).toMatchObject({
       field: 'riskyTools',
     });
@@ -100,9 +109,12 @@ describe('API access: create body', () => {
 });
 
 describe('API access: list', () => {
-  it('says a key has its login rights, whatever an old key stored', () => {
-    expect(scopeLine(key({}))).toBe('Same rights as its login');
-    expect(scopeLine(key({ access: 'read', areas: ['search'] }))).toBe('Same rights as its login');
+  it('says what a key may do', () => {
+    expect(scopeLine(key({}))).toBe('Read only · All areas');
+    expect(scopeLine(key({ areas: ['search'] }))).toBe('Read only · Search (every kind)');
+    expect(scopeLine(key({ access: 'read_write', areas: ['tasks', 'files'] }))).toBe(
+      'Read and write · Tasks, Files',
+    );
   });
 
   it('puts live keys first, newest first', () => {

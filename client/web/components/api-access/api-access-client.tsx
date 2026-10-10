@@ -2,9 +2,9 @@
 
 /**
  * Settings > API access (brain migration 0232): API keys for scripts and
- * MCP clients. A key acts exactly as the login that made it, with the same
- * rights (workspaces W5b2: no access or area limits). It works as a Bearer
- * on the public API (/api/v1) and on /api/mcp. The secret is shown
+ * MCP clients. A key acts as the login that made it and can only narrow
+ * it: read only or read and write, all areas or some. It works as a
+ * Bearer on the public API (/api/v1) and on /api/mcp. The secret is shown
  * once, right after it is made.
  *
  * Every login makes and revokes its own keys. An admin also sees, and may
@@ -28,6 +28,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { CopyBlock } from '@mantle/web-ui/ui/copy-button';
 import {
   Dialog,
@@ -52,9 +53,12 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
+import { Switch } from '@mantle/web-ui/ui/switch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import {
+  ACCESS_LABEL,
+  AREA_LABEL,
   EXPIRY_LABEL,
   createBody,
   defaultExpiryChoice,
@@ -115,8 +119,9 @@ export function ApiAccessClient() {
             <div>
               <h2 className="text-sm font-semibold">Keys for scripts and MCP</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                A key lets a script or an MCP client use this brain as you, with the same rights as
-                your login. It works on the public API (<code>/api/v1</code>) and on MCP.{' '}
+                A key lets a script or an MCP client use this brain as you, with fewer rights if you
+                choose: read only, or only some areas. It works on the public API (
+                <code>/api/v1</code>) and on MCP.{' '}
                 {data && !data.needsPassword
                   ? 'Your keys end when you sign out. Revoke a key here.'
                   : 'A plain sign-out does not end a key; a password change or Sign out everywhere ends all of them. Revoke a key here.'}
@@ -156,6 +161,7 @@ export function ApiAccessClient() {
             needsPassword: data.needsPassword,
             maxExpiryDays: data.maxExpiryDays,
           }}
+          areas={data.areas}
           defaultExpiryDays={data.defaultExpiryDays}
           onCreated={async (made) => {
             setMinted(made);
@@ -280,12 +286,14 @@ function CreateKeyDialog({
   open,
   onOpenChange,
   rules,
+  areas,
   defaultExpiryDays,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rules: CreateRules;
+  areas: AccessKeyList['areas'];
   defaultExpiryDays: number;
   onCreated: (made: AccessKeyCreated & { name: string }) => Promise<void>;
 }) {
@@ -293,6 +301,9 @@ function CreateKeyDialog({
   const { isAdmin } = rules;
   const blank = (): CreateForm => ({
     name: '',
+    access: 'read',
+    allAreas: true,
+    areas: [],
     expiry: defaultExpiryChoice(defaultExpiryDays, rules.maxExpiryDays),
     riskyTools: '',
     password: '',
@@ -344,9 +355,7 @@ function CreateKeyDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Make an API key</DialogTitle>
-          <DialogDescription>
-            The key acts as you. It has the same rights as your login.
-          </DialogDescription>
+          <DialogDescription>The key acts as you, with the limits you set here.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate>
           {rules.needsPassword && (
@@ -373,23 +382,73 @@ function CreateKeyDialog({
               </FieldError>
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="key-expiry">Expires</FieldLabel>
-              <Select
-                value={form.expiry}
-                onValueChange={(v) => set({ expiry: v as CreateForm['expiry'] })}
-              >
-                <SelectTrigger id="key-expiry">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {expiryChoicesFor(rules.maxExpiryDays).map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {EXPIRY_LABEL[c]}
-                    </SelectItem>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="key-access">Access</FieldLabel>
+                <Select
+                  value={form.access}
+                  onValueChange={(v) => set({ access: v as CreateForm['access'] })}
+                >
+                  <SelectTrigger id="key-access">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="read">{ACCESS_LABEL.read}</SelectItem>
+                    <SelectItem value="read_write">{ACCESS_LABEL.read_write}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="key-expiry">Expires</FieldLabel>
+                <Select
+                  value={form.expiry}
+                  onValueChange={(v) => set({ expiry: v as CreateForm['expiry'] })}
+                >
+                  <SelectTrigger id="key-expiry">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expiryChoicesFor(rules.maxExpiryDays).map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {EXPIRY_LABEL[c]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <Field data-invalid={error?.field === 'areas' || undefined}>
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel htmlFor="key-all-areas">All areas</FieldLabel>
+                <Switch
+                  id="key-all-areas"
+                  checked={form.allAreas}
+                  onCheckedChange={(v) => set({ allAreas: v })}
+                />
+              </div>
+              {!form.allAreas && (
+                <div className="grid grid-cols-2 gap-2 pt-1" role="group" aria-label="Areas">
+                  {areas.map((a) => (
+                    <label key={a} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={form.areas.includes(a)}
+                        onCheckedChange={(v) =>
+                          set({
+                            areas: v ? [...form.areas, a] : form.areas.filter((x) => x !== a),
+                          })
+                        }
+                      />
+                      {AREA_LABEL[a]}
+                    </label>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
+              <FieldDescription>
+                Off: the key reaches only the areas you tick. Search finds every kind of item, email
+                and journal included. Some routes and tools belong to no area; they need All areas.
+              </FieldDescription>
+              <FieldError>{error?.field === 'areas' ? error.message : null}</FieldError>
             </Field>
 
             {isAdmin && (

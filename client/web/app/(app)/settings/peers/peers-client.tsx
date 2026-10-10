@@ -586,6 +586,8 @@ function PeerDetail({
         access={{
           actsAsLoginId: peer.actsAsLoginId ?? null,
           actsAsRole: peer.actsAsRole ?? null,
+          writeEnabled: peer.writeEnabled ?? false,
+          allowedRiskyTools: peer.allowedRiskyTools ?? [],
         }}
         onChanged={onChanged}
       />
