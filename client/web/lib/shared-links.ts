@@ -8,9 +8,9 @@
  * - admin: an OLD open link on an item that stays admin (a task, an event):
  *   it still opens until it is revoked.
  *
- * The level rides on each GET /api/team-admin/shares row on a current brain.
- * An older brain's rows carry none, and then it comes from GET
- * /api/shares/all (client logins C1); a brain before C1 has it nowhere.
+ * A W5b2 brain sends no level on the rows (a link follows no level,
+ * contract 30): no badge shows then, and nothing asks /api/shares/all for
+ * one. An older brain's row level still shows.
  *
  * Next to the live links a C3 brain sends `retired`: the old client links it
  * retired. They have no token (the link is dead and asks its visitor to sign
@@ -31,16 +31,6 @@ import type { RetiredClientLinkRow } from '@mantle/client-types';
 /** The Shared links tab's query (GET /api/team-admin/shares). */
 export const SHARES_KEY = ['team-admin', 'shares'] as const;
 
-/** Each link's level from GET /api/shares/all, for an older brain whose
- *  Shared links rows carry none. */
-export const SHARE_LEVELS_KEY = ['team-admin', 'share-levels'] as const;
-
-/** Whether the level has to come from the second call: only when some row
- *  came without one (a brain before the level rode on the rows). */
-export function needsLevelLookup(rows: readonly { level?: AccessLevel }[]): boolean {
-  return rows.some((r) => !r.level);
-}
-
 /** Copy is offered for a link that is meant to be handed out. An old client
  *  link is not: clients sign in instead. */
 export function canCopyLink(level: AccessLevel | undefined): boolean {
@@ -55,21 +45,17 @@ export function linkLevelLabel(level: AccessLevel): string {
   return level === 'admin' ? OLD_ADMIN_LINK : LEVEL_LABEL[level];
 }
 
-/** What the list says when the levels could not be loaded (older brains). */
-export const LEVELS_FAILED = 'Could not load the level of each link.';
-
 /** Revoke one link. The item
  *  keeps its level. */
 export async function revokeShareLink(shareId: string): Promise<void> {
   await apiSend(`/api/shares/${encodeURIComponent(shareId)}`, 'DELETE');
 }
 
-/** After a revoke or a level change: Shared links and its levels reload,
+/** After a revoke or a link change: Shared links reloads,
  *  and the contacts (a contact share's revoke shows on the contact's
  *  "Shared" tab and share count, brain migration 0214). */
 export function invalidateLinkQueries(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: SHARES_KEY });
-  void queryClient.invalidateQueries({ queryKey: SHARE_LEVELS_KEY });
   void queryClient.invalidateQueries({ queryKey: ['contacts'] });
 }
 

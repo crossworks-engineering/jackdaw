@@ -4,11 +4,9 @@ import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import type { RetiredClientLinkRow } from '@mantle/client-types';
 import {
   CLIENTS_HREF,
-  LEVELS_FAILED,
   OLD_ADMIN_LINK,
   canCopyLink,
   linkLevelLabel,
-  needsLevelLookup,
   retiredItemHref,
   retiredLevelLine,
   retiredLinksOf,
@@ -17,25 +15,14 @@ import {
 } from './shared-links';
 
 /**
- * Shared links (audit A18): the level rides on the rows on a current brain,
- * so the second call is only for an older one; an old client link is never
+ * Shared links (audit A18): no level lookup since W5b2; an old client link is never
  * offered for copy; a live link on an admin item is an old open link. Since
  * client logins C3 the tab also lists the old client links the brain
  * retired (`retired`), which a brain before C3 does not send.
  */
-describe('the level lookup', () => {
-  it('is skipped when every row carries its level', () => {
-    expect(needsLevelLookup([{ level: 'public' }, { level: 'client' }])).toBe(false);
-    expect(needsLevelLookup([])).toBe(false);
-  });
-
-  it('runs when any row comes without one (an older brain)', () => {
-    expect(needsLevelLookup([{ level: 'public' }, {}])).toBe(true);
-    expect(needsLevelLookup([{}])).toBe(true);
-  });
-
-  it('says so when it fails, rather than dropping the badges', () => {
-    expect(LEVELS_FAILED).toMatch(/Could not load/);
+describe('links on a W5b2 brain (no level on the rows)', () => {
+  it('offers Copy for a row that carries no level', () => {
+    expect(canCopyLink(undefined)).toBe(true);
   });
 });
 
@@ -66,7 +53,6 @@ describe('the level badge', () => {
 describe('a brain after C3, with no old client link live', () => {
   it('offers Copy for every live link and asks for no levels again', () => {
     const rows = [{ level: 'public' as const }, { level: 'public' as const }];
-    expect(needsLevelLookup(rows)).toBe(false);
     for (const r of rows) expect(canCopyLink(r.level)).toBe(true);
   });
 });

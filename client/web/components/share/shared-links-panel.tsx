@@ -2,27 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AccessLevel } from '@mantle/client-types';
 import { Check, Copy, ExternalLink, Link2, Link2Off } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import { isOldClientLink, kindLabel, linkLevels } from '@/lib/access-levels';
-import {
-  LEVELS_FAILED,
-  SHARES_KEY,
-  SHARE_LEVELS_KEY,
-  canCopyLink,
-  needsLevelLookup,
-  revokeShareLink,
-} from '@/lib/shared-links';
+import { isOldClientLink, kindLabel } from '@/lib/access-levels';
+import { SHARES_KEY, canCopyLink, revokeShareLink } from '@/lib/shared-links';
 import type { RetiredClientLinkRow } from '@mantle/client-types';
-import type { SharedLinkRow as AllSharesRow } from '@mantle/client-types';
 import { LinkLevel } from './link-level';
 import { RetiredClientLinks } from './retired-client-links';
 import { RevokeLinkDialog, STAYS_AT_CLIENT } from './revoke-link-dialog';
@@ -32,9 +24,8 @@ export { SHARES_KEY };
 /** One active link from GET /api/team-admin/shares. Every link is open
  *  (anyone with it can view): team links are retired (member logins Phase 6
  *  stage 6), so the row's share `mode` is always 'public' and is not read.
- *  `level` is the item's level: on the row itself on a current brain;
- *  otherwise it comes from GET /api/shares/all (client logins C1), and on a
- *  brain before C1 it is absent and nothing extra shows. */
+ *  `level` was the item's level; a W5b2 brain sends none (a link follows no
+ *  level, contract 30), and then no level badge shows. */
 export type SharedLinkRow = {
   id: string;
   path: string;
@@ -101,20 +92,9 @@ export function SharedLinksPanel({
   const [confirmRevoke, setConfirmRevoke] = useState<SharedLinkRow | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
-  // A current brain puts the level on every row: no second call. An older
-  // one does not, and then /api/shares/all has it (a brain before C1: no
-  // level anywhere, nothing extra shows). A failure says so, with Retry,
-  // rather than dropping every badge in silence.
-  const lookup = needsLevelLookup(rows);
-  const levelsQuery = useQuery({
-    queryKey: SHARE_LEVELS_KEY,
-    queryFn: () => apiFetch<{ shares: AllSharesRow[] }>('/api/shares/all'),
-    enabled: lookup,
-    retry: false,
-  });
-  const levels = linkLevels(levelsQuery.data?.shares);
-  const levelOf = (row: SharedLinkRow): AccessLevel | undefined => row.level ?? levels.get(row.id);
-  const levelsFailed = lookup && levelsQuery.isError;
+  // No level since W5b2 (contract 30): a row's own `level`, when an older
+  // brain sends one, else none and no badge.
+  const levelOf = (row: SharedLinkRow): AccessLevel | undefined => row.level;
 
   // Keep the selection on a live row: a revoke (or a refetch) must not leave
   // the preview on a link that no longer exists.
@@ -146,8 +126,6 @@ export function SharedLinksPanel({
         d ? { ...d, shares: d.shares.filter((x) => x.id !== gone) } : d,
       );
       void queryClient.invalidateQueries({ queryKey: SHARES_KEY });
-      // The levels behind the badges, on a brain that sends them apart.
-      void queryClient.invalidateQueries({ queryKey: SHARE_LEVELS_KEY });
       toast.success(`Unshared "${confirmRevoke.title}"`);
       setConfirmRevoke(null);
     } catch (e) {
@@ -197,22 +175,6 @@ export function SharedLinksPanel({
               <h2 className="text-sm font-semibold">Shared links</h2>
               <span className="text-xs text-muted-foreground">{rows.length}</span>
             </div>
-            {levelsFailed ? (
-              <p
-                role="status"
-                className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"
-              >
-                {LEVELS_FAILED}
-                <Button
-                  size="2xs"
-                  variant="outline"
-                  disabled={levelsQuery.isFetching}
-                  onClick={() => void levelsQuery.refetch()}
-                >
-                  Retry
-                </Button>
-              </p>
-            ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
               <ul className="flex flex-col gap-2 p-3">
                 {rows.map((row) => (
@@ -270,8 +232,8 @@ export function SharedLinksPanel({
                     <div className="mt-1">
                       {contactLine(selected) ? (
                         <p className="text-xs text-muted-foreground">
-                          {contactLine(selected)}. It opens with their code; the item keeps its
-                          level.
+                          {contactLine(selected)}. It opens with their code; the workspaces do not
+                          change.
                         </p>
                       ) : (
                         <LinkLevel level={levelOf(selected)} />
@@ -344,7 +306,7 @@ export function SharedLinksPanel({
                 title: confirmRevoke.title,
                 cascade: confirmRevoke.cascade,
                 stays: confirmRevoke.contactId
-                  ? `Only ${confirmRevoke.contactName || 'that contact'} loses it. The item keeps its level.`
+                  ? `Only ${confirmRevoke.contactName || 'that contact'} loses it. The workspaces do not change.`
                   : isOldClientLink(levelOf(confirmRevoke))
                     ? STAYS_AT_CLIENT
                     : null,
