@@ -31,25 +31,27 @@ describe('an informational app', () => {
   });
 
   it('shows the switch only to a brain that knows the flag', () => {
-    expect(supportsInformational({ dataReadOnly: false, audience: 'team' })).toBe(true);
-    expect(supportsInformational({ dataReadOnly: true, audience: 'client' })).toBe(true);
-    expect(supportsInformational({ audience: 'team' })).toBe(false);
-    expect(supportsInformational({ dataReadOnly: null, audience: 'client' })).toBe(false);
+    expect(supportsInformational({ dataReadOnly: false })).toBe(true);
+    expect(supportsInformational({ dataReadOnly: true })).toBe(true);
+    expect(supportsInformational({})).toBe(false);
+    expect(supportsInformational({ dataReadOnly: null })).toBe(false);
   });
 
-  it('shows the switch only on a team or client app (client tier audit N1)', () => {
+  it('has no level gate since W5b2 (grants decide who reads the app)', () => {
     for (const audience of ['admin', 'public', null, undefined]) {
-      expect(supportsInformational({ dataReadOnly: false, audience }), String(audience)).toBe(
-        false,
-      );
+      expect(
+        supportsInformational({ dataReadOnly: false, audience } as { dataReadOnly: boolean }),
+        String(audience),
+      ).toBe(true);
     }
   });
 
   it('sends the flag, and says what it means and what it is otherwise', () => {
     expect(informationalPatch(true)).toEqual({ dataReadOnly: true });
     expect(informationalPatch(false)).toEqual({ dataReadOnly: false });
-    expect(APP_INFORMATIONAL_LABEL).toBe('Informational: members and clients only read its data');
-    expect(APP_INFORMATIONAL_HINT).toMatch(/team or client app is written by everyone who runs it/);
+    expect(APP_INFORMATIONAL_LABEL).toBe('Informational: users outside Admin only read its data');
+    expect(APP_INFORMATIONAL_HINT).toMatch(/Write off/);
+    expect(APP_INFORMATIONAL_HINT).not.toMatch(/level/);
   });
 
   it('writes no em or en dash in what a reader sees', () => {

@@ -10,8 +10,9 @@ describe('hasAppSettings', () => {
     expect(hasAppSettings(app({}))).toBe(false);
   });
 
-  it('is false for Informational and MCP access alone: they live in the Access panel', () => {
-    expect(hasAppSettings(app({ audience: 'team', dataReadOnly: false }))).toBe(false);
+  it('is true for Informational (contract 35), at any level; MCP access lives in the panel', () => {
+    expect(hasAppSettings(app({ dataReadOnly: false }))).toBe(true);
+    expect(hasAppSettings(app({ audience: 'team', dataReadOnly: true }))).toBe(true);
     expect(hasAppSettings(app({ mcpAccess: true }))).toBe(false);
   });
 
