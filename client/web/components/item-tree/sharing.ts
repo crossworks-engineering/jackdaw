@@ -1,8 +1,7 @@
 /**
- * Folder sharing as the tree shows it (the brain's docs/folder-tree.md,
- * "Sharing a folder (phase 4)"): which folders offer a share, the words for a
- * share, and the brain's refusal of a write that would change who can see
- * items until it is repeated with `confirm`.
+ * Folder access as the tree shows it: which folders offer the Access panel
+ * (grants, W5b2), and the brain's refusal of a write that would change which
+ * workspaces read items until it is repeated with `confirm` (contract 29).
  *
  * Pure: no React, so the rules are unit-tested (sharing.test.ts).
  */
@@ -15,24 +14,14 @@ import {
   type TreeKind,
   type TreeShareLevel,
   type TreeVisibilityChange,
-  type TreeVisibilityRefusal,
 } from '@mantle/web-ui/types/tree';
+import type { GrantWorkspaceRef } from '../../lib/contract/grants';
 
 /** The levels a folder of this kind may be shared at. None on a kind that is
  *  not shareable (Recall, for now: the brain refuses its folder shares). */
 export function shareLevelsOf(kind: TreeKind): readonly TreeShareLevel[] {
   const spec = TREE_KIND_SPECS[kind];
   return spec.shareable ? (spec.shareLevels ?? TREE_SHARE_LEVELS) : [];
-}
-
-/**
- * Whether the folder's menu offers a share. Not on the admin-only kinds, not
- * on a system folder (Auto-filed), and not on a brain before folder sharing:
- * such a brain sends no `inherited` on its folders, and would refuse the
- * field.
- */
-export function canShareFolder(kind: TreeKind, folder: TreeFolder): boolean {
-  return shareLevelsOf(kind).length > 0 && !folder.system && folder.inherited !== undefined;
 }
 
 /**
@@ -44,32 +33,44 @@ export function canGrantFolder(kind: TreeKind, folder: TreeFolder): boolean {
   return shareLevelsOf(kind).length > 0 && !folder.system;
 }
 
-export const SHARE_LABEL: Record<TreeShareLevel, string> = {
-  team: 'Team',
-  client: 'Clients',
+/**
+ * One item a tree write would change (W5b2 contract 29): which workspaces
+ * would also read it and which would no longer. Mirrors the brain's
+ * TreeWorkspaceChange (mantle packages/client-types/src/tree.ts at
+ * 69a2ccd15); local until a client-types release carries it. `id` is ''
+ * for an item not made yet (a create or upload).
+ */
+export type TreeWorkspaceChange = {
+  id: string;
+  title: string;
+  alsoVisibleTo: GrantWorkspaceRef[];
+  removedFrom: GrantWorkspaceRef[];
 };
 
-/** The shared glyph's tooltip on a folder row: its own share, else the one
- *  it takes from a folder above (null when neither). */
-export function shareTitle(folder: Pick<TreeFolder, 'share' | 'inherited'>): string | null {
-  if (folder.share === 'team') return 'Shared with the team, and everything in it';
-  if (folder.share === 'client') return 'Shared with clients, and everything in it';
-  if (folder.inherited === 'team') return 'Shared with the team by a folder above';
-  if (folder.inherited === 'client') return 'Shared with clients by a folder above';
-  return null;
-}
+/** A change the confirm lists: a tree write's (workspaces), or a member
+ *  review accept's (levels, until W5c). */
+export type VisibilityChange = TreeWorkspaceChange | TreeVisibilityChange;
 
-/** The share a folder row shows a glyph for: its own, else the inherited
- *  one (drawn quieter). */
-export function shownShare(
-  folder: Pick<TreeFolder, 'share' | 'inherited'>,
-): { level: TreeShareLevel; own: boolean } | null {
-  if (folder.share) return { level: folder.share, own: true };
-  if (folder.inherited) return { level: folder.inherited, own: false };
-  return null;
-}
+/** The brain's "this changes who can see items" refusal, either shape. */
+export type VisibilityRefusal = {
+  error: 'visibility';
+  changes: VisibilityChange[];
+  total: number;
+  /** A level refusal only (the review accept); never sent since W5b2. */
+  alsoEmbeds?: TreeVisibilityChange[];
+  embedsTotal?: number;
+};
 
-function isChange(v: unknown): v is TreeVisibilityChange {
+export const isWorkspaceChange = (c: VisibilityChange): c is TreeWorkspaceChange =>
+  Array.isArray((c as TreeWorkspaceChange).alsoVisibleTo);
+
+const isRef = (v: unknown): v is GrantWorkspaceRef =>
+  !!v &&
+  typeof v === 'object' &&
+  typeof (v as GrantWorkspaceRef).wsId === 'string' &&
+  typeof (v as GrantWorkspaceRef).name === 'string';
+
+function isLevelChange(v: unknown): v is TreeVisibilityChange {
   if (!v || typeof v !== 'object') return false;
   const c = v as Record<string, unknown>;
   return (
@@ -80,16 +81,39 @@ function isChange(v: unknown): v is TreeVisibilityChange {
   );
 }
 
+/** A change in either shape, cleaned (malformed workspace refs dropped), or
+ *  null when it is neither. */
+function changeOf(v: unknown): VisibilityChange | null {
+  if (!v || typeof v !== 'object') return null;
+  const c = v as Record<string, unknown>;
+  if (
+    typeof c.id === 'string' &&
+    typeof c.title === 'string' &&
+    Array.isArray(c.alsoVisibleTo) &&
+    Array.isArray(c.removedFrom)
+  ) {
+    return {
+      id: c.id,
+      title: c.title,
+      alsoVisibleTo: c.alsoVisibleTo.filter(isRef),
+      removedFrom: c.removedFrom.filter(isRef),
+    };
+  }
+  return isLevelChange(v) ? v : null;
+}
+
 /** The brain's "this would change who can see items" refusal, or null when
  *  the error is anything else. */
-export function visibilityRefusal(err: unknown): TreeVisibilityRefusal | null {
+export function visibilityRefusal(err: unknown): VisibilityRefusal | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
   const body = err.body;
   if (!body || body.error !== 'visibility' || !Array.isArray(body.changes)) return null;
-  const changes = body.changes.filter(isChange);
+  const changes = body.changes
+    .map(changeOf)
+    .filter((c: VisibilityChange | null): c is VisibilityChange => c !== null);
   const total =
     typeof body.total === 'number' ? Math.max(body.total, changes.length) : changes.length;
-  const alsoEmbeds = Array.isArray(body.alsoEmbeds) ? body.alsoEmbeds.filter(isChange) : [];
+  const alsoEmbeds = Array.isArray(body.alsoEmbeds) ? body.alsoEmbeds.filter(isLevelChange) : [];
   const embedsTotal =
     typeof body.embedsTotal === 'number'
       ? Math.max(body.embedsTotal, alsoEmbeds.length)
@@ -102,9 +126,9 @@ export function visibilityRefusal(err: unknown): TreeVisibilityRefusal | null {
   };
 }
 
-/** What a confirm says it saw (`seen`): the items and what they embed. The
- *  brain asks again when the change differs by then. */
-export function seenOf(refusal: TreeVisibilityRefusal): number {
+/** What a confirm says it saw (`seen`): the items, and on a level refusal
+ *  what they embed. The brain asks again when the change differs by then. */
+export function seenOf(refusal: VisibilityRefusal): number {
   return refusal.total + (refusal.embedsTotal ?? 0);
 }
 
@@ -112,13 +136,14 @@ export function seenOf(refusal: TreeVisibilityRefusal): number {
  *  one list for the dialog: every change, the totals added up, and what they
  *  embed, each item once. The list stays within what one refusal
  *  may carry. */
-export function mergeRefusals(refusals: readonly TreeVisibilityRefusal[]): TreeVisibilityRefusal {
-  const once = (lists: Array<readonly TreeVisibilityChange[] | undefined>) => {
+export function mergeRefusals(refusals: readonly VisibilityRefusal[]): VisibilityRefusal {
+  const once = <T extends { id: string }>(lists: Array<readonly T[] | undefined>) => {
     const seen = new Set<string>();
-    const out: TreeVisibilityChange[] = [];
+    const out: T[] = [];
     for (const list of lists) {
       for (const c of list ?? []) {
-        if (seen.has(c.id)) continue;
+        // A new item has no id yet: each one counts.
+        if (c.id && seen.has(c.id)) continue;
         seen.add(c.id);
         out.push(c);
       }
@@ -143,17 +168,21 @@ export function mergeRefusals(refusals: readonly TreeVisibilityRefusal[]): TreeV
   };
 }
 
+/** The words for one workspace change: who also reads it, who stops. */
+export function workspaceChangeWords(c: TreeWorkspaceChange): {
+  added: string | null;
+  removed: string | null;
+} {
+  const names = (refs: readonly GrantWorkspaceRef[]) =>
+    refs.length ? refs.map((r) => r.name).join(', ') : null;
+  return { added: names(c.alsoVisibleTo), removed: names(c.removedFrom) };
+}
+
 /** The confirm dialog's heading. */
-export function refusalHeading(refusal: TreeVisibilityRefusal): string {
+export function refusalHeading(refusal: VisibilityRefusal): string {
   const n = refusal.total;
   // Only what the items embed changes (a note already read at the folder's
   // share still opens its images there).
   if (n === 0 && refusal.alsoEmbeds?.length) return 'This changes who can see what they embed';
   return `This changes who can see ${n === 1 ? 'one item' : `${n} items`}`;
 }
-
-/** Who a share reaches, inside a sentence ("Share it with the team."). */
-export const SHARE_WHO: Record<TreeShareLevel, string> = {
-  team: 'the team',
-  client: 'clients',
-};

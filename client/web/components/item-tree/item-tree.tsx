@@ -126,7 +126,7 @@ import {
   VirtualRows,
 } from './tree-rows';
 import { FolderPickerDialog } from './folder-picker';
-import { canGrantFolder, SHARE_WHO, seenOf, visibilityRefusal } from './sharing';
+import { canGrantFolder, seenOf, visibilityRefusal } from './sharing';
 import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confirm';
 
 /**
@@ -471,8 +471,8 @@ export function ItemTree({
     return attempt(false);
   };
 
-  /** Any folder change. A rename or a new look never asks; a move or a share
-   *  may (`dest` names where a move lands, for the question). */
+  /** Any folder change. A rename or a new look never asks; a move may
+   *  (`dest` names where a move lands, for the question). */
   const patchFolder = (
     folder: TreeFolder,
     patch: TreeFolderPatch,
@@ -487,14 +487,9 @@ export function ItemTree({
           writer,
         ),
       'Could not change the folder',
-      patch.share === undefined
-        ? { action: `Move “${folder.name}” ${into(opts.dest)}.`, verb: 'Move' }
-        : patch.share
-          ? {
-              action: `Share “${folder.name}” and everything in it with ${SHARE_WHO[patch.share]}.`,
-              verb: 'Share',
-            }
-          : { action: `Stop sharing “${folder.name}”.`, verb: 'Stop sharing' },
+      // A folder is shared in its Access panel (grants), never by a level:
+      // the only folder change that may ask is a move.
+      { action: `Move “${folder.name}” ${into(opts.dest)}.`, verb: 'Move' },
       opts.onDone,
     );
 
@@ -1489,7 +1484,7 @@ export function ItemTree({
             (confirm, seen) => deleteTreeFolder(kind, target.id, confirm, writer, seen),
             'Could not delete',
             {
-              action: `Delete “${target.name}”: what it holds moves up one level and takes the share of where it lands.`,
+              action: `Delete “${target.name}”: what it holds moves up one step and takes the workspaces of where it lands.`,
               verb: 'Delete folder',
             },
           );

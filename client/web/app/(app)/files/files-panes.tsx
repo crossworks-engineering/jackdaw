@@ -21,12 +21,15 @@ import { AppTile } from '@/components/app-nav/app-tile';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { FILES_ROOT, fmtSize } from './files-shared';
-import { mergeRefusals, visibilityRefusal } from '@/components/item-tree/sharing';
+import {
+  mergeRefusals,
+  visibilityRefusal,
+  type VisibilityRefusal,
+} from '@/components/item-tree/sharing';
 import {
   VisibilityConfirmDialog,
   type PendingConfirm,
 } from '@/components/item-tree/visibility-confirm';
-import type { TreeVisibilityRefusal } from '@mantle/web-ui/types/tree';
 import type { FileRow, FolderRow } from './files-shared';
 
 export function ChildFolders({
@@ -179,7 +182,7 @@ export function DualPane({
   ) => {
     setBusy(true);
     let done = 0;
-    const refused: Array<{ key: string; refusal: TreeVisibilityRefusal }> = [];
+    const refused: Array<{ key: string; refusal: VisibilityRefusal }> = [];
     try {
       for (const key of keys) {
         const [kind, id] = key.split(':', 2) as ['file' | 'folder', string];

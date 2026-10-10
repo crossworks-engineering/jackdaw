@@ -2,7 +2,7 @@
 
 import { ArrowRight } from 'lucide-react';
 import type { AccessLevel } from '@mantle/client-types';
-import type { TreeVisibilityChange, TreeVisibilityRefusal } from '@mantle/web-ui/types/tree';
+import type { TreeVisibilityChange } from '@mantle/web-ui/types/tree';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,15 +14,23 @@ import {
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
 import { LEVEL_LABEL } from '@/lib/access-levels';
-import { refusalHeading } from './sharing';
+import {
+  isWorkspaceChange,
+  refusalHeading,
+  workspaceChangeWords,
+  type VisibilityChange,
+  type VisibilityRefusal,
+} from './sharing';
 
 const levelWord = (l: AccessLevel) => (l === 'admin' ? 'Admin only' : LEVEL_LABEL[l]);
 
-/** A tree write the brain refused because it changes who can see items: the
- *  items and their levels before and after. Going ahead repeats the write
- *  with `confirm` (and `seen`, the total shown, where the route takes it). */
+/** A write the brain refused because it changes who can see items: each
+ *  item and the workspaces it gains and loses (a tree write, W5b2 contract
+ *  29), or its levels before and after (a member review accept, until W5c).
+ *  Going ahead repeats the write with `confirm` (and `seen`, the total
+ *  shown, where the route takes it). */
 export type PendingConfirm = {
-  refusal: TreeVisibilityRefusal;
+  refusal: VisibilityRefusal;
   /** What the write does, one sentence ("Move “Plan” into Clients."). */
   action: string;
   /** The button that goes ahead ("Move", "Share"). */
@@ -33,8 +41,7 @@ export type PendingConfirm = {
 };
 
 /** The tree's words for why a list like this appears. */
-export const TREE_CONFIRM_NOTE =
-  'Items take the share of the folder they sit in, for everyone on this brain.';
+export const TREE_CONFIRM_NOTE = 'Items take the workspaces of the folder they sit in.';
 
 /** A node type as people say it, for the embed list (an embed may open
  *  any workspace item, so the kind matters). */
@@ -52,13 +59,13 @@ function kindWord(type: string): string {
   return words[type] ?? type;
 }
 
-function ChangeList({
+export function ChangeList({
   label,
   changes,
   more,
 }: {
   label: string;
-  changes: readonly TreeVisibilityChange[];
+  changes: readonly VisibilityChange[];
   more: number;
 }) {
   return (
@@ -66,28 +73,60 @@ function ChangeList({
       aria-label={label}
       className="max-h-48 overflow-y-auto scrollbar-thin rounded-md border border-border text-sm"
     >
-      {changes.map((c) => (
+      {changes.map((c, i) => (
         <li
-          key={c.id}
+          key={c.id || `new-${i}`}
           className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5 last:border-b-0"
         >
           <span className="min-w-0 flex-1 truncate" title={c.title}>
             {c.title || 'Untitled'}
           </span>
-          {c.type && (
-            <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] text-muted-foreground">
-              {kindWord(c.type)}
-            </span>
-          )}
-          <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-            {levelWord(c.from)}
-            <ArrowRight className="size-3" aria-label="becomes" />
-            <span className="font-medium text-foreground">{levelWord(c.to)}</span>
-          </span>
+          {isWorkspaceChange(c) ? <WorkspaceDelta change={c} /> : <LevelDelta change={c} />}
         </li>
       ))}
       {more > 0 && <li className="px-3 py-1.5 text-xs text-muted-foreground">and {more} more</li>}
     </ul>
+  );
+}
+
+/** A tree change: the workspaces that also read the item, and those that
+ *  stop (contract 29). */
+function WorkspaceDelta({ change }: { change: Parameters<typeof workspaceChangeWords>[0] }) {
+  const { added, removed } = workspaceChangeWords(change);
+  return (
+    <span className="flex min-w-0 shrink flex-col items-end text-xs">
+      {added && (
+        <span className="truncate text-foreground" title={`Also visible to: ${added}`}>
+          Also: <span className="font-medium">{added}</span>
+        </span>
+      )}
+      {removed && (
+        <span
+          className="truncate text-muted-foreground"
+          title={`No longer readable in: ${removed}`}
+        >
+          No longer: {removed}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** A review accept's change: its level before and after (until W5c). */
+function LevelDelta({ change: c }: { change: TreeVisibilityChange }) {
+  return (
+    <>
+      {c.type && (
+        <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] text-muted-foreground">
+          {kindWord(c.type)}
+        </span>
+      )}
+      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        {levelWord(c.from)}
+        <ArrowRight className="size-3" aria-label="becomes" />
+        <span className="font-medium text-foreground">{levelWord(c.to)}</span>
+      </span>
+    </>
   );
 }
 

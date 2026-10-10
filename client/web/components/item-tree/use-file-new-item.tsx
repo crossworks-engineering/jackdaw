@@ -20,7 +20,7 @@ import { moveChangesAccess, type MovePreview } from '@/lib/grants';
  * Files a new item in a folder of the owner's tree: the section created it
  * with its own create call (most of them take no folder), and this moves it
  * there with the tree's own move. In a shared folder the brain asks first
- * (the item takes the folder's share): `confirm` is that question, which the
+ * (the item takes the folder's workspaces): `confirm` is that question, which the
  * section renders. Cancelled, the item stays at the top level. Resolves once
  * it is filed, kept where it is, or the move failed (a toast).
  */

@@ -308,7 +308,7 @@ export function CreateFileDialog({
         setExposed({
           refusal,
           action: `Create “${filename}” in ${parentPath}.`,
-          note: 'The folder is shared: a file in it is read at the folder’s share.',
+          note: 'A file in this folder takes the folder’s workspaces.',
           verb: 'Create file',
           run: () => void create(true),
         });

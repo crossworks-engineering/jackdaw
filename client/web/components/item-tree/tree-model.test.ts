@@ -295,12 +295,19 @@ describe('urls', () => {
     );
     expect(searchUrl('files', ' acme ', null)).toBe('/api/tree/files/search?q=acme');
     expect(searchUrl('files', '', 'x')).toBe('/api/tree/files/search?q=&cursor=x');
-    expect(searchUrl('files', 'q', null, { level: 'team', tag: 'a b' })).toBe(
-      '/api/tree/files/search?q=q&level=team&tag=a+b',
+    expect(searchUrl('files', 'q', null, { tag: 'a b' })).toBe(
+      '/api/tree/files/search?q=q&tag=a+b',
+    );
+    // No level= any more (contract 29): an old filter with a level sends none.
+    expect(searchUrl('files', 'q', null, { level: 'team', tag: 'a' })).toBe(
+      '/api/tree/files/search?q=q&tag=a',
+    );
+    expect(searchUrl('files', 'q', null, { tag: 'a' }, 'owner', 'w1')).toBe(
+      '/api/tree/files/search?q=q&tag=a&ws=w1',
     );
   });
 
-  it('asks a member’s and a client’s own tree, whose search takes no level or tag', () => {
+  it('asks a member’s and a client’s own tree, whose search takes no tag or workspace', () => {
     expect(folderUrl('notes', 'f1', 'name', null, 'member')).toBe(
       '/api/member/tree/notes?folder=f1&sort=name',
     );

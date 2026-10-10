@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { TreeFolder } from '@mantle/web-ui/types/tree';
 import {
-  canShareFolder,
+  canGrantFolder,
+  isWorkspaceChange,
   mergeRefusals,
   refusalHeading,
   seenOf,
   shareLevelsOf,
-  shareTitle,
-  shownShare,
   visibilityRefusal,
+  workspaceChangeWords,
 } from './sharing';
 
 const folder = (over: Partial<TreeFolder> = {}): TreeFolder => ({
@@ -42,45 +42,69 @@ describe('shareLevelsOf', () => {
   });
 });
 
-describe('canShareFolder', () => {
-  it('shares an ordinary folder of a shareable kind', () => {
-    expect(canShareFolder('notes', folder())).toBe(true);
+describe('canGrantFolder', () => {
+  it('offers Access on an ordinary folder of a shareable kind', () => {
+    expect(canGrantFolder('notes', folder())).toBe(true);
   });
-  it('never shares a system folder', () => {
-    expect(canShareFolder('files', folder({ system: true }))).toBe(false);
-  });
-  it('never shares an admin-only kind', () => {
-    expect(canShareFolder('contacts', folder())).toBe(false);
-  });
-  it('does not offer a share on a Recall folder yet', () => {
-    expect(canShareFolder('recall', folder({ path: 'recall.f' }))).toBe(false);
-  });
-  it('does not offer it on a brain before folder sharing (no inherited field)', () => {
-    const old = folder();
-    delete old.inherited;
-    expect(canShareFolder('notes', old)).toBe(false);
+  it('never on a system folder or an admin-only kind', () => {
+    expect(canGrantFolder('files', folder({ system: true }))).toBe(false);
+    expect(canGrantFolder('contacts', folder())).toBe(false);
   });
 });
 
-describe('the shared glyph', () => {
-  it('shows the folder’s own share first', () => {
-    expect(shownShare(folder({ share: 'team', inherited: 'client' }))).toEqual({
-      level: 'team',
-      own: true,
+describe('visibilityRefusal, the tree (workspaces, contract 29)', () => {
+  const ws = (wsId: string, name: string) => ({ wsId, name });
+  const change = {
+    id: 'a',
+    title: 'Plan',
+    alsoVisibleTo: [ws('s', 'Sales'), ws('o', 'Ops')],
+    removedFrom: [ws('t', 'Team')],
+  };
+
+  it('reads each item with the workspaces it gains and loses', () => {
+    const err = new ApiError('x', 409, { error: 'visibility', changes: [change], total: 4 });
+    const r = visibilityRefusal(err)!;
+    expect(r).toEqual({ error: 'visibility', changes: [change], total: 4 });
+    expect(isWorkspaceChange(r.changes[0]!)).toBe(true);
+    expect(seenOf(r)).toBe(4);
+    expect(workspaceChangeWords(change)).toEqual({ added: 'Sales, Ops', removed: 'Team' });
+    expect(workspaceChangeWords({ ...change, removedFrom: [] }).removed).toBeNull();
+  });
+
+  it('keeps a new item (id empty), drops malformed refs and rows', () => {
+    const fresh = {
+      id: '',
+      title: 'new.txt',
+      alsoVisibleTo: [ws('s', 'Sales'), { x: 1 }],
+      removedFrom: [],
+    };
+    const err = new ApiError('x', 409, {
+      error: 'visibility',
+      changes: [fresh, { id: 'b', title: 'B', alsoVisibleTo: 'Sales' }, null],
+      total: 1,
     });
-    expect(shareTitle(folder({ share: 'client' }))).toMatch(/clients, and everything in it/);
+    expect(visibilityRefusal(err)!.changes).toEqual([
+      { id: '', title: 'new.txt', alsoVisibleTo: [ws('s', 'Sales')], removedFrom: [] },
+    ]);
   });
-  it('falls back to the inherited share, quieter', () => {
-    expect(shownShare(folder({ inherited: 'client' }))).toEqual({ level: 'client', own: false });
-    expect(shareTitle(folder({ inherited: 'team' }))).toMatch(/by a folder above/);
-  });
-  it('shows nothing on an unshared folder', () => {
-    expect(shownShare(folder())).toBeNull();
-    expect(shareTitle(folder())).toBeNull();
+
+  it('merges batches, each new item counted on its own', () => {
+    const fresh = (title: string) => ({
+      id: '',
+      title,
+      alsoVisibleTo: [ws('s', 'S')],
+      removedFrom: [],
+    });
+    const merged = mergeRefusals([
+      { error: 'visibility', changes: [change, fresh('x')], total: 2 },
+      { error: 'visibility', changes: [change, fresh('y')], total: 2 },
+    ]);
+    expect(merged.changes.map((c) => c.title)).toEqual(['Plan', 'x', 'y']);
+    expect(merged.total).toBe(4);
   });
 });
 
-describe('visibilityRefusal', () => {
+describe('visibilityRefusal, a review accept (levels, until W5c)', () => {
   const change = { id: 'a', title: 'Plan', from: 'admin', to: 'client' };
 
   it('reads the brain’s refusal', () => {

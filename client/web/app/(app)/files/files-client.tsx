@@ -39,8 +39,6 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { ShareGlyph } from '@/components/item-tree/tree-rows';
-import { shareTitle } from '@/components/item-tree/sharing';
 import { KIND_TINT, describeFile } from '@mantle/web-ui/lib/mime-label';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { FileEditor } from './file-editor';
@@ -1014,21 +1012,6 @@ function FilesView({
                       </>
                     )}
                   </nav>
-
-                  {currentFolder && (currentFolder.share || currentFolder.inherited) ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <ShareGlyph
-                        folder={{
-                          share: currentFolder.share ?? null,
-                          inherited: currentFolder.inherited ?? null,
-                        }}
-                      />
-                      {shareTitle({
-                        share: currentFolder.share ?? null,
-                        inherited: currentFolder.inherited ?? null,
-                      })}
-                    </p>
-                  ) : null}
 
                   {currentFolder && currentFolder.path !== FILES_ROOT && (
                     <div className="mt-1 flex items-center justify-end gap-1">

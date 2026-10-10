@@ -66,16 +66,7 @@ export const searchKey = (
   filter: TreeFilter = {},
   source: TreeSource = 'owner',
   ws: string | null = null,
-) =>
-  [
-    'tree',
-    treeScope(kind, source),
-    'search',
-    q,
-    filter.level ?? null,
-    filter.tag ?? null,
-    ws ?? 'all',
-  ] as const;
+) => ['tree', treeScope(kind, source), 'search', q, filter.tag ?? null, ws ?? 'all'] as const;
 
 export const tagsKey = (kind: TreeKind) => ['tree', kind, 'tags'] as const;
 
@@ -110,10 +101,12 @@ export function searchUrl(
   source: TreeSource = 'owner',
   ws: string | null = null,
 ): string {
-  // A reader's search takes no level or tag (it is not offered one).
-  const rest = query(
-    source === 'owner' ? { cursor, level: filter.level, tag: filter.tag, ws } : { cursor },
-  ).replace(/^\?/, '&');
+  // A reader's search takes no tag or workspace (it is not offered one). The
+  // level filter is gone (W5b2 contract 29): `ws` narrows by workspace.
+  const rest = query(source === 'owner' ? { cursor, tag: filter.tag, ws } : { cursor }).replace(
+    /^\?/,
+    '&',
+  );
   return `${BASE[source]}/${kind}/search?q=${encodeURIComponent(q.trim())}${rest}`;
 }
 

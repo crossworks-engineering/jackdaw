@@ -1,7 +1,6 @@
 'use client';
 
 import { WorkspaceChips } from '@/components/share/workspace-chips';
-import { workspacesOf } from '@/lib/grants';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
@@ -17,7 +16,7 @@ import {
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ChevronRight, GripVertical, Handshake, MoreHorizontal, Users } from 'lucide-react';
+import { ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -35,7 +34,6 @@ import {
 } from '@mantle/web-ui/types/tree';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { TREE_INDENT, TREE_ROW_PAD, TreeGuides } from '@/components/app-nav/tree-guides';
-import { shareTitle, shownShare } from './sharing';
 import { fetchFolderPage, folderKey, treeScope, type TreeSource } from './tree-api';
 import {
   crumbLine,
@@ -455,38 +453,10 @@ export function TreeRowShell({
   );
 }
 
-/** The shared mark on a folder row: its workspaces as chips (W5b), else on
- *  an older brain the level glyph: people for the team, a handshake for
- *  clients, a share taken from a folder above drawn quieter. */
-export function ShareGlyph({
-  folder,
-  selected = false,
-}: {
-  folder: Pick<TreeFolder, 'share' | 'inherited'>;
-  selected?: boolean;
-}) {
-  if (workspacesOf(folder).length > 0) return <WorkspaceChips item={folder} compact />;
-  const shown = shownShare(folder);
-  if (!shown) return null;
-  const Icon = shown.level === 'team' ? Users : Handshake;
-  const title = shareTitle(folder)!;
-  return (
-    <span
-      role="img"
-      aria-label={title}
-      title={title}
-      className={cn(
-        'flex shrink-0 items-center',
-        selected
-          ? 'text-accent-foreground/70'
-          : shown.own
-            ? 'text-foreground/70'
-            : 'text-muted-foreground/60',
-      )}
-    >
-      <Icon className="size-3.5" strokeWidth={shown.own ? 2 : 1.5} aria-hidden />
-    </span>
-  );
+/** The shared mark on a folder row: its workspaces as chips, and the
+ *  public pill (W5b2). The old level glyph is gone with the levels. */
+export function ShareGlyph({ folder }: { folder: unknown; selected?: boolean }) {
+  return <WorkspaceChips item={folder} compact />;
 }
 
 /** A folder's face: its tile, or the neutral folder glyph. */
