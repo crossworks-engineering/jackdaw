@@ -2,7 +2,6 @@
 
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AccessLevel } from '@mantle/client-types';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -83,12 +82,8 @@ type DrawRow = {
   hasDraft: boolean;
   createdAt: string;
   updatedAt: string;
-  /** Access level; absent from brains older than the level rows. */
-  audience?: AccessLevel;
-  /** The share it inherits from a folder above it (team or client), or
-   *  null. It is read at the more open of this and `audience`. Absent from
-   *  brains before folder sharing reported it. */
-  inherited?: 'team' | 'client' | null;
+  // No audience, inherited or embedded since W5b2 (contract 34): the list's
+  // workspace chips and hasLink say who reads it.
 };
 
 type ListResponse = {

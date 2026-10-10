@@ -3,7 +3,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { AccessLevel } from '@mantle/client-types';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -23,12 +22,8 @@ export type NoteRow = {
   summary: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Access level; absent from brains older than the level rows. */
-  audience?: AccessLevel;
-  /** The share it inherits from a folder above it (team or client), or
-   *  null. It is read at the more open of this and `audience`. Absent from
-   *  brains before folder sharing reported it. */
-  inherited?: 'team' | 'client' | null;
+  // No audience, inherited or embedded since W5b2 (contract 34): the list's
+  // workspace chips and hasLink say who reads it.
 };
 
 /**
