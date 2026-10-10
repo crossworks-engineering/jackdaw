@@ -155,10 +155,13 @@ describe('folder confirm', () => {
   it('an app holder add says both effects (21.8 row 13), with or without counts', () => {
     expect(appHolderLines('Admin', ['Team'], { rows: 40, exportedTables: 2 })).toEqual([
       "This app's data (40 rows, 2 exported tables) becomes visible to Admin.",
-      'This app will then read only items that Team and Admin all hold.',
+      'This app will then read only items that Team and Admin both hold.',
     ]);
     expect(appHolderLines('Admin', ['Team'], { rows: null, exportedTables: 0 })[0]).toBe(
-      "This app's data (0 exported tables) becomes visible to Admin.",
+      "This app's data becomes visible to Admin.",
+    );
+    expect(appHolderLines('Ops', ['Team', 'Admin'])[1]).toBe(
+      'This app will then read only items that Team, Admin and Ops all hold.',
     );
     expect(appHolderLines('Sales', [])).toEqual([
       "This app's data becomes visible to Sales.",

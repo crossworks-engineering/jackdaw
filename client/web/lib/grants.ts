@@ -257,7 +257,7 @@ export function appHolderLines(
   const what = counts
     ? [
         counts.rows !== null ? plural(counts.rows, 'row') : null,
-        plural(counts.exportedTables, 'exported table'),
+        counts.exportedTables > 0 ? plural(counts.exportedTables, 'exported table') : null,
       ].filter(Boolean)
     : [];
   const data = what.length
@@ -265,9 +265,11 @@ export function appHolderLines(
     : `This app's data becomes visible to ${name}.`;
   const all = [...holders, name];
   const reads =
-    all.length > 1
+    all.length > 2
       ? `This app will then read only items that ${joinAnd(all)} all hold.`
-      : `This app will then read only items that ${name} holds.`;
+      : all.length === 2
+        ? `This app will then read only items that ${joinAnd(all)} both hold.`
+        : `This app will then read only items that ${name} holds.`;
   return [data, reads];
 }
 

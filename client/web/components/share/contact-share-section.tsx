@@ -292,7 +292,7 @@ export function ContactShareSection({
 
       <p className="text-xs text-muted-foreground">
         Each contact gets their own link and opens it with their code. Send the link and the code
-        apart. The item keeps its level.
+        apart. The item keeps its workspaces.
       </p>
     </div>
   );
