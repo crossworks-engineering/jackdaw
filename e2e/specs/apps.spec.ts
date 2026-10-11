@@ -357,116 +357,30 @@ test.describe('apps', () => {
     });
   });
 
-  test('a member app opens in the pane beside the tree, under the same header', async ({
-    ownerApi,
+  test('no review: an old ?review= link is dropped and no member list shows (W5c)', async ({
     ownerPage,
     serverURL,
   }) => {
-    // The review lists and the member app are served by the spec (route
-    // mocks): a real one needs a member to build, publish and submit over
-    // MCP. The screen and its layout are what is under test here.
-    const id = '00000000-0000-4000-8000-0000000000e2';
-    const author = { loginId: null, name: 'A member', active: true };
-    const waiting = {
-      id,
-      title: 'E2E waiting app',
-      icon: null,
-      color: null,
-      author,
-      submittedAt: new Date().toISOString(),
-      version: 3,
-    };
-    const detailBody = {
-      ...waiting,
-      description: null,
-      sharing: 'private',
-      reviewState: 'submitted',
-      updatedAt: new Date().toISOString(),
-      declaredTools: [],
-      dataReadOnly: false,
-      runnable: true,
-      entry: 'App.tsx',
-      files: { 'App.tsx': 'export default () => null;' },
-      reviewHash: 'h1',
-    };
-    const json = (body: unknown, status = 200) => ({
-      status,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    });
+    // A brain that still answers the old member lists: the screen reads
+    // them no more.
+    let asked = 0;
     await ownerPage.route(`${serverURL}/api/apps/members**`, (route) => {
-      const path = new URL(route.request().url()).pathname;
-      if (path === '/api/apps/members')
-        return route.fulfill(json({ waiting: [waiting], shared: [] }));
-      if (path === `/api/apps/members/${id}`) return route.fulfill(json({ app: detailBody }));
-      if (path === `/api/apps/members/${id}/test`) return route.fulfill(json({ ok: true }));
-      if (path === `/api/apps/members/${id}/history`) return route.fulfill(json({ entries: [] }));
-      return route.fulfill(json({ error: 'not found' }, 404));
+      asked += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ waiting: [], shared: [] }),
+      });
     });
-
-    await ownerPage.setViewportSize({ width: 1600, height: 900 });
-    await ownerPage.goto('/apps');
+    await ownerPage.goto('/apps?review=00000000-0000-4000-8000-0000000000e2');
+    await expect.poll(() => new URL(ownerPage.url()).searchParams.has('review')).toBe(false);
     const list = ownerPage.locator('[data-testid="list"]');
-    const card = list.getByRole('button', { name: /E2E waiting app/ });
-    await card.click();
-
-    // The tree column stays, the card is the selection, the URL says so.
     await expect(list.getByRole('textbox', { name: 'Search apps' })).toBeVisible();
-    expect(await list.evaluate((el) => (el as HTMLElement).offsetWidth)).toBeGreaterThan(300);
-    await expect(card).toHaveAttribute('data-selected', 'true');
-    await expect.poll(() => new URL(ownerPage.url()).searchParams.get('review')).toBe(id);
-
-    // One header: the title, the review actions with words on the left, the
-    // icon-only group on the right, and the test notice as one line in it.
-    const header = ownerPage.locator('[data-testid="detail"]').getByTestId('app-item-header');
-    await expect(header.getByRole('heading', { name: 'E2E waiting app' })).toBeVisible();
-    await expect(ownerPage.getByTestId('app-item-header')).toHaveCount(1);
-    const words = header.getByTestId('app-header-text-actions');
-    const icons = header.getByTestId('app-header-icon-actions');
-    await expect(words.getByRole('button', { name: 'Approve' })).toBeVisible();
-    await expect(words.getByRole('button', { name: 'Reject' })).toBeVisible();
-    await expect(icons.getByRole('button', { name: 'Restart test' })).toBeVisible();
-    const w = (await words.boundingBox())!;
-    const i = (await icons.boundingBox())!;
-    expect(w.x + w.width, 'the worded buttons must sit left of the icons').toBeLessThanOrEqual(i.x);
-    await ownerPage.screenshot({ path: `${ARTIFACTS_DIR}apps-review-in-pane.png` });
-
-    // What does not fit the one row is behind Info.
-    await icons.getByRole('button', { name: 'About this review' }).click();
-    const info = ownerPage.getByRole('dialog');
-    await expect(info).toContainText('Waiting for your approval');
-    await expect(info).toContainText('Version 3');
-    await expect(info).toContainText('Test run');
-    await ownerPage.keyboard.press('Escape');
-
-    // The same height as a brain app's header, one with a description too.
-    const reviewHeight = (await header.boundingBox())!.height;
-    const made = await ownerApi.post('/api/apps', {
-      data: { name: `E2E height ${Date.now()}`, description: 'A line that sits beside the title' },
-    });
-    const { app } = (await made.json()) as { app: { id: string } };
-    try {
-      await ownerPage.goto(`/apps?id=${app.id}`);
-      const normal = ownerPage.locator('[data-testid="detail"]').getByTestId('app-item-header');
-      await expect(normal.getByText('A line that sits beside the title')).toBeVisible();
-      const normalHeight = (await normal.boundingBox())!.height;
-      expect(
-        Math.abs(reviewHeight - normalHeight),
-        'the review header is taller',
-      ).toBeLessThanOrEqual(1);
-    } finally {
-      await ownerApi.delete(`/api/apps/${app.id}`);
-    }
-
-    // The old review address lands here.
-    await ownerPage.goto(`/apps/review/${id}`);
-    await expect
-      .poll(() => {
-        const u = new URL(ownerPage.url());
-        return `${u.pathname}${u.search}`;
-      })
-      .toBe(`/apps?review=${id}`);
+    await expect(ownerPage.getByText('Waiting for approval')).toHaveCount(0);
+    await expect(ownerPage.getByText('Shared by members')).toHaveCount(0);
+    expect(asked).toBe(0);
   });
+
   test('the app editor wears the same one-row header as the Apps pane', async ({
     ownerApi,
     ownerPage,

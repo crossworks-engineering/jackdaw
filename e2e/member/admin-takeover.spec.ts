@@ -3,10 +3,7 @@ import {
   ADMIN_OWN_ID,
   ADMIN_OWN_TITLE,
   MEMBER_NAME,
-  RELEASED_ID,
-  RELEASED_TITLE,
   SUBMITTED_ID,
-  SUBMITTED_IMAGE_TITLE,
   SUBMITTED_TITLE,
   signInAsAdmin,
   startMockMemberApi,
@@ -14,11 +11,11 @@ import {
 } from './mock-member-api';
 
 /**
- * Take over (audit F07), the admin's side: from Pages > Waiting for approval
- * (workspace review pattern; Team admin > Review went on 2026-10-09) an admin
- * takes a member's submitted item into their own private items, then works
- * on it there and gives it back or accepts it into the brain. Runs against
- * the in-memory API in its admin role (mock-member-api.ts), no brain.
+ * A taken item (audit F07), the admin's side: an item an admin took from a
+ * member sits in their own private items, where they give it back or accept
+ * it into the brain. Take over itself went with the review flow in W5c.
+ * Runs against the in-memory API in its admin role (mock-member-api.ts), no
+ * brain.
  */
 let api: MockMemberApi;
 test.beforeEach(async ({ baseURL, context }) => {
@@ -27,99 +24,6 @@ test.beforeEach(async ({ baseURL, context }) => {
 });
 test.afterEach(async () => {
   await api.close();
-});
-
-const reviewItem = (id: string) => `/pages?review=${id}`;
-
-test('Take over asks first, names what moves, and opens it in the Pages list', async ({ page }) => {
-  // What an admin's private item never asks: the member routes (sharing,
-  // review, the discussion, realtime). Watched from the first request.
-  const memberAsks: string[] = [];
-  page.on('request', (r) => {
-    const path = new URL(r.url()).pathname;
-    if (path.startsWith('/api/member')) memberAsks.push(`${r.method()} ${path}`);
-  });
-  await page.goto(reviewItem(SUBMITTED_ID));
-  await expect(page.getByRole('heading', { name: SUBMITTED_TITLE })).toBeVisible({
-    timeout: 60_000,
-  });
-  await page.getByRole('button', { name: 'Take over' }).click();
-
-  const dialog = page.getByRole('alertdialog');
-  await expect(dialog.getByRole('heading', { name: 'Take this over?' })).toBeVisible();
-  await expect(dialog).toContainText(
-    `moves into your private items, out of ${MEMBER_NAME}’s reach, until you accept it into the brain or give it back.`,
-  );
-  // The bundle preview: what moves with it.
-  await expect(dialog).toContainText('Also moves 1 file.');
-  await expect(dialog).toContainText(SUBMITTED_IMAGE_TITLE);
-  // Nothing moved yet.
-  expect(api.admin.takeOvers).toEqual([]);
-
-  await dialog.getByRole('button', { name: 'Take over' }).click();
-  await expect(page).toHaveURL(new RegExp(`/pages\\?pid=${SUBMITTED_ID}$`), {
-    timeout: 30_000,
-  });
-  expect(api.admin.takeOvers).toEqual([SUBMITTED_ID]);
-
-  // The Pages list: the taken item lists "From <member>" with the private
-  // pill, beside the admin's own private item; the open item says who it is
-  // from too (the card and the item view: two).
-  const taken = page.locator(`[data-item-id="${SUBMITTED_ID}"]`);
-  await expect(taken).toContainText(`From ${MEMBER_NAME}`, { timeout: 30_000 });
-  await expect(taken).toContainText('private');
-  await expect(page.locator(`[data-item-id="${ADMIN_OWN_ID}"]`)).not.toContainText('From ');
-  await expect(page.getByText(`From ${MEMBER_NAME}`, { exact: true })).toHaveCount(2);
-  await expect(page.getByRole('button', { name: 'Give back' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Accept into brain' })).toBeVisible();
-  // The member can still take it back: no Delete (the brain would refuse).
-  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
-  // A private item has no sharing, no review and no discussion: those reach
-  // other people (this replaces a source-text guard, audit U12).
-  await expect(page.getByRole('radiogroup', { name: 'Who can see this' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Comments' })).toHaveCount(0);
-  expect(memberAsks).toEqual([]);
-});
-
-test('a refused Take over says why and stays on the queue', async ({ page }) => {
-  api.admin.takeOverAnswer = { status: 404, body: { error: 'Not found.' } };
-  await page.goto(reviewItem(SUBMITTED_ID));
-  await page.getByRole('button', { name: 'Take over' }).click({ timeout: 60_000 });
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Take over' }).click();
-  await expect(page.getByText(/not waiting for review any more/)).toBeVisible({
-    timeout: 15_000,
-  });
-  await expect(page).toHaveURL(new RegExp(`/pages\\?review=${SUBMITTED_ID}`));
-
-  api.admin.takeOverAnswer = {
-    status: 409,
-    body: { error: 'too many', reason: 'too-large' },
-  };
-  await page.getByRole('button', { name: 'Take over' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Take over' }).click();
-  await expect(page.getByText(/too many others to take over at once/)).toBeVisible({
-    timeout: 15_000,
-  });
-});
-
-test('a released item says so, can be taken over again, and takes no comments', async ({
-  page,
-}) => {
-  await page.goto(reviewItem(RELEASED_ID));
-  await expect(page.getByRole('heading', { name: RELEASED_TITLE })).toBeVisible({
-    timeout: 60_000,
-  });
-  // The state is the one small badge, on the card and in the header; the
-  // longer words are behind Info.
-  await expect(
-    page.getByRole('listitem').filter({ hasText: RELEASED_TITLE }).first(),
-  ).toContainText('Released');
-  await page.getByRole('button', { name: 'About this review' }).click();
-  await expect(page.getByText(/Released: the admin who took this over/)).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Take over' })).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Reply to the author' })).toHaveCount(0);
 });
 
 test('Give back sends no note, and the item leaves the Pages list', async ({ page }) => {

@@ -2,7 +2,6 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import {
   CLIENT_ACCEPTED_TITLE,
   CLIENT_DRAFT_TITLE,
-  CLIENT_EMBED_TITLE,
   CLIENT_NAME,
   CLIENT_QUOTA_MESSAGE,
   CLIENT_REQUEST_TEXT,
@@ -10,15 +9,12 @@ import {
   CLIENT_RETURNED_ID,
   CLIENT_RETURNED_NOTE,
   CLIENT_RETURNED_TITLE,
-  CLIENT_SUBMISSION_ID,
-  CLIENT_SUBMISSION_TITLE,
   CLIENT_SUBMITTED_ID,
   CLIENT_SUBMITTED_TITLE,
   LIBRARY_CLIENT_TITLE,
   LIBRARY_TITLE,
   SHARED_PAGE_ID,
   SHARED_PAGE_TITLE,
-  signInAsAdmin,
   signInAsMember,
   startMockMemberApi,
   type MockMemberApi,
@@ -319,49 +315,5 @@ test.describe('the member side', () => {
     await expect(page.getByText('Read me.')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('heading', { name: /^Comments/ })).toHaveCount(0);
     expect(api.adminCalls).toEqual([]);
-  });
-});
-
-test.describe('the admin side', () => {
-  test.beforeEach(async ({ baseURL, context }) => {
-    api = await startMockMemberApi(new URL(baseURL!).origin, { role: 'admin' });
-    await signInAsAdmin(context, baseURL!);
-  });
-
-  test('a client’s item waiting in Pages wears the Client badge; Approve starts at Team, the tick before Client', async ({
-    page,
-  }) => {
-    api.admin.queue = [CLIENT_SUBMISSION_ID];
-    // An old Team admin > Review link lands on the item in its workspace.
-    await page.goto(`/team-admin?view=review&item=${CLIENT_SUBMISSION_ID}`);
-    await expect(page).toHaveURL(new RegExp(`/pages\\?review=${CLIENT_SUBMISSION_ID}`), {
-      timeout: 60_000,
-    });
-    await expect(page.getByRole('heading', { name: CLIENT_SUBMISSION_TITLE })).toBeVisible({
-      timeout: 60_000,
-    });
-    const queue = page.getByRole('region', { name: 'Waiting for approval' });
-    await expect(queue.getByText('Client', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'About this review' }).click();
-    await expect(page.getByRole('dialog')).toContainText(`${CLIENT_NAME}`);
-    await expect(page.getByRole('dialog')).toContainText('Client');
-    await page.keyboard.press('Escape');
-
-    await page.getByRole('button', { name: 'Approve', exact: true }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('A client wrote this. It starts at Team.');
-    await expect(dialog.getByRole('radio', { name: 'Team' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
-    const accept = dialog.getByRole('button', { name: 'Accept into the brain' });
-    await expect(accept).toBeEnabled({ timeout: 15_000 });
-
-    await dialog.getByRole('radio', { name: 'Client' }).click();
-    const goingDown = dialog.getByRole('group', { name: 'What goes down with it' });
-    await expect(goingDown).toContainText(CLIENT_EMBED_TITLE);
-    await expect(accept).toBeDisabled();
-    await goingDown.getByRole('checkbox').check();
-    await expect(accept).toBeEnabled();
   });
 });
