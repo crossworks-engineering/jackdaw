@@ -214,10 +214,10 @@ export function runnableSpaceApp(
   return app && app.runnable ? app : null;
 }
 
-// ── Members' apps waiting or shared (GET /api/apps/members) ────────────────
-// Removed in W5c with the review flow: only Team admin's "N waiting in Apps"
-// strip still reads it (app/(app)/team-admin/page.tsx, via
-// components/app-nav/member-apps-review.tsx). A later W5c part removes it.
+// ── Members' apps waiting or shared (the old GET /api/apps/members) ────────
+// Removed in W5c with the review flow (the route is 410): only the type
+// stays, for the Team admin stub (components/app-nav/member-apps-review.tsx).
+// A later W5c part removes it.
 
 /** The author as the review lists show them. */
 export type ReviewAppAuthor = { loginId: string | null; name: string | null; active: boolean };
@@ -245,10 +245,6 @@ export type ReviewSharedApp = {
 };
 
 export type ReviewAppLists = { waiting: ReviewWaitingApp[]; shared: ReviewSharedApp[] };
-
-export const REVIEW_APPS_PATH = '/api/apps/members';
-/** Under ['apps'], so every app change refreshes the review lists too. */
-export const REVIEW_APPS_KEY = ['apps', 'members'] as const;
 
 /** The Team admin link to what waits in Apps, or null when nothing does. */
 export function waitingInAppsLabel(count: number): string | null {

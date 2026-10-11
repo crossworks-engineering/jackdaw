@@ -4,7 +4,7 @@
  * workspaces replace it. What stays here serves only files other W5c parts
  * still own:
  *
- *  - the queue read and the saved-version asset paths: components/review/
+ *  - the queue's type and the saved-version asset paths: components/review/
  *    item-review.tsx (kept for Team admin and a member guard test);
  *  - the Accept types and rules: components/review/review-dialogs.tsx
  *    (AcceptIntoBrainDialog, for components/member/mine-item.tsx) and
@@ -14,7 +14,7 @@
  *
  * Delete this file when those go.
  */
-import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { AccessItemView, AccessLevel } from '@mantle/client-types';
 import { closureAbove, LEVEL_LABEL } from './access-levels';
 import type {
@@ -143,12 +143,6 @@ export type AcceptResult = {
 };
 
 const base = (id: string) => `/api/team-admin/submissions/${encodeURIComponent(id)}`;
-
-export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
-
-export const memberReview = {
-  queue: () => apiFetch<ReviewQueue>('/api/team-admin/submissions'),
-};
 
 /** The item's own bytes, or a file in its bundle (an image a page shows). */
 export const reviewBytesPath = (id: string, node = id, root: (id: string) => string = base) =>

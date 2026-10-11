@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { NeedsYou } from '@mantle/client-types';
 import {
   alertFix,
   alertHeadline,
@@ -9,7 +8,6 @@ import {
   providerAlertsOf,
   type ProviderAlert,
 } from './provider-alerts';
-import { arrivalText, arrivals, needsYouLabel, totalWaiting } from './needs-you';
 
 const NOW = new Date('2026-10-04T10:00:00');
 
@@ -26,14 +24,6 @@ const outage = (over: Partial<ProviderAlert> = {}): ProviderAlert => ({
   waiting: 30,
   ...over,
 });
-
-const ny = (providers?: ProviderAlert[]): NeedsYou =>
-  ({
-    review: { submitted: 0, leftBehind: 0, newest: null },
-    requests: { open: 0, newest: null },
-    total: providers?.length ?? 0,
-    ...(providers ? { providers } : {}),
-  }) as NeedsYou;
 
 describe('provider alert words (the 2026-10-04 no-credits case)', () => {
   it('says what fails, since when, why, what it does, and how many wait', () => {
@@ -64,28 +54,16 @@ describe('provider alert words (the 2026-10-04 no-credits case)', () => {
   });
 });
 
-describe('provider alerts in "Needs you"', () => {
-  it('a brain before 0230 sends none', () => {
-    expect(providerAlertsOf(ny())).toEqual([]);
+describe('provider alerts on GET /api/embedding/recover', () => {
+  it('reads the alerts the brain sends', () => {
+    const a = outage();
+    expect(providerAlertsOf({ alerts: [a] })).toEqual([a]);
+  });
+
+  it('a brain before 0230, or no answer, sends none', () => {
+    expect(providerAlertsOf({})).toEqual([]);
+    expect(providerAlertsOf({ alerts: 'x' })).toEqual([]);
     expect(providerAlertsOf(null)).toEqual([]);
-  });
-
-  it('count toward the total but not the people-work label', () => {
-    const n = ny([outage()]);
-    expect(totalWaiting(n)).toBe(1);
-    expect(needsYouLabel(n)).toBeNull();
-  });
-
-  it('a new outage arrives once, with words and a link to the fix', () => {
-    const before = ny();
-    const after = ny([outage()]);
-    const fresh = arrivals(before, after);
-    expect(fresh.map((a) => a.kind)).toEqual(['provider']);
-    expect(arrivalText(fresh[0]!)).toMatchObject({
-      title: 'Embeddings are failing',
-      href: '/settings/embedding',
-    });
-    expect(arrivals(after, after)).toEqual([]);
-    expect(arrivals(null, after)).toEqual([]);
+    expect(providerAlertsOf(undefined)).toEqual([]);
   });
 });

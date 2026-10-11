@@ -6,15 +6,15 @@
  * screens. Workspaces replace it. Two parts stay here ONLY because files
  * another W5c helper still owns use them:
  *
- *  - `useReviewQueue`: app/(app)/team-admin/page.tsx and review-redirect.tsx
- *    (Team admin goes in a later W5c part; delete this then).
+ *  - `useReviewQueue`: a stub for app/(app)/team-admin/page.tsx (Team admin
+ *    goes in a later W5c part; delete this then). It asks nothing: a W5c
+ *    brain answers /api/team-admin/submissions 410.
  *  - `ReviewItemView`: pinned by components/member/mine-page-editor.guard.test.ts
  *    (the member shell goes in W5c; delete this with it).
  *
  * Nothing in the owner item screens imports this file any more.
  */
 import { useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { JSONContent } from '@tiptap/core';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { DrawPresenter } from '@mantle/web-ui/share/draw-presenter';
@@ -24,21 +24,16 @@ import { PageReadWithOutline } from '@/components/page-editor/page-read-with-out
 import { ReaderNote } from '@/components/member/reader-note';
 import { noteAssetPath } from '@/lib/note-media';
 import {
-  QUEUE_KEY,
-  memberReview,
   reviewAssetPath,
   reviewBytesPath,
   reviewSvgPath,
   type ReviewItem,
+  type ReviewQueue,
 } from '@/lib/member-review';
 
-/** The review queue, as the brain still answers it (team-admin only). */
-export function useReviewQueue() {
-  return useQuery({
-    queryKey: QUEUE_KEY,
-    queryFn: memberReview.queue,
-    refetchInterval: 60_000,
-  });
+/** Nothing waits: the queue is gone (team-admin only, until it goes). */
+export function useReviewQueue(): { data: ReviewQueue | undefined } {
+  return { data: undefined };
 }
 
 /** The saved version, read-only, through the same presenters the member

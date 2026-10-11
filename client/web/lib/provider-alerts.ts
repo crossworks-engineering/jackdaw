@@ -1,15 +1,14 @@
 /**
  * Provider outages: embeddings or extraction failing (no credits, a refused
  * key, a long outage). The brain records them (mantle migration 0230,
- * docs/embeddings.md "Provider outages") and sends them to admins in the
- * "Needs you" answer as `providers`, and on GET /api/embedding/recover.
- * Members and clients never get them (both routes refuse them).
+ * docs/embeddings.md "Provider outages") and sends them to admins on
+ * GET /api/embedding/recover as `{ alerts }` (the "Needs you" answer that
+ * also carried them went in W5c). Members and clients never get them (the
+ * route refuses them).
  *
  * The `reason` is fixed text the brain picks by error code, never provider
  * text, so it is safe on a banner. Pure helpers only: no DOM here.
  */
-import type { NeedsYou } from '@mantle/client-types';
-
 /**
  * One open outage. Mirrors `ProviderAlert` in @mantle/client-types (mantle
  * 0.238): declared here until the pinned contract package carries it.
@@ -33,11 +32,15 @@ export type ProviderAlert = {
 
 export const PROVIDER_ALERTS_KEY = ['provider-alerts'] as const;
 export const RECOVER_PATH = '/api/embedding/recover';
+/** The live event the brain sends when an outage opens or closes (the old
+ *  "Needs you" change type, mantle migration 0186). */
+export const PROVIDER_ALERTS_REALTIME_TYPE = 'needs_you';
 
-/** The outages in a "Needs you" answer. A brain before 0230 sends none. */
-export function providerAlertsOf(n: NeedsYou | null | undefined): ProviderAlert[] {
-  const list = (n as (NeedsYou & { providers?: ProviderAlert[] }) | null | undefined)?.providers;
-  return Array.isArray(list) ? list : [];
+/** The outages in a GET /api/embedding/recover answer (`{ alerts }`). A
+ *  brain before 0230 sends none. */
+export function providerAlertsOf(body: unknown): ProviderAlert[] {
+  const list = (body as { alerts?: unknown } | null | undefined)?.alerts;
+  return Array.isArray(list) ? (list as ProviderAlert[]) : [];
 }
 
 const SUBJECT: Record<ProviderAlert['subject'], { failing: string; impact: string }> = {
@@ -121,6 +124,3 @@ function providerName(p: string | null): string {
   };
   return names[p] ?? p;
 }
-
-/** One key per outage: a new one after a fix is a new arrival. */
-export const alertKey = (a: ProviderAlert) => `${a.subject}@${a.since}`;

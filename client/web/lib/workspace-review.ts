@@ -1,15 +1,12 @@
 /**
  * Removed in W5c: the owner screens no longer show "Waiting for approval" or
  * the review actions (workspaces replace review). What stays here is used
- * ONLY by app/(app)/team-admin/page.tsx and components/review/review-redirect.tsx
- * (the "N waiting in Pages" strip and old ?view=review links), which a later
- * W5c part removes with Team admin. Delete this file then. Pure helpers.
+ * ONLY by app/(app)/team-admin/page.tsx (its "N waiting in Pages" strip, now
+ * always empty), which a later W5c part removes with Team admin. Delete this
+ * file then. Pure helpers.
  */
 import type { ReviewItemRow } from './member-review';
 import type { SpaceKind } from './member-space';
-
-/** The old selection param (`?review=<id>`). No screen reads it now. */
-const REVIEW_PARAM = 'review';
 
 /** Each kind's workspace screen and its name in words. */
 export const REVIEW_WORKSPACE: Record<SpaceKind, { path: string; label: string }> = {
@@ -19,16 +16,6 @@ export const REVIEW_WORKSPACE: Record<SpaceKind, { path: string; label: string }
   draw: { path: '/draw', label: 'Draw' },
   file: { path: '/files', label: 'Files' },
 };
-
-const isKind = (k: unknown): k is SpaceKind =>
-  typeof k === 'string' && Object.prototype.hasOwnProperty.call(REVIEW_WORKSPACE, k);
-
-/** Where one waiting item opens: its workspace, the item in the pane. A kind
- *  this client does not know opens Pages. */
-export function reviewItemHref(kind: string | null | undefined, id: string): string {
-  const base = isKind(kind) ? REVIEW_WORKSPACE[kind].path : REVIEW_WORKSPACE.page.path;
-  return `${base}?${REVIEW_PARAM}=${encodeURIComponent(id)}`;
-}
 
 /** One workspace's rows of the queue, in the queue's order: what members
  *  submitted (oldest first), then what deactivated logins left shared. Both

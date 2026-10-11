@@ -10,7 +10,7 @@
  * "Try again" asks the brain to probe now (POST /api/embedding/recover).
  * When the provider works, the brain closes the alert, resumes indexing,
  * re-drives the failed jobs and sweeps the unindexed files by itself; the
- * live "Needs you" event then removes this card. No restart.
+ * live event (or the next read) then removes this card. No restart.
  */
 import { useState } from 'react';
 import Link from 'next/link';
@@ -19,18 +19,17 @@ import { AlertTriangle, RotateCw } from 'lucide-react';
 import { apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { NEEDS_YOU_KEY } from '@/lib/needs-you';
 import {
+  PROVIDER_ALERTS_KEY,
   RECOVER_PATH,
   alertFix,
   alertHeadline,
   alertHref,
   alertImpact,
   nextTryText,
-  providerAlertsOf,
   type ProviderAlert,
 } from '@/lib/provider-alerts';
-import { useNeedsYou } from './use-needs-you';
+import { useProviderAlerts } from './use-provider-alerts';
 
 export function ProviderAlertCard({
   subject,
@@ -41,7 +40,7 @@ export function ProviderAlertCard({
   /** A "Fix it" link to the settings page (the dashboard; not on that page). */
   showLink?: boolean;
 }) {
-  const alerts = providerAlertsOf(useNeedsYou()).filter((a) => !subject || a.subject === subject);
+  const alerts = useProviderAlerts().filter((a) => !subject || a.subject === subject);
   if (alerts.length === 0) return null;
   return (
     <div className="space-y-3" data-testid="provider-alert-card">
@@ -64,7 +63,10 @@ function OneAlert({ alert, showLink }: { alert: ProviderAlert; showLink: boolean
       await apiSend(RECOVER_PATH, 'POST', {});
       toast.info('The brain tries again now. This notice goes away when it works.');
       // The brain probes within seconds; refresh so the card follows.
-      setTimeout(() => void queryClient.invalidateQueries({ queryKey: NEEDS_YOU_KEY }), 15_000);
+      setTimeout(
+        () => void queryClient.invalidateQueries({ queryKey: PROVIDER_ALERTS_KEY }),
+        15_000,
+      );
     } catch (err) {
       toast.error(`Could not ask the brain: ${err instanceof Error ? err.message : String(err)}`);
     } finally {

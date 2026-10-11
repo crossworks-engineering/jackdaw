@@ -3,24 +3,18 @@
 /**
  * Embeddings or extraction failing (no credits, a refused key, a long
  * outage): a red notice at the top of the rail, above the "Needs you" one,
- * for admins only. Live through the "Needs you" answer (the brain raises
- * `needs_you` when an outage opens or closes). Renders NOTHING while all
+ * for admins only. Live through GET /api/embedding/recover and the brain's
+ * live event when an outage opens or closes. Renders NOTHING while all
  * works. Clicking opens the settings page with the fix. In the collapsed
  * icon rail the label hides and the icon stays.
  */
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
-import {
-  alertHeadline,
-  alertHref,
-  alertImpact,
-  alertTitle,
-  providerAlertsOf,
-} from '@/lib/provider-alerts';
-import { useNeedsYou } from './use-needs-you';
+import { alertHeadline, alertHref, alertImpact, alertTitle } from '@/lib/provider-alerts';
+import { useProviderAlerts } from './use-provider-alerts';
 
 export function ProviderAlertBanner({ onNavigate }: { onNavigate?: () => void }) {
-  const alerts = providerAlertsOf(useNeedsYou());
+  const alerts = useProviderAlerts();
   const first = alerts[0];
   if (!first) return null;
   const label = alerts.length > 1 ? 'Embeddings and extraction are failing' : alertTitle(first);

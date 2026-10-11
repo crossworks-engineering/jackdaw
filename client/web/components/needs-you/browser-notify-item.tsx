@@ -1,61 +1,10 @@
-'use client';
-
 /**
- * The profile menu's opt-in for browser notifications about what needs an
- * admin (an outage of embeddings or extraction). Off until turned on here; only this click
- * makes the browser ask, never an unasked prompt. Per browser. Hidden where
- * it cannot work: the desktop app (it notifies natively) and a browser with
- * no notifications.
+ * Removed in W5c: the opt-in for browser notifications served the "Needs
+ * you" watcher, which went with review (GET /api/team-admin/needs-you is
+ * 410 on a W5c brain). This stub renders nothing; the shell helper drops
+ * the import from components/layout/rail/profile-menu.tsx, then delete
+ * this file.
  */
-import { useEffect, useState } from 'react';
-import { Bell, BellOff, Check } from 'lucide-react';
-import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
-import { useToast } from '@mantle/web-ui/ui/toast';
-import {
-  browserPermission,
-  enableBrowserNotify,
-  setBrowserNotify,
-  useBrowserNotifyOptIn,
-  type NotifyPermission,
-} from '@/lib/needs-you-browser-notify';
-
-export function BrowserNotifyItem() {
-  const optedIn = useBrowserNotifyOptIn();
-  const toast = useToast();
-  // Read after mount: the server has no Notification to ask.
-  const [permission, setPermission] = useState<NotifyPermission>('unsupported');
-  useEffect(() => setPermission(browserPermission()), [optedIn]);
-
-  if (permission === 'unsupported') return null;
-  if (permission === 'denied') {
-    return (
-      <DropdownMenuItem disabled className="text-xs">
-        <BellOff className="size-4" /> Notifications blocked by this browser
-      </DropdownMenuItem>
-    );
-  }
-  const on = optedIn && permission === 'granted';
-  return (
-    <DropdownMenuItem
-      className="cursor-pointer"
-      onSelect={() => {
-        if (on) {
-          setBrowserNotify(false);
-          return;
-        }
-        void enableBrowserNotify().then((answer) => {
-          setPermission(answer);
-          if (answer === 'granted') {
-            toast.success('This browser will tell you when something needs you.');
-          } else if (answer === 'denied') {
-            toast.error('The browser blocked notifications. Allow them in its site settings.');
-          }
-        });
-      }}
-    >
-      <Bell className="size-4" />
-      <span className="flex-1">Notify me in this browser</span>
-      {on ? <Check className="size-4" aria-label="On" /> : null}
-    </DropdownMenuItem>
-  );
+export function BrowserNotifyItem(): null {
+  return null;
 }

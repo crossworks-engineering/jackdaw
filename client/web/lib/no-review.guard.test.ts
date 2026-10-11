@@ -56,6 +56,10 @@ const NEEDLES: [string, RegExp][] = [
   ['the /review route', /['"`]\/review\b|\/apps\/review\b/],
   ['a ?review= selection', /[?&]review=/],
   ['the shared member items route', /\/api\/team-admin\/member-items/],
+  // Routes a W5c brain answers 410: the UI asks none of them.
+  ['the review queue route', /['"`]\/api\/team-admin\/submissions/],
+  ['the needs-you route', /['"`]\/api\/team-admin\/needs-you/],
+  ['the member app review route', /['"`]\/api\/apps\/members/],
   ['the send-back route', /\/send-back\b/],
   ['the take-over route', /\/take-over\b/],
 ];
