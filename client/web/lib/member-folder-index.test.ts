@@ -39,8 +39,8 @@ describe("memberFolderIndex: a member's own draft and the Folder index", () => {
     }
   });
 
-  it("an admin's private item and a client's page keep `here` unknown, with no block", () => {
-    for (const space of ['admin', 'client'] as const) {
+  it("an admin's private item keeps `here` unknown, with no block", () => {
+    for (const space of ['admin'] as const) {
       expect(memberFolderIndex({ space, treeServesPages: true, folderId: 'f1' })).toEqual({
         folderId: undefined,
         folderIndex: false,
@@ -80,18 +80,13 @@ describe('spaceViewHere: a personal page shown read-only', () => {
     expect(out.folderId).not.toBeNull();
   });
 
-  it("an admin's private item, a client's own page and a client's submitted page list nothing", () => {
+  it("an admin's private item lists nothing", () => {
     const none = { folderId: undefined, quietHere: false };
     for (const folderId of ['f1', null]) {
       for (const source of ['mine', 'team'] as const) {
         expect(spaceViewHere({ space: 'admin', source, treeServesPages: true, folderId })).toEqual(
           none,
         );
-        expect(spaceViewHere({ space: 'client', source, treeServesPages: true, folderId })).toEqual(
-          none,
-        );
-        // A member reading what a client submitted.
-        expect(spaceViewHere({ ...member, source, folderId, noFolder: true })).toEqual(none);
       }
     }
   });

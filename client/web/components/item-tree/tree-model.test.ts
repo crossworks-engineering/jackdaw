@@ -304,21 +304,18 @@ describe('urls', () => {
     );
   });
 
-  it('asks a member’s and a client’s own tree, whose search takes no tag or workspace', () => {
+  it('asks a member’s own tree, whose search takes no tag or workspace', () => {
     expect(folderUrl('notes', 'f1', 'name', null, 'member')).toBe(
       '/api/member/tree/notes?folder=f1&sort=name',
     );
-    expect(folderUrl('notes', null, 'name', null, 'client')).toBe(
-      '/api/client/tree/notes?sort=name',
-    );
-    expect(searchUrl('notes', 'q', 'x', { level: 'team', tag: 't' }, 'client')).toBe(
-      '/api/client/tree/notes/search?q=q&cursor=x',
+    expect(searchUrl('notes', 'q', 'x', { level: 'team', tag: 't' }, 'member', 'w1')).toBe(
+      '/api/member/tree/notes/search?q=q&cursor=x',
     );
   });
 
   it('keeps each reader’s cached folders apart, the owner’s keys unchanged', () => {
     expect(treeKey('notes')).toEqual(['tree', 'notes']);
-    expect(treeKey('notes', 'client')).toEqual(['tree', 'client:notes']);
+    expect(treeKey('notes', 'member')).toEqual(['tree', 'member:notes']);
     expect(folderKey('notes', null, 'name', 'member')).toEqual([
       'tree',
       'member:notes',

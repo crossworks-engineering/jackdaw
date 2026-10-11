@@ -67,12 +67,9 @@ describe('the admin private screens never reach a member-only route', () => {
 
   it("a private item's read-only view reads admin and owner routes", () => {
     const text = src('../member/space-item-view.tsx');
-    // (A client's own item reads the client routes: client logins C5.)
-    expect(text).toContain(
-      'mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}',
-    );
+    expect(text).toContain('mapAssetPath={admin ? undefined : memberAssetPath}');
     expect(text).toContain('admin ? `/api/draws/${row.id}/svg` : memberDrawUrlPath(row.id)');
-    expect(text).toContain('admin || client ? api.bytesPath(row.id) : bytesPath(source, row.id)');
+    expect(text).toContain('admin ? api.bytesPath(row.id) : bytesPath(source, row.id)');
   });
 });
 

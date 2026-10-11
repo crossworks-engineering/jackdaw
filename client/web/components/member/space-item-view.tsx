@@ -7,10 +7,9 @@ import { FilePresenter } from '@mantle/web-ui/share/file-presenter';
 import { TablePresenter } from '@mantle/web-ui/share/table-presenter';
 import { PageReadWithOutline } from '@/components/page-editor/page-read-with-outline';
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
-import { clientAssetPath, clientNoteImagePath } from '@/lib/client-portal';
 import { noteAssetPath, ownerNoteAssetPath } from '@/lib/note-media';
 import { ReaderNote } from './reader-note';
-import { bytesPath, isAdminSpace, isClientSpace, type SpaceItem } from '@/lib/member-space';
+import { bytesPath, isAdminSpace, type SpaceItem } from '@/lib/member-space';
 import { spaceViewHere } from '@/lib/member-folder-index';
 import { useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useSpaceApi } from './space-api';
@@ -26,29 +25,19 @@ export function SpaceItemView({
   source,
   item,
   working = false,
-  fileBytesPath,
-  noFolder = false,
 }: {
   source: 'mine' | 'team';
   item: SpaceItem;
-  /** Where a file's bytes stream from, where it is not the item's own
-   *  space route (a client request a member reads, client logins C5). */
-  fileBytesPath?: string;
   /** Own items: a page or a table shows its working copy (the draft, when
    *  there is one). A drawing always shows its saved SVG and a note has no
    *  draft, so for those two this changes nothing. */
   working?: boolean;
-  /** The page is in no folder a tree lists (a client wrote it): a Folder
-   *  index block set to `here` shows its label alone. */
-  noFolder?: boolean;
 }) {
   const asset = useAssetUrl();
   const api = useSpaceApi();
   // An admin's private item reads its bytes from the admin routes, and the
   // brain items it embeds from their own (owner) routes, never the member ones.
   const admin = isAdminSpace(api);
-  // A client's own item reads its bytes from the client routes (C5).
-  const client = isClientSpace(api);
   const treeServesPages = useReaderTreeServes('pages');
   const { row, body } = item;
   switch (body.type) {
@@ -58,18 +47,17 @@ export function SpaceItemView({
       // block set to `here`: only where a member's tree can list it
       // (lib/member-folder-index.ts). Absent from a brain before the pages tree.
       const here = spaceViewHere({
-        space: admin ? 'admin' : client ? 'client' : 'member',
+        space: admin ? 'admin' : 'member',
         source,
         treeServesPages,
         folderId: (body.page as { folderId?: string | null }).folderId,
-        noFolder,
       });
       // The outline reads `doc`, the same version the view renders (the
       // draft when `working`).
       return (
         <PageReadWithOutline
           content={doc}
-          mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}
+          mapAssetPath={admin ? undefined : memberAssetPath}
           folderId={here.folderId}
           quietHere={here.quietHere}
         />
@@ -79,9 +67,7 @@ export function SpaceItemView({
       return (
         <ReaderNote
           content={body.note.content}
-          imagePath={
-            admin ? ownerNoteAssetPath : client ? clientNoteImagePath : MEMBER_NOTE_ASSET_PATH
-          }
+          imagePath={admin ? ownerNoteAssetPath : MEMBER_NOTE_ASSET_PATH}
         />
       );
     case 'draw':
@@ -112,12 +98,7 @@ export function SpaceItemView({
             mimeType: body.file.mimeType,
             size: body.file.sizeBytes,
           }}
-          assetUrl={() =>
-            asset(
-              fileBytesPath ??
-                (admin || client ? api.bytesPath(row.id) : bytesPath(source, row.id)),
-            )
-          }
+          assetUrl={() => asset(admin ? api.bytesPath(row.id) : bytesPath(source, row.id))}
           chrome="embedded"
         />
       );

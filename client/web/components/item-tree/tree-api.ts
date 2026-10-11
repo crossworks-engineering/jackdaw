@@ -8,11 +8,6 @@ import { noteListAnswer } from '@/lib/workspace-filter';
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { AppTint } from '@mantle/client-types/app-nav';
 import type {
-  ClientTreeFolder,
-  ClientTreeFolderPage,
-  ClientTreeItem,
-  ClientTreeSearchResult,
-  TreeCrumb,
   TreeFilter,
   TreeFolder,
   TreeFolderPage,
@@ -28,21 +23,18 @@ import type {
 
 /**
  * Who the tree is read as. The owner's tree is /api/tree (read and write);
- * a member login's and a client login's are read-only views of what they may
- * read (/api/member/tree, /api/client/tree: the kinds their shell lists in
- * `treeKinds`). A client's answers carry no level, share or system flag; the
- * rows treat those as absent.
+ * a member login's is a view of what it may read (/api/member/tree: the
+ * kinds its shell lists in `treeKinds`). A client reads no tree in W5c.
  */
-export type TreeSource = 'owner' | 'member' | 'client';
+export type TreeSource = 'owner' | 'member';
 
 const BASE: Record<TreeSource, string> = {
   owner: '/api/tree',
   member: '/api/member/tree',
-  client: '/api/client/tree',
 };
 
 /** The cache scope of a kind's tree: the kind for the owner, prefixed for a
- *  reader, so the three never share a cached folder. */
+ *  reader, so the two never share a cached folder. */
 export const treeScope = (kind: TreeKind, source: TreeSource = 'owner'): string =>
   source === 'owner' ? kind : `${source}:${kind}`;
 
@@ -114,42 +106,6 @@ export function marksUrl(kind: TreeKind, view: TreeMarkView): string {
   return `/api/tree/${kind}/marks?view=${view}`;
 }
 
-// A client's answers are their own shapes (ClientTreeFolderPage,
-// ClientTreeSearchResult): no level, share, state or system flag, which are
-// staff information. The rows draw one shape, so a client's is carried into
-// it here, and only here: a folder shares nothing and is no system folder as
-// far as a client's rows go, an item has no review state, and no level is
-// made up (the rows show none where it is absent).
-
-function clientFolder<F extends ClientTreeFolder>(f: F): F & TreeFolder {
-  return { ...f, share: null, system: false };
-}
-
-function clientItem<I extends ClientTreeItem>(it: I): I & TreeItem {
-  // `level` stays absent: a client is never told an item's level, and the
-  // status slot draws nothing without one.
-  return { ...it, state: null } as I & TreeItem;
-}
-
-/** A client login's folder page in the rows' shape. */
-export function clientPageAsTree(p: ClientTreeFolderPage): TreeFolderPage {
-  return {
-    ...p,
-    folder: p.folder ? clientFolder(p.folder) : null,
-    folders: p.folders.map(clientFolder),
-    items: p.items.map(clientItem),
-  };
-}
-
-/** A client login's search answer in the rows' shape. */
-export function clientSearchAsTree(r: ClientTreeSearchResult): TreeSearchResult {
-  return {
-    ...r,
-    folders: r.folders.map((f): TreeFolder & { crumbs: TreeCrumb[] } => clientFolder(f)),
-    items: r.items.map((it): TreeItem & { crumbs: TreeCrumb[] } => clientItem(it)),
-  };
-}
-
 export const fetchFolderPage = (
   kind: TreeKind,
   folderId: string | null,
@@ -159,9 +115,7 @@ export const fetchFolderPage = (
   ws: string | null = null,
 ): Promise<TreeFolderPage> => {
   const url = folderUrl(kind, folderId, sort, cursor, source, ws);
-  return source === 'client'
-    ? apiFetch<ClientTreeFolderPage>(url).then(clientPageAsTree)
-    : apiFetch<TreeFolderPage>(url).then((r) => noteListAnswer(r, ws));
+  return apiFetch<TreeFolderPage>(url).then((r) => noteListAnswer(r, ws));
 };
 
 export const fetchSearch = (
@@ -173,9 +127,7 @@ export const fetchSearch = (
   ws: string | null = null,
 ): Promise<TreeSearchResult> => {
   const url = searchUrl(kind, q, cursor, filter, source, ws);
-  return source === 'client'
-    ? apiFetch<ClientTreeSearchResult>(url).then(clientSearchAsTree)
-    : apiFetch<TreeSearchResult>(url).then((r) => noteListAnswer(r, ws));
+  return apiFetch<TreeSearchResult>(url).then((r) => noteListAnswer(r, ws));
 };
 
 export const fetchTags = (kind: TreeKind) => apiFetch<TreeTagList>(`/api/tree/${kind}/tags`);
@@ -211,8 +163,8 @@ function refusedSeen(err: unknown): boolean {
 
 /** Who writes: the owner (/api/tree), or a member in its own folders and
  *  drafts (/api/member/tree, folder plan phase 5: no share, order, pins or
- *  confirm there). A client never writes. */
-export type TreeWriter = Exclude<TreeSource, 'client'>;
+ *  confirm there). */
+export type TreeWriter = TreeSource;
 
 /** A new folder's look, chosen in the create dialog: only what was set. */
 export type TreeFolderLook = { icon?: string; color?: AppTint | null };

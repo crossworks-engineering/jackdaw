@@ -2,8 +2,7 @@
 
 import { Lock, ShieldCheck, Users } from 'lucide-react';
 import { Badge } from '@mantle/web-ui/ui/badge';
-import { isClientSpace, refusalMessage, statusLabels, type SpaceItemRow } from '@/lib/member-space';
-import { useSpaceApi } from './space-api';
+import { refusalMessage, statusLabels, type SpaceItemRow } from '@/lib/member-space';
 
 /**
  * Where an own item stands (plan section 7, StatusChip): who can see it
@@ -11,7 +10,7 @@ import { useSpaceApi } from './space-api';
  * An item an admin took over says only that (audit F07; `statusLabels`).
  */
 export function StatusChip({ row }: { row: Pick<SpaceItemRow, 'sharing' | 'reviewState'> }) {
-  const { sharing, review } = statusLabels(row, isClientSpace(useSpaceApi()));
+  const { sharing, review } = statusLabels(row);
   if (!sharing) {
     return (
       <Badge variant="secondary" className="gap-1">

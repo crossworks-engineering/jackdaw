@@ -14,12 +14,11 @@
 import { useQueries } from '@tanstack/react-query';
 import type { MemberItemRow } from '@mantle/client-types';
 import { updatedAgo } from '@mantle/web-ui/lib/format-datetime';
-import { Badge } from '@mantle/web-ui/ui/badge';
 import { ItemIcon } from '@/components/item-list/item-card';
 import { ListSections, type ListSection } from '@/components/item-list/list-sections';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { MEMBER_ITEM_SECTIONS, fetchMemberItems, srcOf } from '@/lib/member-items';
-import { LIBRARY_CLIENT_TITLE, libraryLevelBadge, type SpaceKind } from '@/lib/member-space';
+import type { SpaceKind } from '@/lib/member-space';
 
 /** A row's key in the sections and in the workspace's selection: the same
  *  id can sit in two sources (a page of yours in the Library). */
@@ -76,21 +75,13 @@ export function MemberItemSections({
       l.total > l.rows.length
         ? `The newest ${l.rows.length} of ${l.total} ${info.many}.`
         : undefined,
-    rows: l.rows.map((row) => {
-      const level = libraryLevelBadge(row.audience);
-      return {
-        id: sectionRowKey(row),
-        title: row.title,
-        meta: meta(row),
-        lead: <ItemIcon emoji={row.icon ?? info.icon} fallback={null} />,
-        badge: level ? (
-          <Badge variant="outline" className="shrink-0" title={LIBRARY_CLIENT_TITLE}>
-            {level}
-          </Badge>
-        ) : undefined,
-        onSelect: () => onOpen(row),
-      };
-    }),
+    rows: l.rows.map((row) => ({
+      id: sectionRowKey(row),
+      title: row.title,
+      meta: meta(row),
+      lead: <ItemIcon emoji={row.icon ?? info.icon} fallback={null} />,
+      onSelect: () => onOpen(row),
+    })),
   }));
   return <ListSections sections={sections} selectedId={selectedKey} collapsible />;
 }

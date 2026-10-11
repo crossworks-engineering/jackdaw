@@ -15,7 +15,7 @@ describe("a member's draft editor and the Folder index", () => {
     expect(editor).toContain('folderId={folder.folderId}');
     expect(editor).toContain('folderIndex={folder.folderIndex}');
     expect(editor).toMatch(
-      /const folder = memberFolderIndex\(\{\s*space: admin \? 'admin' : client \? 'client' : 'member',\s*treeServesPages,\s*folderId: page\.folderId,\s*\}\);/,
+      /const folder = memberFolderIndex\(\{\s*space: admin \? 'admin' : 'member',\s*treeServesPages,\s*folderId: page\.folderId,\s*\}\);/,
     );
   });
 
@@ -65,17 +65,6 @@ describe('read-only views pass the folder only where the reader can list it', ()
     expect(view).toContain('folderId={here.folderId}');
     expect(view).toContain('quietHere={here.quietHere}');
     expect(view).not.toContain('folderId={(body.page as');
-  });
-
-  it('the review view is quiet', () => {
-    // The review view draws the page through the outline wrapper, which hands
-    // every PageView prop on (page-read-with-outline.tsx).
-    expect(src('../review/item-review.tsx')).toMatch(
-      /<PageReadWithOutline[\s\S]{0,500}quietHere\s/,
-    );
-    expect(src('../page-editor/page-read-with-outline.tsx')).toContain(
-      '<PageView content={content} {...view} />',
-    );
   });
 });
 

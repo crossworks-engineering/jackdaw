@@ -123,57 +123,7 @@ describe('a confirmed write says what it was shown (seen)', () => {
   });
 });
 
-describe('a client login’s tree (its own shapes)', () => {
-  const clientFolder = {
-    id: 'f1',
-    path: 'notes.f1',
-    name: 'Shared',
-    icon: null,
-    color: null,
-    depth: 1,
-    parentId: null,
-    folderCount: 0,
-    itemCount: 1,
-  };
-  const clientItem = {
-    id: 'i1',
-    title: 'Plan',
-    icon: null,
-    color: null,
-    subtype: null,
-    updatedAt: '2026-09-30T00:00:00.000Z',
-  };
-
-  it('reads a folder page as the rows draw it, making up no level', async () => {
-    fetched.answer = {
-      kind: 'notes',
-      folder: clientFolder,
-      crumbs: [],
-      folders: [clientFolder],
-      items: [clientItem],
-      sort: 'updated',
-      nextCursor: null,
-    };
-    const page = await fetchFolderPage('notes', 'f1', 'updated', null, 'client');
-    expect(page.folders[0]).toMatchObject({ share: null, system: false });
-    expect(page.folder).toMatchObject({ share: null, system: false });
-    expect(page.items[0]).toMatchObject({ id: 'i1', state: null });
-    expect('level' in page.items[0]!).toBe(false);
-  });
-
-  it('reads a search the same way', async () => {
-    fetched.answer = {
-      kind: 'notes',
-      folders: [{ ...clientFolder, crumbs: [] }],
-      items: [{ ...clientItem, crumbs: [{ id: 'f1', name: 'Shared' }] }],
-      nextCursor: null,
-    };
-    const res = await fetchSearch('notes', 'plan', null, {}, 'client');
-    expect(res.folders[0]).toMatchObject({ share: null, system: false, crumbs: [] });
-    expect(res.items[0]).toMatchObject({ state: null, crumbs: [{ id: 'f1', name: 'Shared' }] });
-    expect('level' in res.items[0]!).toBe(false);
-  });
-
+describe('the owner tree answer', () => {
   it('leaves an owner page as it came', async () => {
     const owner = {
       kind: 'notes',

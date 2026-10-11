@@ -2,7 +2,6 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { NoteMarkdown } from '@/components/note-markdown';
-import { clientNoteImagePath } from './client-portal';
 import { memberAssetPath } from './member-assets';
 import { noteAssetPath, noteRefPath, ownerNoteAssetPath } from './note-media';
 
@@ -73,13 +72,6 @@ describe('NoteMarkdown', () => {
     expect(html).toContain(`<img src="/api/member/files/${FILE}" alt="the form"/>`);
     expect(html).toContain(`<img src="/api/member/draws/${DRAW}/svg" alt="the plan"/>`);
     expect(html).toContain(`<a href="/api/member/files/${FILE}"`);
-  });
-
-  it('a client sees them from the client routes', () => {
-    const html = render(clientNoteImagePath);
-    expect(html).toContain(`<img src="/api/client/files/${FILE}" alt="the form"/>`);
-    expect(html).toContain(`<img src="/api/client/draws/${DRAW}/svg" alt="the plan"/>`);
-    expect(html).toContain(`<a href="/api/client/files/${FILE}"`);
   });
 
   it('a reference the reader may not read is its text, never a request', () => {

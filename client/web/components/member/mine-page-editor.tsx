@@ -5,8 +5,7 @@ import type { JSONContent } from '@tiptap/react';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { PageEditor } from '@/components/page-editor/page-editor';
 import { versionFailureText } from '@/lib/member-autosave';
-import { clientAssetPath } from '@/lib/client-portal';
-import { isAdminSpace, isClientSpace } from '@/lib/member-space';
+import { isAdminSpace } from '@/lib/member-space';
 import { memberFolderIndex } from '@/lib/member-folder-index';
 import { useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import type { MemberEditorProps } from './member-editor';
@@ -44,15 +43,12 @@ export function MinePageEditor({
   // An admin's private page may embed any brain item the admin can see, so
   // it keeps the owner editor's embeds (see PageEditor `privateItem`).
   const admin = isAdminSpace(api);
-  // A client's own page reads its pictures from the client routes (client
-  // tier audit U2), as its read-only view does.
-  const client = isClientSpace(api);
   // The Folder index block: `here` is the draft's own folder in the
   // member's tree, and the slash item shows only when that tree serves
   // pages and the folder is known (lib/member-folder-index.ts).
   const treeServesPages = useReaderTreeServes('pages');
   const folder = memberFolderIndex({
-    space: admin ? 'admin' : client ? 'client' : 'member',
+    space: admin ? 'admin' : 'member',
     treeServesPages,
     folderId: page.folderId,
   });
@@ -114,7 +110,6 @@ export function MinePageEditor({
   return (
     <PageEditor
       member={!admin}
-      mapAssetPath={client ? clientAssetPath : undefined}
       privateItem={admin}
       pageId={id}
       folderId={folder.folderId}

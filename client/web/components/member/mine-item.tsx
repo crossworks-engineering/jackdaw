@@ -19,20 +19,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import {
-  clientSaveText,
-  holdsEditor,
-  memberSavesSettled,
-  type AutosaveState,
-} from '@/lib/member-autosave';
+import { holdsEditor, memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
 import { canDeletePrivate, privateDeleteMessage, takenFromOf } from '@/lib/admin-private';
 import {
-  CLIENT_WITH_REVIEWER_TEXT,
   WITH_ADMIN_TEXT,
   frozenByOther,
   isAdminSpace,
-  isClientSpace,
   isEditable,
   isWithAdminRefusal,
   type AdminSpaceItemRow,
@@ -40,7 +33,6 @@ import {
 } from '@/lib/member-space';
 import { StatusChip, spaceErrorMessage } from './space-status';
 import { MEMBER_KIND } from '@/lib/member-kinds';
-import { CLIENT_REQUESTS_KEY } from '@/lib/client-requests';
 import { useSpaceApi } from './space-api';
 import { SpaceItemView } from './space-item-view';
 import { MemberDrawEditor } from './member-draw-editor';
@@ -99,7 +91,7 @@ export function MineItem({
   // `with-admin`, also on a refetch after the take-over): no content, no
   // editor, whatever this view showed before.
   if (withAdmin || isWithAdminRefusal(q.error)) {
-    return <WithAdminNotice onClose={onClose} client={isClientSpace(api)} />;
+    return <WithAdminNotice onClose={onClose} />;
   }
   // A failed background refetch keeps the data it had (react-query v5): only
   // an item that never loaded is an error screen.
@@ -135,21 +127,13 @@ export function MineItem({
 }
 
 /** An own item an admin has taken over (audit F07): the member reads none
- *  of it until it is accepted (it shows under Accepted) or given back. A
- *  client reads it in its own words: "the reviewer", "with the team" (audit
- *  U3: a client never reads a staff role). */
-export function WithAdminNotice({
-  onClose,
-  client = false,
-}: {
-  onClose: () => void;
-  client?: boolean;
-}) {
+ *  of it until it is accepted (it shows under Accepted) or given back. */
+export function WithAdminNotice({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-start gap-2">
         <Badge variant="secondary" className="gap-1">
-          <ShieldCheck className="size-3" aria-hidden /> {client ? 'With the team' : 'With admin'}
+          <ShieldCheck className="size-3" aria-hidden /> With admin
         </Badge>
         <span className="flex-1" />
         <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
@@ -157,7 +141,7 @@ export function WithAdminNotice({
         </Button>
       </div>
       <p role="status" className="text-sm text-muted-foreground">
-        {client ? CLIENT_WITH_REVIEWER_TEXT : WITH_ADMIN_TEXT}
+        {WITH_ADMIN_TEXT}
       </p>
     </div>
   );
@@ -201,21 +185,11 @@ function FrozenByNotice({ holderId, onRelease }: { holderId: string; onRelease: 
 }
 
 /** Why the working copy is not on the brain, when that needs saying. */
-function AutosaveNote({
-  state,
-  onReload,
-  client,
-}: {
-  state: AutosaveState;
-  onReload: () => void;
-  client: boolean;
-}) {
+function AutosaveNote({ state, onReload }: { state: AutosaveState; onReload: () => void }) {
   let text: string | null = null;
   if (state.status === 'retrying') text = 'Not saved yet: trying again…';
   else if (state.status === 'failed' || state.status === 'stopped') text = state.message;
   if (!text) return null;
-  // A client reads no staff role (client tier audit U6).
-  if (client) text = clientSaveText(text);
   return (
     <div
       role="status"
@@ -245,7 +219,6 @@ function MineItemLoaded({
   const qc = useQueryClient();
   const api = useSpaceApi();
   const admin = isAdminSpace(api);
-  const client = isClientSpace(api);
   const editable = isEditable(row);
   // An item this admin took over from the Review queue (audit F07): who
   // wrote it, and whether it can still go back to them.
@@ -262,8 +235,6 @@ function MineItemLoaded({
     }
     void qc.invalidateQueries({ queryKey: ['member-space-list'] });
     void qc.invalidateQueries({ queryKey: ['member-home'] });
-    // A client's My requests (client logins C5).
-    void qc.invalidateQueries({ queryKey: CLIENT_REQUESTS_KEY });
   }, [admin, qc, row.type]);
   const refreshItem = useCallback(
     () =>
@@ -408,9 +379,7 @@ function MineItemLoaded({
               title={
                 admin
                   ? 'Save a version: what goes into the brain when you accept it'
-                  : client
-                    ? 'Save a version: what a reviewer sees'
-                    : 'Save a version: what teammates and a reviewer see'
+                  : 'Save a version: what teammates and a reviewer see'
               }
             >
               <Save /> {editorSaving ? 'Saving…' : 'Save version'}
@@ -438,9 +407,7 @@ function MineItemLoaded({
           >
             <span className="min-w-0 flex-1">
               {autosave.status === 'stopped'
-                ? client
-                  ? clientSaveText(autosave.message)
-                  : autosave.message
+                ? autosave.message
                 : 'This item cannot be changed here any more.'}{' '}
               What you typed stays below, read-only, so you can copy it.
             </span>
@@ -449,7 +416,7 @@ function MineItemLoaded({
             </Button>
           </div>
         ) : editable ? (
-          <AutosaveNote state={autosave} onReload={onReload} client={client} />
+          <AutosaveNote state={autosave} onReload={onReload} />
         ) : null}
 
         {editor}

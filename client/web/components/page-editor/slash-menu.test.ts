@@ -114,10 +114,10 @@ describe('folderIndexGate: what an editor hands the slash command by default', (
     expect(ids({ folderIndex: folderIndexGate(undefined) })).not.toContain('folder-index');
   });
 
-  it('a client, and a member on an older brain, get no item through the whole chain', () => {
+  it('an admin private item, and a member on an older brain, get no item through the whole chain', () => {
     const through = (args: Parameters<typeof memberFolderIndex>[0]) =>
       ids({ member: true, folderIndex: folderIndexGate(memberFolderIndex(args).folderIndex) });
-    expect(through({ space: 'client', treeServesPages: true, folderId: 'f1' })).not.toContain(
+    expect(through({ space: 'admin', treeServesPages: true, folderId: 'f1' })).not.toContain(
       'folder-index',
     );
     // No pages tree for members.

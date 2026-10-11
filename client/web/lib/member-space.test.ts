@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
-  CLIENT_SPACE_BASE,
   MEMBER_MAX_UPLOAD_BYTES,
   bytesPath,
-  clientSpace,
   itemBase,
   ownItemPath,
   isEditable,
@@ -20,7 +18,6 @@ import {
   splitByReview,
   workspaceNavMode,
   workspaceQuery,
-  libraryLevelBadge,
   type ReviewState,
   type SpaceSource,
 } from './member-space';
@@ -292,15 +289,6 @@ describe('accepted items (Phase 4)', () => {
   });
 });
 
-describe('libraryLevelBadge (client logins C2)', () => {
-  it('marks a client-level Library row "Client", and nothing else', () => {
-    expect(libraryLevelBadge('client')).toBe('Client');
-    for (const level of ['team', 'admin', 'public', null, undefined, '']) {
-      expect(libraryLevelBadge(level), String(level)).toBeNull();
-    }
-  });
-});
-
 /**
  * An id from the URL stays one path segment (audit U8): `?id=..%2Fchat`
  * reads `../chat`, and a route built from it must never be another route
@@ -312,9 +300,8 @@ describe('ids in route paths', () => {
 
   it('encodes an own item’s id for every space', () => {
     expect(ownItemPath(crafted)).toBe('/api/member/space/..%2Fchat');
-    expect(ownItemPath(crafted, CLIENT_SPACE_BASE)).toBe('/api/client/space/..%2Fchat');
-    expect(resolved(ownItemPath(crafted, CLIENT_SPACE_BASE))).toBe('/api/client/space/..%2Fchat');
-    expect(clientSpace.bytesPath(crafted)).toBe('/api/client/space/..%2Fchat/bytes');
+    expect(ownItemPath(crafted, '/api/admin')).toBe('/api/admin/space/..%2Fchat');
+    expect(resolved(ownItemPath(crafted))).toBe('/api/member/space/..%2Fchat');
   });
 
   it('encodes a teammate’s draft and its bytes', () => {

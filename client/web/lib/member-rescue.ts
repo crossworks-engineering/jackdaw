@@ -194,7 +194,7 @@ export function clearRescues(s: Store | null = store()): void {
 
 /** A space's route base (SpaceApiBase in member-space.ts, spelled out here:
  *  that module imports this one). */
-type RescueBase = '/api/member' | '/api/admin' | '/api/client';
+type RescueBase = '/api/member' | '/api/admin';
 
 /** The paths an item's autosave writes to (see spaceClient in
  *  member-space.ts): a member's space, or an admin's private one. */

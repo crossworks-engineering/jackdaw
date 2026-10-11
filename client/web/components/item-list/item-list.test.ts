@@ -79,19 +79,10 @@ describe('StatePill', () => {
     }
   });
 
-  it('says no staff role to a client (audit U3); a member keeps its words', () => {
-    for (const s of states) {
-      // What a person reads: the words and the hover (the data-state hook
-      // is the brain's code, for the tests and styles, never shown).
-      const html = renderToStaticMarkup(createElement(StatePill, { state: s, client: true }));
-      expect(html.replace(/ data-state="[^"]*"/, '')).not.toMatch(/admin/i);
-      expect(stateTitle(s, true)).not.toMatch(/admin/i);
-    }
-    expect(stateLabel('with-admin', true)).toBe('with the team');
-    expect(stateTitle('returned', true)).toBe('Rejected: change it and submit it again');
-    // The member's and the admin's own words stay.
+  it('has hover words for each state', () => {
     expect(stateLabel('with-admin')).toBe('with admin');
     expect(stateTitle('submitted')).toMatch(/admin/);
+    expect(stateTitle('private')).toBe('Private: only you can see it');
   });
 });
 
