@@ -79,3 +79,20 @@ export function useIsBrainOwner(): boolean {
   });
   return data === true;
 }
+
+/**
+ * Who is signed in, from the shell: the login (the actor, never the anchor)
+ * and whether it is the brain's owner. Undefined until the shell has
+ * answered. For the screens that tell the viewer's own things from another
+ * user's (a heartbeat's maker, W7a).
+ */
+export function useViewerLogin(): { loginId: string; isOwner: boolean } | undefined {
+  const { data } = useQuery({
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<Shell>('/api/shell'),
+    enabled: false,
+    select: (d: Shell) =>
+      d && typeof d.loginId === 'string' ? { loginId: d.loginId, isOwner: isOwnerShell(d) } : null,
+  });
+  return data ?? undefined;
+}

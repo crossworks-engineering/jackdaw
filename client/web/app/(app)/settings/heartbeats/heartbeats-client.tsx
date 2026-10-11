@@ -37,7 +37,18 @@ import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-ca
 import { cn } from '@mantle/web-ui/lib/utils';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import type { HeartbeatDTO, AgentOptionDTO, SkillDTO } from '@mantle/client-types';
+import type { AgentOptionDTO, SkillDTO } from '@mantle/client-types';
+import type { HeartbeatDTO } from '@/lib/contract/heartbeats';
+import {
+  HIDDEN_STATE_TEXT,
+  heartbeatFireRefusal,
+  heartbeatMakerText,
+  heartbeatStateHidden,
+  isHeartbeatMaker,
+  userNames,
+} from '@/lib/heartbeat-maker';
+import { useViewerAreas, useViewerLogin } from '@/components/workspaces/use-shell-workspaces';
+import { mayListUsers } from '@/app/(app)/settings/peers/peer-acts-as';
 import { slugify } from '@mantle/web-ui/slugify';
 import { heartbeatStateForSave } from './heartbeat-state';
 
@@ -244,6 +255,20 @@ export function HeartbeatsClient() {
   }>({});
   const [fireTarget, setFireTarget] = useState<HeartbeatSummary | null>(null);
   const [pending, startTransition] = useTransition();
+  // Who set up each heartbeat (W7a): only its maker fires it and reads its
+  // state. Names come from the users list when the viewer may list users.
+  const viewer = useViewerLogin();
+  const listUsers = mayListUsers(useViewerAreas());
+  const usersQuery = useQuery({
+    queryKey: ['users'],
+    queryFn: () =>
+      apiFetch<{ users: { id: string; displayName: string | null; email: string }[] }>(
+        '/api/users',
+      ),
+    enabled: listUsers,
+    retry: false,
+  });
+  const names = useMemo(() => userNames(usersQuery.data?.users ?? []), [usersQuery.data]);
 
   const openCreate = () => {
     setForm(emptyForm());
@@ -435,7 +460,9 @@ export function HeartbeatsClient() {
         await apiSend(`/api/heartbeats/${hb.id}/fire`, 'POST');
         await queryClient.invalidateQueries({ queryKey: ['heartbeats'] });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : String(err));
+        // Only the maker fires a heartbeat (403 for anyone else, W7a).
+        const text = heartbeatFireRefusal(err);
+        if (text) toast.error(text);
       }
     });
   };
@@ -537,17 +564,25 @@ export function HeartbeatsClient() {
                       </Link>
                     </p>
                   )}
+                  {editing.mode === 'edit' && (
+                    <p className="text-xs text-muted-foreground" data-testid="heartbeat-maker">
+                      Set up by {heartbeatMakerText(editing.hb, viewer, names)}
+                    </p>
+                  )}
                 </div>
                 {editing.mode === 'edit' && (
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setFireTarget(editing.hb)}
-                      disabled={pending || editing.hb.status !== 'active'}
-                    >
-                      <Zap /> Fire
-                    </Button>
+                    {/* Only the maker fires it (W7a). */}
+                    {isHeartbeatMaker(editing.hb, viewer) ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setFireTarget(editing.hb)}
+                        disabled={pending || editing.hb.status !== 'active'}
+                      >
+                        <Zap /> Fire now
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="outline"
@@ -695,41 +730,55 @@ export function HeartbeatsClient() {
                   </Field>
                 </div>
 
-                <Field data-invalid={!!errors.state_text || undefined}>
-                  <FieldLabel htmlFor="state_text">Initial state (JSON)</FieldLabel>
-                  <Textarea
-                    id="state_text"
-                    aria-invalid={!!errors.state_text || undefined}
-                    aria-describedby={errors.state_text ? 'state_text-error' : undefined}
-                    value={form.state_text}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        state_text: e.target.value,
-                        state_touched: true,
-                        state_edited: true,
-                      }))
-                    }
-                    rows={6}
-                    className="w-full rounded-md border bg-transparent px-3 py-2 font-mono text-xs"
-                    placeholder={'{\n  "answered": [],\n  "expecting_reply": false\n}'}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Pre-fills from the chosen skill&apos;s default state on first pick. Edits here
-                    only affect this heartbeat. When editing, the state is saved only if you change
-                    it here, so state the heartbeat wrote meanwhile is kept. See well-known keys in{' '}
-                    <a
-                      href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
-                      className="underline"
-                      target="_blank"
-                      rel="noreferrer"
+                {editing.mode === 'edit' && heartbeatStateHidden(editing.hb, viewer) ? (
+                  // Another user's state is not sent, and is not edited here.
+                  <Field>
+                    <FieldLabel>State</FieldLabel>
+                    <p
+                      className="text-sm text-muted-foreground"
+                      data-testid="heartbeat-state-hidden"
                     >
-                      docs/heartbeats.md §10
-                    </a>
-                    .
-                  </p>
-                  <FieldError id="state_text-error">{errors.state_text}</FieldError>
-                </Field>
+                      {HIDDEN_STATE_TEXT}
+                    </p>
+                  </Field>
+                ) : (
+                  <Field data-invalid={!!errors.state_text || undefined}>
+                    <FieldLabel htmlFor="state_text">Initial state (JSON)</FieldLabel>
+                    <Textarea
+                      id="state_text"
+                      aria-invalid={!!errors.state_text || undefined}
+                      aria-describedby={errors.state_text ? 'state_text-error' : undefined}
+                      value={form.state_text}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          state_text: e.target.value,
+                          state_touched: true,
+                          state_edited: true,
+                        }))
+                      }
+                      rows={6}
+                      className="w-full rounded-md border bg-transparent px-3 py-2 font-mono text-xs"
+                      placeholder={'{\n  "answered": [],\n  "expecting_reply": false\n}'}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Pre-fills from the chosen skill&apos;s default state on first pick. Edits here
+                      only affect this heartbeat. When editing, the state is saved only if you
+                      change it here, so state the heartbeat wrote meanwhile is kept. See well-known
+                      keys in{' '}
+                      <a
+                        href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
+                        className="underline"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        docs/heartbeats.md §10
+                      </a>
+                      .
+                    </p>
+                    <FieldError id="state_text-error">{errors.state_text}</FieldError>
+                  </Field>
+                )}
 
                 <fieldset className="space-y-3 rounded-md border p-4">
                   <legend className="px-1 text-sm font-medium">Schedule</legend>

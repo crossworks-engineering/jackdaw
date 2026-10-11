@@ -5,8 +5,15 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { SetPageTitle } from '@/components/layout/page-title';
-import type { HeartbeatSummary, HeartbeatFireSummary } from '@mantle/client-types';
+import type { HeartbeatDTO, HeartbeatFireSummary } from '@/lib/contract/heartbeats';
 import { JsonView } from '@mantle/web-ui/ui/json-view';
+import {
+  HIDDEN_STATE_TEXT,
+  NOT_YOURS,
+  heartbeatMakerText,
+  heartbeatStateHidden,
+} from '@/lib/heartbeat-maker';
+import { useViewerLogin } from '@/components/workspaces/use-shell-workspaces';
 
 type DetailLabels = {
   nextFireAt: string;
@@ -14,7 +21,7 @@ type DetailLabels = {
   fires: Record<string, string>;
 };
 type DetailData = {
-  heartbeat: HeartbeatSummary;
+  heartbeat: HeartbeatDTO;
   fires: HeartbeatFireSummary[];
   labels: DetailLabels;
 };
@@ -25,9 +32,12 @@ type DetailData = {
  * Fetches the heartbeat, its last 50 fires, and the profile-formatted date
  * labels from GET /api/heartbeats/[id]/detail. Shows current state,
  * schedule, gates, and the fires (both successful + skipped); each fire links
- * to its trace if one was opened.
+ * to its trace if one was opened. Who set it up (W7a): only that user (its
+ * maker) reads its state and what its fires said and changed; for anyone
+ * else the brain sends none of it, and the screen says so.
  */
 export function HeartbeatDetailClient({ id }: { id: string }) {
+  const viewer = useViewerLogin();
   const detailQuery = useQuery({
     queryKey: ['heartbeats', id, 'detail'],
     queryFn: () => apiFetch<DetailData>(`/api/heartbeats/${id}/detail`),
@@ -54,6 +64,7 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
   }
 
   const { heartbeat: hb, fires, labels } = detailQuery.data;
+  const hidden = heartbeatStateHidden(hb, viewer);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
@@ -97,6 +108,7 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
           {hb.fireCount}
           {hb.maxFires != null && <span className="text-muted-foreground"> / {hb.maxFires}</span>}
         </Card>
+        <Card title="Set up by">{heartbeatMakerText(hb, viewer)}</Card>
         <Card title="Completion reason">
           <span className="font-mono text-xs">{hb.completionReason ?? '—'}</span>
         </Card>
@@ -129,7 +141,11 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Current state
         </h2>
-        <JsonView value={hb.state} />
+        {hidden ? (
+          <p className="text-sm text-muted-foreground">{HIDDEN_STATE_TEXT}</p>
+        ) : (
+          <JsonView value={hb.state} />
+        )}
       </section>
 
       <section>
@@ -153,11 +169,13 @@ export function HeartbeatDetailClient({ id }: { id: string }) {
                   </Link>
                 )}
               </div>
-              {f.replyText && (
+              {f.replyText ? (
                 <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
                   &ldquo;{f.replyText}&rdquo;
                 </p>
-              )}
+              ) : hidden ? (
+                <p className="mt-1 text-xs text-muted-foreground">Reply: {NOT_YOURS}</p>
+              ) : null}
               {f.errorMessage && (
                 <p className="mt-1 text-xs text-destructive-ink">Error: {f.errorMessage}</p>
               )}
