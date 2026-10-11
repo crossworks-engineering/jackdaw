@@ -366,7 +366,7 @@ function ProfileForm({ data }: { data: ProfileData }) {
               />
               <PurposeFieldNote id="purpose-note" check={purposeCheck} />
               <p id="purpose-help" className="text-xs text-muted-foreground">
-                Grounds every assistant in the brain&apos;s mission — injected at the top of each
+                Grounds every assistant in the brain&apos;s mission, injected at the top of each
                 conversation. Leave blank to clear it.
               </p>
             </div>
