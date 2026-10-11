@@ -2,18 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { destinationAfterSignIn } from '@/lib/member-destination';
+import { destinationAfterSignIn } from '@/lib/sign-in-destination';
 import { goAfterSignIn } from '@/lib/oauth-consent';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { useSessions } from '@mantle/web-ui/use-sessions';
-import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
-import { clientLoginAddable } from '@/lib/client-device-signin';
+import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
+import { Button } from '@mantle/web-ui/ui/button';
+import { offersEmailCode } from '@/lib/email-code';
 import { LoginForm } from './login-form';
-import { ClientCodeLink } from './client-code-link';
-import { ClientDeviceAdd } from './client-device-add';
+import { EmailCodeForm } from './email-code-form';
 import { LoginServer } from './login-server';
 
 /**
@@ -30,7 +30,7 @@ export function LoginClient({
   mark,
   next,
   error,
-  clientCodes = false,
+  emailCodes = false,
   add = false,
   sessionId,
   serverOrigin,
@@ -40,8 +40,8 @@ export function LoginClient({
   mark: React.ReactNode;
   next?: string;
   error?: string;
-  /** This brain mails client sign-in codes: offer a client the way there. */
-  clientCodes?: boolean;
+  /** This brain mails sign-in codes: offer "Sign in with an email code". */
+  emailCodes?: boolean;
   /** Someone already signed in is adding another login. */
   add?: boolean;
   /** The held login being signed back in to (an id from this device's list). */
@@ -103,25 +103,23 @@ export function LoginClient({
       .catch(() => undefined);
   }, [add]);
 
-  // Desktop only: a CLIENT login can be added too, by emailed code, as one
-  // more login this window holds (lib/client-device-signin.ts). Asked after
-  // mount; a browser always answers no, and keeps its clients cookie-only.
-  const [clientAddable, setClientAddable] = useState(false);
-  useEffect(() => {
-    if (!add) return;
-    let live = true;
-    void clientLoginAddable().then((ok) => live && setClientAddable(ok));
-    return () => {
-      live = false;
-    };
-  }, [add]);
-  const [kind, setKind] = useState<'staff' | 'client'>('staff');
-  // Signing back in to a client login the brain signed out: its own form.
-  useEffect(() => {
-    if (target?.role === 'client') setKind('client');
-  }, [target?.role]);
-  const offerClient = add && !firstRun && clientAddable;
-  const asClient = offerClient && kind === 'client';
+  // Sign-in by email code (plan 15: for any login without a password). Same
+  // origin only: the code's cookies live on the brain's origin, which is
+  // known after mount.
+  const [crossOrigin, setCrossOrigin] = useState(false);
+  useEffect(() => setCrossOrigin(isCrossOrigin()), []);
+  const [byCode, setByCode] = useState(false);
+  const codeOffered = offersEmailCode({ enabled: emailCodes, firstRun, add, crossOrigin });
+  const showCode = codeOffered && byCode;
+
+  // Signed in by a code: the brain set this login's session cookie. A bearer
+  // left by an earlier session would ride along with every request, so it
+  // goes; then the page loads where a password sign-in goes.
+  const codeSignedIn = async () => {
+    tokenStore.clear();
+    tokenStore.markPresence();
+    await goAfterSignIn(await destinationAfterSignIn(next), (to) => window.location.assign(to));
+  };
 
   const strapline = firstRun
     ? 'Create your login to begin.'
@@ -148,25 +146,12 @@ export function LoginClient({
             both.
           </p>
         )}
-        {offerClient && (
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="default"
-            className="w-full"
-            value={kind}
-            onValueChange={(v) => v && setKind(v as 'staff' | 'client')}
-          >
-            <ToggleGroupItem value="staff" className="flex-1">
-              Staff login
-            </ToggleGroupItem>
-            <ToggleGroupItem value="client" className="flex-1">
-              Client login
-            </ToggleGroupItem>
-          </ToggleGroup>
-        )}
-        {asClient ? (
-          <ClientDeviceAdd initialEmail={target?.email} />
+        {showCode ? (
+          <EmailCodeForm
+            initialEmail={target?.email}
+            onSignedIn={codeSignedIn}
+            onUsePassword={() => setByCode(false)}
+          />
         ) : (
           <LoginForm
             mode={firstRun ? 'signup' : 'login'}
@@ -177,11 +162,13 @@ export function LoginClient({
             initialEmail={target?.email ?? hintEmail}
           />
         )}
-        {/* No client exists on a brain that is still being set up. Not while
-            adding a login either: a client signs in with a cookie and no
-            bearer, so it cannot be one of the logins this device holds, and
-            its sign-in would drop the login in use. */}
-        <ClientCodeLink enabled={clientCodes && !firstRun && !add} />
+        {codeOffered && !showCode ? (
+          <div className="flex justify-center">
+            <Button type="button" variant="link" size="sm" onClick={() => setByCode(true)}>
+              Sign in with an email code
+            </Button>
+          </div>
+        ) : null}
         {/* Only when there is an app to go back to: a brain window opened just
             to sign in has nobody signed in behind this screen. */}
         {add && (held.active || replacesCurrent) && (

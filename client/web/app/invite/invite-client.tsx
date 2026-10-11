@@ -15,7 +15,6 @@ import {
 import { Input } from '@mantle/web-ui/ui/input';
 import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
-import { setMemberHint } from '@/lib/member-destination';
 import {
   INVITE_NOT_VALID,
   MIN_PASSWORD,
@@ -23,7 +22,7 @@ import {
   readInviteCode,
   validateInviteForm,
   type InviteFormErrors,
-} from '@/lib/member-invites';
+} from '@/lib/user-invites';
 import { takeLinkCode } from '@/lib/link-code';
 import { UNEXPECTED_RESPONSE, signInErrorMessage } from '@/lib/sign-in-error';
 import { signInAfterInvite } from '@/lib/invite-sign-in';
@@ -66,12 +65,12 @@ async function fetchPreview(code: string): Promise<Preview> {
  * valid code (a link carries one); the password step greets the person by
  * the invite's name and email.
  *
- * Accepting signs the person in as a MEMBER the way the sign-in form does: it
+ * Accepting signs the person in the way the sign-in form does: it
  * exchanges the new email and password for a bearer at /api/auth/token and
  * holds it as one of the device's logins (same-origin the accept answer has
  * also set this login's session cookie; if the exchange fails there, that
- * cookie alone signs the browser in). The member hint is set (an invite only
- * ever makes a member login) and the browser loads the member home.
+ * cookie alone signs the browser in). Then the browser loads the home, the
+ * one shell every login uses.
  */
 export function InviteClient({
   mark,
@@ -164,9 +163,8 @@ export function InviteClient({
         setFormError(signedIn.message);
         return;
       }
-      setMemberHint(true);
       // A full load, not a client navigation: nothing an earlier session
-      // cached on this tab survives, and the layout reads the member hint.
+      // cached on this tab survives.
       window.location.assign('/');
     } catch (err) {
       setFormError(signInErrorMessage(err));

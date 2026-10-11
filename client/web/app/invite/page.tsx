@@ -9,10 +9,10 @@ import { LinkCodeScript } from '@/components/link-code-script';
 import { InviteClient } from './invite-client';
 
 /**
- * /invite: a person redeems a member invite (member logins, Phase 6). They
+ * /invite: a person redeems an invite an admin made in Settings > Users. They
  * open the link an admin handed them (`/invite#code=…`; `?code=…` in
  * links issued before) or type its
- * 16-character invite code, set a password, and are signed in as a member.
+ * 16-character invite code, set a password, and are signed in.
  * Old team codes redeem nothing (the brain dropped them in migration 0178),
  * so one typed here is refused like any other code that is not valid.
  *

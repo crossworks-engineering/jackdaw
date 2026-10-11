@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { destinationAfterSignIn } from '@/lib/member-destination';
+import { destinationAfterSignIn } from '@/lib/sign-in-destination';
 import { goAfterSignIn } from '@/lib/oauth-consent';
 import { useRouter } from 'next/navigation';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';

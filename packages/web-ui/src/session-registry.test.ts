@@ -186,6 +186,35 @@ describe('an older build open in another tab', () => {
   });
 });
 
+describe('a role stored by an older build (phase W5c)', () => {
+  it('is ignored: the login is listed and signed in as before, and nothing names a role', () => {
+    const token = bearer(2_000_000_000);
+    const row = {
+      id: 'old',
+      origin: 'https://brain.example',
+      email: 'c@example.com',
+      role: 'client',
+      addedAt: 1000,
+      lastUsedAt: 1000,
+    };
+    setup({
+      storage: fakeStorage({
+        mantle_sessions: JSON.stringify([row]),
+        mantle_active_session: 'old',
+        mantle_token: token,
+        [sessionTokenKey('old')]: token,
+      }),
+    });
+    expect(listSessions().map((s) => s.id)).toEqual(['old']);
+    expect(activeSession()?.email).toBe('c@example.com');
+    expect(tokenStore.get()).toBe(token);
+    // The type has no role: a caller cannot branch on it (typecheck).
+    const s = activeSession()!;
+    // @ts-expect-error Session has no role since phase W5c.
+    void s.role;
+  });
+});
+
 describe('signing in', () => {
   it('holds the login as the active session and mirrors its bearer into mantle_token', () => {
     const { storage, cookies } = setup();

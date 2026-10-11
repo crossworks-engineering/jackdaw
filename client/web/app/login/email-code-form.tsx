@@ -13,36 +13,45 @@ import {
 } from '@mantle/web-ui/ui/field';
 import { Input } from '@mantle/web-ui/ui/input';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
-// Relative, not '@/': the node test runner renders this
-// (client-code-form.test.ts) and does not resolve the app's path alias.
 import {
-  CLIENT_CODE_LENGTH,
-  CLIENT_CODE_PATH,
-  CLIENT_CODE_SENT,
-  CLIENT_CODE_VERIFY_PATH,
-  clientCodeError,
-  clientCodeRequestOutcome,
-  clientCodeVerifyOutcome,
-  normalizeClientCode,
-} from '../../lib/client-code';
-import { CLIENT_SIGNIN_UNAVAILABLE, clientEmailError } from '../../lib/client-portal';
-import { signInErrorMessage } from '../../lib/sign-in-error';
+  EMAIL_CODE_LENGTH,
+  EMAIL_CODE_PATH,
+  EMAIL_CODE_SENT,
+  EMAIL_CODE_VERIFY_PATH,
+  emailCodeError,
+  emailCodeRequestOutcome,
+  emailCodeVerifyOutcome,
+  EMAIL_CODE_UNAVAILABLE,
+  emailAddressError,
+  normalizeEmailCode,
+} from '@/lib/email-code';
+import { signInErrorMessage } from '@/lib/sign-in-error';
 
 /**
- * Sign in with an emailed code (client logins C2b), the way in for a client
- * with no sign-in link. Two steps: the email, then the 8-digit code. The
- * first step has ONE way forward: the brain answers every email the same
- * (it never says whether one is a client), so the page does too, and moves
- * on to the code step whatever was typed.
+ * Sign in with an emailed code: the sign-in page's way in for a login
+ * without a password. Two steps: the email, then the 8-digit code. The first
+ * step has ONE way forward: the brain answers every email the same (it never
+ * says whether one has a login), so the page does too, and moves on to the
+ * code step whatever was typed. "Use your password" goes back to the
+ * password form from either step.
  *
- * Both requests carry this browser's cookies (same origin, as the sign-in
- * link does): the first answer sets the request cookie the code is bound
- * to, and the second must send it back, so a code forwarded to another
- * browser opens nothing. Signed in, `onSignedIn` does what the link does.
+ * Both requests carry this browser's cookies (same origin): the first answer
+ * sets the request cookie the code is bound to, and the second must send it
+ * back, so a code forwarded to another browser opens nothing. Signed in, the
+ * brain has set the session cookie; `onSignedIn` goes where a password
+ * sign-in goes.
  */
-export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
-  const [step, setStep] = useState<ClientCodeStep>('email');
-  const [email, setEmail] = useState('');
+export function EmailCodeForm({
+  onSignedIn,
+  onUsePassword,
+  initialEmail = '',
+}: {
+  onSignedIn: () => void | Promise<void>;
+  onUsePassword: () => void;
+  initialEmail?: string;
+}) {
+  const [step, setStep] = useState<EmailCodeStep>('email');
+  const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState('');
   const [emailError, setEmailError] = useState<string>();
   const [codeError, setCodeError] = useState<string>();
@@ -54,7 +63,7 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
     // Never from another origin (the page shows no form there): the code's
     // cookies live on the brain's origin, so it would be spent for nothing.
     isCrossOrigin()
-      ? Promise.reject(new Error(CLIENT_SIGNIN_UNAVAILABLE))
+      ? Promise.reject(new Error(EMAIL_CODE_UNAVAILABLE))
       : // RAW fetch, never apiFetch: a code that signs nobody in is a 401
         // here, which apiFetch would turn into a trip to /login.
         fetch(apiUrl(path), {
@@ -70,8 +79,8 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
     setFormError(undefined);
     setCodeError(undefined);
     try {
-      const res = await post(CLIENT_CODE_PATH, { email: email.trim() });
-      const outcome = clientCodeRequestOutcome(res.status);
+      const res = await post(EMAIL_CODE_PATH, { email: email.trim() });
+      const outcome = emailCodeRequestOutcome(res.status);
       if (outcome.kind !== 'sent') {
         setFormError(outcome.message);
         return;
@@ -88,11 +97,11 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
 
   function request(e: React.FormEvent) {
     e.preventDefault();
-    const err = clientEmailError(email);
+    const err = emailAddressError(email);
     setEmailError(err ?? undefined);
     setFormError(undefined);
     if (err) {
-      document.getElementById('client-code-email')?.focus();
+      document.getElementById('email-code-email')?.focus();
       return;
     }
     void ask(false);
@@ -100,27 +109,27 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
 
   async function verify(e: React.FormEvent) {
     e.preventDefault();
-    const err = clientCodeError(code);
+    const err = emailCodeError(code);
     setCodeError(err ?? undefined);
     setFormError(undefined);
     if (err) {
-      document.getElementById('client-code')?.focus();
+      document.getElementById('email-code')?.focus();
       return;
     }
     setPending(true);
     try {
-      const res = await post(CLIENT_CODE_VERIFY_PATH, {
+      const res = await post(EMAIL_CODE_VERIFY_PATH, {
         email: email.trim(),
-        code: normalizeClientCode(code),
+        code: normalizeEmailCode(code),
       });
-      const outcome = clientCodeVerifyOutcome(res.status, await res.json().catch(() => null));
+      const outcome = emailCodeVerifyOutcome(res.status, await res.json().catch(() => null));
       if (outcome.kind === 'ok') {
-        onSignedIn();
+        await onSignedIn();
         return;
       }
       if (outcome.kind === 'not-valid') {
         setCodeError(outcome.message);
-        document.getElementById('client-code')?.focus();
+        document.getElementById('email-code')?.focus();
       } else {
         setFormError(outcome.message);
       }
@@ -140,7 +149,7 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
   };
 
   return (
-    <ClientCodeFormView
+    <EmailCodeFormView
       step={step}
       email={email}
       code={code}
@@ -155,14 +164,15 @@ export function ClientCodeForm({ onSignedIn }: { onSignedIn: () => void }) {
       onVerify={(e) => void verify(e)}
       onResend={() => void ask(true)}
       onDifferentEmail={differentEmail}
+      onUsePassword={onUsePassword}
     />
   );
 }
 
-export type ClientCodeStep = 'email' | 'code';
+export type EmailCodeStep = 'email' | 'code';
 
-export type ClientCodeFormViewProps = {
-  step: ClientCodeStep;
+export type EmailCodeFormViewProps = {
+  step: EmailCodeStep;
   email: string;
   code: string;
   emailError?: string;
@@ -177,10 +187,11 @@ export type ClientCodeFormViewProps = {
   onVerify: (e: React.FormEvent) => void;
   onResend: () => void;
   onDifferentEmail: () => void;
+  onUsePassword: () => void;
 };
 
 /** The two steps as markup: no state and no requests (the tests render it). */
-export function ClientCodeFormView({
+export function EmailCodeFormView({
   step,
   email,
   code,
@@ -195,15 +206,21 @@ export function ClientCodeFormView({
   onVerify,
   onResend,
   onDifferentEmail,
-}: ClientCodeFormViewProps) {
+  onUsePassword,
+}: EmailCodeFormViewProps) {
+  const usePassword = (
+    <Button type="button" variant="link" size="sm" disabled={pending} onClick={onUsePassword}>
+      Use your password
+    </Button>
+  );
   if (step === 'email') {
     return (
       <form onSubmit={onRequest} noValidate>
         <FieldGroup>
           <Field data-invalid={!!emailError || undefined}>
-            <FieldLabel htmlFor="client-code-email">Email</FieldLabel>
+            <FieldLabel htmlFor="email-code-email">Email</FieldLabel>
             <Input
-              id="client-code-email"
+              id="email-code-email"
               type="email"
               value={email}
               onChange={(e) => onEmailChange(e.target.value)}
@@ -212,19 +229,20 @@ export function ClientCodeFormView({
               aria-invalid={!!emailError || undefined}
               aria-describedby={
                 emailError
-                  ? 'client-code-email-error client-code-email-hint'
-                  : 'client-code-email-hint'
+                  ? 'email-code-email-error email-code-email-hint'
+                  : 'email-code-email-hint'
               }
             />
-            <FieldDescription id="client-code-email-hint">
-              The email your client login uses. We send a sign-in code to it.
+            <FieldDescription id="email-code-email-hint">
+              The email you sign in with. We send a sign-in code to it.
             </FieldDescription>
-            <FieldError id="client-code-email-error">{emailError}</FieldError>
+            <FieldError id="email-code-email-error">{emailError}</FieldError>
           </Field>
-          <FieldError id="client-code-error">{formError}</FieldError>
+          <FieldError id="email-code-error">{formError}</FieldError>
           <SubmitButton pending={pending} className="w-full">
             Email me a code
           </SubmitButton>
+          <div className="flex justify-center">{usePassword}</div>
         </FieldGroup>
       </form>
     );
@@ -236,15 +254,15 @@ export function ClientCodeFormView({
         <p
           role="status"
           className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
-          data-testid="client-code-sent"
+          data-testid="email-code-sent"
         >
           {resent ? 'Asked again. ' : ''}
-          {CLIENT_CODE_SENT}
+          {EMAIL_CODE_SENT}
         </p>
         <Field data-invalid={!!codeError || undefined}>
-          <FieldLabel htmlFor="client-code">Enter the {CLIENT_CODE_LENGTH}-digit code</FieldLabel>
+          <FieldLabel htmlFor="email-code">Enter the {EMAIL_CODE_LENGTH}-digit code</FieldLabel>
           <Input
-            id="client-code"
+            id="email-code"
             // Text, not number: a number field drops leading zeros and
             // refuses a pasted "1234 5678". The keypad comes from inputMode.
             type="text"
@@ -257,15 +275,15 @@ export function ClientCodeFormView({
             className="font-mono tracking-widest"
             aria-invalid={!!codeError || undefined}
             aria-describedby={
-              codeError ? 'client-code-field-error client-code-hint' : 'client-code-hint'
+              codeError ? 'email-code-field-error email-code-hint' : 'email-code-hint'
             }
           />
-          <FieldDescription id="client-code-hint">
+          <FieldDescription id="email-code-hint">
             Sent to {email.trim() || 'your email'}.
           </FieldDescription>
-          <FieldError id="client-code-field-error">{codeError}</FieldError>
+          <FieldError id="email-code-field-error">{codeError}</FieldError>
         </Field>
-        <FieldError id="client-code-error">{formError}</FieldError>
+        <FieldError id="email-code-error">{formError}</FieldError>
         <SubmitButton pending={pending} className="w-full">
           Sign in
         </SubmitButton>
@@ -282,6 +300,7 @@ export function ClientCodeFormView({
           >
             Use a different email
           </Button>
+          {usePassword}
         </div>
       </FieldGroup>
     </form>

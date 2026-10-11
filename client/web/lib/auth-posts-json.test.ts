@@ -21,7 +21,6 @@ const JSON_HEADER = "headers: { 'content-type': 'application/json' }";
 
 describe('auth POSTs declare JSON', () => {
   it.each([
-    ['../app/client-signin/client-signin-client.tsx', "fetch(apiUrl('/api/auth/client-link')"],
     ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/signup')"],
     // Sign-in is a bearer exchange in both topologies now (multi-login): the
     // form's credential POST is /api/auth/token, still declared JSON.
@@ -31,8 +30,8 @@ describe('auth POSTs declare JSON', () => {
     ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/login')"],
     ['../app/invite/invite-client.tsx', "fetch(apiUrl('/api/auth/invite/accept')"],
     ['../components/member/member-password-dialog.tsx', "apiUrl('/api/auth/change-password')"],
-    // client-code and client-code/verify go through the form's one helper.
-    ['../app/client-signin/client-code-form.tsx', 'fetch(apiUrl(path), {'],
+    // The email code routes go through the form's one helper.
+    ['../app/login/email-code-form.tsx', 'fetch(apiUrl(path), {'],
     // Sign out everywhere posts to /api/auth/logout through its helper.
     ['./sign-out-everywhere.ts', 'fetch(\n      apiUrl(path),'],
   ])('%s: %s', (file, needle) => {
@@ -42,8 +41,8 @@ describe('auth POSTs declare JSON', () => {
   });
 
   it('the code form sends both code routes through that helper', () => {
-    const form = read('../app/client-signin/client-code-form.tsx');
-    expect(form).toContain('await post(CLIENT_CODE_PATH, {');
-    expect(form).toContain('await post(CLIENT_CODE_VERIFY_PATH, {');
+    const form = read('../app/login/email-code-form.tsx');
+    expect(form).toContain('await post(EMAIL_CODE_PATH, {');
+    expect(form).toContain('await post(EMAIL_CODE_VERIFY_PATH, {');
   });
 });

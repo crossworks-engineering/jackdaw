@@ -49,10 +49,6 @@ export type Session = {
   /** Epoch SECONDS from the bearer's own `exp`; null when it cannot be read;
    *  0 when the brain has refused the bearer and the session needs a sign-in. */
   tokenExpiresAt?: number | null;
-  /** Legacy (phase W5c): builds before it stored the login's role here. A
-   *  held login is a login now, so nothing in the kit writes or reads it; an
-   *  old stored value is kept as it is and ignored, never an error. */
-  role?: unknown;
   /** The brain's id for the login, when the sign-in said. Not a secret. */
   loginId?: string | null;
 };
@@ -158,8 +154,8 @@ function bearerRemove(ls: Storage, id: string, isActive: boolean): void {
 }
 
 /** Where to send someone to sign back in to a login the device still lists:
- *  the Add login screen, which finds the row by id, fills in its email, opens
- *  the right form for its role, and signs in INTO that row (`signInSession`
+ *  the Add login screen, which finds the row by id, fills in its email, and
+ *  signs in INTO that row (`signInSession`
  *  matches the same brain and email) rather than listing the login twice. */
 export function signInAgainPath(id: string): string {
   return `/login?add=1&session=${encodeURIComponent(id)}`;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { destinationAfterSignIn } from './member-destination';
+import { destinationAfterSignIn } from './sign-in-destination';
 import { OAUTH_CONSENT_PATH } from './oauth-consent';
 
 /**
