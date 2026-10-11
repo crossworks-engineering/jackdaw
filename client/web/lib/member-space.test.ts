@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
+import { grantErrorText } from './grants';
+import { workspaceErrorText } from './workspaces';
 import {
   MEMBER_MAX_UPLOAD_BYTES,
   ownItemPath,
@@ -48,6 +50,15 @@ describe('refusalMessage', () => {
       reason: 'quota',
     });
     expect(refusalMessage(err)).toBe('Your space holds 2 GB.');
+  });
+
+  it("says a removed route's own words (410 code gone, W5c)", () => {
+    const body = { error: 'Review was removed. Share items with Grant Access.', code: 'gone' };
+    expect(refusalMessage(new ApiError(body.error, 410, body))).toBe(body.error);
+    expect(workspaceErrorText(new ApiError(body.error, 410, body))).toBe(body.error);
+    expect(grantErrorText(new ApiError(body.error, 410, body), 'Could not share.')).toBe(
+      body.error,
+    );
   });
 
   it('names quota, embed and rate limits when the brain sent no sentence', () => {
