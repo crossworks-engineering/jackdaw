@@ -58,7 +58,7 @@ describe('LinkServedList', () => {
   it('a folder says when its list is cut at 500', () => {
     const rows = Array.from({ length: 500 }, (_, i) => row({ nodeId: `n${i}` }));
     expect(render(rows, { type: 'branch' })).toContain(
-      'This list shows the first 500 items in the folder.',
+      'Only the first 500 items in this folder that you can edit are listed here.',
     );
   });
 });

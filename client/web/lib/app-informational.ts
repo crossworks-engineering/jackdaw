@@ -1,9 +1,10 @@
 /**
- * An informational app (client logins C6; workspaces W5b2): an app is
- * written by the users of each workspace whose grant has Write on. An admin
- * can mark it informational (`dataReadOnly`): the brain then turns Write off
- * on every grant beyond Admin in the same request, so members and clients
- * only read its data. Each grant's Write switch stays in the Access panel.
+ * An informational app (client logins C6; workspaces W5b2, contract 36): an
+ * app is written by the users of each workspace whose grant has Write on.
+ * An admin can mark it informational (`dataReadOnly`): while it is on,
+ * nobody beyond Admin writes the app's data, whatever the grants say. The
+ * switch changes no grant: turned off, the grants' Write switches in the
+ * Access panel decide again, as they were.
  *
  * The pure half, pinned by app-informational.test.ts: the words the member
  * and client views show, and what the admin's switch reads and sends.
@@ -24,11 +25,18 @@ export const APP_INFORMATIONAL_NOTE = 'Informational: you can read this app’s 
 /** The short tag on a launcher card. */
 export const APP_INFORMATIONAL_TAG = 'Informational';
 
-/** The admin's switch, and the hint beside it (W5b2, contract 35: the brain
- *  sets every grant's Write beyond Admin in the same request). */
-export const APP_INFORMATIONAL_LABEL = 'Informational: users outside Admin only read its data';
-export const APP_INFORMATIONAL_HINT =
-  'On: every workspace other than Admin gets Write off for this app. Change one workspace in the Access panel.';
+/** The admin's switch, and the hint beside it for each state (contract 36:
+ *  the switch changes no grant; on, it stops every write beyond Admin). */
+export const APP_INFORMATIONAL_LABEL = 'Informational: only Admin can change its data';
+export const APP_INFORMATIONAL_HINT_ON =
+  'On: only Admin can change this app’s data. The Write switches in the Access panel do not apply while this is on.';
+export const APP_INFORMATIONAL_HINT_OFF =
+  'Off: the Write switches in the Access panel decide who can change this app’s data.';
+
+/** The hint for the switch as it is now. */
+export function informationalHint(on: boolean): string {
+  return on ? APP_INFORMATIONAL_HINT_ON : APP_INFORMATIONAL_HINT_OFF;
+}
 
 /** Is the admin's switch shown: the brain knows the flag (its app detail
  *  carries it; a brain before C6 sends no `dataReadOnly`). No level gate

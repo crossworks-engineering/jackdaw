@@ -2,7 +2,7 @@
  * Grants (W5b2): the rules the Grant Access panel, the chips, the folder
  * confirm and the move dialog follow.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   alsoVisibleLine,
@@ -35,6 +35,7 @@ import {
   type GrantRow,
   type SkippedEmbed,
   FOLDER_SERVE_OFFER_MAX,
+  LINK_CHANGED_TEXT,
   linkCreateRequest,
   linkServeRequest,
   nextServed,
@@ -43,6 +44,7 @@ import {
   servedCountText,
   servedElsewhere,
   servedElsewhereText,
+  sendServeChange,
 } from './grants';
 
 const row = (over: Partial<GrantRow> = {}): GrantRow => ({
@@ -327,7 +329,7 @@ describe('an app move (S7)', () => {
   });
 });
 
-describe('the served list in the contract 35 shape ({nodeId, title})', () => {
+describe('the served list ({nodeId, title}, contract 35)', () => {
   const view = {
     link: {
       id: 's1',
@@ -339,7 +341,7 @@ describe('the served list in the contract 35 shape ({nodeId, title})', () => {
     },
     serveCandidates: [{ nodeId: 'aaa', title: 'Photo', kind: 'file' }],
   };
-  it('ticks, keeps and sends ids the same as the bare-id shape', () => {
+  it('ticks, keeps and sends the ids, lower-case', () => {
     expect(serveRows(view)[0]!.served).toBe(true);
     expect(servedElsewhere(view)).toEqual([{ nodeId: 'zzz', title: null }]);
     expect(nextServed(view, ['aaa'], false)).toEqual(['zzz']);
@@ -349,7 +351,14 @@ describe('the served list in the contract 35 shape ({nodeId, title})', () => {
 
 describe('the open link serves a list (contract 30, 32)', () => {
   const view = {
-    link: { id: 's1', path: '/s/tok', served: ['aaa', 'zzz'] },
+    link: {
+      id: 's1',
+      path: '/s/tok',
+      served: [
+        { nodeId: 'aaa', title: 'Photo' },
+        { nodeId: 'zzz', title: null },
+      ],
+    },
     serveCandidates: [
       { nodeId: 'AAA', title: 'Photo', kind: 'file' },
       { nodeId: 'bbb', title: 'Plan', kind: 'page' },
@@ -400,9 +409,68 @@ describe('the open link serves a list (contract 30, 32)', () => {
       '2 more items stay on the list: Logo, one item you cannot open. You cannot change them here.',
     );
     expect(serveCappedText('branch', FOLDER_SERVE_OFFER_MAX)).toBe(
-      'This list shows the first 500 items in the folder.',
+      'Only the first 500 items in this folder that you can edit are listed here.',
     );
     expect(serveCappedText('branch', 12)).toBeNull();
     expect(serveCappedText('page', 900)).toBeNull();
+  });
+});
+
+describe('a served-list write reads the link again first (L4)', () => {
+  const fresh = (served: string[], id = 's1') => ({
+    link: { id, path: '/s/tok', served: served.map((nodeId) => ({ nodeId, title: null })) },
+    serveCandidates: [{ nodeId: 'bbb', title: 'Plan', kind: 'page' }],
+  });
+
+  it('applies only this change to what the link serves now', async () => {
+    // The panel was opened when the link served aaa only; since then
+    // another user added zzz. Ticking bbb must keep zzz.
+    const send = vi.fn(async () => ({ ok: true }));
+    const out = await sendServeChange(
+      { read: async () => fresh(['aaa', 'zzz']), send },
+      's1',
+      ['bbb'],
+      true,
+    );
+    expect(out).toBe('done');
+    expect(send).toHaveBeenCalledWith({
+      url: '/api/shares/s1',
+      method: 'PATCH',
+      body: { serve: ['aaa', 'zzz', 'bbb'] },
+    });
+  });
+
+  it('a cleared item another user took off stays off', async () => {
+    const send = vi.fn(async () => ({ ok: true }));
+    await sendServeChange({ read: async () => fresh(['zzz']), send }, 's1', ['aaa'], false);
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ body: { serve: ['zzz'] } }));
+  });
+
+  it('says the link changed when it is gone or is another link, and sends nothing', async () => {
+    const send = vi.fn(async () => ({ ok: true }));
+    const gone = { link: null, serveCandidates: [] };
+    expect(await sendServeChange({ read: async () => gone, send }, 's1', ['a'], true)).toBe(
+      'changed',
+    );
+    expect(
+      await sendServeChange({ read: async () => fresh([], 's2'), send }, 's1', ['a'], true),
+    ).toBe('changed');
+    expect(send).not.toHaveBeenCalled();
+    expect(LINK_CHANGED_TEXT).toBe('This link changed. Check the list again.');
+  });
+
+  it('a 409 from the brain is "changed"; other refusals are thrown', async () => {
+    const conflict = vi.fn(async () => {
+      throw new ApiError('conflict', 409);
+    });
+    expect(
+      await sendServeChange({ read: async () => fresh([]), send: conflict }, 's1', ['a'], true),
+    ).toBe('changed');
+    const refused = vi.fn(async () => {
+      throw new ApiError('no', 403);
+    });
+    await expect(
+      sendServeChange({ read: async () => fresh([]), send: refused }, 's1', ['a'], true),
+    ).rejects.toBeInstanceOf(ApiError);
   });
 });

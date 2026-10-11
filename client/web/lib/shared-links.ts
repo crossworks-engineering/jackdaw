@@ -45,8 +45,8 @@ export function linkLevelLabel(level: AccessLevel): string {
   return level === 'admin' ? OLD_ADMIN_LINK : LEVEL_LABEL[level];
 }
 
-/** Revoke one link. The item
- *  keeps its level. */
+/** Revoke one link (DELETE /api/shares/:id): an open link or a contact
+ *  share. The item's grants and their Write switches do not change. */
 export async function revokeShareLink(shareId: string): Promise<void> {
   await apiSend(`/api/shares/${encodeURIComponent(shareId)}`, 'DELETE');
 }

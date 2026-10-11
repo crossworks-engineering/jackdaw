@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  APP_INFORMATIONAL_HINT,
+  APP_INFORMATIONAL_HINT_OFF,
+  APP_INFORMATIONAL_HINT_ON,
   APP_INFORMATIONAL_LABEL,
   APP_INFORMATIONAL_NOTE,
+  informationalHint,
   informationalPatch,
   isInformational,
   supportsInformational,
@@ -49,13 +51,28 @@ describe('an informational app', () => {
   it('sends the flag, and says what it means and what it is otherwise', () => {
     expect(informationalPatch(true)).toEqual({ dataReadOnly: true });
     expect(informationalPatch(false)).toEqual({ dataReadOnly: false });
-    expect(APP_INFORMATIONAL_LABEL).toBe('Informational: users outside Admin only read its data');
-    expect(APP_INFORMATIONAL_HINT).toMatch(/Write off/);
-    expect(APP_INFORMATIONAL_HINT).not.toMatch(/level/);
+    expect(APP_INFORMATIONAL_LABEL).toBe('Informational: only Admin can change its data');
+    // Contract 36: on, the grants' Write does not apply; off, it decides.
+    // The switch changes no grant, so neither line says it turns Write off.
+    expect(informationalHint(true)).toBe(APP_INFORMATIONAL_HINT_ON);
+    expect(informationalHint(false)).toBe(APP_INFORMATIONAL_HINT_OFF);
+    expect(APP_INFORMATIONAL_HINT_ON).toMatch(/^On: only Admin can change/);
+    expect(APP_INFORMATIONAL_HINT_ON).toMatch(/do not apply while this is on/);
+    expect(APP_INFORMATIONAL_HINT_OFF).toMatch(
+      /^Off: the Write switches in the Access panel decide/,
+    );
+    for (const s of [APP_INFORMATIONAL_HINT_ON, APP_INFORMATIONAL_HINT_OFF]) {
+      expect(s).not.toMatch(/level|Write off/);
+    }
   });
 
   it('writes no em or en dash in what a reader sees', () => {
-    for (const s of [APP_INFORMATIONAL_NOTE, APP_INFORMATIONAL_LABEL, APP_INFORMATIONAL_HINT]) {
+    for (const s of [
+      APP_INFORMATIONAL_NOTE,
+      APP_INFORMATIONAL_LABEL,
+      APP_INFORMATIONAL_HINT_ON,
+      APP_INFORMATIONAL_HINT_OFF,
+    ]) {
       expect(s).not.toMatch(DASHES);
     }
   });

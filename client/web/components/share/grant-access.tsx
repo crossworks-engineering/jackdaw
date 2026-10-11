@@ -45,8 +45,8 @@ import {
   type GrantRow,
   type GrantsView,
   linkCreateRequest,
-  linkServeRequest,
-  nextServed,
+  LINK_CHANGED_TEXT,
+  sendServeChange,
   serveRows,
   servedElsewhere,
 } from '@/lib/grants';
@@ -541,13 +541,23 @@ function OpenLinkPart({
     }
   };
 
-  /** Tick or clear items on the link's served list (PATCH, the whole list). */
+  /** Tick or clear items on the link's served list. The brain replaces the
+   *  whole list, so the link is read again first and only this change is
+   *  applied to what it serves now. */
   const serve = async (ids: string[], on: boolean) => {
     if (!link) return;
     setBusy(true);
     try {
-      const req = linkServeRequest(link.id, nextServed(view, ids, on));
-      await apiSend(req.url, req.method, req.body);
+      const done = await sendServeChange(
+        {
+          read: () => apiFetch<GrantsView>(grantsUrl(nodeId), { cache: 'no-store' }),
+          send: (req) => apiSend(req.url, req.method, req.body),
+        },
+        link.id,
+        ids,
+        on,
+      );
+      if (done === 'changed') toast.error(LINK_CHANGED_TEXT);
       invalidateLinkQueries(qc);
       onChanged();
     } catch (e) {

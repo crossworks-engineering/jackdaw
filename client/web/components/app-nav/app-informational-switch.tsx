@@ -7,8 +7,8 @@ import { Label } from '@mantle/web-ui/ui/label';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
-  APP_INFORMATIONAL_HINT,
   APP_INFORMATIONAL_LABEL,
+  informationalHint,
   informationalPatch,
   supportsInformational,
 } from '@/lib/app-informational';
@@ -16,13 +16,14 @@ import { grantsKey } from '@/lib/grants';
 import type { AppDetail } from '@mantle/client-types';
 
 /**
- * The admin's informational switch on an app (client logins C6; kept in
- * W5b2, contract 35): on, the brain turns Write off on every grant beyond
- * Admin in the same request, so members and clients only READ the app's
- * data. One PATCH of the owner app route; the cached app detail takes the
- * answer in place (never a refetch, which would re-sync the editor's source
- * tree), and the app's Access panel loads its rows again. Shown only by a
- * brain that knows the flag: a brain before C6 sends no `dataReadOnly`.
+ * The admin's informational switch on an app (client logins C6; W5b2,
+ * contract 36): on, nobody beyond Admin writes the app's data, whatever the
+ * grants say; off, the grants' Write switches decide. It changes no grant,
+ * so it asks no confirm. One PATCH of the owner app route; the cached app
+ * detail takes the answer in place (never a refetch, which would re-sync
+ * the editor's source tree), and the app's Access panel loads again. Shown
+ * only by a brain that knows the flag: a brain before C6 sends no
+ * `dataReadOnly`.
  */
 export function AppInformationalSwitch({ app }: { app: AppDetail }) {
   const qc = useQueryClient();
@@ -41,7 +42,8 @@ export function AppInformationalSwitch({ app }: { app: AppDetail }) {
         { predicate: (q) => q.queryKey[0] === 'apps' && typeof q.queryKey[1] === 'string' },
         (d) => (d?.app?.id === app.id ? { ...d, app: { ...d.app, dataReadOnly: next } } : d),
       );
-      // The grants' Write switches changed with it.
+      // The Access panel loads again: whether its Write switches apply
+      // changed with it.
       void qc.invalidateQueries({ queryKey: grantsKey(app.id) });
       // The /apps LIST pages only, as the look picker does.
       void qc.invalidateQueries({
@@ -67,7 +69,7 @@ export function AppInformationalSwitch({ app }: { app: AppDetail }) {
         {APP_INFORMATIONAL_LABEL}
       </Label>
       <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-        {APP_INFORMATIONAL_HINT}
+        {informationalHint(on)}
       </p>
     </div>
   );

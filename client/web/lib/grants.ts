@@ -8,7 +8,7 @@
  * child can change that row by hand. There is no level any more.
  *
  * The wire shapes are lib/contract/grants.ts: a verbatim copy of mantle
- * packages/client-types/src/dto/grants.ts (brain W5b2 part B, 69a2ccd15).
+ * packages/client-types/src/dto/grants.ts (brain W5b2 part B, 63b38c1f6).
  * Replace the copy by hand when the brain's file changes; switch to
  * @mantle/client-types once a release carries it, then delete the copy.
  */
@@ -18,6 +18,7 @@ import type {
   GrantMovePreviewResponse,
   GrantPreviewResponse,
   GrantRow,
+  GrantServedRef,
   GrantsResponse,
   ListWorkspace,
 } from './contract/grants';
@@ -34,20 +35,15 @@ export type {
 /** A workspace as a list row or a chip names it. */
 export type WorkspaceRef = ListWorkspace;
 
-/** One entry of an open link's served list. The 69a2ccd15 brain sends a
- *  bare id; contract change 35 sends `{ nodeId, title }` (title null when
- *  the caller cannot read the item). Both are read until the copy in
- *  lib/contract/grants.ts is replaced. */
-export type ServedEntry = string | { nodeId: string; title: string | null };
+/** One entry of an open link's served list (contract change 35): title null
+ *  when the caller cannot read the item. */
+export type ServedEntry = GrantServedRef;
 
-/** GET /api/grants/:nodeId, its served list in either shape. */
-export type GrantsView = Omit<GrantsResponse, 'link'> & {
-  link: { id: string; path: string; served: ServedEntry[] } | null;
-};
+/** GET /api/grants/:nodeId. */
+export type GrantsView = GrantsResponse;
 
 /** A served entry's id, lower-case. */
-export const servedId = (e: ServedEntry): string =>
-  (typeof e === 'string' ? e : e.nodeId).toLowerCase();
+export const servedId = (e: ServedEntry): string => e.nodeId.toLowerCase();
 
 export const lostSight = (r: unknown): r is { visible: false } =>
   !!r && typeof r === 'object' && (r as { visible?: unknown }).visible === false;
@@ -438,15 +434,15 @@ export function serveRows(
 }
 
 /** Served items this user cannot change here (not among the candidates):
- *  they stay on the list on every write. `title` null: not known (an old
- *  brain) or the user cannot read it. */
+ *  they stay on the list on every write. `title` null: the user cannot read
+ *  it (or it is gone). */
 export function servedElsewhere(
   view: Pick<GrantsView, 'link' | 'serveCandidates'> | null | undefined,
 ): { nodeId: string; title: string | null }[] {
   const offered = new Set((view?.serveCandidates ?? []).map((c) => c.nodeId.toLowerCase()));
   return (view?.link?.served ?? [])
     .filter((e) => !offered.has(servedId(e)))
-    .map((e) => ({ nodeId: servedId(e), title: typeof e === 'string' ? null : e.title }));
+    .map((e) => ({ nodeId: servedId(e), title: e.title }));
 }
 
 /** The served list after ticking (`on`) or clearing items. The list is sent
@@ -527,9 +523,39 @@ export function servedElsewhereText(items: readonly { title: string | null }[]):
     : `${lead} on the list. You cannot change ${it} here.`;
 }
 
-/** A folder offers its first FOLDER_SERVE_OFFER_MAX items only. */
+/** A folder offers only the first FOLDER_SERVE_OFFER_MAX items in it that
+ *  the user may edit. */
 export function serveCappedText(type: string | undefined, offered: number): string | null {
   return type === 'branch' && offered >= FOLDER_SERVE_OFFER_MAX
-    ? `This list shows the first ${FOLDER_SERVE_OFFER_MAX} items in the folder.`
+    ? `Only the first ${FOLDER_SERVE_OFFER_MAX} items in this folder that you can edit are listed here.`
     : null;
+}
+
+/** Said when the link changed under the panel (another user, another tab). */
+export const LINK_CHANGED_TEXT = 'This link changed. Check the list again.';
+
+/** A served-list write: the panel's view can be old, and the brain replaces
+ *  the whole list, so a write from it could put back an item another user
+ *  took off. Read the link again first and apply only this change to what
+ *  it serves now. 'changed' when the link is gone or is another link now,
+ *  or the brain refuses with 409; the caller then shows LINK_CHANGED_TEXT
+ *  and loads the panel again. Other refusals are thrown. */
+export async function sendServeChange(
+  deps: {
+    read: () => Promise<Pick<GrantsView, 'link' | 'serveCandidates'>>;
+    send: (req: GrantRequest) => Promise<unknown>;
+  },
+  linkId: string,
+  ids: readonly string[],
+  on: boolean,
+): Promise<'done' | 'changed'> {
+  const fresh = await deps.read();
+  if (!fresh.link || fresh.link.id !== linkId) return 'changed';
+  try {
+    await deps.send(linkServeRequest(linkId, nextServed(fresh, ids, on)));
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) return 'changed';
+    throw e;
+  }
+  return 'done';
 }

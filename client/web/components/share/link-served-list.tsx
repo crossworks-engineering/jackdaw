@@ -27,8 +27,8 @@ const KIND_WORD: Record<string, string> = {
 
 /**
  * What an open link shows besides its item (plan 8.1, contract 30 and 32):
- * the items the item names or embeds (a folder: the items in it) that the
- * user may edit, each with a tick. A ticked item opens for people with the
+ * the items the item names or embeds that the user may edit (a folder: the
+ * first 500 such items in it), each with a tick. A ticked item opens for people with the
  * link; the rest show as private. Pure: the panel loads and writes.
  */
 export function LinkServedList({
