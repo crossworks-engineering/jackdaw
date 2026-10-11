@@ -10,11 +10,11 @@ One spec set, two topologies:
 | `split`       | client (owner UI) on its own origin, server on the canonical origin                           | gate for Phase 4+; auto-skipped while `E2E_CLIENT_URL` is unset/equal |
 
 Specs: auth, pages CRUD, realtime SSE, `?at=` asset tokens, public share,
-the Team admin tabs, a member login end to end (`member-smoke.spec.ts`: invite,
-sign in, upload into Mine, the image by `?at=`), PDF export, the brain's
-`/app-runtime` CORS, the editor header, `/tasks` behaviour, the resizable shell,
-and the shared field primitives. The team-code portal's specs went with the
-portal (member logins Phase 6). Fixtures make
+PDF export, the brain's `/app-runtime` CORS, the editor header, `/tasks`
+behaviour, the resizable shell, and the shared field primitives. The team-code
+portal's specs went with the portal (member logins Phase 6); the Team admin and
+member login specs went with Team admin and the member shell (phase W5c).
+Fixtures make
 specs topology-blind — same-origin auth is the session cookie, split auth is the
 kind-`'m'` bearer (localStorage contract in `lib/contract.ts`).
 
@@ -25,33 +25,44 @@ passes whatever the app does. Read the authored rules out of `document
 .styleSheets` instead — `shell-layout.spec.ts` does, and the comment there
 explains why.
 
-## The member specs (`pnpm e2e:member`): no brain needed
+## The workspace specs (`pnpm e2e:workspace`): no brain needed
 
-`e2e/member/` holds specs for the member surface (member logins) that run
-against an in-memory member API the spec starts in its own process
-(`member/mock-member-api.ts`), not against a brain. Its own config,
-`playwright.member.config.ts`, starts `next dev` for this checkout on `:3911`
-with `MANTLE_SERVER_ORIGIN` pointed at the mock on `:3912`; nothing else is
-needed. Stop a `next dev` running in `client/web` first (Next allows one per
-directory). `E2E_BROWSER_CHANNEL=chrome` drives the installed Chrome when
-Playwright's bundled browser is not downloaded. `E2E_MEMBER_PORT` and
-`E2E_MEMBER_API_PORT` move the two ports when another run holds them.
+`e2e/workspace/` holds specs for the one shell every login uses (phase W5c)
+that run against an in-memory brain the spec starts in its own process
+(`workspace/mock-workspace-api.ts`), not against a real one. Its own config,
+`playwright.workspace.config.ts`, starts `next dev` for this checkout on
+`:3921` with `MANTLE_SERVER_ORIGIN` pointed at the mock on `:3922`; nothing
+else is needed. Stop a `next dev` running in `client/web` first (Next allows
+one per directory). `E2E_BROWSER_CHANNEL=chrome` drives the installed Chrome
+when Playwright's bundled browser is not downloaded. `E2E_WORKSPACE_PORT` and
+`E2E_WORKSPACE_API_PORT` move the two ports when another run holds them.
 
-CI runs them on every push and pull request (the `e2e-member` job in
+Every spec signs in through the real `/login` form: the password goes to the
+mock's `POST /api/auth/token`, which answers one bearer per login (an admin,
+a member and a client, one test password). The mock answers `GET /api/shell`
+for each the way a W5c brain does (`role`, `loginId`, `workspaces`, `areas`,
+`treeKinds`), the member routes a member's Pages screen reads, and the few
+owner routes the admin's Pages and Users screens read. It refuses each login
+the routes the brain refuses it, and records every request with the login
+that sent it, so a spec can assert what a login never asked for. Anything
+else is a plain 404.
+
+- `member-shell.spec.ts`: the rail with the work screens and Workspaces and no
+  Admin rows; a switcher with exactly the member's workspaces; Pages with only
+  the items of those workspaces, read from `/api/member/*` and never from an
+  owner route; a typed admin screen says "You cannot manage this part of the
+  brain."; `/review` and `/team-admin` land on the home.
+- `client-shell.spec.ts`: the plain home with the client's workspaces, the
+  empty state on Pages, and no `/api/client/*` or `/api/member/*` request.
+- `admin-shell.spec.ts`: the full nav with Settings > Users, the owner Pages
+  screen (every page of the brain) and the Users screen.
+- `retired-links.spec.ts`: old portal links (`/team`, `/hub`, `/client-signin`)
+  land on a bare `/login`; old review links land on the home.
+- `login-brains.spec.ts`: the sign-in screen against more than one brain (the
+  desktop shell's per-window brain header) and after every way a sign-in fails.
+
+CI runs them on every push and pull request (the `e2e-workspace` job in
 `.github/workflows/verify.yml`), with no brain and nothing configured.
-
-The mock is a real HTTP server, not `page.route()`, on purpose: a write the
-browser starts while a tab unloads (the leave flush on a reload, sent
-keepalive) outlives the page, and route interception never sees it.
-
-Started with `{ role: 'admin' }` (and `signInAsAdmin`), the same mock answers
-an ADMIN instead: the shell, the Team admin Review queue and the admin's
-private space, with Take over, Give back, Accept and Delete and the brain's
-refusals of each (`admin-takeover.spec.ts`, audit F07). It also answers
-Settings > Logins, where Invites, Clients, What clients see and each login's
-Chat moved from Team admin: the logins (`admin.logins`, then every client
-login), the invites, and a login's chat. Any other route an admin screen asks
-for is a plain 404.
 
 ## The route coverage gate (`pnpm e2e:routes`)
 

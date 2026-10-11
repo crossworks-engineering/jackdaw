@@ -3,14 +3,14 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import {
   MOCK_API_ORIGIN,
   MOCK_DESKTOP_BRAIN_KEY,
-  startMockMemberApi,
-  type MockMemberApi,
-} from './mock-member-api';
+  startMockWorkspaceApi,
+  type MockWorkspaceApi,
+} from './mock-workspace-api';
 
 /**
  * The sign-in screen against more than one brain, and against every way a
- * sign-in can fail. No brain: the default one is the in-memory member API,
- * the others are the small servers below.
+ * sign-in can fail. No brain: the default one is the in-memory brain
+ * (mock-workspace-api.ts), the others are the small servers below.
  *
  * The desktop shell runs ONE copy of the owner UI for every brain it knows,
  * started with the first brain's origin. A second brain's window came out
@@ -21,7 +21,7 @@ import {
  * UI process hold; these specs send that header the way the shell does.
  */
 
-let api: MockMemberApi;
+let api: MockWorkspaceApi;
 const brains: Server[] = [];
 test.afterEach(async () => {
   await api?.close();
@@ -79,7 +79,7 @@ async function submit(page: Page) {
 
 test.describe('a brain other than the one the UI was started with', () => {
   test.beforeEach(async ({ baseURL }) => {
-    api = await startMockMemberApi(new URL(baseURL!).origin);
+    api = await startMockWorkspaceApi(new URL(baseURL!).origin);
   });
 
   for (const count of [2, 3]) {
@@ -139,7 +139,7 @@ test.describe('a brain other than the one the UI was started with', () => {
 
 test.describe('Sign in comes back after every failure', () => {
   test.beforeEach(async ({ baseURL }) => {
-    api = await startMockMemberApi(new URL(baseURL!).origin);
+    api = await startMockWorkspaceApi(new URL(baseURL!).origin);
   });
 
   const cors = {
@@ -186,6 +186,6 @@ test.describe('Sign in comes back after every failure', () => {
     await submit(page);
     await expect(page.getByText('Invalid email or password.')).toBeVisible();
     await expect(signInButton(page)).toBeEnabled();
-    expect(api.tokenSignIns).toHaveLength(1);
+    expect(api.signIns).toEqual([{ email: 'probe@example.invalid', status: 401 }]);
   });
 });

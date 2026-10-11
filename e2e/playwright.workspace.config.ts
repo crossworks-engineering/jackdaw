@@ -1,30 +1,30 @@
 import { defineConfig } from '@playwright/test';
-import { MOCK_API_ORIGIN, MOCK_DESKTOP_BRAIN_KEY } from './member/mock-member-api';
+import { MOCK_API_ORIGIN, MOCK_DESKTOP_BRAIN_KEY } from './workspace/mock-workspace-api';
 
 /**
- * The member specs: NO brain. Every /api/* request goes to an in-memory
- * member API the spec starts in its own process (member/mock-member-api.ts),
- * so these run on any machine with this checkout and nothing else:
- * `pnpm e2e:member`.
+ * The workspace specs (phase W5c: one shell for every login): NO brain.
+ * Every /api/* request goes to an in-memory brain the spec starts in its own
+ * process (workspace/mock-workspace-api.ts), so these run on any machine with
+ * this checkout and nothing else: `pnpm e2e:workspace`.
  *
  * The owner UI runs from THIS checkout (next dev) with MANTLE_SERVER_ORIGIN
  * pointed at that mock. Kept apart from playwright.config.ts on purpose: that
- * one's global-setup signs in to a real brain, which is exactly what these
- * specs must not need.
+ * one's global-setup signs in to a real brain, which these specs must not
+ * need.
  *
  * Next allows one `next dev` per project directory, so stop a dev server
- * running in client/web first (or set E2E_MEMBER_URL to one already serving
- * this checkout with MANTLE_SERVER_ORIGIN set to MOCK_API_ORIGIN).
+ * running in client/web first (or set E2E_WORKSPACE_URL to one already
+ * serving this checkout with MANTLE_SERVER_ORIGIN set to MOCK_API_ORIGIN).
  */
-const PORT = Number(process.env.E2E_MEMBER_PORT || 3911);
-const external = process.env.E2E_MEMBER_URL?.replace(/\/+$/, '');
+const PORT = Number(process.env.E2E_WORKSPACE_PORT || 3921);
+const external = process.env.E2E_WORKSPACE_URL?.replace(/\/+$/, '');
 const baseURL = external || `http://localhost:${PORT}`;
 // E2E_BROWSER_CHANNEL=chrome drives the installed Chrome instead of
 // Playwright's bundled build (a machine whose browsers lag the package).
 const channel = process.env.E2E_BROWSER_CHANNEL || undefined;
 
 export default defineConfig({
-  testDir: './member',
+  testDir: './workspace',
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -45,8 +45,8 @@ export default defineConfig({
           url: `${baseURL}/env.js`,
           reuseExistingServer: false,
           timeout: 180_000,
-          // The brain is the spec's in-memory member API, never a real one.
-          // The desktop shell's per-launch key, so a spec can name a window's
+          // The brain is the spec's in-memory one, never a real one. The
+          // desktop shell's per-launch key, so a spec can name a window's
           // brain the way the shell does (login-brains.spec.ts).
           env: {
             MANTLE_SERVER_ORIGIN: MOCK_API_ORIGIN,

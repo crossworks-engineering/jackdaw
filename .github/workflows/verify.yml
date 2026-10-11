@@ -14,8 +14,8 @@
 # branch in this repo runs once, not twice, because feature-branch pushes are
 # not themselves a trigger.
 #
-# The member specs are a job of their own below (e2e-member): they bring their
-# own mock API, so they need nothing configured and always run.
+# The workspace specs are a job of their own below (e2e-workspace): they bring
+# their own mock API, so they need nothing configured and always run.
 #
 # Playwright is a SECOND job below, deliberately conditional. The suite needs a
 # live brain, and this repo cannot start one — the server workspace left in the
@@ -78,13 +78,13 @@ jobs:
       - name: Verify
         run: pnpm verify
 
-  # The member specs (e2e/member): the member screens against an in-memory
-  # member API the specs start themselves, so NO brain, no database and no
-  # secrets. Its own job, not a step of `e2e`: that job's owner UI already
-  # holds a `next dev` on client/web, and Next allows one per directory.
-  e2e-member:
+  # The workspace specs (e2e/workspace): the one shell for every login against
+  # an in-memory brain the specs start themselves, so NO brain, no database
+  # and no secrets. Its own job, not a step of `e2e`: that job's owner UI
+  # already holds a `next dev` on client/web, and Next allows one per directory.
+  e2e-workspace:
     runs-on: ubuntu-24.04
-    # ~40 s of specs locally, plus the first `next dev` compile of each route.
+    # ~15 s of specs locally, plus the first `next dev` compile of each route.
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -101,14 +101,14 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm -C e2e exec playwright install --with-deps chromium
 
-      - name: e2e (member, mock API)
-        run: pnpm e2e:member
+      - name: e2e (workspace, mock API)
+        run: pnpm e2e:workspace
 
       - name: Upload traces
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-member-traces
+          name: playwright-workspace-traces
           path: e2e/test-results/
           retention-days: 7
           if-no-files-found: ignore
@@ -285,8 +285,8 @@ jobs:
 
       # MANTLE_SPACES_ROOT: a production brain refuses personal-space file
       # writes without it (503, so the bytes never land in the container
-      # layer); member-smoke.spec.ts uploads into a member's Mine. The runner
-      # dies with the brain, so a path inside the container is durable enough.
+      # layer). The runner dies with the brain, so a path inside the container
+      # is durable enough.
       #
       # CORS is not optional: MANTLE_API_CORS_ORIGINS must name the client origin
       # or every browser spec fails on CORS while the API-only ones pass — a

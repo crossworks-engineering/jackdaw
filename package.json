@@ -25,7 +25,7 @@
     "e2e:test": "e2e/scripts/run-local.sh test",
     "e2e:down": "e2e/scripts/run-local.sh down",
     "e2e:routes": "node e2e/check-routes.mjs",
-    "e2e:member": "pnpm -C e2e e2e:member"
+    "e2e:workspace": "pnpm -C e2e e2e:workspace"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
