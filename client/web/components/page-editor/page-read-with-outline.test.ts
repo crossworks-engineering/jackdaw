@@ -170,17 +170,15 @@ describe('the outline in each reader', () => {
     expectNoOutline(render(libraryPage(FLAT)));
   });
 
-  it("a member's or client's own page and a teammate's shared page (SpaceItemView)", () => {
-    for (const source of ['mine', 'team'] as const) {
-      expectOutline(render(createElement(SpaceItemView, { source, item: spaceItem(LONG) })));
-      expectNoOutline(render(createElement(SpaceItemView, { source, item: spaceItem(FLAT) })));
-    }
+  it("a member's own page (SpaceItemView)", () => {
+    expectOutline(render(createElement(SpaceItemView, { item: spaceItem(LONG) })));
+    expectNoOutline(render(createElement(SpaceItemView, { item: spaceItem(FLAT) })));
   });
 
   it('SpaceItemView outlines the version it shows: the draft only when working', () => {
     const item = spaceItem(FLAT, LONG);
-    expectNoOutline(render(createElement(SpaceItemView, { source: 'mine', item })));
-    expectOutline(render(createElement(SpaceItemView, { source: 'mine', item, working: true })));
+    expectNoOutline(render(createElement(SpaceItemView, { item })));
+    expectOutline(render(createElement(SpaceItemView, { item, working: true })));
   });
 });
 

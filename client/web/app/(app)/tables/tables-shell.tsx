@@ -44,7 +44,7 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Badge } from '@mantle/web-ui/ui/badge';
-import type { AdminPrivateListRow } from '@mantle/client-types';
+import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { ItemCard, ItemCardAction, ItemIcon, UpdatedStamp } from '@/components/item-list/item-card';
 import {

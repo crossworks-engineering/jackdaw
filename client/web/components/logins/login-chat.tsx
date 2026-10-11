@@ -25,7 +25,7 @@ import type {
   MemberChatArchiveMessage,
   MemberChatPortalThread,
   MemberChatsResponse,
-} from '@mantle/client-types';
+} from '@/lib/contract/member-apps';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { NO_IMAGES } from '@mantle/web-ui/no-images';

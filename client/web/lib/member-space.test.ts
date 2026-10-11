@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   MEMBER_MAX_UPLOAD_BYTES,
-  bytesPath,
-  itemBase,
   ownItemPath,
+  spaceClient,
   isEditable,
   memberUploadRefusal,
   memberItemHref,
@@ -13,7 +12,6 @@ import {
   resolveMemberItem,
   resolveMemberSource,
   reviewListPath,
-  acceptedPlace,
   listPath,
   splitByReview,
   workspaceNavMode,
@@ -28,7 +26,9 @@ describe('workspaceQuery', () => {
   });
 
   it('switching the source closes the item whichever key opened it', () => {
-    expect(workspaceQuery('selected=n1&edit=1', { src: 'team', id: null })).toBe('src=team');
+    expect(workspaceQuery('selected=n1&edit=1', { src: 'accepted', id: null })).toBe(
+      'src=accepted',
+    );
     expect(workspaceQuery('id=n1', { src: 'library', id: null })).toBe('src=library');
   });
 
@@ -90,7 +90,7 @@ describe('refusalMessage', () => {
 describe('workspaceNavMode', () => {
   it('opening an item is a new history entry (Back returns to the list)', () => {
     expect(workspaceNavMode('', { id: 'n1' })).toBe('push');
-    expect(workspaceNavMode('src=team', { id: 'n1' })).toBe('push');
+    expect(workspaceNavMode('src=library', { id: 'n1' })).toBe('push');
     // Another item while one is open, and a new item after create.
     expect(workspaceNavMode('id=n1', { id: 'n2' })).toBe('push');
     expect(workspaceNavMode('id=n1', { src: 'mine', id: 'n2' })).toBe('push');
@@ -100,7 +100,7 @@ describe('workspaceNavMode', () => {
     expect(workspaceNavMode('id=n1', { id: null })).toBe('replace');
     expect(workspaceNavMode('id=n1', { src: 'library', id: null })).toBe('replace');
     expect(workspaceNavMode('selected=n1&edit=1', { id: 'n1' })).toBe('replace');
-    expect(workspaceNavMode('', { src: 'team' })).toBe('replace');
+    expect(workspaceNavMode('', { src: 'accepted' })).toBe('replace');
   });
 });
 
@@ -160,7 +160,7 @@ describe('resolveMemberSource', () => {
   });
 
   it('opens a Library item in the Library, and never asks Team drafts (W5c: 410)', async () => {
-    const lib = found(['library', 'team']);
+    const lib = found(['library']);
     await expect(resolveMemberSource(lib.probe)).resolves.toBe('library');
     expect(lib.asked).toEqual(['mine', 'library']);
   });
@@ -169,7 +169,7 @@ describe('resolveMemberSource', () => {
     const acc = found(['accepted']);
     await expect(resolveMemberSource(acc.probe)).resolves.toBe('accepted');
     expect(acc.asked).toEqual(['mine', 'library', 'accepted']);
-    // At team level it is in the Library too: the Library wins.
+    // The Library holds it too: the Library wins.
     const both = found(['library', 'accepted']);
     await expect(resolveMemberSource(both.probe)).resolves.toBe('library');
   });
@@ -189,11 +189,10 @@ describe('resolveMemberSource', () => {
 
 describe('resolveMemberItem (a link to an item: /n/<id>, /notes/<id>, ...)', () => {
   const nf = () => new ApiError('Not found.', 404, { error: 'Not found.' });
-  // What each source answers for one item: Mine and Team drafts a row and a
-  // body, the Library and Accepted the item itself.
+  // What each source answers for one item: Mine a row and a body, the
+  // Library and Accepted the item itself.
   const reads: Record<SpaceSource, (type: string) => unknown> = {
     mine: (type) => ({ row: { id: 'x', type }, body: { type } }),
-    team: (type) => ({ row: { id: 'x', type }, body: { type } }),
     library: (type) => ({ item: { id: 'x', type } }),
     accepted: (type) => ({ item: { id: 'x', type } }),
   };
@@ -244,9 +243,6 @@ describe('memberItemHref', () => {
       `/pages?src=library&id=${ID}`,
     );
     expect(memberItemHref({ source: 'mine', kind: 'note' }, ID)).toBe(`/notes?id=${ID}`);
-    expect(memberItemHref({ source: 'team', kind: 'table' }, ID, '/tables')).toBe(
-      `/tables?src=team&id=${ID}`,
-    );
     expect(memberItemHref({ source: 'accepted', kind: 'file' }, ID)).toBe(
       `/files?src=accepted&id=${ID}`,
     );
@@ -281,12 +277,6 @@ describe('accepted items (Phase 4)', () => {
       '/api/member/accepted?kind=page&page=2&q=plan',
     );
   });
-
-  it('says where an accepted item sits now', () => {
-    expect(acceptedPlace('admin')).toBe('Admins only');
-    expect(acceptedPlace('team')).toBe('In the Library');
-    expect(acceptedPlace('public')).toBe('In the Library');
-  });
 });
 
 /**
@@ -304,8 +294,7 @@ describe('ids in route paths', () => {
     expect(resolved(ownItemPath(crafted))).toBe('/api/member/space/..%2Fchat');
   });
 
-  it('encodes a teammate’s draft and its bytes', () => {
-    expect(itemBase('team', crafted)).toBe('/api/member/team-drafts/..%2Fchat');
-    expect(bytesPath('team', crafted)).toBe('/api/member/team-drafts/..%2Fchat/bytes');
+  it('encodes an own file’s bytes path', () => {
+    expect(spaceClient().bytesPath(crafted)).toBe('/api/member/space/..%2Fchat/bytes');
   });
 });

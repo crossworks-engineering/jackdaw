@@ -18,7 +18,7 @@ import {
   type SpaceSource,
 } from './member-space';
 import { canDeletePrivate, privateDeleteMessage, takenFromOf } from './admin-private';
-import type { AdminSpaceItemRow } from '@mantle/client-types';
+import type { AdminSpaceItemRow } from './contract/member';
 
 /**
  * Take over and the accepted snapshot (audit F07, brain migration 0183), the

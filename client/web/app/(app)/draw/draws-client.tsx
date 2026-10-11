@@ -44,7 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
-import type { AdminPrivateListRow } from '@mantle/client-types';
+import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { ItemCard, ItemIcon } from '@/components/item-list/item-card';
 import { ItemListHeader, ItemListScroll, NewButton } from '@/components/item-list/item-list-header';
 import { ClearFilter, SortMenu, StateFilter, TagFilter } from '@/components/item-list/item-filters';

@@ -1,17 +1,17 @@
 import type { HubData, HubNavTarget } from '@mantle/share-ui/app-bridge-protocol';
-import type { MemberHomeData as ContractHomeData } from '@mantle/client-types';
+import type { MemberHomeData as ContractHomeData } from './contract/member-apps';
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
-import type { MemberAppCard, MemberAppList } from '@mantle/client-types';
+import type { MemberAppCard, MemberAppList } from './contract/member-apps';
 import { launcherLevel, type AppLauncherFolder, type LauncherLevel } from './app-launcher';
 
 /**
- * Apps for members (member logins Phase 4b). A member RUNS team-level apps
- * over the brain's member routes (/api/member/apps/*): published build only,
+ * Apps for members (member logins Phase 4b). A member RUNS the apps its
+ * workspaces hold over the brain's member routes (/api/member/apps/*): published build only,
  * run-only tool and db brokers. Members never create, edit or share an app,
  * so nothing here reaches an owner /api/apps route.
  *
- * The wire types come from the contract (@mantle/client-types, brains from
- * 0.232.289; a card's `dataReadOnly` from the C6 contract);
+ * The wire types are lib/contract/member-apps.ts (a copy of the brain's
+ * W5c contract: a card carries no level);
  * the hub payload is share-ui's HubData. The launcher's folders (brains from
  * 0.232.368) are read as a local optional type (./app-launcher.ts).
  */

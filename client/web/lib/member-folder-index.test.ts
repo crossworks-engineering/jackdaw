@@ -53,49 +53,33 @@ describe("memberFolderIndex: a member's own draft and the Folder index", () => {
   });
 });
 
-describe('spaceViewHere: a personal page shown read-only', () => {
+describe('spaceViewHere: an own personal page shown read-only', () => {
   const member = { space: 'member' as const, treeServesPages: true as const };
 
-  it("the reader's own frozen draft lists its folder and keeps the plain 404 line", () => {
-    expect(spaceViewHere({ ...member, source: 'mine', folderId: 'f1' })).toEqual({
-      folderId: 'f1',
-      quietHere: false,
-    });
-    expect(spaceViewHere({ ...member, source: 'mine', folderId: null })).toEqual({
-      folderId: null,
-      quietHere: false,
-    });
-  });
-
-  it("a teammate's draft is quiet: its author's own folder is not one this reader holds", () => {
-    expect(spaceViewHere({ ...member, source: 'team', folderId: 'f1' })).toEqual({
-      folderId: 'f1',
-      quietHere: true,
-    });
+  it('lists its folder, or the top level', () => {
+    expect(spaceViewHere({ ...member, folderId: 'f1' })).toEqual({ folderId: 'f1' });
+    expect(spaceViewHere({ ...member, folderId: null })).toEqual({ folderId: null });
   });
 
   it('unknown stays unknown, never the root', () => {
-    const out = spaceViewHere({ ...member, source: 'mine', folderId: undefined });
+    const out = spaceViewHere({ ...member, folderId: undefined });
     expect(out.folderId).toBeUndefined();
     expect(out.folderId).not.toBeNull();
   });
 
   it("an admin's private item lists nothing", () => {
-    const none = { folderId: undefined, quietHere: false };
     for (const folderId of ['f1', null]) {
-      for (const source of ['mine', 'team'] as const) {
-        expect(spaceViewHere({ space: 'admin', source, treeServesPages: true, folderId })).toEqual(
-          none,
-        );
-      }
+      expect(spaceViewHere({ space: 'admin', treeServesPages: true, folderId })).toEqual({
+        folderId: undefined,
+      });
     }
   });
 
   it('nothing while the member tree does not serve pages, or is not known yet', () => {
     for (const treeServesPages of [false, undefined]) {
-      expect(
-        spaceViewHere({ space: 'member', source: 'mine', treeServesPages, folderId: 'f1' }),
-      ).toEqual({ folderId: undefined, quietHere: false });
+      expect(spaceViewHere({ space: 'member', treeServesPages, folderId: 'f1' })).toEqual({
+        folderId: undefined,
+      });
     }
   });
 });

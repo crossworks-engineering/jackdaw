@@ -3,15 +3,14 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import type { MemberAcceptedItem, MemberLibraryItem } from '@mantle/client-types';
+import type { MemberAcceptedItem, MemberLibraryItem } from '@/lib/contract/member';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import { AudienceBadge } from '@/components/share/audience-badge';
 import { memberAssetPath, memberDrawUrlPath, memberFileUrlPath } from '@/lib/member-assets';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { formatBytes } from '@/lib/upload-progress';
-import { acceptedBytesChanged, acceptedChangedText, acceptedPlace } from '@/lib/member-space';
+import { acceptedBytesChanged, acceptedChangedText } from '@/lib/member-space';
 import { ReadOnlyItemBody, type ReaderAssets } from './read-only-item';
 import { authorBadgeText, authorName } from '@/lib/item-author';
 
@@ -27,10 +26,9 @@ const MEMBER_ASSETS: ReaderAssets = {
 /**
  * One item, read-only, with the same presenters the share links use: a
  * Library item, or one the member wrote and an admin accepted (`accepted`,
- * the saved version at any level). Bytes (images, drawings, files) come from
- * the member routes, which serve the member's level and the author's own
- * accepted items. A Library item at CLIENT level carries the thread the
- * team, the admins and the clients share (client logins C5, decision 8).
+ * the saved version). Bytes (images, drawings, files) come from the member
+ * routes, which serve what the member's workspaces hold and the author's own
+ * accepted items. No level since W5c: a workspace holds an item or not.
  */
 export function MemberReader({
   id,
@@ -115,7 +113,6 @@ export function MemberReader({
           <h2 className="flex min-w-0 flex-1 items-center gap-2 text-xl font-semibold">
             <span aria-hidden>{item.icon ?? MEMBER_KIND[item.type].icon}</span>
             <span className="min-w-0 truncate">{item.title || 'Untitled'}</span>
-            <AudienceBadge level={item.audience === 'team' ? null : item.audience} />
           </h2>
           <div className="flex shrink-0 gap-2">
             <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
@@ -134,14 +131,14 @@ export function MemberReader({
 }
 
 /** Who wrote it: the member-authored badge on a Library item, or, on the
- *  author's own accepted item, when it was accepted and where it sits now. */
+ *  author's own accepted item, when it was accepted. */
 function Byline({ item }: { item: ReaderItem }) {
   if ('acceptedAt' in item) {
     const when = item.acceptedAt ? new Date(item.acceptedAt).toLocaleDateString() : null;
     return (
       <p className="text-xs text-muted-foreground">
-        You wrote this. An admin accepted it into the brain{when ? ` on ${when}` : ''} ·{' '}
-        {acceptedPlace(item.audience)}. You read the version that was accepted.
+        You wrote this. An admin accepted it into the brain{when ? ` on ${when}` : ''}. You read the
+        version that was accepted.
       </p>
     );
   }

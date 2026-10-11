@@ -19,8 +19,8 @@ import {
 export const MEMBER_APPS_EMPTY = 'No apps yet. An admin can make an app available to the team.';
 
 /**
- * The member app launcher (member logins Phase 4b): the apps an admin set to
- * team level and published, in the admin's Apps folders. A folder tile opens
+ * The member app launcher (member logins Phase 4b): the published apps the
+ * member's workspaces hold, in the admin's Apps folders. A folder tile opens
  * to its apps (`?folder=`, so Back goes up); the crumbs lead back. Read only:
  * there is nothing to create, rename, move or share here. A card opens the
  * run view. The pinned home app is left out: it lives on the home page,

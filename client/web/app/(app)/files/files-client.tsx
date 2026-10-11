@@ -78,7 +78,7 @@ import type {
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
 import { SetPageTitle } from '@/components/layout/page-title';
-import type { AdminPrivateListRow } from '@mantle/client-types';
+import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { StatePill } from '@/components/item-list/state-pill';
 import {
   PrivateItemDetail,

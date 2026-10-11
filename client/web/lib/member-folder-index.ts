@@ -33,24 +33,17 @@ export function memberFolderIndex(args: {
 }
 
 /**
- * The same for a personal page shown READ-ONLY (SpaceItemView): an own item
- * that is frozen, or a teammate's shared draft.
- *
- * Only a member's view has a tree to list. A teammate's draft may sit in its
- * author's own private folder, which this reader's tree does not hold: that
- * is `quietHere` (the block shows its label alone, not "not shared with
- * you"). The reader's own frozen draft keeps the plain 404 line: it should
- * hold its own folder, and if it does not (an admin unshared the brain
- * folder above it) the line is true.
+ * The same for an own personal page shown READ-ONLY (SpaceItemView). Only a
+ * member's view has a tree to list. The page should sit in a folder the
+ * member's tree holds; if it does not (an admin unshared the brain folder
+ * above it), the block's plain 404 line is true. (Teammates' drafts, whose
+ * folder a reader may not hold, went in W5c.)
  */
 export function spaceViewHere(args: {
   space: PersonalSpace;
-  source: 'mine' | 'team';
   treeServesPages: boolean | undefined;
   folderId: string | null | undefined;
-}): { folderId: string | null | undefined; quietHere: boolean } {
-  if (args.space !== 'member' || args.treeServesPages !== true) {
-    return { folderId: undefined, quietHere: false };
-  }
-  return { folderId: args.folderId, quietHere: args.source === 'team' };
+}): { folderId: string | null | undefined } {
+  if (args.space !== 'member' || args.treeServesPages !== true) return { folderId: undefined };
+  return { folderId: args.folderId };
 }

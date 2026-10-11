@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { MessageSquare } from 'lucide-react';
-import type { MemberLibraryPage } from '@mantle/client-types';
+import type { MemberLibraryPage } from '@/lib/contract/member';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SetPageTitle } from '@/components/layout/page-title';

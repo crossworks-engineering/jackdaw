@@ -69,7 +69,8 @@ describe('the admin private screens never reach a member-only route', () => {
     const text = src('../member/space-item-view.tsx');
     expect(text).toContain('mapAssetPath={admin ? undefined : memberAssetPath}');
     expect(text).toContain('admin ? `/api/draws/${row.id}/svg` : memberDrawUrlPath(row.id)');
-    expect(text).toContain('admin ? api.bytesPath(row.id) : bytesPath(source, row.id)');
+    // Bytes come from the provided client: the admin routes for a private item.
+    expect(text).toContain('asset(api.bytesPath(row.id))');
   });
 });
 

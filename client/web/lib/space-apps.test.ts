@@ -21,13 +21,11 @@ import {
   showsTrustSwitch,
   APP_TRUST_OFF_HINT,
   MY_APP_SHARE_HINT,
-  MY_APP_SUBMIT_HINT,
   MY_APPS_HOWTO,
   myAppActionPath,
   runnableSpaceApp,
   spaceAppActions,
   spaceAppStatus,
-  spaceAppSubmitHint,
   type SpaceAppCard,
 } from './space-apps';
 
@@ -49,9 +47,9 @@ const APP: SpaceAppCard = {
 };
 
 describe("a member's own app", () => {
-  it('a private draft may be shared and submitted', () => {
+  it('a private app may be shared (no submit and no review since W5c)', () => {
     expect(spaceAppStatus(APP)).toBe('Private.');
-    expect(spaceAppActions(APP)).toEqual({ run: true, share: 'team', submit: true, recall: false });
+    expect(spaceAppActions(APP)).toEqual({ run: true, share: 'team' });
   });
 
   it('a shared app may go private again', () => {
@@ -60,41 +58,15 @@ describe("a member's own app", () => {
     expect(spaceAppActions(shared).share).toBe('private');
   });
 
-  it('submit needs a published version and no pending changes', () => {
-    expect(spaceAppActions({ ...APP, runnable: false }).submit).toBe(false);
-    expect(spaceAppSubmitHint({ ...APP, runnable: false })).toMatch(/Publish it first/);
-    expect(spaceAppActions({ ...APP, hasDraft: true }).submit).toBe(false);
-    expect(spaceAppSubmitHint({ ...APP, hasDraft: true })).toMatch(/not published/);
-    expect(spaceAppSubmitHint(APP)).toBeNull();
-  });
-
-  it('a submitted app is frozen: recall only', () => {
-    const sub = { ...APP, reviewState: 'submitted' };
-    expect(spaceAppStatus(sub)).toMatch(/Frozen/);
-    // It says how it is shared and that the member may recall it.
-    expect(spaceAppStatus(sub)).toMatch(/Private\./);
-    expect(spaceAppStatus(sub)).toMatch(/recall/);
-    expect(spaceAppActions(sub)).toEqual({ run: true, share: null, submit: false, recall: true });
-    expect(spaceAppSubmitHint(sub)).toBeNull();
-  });
-
-  it('a rejected app says so, with no note, and may be submitted again', () => {
-    const back = { ...APP, reviewState: 'returned' };
-    expect(spaceAppStatus(back)).toBe(
-      'Rejected by an admin. Private. Change it and submit it again.',
-    );
-    expect(spaceAppActions(back).submit).toBe(true);
+  it('says when it is not published yet', () => {
+    expect(spaceAppStatus({ ...APP, runnable: false })).toBe('Private. Not published yet.');
+    expect(spaceAppActions({ ...APP, runnable: false })).toEqual({ run: false, share: 'team' });
   });
 
   it("a teammate's app only runs", () => {
     const theirs = { ...APP, mine: false, authorName: 'Sam', sharing: 'team' as const };
     expect(spaceAppStatus(theirs)).toBe('Shared by Sam');
-    expect(spaceAppActions(theirs)).toEqual({
-      run: true,
-      share: null,
-      submit: false,
-      recall: false,
-    });
+    expect(spaceAppActions(theirs)).toEqual({ run: true, share: null });
   });
 
   it('runs from the member list only with a published build', () => {
@@ -104,7 +76,7 @@ describe("a member's own app", () => {
   });
 
   it('builds its paths', () => {
-    expect(myAppActionPath(APP.id, 'submit')).toBe(`/api/member/my-apps/${APP.id}/submit`);
+    expect(myAppActionPath(APP.id, 'share')).toBe(`/api/member/my-apps/${APP.id}/share`);
   });
 });
 
@@ -114,12 +86,12 @@ describe('the words around a member app', () => {
       MY_APPS_HOWTO,
       APP_TRUST_OFF_HINT,
       MY_APP_SHARE_HINT,
-      MY_APP_SUBMIT_HINT,
-      spaceAppStatus({ ...APP, reviewState: 'submitted' }),
+      spaceAppStatus({ ...APP, runnable: false }),
     ]) {
       expect(t, t).not.toMatch(DASHES);
     }
     expect(MY_APPS_HOWTO).toMatch(/Write switch/);
+    expect(MY_APPS_HOWTO).not.toMatch(/submit/i);
   });
 
   it('reads the ceiling only as the brain sent it', () => {

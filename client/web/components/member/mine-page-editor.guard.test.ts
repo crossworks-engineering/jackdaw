@@ -63,7 +63,8 @@ describe('read-only views pass the folder only where the reader can list it', ()
     const view = src('./space-item-view.tsx');
     expect(view).toContain('const here = spaceViewHere({');
     expect(view).toContain('folderId={here.folderId}');
-    expect(view).toContain('quietHere={here.quietHere}');
+    // Own items only since W5c (no teammate drafts): never quiet.
+    expect(view).not.toContain('quietHere');
     expect(view).not.toContain('folderId={(body.page as');
   });
 });

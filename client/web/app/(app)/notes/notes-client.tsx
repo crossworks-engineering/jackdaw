@@ -30,7 +30,7 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
-import type { AdminPrivateListRow } from '@mantle/client-types';
+import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { ItemCard, ItemIcon } from '@/components/item-list/item-card';
 import {

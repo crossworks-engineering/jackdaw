@@ -130,11 +130,8 @@ import {
   subtreeEditedAt,
 } from '@mantle/web-ui/page-tree';
 import { scrollBehavior } from '@mantle/web-ui/lib/motion';
-import type {
-  AdminPrivateListRow,
-  PageListRow as ContractPageListRow,
-  PageRow,
-} from '@mantle/client-types';
+import type { PageListRow as ContractPageListRow, PageRow } from '@mantle/client-types';
+import type { AdminPrivateListRow } from '@/lib/contract/member';
 
 // Wire shape is the GET /api/pages mapper's output — single source of truth
 // (the canonical row also carries `width`, unused by this list view). Drift

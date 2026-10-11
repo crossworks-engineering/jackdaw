@@ -327,7 +327,7 @@ function MineItemLoaded({
   };
   let editor: React.ReactNode;
   if (!editable && !held) {
-    editor = <SpaceItemView source="mine" item={item} />;
+    editor = <SpaceItemView item={item} />;
   } else if (body.type === 'page') {
     editor = <MinePageEditor {...editorProps} page={body.page} />;
   } else if (body.type === 'note') {
@@ -337,7 +337,7 @@ function MineItemLoaded({
   } else if (body.type === 'table') {
     editor = <MemberTableEditor {...editorProps} table={body.table} />;
   } else {
-    editor = <SpaceItemView source="mine" item={item} />;
+    editor = <SpaceItemView item={item} />;
   }
 
   return (
@@ -376,11 +376,7 @@ function MineItemLoaded({
               variant="outline"
               disabled={editorSaving || !editorUnsaved}
               onClick={() => void saveEditorVersion()}
-              title={
-                admin
-                  ? 'Save a version: what goes into the brain when you accept it'
-                  : 'Save a version: what teammates and a reviewer see'
-              }
+              title={admin ? 'Save a version' : 'Save a version: what others who can open it see'}
             >
               <Save /> {editorSaving ? 'Saving…' : 'Save version'}
             </Button>

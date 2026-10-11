@@ -11,9 +11,8 @@
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import type { TableDetail } from '@mantle/content-core/table-model';
+import type { MemberItemKind } from '@mantle/client-types';
 import type {
-  AccessLevel,
-  MemberItemKind,
   MemberAcceptedItem,
   MemberReviewState,
   MemberSpaceFile,
@@ -23,7 +22,7 @@ import type {
   MemberSpaceItemState,
   MemberSpaceList,
   MemberSpaceSharing,
-} from '@mantle/client-types';
+} from './contract/member';
 import { MEMBER_ITEM_KINDS, MEMBER_KIND } from './member-kinds';
 import { formatBytes } from './upload-progress';
 import { dropRescue, keepRescue } from './member-rescue';
@@ -41,15 +40,14 @@ export type ReviewState = MemberReviewState;
  *  every route of it answers 409 `with-admin`). */
 export type SpaceItemState = MemberSpaceItemState;
 
-/** Where a member's list reads from: their own items, teammates' shared
- *  items, the Library (brain items at the team level), or what they wrote
- *  and an admin accepted into the brain (any level; brains from 0.232.285). */
-export type SpaceSource = 'mine' | 'team' | 'library' | 'accepted';
+/** Where a member's list reads from: their own items, the Library (what
+ *  their workspaces hold), or what they wrote and an admin accepted into the
+ *  brain (brains from 0.232.285). Teammates' drafts went in W5c (the brain
+ *  answers 410). */
+export type SpaceSource = 'mine' | 'library' | 'accepted';
 
-/** What the member workspace's `?src=` may name: a source above, or
- *  `client-request`, which the item contract still names (a client's
- *  submitted item; none is listed since W5c). */
-export type WorkspaceSource = SpaceSource | 'client-request';
+/** What the member workspace's `?src=` may name: a source above. */
+export type WorkspaceSource = SpaceSource;
 
 export type SpaceItemRow = MemberSpaceItemRow;
 export type SpaceFile = MemberSpaceFile;
@@ -195,11 +193,6 @@ export function ownListPath(
   return `${base}/space?${sp.toString()}`;
 }
 
-/** The routes one item answers on: own items vs a teammate's shared one. */
-export function itemBase(source: 'mine' | 'team', id: string): string {
-  return source === 'mine' ? ownItemPath(id) : `/api/member/team-drafts/${encodeURIComponent(id)}`;
-}
-
 export function listPath(
   source: SpaceSource,
   opts: { kind: SpaceKind; q?: string; page?: number },
@@ -207,12 +200,7 @@ export function listPath(
   if (source === 'mine') return ownListPath(opts);
   const sp = new URLSearchParams({ kind: opts.kind, page: String(opts.page ?? 1) });
   if (opts.q?.trim()) sp.set('q', opts.q.trim());
-  const base =
-    source === 'team'
-      ? '/api/member/team-drafts'
-      : source === 'accepted'
-        ? '/api/member/accepted'
-        : '/api/member/library';
+  const base = source === 'accepted' ? '/api/member/accepted' : '/api/member/library';
   return `${base}?${sp.toString()}`;
 }
 
@@ -372,17 +360,9 @@ export function spaceClient(base: SpaceApiBase = MEMBER_API_BASE) {
 
 export type SpaceClient = ReturnType<typeof spaceClient>;
 
-export const memberSpace = {
-  ...spaceClient(MEMBER_API_BASE),
-  get: (source: 'mine' | 'team', id: string, tabId?: string | null) =>
-    apiFetch<SpaceItem>(
-      `${itemBase(source, id)}${tabId ? `?tab=${encodeURIComponent(tabId)}` : ''}`,
-    ),
-  share: (id: string, sharing: SpaceSharing) =>
-    apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/share`, 'POST', { sharing }),
-  submit: (id: string) => apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/submit`, 'POST'),
-  recall: (id: string) => apiSend<{ item: SpaceItemRow }>(`${ownItemPath(id)}/recall`, 'POST'),
-};
+/** A member's own space. Share, Submit and Recall went in W5c (the brain
+ *  answers 410): a member's item is shared with Grant Access. */
+export const memberSpace = spaceClient(MEMBER_API_BASE);
 
 /**
  * An admin's own private space (member logins Phase 7): seen by that admin
@@ -476,7 +456,7 @@ export async function resolveMemberSource(
   return (await resolveMemberItem(probe))?.source ?? null;
 }
 
-/** The kind of one item read: Mine and Team drafts answer `{ row, body }`,
+/** The kind of one item read: Mine answers `{ row, body }`,
  *  the Library and Accepted `{ item }`. Null for anything else. */
 export function memberItemKind(read: unknown): SpaceKind | null {
   const r = (read ?? {}) as { row?: { type?: unknown }; item?: { type?: unknown } };
@@ -504,21 +484,7 @@ export function probeMemberItem(id: string): (source: SpaceSource) => Promise<un
   return (source) =>
     source === 'library' || source === 'accepted'
       ? apiFetch(`/api/member/${source}/${encodeURIComponent(id)}`)
-      : apiFetch(itemBase(source, id));
-}
-
-/**
- * Where an accepted item now sits, in the author's words: at admin only
- * admins see it in the brain (the author still reads it here), at team or
- * lower it is in the Library for the whole team.
- */
-export function acceptedPlace(level: AccessLevel): string {
-  return level === 'admin' ? 'Admins only' : 'In the Library';
-}
-
-/** Where an item's bytes stream from (files) for this source. */
-export function bytesPath(source: 'mine' | 'team', id: string): string {
-  return `${itemBase(source, id)}/bytes`;
+      : apiFetch(ownItemPath(id));
 }
 
 /** Is the member allowed to edit this own item right now? Submitted (frozen)

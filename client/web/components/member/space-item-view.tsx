@@ -9,7 +9,7 @@ import { PageReadWithOutline } from '@/components/page-editor/page-read-with-out
 import { memberAssetPath, memberDrawUrlPath } from '@/lib/member-assets';
 import { noteAssetPath, ownerNoteAssetPath } from '@/lib/note-media';
 import { ReaderNote } from './reader-note';
-import { bytesPath, isAdminSpace, type SpaceItem } from '@/lib/member-space';
+import { isAdminSpace, type SpaceItem } from '@/lib/member-space';
 import { spaceViewHere } from '@/lib/member-folder-index';
 import { useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { useSpaceApi } from './space-api';
@@ -17,16 +17,13 @@ import { useSpaceApi } from './space-api';
 const MEMBER_NOTE_ASSET_PATH = noteAssetPath(memberAssetPath);
 
 /**
- * A personal item, read-only: a teammate's shared item (its SAVED version,
- * the brain never sends a teammate the draft), or an own item that is frozen
- * for review. The same presenters the Library reader and share links use.
+ * An own personal item, read-only. The same presenters the Library reader
+ * and share links use.
  */
 export function SpaceItemView({
-  source,
   item,
   working = false,
 }: {
-  source: 'mine' | 'team';
   item: SpaceItem;
   /** Own items: a page or a table shows its working copy (the draft, when
    *  there is one). A drawing always shows its saved SVG and a note has no
@@ -48,7 +45,6 @@ export function SpaceItemView({
       // (lib/member-folder-index.ts). Absent from a brain before the pages tree.
       const here = spaceViewHere({
         space: admin ? 'admin' : 'member',
-        source,
         treeServesPages,
         folderId: (body.page as { folderId?: string | null }).folderId,
       });
@@ -59,7 +55,6 @@ export function SpaceItemView({
           content={doc}
           mapAssetPath={admin ? undefined : memberAssetPath}
           folderId={here.folderId}
-          quietHere={here.quietHere}
         />
       );
     }
@@ -98,7 +93,7 @@ export function SpaceItemView({
             mimeType: body.file.mimeType,
             size: body.file.sizeBytes,
           }}
-          assetUrl={() => asset(admin ? api.bytesPath(row.id) : bytesPath(source, row.id))}
+          assetUrl={() => asset(api.bytesPath(row.id))}
           chrome="embedded"
         />
       );

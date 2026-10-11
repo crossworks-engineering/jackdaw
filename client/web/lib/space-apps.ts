@@ -36,10 +36,7 @@ export type SpaceAppCard = {
 export const MY_APPS_PATH = '/api/member/my-apps';
 export const MY_APPS_KEY = ['member-my-apps'] as const;
 
-export function myAppActionPath(
-  id: string,
-  action: 'share' | 'submit' | 'recall' | 'delete' | 'undelete',
-): string {
+export function myAppActionPath(id: string, action: 'share' | 'delete' | 'undelete'): string {
   return `${MY_APPS_PATH}/${encodeURIComponent(id)}/${action}`;
 }
 
@@ -147,29 +144,16 @@ export function myAppRefusal(err: unknown): string | null {
 
 /** How a member builds one: no button here builds, their MCP client does. */
 export const MY_APPS_HOWTO =
-  'To build an app, connect your own MCP client (Settings > MCP; it needs the Write switch on your MCP) and ask it to use the my_app tools. Your apps are private until you share them with the team or submit them to an admin.';
+  'To build an app, connect your own MCP client (Settings > MCP; it needs the Write switch on your MCP) and ask it to use the my_app tools. Your apps are private until you share them with the team.';
 
 /** Under Share with team: what sharing gives every member. */
 export const MY_APP_SHARE_HINT = 'Every member can run it and change its data.';
-
-/** Under Submit: what a submit freezes. */
-export const MY_APP_SUBMIT_HINT =
-  'It freezes until an admin answers, and its data turns read only, also for teammates.';
-
-/** The run view's note on an app under review. */
-export const MY_APP_UNDER_REVIEW = 'Under review: read only';
 
 /** The one line under an app: where it stands. */
 export function spaceAppStatus(app: SpaceAppCard): string {
   if (!app.mine) return app.authorName ? `Shared by ${app.authorName}` : 'Shared with the team';
   const base = app.sharing === 'team' ? 'Shared with the team' : 'Private';
-  if (app.reviewState === 'submitted') {
-    return `Submitted for review. ${base}. Frozen until an admin answers; you can recall it.`;
-  }
   const runs = app.runnable ? '' : '. Not published yet';
-  if (app.reviewState === 'returned') {
-    return `Rejected by an admin. ${base}${runs}. Change it and submit it again.`;
-  }
   return `${base}${runs}.`;
 }
 
@@ -178,27 +162,10 @@ export function spaceAppStatus(app: SpaceAppCard): string {
 export function spaceAppActions(app: SpaceAppCard): {
   run: boolean;
   share: 'private' | 'team' | null;
-  submit: boolean;
-  recall: boolean;
 } {
   const run = app.runnable;
-  if (!app.mine) return { run, share: null, submit: false, recall: false };
-  if (app.reviewState === 'submitted') return { run, share: null, submit: false, recall: true };
-  return {
-    run,
-    share: app.sharing === 'team' ? 'private' : 'team',
-    // The admin reviews what runs: a published build, no pending changes.
-    submit: app.runnable && !app.hasDraft,
-    recall: false,
-  };
-}
-
-/** Why Submit is not offered on a draft or returned app, or null. */
-export function spaceAppSubmitHint(app: SpaceAppCard): string | null {
-  if (!app.mine || app.reviewState === 'submitted') return null;
-  if (!app.runnable) return 'Publish it first (my_app_publish), then submit.';
-  if (app.hasDraft) return 'It has changes that are not published. Publish them first.';
-  return null;
+  if (!app.mine) return { run, share: null };
+  return { run, share: app.sharing === 'team' ? 'private' : 'team' };
 }
 
 /** An app a member runs from their own list, when the launcher list does

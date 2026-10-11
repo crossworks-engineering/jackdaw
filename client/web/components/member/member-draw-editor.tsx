@@ -50,8 +50,8 @@ function withoutImages(elements: readonly OrderedExcalidrawElement[]) {
 /**
  * A member's own drawing (member logins, Phase 2): the owner's Excalidraw
  * canvas on the member routes. The canvas autosaves into the item's draft;
- * Save version publishes the scene with its SVG snapshot (what teammates, the
- * Library views and a reviewer see). No image tool: personal drawings store
+ * Save version publishes the scene with its SVG snapshot (what others who
+ * can open it see). No image tool: personal drawings store
  * no scene images yet, and a pasted one is dropped on save with a notice.
  */
 export function MemberDrawEditor({

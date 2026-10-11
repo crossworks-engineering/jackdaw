@@ -12,7 +12,7 @@
  * the workspace's own detail pane.
  */
 import { useQueries } from '@tanstack/react-query';
-import type { MemberItemRow } from '@mantle/client-types';
+import type { MemberItemRow } from '@/lib/contract/member';
 import { updatedAgo } from '@mantle/web-ui/lib/format-datetime';
 import { ItemIcon } from '@/components/item-list/item-card';
 import { ListSections, type ListSection } from '@/components/item-list/list-sections';

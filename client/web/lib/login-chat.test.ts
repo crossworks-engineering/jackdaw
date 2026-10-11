@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MemberChatsResponse } from '@mantle/client-types';
+import type { MemberChatsResponse } from './contract/member-apps';
 import { loginChatOf, loginHasChat, rosterIds } from './login-chat';
 
 const A = '0b8f3c2e-1111-4111-8111-111111111111';

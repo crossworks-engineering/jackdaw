@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { AdminPrivateListRow } from '@mantle/client-types';
+import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { adminSpace, type SpaceKind } from '@/lib/member-space';
 import { PRIVATE_ID_PARAM } from '@/lib/admin-private';

@@ -47,7 +47,6 @@ describe('the member Apps launcher', () => {
     icon: null,
     color: null,
     description: null,
-    audience: 'team' as const,
     updatedAt: '2026-10-01T00:00:00Z',
     ...extra,
   });

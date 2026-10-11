@@ -13,13 +13,13 @@ import type {
   MemberLibraryPage,
   MemberSpaceItemRow,
   MemberSpaceList,
-} from '@mantle/client-types';
+} from './contract/member';
 import type {
   MemberItemFilter,
   MemberItemRow,
   MemberItemSource,
   MemberItemsPage,
-} from '@mantle/client-types';
+} from './contract/member';
 import { listPath, type SpaceKind, type WorkspaceSource } from './member-space';
 
 /** The sections a member's workspace shows above its folder tree, in their
@@ -46,8 +46,7 @@ export function memberItemsPath(opts: {
   return `/api/member/items?${sp.toString()}`;
 }
 
-/** The URL's `src` for a row (the old source names, which links still use;
- *  `client-request` for a client's submitted item, client logins C5). */
+/** The URL's `src` for a row (the old source names, which links still use). */
 export function srcOf(source: MemberItemSource): WorkspaceSource {
   return source === 'own' ? 'mine' : source;
 }
@@ -71,16 +70,15 @@ export function pillOfSpaceRow(
   }
 }
 
-const spaceRow = (r: MemberSpaceItemRow, source: 'own' | 'team'): MemberItemRow => ({
+const ownRow = (r: MemberSpaceItemRow): MemberItemRow => ({
   id: r.id,
   type: r.type,
   title: r.title,
   icon: r.icon,
   summary: null,
   updatedAt: r.updatedAt,
-  source,
+  source: 'own',
   pill: pillOfSpaceRow(r),
-  audience: null,
   author: null,
   byMe: false,
   space: r,
@@ -96,8 +94,6 @@ export function passesState(row: MemberItemRow, state: MemberItemFilter): boolea
       return row.pill === null;
     case 'by-me':
       return row.byMe;
-    case 'client-requests':
-      return row.source === 'client-request';
     default:
       return row.pill === state;
   }
@@ -122,7 +118,7 @@ export async function legacyMemberItems(opts: {
   ]);
   const inLibrary = new Set(library?.items.map((r) => r.id) ?? []);
   const rows: MemberItemRow[] = [
-    ...mine.items.map((r) => spaceRow(r, 'own')),
+    ...mine.items.map(ownRow),
     ...(library?.items ?? []).map((r): MemberItemRow => ({
       id: r.id,
       type: r.type,
@@ -132,7 +128,6 @@ export async function legacyMemberItems(opts: {
       updatedAt: r.updatedAt,
       source: 'library',
       pill: null,
-      audience: r.audience,
       author: r.author ?? null,
       byMe: false,
       space: null,
@@ -148,7 +143,6 @@ export async function legacyMemberItems(opts: {
         updatedAt: r.updatedAt,
         source: 'accepted',
         pill: null,
-        audience: r.audience,
         author: null,
         byMe: true,
         space: null,

@@ -4,7 +4,7 @@
  * login when the asked one has no row, so its answer counts only when it is
  * about THIS login.
  */
-import type { MemberChatsResponse } from '@mantle/client-types';
+import type { MemberChatsResponse } from './contract/member-apps';
 
 type Selected = NonNullable<MemberChatsResponse['selected']>;
 

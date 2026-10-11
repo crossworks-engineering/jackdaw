@@ -82,7 +82,6 @@ describe('launcherApps', () => {
       icon: null,
       color: null,
       description: null,
-      audience: 'team' as const,
       updatedAt: 'u',
     });
     expect(launcherApps({ apps: [card('a'), card('b')], homeAppId: 'a' }).map((a) => a.id)).toEqual(

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
-import type { MemberItemRow } from '@mantle/client-types';
+import type { MemberItemRow } from '@/lib/contract/member';
 import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';

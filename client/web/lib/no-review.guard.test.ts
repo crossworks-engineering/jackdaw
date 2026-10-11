@@ -52,7 +52,14 @@ function sources(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const scanned = sources(ROOT).filter((f) => f !== SELF && !NAMES_ON_PURPOSE.includes(f));
+/** lib/contract/ holds verbatim copies of the brain's contract files, whose
+ *  comments name what W5c removed (Take over, the review filter). They are
+ *  types, not callers. */
+const CONTRACT_COPIES = 'lib/contract/';
+
+const scanned = sources(ROOT).filter(
+  (f) => f !== SELF && !NAMES_ON_PURPOSE.includes(f) && !f.startsWith(CONTRACT_COPIES),
+);
 
 describe('no review UI in the owner screens (W5c)', () => {
   it('scans the owner screens', () => {

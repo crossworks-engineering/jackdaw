@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MemberSpaceItemRow } from '@mantle/client-types';
-import type { MemberItemRow } from '@mantle/client-types';
+import type { MemberSpaceItemRow } from './contract/member';
+import type { MemberItemRow } from './contract/member';
 
 /**
  * A member's one list (item-list alignment, P4): the request, the pill and
@@ -77,11 +77,8 @@ describe('the request and the URL', () => {
 
   it('names the item view the old way in the URL (links still use it)', () => {
     expect(srcOf('own')).toBe('mine');
-    expect(srcOf('team')).toBe('team');
     expect(srcOf('library')).toBe('library');
     expect(srcOf('accepted')).toBe('accepted');
-    // A client's submitted item opens its own read-only view (C5).
-    expect(srcOf('client-request')).toBe('client-request');
   });
 });
 
@@ -103,13 +100,6 @@ describe('pills and the State filter', () => {
     expect(passesState(row(null, true), 'by-me')).toBe(true);
     expect(passesState(row('submitted'), 'all')).toBe(true);
   });
-
-  it('finds client requests under Client requests only (C5)', () => {
-    const req = { pill: 'submitted', byMe: false, source: 'client-request' } as MemberItemRow;
-    const own = { pill: 'submitted', byMe: false, source: 'own' } as MemberItemRow;
-    expect(passesState(req, 'client-requests')).toBe(true);
-    expect(passesState(own, 'client-requests')).toBe(false);
-  });
 });
 
 describe('fetchMemberItems', () => {
@@ -129,7 +119,6 @@ describe('fetchMemberItems', () => {
           title: 'lib',
           icon: null,
           summary: 's',
-          audience: 'client',
           updatedAt: at(9),
           author: null,
         },
@@ -138,13 +127,12 @@ describe('fetchMemberItems', () => {
     });
     h.answers.set('/api/member/accepted', {
       items: [
-        // At team level it is a Library row already: listed once.
+        // The Library holds it already: listed once.
         {
           id: 'lib',
           type: 'page',
           title: 'lib',
           icon: null,
-          audience: 'team',
           acceptedAt: null,
           updatedAt: at(9),
         },
@@ -153,7 +141,6 @@ describe('fetchMemberItems', () => {
           type: 'page',
           title: 'acc',
           icon: null,
-          audience: 'admin',
           acceptedAt: null,
           updatedAt: at(3),
         },
@@ -166,6 +153,8 @@ describe('fetchMemberItems', () => {
       ['own', 'own', 'private'],
       ['acc', 'accepted', null],
     ]);
+    // No level on a row since W5c: the merge reads and writes none.
+    for (const r of res.items) expect(r).not.toHaveProperty('audience');
     const priv = await fetchMemberItems({ kind: 'page', state: 'private', page: 1 });
     expect(priv.items.map((r) => r.id)).toEqual(['own']);
     // Team drafts went in W5c (the brain answers 410): never asked.
