@@ -1,25 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { childPageHref, childPageLivePath } from './child-page-card';
 
-/** Client tier audit U3: a sub-page card asks the admin route for an admin
- *  only, and a client's card links nowhere. */
-describe('child page card', () => {
-  it('reads the live title for a confirmed admin, id encoded', () => {
-    expect(childPageLivePath('admin', 'p-1')).toBe('/api/pages/p-1');
-    expect(childPageLivePath('admin', '../chat')).toBe('/api/pages/..%2Fchat');
+/** W6b: every login reads the page route in its own scope and opens /pages;
+ *  a role not known yet keeps the snapshot and links nowhere. */
+describe('a sub-page card', () => {
+  it('reads the live title for every known role, id encoded', () => {
+    for (const role of ['admin', 'member', 'client'] as const) {
+      expect(childPageLivePath(role, 'p-1')).toBe('/api/pages/p-1');
+    }
+    expect(childPageLivePath('member', '../chat')).toBe('/api/pages/..%2Fchat');
   });
 
-  it('keeps the snapshot for a member, a client and an unknown role', () => {
-    for (const role of ['member', 'client', null] as const) {
-      expect(childPageLivePath(role, 'p-1')).toBeNull();
-    }
+  it('keeps the snapshot for an unknown role or no page', () => {
+    expect(childPageLivePath(null, 'p-1')).toBeNull();
     expect(childPageLivePath('admin', null)).toBeNull();
   });
 
-  it('links for an admin and a member, never for a client or an unknown role', () => {
-    expect(childPageHref('admin', 'p-1')).toBe('/pages/p-1');
-    expect(childPageHref('member', 'a/b')).toBe('/pages/a%2Fb');
-    expect(childPageHref('client', 'p-1')).toBeNull();
+  it('links for every known role, never for an unknown one', () => {
+    for (const role of ['admin', 'member', 'client'] as const) {
+      expect(childPageHref(role, 'p-1')).toBe('/pages/p-1');
+    }
     expect(childPageHref(null, 'p-1')).toBeNull();
+    expect(childPageHref('admin', null)).toBeNull();
   });
 });

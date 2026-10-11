@@ -76,7 +76,6 @@ const SELF = `${WEB}lib/no-review.guard.test.ts`;
 const NAMES_ON_PURPOSE = [
   'middleware.ts',
   'middleware.test.ts',
-  'lib/member-takeover.test.ts',
   // Lists the client report route as one the Users screen must not name.
   'app/(app)/settings/users/users-flat.test.ts',
 ].map((f) => WEB + f);
@@ -109,23 +108,17 @@ describe('no review UI in the owner screens (W5c)', () => {
       'app/(app)/draw/draws-client.tsx',
       'app/(app)/tables/tables-shell.tsx',
       'app/(app)/apps/apps-client.tsx',
-      'components/item-list/admin-private-rows.tsx',
       // Users and the sign-in pages (W5c, once the other parts landed).
       'app/(app)/settings/users/users-client.tsx',
       'app/(app)/settings/users/invites.tsx',
       'app/login/login-client.tsx',
       'app/login/email-code-form.tsx',
       'app/invite/invite-client.tsx',
-      // The shell's (W5c): the member views, the rail and the member libs.
-      'components/member/mine-item.tsx',
-      'components/member/member-workspace.tsx',
-      'components/member/member-my-apps.tsx',
+      // The shell's (W5c): the member views left after W6b, the rail and
+      // the member libs.
       'components/member/member-home.tsx',
       'components/member/member-home-app.tsx',
-      'components/member/member-go-to-list.tsx',
       'components/layout/rail/profile-menu.tsx',
-      'lib/member-space.ts',
-      'lib/member-items.ts',
     ].map((f) => WEB + f)) {
       expect(scanned).toContain(f);
     }

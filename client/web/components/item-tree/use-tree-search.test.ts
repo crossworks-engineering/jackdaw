@@ -216,7 +216,8 @@ describe('the screens that render ItemTree', () => {
     .filter(({ src }) => /<ItemTree\b/.test(src));
 
   it('finds the screens', () => {
-    expect(screens.length).toBeGreaterThanOrEqual(13);
+    // The member workspace went in W6b: members use the owner screens.
+    expect(screens.length).toBeGreaterThanOrEqual(12);
   });
 
   it.each(screens.map(({ p, src }) => [p.slice(web.length), src]))(

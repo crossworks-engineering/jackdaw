@@ -273,22 +273,3 @@ export type MemberItemsPage = {
   page: number;
   pageSize: number;
 };
-
-/**
- * The calling admin's own private item as a row of a BRAIN list (item-list
- * alignment): /api/pages, /api/notes, /api/tables, /api/draws and the files
- * root and Recent lists, with `?state=all` or `?state=private`. The
- * `private` key marks it (brain rows never carry it) and holds the space
- * row the item view opens; the item itself is read and written through
- * /api/admin/space. Private items have no tags and no parent: a tag filter
- * or a sub-page level lists none.
- */
-export type AdminPrivateListRow = {
-  id: string;
-  type: MemberItemKind;
-  title: string;
-  icon: string | null;
-  createdAt: string;
-  updatedAt: string;
-  private: AdminSpaceItemRow;
-};

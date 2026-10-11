@@ -6,7 +6,11 @@ vi.mock('@mantle/web-ui/api-fetch', () => ({ apiFetch: (...a: unknown[]) => apiF
 import {
   APP_DELETE_CONFIRM,
   APP_DELETED_TOAST,
+  APP_WAS_IN_TRASH,
+  MEMBER_APP_DELETE_CONFIRM,
+  MEMBER_APP_DELETED_TOAST,
   appDetailQuery,
+  wasInTrash,
   appsLegacyHref,
   appsUrlId,
 } from './apps-screen';
@@ -53,7 +57,30 @@ describe('appsUrlId', () => {
 
 describe('copy', () => {
   it('has no em or en dashes', () => {
-    for (const s of [APP_DELETE_CONFIRM, APP_DELETED_TOAST]) expect(s).not.toMatch(/[–—]/);
+    for (const s of [
+      APP_DELETE_CONFIRM,
+      APP_DELETED_TOAST,
+      MEMBER_APP_DELETE_CONFIRM,
+      MEMBER_APP_DELETED_TOAST,
+      APP_WAS_IN_TRASH,
+    ])
+      expect(s).not.toMatch(/[–—]/);
+  });
+
+  it('a member delete names no purge and no days (W6b owner decision)', () => {
+    for (const s of [MEMBER_APP_DELETE_CONFIRM, MEMBER_APP_DELETED_TOAST]) {
+      expect(s).not.toMatch(/\bdays?\b|purge|for good|Recently deleted/i);
+      expect(s).toMatch(/trash/);
+    }
+  });
+});
+
+describe('wasInTrash (W6b)', () => {
+  it('is true only when the brain marks the app', () => {
+    expect(wasInTrash({ trashedBeforeFold: true })).toBe(true);
+    expect(wasInTrash({ trashedBeforeFold: false })).toBe(false);
+    expect(wasInTrash({ trashedBeforeFold: 'true' })).toBe(false);
+    expect(wasInTrash({})).toBe(false);
   });
 });
 

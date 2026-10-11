@@ -1,8 +1,5 @@
 import { Suspense } from 'react';
-import { RoleSwitch } from '@/components/layout/shell-role';
 import { RestoreLastOpened } from '@/components/last-opened/last-opened';
-import { MemberWorkspace } from '@/components/member/member-workspace';
-import { AdminSpaces } from '@/components/item-list/admin-spaces';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { TablesShell } from './tables-shell';
 
@@ -23,11 +20,7 @@ export default async function TablesPage() {
       }
     >
       <RestoreLastOpened section="tables">
-        <RoleSwitch member={<MemberWorkspace kind="table" />}>
-          <AdminSpaces kind="table">
-            <TablesShell />
-          </AdminSpaces>
-        </RoleSwitch>
+        <TablesShell />
       </RestoreLastOpened>
     </Suspense>
   );

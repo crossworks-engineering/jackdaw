@@ -7,10 +7,9 @@ import { runtimeApiBase } from '@mantle/web-ui/runtime-env';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { useShellRole } from '@/components/layout/shell-role';
 import {
-  adminRestore,
+  itemRestore,
   forgetLastOpened,
   lastOpenedKey,
-  memberRestore,
   readLastOpened,
   rememberLastOpened,
   routeBefore,
@@ -19,7 +18,6 @@ import {
   type LastOpenedStore,
   type RestoreOutcome,
 } from '@/lib/last-opened';
-import { memberItemHref, probeMemberItem, resolveMemberItem } from '@/lib/member-space';
 
 /**
  * The React half of lib/last-opened.ts: who is signed in (from the app
@@ -28,8 +26,8 @@ import { memberItemHref, probeMemberItem, resolveMemberItem } from '@/lib/member
  */
 
 /** The signed-in login, as the app shell names it (`admin:<email>`,
- *  `member:<loginId>`), or null until the shell has loaded (and for a client,
- *  which keeps nothing). */
+ *  `member:<loginId>`, `client:<loginId>`: lib/login-key.ts), or null until
+ *  the shell has loaded. */
 const LoginContext = createContext<string | null>(null);
 
 export function LastOpenedLoginProvider({
@@ -112,9 +110,8 @@ export function RestoreLastOpened({
 
   useEffect(() => {
     if (phase !== 'check' || started.current) return;
-    // A client login gets its own screen here, and an unknown role waits.
-    if (role === 'client') return setPhase('done');
-    if (role !== 'admin' && role !== 'member') return;
+    // An unknown role waits (the shell has not answered).
+    if (!role) return;
     if (!login) {
       const t = setTimeout(() => setPhase((p) => (p === 'check' ? 'done' : p)), LOGIN_WAIT_MS);
       return () => clearTimeout(t);
@@ -123,12 +120,7 @@ export function RestoreLastOpened({
     const key = lastOpenedKey(brain(), login, section);
     const id = readLastOpened(store(), key);
     if (!id) return setPhase('done');
-    const outcome: Promise<RestoreOutcome> =
-      role === 'admin'
-        ? adminRestore(section, id, (p) => apiFetch<unknown>(p))
-        : resolveMemberItem(probeMemberItem(id)).then((found) =>
-            memberRestore(section, found, (f) => memberItemHref(f, id)),
-          );
+    const outcome: Promise<RestoreOutcome> = itemRestore(section, id, (p) => apiFetch<unknown>(p));
     void outcome
       .catch((): RestoreOutcome => 'unknown')
       .then((r) => {
@@ -144,9 +136,9 @@ export function RestoreLastOpened({
   }, [phase, role, login, section, router]);
 
   if (phase === 'done' || !bare) return <>{children}</>;
-  // Role not known yet: the children's RoleSwitch shows its own spinner,
-  // and a second one would only flicker.
-  if (phase === 'check' && role !== 'admin' && role !== 'member') return <>{children}</>;
+  // Role not known yet: the shell renders no screen before it answers, so
+  // there is nothing to hold back.
+  if (phase === 'check' && !role) return <>{children}</>;
   return (
     <div className="flex h-full items-center justify-center">
       <Spinner />

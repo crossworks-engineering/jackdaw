@@ -4,8 +4,6 @@ import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
-import { RoleSwitch } from '@/components/layout/shell-role';
-import { MemberGoToList } from '@/components/member/member-go-to-list';
 
 /**
  * Universal node permalink — `/n/<id>`. The one canonical, type-agnostic deep
@@ -13,17 +11,12 @@ import { MemberGoToList } from '@/components/member/member-go-to-list';
  * in their tool results) so a reply can link to a document the user clicks
  * straight through to.
  *
- * Client-fetch flavor of the old SSR resolver: GET /api/nodes/[id] (owner-
- * scoped; a leaked id for another owner 404s rather than leaking existence)
+ * Client-fetch flavor of the old SSR resolver: GET /api/nodes/[id] (scoped
+ * to the login; an id outside that scope 404s rather than leaking existence)
  * returns the node's type, and the type→surface map below redirects to the
  * screen that edits/displays it. Keeping the map HERE means tools stay
  * type-blind (they only ever hold an id) and links survive a surface's URL
- * shape changing.
- *
- * A member login cannot read /api/nodes (admins only), and cites the same
- * links (the team agent's `nodeUrl`): for a member the id is found in their
- * sources instead (Mine, the Library, Accepted) and opens on
- * that kind's member screen (MemberGoToList).
+ * shape changing. Every login reads it the same way (phase W6b).
  */
 function surfaceFor(type: string, id: string): string {
   const enc = encodeURIComponent(id);
@@ -62,11 +55,7 @@ function surfaceFor(type: string, id: string): string {
 
 export default function NodePermalink({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  return (
-    <RoleSwitch member={<MemberGoToList id={id} />}>
-      <OwnerPermalink id={id} />
-    </RoleSwitch>
-  );
+  return <OwnerPermalink id={id} />;
 }
 
 function OwnerPermalink({ id }: { id: string }) {

@@ -58,6 +58,7 @@ export function GrantAccessView({
   hint,
   link,
   moderated,
+  mcpSwitch = true,
   ...on
 }: {
   view: GrantsView;
@@ -72,6 +73,9 @@ export function GrantAccessView({
   /** The workspaces this user moderates: a row there may be removed, or
    *  its Write turned off, without managing the item (contract 10). */
   moderated?: ReadonlySet<string>;
+  /** Whether an app's MCP access may be switched here: an Admin user only
+   *  (W6b). Anyone else reads it as On or Off. */
+  mcpSwitch?: boolean;
 } & GrantAccessHandlers) {
   const manage = view.mayManage;
   const rows = sortRows(view.rows);
@@ -245,7 +249,7 @@ export function GrantAccessView({
             <p className="text-sm">{APP_MCP_LABEL}</p>
             <p className="text-xs text-muted-foreground">{APP_MCP_HINT}</p>
           </div>
-          {manage ? (
+          {manage && mcpSwitch ? (
             <Switch
               checked={view.app.mcpAccess}
               disabled={busy}

@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest';
 const read = (f: string) =>
   readFileSync(fileURLToPath(new URL(f, import.meta.url)), 'utf8').replace(/\s+/g, ' ');
 const tree = read('./item-tree.tsx');
-const member = read('../member/member-workspace.tsx');
 
 describe('the view a tree opens on', () => {
   it('a mount starts on Folders: the view is plain state, with no stored value to adopt', () => {
@@ -46,16 +45,5 @@ describe('the view a tree opens on', () => {
     // refetch and a cleared search never touch it.
     expect(tree.match(/setView\(/g)).toHaveLength(2);
     expect(tree).toContain('setView(v as View);');
-  });
-});
-
-describe('a phone keeps the tree mounted while an item is open', () => {
-  // Below md the member screens show the list OR the detail. The
-  // list is hidden, not unmounted, so opening an item and closing it is not
-  // a new visit: the chosen view holds.
-  it('the member workspace hides its list behind the open item', () => {
-    expect(member).toContain(
-      "<div className={openId ? 'hidden' : 'h-full min-h-0'}>{listPane}</div> {openId ? detailPane : null}",
-    );
   });
 });

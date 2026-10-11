@@ -11,7 +11,8 @@ import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
-import { setAssetToken } from '@mantle/web-ui/asset-url';
+import { setAssetPathMap, setAssetToken } from '@mantle/web-ui/asset-url';
+import { memberAssetPath } from '@/lib/member-assets';
 import { assetTokenRefreshDelayMs } from '@mantle/web-ui/token-claims';
 import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
 import {
@@ -54,10 +55,9 @@ import { SearchPalette } from '@/components/search/search-palette';
 import { WorkspaceSwitcher } from '@/components/workspaces/workspace-switcher';
 import { AreaGate } from '@/components/workspaces/area-gate';
 import { ShellGate } from '@/components/layout/shell-screens';
-import { clearRescues, rescueOwnerFor, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
+import { clearOldRescues, loginKeyFor } from '@/lib/login-key';
 import { noteRoute } from '@/lib/last-opened';
 import { LastOpenedLoginProvider } from '@/components/last-opened/last-opened';
-import { onSignOut } from '@mantle/web-ui/sign-out';
 
 /**
  * App shell — TWO fixed regions, the left rail and the right live column,
@@ -227,6 +227,14 @@ function ShellFrame({
   // phase W7.
   const manages = hasArea(shellAreasOf(shell), 'settings');
   const role = shellRoleOf(shell);
+  // A login that is not an Admin user reads bytes on the member routes (W6b
+  // contract item 2): set before the screens below resolve a URL, and said
+  // to the URL readers after the render.
+  const assetMap = role && role !== 'admin' ? memberAssetPath : null;
+  setAssetPathMap(assetMap, { notify: false });
+  useEffect(() => {
+    setAssetPathMap(assetMap);
+  }, [assetMap]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(initialNavCollapsed);
@@ -282,20 +290,12 @@ function ShellFrame({
   const { open: helpOpen } = useHelpRail();
   const helpW = helpOpen ? '22rem' : '0rem';
 
-  // Big-save rescue copies (lib/member-rescue.ts) are a login's private
-  // drafts at rest: expired ones go at boot, the rest are kept under the
-  // login the shell names and all go at sign-out.
+  // The member autosave copies kept before W6b are private drafts at rest
+  // that nothing sends any more: they go at boot.
   useEffect(() => {
-    sweepRescues(Date.now());
-    return onSignOut(() => {
-      setRescueOwner(null);
-      clearRescues();
-    });
+    clearOldRescues();
   }, []);
-  const rescueWho = rescueOwnerFor(shell);
-  useEffect(() => {
-    setRescueOwner(rescueWho);
-  }, [rescueWho]);
+  const loginKey = loginKeyFor(shell);
   // The route before this one, for the workspace sections' "open the last
   // item" restore (lib/last-opened.ts): back to a section's list from one of
   // its own items is a trip to the list, not an entry.
@@ -680,7 +680,7 @@ function ShellFrame({
           className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]"
         >
           <Suspense fallback={null}>
-            <LastOpenedLoginProvider login={rescueWho}>
+            <LastOpenedLoginProvider login={loginKey}>
               {/* One check for every screen: a typed link to a screen this
                   login may not manage says so, not a screen of 403s. */}
               <AreaGate>{children}</AreaGate>

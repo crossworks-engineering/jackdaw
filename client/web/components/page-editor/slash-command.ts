@@ -30,19 +30,11 @@ export interface SlashCommandOptions {
    *  Undefined when unknown (a brain before the pages tree). */
   folderId: string | null | undefined;
   /** Whether the Folder index item is offered (the brain serves the pages
-   *  tree; for a member, its own tree does and the draft's folder is
-   *  known). */
+   *  tree). */
   folderIndex: boolean;
   /** Called once `/page` made its page, so the screen can refresh what
    *  lists the folder (a Folder index on this page). */
   onPageCreated: (() => void) | null;
-  /** A member login (member logins): no command that creates or uploads into
-   *  the brain (new page, image, drawing, file); those routes refuse a member. */
-  member: boolean;
-  /** An admin's private item (member logins Phase 7): it is not a brain page
-   *  and sits in no folder, so no new brain page or folder index. Everything
-   *  else stays. */
-  privateItem: boolean;
 }
 
 export const SlashCommand = Extension.create<SlashCommandOptions>({
@@ -54,8 +46,6 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
       folderId: undefined,
       folderIndex: false,
       onPageCreated: null,
-      member: false,
-      privateItem: false,
     };
   },
 
@@ -92,12 +82,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         command: ({ editor, range, props }) => {
           props.command({ editor, range });
         },
-        items: ({ query }) =>
-          getSlashItems(query, {
-            member: this.options.member,
-            privateItem: this.options.privateItem,
-            folderIndex: this.storage.folderIndex,
-          }),
+        items: ({ query }) => getSlashItems(query, { folderIndex: this.storage.folderIndex }),
         render: () => {
           let component: ReactRenderer<SlashMenuHandle, SlashMenuProps> | null = null;
           let popup: HTMLDivElement | null = null;

@@ -31,7 +31,6 @@ import {
   FolderUp,
   LayoutGrid,
   List,
-  Lock,
   Pencil,
   Plus,
   Search,
@@ -78,16 +77,6 @@ import type {
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { useUploads } from '@/components/uploads/upload-provider';
 import { SetPageTitle } from '@/components/layout/page-title';
-import type { AdminPrivateListRow } from '@/lib/contract/member';
-import { StatePill } from '@/components/item-list/state-pill';
-import {
-  PrivateItemDetail,
-  isPrivateRow,
-  usePrivateOpen,
-} from '@/components/item-list/admin-private-rows';
-import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { KEEP_PRIVATE_HELP, uploadPrivateFile } from '@/lib/admin-private';
-import { refusalMessage } from '@/lib/member-space';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
@@ -119,8 +108,6 @@ const VIEW_CHOICES = oneOf('list', 'grid', 'dual');
 export function FilesClient() {
   const searchParams = useSearchParams();
   const requestedPath = searchParams.get('path') || FILES_ROOT;
-  // Only an Admin user has a private space (phase W5c: one shell).
-  const isAdminUser = useIsAdminUser();
 
   const treeQuery = useQuery({
     queryKey: ['files', 'tree'],
@@ -132,21 +119,15 @@ export function FilesClient() {
   const currentPath = tree.some((f) => f.path === requestedPath) ? requestedPath : FILES_ROOT;
   const currentFolder = tree.find((f) => f.path === currentPath) ?? null;
 
-  // `state=all`: the root folder lists this admin's own private files too
-  // (item-list alignment; the brain adds none to any other folder).
   const filesQuery = useQuery({
     queryKey: ['files', 'list', currentPath],
     queryFn: () =>
-      apiFetch<{ files: Array<FileRow | AdminPrivateListRow> }>(
-        `/api/files/files?parent=${encodeURIComponent(currentPath)}${isAdminUser ? '&state=all' : ''}`,
-      ),
+      apiFetch<{ files: FileRow[] }>(`/api/files/files?parent=${encodeURIComponent(currentPath)}`),
     enabled: treeQuery.isSuccess,
     placeholderData: (prev) => prev,
   });
 
-  const listed = filesQuery.data?.files ?? EMPTY_ROWS;
-  const brainFiles = useMemo(() => listed.filter((f): f is FileRow => !isPrivateRow(f)), [listed]);
-  const privateFiles = useMemo(() => listed.filter(isPrivateRow), [listed]);
+  const files = filesQuery.data?.files ?? EMPTY_ROWS;
 
   if (treeQuery.isPending || (filesQuery.isPending && !filesQuery.data)) {
     return (
@@ -167,35 +148,23 @@ export function FilesClient() {
   }
 
   return (
-    <FilesView
-      tree={tree}
-      currentPath={currentPath}
-      currentFolder={currentFolder}
-      files={brainFiles}
-      privateFiles={privateFiles}
-    />
+    <FilesView tree={tree} currentPath={currentPath} currentFolder={currentFolder} files={files} />
   );
 }
 
-const EMPTY_ROWS: Array<FileRow | AdminPrivateListRow> = [];
+const EMPTY_ROWS: FileRow[] = [];
 
 function FilesView({
   tree,
   currentPath,
   currentFolder,
   files: initialFiles,
-  privateFiles,
 }: {
   tree: FolderRow[];
   currentPath: string;
   currentFolder: FolderRow | null;
   files: FileRow[];
-  /** This admin's own private files: the root folder lists them, with the
-   *  `private` pill; `?pid=` opens one in its own item view. */
-  privateFiles: AdminPrivateListRow[];
 }) {
-  const { pid, openPrivate } = usePrivateOpen();
-  const isAdminUser = useIsAdminUser();
   const toAsset = useAssetUrl();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -261,9 +230,7 @@ function FilesView({
   const recentQuery = useQuery({
     queryKey: ['files', 'recent'],
     queryFn: () =>
-      apiFetch<{ files: Array<FileRow | AdminPrivateListRow> }>(
-        `/api/files/files?recent=1&limit=100${isAdminUser ? '&state=all' : ''}`,
-      ).then((r) => r.files),
+      apiFetch<{ files: FileRow[] }>('/api/files/files?recent=1&limit=100').then((r) => r.files),
     enabled: recentView,
   });
 
@@ -441,26 +408,6 @@ function FilesView({
     e.target.value = '';
   };
 
-  // "Private upload": one file into this admin's own private space (member
-  // logins Phase 7) instead of the brain; it opens in the Private view.
-  const privateInputRef = useRef<HTMLInputElement>(null);
-  const onPrivateFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
-    try {
-      const href = await uploadPrivateFile(f);
-      // The private file lists in the root folder now: refresh the lists too.
-      void queryClient.invalidateQueries({ queryKey: ['files'] });
-      toast.success(`Uploaded ${f.name} to your private files`);
-      router.push(href);
-    } catch (err) {
-      toast.error(
-        refusalMessage(err) ?? (err instanceof Error ? err.message : 'Could not upload the file'),
-      );
-    }
-  };
-
   // ─── Drag-drop ───────────────────────────────────────────────────
   const [dragOver, setDragOver] = useState(false);
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -629,8 +576,8 @@ function FilesView({
                 kind="files"
                 adapter={filesAdapter}
                 rootLabel="All files"
-                selectedItemId={pid ?? openFileId}
-                selectedFolderPath={pid || openFileId || searchActive ? null : currentPath}
+                selectedItemId={openFileId}
+                selectedFolderPath={openFileId || searchActive ? null : currentPath}
                 revealPath={currentPath}
                 query={query}
                 onQueryChange={setQuery}
@@ -651,10 +598,6 @@ function FilesView({
                   navigateFolder(f?.path ?? FILES_ROOT);
                 }}
                 onOpenItem={(item, where) => {
-                  if (item.state === 'private') {
-                    openPrivate(item.id);
-                    return;
-                  }
                   const sp = new URLSearchParams();
                   sp.set(
                     'path',
@@ -665,35 +608,33 @@ function FilesView({
                   sp.set('file', item.id);
                   router.push(`/files?${sp.toString()}`);
                 }}
-                itemActions={(item) =>
-                  item.state === 'private' ? null : (
-                    <>
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          setDialog({
-                            kind: 'rename',
-                            target: {
-                              kind: 'file',
-                              id: item.id,
-                              filename: item.title,
-                              extension: item.subtype ?? '',
-                            },
-                          })
-                        }
-                      >
-                        <Pencil />
-                        Rename…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive-ink focus:text-destructive-ink"
-                        onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
-                      >
-                        <Trash2 />
-                        Delete…
-                      </DropdownMenuItem>
-                    </>
-                  )
-                }
+                itemActions={(item) => (
+                  <>
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        setDialog({
+                          kind: 'rename',
+                          target: {
+                            kind: 'file',
+                            id: item.id,
+                            filename: item.title,
+                            extension: item.subtype ?? '',
+                          },
+                        })
+                      }
+                    >
+                      <Pencil />
+                      Rename…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  </>
+                )}
                 onChanged={refresh}
                 onUnsupported={() => setTreeGone(true)}
               />
@@ -777,12 +718,11 @@ function FilesView({
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
           >
-            {pid ? (
-              <PrivateItemDetail key={pid} id={pid} onClose={() => openPrivate(null)} />
-            ) : openFileId ? (
+            {openFileId ? (
               <FileEditor
                 key={openFileId}
                 fileId={openFileId}
+                row={openFileRow}
                 onClose={() => openFile(null)}
                 onSaved={refresh}
               />
@@ -861,38 +801,6 @@ function FilesView({
                 <div className="flex-1 overflow-y-auto scrollbar-thin">
                   <ul className="divide-y divide-border">
                     {(recentQuery.data ?? []).map((f) => {
-                      if (isPrivateRow(f)) {
-                        const pd = describeFile(null, f.title);
-                        const PrivIcon = pd.icon;
-                        return (
-                          <li key={f.id}>
-                            <RowButton
-                              onClick={() => {
-                                setRecentView(false);
-                                openPrivate(f.id);
-                              }}
-                              className="flex w-full items-center gap-3 px-6 py-2 text-left hover:bg-muted/30"
-                            >
-                              <PrivIcon
-                                aria-hidden
-                                className={`size-4 shrink-0 ${KIND_TINT[pd.kind]}`}
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-medium">
-                                  {f.title}
-                                </span>
-                                <span className="block truncate text-xs text-muted-foreground">
-                                  Only you can see it
-                                </span>
-                              </span>
-                              <StatePill state="private" />
-                              <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
-                                {fmtRelative(f.updatedAt)}
-                              </span>
-                            </RowButton>
-                          </li>
-                        );
-                      }
                       const d = describeFile(f.mimeType, f.filename);
                       const RecentIcon = d.icon;
                       return (
@@ -1138,17 +1046,6 @@ function FilesView({
                       >
                         <FileJson /> JSON file
                       </DropdownMenuItem>
-                      {isAdminUser ? (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() => privateInputRef.current?.click()}
-                            title={KEEP_PRIVATE_HELP}
-                          >
-                            <Lock /> Private upload
-                          </DropdownMenuItem>
-                        </>
-                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
 
@@ -1174,12 +1071,6 @@ function FilesView({
                     multiple
                     hidden
                     onChange={onFolderInput}
-                  />
-                  <input
-                    ref={privateInputRef}
-                    type="file"
-                    hidden
-                    onChange={(e) => void onPrivateFileInput(e)}
                   />
 
                   <div className="ml-auto flex items-center gap-1">
@@ -1273,7 +1164,7 @@ function FilesView({
                         queryClient.invalidateQueries({ queryKey: ['files'] });
                       }}
                     />
-                  ) : files.length === 0 && privateFiles.length === 0 ? (
+                  ) : files.length === 0 ? (
                     <div className="px-6 py-10 text-center text-sm text-muted-foreground">
                       No files in this folder. Drop a file anywhere here, or use{' '}
                       <span className="font-medium text-foreground">New</span> to create one.
@@ -1284,33 +1175,6 @@ function FilesView({
                        flips the tile to the type icon via onError. Selection
                        stays a list-view feature; a tile click opens. */
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3 p-4">
-                      {privateFiles.map((f) => {
-                        const pd = describeFile(null, f.title);
-                        const PrivIcon = pd.icon;
-                        return (
-                          <RowButton
-                            key={f.id}
-                            onClick={() => openPrivate(f.id)}
-                            data-mark-id={f.id}
-                            data-mark-kind="file"
-                            data-mark-label={f.title}
-                            title={`${f.title} — private: only you can see it`}
-                            className="group flex flex-col overflow-hidden rounded-md border border-border bg-card text-left hover:border-primary/40 hover:shadow-sm"
-                          >
-                            <span className="flex aspect-square w-full items-center justify-center bg-muted/40">
-                              <PrivIcon aria-hidden className={`size-10 ${KIND_TINT[pd.kind]}`} />
-                            </span>
-                            <span className="flex flex-col gap-0.5 px-2 py-1.5">
-                              <span className="min-w-0 truncate text-xs font-medium">
-                                {f.title}
-                              </span>
-                              <span className="flex">
-                                <StatePill state="private" />
-                              </span>
-                            </span>
-                          </RowButton>
-                        );
-                      })}
                       {sortedFiles.map((f) => {
                         const described = describeFile(f.mimeType, f.filename);
                         const TypeIcon = described.icon;
@@ -1430,43 +1294,6 @@ function FilesView({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {privateFiles.map((f) => {
-                          const pd = describeFile(null, f.title);
-                          const PrivIcon = pd.icon;
-                          return (
-                            <tr key={f.id} className="hover:bg-muted/30">
-                              <td className="px-3 py-2" />
-                              <td className="px-3 py-2">
-                                <RowButton
-                                  onClick={() => openPrivate(f.id)}
-                                  data-mark-id={f.id}
-                                  data-mark-kind="file"
-                                  data-mark-label={f.title}
-                                  className="flex items-center gap-2 text-left hover:underline"
-                                >
-                                  <PrivIcon
-                                    aria-hidden
-                                    className={`size-4 shrink-0 ${KIND_TINT[pd.kind]}`}
-                                  />
-                                  <span className="font-medium">{f.title}</span>
-                                </RowButton>
-                              </td>
-                              <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                                {pd.label}
-                              </td>
-                              <td className="px-3 py-2 text-right text-muted-foreground">—</td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">
-                                Only you can see it
-                              </td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">
-                                {fmtRelative(f.updatedAt)}
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <StatePill state="private" />
-                              </td>
-                            </tr>
-                          );
-                        })}
                         {sortedFiles.map((f) => {
                           // MIME first, filename as tie-breaker — files uploaded
                           // before the server's mime map learned audio/video/

@@ -145,6 +145,13 @@ describe('GrantAccessView for a Moderator', () => {
     expect(out).toContain('aria-label="MCP access"');
   });
 
+  it('MCP access reads On or Off for a login that is not an Admin user (W6b)', () => {
+    const out = render(view({ app: { mcpAccess: true } }), { type: 'app', mcpSwitch: false });
+    expect(out).toContain(APP_MCP_LABEL);
+    expect(out).not.toContain('aria-label="MCP access"');
+    expect(out).toContain('>On</span>');
+  });
+
   it('an Admin row is like any other: its Write switch and Remove (no bridge lock)', () => {
     const v = view();
     v.rows = [

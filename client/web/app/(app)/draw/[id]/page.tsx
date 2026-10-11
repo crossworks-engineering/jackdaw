@@ -1,6 +1,4 @@
 import { DrawDetailClient } from './draw-detail-client';
-import { RoleSwitch } from '@/components/layout/shell-role';
-import { MemberGoToList } from '@/components/member/member-go-to-list';
 
 /**
  * /draw/[id] — the whiteboard editor (auth gate only). The draw row is
@@ -9,9 +7,5 @@ import { MemberGoToList } from '@/components/member/member-go-to-list';
  */
 export default async function DrawEditorRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return (
-    <RoleSwitch member={<MemberGoToList path="/draw" id={id} />}>
-      <DrawDetailClient drawId={id} />
-    </RoleSwitch>
-  );
+  return <DrawDetailClient drawId={id} />;
 }

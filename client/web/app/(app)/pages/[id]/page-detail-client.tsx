@@ -28,6 +28,7 @@ import { EmojiPicker } from '@/components/emoji-picker';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
 import { revealFoldsAt } from '@/components/page-editor/heading-fold';
@@ -149,6 +150,8 @@ export function PageDetailClient({ pageId }: { pageId: string }) {
 function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlinks: Backlink[] }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // Export is a route only an Admin user may call (W6b).
+  const isAdminUser = useIsAdminUser();
   // The Folder index slash item needs the pages tree (folder phase 7).
   const treeServes = useTreeServes('pages');
   const toast = useToast();
@@ -971,7 +974,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
           >
             <FileCode2 /> Markdown
           </Button>
-          <ExportMenu nodeId={initial.id} />
+          {isAdminUser ? <ExportMenu nodeId={initial.id} /> : null}
           <GrantAccessControl type="page" nodeId={initial.id} beforeEnable={commit} />
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the

@@ -1,8 +1,5 @@
 import { Suspense } from 'react';
-import { RoleSwitch } from '@/components/layout/shell-role';
 import { RestoreLastOpened } from '@/components/last-opened/last-opened';
-import { MemberWorkspace } from '@/components/member/member-workspace';
-import { AdminSpaces } from '@/components/item-list/admin-spaces';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { NotesClient } from './notes-client';
@@ -25,11 +22,7 @@ export default async function NotesPage() {
         }
       >
         <RestoreLastOpened section="notes">
-          <RoleSwitch member={<MemberWorkspace kind="note" />}>
-            <AdminSpaces kind="note">
-              <NotesClient />
-            </AdminSpaces>
-          </RoleSwitch>
+          <NotesClient />
         </RestoreLastOpened>
       </Suspense>
     </>

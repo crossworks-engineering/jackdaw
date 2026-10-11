@@ -1,8 +1,5 @@
 import { Suspense } from 'react';
-import { RoleSwitch } from '@/components/layout/shell-role';
 import { RestoreLastOpened } from '@/components/last-opened/last-opened';
-import { MemberWorkspace } from '@/components/member/member-workspace';
-import { AdminSpaces } from '@/components/item-list/admin-spaces';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { FilesClient } from './files-client';
 
@@ -23,11 +20,7 @@ export default async function FilesPage() {
       }
     >
       <RestoreLastOpened section="files">
-        <RoleSwitch member={<MemberWorkspace kind="file" />}>
-          <AdminSpaces kind="file">
-            <FilesClient />
-          </AdminSpaces>
-        </RoleSwitch>
+        <FilesClient />
       </RestoreLastOpened>
     </Suspense>
   );

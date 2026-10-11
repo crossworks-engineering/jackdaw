@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
-  adminRestore,
+  itemRestore,
   failureOutcome,
   forgetLastOpened,
   lastOpenedKey,
-  memberRestore,
   noteRoute,
   readLastOpened,
   rememberLastOpened,
@@ -147,7 +146,7 @@ describe('the route trail', () => {
   });
 });
 
-describe("an admin's restore", () => {
+describe('the restore (every login, W6b)', () => {
   const reads: string[] = [];
   const ok =
     (body: unknown = {}) =>
@@ -160,10 +159,10 @@ describe("an admin's restore", () => {
   });
 
   it('reads the item and opens it where its own screen opens it', async () => {
-    expect(await adminRestore('pages', ID, ok())).toEqual({ href: `/pages/${ID}` });
-    expect(await adminRestore('draw', ID, ok())).toEqual({ href: `/draw?id=${ID}` });
-    expect(await adminRestore('notes', ID, ok())).toEqual({ href: `/notes?selected=${ID}` });
-    expect(await adminRestore('tables', ID, ok())).toEqual({ href: `/tables?selected=${ID}` });
+    expect(await itemRestore('pages', ID, ok())).toEqual({ href: `/pages/${ID}` });
+    expect(await itemRestore('draw', ID, ok())).toEqual({ href: `/draw?id=${ID}` });
+    expect(await itemRestore('notes', ID, ok())).toEqual({ href: `/notes?selected=${ID}` });
+    expect(await itemRestore('tables', ID, ok())).toEqual({ href: `/tables?selected=${ID}` });
     expect(reads).toEqual([
       `/api/pages/${ID}`,
       `/api/draws/${ID}`,
@@ -173,18 +172,18 @@ describe("an admin's restore", () => {
   });
 
   it('opens a file inside its folder', async () => {
-    const r = await adminRestore('files', ID, ok({ file: { parentPath: 'files.reports' } }));
+    const r = await itemRestore('files', ID, ok({ file: { parentPath: 'files.reports' } }));
     expect(r).toEqual({ href: `/files?path=files.reports&file=${ID}` });
     expect(reads).toEqual([`/api/files/files/${ID}`]);
   });
 
   it('shows the list once for a file read with no folder', async () => {
-    expect(await adminRestore('files', ID, ok({ file: {} }))).toBe('unknown');
+    expect(await itemRestore('files', ID, ok({ file: {} }))).toBe('unknown');
   });
 
   it('forgets an item that is gone or no longer readable', async () => {
     for (const status of [400, 403, 404, 410]) {
-      const r = await adminRestore('pages', ID, async () => {
+      const r = await itemRestore('pages', ID, async () => {
         throw new ApiError('nope', status);
       });
       expect(r).toBe('gone');
@@ -193,48 +192,15 @@ describe("an admin's restore", () => {
 
   it('keeps the entry through a server or network failure', async () => {
     expect(
-      await adminRestore('notes', ID, async () => {
+      await itemRestore('notes', ID, async () => {
         throw new ApiError('boom', 500);
       }),
     ).toBe('unknown');
     expect(
-      await adminRestore('notes', ID, async () => {
+      await itemRestore('notes', ID, async () => {
         throw new TypeError('Failed to fetch');
       }),
     ).toBe('unknown');
     expect(failureOutcome(new Error('x'))).toBe('unknown');
-  });
-});
-
-describe("a member's restore", () => {
-  const href = (f: { source: string; kind: string | null }) =>
-    f.kind === 'page' ? `/pages?id=${ID}${f.source === 'mine' ? '' : `&src=${f.source}`}` : null;
-
-  it('opens an item from a source the brain still serves this login', () => {
-    expect(memberRestore('pages', { source: 'library', kind: 'page' }, href)).toEqual({
-      href: `/pages?id=${ID}&src=library`,
-    });
-    expect(memberRestore('pages', { source: 'mine', kind: 'page' }, href)).toEqual({
-      href: `/pages?id=${ID}`,
-    });
-  });
-
-  it('forgets an item in no source (deleted, unshared, never theirs)', () => {
-    expect(memberRestore('pages', null, href)).toBe('gone');
-  });
-
-  it('forgets an own item an admin has taken over', () => {
-    expect(memberRestore('pages', { source: 'mine', kind: null, withAdmin: true }, href)).toBe(
-      'gone',
-    );
-  });
-
-  it('forgets an id that now names another kind', () => {
-    const toNotes = () => `/notes?id=${ID}`;
-    expect(memberRestore('pages', { source: 'mine', kind: 'note' }, toNotes)).toBe('gone');
-  });
-
-  it('keeps the entry when the read failed for another reason', () => {
-    expect(memberRestore('pages', { source: 'mine', kind: null }, href)).toBe('unknown');
   });
 });

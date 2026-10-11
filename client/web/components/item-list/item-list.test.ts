@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ItemCard, ItemCardAction, ItemIcon } from './item-card';
 import { StatePill, pillState, stateLabel, stateTitle, type ItemState } from './state-pill';
-import { mergeSortedRows } from './merge-rows';
 
 /**
  * The shared list kit (item-list alignment): one card, one pill, one header
@@ -91,17 +90,6 @@ describe('StatePill', () => {
   });
 });
 
-describe('mergeSortedRows', () => {
-  const byNum = (a: number, b: number) => a - b;
-  it('interleaves two ordered lists, keeping each one’s order and `a` first on a tie', () => {
-    expect(mergeSortedRows([1, 3, 5], [2, 3, 6], byNum)).toEqual([1, 2, 3, 3, 5, 6]);
-    expect(mergeSortedRows([], [2], byNum)).toEqual([2]);
-    expect(mergeSortedRows([1], [], byNum)).toEqual([1]);
-    const tagged = mergeSortedRows([{ k: 1, s: 'a' }], [{ k: 1, s: 'b' }], (x, y) => x.k - y.k);
-    expect(tagged.map((t) => t.s)).toEqual(['a', 'b']);
-  });
-});
-
 const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
 const SCREENS = {
   pages: '../../app/(app)/pages/pages-client.tsx',
@@ -113,69 +101,11 @@ const SCREENS = {
 describe('the admin list screens are built from the kit', () => {
   it.each(Object.entries(SCREENS))('%s uses the kit header, card, filters and pager', (_, rel) => {
     const src = read(rel);
-    for (const part of [
-      '<ItemListHeader',
-      '<ItemCard',
-      '<TagFilter',
-      '<StateFilter',
-      '<ListPager',
-    ]) {
+    for (const part of ['<ItemListHeader', '<ItemCard', '<TagFilter', '<ListPager']) {
       expect(src, part).toContain(part);
     }
     // No hand-rolled pager or tag filter of its own.
     expect(src).not.toMatch(/function TagFilter\(/);
     expect(src).not.toMatch(/aria-label="Previous page"/);
-  });
-});
-
-describe('every admin list shows the admin’s private items beside the brain’s (D1)', () => {
-  it.each(Object.entries(SCREENS))('%s asks for them and lists them with the pill', (_, rel) => {
-    const src = read(rel);
-    // The brain's default is `brain` (older clients): the screen sends it for
-    // an Admin user, the one login with a private space (W5c).
-    expect(src).toContain("if (isAdminUser) qs.set('state', state);");
-    expect(src).toContain('<PrivateItemCard');
-    expect(src).toContain('<PrivateItemDetail');
-  });
-
-  it('files lists them in its root folder and in Recent', () => {
-    const src = read('../../app/(app)/files/files-client.tsx');
-    expect(src).toContain("${isAdminUser ? '&state=all' : ''}");
-    expect(src).toContain('<StatePill state="private" />');
-    expect(src).toContain('<PrivateItemDetail');
-  });
-
-  it('no screen keeps the Brain / Private switch', () => {
-    for (const rel of [...Object.values(SCREENS), '../../app/(app)/files/files-client.tsx']) {
-      expect(read(rel)).not.toContain('SpaceSwitch');
-    }
-    expect(read('./admin-spaces.tsx')).not.toMatch(/export function SpaceSwitch/);
-  });
-});
-
-describe("the member workspace is the admin's folder view (2026-10-09)", () => {
-  const src = read('../member/member-workspace.tsx');
-
-  it('shows the item tree only: no list, no view switch, no State filter, no pager', () => {
-    expect(src).toContain('<ItemTree');
-    expect(src).toContain('source="member"');
-    // No review sections above the tree (W5c): no With admin, no By me.
-    expect(src).not.toContain('MemberItemSections');
-    for (const gone of [
-      '<ItemListHeader',
-      '<ItemCard',
-      '<StateFilter',
-      '<ListPager',
-      'ReaderViewToggle',
-      'readerViewOf',
-      'MEMBER_STATE_OPTIONS',
-    ]) {
-      expect(src, gone).not.toContain(gone);
-    }
-  });
-
-  it('sizes its panes as each admin screen does', () => {
-    expect(src).toMatch(/<MasterDetail id=\{`member-\$\{kind\}`\} \{\.\.\.LAYOUT\[kind\]\}/);
-    expect(src).toContain("note: {\n    defaultListSize: '380px'");
   });
 });

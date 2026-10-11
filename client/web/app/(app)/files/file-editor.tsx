@@ -25,6 +25,7 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { GrantAccessControl } from '@/components/share/grant-access';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 
 type FileRow = {
   id: string;
@@ -45,15 +46,24 @@ type Mode = 'edit' | 'preview' | 'split';
 
 export function FileEditor({
   fileId,
+  row = null,
   onClose,
   onSaved,
 }: {
   fileId: string;
+  /** The file's row from the open folder's list. A login that is not an
+   *  Admin user reads the file from it, because GET /api/files/files/:id
+   *  (the row and its text) answers an Admin user only (W6b). */
+  row?: FileRow | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const toAsset = useAssetUrl();
   const toast = useToast();
+  // Not an Admin user: no text editing and no History. The text shows read
+  // only, read from the bytes route (the shell maps it for this login).
+  const isAdminUser = useIsAdminUser();
+  const hasRow = row !== null;
   const [state, setState] = useState<
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
@@ -71,6 +81,26 @@ export function FileEditor({
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      if (!isAdminUser) {
+        if (!row) {
+          setState({ kind: 'error', message: 'Open this file from its folder to see it.' });
+          return;
+        }
+        let content = '';
+        if (row.isText) {
+          try {
+            const res = await fetch(toAsset(`/api/files/files/${fileId}?raw=1`));
+            if (res.ok) content = await res.text();
+          } catch {
+            // The text stays empty: Download still gets the file.
+          }
+        }
+        if (cancelled) return;
+        setState({ kind: 'loaded', file: row, content });
+        setDraft(content);
+        setDirty(false);
+        return;
+      }
       try {
         const body = await apiFetch<{ file: FileRow; content?: string }>(
           `/api/files/files/${fileId}`,
@@ -89,7 +119,10 @@ export function FileEditor({
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+    // The row is read when it arrives, not on each list refresh: a refresh
+    // must not reload the open file over unsaved edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId, isAdminUser, hasRow]);
 
   const save = async () => {
     if (state.kind !== 'loaded') return;
@@ -145,6 +178,8 @@ export function FileEditor({
 
   const { file } = state;
   const isMarkdown = file.extension === 'md' || file.extension === 'markdown';
+  // Without text editing the view is the preview only.
+  const view: Mode = isAdminUser ? mode : 'preview';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -240,7 +275,7 @@ export function FileEditor({
               </>
             )}
           </Button>
-          {isMarkdown && (
+          {isMarkdown && isAdminUser && (
             <ToggleGroup
               type="single"
               variant="outline"
@@ -262,11 +297,13 @@ export function FileEditor({
           <GrantAccessControl type="file" nodeId={file.id} />
           {/* History link → /nodes/[id]/history: every trace that touched
               this file (ingest, extractor, summarizer, …). */}
-          <Button asChild variant="outline" size="sm">
-            <a href={`/nodes/${file.id}/history`} title="See what the system did with this file">
-              History
-            </a>
-          </Button>
+          {isAdminUser ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={`/nodes/${file.id}/history`} title="See what the system did with this file">
+                History
+              </a>
+            </Button>
+          ) : null}
           <Button asChild variant="outline" size="icon" className="size-9">
             <a
               href={toAsset(`/api/files/files/${file.id}?raw=1`)}
@@ -276,7 +313,7 @@ export function FileEditor({
               <Download aria-hidden />
             </a>
           </Button>
-          {file.isText && (
+          {file.isText && isAdminUser && (
             <Button size="sm" onClick={save} disabled={!dirty || saving}>
               {saving ? <Loader2 className="animate-spin" /> : <Save />}
               {saving ? 'Saving…' : dirty ? 'Save •' : 'Save'}
@@ -289,9 +326,13 @@ export function FileEditor({
       </header>
 
       {/* Body */}
-      {file.isText ? (
+      {file.isText && !isAdminUser && !isMarkdown ? (
+        <pre className="flex-1 overflow-auto scrollbar-thin whitespace-pre-wrap p-4 font-mono text-sm">
+          {draft}
+        </pre>
+      ) : file.isText ? (
         <div className="flex flex-1 overflow-hidden">
-          {(mode === 'edit' || mode === 'split' || !isMarkdown) && (
+          {(view === 'edit' || view === 'split' || !isMarkdown) && (
             <Textarea
               value={draft}
               onChange={(e) => {
@@ -309,16 +350,16 @@ export function FileEditor({
                 // the overrides are this pane's own: no border (the pane has
                 // one), full height, and an INSET ring so it cannot overflow.
                 'h-full min-h-0 resize-none rounded-none border-0 bg-background p-4 font-mono text-sm focus-visible:ring-inset focus-visible:ring-offset-0 ' +
-                (mode === 'split' && isMarkdown ? 'w-1/2 border-r border-border' : 'flex-1')
+                (view === 'split' && isMarkdown ? 'w-1/2 border-r border-border' : 'flex-1')
               }
               spellCheck={file.extension !== 'json'}
             />
           )}
-          {isMarkdown && (mode === 'preview' || mode === 'split') && (
+          {isMarkdown && (view === 'preview' || view === 'split') && (
             <article
               className={
                 'h-full overflow-y-auto p-6 prose prose-sm dark:prose-invert max-w-none ' +
-                (mode === 'split' ? 'w-1/2' : 'flex-1')
+                (view === 'split' ? 'w-1/2' : 'flex-1')
               }
             >
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft}</ReactMarkdown>

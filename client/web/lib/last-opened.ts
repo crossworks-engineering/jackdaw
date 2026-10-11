@@ -5,8 +5,8 @@
  *
  * - Per section, per login, per brain. The key names the brain's origin and
  *   the login (an admin's email, a member's login id), so on a shared device
- *   one login's last item never opens for another, and a member is only ever
- *   sent to an item the brain says they can read (see the probes below).
+ *   one login's last item never opens for another, and a login is only ever
+ *   sent to an item the brain says it can read (the read below).
  * - In this browser's localStorage, a per-viewer convenience like the card
  *   density or the rail width. Not on the profile: it follows the device you
  *   were working on, not the person.
@@ -126,9 +126,11 @@ export function failureOutcome(err: unknown): 'gone' | 'unknown' {
 
 type FetchJson = (path: string) => Promise<unknown>;
 
-/** An admin's restore: read the item the way its screen will, then build the
- *  same URL the screen's own links build. */
-export async function adminRestore(
+/** The restore of every login (W6b: one set of screens and routes): read
+ *  the item the way its screen will, in the login's scope, then build the
+ *  same URL the screen's own links build. A login that may not read it (a
+ *  4xx) forgets it. */
+export async function itemRestore(
   section: LastOpenedSection,
   id: string,
   fetchJson: FetchJson,
@@ -163,29 +165,4 @@ export async function adminRestore(
   } catch (err) {
     return failureOutcome(err);
   }
-}
-
-/**
- * A member's restore. The item is found the way a member's own link finds
- * it (Mine, Team drafts, the Library, Accepted: `resolveMemberItem` in
- * lib/member-space.ts), so it opens only from a source the brain still
- * serves this login. `href` builds the member URL (`memberItemHref`), kept
- * out of here so this stays pure.
- */
-export function memberRestore<F extends { kind: string | null; withAdmin?: true }>(
-  section: LastOpenedSection,
-  found: F | null,
-  href: (found: F) => string | null,
-): RestoreOutcome {
-  // In no source: deleted, unshared, or never this login's.
-  if (!found) return 'gone';
-  // An own item an admin took over: nothing of it opens until it comes back.
-  if (found.withAdmin) return 'gone';
-  // Mine answered with something other than a 4xx: try again next time.
-  if (!found.kind) return 'unknown';
-  const to = href(found);
-  // An item of another kind (an id reused across screens) is not this
-  // section's to open.
-  if (!to || sectionOf(to.split('?')[0] ?? '') !== section) return 'gone';
-  return { href: to };
 }

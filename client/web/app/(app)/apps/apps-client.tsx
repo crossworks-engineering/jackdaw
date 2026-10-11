@@ -65,10 +65,16 @@ import {
   APP_DELETED_TOAST,
   APP_DELETE_CONFIRM,
   APP_SHARE_HINT,
+  APP_WAS_IN_TRASH,
+  MEMBER_APP_DELETED_TOAST,
+  MEMBER_APP_DELETE_CONFIRM,
   appDetailQuery,
   appsLegacyHref,
   appsUrlId,
+  wasInTrash,
 } from '@/lib/apps-screen';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { memberAppSandboxProps } from '@/lib/member-apps';
 import { AppItemHeader, HeaderIconButton } from '@/components/app-nav/app-item-header';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
@@ -96,6 +102,10 @@ export function AppsClient() {
   const { pending, go } = useListNav();
   const { zen } = useZenMode();
   const toolConfirm = useAppToolConfirm();
+  // Every login has this screen (W6b). The app editor, the app nav, the
+  // trash list and the owner runner are an Admin user's; anyone else runs
+  // an app on the member routes and changes it over its own MCP connection.
+  const admin = useIsAdminUser();
 
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
@@ -179,7 +189,7 @@ export function AppsClient() {
     setDeleting(true);
     try {
       await apiSend(`/api/apps/${deleteTarget.id}`, 'DELETE');
-      toast.success(APP_DELETED_TOAST);
+      toast.success(admin ? APP_DELETED_TOAST : MEMBER_APP_DELETED_TOAST);
       if (deleteTarget.id === activeId) select(null);
       setDeleteTarget(null);
       void queryClient.invalidateQueries({ queryKey: ['apps'] });
@@ -287,6 +297,11 @@ export function AppsClient() {
                           icon={<AppTile icon={app.icon} color={app.color} size="sm" />}
                           badge={
                             <span className="flex shrink-0 items-center gap-1">
+                              {wasInTrash(app) ? (
+                                <Badge variant="outline" className="shrink-0">
+                                  was in your trash
+                                </Badge>
+                              ) : null}
                               {app.hasDraft && (
                                 <span
                                   className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
@@ -322,7 +337,7 @@ export function AppsClient() {
                 </>
               )}
             </div>
-            <RecentlyDeletedApps />
+            {admin ? <RecentlyDeletedApps /> : null}
           </div>
         }
         detail={
@@ -330,6 +345,7 @@ export function AppsClient() {
             <AppPreview
               key={active.id}
               app={active}
+              admin={admin}
               confirmTool={toolConfirm.confirmTool}
               onDelete={() => setDeleteTarget({ id: active.id, title: active.title })}
             />
@@ -359,7 +375,9 @@ export function AppsClient() {
               if (createIn) await fileNew(id, createIn);
               void queryClient.invalidateQueries({ queryKey: ['apps'] });
               void queryClient.invalidateQueries({ queryKey: treeKey('apps') });
-              router.push(`/apps/${id}`);
+              // The editor is an Admin user's; anyone else sees it here.
+              if (admin) router.push(`/apps/${id}`);
+              else select(id);
             }}
           />
         )}
@@ -369,7 +387,9 @@ export function AppsClient() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{deleteTarget?.title}”?</AlertDialogTitle>
-            <AlertDialogDescription>{APP_DELETE_CONFIRM}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {admin ? APP_DELETE_CONFIRM : MEMBER_APP_DELETE_CONFIRM}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
@@ -395,16 +415,19 @@ export function AppsClient() {
  */
 function AppPreview({
   app,
+  admin,
   confirmTool,
   onDelete,
 }: {
   app: AppDetail;
+  /** An Admin user: the owner runner, the app nav and the editor link. */
+  admin: boolean;
   confirmTool: ReturnType<typeof useAppToolConfirm>['confirmTool'];
   onDelete: () => void;
 }) {
   // The face the app-nav read holds: a look changed in the editor shows here
   // before this app's own query is read again.
-  const { data: nav } = useAppNav();
+  const { data: nav } = useAppNav({ enabled: admin });
   const face = nav?.apps.find((a) => a.id === app.id);
   const icon = face ? face.icon : app.icon;
   const color = face ? face.color : app.color;
@@ -440,11 +463,17 @@ function AppPreview({
             {/* Survives focus mode (the shell's chrome does not), so it is the
                 whole control: enter and exit. */}
             <FocusToggle />
-            <HeaderIconButton label="Open app" tooltip="Open the app: build, code, history" asChild>
-              <Link href={`/apps/${app.id}`}>
-                <Pencil />
-              </Link>
-            </HeaderIconButton>
+            {admin ? (
+              <HeaderIconButton
+                label="Open app"
+                tooltip="Open the app: build, code, history"
+                asChild
+              >
+                <Link href={`/apps/${app.id}`}>
+                  <Pencil />
+                </Link>
+              </HeaderIconButton>
+            ) : null}
             <HeaderIconButton
               label="Delete app"
               className="text-muted-foreground hover:text-destructive-ink"
@@ -455,6 +484,13 @@ function AppPreview({
           </>
         }
       />
+      {wasInTrash(app) ? (
+        // W6b contract item 4: an app that was in its author's own trash.
+        // Delete is the header's Delete.
+        <p className="shrink-0 border-b border-border px-4 py-2 text-sm text-muted-foreground">
+          {APP_WAS_IN_TRASH}
+        </p>
+      ) : null}
       {/* Below `md` the panes stack and the detail has no height of its own,
           so the app is given most of the screen there. */}
       <div data-testid="app-preview-run" className="h-[75dvh] min-h-0 md:h-auto md:flex-1">
@@ -464,8 +500,8 @@ function AppPreview({
           <SurfaceErrorBoundary label="this app" resetKeys={[app.id]}>
             <AppSandbox
               appId={app.id}
-              {...ownerAppSandboxProps(app.id)}
-              confirmTool={confirmTool}
+              {...(admin ? ownerAppSandboxProps(app.id) : memberAppSandboxProps(app.id))}
+              confirmTool={admin ? confirmTool : undefined}
               loader={<AppLoader title={app.title} icon={icon} color={color} />}
               frame="viewport"
             />
@@ -475,14 +511,20 @@ function AppPreview({
           // visitors; the owner gets the way to fix it.
           <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center text-sm text-muted-foreground">
             <AppWindow className="size-8 opacity-50" aria-hidden />
-            This app has no published build yet. Open it to build and commit it, or ask the
-            assistant to build it.
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/apps/${app.id}`}>
-                <Pencil />
-                Open
-              </Link>
-            </Button>
+            {admin ? (
+              <>
+                This app has no published build yet. Open it to build and commit it, or ask the
+                assistant to build it.
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/apps/${app.id}`}>
+                    <Pencil />
+                    Open
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              'This app has no published build yet. Build it over your MCP connection.'
+            )}
           </div>
         )}
       </div>

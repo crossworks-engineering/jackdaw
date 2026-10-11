@@ -155,10 +155,6 @@ const VIEWS: Array<{ id: View; label: string }> = [
   { id: 'used', label: 'Most used' },
   { id: 'az', label: 'A to Z' },
 ];
-/** A member's or client's tree: no Recent or Most used (those are the
- *  owner's marks). */
-const READER_VIEWS = VIEWS.filter((v) => v.id === 'tree' || v.id === 'az');
-
 const SORT_LABEL: Record<TreeSort, string> = {
   name: 'Name',
   updated: 'Last changed',
@@ -216,11 +212,6 @@ type MoveTarget =
 /** An owner's private items have no folder yet: they cannot be moved or
  *  picked. */
 const movable = (item: TreeItem) => item.state !== 'private';
-
-/** A member moves only its own drafts, and not one that is with an admin
- *  (folder plan phase 5). */
-const memberMovable = (item: TreeItem) =>
-  item.source === 'own' && item.state !== 'submitted' && item.state !== 'with-admin';
 
 /** Where a move lands, inside a sentence. */
 const into = (dest: string | null | undefined) => (dest ? `into “${dest}”` : 'to the top level');
@@ -293,15 +284,14 @@ export function ItemTree({
   const qc = useQueryClient();
   const ws = useListWorkspace();
   const toast = useToast();
+  // One tree for every login since W6b: the brain answers in the login's
+  // scope and refuses (403, in its own words) what the login may not change.
   const owner = source === 'owner';
-  const member = source === 'member';
-  const manage = mode === 'manage' && (owner || member);
-  const writer = member ? 'member' : 'owner';
-  const canMove = member ? memberMovable : movable;
-  /** A member changes only its own folders; the owner every one. */
-  const mine = (folder: TreeFolder) => !member || folder.own === true;
+  const manage = mode === 'manage';
+  const writer = 'owner';
+  const canMove = movable;
   const scope = treeScope(kind, source);
-  const views = owner ? VIEWS : READER_VIEWS;
+  const views = VIEWS;
 
   // Plain state, never stored: a tree opens on Folders every time its
   // screen is opened (Jason, 2026-10-01). The other views are one click away
@@ -715,24 +705,24 @@ export function ItemTree({
                 {newInside.label}
               </DropdownMenuItem>
             )}
-            {!folder.system && mine(folder) && (
+            {!folder.system && (
               <DropdownMenuItem onSelect={() => setFolderDialog({ mode: 'rename', folder })}>
                 Rename…
               </DropdownMenuItem>
             )}
-            {mine(folder) && (
+            {
               <DropdownMenuItem onSelect={() => openLook(`f:${folder.id}`, folder)}>
                 Icon and colour…
               </DropdownMenuItem>
-            )}
+            }
             {owner && canGrantFolder(kind, folder) && (
               <DropdownMenuItem onSelect={() => openAccess(folder)}>
                 <Share2 />
                 Access…
               </DropdownMenuItem>
             )}
-            {mine(folder) && <DropdownMenuSeparator />}
-            {!folder.system && mine(folder) && (
+            <DropdownMenuSeparator />
+            {!folder.system && (
               <DropdownMenuItem onSelect={() => setMoveTarget({ type: 'folder', folder })}>
                 Move to…
               </DropdownMenuItem>
@@ -753,7 +743,7 @@ export function ItemTree({
                 </DropdownMenuItem>
               </>
             )}
-            {!folder.system && mine(folder) && (
+            {!folder.system && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -834,9 +824,6 @@ export function ItemTree({
     }
     if (a.folder.id === o.folder.id || isAtOrBelow(o.folder.path, a.folder.path)) return null;
     if (pos === 'inside') return canNestFolder(a.folder, o.folder) ? { over: overId, pos } : null;
-    // A member's folders have no manual order: a drop beside a folder does
-    // nothing there.
-    if (member) return null;
     return canNestFolder(a.folder, o.parent) ? { over: overId, pos } : null;
   };
 
@@ -899,9 +886,6 @@ export function ItemTree({
     },
     hint,
     dragging,
-    ...(member
-      ? { canMoveFolder: (f: TreeFolder) => f.own === true, canMoveItem: memberMovable }
-      : {}),
   };
 
   // ── Rows by view ──────────────────────────────────────────────────────
@@ -1453,7 +1437,6 @@ export function ItemTree({
         onOpenChange={(o) => !o && setFolderDialog(null)}
         initial={folderDialog?.mode === 'rename' ? folderDialog.folder.name : undefined}
         parentName={folderDialog?.mode === 'new' ? (folderDialog.parent?.name ?? null) : null}
-        who={member ? 'member' : 'brain'}
         onSubmit={(name, look) => {
           if (!folderDialog) return;
           if (folderDialog.mode === 'rename') {
@@ -1472,9 +1455,8 @@ export function ItemTree({
       <DeleteFolderDialog
         folderName={deleteTarget?.name ?? null}
         contents={adapter.noun.many}
-        who={member ? 'member' : 'brain'}
-        merges={!member}
-        renamesFiles={!member && kind === 'files'}
+        merges
+        renamesFiles={kind === 'files'}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
         onConfirm={() => {
           const target = deleteTarget;

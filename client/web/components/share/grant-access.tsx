@@ -51,7 +51,7 @@ import {
   servedElsewhere,
 } from '@/lib/grants';
 import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
-import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
+import { useShellWorkspaces, useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { AccessLinkBox } from './access-link-box';
 import { LinkServedList } from './link-served-list';
 import { ContactShareSection, OpenLinkDataWarning } from './contact-share-section';
@@ -234,6 +234,9 @@ function GrantAccessPanel({
   const toast = useToast();
   const qc = useQueryClient();
   const shell = useShellWorkspaces();
+  // An app's MCP access is set by an Admin user only (W6b: the brain refuses
+  // mcpAccess from anyone else).
+  const adminUser = useIsAdminUser();
   const adminWsId = shell?.workspaces.find((w) => w.isAdmin)?.id ?? null;
   const moderated = new Set(shell?.workspaces.filter((w) => w.moderator).map((w) => w.id));
   const [busy, setBusy] = useState(false);
@@ -471,6 +474,7 @@ function GrantAccessPanel({
       onMove={onMove}
       onGrantEmbeds={onGrantEmbeds}
       onMcpAccess={onMcpAccess}
+      mcpSwitch={adminUser}
       moderated={moderated}
       link={
         <OpenLinkPart

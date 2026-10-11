@@ -34,13 +34,10 @@ import { folderIndexFace } from './folder-index-face';
 
 /**
  * The body of a Folder index block (folder phase 7): the pages of one
- * folder, title only, read from the reader's own tree route so it is always
- * what THIS reader may see, in the order that tree gives them: by name for
- * an admin; for a member its own drafts first (newest first), then what it
- * reads of the brain's by name. An admin reads the owner tree, a member its
- * tree; a client (no data routes in W5c) or a role not known yet shows nothing
- * but the label, and a folder the reader cannot see (404) says it is not
- * shared.
+ * folder, title only, read from the tree route in the reader's own scope
+ * (W6b: one route for every login) so it is always what THIS reader may see,
+ * by name. A role not known yet shows nothing but the label, and a folder the
+ * reader cannot see (404) says it is not shared.
  *
  * `folderId` null is "the folder this page sits in", resolved by the caller
  * (`here`): undefined here means the caller does not know it (a private
@@ -56,8 +53,9 @@ export function FolderIndexList({
   hereFolderId: string | null | undefined;
 }) {
   const role = useShellRole();
-  const source: TreeSource | null =
-    role === 'admin' ? 'owner' : role === 'member' ? 'member' : null;
+  // Every login reads the owner tree in its own scope (W6b); a role not
+  // known yet reads nothing.
+  const source: TreeSource | null = role ? 'owner' : null;
   // The folder to list: the block's own, else the page's. The root (null)
   // is a place too: a page at the top level lists the top level.
   const target = folderId ?? hereFolderId;

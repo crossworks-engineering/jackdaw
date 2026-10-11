@@ -1,8 +1,6 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -11,8 +9,6 @@ import { TagInput } from '@/components/tag-input';
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
-import { KeepPrivateField } from '@/components/member/keep-private-field';
-import { createPrivateItem } from '@/lib/admin-private';
 
 export type NoteRow = {
   id: string;
@@ -31,8 +27,6 @@ export type NoteRow = {
  * `max-w-3xl` frame, no fixed editor height). Handles both create (`note=null`
  * → POST) and edit (PATCH). ⌘/Ctrl+S saves, Esc cancels. Reports `dirty` up so
  * the host can guard against discarding unsaved changes when switching notes.
- * A new note can be kept private (member logins Phase 7): it then goes into
- * this admin's own private space instead of the brain, and opens there.
  */
 export function NoteEditor({
   note,
@@ -41,7 +35,6 @@ export function NoteEditor({
   onSaved,
   onCancel,
   onDirtyChange,
-  inFolder = false,
 }: {
   note: NoteRow | null;
   focus: boolean;
@@ -49,19 +42,13 @@ export function NoteEditor({
   onSaved: (saved: NoteRow) => void;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
-  /** A new note bound for a tree folder: a private note has no folder, so
-   *  "Keep private" is not offered. */
-  inFolder?: boolean;
 }) {
   const toast = useToast();
-  const queryClient = useQueryClient();
   const creating = note === null;
   const [title, setTitle] = useState(note?.title ?? '');
   const [content, setContent] = useState(note?.content ?? '');
   const [tags, setTags] = useState<string[]>(note?.tags ?? []);
-  const [keepPrivate, setKeepPrivate] = useState(false);
   const [saving, setSaving] = useState(false);
-  const router = useRouter();
 
   // Re-seed when the target note changes (e.g. switching which note is edited).
   useEffect(() => {
@@ -88,22 +75,6 @@ export function NoteEditor({
     }
     setSaving(true);
     try {
-      if (creating && keepPrivate && !inFolder) {
-        let href: string;
-        try {
-          href = await createPrivateItem('note', { title, content });
-          // The private note lists in this screen now: refresh the list too.
-          void queryClient.invalidateQueries({ queryKey: ['notes'] });
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Save failed');
-          return;
-        }
-        toast.success('Private note created');
-        // Nothing unsaved is left here: the note is in the private space.
-        onDirtyChange?.(false);
-        router.push(href);
-        return;
-      }
       // Through the API client, not a bare fetch: the brain may sit on
       // another origin (a detached frontend, the desktop app).
       let saved: NoteRow;
@@ -138,7 +109,7 @@ export function NoteEditor({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, tags, creating, keepPrivate]);
+  }, [title, content, tags, creating]);
 
   return (
     <form
@@ -177,13 +148,7 @@ export function NoteEditor({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3">
-        {creating && !inFolder ? (
-          <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
-        ) : null}
-        {/* A private note carries no tags until it is in the brain. */}
-        {creating && keepPrivate && !inFolder ? null : (
-          <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
-        )}
+        <TagInput value={tags} onChange={setTags} placeholder="Add tags — comma or Enter…" />
         <MarkdownEditor
           value={content}
           onChange={setContent}

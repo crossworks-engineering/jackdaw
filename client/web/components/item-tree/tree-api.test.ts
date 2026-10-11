@@ -71,27 +71,26 @@ describe('tree writes', () => {
       method: 'POST',
       body: { parentId: null, name: 'A', icon: 'lucide:briefcase', color: 'cyan' },
     });
-    await createTreeFolder('notes', 'p1', 'B', 'member', { icon: '', color: null });
+    await createTreeFolder('notes', 'p1', 'B', 'owner', { icon: '', color: null });
     expect(sent.at(-1)).toEqual({
-      url: '/api/member/tree/notes/folders',
+      url: '/api/tree/notes/folders',
       method: 'POST',
       body: { parentId: 'p1', name: 'B' },
     });
   });
 
-  it('a member writes to its own tree routes (folder plan phase 5)', async () => {
-    await createTreeFolder('files', 'p1', 'Mine', 'member');
-    await patchTreeFolder('files', 'f1', { name: 'Ours' }, 'member');
-    await deleteTreeFolder('files', 'f1', false, 'member');
-    await moveTreeItems('files', ['i1'], null, false, 'member');
+  it('every login writes to /api/tree (W6b: the member tree is gone)', async () => {
+    await createTreeFolder('files', 'p1', 'Mine');
+    await patchTreeFolder('files', 'f1', { name: 'Ours' });
+    await deleteTreeFolder('files', 'f1', false);
+    await moveTreeItems('files', ['i1'], null, false);
     expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual([
-      'POST /api/member/tree/files/folders',
-      'PATCH /api/member/tree/files/folders/f1',
-      'DELETE /api/member/tree/files/folders/f1',
-      'POST /api/member/tree/files/move',
+      'POST /api/tree/files/folders',
+      'PATCH /api/tree/files/folders/f1',
+      'DELETE /api/tree/files/folders/f1',
+      'POST /api/tree/files/move',
     ]);
-    expect(sent[0]!.body).toEqual({ parentId: 'p1', name: 'Mine' });
-    expect(sent[3]!.body).toEqual({ ids: ['i1'], folderId: null });
+    expect(sent.some((s) => s.url.includes('/api/member/'))).toBe(false);
   });
 });
 

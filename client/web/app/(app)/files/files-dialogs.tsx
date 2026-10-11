@@ -6,9 +6,7 @@
  * Moved out of files-client.tsx unchanged (structure pass, phase 1):
  * already standalone, just living in the wrong file. No signatures changed.
  */
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ApiError, apiSend } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
@@ -24,9 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@mantle/web-ui/ui/dialog';
-import { KeepPrivateField } from '@/components/member/keep-private-field';
-import { privateTextFile, uploadPrivateFile } from '@/lib/admin-private';
-import { refusalMessage } from '@/lib/member-space';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { visibilityRefusal } from '@/components/item-tree/sharing';
 import {
   VisibilityConfirmDialog,
@@ -241,23 +237,21 @@ export function CreateFileDialog({
   onCreated: (fileId: string) => void;
 }) {
   const toast = useToast();
-  const queryClient = useQueryClient();
+  // A file's text is read and edited on a route only an Admin user may call
+  // (W6b): any other login gets the file, not its editor.
+  const isAdminUser = useIsAdminUser();
   const open = ext !== null;
   const [stem, setStem] = useState('');
   const [type, setType] = useState<TextExt>('md');
-  // "Keep private": the file goes into this admin's private space, not the brain.
-  const [keepPrivate, setKeepPrivate] = useState(false);
   const [busy, setBusy] = useState(false);
   // The brain's 409 `visibility`: the folder is shared, so the new file is
   // read by the team or clients at once. Asked, then created with `confirm`.
   const [exposed, setExposed] = useState<PendingConfirm | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     if (ext) {
       setStem('');
       setType(ext);
-      setKeepPrivate(false);
       setBusy(false);
     }
   }, [ext]);
@@ -268,26 +262,6 @@ export function CreateFileDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid || busy) return;
-    setBusy(true);
-    if (keepPrivate) {
-      const filename = `${cleanStem}.${type}`;
-      let href: string;
-      try {
-        href = await uploadPrivateFile(privateTextFile(filename, type, defaultBodyFor(type)));
-        // The private file lists in the root folder now: refresh the lists too.
-        void queryClient.invalidateQueries({ queryKey: ['files'] });
-      } catch (err) {
-        toast.error(
-          refusalMessage(err) ?? (err instanceof Error ? err.message : 'Could not create file'),
-        );
-        setBusy(false);
-        return;
-      }
-      toast.success(`Created ${filename} in your private files`);
-      onOpenChange(false);
-      router.push(href);
-      return;
-    }
     await create(false);
   };
 
@@ -329,7 +303,8 @@ export function CreateFileDialog({
         <DialogHeader>
           <DialogTitle>New file</DialogTitle>
           <DialogDescription>
-            Created inside <code className="font-mono">{parentPath}</code> and opened for editing.
+            Created inside <code className="font-mono">{parentPath}</code>
+            {isAdminUser ? ' and opened for editing.' : '.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -360,7 +335,6 @@ export function CreateFileDialog({
               <span className="shrink-0 text-sm text-muted-foreground">.{type}</span>
             </div>
           </div>
-          <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

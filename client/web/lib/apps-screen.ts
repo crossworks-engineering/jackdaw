@@ -66,6 +66,24 @@ export const APP_DELETE_CONFIRM =
 export const APP_DELETED_TOAST =
   'Moved to the trash. Restore it under Recently deleted apps for 30 days.';
 
+/** A delete by a login that is not an Admin user (W6b, owner decision): the
+ *  app goes to the brain's trash and stays there until the brain's owner
+ *  removes it; the Recently deleted list is an Admin user's. */
+export const MEMBER_APP_DELETE_CONFIRM =
+  'It moves to the trash with its code and data. No one can run it there. An Admin user can restore it.';
+export const MEMBER_APP_DELETED_TOAST = 'Moved to the trash. An Admin user can restore it.';
+
+/** The note on an app that was in its author's own trash when the personal
+ *  spaces were folded into the brain (W6b contract item 4). */
+export const APP_WAS_IN_TRASH =
+  'This app was in your trash. It is yours again: keep it, or delete it.';
+
+/** Whether the brain marks the app as one that was in its author's trash
+ *  (`trashedBeforeFold`, W6b). False when the brain sends nothing. */
+export function wasInTrash(app: object): boolean {
+  return (app as { trashedBeforeFold?: unknown }).trashedBeforeFold === true;
+}
+
 /** The hint under the Access panel: what a workspace grant means for an app. */
 export const APP_SHARE_HINT =
   'Users in a workspace it is shared with can run the app and use its Mantle tools. With Write on, they also change its data. Every action is audited to that user. An open link can only read the app’s own data.';

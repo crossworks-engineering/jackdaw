@@ -304,21 +304,11 @@ describe('urls', () => {
     );
   });
 
-  it('asks a member’s own tree, whose search takes no tag or workspace', () => {
-    expect(folderUrl('notes', 'f1', 'name', null, 'member')).toBe(
-      '/api/member/tree/notes?folder=f1&sort=name',
-    );
-    expect(searchUrl('notes', 'q', 'x', { level: 'team', tag: 't' }, 'member', 'w1')).toBe(
-      '/api/member/tree/notes/search?q=q&cursor=x',
-    );
-  });
-
-  it('keeps each reader’s cached folders apart, the owner’s keys unchanged', () => {
+  it('keeps the cache keys of the one tree (W6b)', () => {
     expect(treeKey('notes')).toEqual(['tree', 'notes']);
-    expect(treeKey('notes', 'member')).toEqual(['tree', 'member:notes']);
-    expect(folderKey('notes', null, 'name', 'member')).toEqual([
+    expect(folderKey('notes', null, 'name')).toEqual([
       'tree',
-      'member:notes',
+      'notes',
       'folder',
       'root',
       'name',
@@ -332,9 +322,6 @@ describe('urls', () => {
     );
     expect(searchUrl('notes', 'q', null, {}, 'owner', 'w1')).toBe(
       '/api/tree/notes/search?q=q&ws=w1',
-    );
-    expect(folderUrl('notes', null, 'name', null, 'member', 'w1')).toBe(
-      '/api/member/tree/notes?sort=name',
     );
     expect(folderUrl('notes', null, 'name', null, 'owner', null)).toBe('/api/tree/notes?sort=name');
     expect(folderKey('notes', null, 'name', 'owner', 'w1').at(-1)).toBe('w1');

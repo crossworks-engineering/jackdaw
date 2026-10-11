@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -53,14 +51,5 @@ describe('one shared stream per tab', () => {
     expect(stopped.count).toBe(0);
     vi.advanceTimersByTime(5_000);
     expect(stopped.count).toBe(1);
-  });
-
-  it('the member workspace opens no stream of its own', () => {
-    const src = readFileSync(
-      fileURLToPath(new URL('../member/member-workspace.tsx', import.meta.url)),
-      'utf8',
-    );
-    expect(src).not.toContain('apiEventStream');
-    expect(src).toContain('useRealtime([]');
   });
 });

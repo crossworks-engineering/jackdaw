@@ -3,7 +3,7 @@
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useState } from 'react';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AppWindow,
@@ -44,7 +44,6 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Badge } from '@mantle/web-ui/ui/badge';
-import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { ItemCard, ItemCardAction, ItemIcon, UpdatedStamp } from '@/components/item-list/item-card';
 import {
@@ -53,19 +52,9 @@ import {
   ItemListScroll,
   NewButton,
 } from '@/components/item-list/item-list-header';
-import { ClearFilter, SortMenu, StateFilter, TagFilter } from '@/components/item-list/item-filters';
+import { ClearFilter, SortMenu, TagFilter } from '@/components/item-list/item-filters';
 import { useCardDetails } from '@/components/item-list/use-card-details';
-import {
-  ADMIN_STATE_OPTIONS,
-  PrivateItemCard,
-  PrivateItemDetail,
-  adminStateOf,
-  isPrivateRow,
-  usePrivateOpen,
-} from '@/components/item-list/admin-private-rows';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { KeepPrivateField } from '@/components/member/keep-private-field';
-import { createPrivateItem } from '@/lib/admin-private';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
@@ -87,9 +76,7 @@ const SORT_LABELS: Record<TableSort, string> = {
 };
 
 type TablesListResponse = {
-  /** Brain tables, and with `state=all|private` the admin's own private
-   *  tables (AdminPrivateListRow, the `private` key marks them). */
-  tables: Array<TableRow | AdminPrivateListRow>;
+  tables: TableRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -110,13 +97,8 @@ export function TablesShell() {
   const sort: TableSort = SORTS.includes(sortParam as TableSort)
     ? (sortParam as TableSort)
     : 'edited';
-  // Which items: all (default), the brain's, or this admin's private ones
-  // (item-list alignment). Always sent: the brain's default is `brain`.
-  const state = adminStateOf(searchParams);
-  // Only an Admin user has a private space (phase W5c: one shell): anyone
-  // else asks for the brain's items, with no State filter.
+  // Spreadsheet import is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
-  const { pid, openPrivate } = usePrivateOpen();
   const [details, changeDetails] = useCardDetails('mantle_tables_card_details_v1');
 
   // The item tree when this brain serves it for tables (docs/folder-tree.md);
@@ -127,14 +109,13 @@ export function TablesShell() {
   const [treeQuery, setTreeQuery] = useTreeSearch();
 
   const listQuery = useQuery({
-    queryKey: ['tables', { q: query, tag: activeTag, sort, page, state }],
+    queryKey: ['tables', { q: query, tag: activeTag, sort, page }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (activeTag) qs.set('tag', activeTag);
       if (sort !== 'edited') qs.set('sort', sort);
       if (page > 1) qs.set('page', String(page));
-      if (isAdminUser) qs.set('state', state);
       return apiFetch<TablesListResponse>(`/api/tables?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
@@ -147,14 +128,9 @@ export function TablesShell() {
   const tags = listQuery.data?.tags ?? [];
 
   // The full selected table (grid + draft) — a separate fetch since list rows
-  // are summaries. Defaults to the first row (master-detail convention),
-  // which may be a private table: that one opens in its own item view.
+  // are summaries. Defaults to the first row (master-detail convention).
   const urlSelected = searchParams.get('selected')?.trim() || null;
-  const first = !urlSelected && !pid ? (rows[0] ?? null) : null;
-  const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
-  const selectedId = privateOpen
-    ? null
-    : (urlSelected ?? (first && !isPrivateRow(first) ? first.id : null));
+  const selectedId = urlSelected ?? rows[0]?.id ?? null;
   const selectedTableQuery = useQuery({
     queryKey: ['tables', selectedId],
     queryFn: () =>
@@ -186,14 +162,10 @@ export function TablesShell() {
   const [searchInput, setSearchInput] = useState(query);
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  // "Keep private": the new table goes into this admin's private space, not the brain.
-  const [keepPrivate, setKeepPrivate] = useState(false);
   const [creating, setCreating] = useState(false);
-  // "New table inside" a tree folder: where it goes (a private table has no
-  // folder, so the dialog does not offer that then).
+  // "New table inside" a tree folder: where it goes.
   const [createIn, setCreateIn] = useState<TreeFolder | null>(null);
   const { fileNew, confirm: fileConfirm } = useFileNewItem('tables', 'table');
-  const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<Pick<TableRow, 'id' | 'title'> | null>(null);
 
   // The list's collapse, restored after hydration. The effect below already
@@ -218,7 +190,7 @@ export function TablesShell() {
   const selectTable = (id: string) => {
     if (id === selectedId) return;
     setPendingId(id);
-    go({ selected: id, pid: null });
+    go({ selected: id });
   };
 
   // The WIDTH is `MasterDetail`'s now, under `master-detail:tables`.
@@ -238,7 +210,6 @@ export function TablesShell() {
 
   const openCreate = (folder: TreeFolder | null = null) => {
     setNewTitle('');
-    setKeepPrivate(false);
     setCreateIn(folder);
     setCreateOpen(true);
   };
@@ -248,15 +219,6 @@ export function TablesShell() {
     if (!title) return;
     setCreating(true);
     try {
-      if (keepPrivate && !createIn) {
-        const href = await createPrivateItem('table', { title });
-        // The private table lists in this screen now: refresh the list too.
-        void queryClient.invalidateQueries({ queryKey: ['tables'] });
-        void queryClient.invalidateQueries({ queryKey: treeKey('tables') });
-        setCreateOpen(false);
-        router.push(href);
-        return;
-      }
       const { table } = await apiSend<{ table: TableDetail }>('/api/tables', 'POST', { title });
       setCreateOpen(false);
       if (createIn) await fileNew(table.id, createIn);
@@ -378,7 +340,7 @@ export function TablesShell() {
               <ItemTree
                 kind="tables"
                 adapter={tablesAdapter}
-                selectedItemId={privateOpen ?? pendingId ?? selectedId}
+                selectedItemId={pendingId ?? selectedId}
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search tables and folders…"
@@ -388,20 +350,16 @@ export function TablesShell() {
                   onCreate: (f) => openCreate(f),
                 }}
                 actions={listActions}
-                onOpenItem={(item) =>
-                  item.state === 'private' ? openPrivate(item.id) : selectTable(item.id)
-                }
-                itemActions={(item) =>
-                  item.state === 'private' ? null : (
-                    <DropdownMenuItem
-                      className="text-destructive-ink focus:text-destructive-ink"
-                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                    >
-                      <Trash2 />
-                      Delete…
-                    </DropdownMenuItem>
-                  )
-                }
+                onOpenItem={(item) => selectTable(item.id)}
+                itemActions={(item) => (
+                  <DropdownMenuItem
+                    className="text-destructive-ink focus:text-destructive-ink"
+                    onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                  >
+                    <Trash2 />
+                    Delete…
+                  </DropdownMenuItem>
+                )}
                 // A share or a move changes the level the open item is read
                 // at: its header badge and client thread follow.
                 onChanged={() => void queryClient.invalidateQueries({ queryKey: ['tables'] })}
@@ -419,23 +377,16 @@ export function TablesShell() {
                 <SortMenu
                   value={sort}
                   labels={SORT_LABELS}
-                  onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null, pid: null })}
+                  onChange={(v) => go({ sort: v === 'edited' ? null : v, page: null })}
                 />
                 <TagFilter
                   tags={tags}
                   activeTag={activeTag}
-                  onSelect={(t) => go({ tag: t, page: null, pid: null })}
+                  onSelect={(t) => go({ tag: t, page: null })}
                   details={details}
                   onDetailsChange={changeDetails}
                   allLabel="All tables"
                 />
-                {isAdminUser ? (
-                  <StateFilter
-                    value={state}
-                    options={ADMIN_STATE_OPTIONS}
-                    onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
-                  />
-                ) : null}
                 {activeTag && (
                   <ClearFilter
                     onClear={() => go({ tag: null, page: null })}
@@ -447,82 +398,68 @@ export function TablesShell() {
               <ItemListScroll pending={navPending}>
                 {rows.length === 0 ? (
                   <ItemListEmpty>
-                    {state === 'private' && !query
-                      ? 'You have no private tables. Only you would see them, until you accept one into the brain.'
-                      : query || activeTag
-                        ? 'No tables match your search or filter.'
-                        : 'No tables yet.'}
+                    {query || activeTag
+                      ? 'No tables match your search or filter.'
+                      : 'No tables yet.'}
                   </ItemListEmpty>
                 ) : (
-                  rows.map((t) =>
-                    isPrivateRow(t) ? (
-                      <PrivateItemCard
-                        key={t.id}
-                        row={t}
-                        selected={privateOpen === t.id}
-                        onSelect={() => openPrivate(t.id)}
-                      />
-                    ) : (
-                      <ItemCard
-                        key={t.id}
-                        id={t.id}
-                        kind="table"
-                        title={t.title}
-                        icon={
-                          pendingId === t.id ? (
-                            <ItemIcon
-                              fallback={
-                                <Loader2
-                                  className="animate-spin text-muted-foreground"
-                                  aria-hidden
-                                />
-                              }
-                            />
-                          ) : (
-                            <ItemIcon emoji={t.icon || '📊'} fallback={null} />
-                          )
-                        }
-                        badge={<WorkspaceChips item={t} className="mt-0.5" />}
-                        selected={selectedId === t.id || pendingId === t.id}
-                        onSelect={() => selectTable(t.id)}
-                        footerStart={
-                          <>
-                            <UpdatedStamp at={t.updatedAt} />
-                            <span className="truncate text-xs text-muted-foreground tabular-nums">
-                              · {t.columnCount} cols · {t.rowCount} rows
-                            </span>
-                          </>
-                        }
-                        actions={
-                          <ItemCardAction
-                            label={`Delete ${t.title}`}
-                            title="Delete table"
-                            destructive
-                            onClick={() => setDeleteTarget(t)}
-                          >
-                            <Trash2 />
-                          </ItemCardAction>
-                        }
-                      >
-                        {/* App-bound export: read-only here, edited in the app.
+                  rows.map((t) => (
+                    <ItemCard
+                      key={t.id}
+                      id={t.id}
+                      kind="table"
+                      title={t.title}
+                      icon={
+                        pendingId === t.id ? (
+                          <ItemIcon
+                            fallback={
+                              <Loader2 className="animate-spin text-muted-foreground" aria-hidden />
+                            }
+                          />
+                        ) : (
+                          <ItemIcon emoji={t.icon || '📊'} fallback={null} />
+                        )
+                      }
+                      badge={<WorkspaceChips item={t} className="mt-0.5" />}
+                      selected={selectedId === t.id || pendingId === t.id}
+                      onSelect={() => selectTable(t.id)}
+                      footerStart={
+                        <>
+                          <UpdatedStamp at={t.updatedAt} />
+                          <span className="truncate text-xs text-muted-foreground tabular-nums">
+                            · {t.columnCount} cols · {t.rowCount} rows
+                          </span>
+                        </>
+                      }
+                      actions={
+                        <ItemCardAction
+                          label={`Delete ${t.title}`}
+                          title="Delete table"
+                          destructive
+                          onClick={() => setDeleteTarget(t)}
+                        >
+                          <Trash2 />
+                        </ItemCardAction>
+                      }
+                    >
+                      {/* App-bound export: read-only here, edited in the app.
                             The card is one big click target, so the chip is a
                             plain badge; the DETAIL's badge is the link. */}
-                        {t.appLink && (
-                          <Badge variant="secondary" className="gap-1 font-normal">
-                            <AppWindow className="size-3" aria-hidden />
-                            App table{t.appLink.appName ? ` · ${t.appLink.appName}` : ''}
-                          </Badge>
-                        )}
-                        {details && t.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {t.tags.map((tag) => (
-                              <TagPill key={tag} tag={tag} />
-                            ))}
-                          </div>
-                        )}
-                      </ItemCard>
-                    ),
-                  )
+                      {t.appLink && (
+                        <Badge variant="secondary" className="gap-1 font-normal">
+                          <AppWindow className="size-3" aria-hidden />
+                          App table{t.appLink.appName ? ` · ${t.appLink.appName}` : ''}
+                        </Badge>
+                      )}
+                      {details && t.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {t.tags.map((tag) => (
+                            <TagPill key={tag} tag={tag} />
+                          ))}
+                        </div>
+                      )}
+                    </ItemCard>
+                  ))
                 )}
               </ItemListScroll>
 
@@ -542,13 +479,7 @@ export function TablesShell() {
         // scroller can never overflow, so only one bar is ever painted.
         detail={
           <div className="relative h-full overflow-hidden">
-            {privateOpen ? (
-              <PrivateItemDetail
-                key={privateOpen}
-                id={privateOpen}
-                onClose={() => openPrivate(null)}
-              />
-            ) : selectedTable && selectedTableQuery.isFetchedAfterMount ? (
+            {selectedTable && selectedTableQuery.isFetchedAfterMount ? (
               <TableDetailClient key={selectedTable.id} initial={selectedTable} embedded />
             ) : selectedId && selectedTableQuery.isError ? (
               <>
@@ -599,7 +530,9 @@ export function TablesShell() {
           <DialogHeader>
             <DialogTitle>{createIn ? `New table in “${createIn.name}”` : 'New table'}</DialogTitle>
             <DialogDescription>
-              Give it a name. You can add columns and import a spreadsheet in the editor.
+              {isAdminUser
+                ? 'Give it a name. You can add columns and import a spreadsheet in the editor.'
+                : 'Give it a name. You can add columns in the editor.'}
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -611,9 +544,6 @@ export function TablesShell() {
               if (e.key === 'Enter') void createTable();
             }}
           />
-          {createIn ? null : (
-            <KeepPrivateField checked={keepPrivate} onCheckedChange={setKeepPrivate} />
-          )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel

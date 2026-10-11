@@ -21,15 +21,14 @@ import type {
 } from '@mantle/web-ui/types/tree';
 
 /**
- * Who the tree is read as. The owner's tree is /api/tree (read and write);
- * a member login's is a view of what it may read (/api/member/tree: the
- * kinds its shell lists in `treeKinds`). A client reads no tree in W5c.
+ * Who the tree is read as: since workspaces W6b every login reads and writes
+ * /api/tree in its own scope (the member tree, /api/member/tree, is gone and
+ * answers 410). Kept as a type so a later reader of its own has one place.
  */
-export type TreeSource = 'owner' | 'member';
+export type TreeSource = 'owner';
 
 const BASE: Record<TreeSource, string> = {
   owner: '/api/tree',
-  member: '/api/member/tree',
 };
 
 /** The cache scope of a kind's tree: the kind for the owner, prefixed for a
@@ -160,9 +159,7 @@ function refusedSeen(err: unknown): boolean {
   return err instanceof ApiError && err.status === 400 && /\bseen\b/.test(err.message);
 }
 
-/** Who writes: the owner (/api/tree), or a member in its own folders and
- *  drafts (/api/member/tree, folder plan phase 5: no share, order, pins or
- *  confirm there). */
+/** Who writes: /api/tree, for every login (W6b). */
 export type TreeWriter = TreeSource;
 
 /** A new folder's look, chosen in the create dialog: only what was set. */

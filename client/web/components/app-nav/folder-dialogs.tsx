@@ -26,25 +26,15 @@ import {
 import { AppLookFields, type AppLook } from './app-look-picker';
 import { AppTile } from './app-tile';
 
-/** Whose folders these are: the brain's (every admin sees them), or a
- *  member's own (only that member sees them until an admin accepts
- *  something filed in one, folder plan phase 5). */
-export type FolderAudience = 'brain' | 'member';
-
-/** What the dialog says about who sees a folder. */
-export function folderNameNote(
-  who: FolderAudience,
-  renaming: boolean,
-  parentName: string | null | undefined,
-): string {
-  if (who === 'member') {
-    const own = 'Only you see this folder until an admin accepts something in it.';
-    return !renaming && parentName ? `Inside ${parentName}. ${own}` : own;
-  }
-  if (renaming) return 'Everyone on this brain sees the new name.';
+/** What the dialog says about who sees a folder (workspaces W6b: one tree
+ *  for every login; a folder is seen through the workspaces it is shared
+ *  with, and a new one lands in the switcher's workspace, or where the brain
+ *  puts it). */
+export function folderNameNote(renaming: boolean, parentName: string | null | undefined): string {
+  if (renaming) return 'Everyone who sees this folder sees the new name.';
   return parentName
-    ? `Inside ${parentName}. Everyone on this brain sees it.`
-    : 'Everyone on this brain sees the same folders.';
+    ? `Inside ${parentName}. Users who see ${parentName} see it.`
+    : 'Users of the workspace it lands in see it.';
 }
 
 /** What a new folder submits of its picked look: only what was chosen (a
@@ -68,7 +58,6 @@ export function FolderNameDialog({
   onOpenChange,
   initial,
   parentName,
-  who = 'brain',
   onSubmit,
 }: {
   open: boolean;
@@ -76,7 +65,6 @@ export function FolderNameDialog({
   initial?: string;
   /** For a new subfolder: the folder it goes in, named in the description. */
   parentName?: string | null;
-  who?: FolderAudience;
   /** `look` holds only what was chosen (a rename passes `{}`). */
   onSubmit: (name: string, look: AppLook) => void;
 }) {
@@ -110,7 +98,7 @@ export function FolderNameDialog({
         >
           <DialogHeader>
             <DialogTitle>{renaming ? 'Rename folder' : 'New folder'}</DialogTitle>
-            <DialogDescription>{folderNameNote(who, renaming, parentName)}</DialogDescription>
+            <DialogDescription>{folderNameNote(renaming, parentName)}</DialogDescription>
           </DialogHeader>
           <Field>
             <FieldLabel htmlFor="app-folder-name">Name</FieldLabel>
@@ -161,7 +149,6 @@ export function FolderNameDialog({
 export function DeleteFolderDialog({
   folderName,
   contents = 'apps',
-  who = 'brain',
   merges = false,
   renamesFiles = false,
   onOpenChange,
@@ -170,7 +157,6 @@ export function DeleteFolderDialog({
   folderName: string | null;
   /** What the folder holds besides folders, in the plural ("apps", "files"). */
   contents?: string;
-  who?: FolderAudience;
   /** The brain merges a subfolder into a folder of the same name one level
    *  up (the item tree's delete). */
   merges?: boolean;
@@ -185,8 +171,7 @@ export function DeleteFolderDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete “{folderName}”?</AlertDialogTitle>
           <AlertDialogDescription>
-            Only the folder goes. The {contents} and folders inside it move up one level
-            {who === 'member' ? '.' : ', for everyone on this brain.'}
+            Only the folder goes. The {contents} and folders inside it move up one level.
             {merges &&
               ' A folder with the same name already there takes in what the one inside held.'}
             {renamesFiles &&

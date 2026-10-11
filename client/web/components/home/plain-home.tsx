@@ -7,7 +7,14 @@ import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
 import { useShellRole } from '@/components/layout/shell-role';
-import { hasArea, sortWorkspaces, workspaceHref, type ShellWorkspace } from '@/lib/workspaces';
+import {
+  hasArea,
+  isPrivateWorkspace,
+  sortWorkspaces,
+  workspaceHref,
+  workspaceLabel,
+  type ShellWorkspace,
+} from '@/lib/workspaces';
 
 /** The workspace screens every login opens, in the nav's order. */
 export const HOME_LINKS: readonly { href: string; label: string }[] = [
@@ -21,17 +28,25 @@ export const HOME_LINKS: readonly { href: string; label: string }[] = [
 
 /**
  * The plain home (phase W5c): the login's workspaces, from the shell, and the
- * screens it works in. A client's home, and an admin's without the settings
- * area. Plain on purpose: the dashboard's cards are the brain's operations,
+ * screens it works in. A client's home, a member's (W6b: with Ask the
+ * assistant), and an admin's without the settings area. Plain on purpose: the dashboard's cards are the brain's operations,
  * the settings area's.
  */
-export function PlainHomeView({ workspaces }: { workspaces: readonly ShellWorkspace[] }) {
+export function PlainHomeView({
+  workspaces,
+  actions,
+}: {
+  workspaces: readonly ShellWorkspace[];
+  /** Text buttons right of the heading (a member's: ask the assistant). */
+  actions?: ReactNode;
+}) {
   const sorted = sortWorkspaces(workspaces.map((w) => ({ ...w, archived: false })));
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-4 md:p-8">
       <SetPageTitle title="Home" />
-      <header>
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Home</h1>
+        {actions}
       </header>
       <HomeSection title="Your workspaces">
         {sorted.length === 0 ? (
@@ -43,8 +58,10 @@ export function PlainHomeView({ workspaces }: { workspaces: readonly ShellWorksp
                 <ListCard asChild>
                   <Link href={workspaceHref(w.id)}>
                     <div className="flex items-center gap-2">
-                      <ListCardTitle className="flex-1">{w.name}</ListCardTitle>
-                      {w.moderator ? <Badge variant="outline">Moderator</Badge> : null}
+                      <ListCardTitle className="flex-1">{workspaceLabel(w)}</ListCardTitle>
+                      {w.moderator && !isPrivateWorkspace(w) ? (
+                        <Badge variant="outline">Moderator</Badge>
+                      ) : null}
                     </div>
                   </Link>
                 </ListCard>

@@ -19,6 +19,7 @@ import { EmojiPicker } from '@/components/emoji-picker';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
@@ -126,6 +127,8 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const toast = useToast();
+  // Export is a route only an Admin user may call (W6b).
+  const isAdminUser = useIsAdminUser();
 
   const [title, setTitle] = useState(initial.title);
 
@@ -529,7 +532,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
           {/* Share publishes first (beforeEnable=commit, the pages pattern) so
               the minted link never points at a stale or absent snapshot. */}
           <GrantAccessControl type="draw" nodeId={initial.id} beforeEnable={commit} />
-          <ExportMenu nodeId={initial.id} kind="draw" />
+          {isAdminUser ? <ExportMenu nodeId={initial.id} kind="draw" /> : null}
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
               drawing exits too (the shell drops focus on navigation). */}

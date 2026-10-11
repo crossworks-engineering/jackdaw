@@ -10,6 +10,12 @@ describe('memberAssetPath', () => {
     expect(memberAssetPath(`/api/draws/${ID}/svg?raw=1`)).toBe(`/api/member/draws/${ID}/svg`);
   });
 
+  it('keeps a thumbnail a thumbnail', () => {
+    expect(memberAssetPath(`/api/files/files/${ID}?thumb=1`)).toBe(
+      `/api/member/files/${ID}?thumb=1`,
+    );
+  });
+
   it('leaves anything else alone', () => {
     expect(memberAssetPath('/api/appearance/logo')).toBe('/api/appearance/logo');
     expect(memberAssetPath(`/api/files/files/${ID}/extra`)).toBe(`/api/files/files/${ID}/extra`);

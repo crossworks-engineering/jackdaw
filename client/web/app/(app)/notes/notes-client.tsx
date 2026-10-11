@@ -30,7 +30,6 @@ import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
-import type { AdminPrivateListRow } from '@/lib/contract/member';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { ItemCard, ItemIcon } from '@/components/item-list/item-card';
 import {
@@ -39,17 +38,8 @@ import {
   ItemListScroll,
   NewButton,
 } from '@/components/item-list/item-list-header';
-import { ClearFilter, StateFilter, TagFilter } from '@/components/item-list/item-filters';
+import { ClearFilter, TagFilter } from '@/components/item-list/item-filters';
 import { useCardDetails } from '@/components/item-list/use-card-details';
-import {
-  ADMIN_STATE_OPTIONS,
-  PrivateItemCard,
-  PrivateItemDetail,
-  adminStateOf,
-  isPrivateRow,
-  usePrivateOpen,
-  type AdminListState,
-} from '@/components/item-list/admin-private-rows';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
@@ -66,9 +56,7 @@ import { NoteEditor, type NoteRow } from './note-editor';
 type TagCount = { tag: string; count: number };
 
 type NotesListResponse = {
-  /** Brain notes, and with `state=all|private` the admin's own private
-   *  notes (AdminPrivateListRow, the `private` key marks them). */
-  notes: Array<NoteRow | AdminPrivateListRow>;
+  notes: NoteRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -95,13 +83,6 @@ export function NotesClient() {
   const activeTag = searchParams.get('tag')?.trim() || null;
   const showDigests =
     searchParams.get('digests') === '1' || (!!activeTag && isDigestTag(activeTag));
-  // Which items: all (default), the brain's, or this admin's private ones
-  // (item-list alignment). Always sent: the brain's default is `brain`.
-  const state = adminStateOf(searchParams);
-  // Only an Admin user has a private space (phase W5c: one shell): anyone
-  // else asks for the brain's items, with no State filter.
-  const isAdminUser = useIsAdminUser();
-  const { pid, openPrivate } = usePrivateOpen();
 
   // The item tree when this brain serves it for notes (docs/folder-tree.md);
   // the paged card list for a brain before it, or if a tree call 404s.
@@ -113,14 +94,13 @@ export function NotesClient() {
   // The switcher's workspace (W5b): the list shows its items only.
   const ws = useListWorkspace();
   const listQuery = useQuery({
-    queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, state, ws }],
+    queryKey: ['notes', { q: query, tag: activeTag, digests: showDigests, page, ws }],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (query) qs.set('q', query);
       if (activeTag) qs.set('tag', activeTag);
       if (showDigests) qs.set('digests', '1');
       if (page > 1) qs.set('page', String(page));
-      if (isAdminUser) qs.set('state', state);
       if (ws) qs.set('ws', ws);
       return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`).then((r) =>
         noteListAnswer(r, ws),
@@ -130,11 +110,10 @@ export function NotesClient() {
     enabled: !showTree,
   });
 
-  const rows = useMemo(
+  const notes = useMemo(
     () => (showTree ? [] : (listQuery.data?.notes ?? [])),
     [showTree, listQuery.data?.notes],
   );
-  const notes = useMemo(() => rows.filter((r): r is NoteRow => !isPrivateRow(r)), [rows]);
   const total = listQuery.data?.total ?? 0;
   const pageSize = listQuery.data?.pageSize ?? 50;
   const tags = useMemo(() => listQuery.data?.tags ?? [], [listQuery.data?.tags]);
@@ -169,20 +148,16 @@ export function NotesClient() {
   const [details, changeDetails] = useCardDetails('mantle_notes_card_details_v1');
 
   // ── Selection / edit state machine ──────────────────────────────────
-  // The first card, when nothing is picked (auto-select), whichever kind.
-  const first = !selectedId && !pid ? (rows[0] ?? null) : null;
-  // The private note `?pid=` names, or a private first card.
-  const privateOpen = pid ?? (first && isPrivateRow(first) ? first.id : null);
+  // The first card, when nothing is picked (auto-select).
   const selected = useMemo<NoteRow | null>(() => {
-    if (privateOpen) return null;
     if (selectedId) {
       return (
         notes.find((n) => n.id === selectedId) ??
         (selectedNoteQuery.data?.id === selectedId ? selectedNoteQuery.data : null)
       );
     }
-    return first && !isPrivateRow(first) ? first : null;
-  }, [privateOpen, selectedId, notes, selectedNoteQuery.data, first]);
+    return notes[0] ?? null;
+  }, [selectedId, notes, selectedNoteQuery.data]);
   // Notes opens on this note next time (lib/last-opened.ts): one the user
   // picked and that loaded, not the first card shown by default.
   useRememberLastOpened('notes', selectedId && selected?.id === selectedId ? selectedId : null);
@@ -217,14 +192,7 @@ export function NotesClient() {
     guard(() => {
       setSelectedId(id);
       syncSelectionParam('selected', id);
-      if (pid) openPrivate(null);
       exitEdit();
-    });
-
-  const selectPrivate = (id: string) =>
-    guard(() => {
-      exitEdit();
-      openPrivate(id);
     });
 
   const startCreate = (folder: TreeFolder | null = null) =>
@@ -259,15 +227,12 @@ export function NotesClient() {
     tag?: string | null;
     q?: string | null;
     digests?: boolean;
-    state?: AdminListState;
   }) => {
     const nextTag = over.tag !== undefined ? over.tag : activeTag;
     const nextQ = over.q !== undefined ? over.q : query || null;
     const nextPage = over.page !== undefined ? over.page : page;
     const nextDigests = over.digests !== undefined ? over.digests : showDigests;
-    const nextState = over.state ?? state;
     const params = new URLSearchParams();
-    if (nextState !== 'all') params.set('state', nextState);
     if (nextTag) params.set('tag', nextTag);
     if (nextQ) params.set('q', nextQ);
     if (nextDigests) params.set('digests', '1');
@@ -365,26 +330,22 @@ export function NotesClient() {
               <ItemTree
                 kind="notes"
                 adapter={notesAdapter}
-                selectedItemId={privateOpen ?? (creating ? null : (selected?.id ?? null))}
+                selectedItemId={creating ? null : (selected?.id ?? null)}
                 query={treeQuery}
                 onQueryChange={setTreeQuery}
                 searchPlaceholder="Search notes and folders…"
                 newItemInFolder={{ label: 'note', onCreate: (f) => startCreate(f) }}
                 actions={<NewButton onClick={() => startCreate()} />}
-                onOpenItem={(item) =>
-                  item.state === 'private' ? selectPrivate(item.id) : selectNote(item.id)
-                }
-                itemActions={(item) =>
-                  item.state === 'private' ? null : (
-                    <DropdownMenuItem
-                      className="text-destructive-ink focus:text-destructive-ink"
-                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                    >
-                      <Trash2 />
-                      Delete…
-                    </DropdownMenuItem>
-                  )
-                }
+                onOpenItem={(item) => selectNote(item.id)}
+                itemActions={(item) => (
+                  <DropdownMenuItem
+                    className="text-destructive-ink focus:text-destructive-ink"
+                    onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                  >
+                    <Trash2 />
+                    Delete…
+                  </DropdownMenuItem>
+                )}
                 // A share or a move changes the level the open item is read
                 // at: its header badge and client thread follow.
                 onChanged={() => void queryClient.invalidateQueries({ queryKey: ['notes'] })}
@@ -407,13 +368,6 @@ export function NotesClient() {
                   onDetailsChange={changeDetails}
                   allLabel="All notes"
                 />
-                {isAdminUser ? (
-                  <StateFilter
-                    value={state}
-                    options={ADMIN_STATE_OPTIONS}
-                    onChange={(v) => go({ state: v, page: 1 })}
-                  />
-                ) : null}
                 <Button
                   size="sm"
                   variant="ghost"
@@ -448,50 +402,39 @@ export function NotesClient() {
               </ItemListHeader>
 
               <ItemListScroll pending={navPending}>
-                {rows.length === 0 ? (
+                {notes.length === 0 ? (
                   <ItemListEmpty>
-                    {state === 'private' && !query
-                      ? 'You have no private notes. Only you would see them, until you accept one into the brain.'
-                      : query || activeTag
-                        ? 'No notes match your search or filter.'
-                        : 'No notes yet. Click “New” or ask your assistant to add one.'}
+                    {query || activeTag
+                      ? 'No notes match your search or filter.'
+                      : 'No notes yet. Click “New” or ask your assistant to add one.'}
                   </ItemListEmpty>
                 ) : (
-                  rows.map((n) =>
-                    isPrivateRow(n) ? (
-                      <PrivateItemCard
-                        key={n.id}
-                        row={n}
-                        selected={privateOpen === n.id}
-                        onSelect={() => selectPrivate(n.id)}
-                      />
-                    ) : (
-                      <ItemCard
-                        key={n.id}
-                        id={n.id}
-                        kind="note"
-                        title={n.title}
-                        icon={<ItemIcon fallback={<FileText />} />}
-                        badge={<WorkspaceChips item={n} className="mt-0.5" />}
-                        selected={!privateOpen && selected?.id === n.id && !creating}
-                        onSelect={() => selectNote(n.id)}
-                        updatedAt={n.updatedAt}
-                      >
-                        {details && (n.summary || n.content) && (
-                          <p className="line-clamp-2 text-xs text-muted-foreground">
-                            {n.summary ?? n.content.slice(0, 200)}
-                          </p>
-                        )}
-                        {details && n.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {n.tags.map((t) => (
-                              <TagPill key={t} tag={t} />
-                            ))}
-                          </div>
-                        )}
-                      </ItemCard>
-                    ),
-                  )
+                  notes.map((n) => (
+                    <ItemCard
+                      key={n.id}
+                      id={n.id}
+                      kind="note"
+                      title={n.title}
+                      icon={<ItemIcon fallback={<FileText />} />}
+                      badge={<WorkspaceChips item={n} className="mt-0.5" />}
+                      selected={selected?.id === n.id && !creating}
+                      onSelect={() => selectNote(n.id)}
+                      updatedAt={n.updatedAt}
+                    >
+                      {details && (n.summary || n.content) && (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {n.summary ?? n.content.slice(0, 200)}
+                        </p>
+                      )}
+                      {details && n.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {n.tags.map((t) => (
+                            <TagPill key={t} tag={t} />
+                          ))}
+                        </div>
+                      )}
+                    </ItemCard>
+                  ))
                 )}
               </ItemListScroll>
 
@@ -512,15 +455,7 @@ export function NotesClient() {
         // overflow, so only one bar is ever painted.
         detail={
           <div className="md:h-full md:overflow-hidden">
-            {privateOpen ? (
-              <div className="relative h-full min-h-0">
-                <PrivateItemDetail
-                  key={privateOpen}
-                  id={privateOpen}
-                  onClose={() => openPrivate(null)}
-                />
-              </div>
-            ) : editing ? (
+            {editing ? (
               <NoteEditor
                 note={creating ? null : selected}
                 focus={focus}
@@ -528,7 +463,6 @@ export function NotesClient() {
                 onSaved={onSaved}
                 onCancel={() => guard(exitEdit)}
                 onDirtyChange={setDirty}
-                inFolder={creating && createIn !== null}
               />
             ) : selected ? (
               <NotePreview
@@ -605,6 +539,8 @@ function NotePreview({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // Export is a route only an Admin user may call (W6b).
+  const isAdminUser = useIsAdminUser();
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header
@@ -625,7 +561,7 @@ function NotePreview({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <ExportButton nodeId={note.id} label="Word" />
+          {isAdminUser ? <ExportButton nodeId={note.id} label="Word" /> : null}
           <GrantAccessControl type="note" nodeId={note.id} />
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil /> Edit

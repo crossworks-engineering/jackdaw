@@ -17,12 +17,15 @@ import { treeKey } from '@/components/item-tree/tree-api';
  */
 export const APP_NAV_KEY = ['app-nav'] as const;
 
-export function useAppNav(opts: { refetchOnMount?: 'always' } = {}) {
+export function useAppNav(opts: { refetchOnMount?: 'always'; enabled?: boolean } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
 
   const query = useQuery({
     queryKey: APP_NAV_KEY,
+    // GET /api/app-nav answers Admin users only (W6b): a caller passes false
+    // for any other login.
+    enabled: opts.enabled ?? true,
     ...(opts.refetchOnMount ? { refetchOnMount: opts.refetchOnMount } : {}),
     queryFn: () => apiFetch<AppNavResponse>('/api/app-nav'),
     // A 404 is a brain on a release before app nav: no pills, no faces.

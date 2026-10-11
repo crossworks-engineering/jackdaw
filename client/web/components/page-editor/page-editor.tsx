@@ -20,9 +20,6 @@ import { FocusMarks, focusMarksTr } from './focus-marks';
 import { FocusGutter } from './focus-gutter';
 import { DiffReview, diffReviewTr, DIFF_ACTION_EVENT } from './diff-review';
 import { handleDroppedFiles } from './upload';
-import { MemberMode } from './mention';
-import { PageImage } from './image';
-import { memberAssetPath } from '@/lib/member-assets';
 import { HereFolderProvider } from './here-folder';
 import { markdownToDoc } from '@mantle/content-core/markdown';
 import type { DiffOverlay } from '@mantle/content-core/page-diff';
@@ -47,17 +44,6 @@ function isMarkdownDocPaste(text: string): boolean {
     (/^\s*\|.+\|\s*$/m.test(text) && /\|\s*:?-{2,}/.test(text))
   );
 }
-
-/** The page extensions with image and drawing bytes read through `map`. */
-function pageExtensionsWithAssets(map: (path: string) => string) {
-  return pageExtensions.map((ext) =>
-    ext === PageImage ? PageImage.configure({ mapAssetPath: map }) : ext,
-  );
-}
-
-/** A member's editor loads image and drawing bytes from the member routes:
- *  the brain refuses a member on the admin byte routes. */
-const memberPageExtensions = pageExtensionsWithAssets(memberAssetPath);
 
 /**
  * Dispatch a plugin push from a React effect once the commit has returned.
@@ -110,24 +96,7 @@ export function PageEditor({
   onBlur,
   onEditorReady,
   editable = true,
-  member = false,
-  mapAssetPath,
-  privateItem = false,
 }: {
-  /** A member login (member logins): the editor keeps to the page itself. No
-   *  file drop/paste uploads, no new page / image / drawing / file commands, no
-   *  drawing picker and no drag handle (its "turn into page" creates in the
-   *  brain). Every one of those calls a route that refuses a member. */
-  member?: boolean;
-  /** With `member`: where the image and drawing bytes are read, when not the
-   *  member routes. A client's own page reads the client routes (client tier
-   *  audit U2: the brain refuses a client on the member byte routes). */
-  mapAssetPath?: (path: string) => string;
-  /** An admin's private item (member logins Phase 7): the owner editor, which
-   *  may embed any brain item the admin can see, less what makes a brain
-   *  page next to it (the `/page` item and the drag handle's extract) or
-   *  lists its folder: a private item is not a brain page. */
-  privateItem?: boolean;
   content: JSONContent;
   /** Id of the page being edited, handed to the `/page` slash command and
    *  the drag handle's extract, which make a page next to this one. */
@@ -138,8 +107,7 @@ export function PageEditor({
    *  block then shows its label alone. */
   folderId?: string | null;
   /** Whether this brain serves the pages tree: the Folder index slash item
-   *  is offered only then. A member's editor passes true only when the
-   *  member tree serves pages and the draft's folder is known. */
+   *  is offered only then. */
   folderIndex?: boolean;
   /** When true the left gutter becomes a focus-marker strip (and the drag
    *  handle steps aside). The marks themselves stay highlighted regardless. */
@@ -186,7 +154,6 @@ export function PageEditor({
   // the useEditor config, before `editor` is assigned).
   const editorRef = useRef<Editor | null>(null);
   const onDiffActionRef = useRef(onDiffAction);
-  const memberRef = useRef(member);
   useEffect(() => {
     onChangeRef.current = onChange;
     onBlurRef.current = onBlur;
@@ -214,7 +181,6 @@ export function PageEditor({
         const dt = (event as DragEvent).dataTransfer;
         const files = Array.from(dt?.files ?? []);
         if (files.length === 0) return false;
-        if (memberRef.current) return true; // swallowed: members cannot upload here
         const pos = view.posAtCoords({
           left: (event as DragEvent).clientX,
           top: (event as DragEvent).clientY,
@@ -227,7 +193,6 @@ export function PageEditor({
         // Image/file from the clipboard → upload + insert.
         const files = Array.from(cd?.files ?? []);
         if (files.length > 0) {
-          if (memberRef.current) return true; // swallowed: members cannot upload here
           if (!editorRef.current) return false;
           return handleDroppedFiles(editorRef.current, files);
         }
@@ -267,29 +232,20 @@ export function PageEditor({
     [],
   );
 
-  const memberExtensions = useMemo(
-    () => (mapAssetPath ? pageExtensionsWithAssets(mapAssetPath) : memberPageExtensions),
-    [mapAssetPath],
-  );
-
   const editor = useEditor({
     // SlashCommand + FocusMarks are editor-only (no schema / no doc writes), so
     // PageView stays identical. SlashCommand carries the page id so `/page`
     // parents sub-pages here.
     extensions: [
-      ...(member ? memberExtensions : pageExtensions),
+      ...pageExtensions,
       SlashCommand.configure({
         pageId: pageId ?? null,
         folderId,
         folderIndex: folderIndexGate(folderIndex),
-        member,
-        privateItem,
         onPageCreated: () => void queryClient.invalidateQueries({ queryKey: treeKey('pages') }),
       }),
       FocusMarks,
       DiffReview,
-      // No @ menu for a member (see MemberMode).
-      ...(member ? [MemberMode] : []),
     ],
     content,
     immediatelyRender: false, // required for Next.js SSR (avoids hydration mismatch)
@@ -373,9 +329,9 @@ export function PageEditor({
       <EditorBubbleMenu editor={editor} />
       {/* Marker mode swaps the gutter's job: the drag handle steps aside so the
           focus strip owns the left band. Marks stay highlighted either way. */}
-      {markerMode || member || privateItem ? null : <EditorDragHandle editor={editor} />}
+      {markerMode ? null : <EditorDragHandle editor={editor} />}
       <TableControls editor={editor} />
-      {member ? null : <DrawPicker editor={editor} />}
+      <DrawPicker editor={editor} />
       <div className="relative">
         {markerMode && onMarksChange && (
           <FocusGutter editor={editor} marks={marks ?? []} onChange={onMarksChange} />

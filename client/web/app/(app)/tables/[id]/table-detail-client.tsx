@@ -40,6 +40,7 @@ import {
 } from '@mantle/web-ui/ui/dropdown-menu';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { ExportMenu } from '@/components/export/export-menu';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { TableGrid } from '@/components/table-grid/table-grid';
@@ -67,6 +68,8 @@ export function TableDetailClient({
   const router = useRouter();
   const queryClient = useQueryClient();
   const toast = useToast();
+  // Import and Export are routes only an Admin user may call (W6b).
+  const isAdminUser = useIsAdminUser();
 
   // App-bound table (mantle v0.232.14): a derived, read-only export of one
   // table in a mini-app's SQLite. The server refuses every grid mutation
@@ -559,7 +562,7 @@ export function TableDetailClient({
           ) : (
             <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />
           )}
-          {!appLink && (
+          {!appLink && isAdminUser && (
             <Button
               size="sm"
               variant="outline"
@@ -569,7 +572,7 @@ export function TableDetailClient({
               {importing ? <Loader2 className="animate-spin" /> : <Upload />} Import
             </Button>
           )}
-          <ExportMenu nodeId={initial.id} kind="table" />
+          {isAdminUser ? <ExportMenu nodeId={initial.id} kind="table" /> : null}
           <GrantAccessControl
             type="table"
             nodeId={initial.id}

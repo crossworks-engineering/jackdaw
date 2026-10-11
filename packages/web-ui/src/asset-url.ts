@@ -83,6 +83,25 @@ export function setAssetToken(token: string | null | undefined): void {
   for (const listener of [...listeners]) listener();
 }
 
+/** Maps an asset path before it is resolved: the app sets one for a login
+ *  that reads bytes on routes of its own (workspaces W6b: a member's bytes
+ *  are on /api/member/files and /api/member/draws). Null: none. */
+let assetPathMap: ((path: string) => string) | null = null;
+
+/** Set (or clear) the asset path map. Every resolved URL changes with it,
+ *  so the hook's readers re-render. `notify: false` only sets it: for the
+ *  shell's render pass, which must hold it before any screen below it
+ *  resolves a URL and may not re-render others while it renders. */
+export function setAssetPathMap(
+  map: ((path: string) => string) | null,
+  { notify = true }: { notify?: boolean } = {},
+): void {
+  if (map === assetPathMap) return;
+  assetPathMap = map;
+  tokenVersion += 1;
+  if (notify) for (const listener of [...listeners]) listener();
+}
+
 /** Subscribe to token arrival and rotation. Returns the unsubscribe. */
 export function subscribeAssetToken(listener: () => void): () => void {
   listeners.add(listener);
@@ -116,7 +135,8 @@ export function assetTokenReady(): Promise<void> {
 }
 
 /** Resolve a raw-asset path to a loadable URL (see module comment). */
-export function assetUrl(path: string): string {
+export function assetUrl(raw: string): string {
+  const path = assetPathMap ? assetPathMap(raw) : raw;
   // A real origin comparison, not "is a base configured": a same-origin box
   // that sets a base is NOT split, and signing its own paths with `?at=` put
   // a short-lived token in every <img> src (and so in history and logs) for
