@@ -72,7 +72,6 @@ import {
   wasInTrash,
 } from '@/lib/apps-screen';
 import { useIsAdminUser, useIsBrainOwner } from '@/components/workspaces/use-shell-workspaces';
-import { memberAppSandboxProps } from '@/lib/member-apps';
 import { AppItemHeader, HeaderIconButton } from '@/components/app-nav/app-item-header';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
@@ -505,7 +504,7 @@ function AppPreview({
           <SurfaceErrorBoundary label="this app" resetKeys={[app.id]}>
             <AppSandbox
               appId={app.id}
-              {...(admin ? ownerAppSandboxProps(app.id) : memberAppSandboxProps(app.id))}
+              {...ownerAppSandboxProps(app.id)}
               confirmTool={admin ? confirmTool : undefined}
               loader={<AppLoader title={app.title} icon={icon} color={color} />}
               frame="viewport"

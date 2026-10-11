@@ -1,7 +1,11 @@
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
 
 /**
- * The `apiBase` + `fetcher` an OWNER-side AppSandbox needs to reach its brain.
+ * The `apiBase` + `fetcher` an AppSandbox needs to reach its brain, for EVERY
+ * login (workspaces W7e: the runner, POST /api/apps/:id/frame-ticket,
+ * db-broker and tool-broker and GET /api/apps/:id/frame, answers each login
+ * in its own scope; a member's own route under /api/member/apps is no longer
+ * called).
  *
  * AppSandbox defaults to a page-relative `/api/apps/<id>` and a plain fetch.
  * That only works when the UI and the brain share an origin (the path-routed

@@ -1,38 +1,21 @@
 import type { HubData, HubNavTarget } from '@mantle/share-ui/app-bridge-protocol';
 import type { MemberHomeData as ContractHomeData } from './contract/member-apps';
-import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
-import type { MemberAppCard, MemberAppList } from './contract/member-apps';
 
 /**
  * Apps for members (member logins Phase 4b). A member RUNS the apps its
- * workspaces hold over the brain's member routes (/api/member/apps/*, kept in
- * W6b): published build only, run-only tool and db brokers. It finds, makes,
- * deletes and shares them on the one Apps screen (the owner routes, in its
- * scope) and changes their code over its own MCP connection.
+ * workspaces hold on the app routes every login uses (W7e: the runner is
+ * POST /api/apps/:id/frame-ticket, db-broker and tool-broker and GET
+ * /api/apps/:id/frame, in the login's own scope; lib/owner-app-sandbox.ts).
+ * It finds, makes, deletes and shares them on the one Apps screen and
+ * changes their code over its own MCP connection. The member routes under
+ * /api/member/apps are not called (lib/gone-routes.ts).
  *
- * The wire types are lib/contract/member-apps.ts (a copy of the brain's
- * W5c contract: a card carries no level); the hub payload is share-ui's
+ * The home payload is lib/contract/member-apps.ts; the hub is share-ui's
  * HubData.
  */
 
-export type { MemberAppCard, MemberAppList };
-
 /** GET /api/member/home with the hub typed as the app bridge's HubData. */
 export type MemberHomeData = ContractHomeData<HubData>;
-
-/** The `apiBase` + `fetcher` a member's AppSandbox needs: the member routes,
- *  on the brain's origin, with the member's credential (`withAuth`: the
- *  cookie same-origin, the member's bearer on a split client). The frame
- *  itself authenticates by its ticket. */
-export function memberAppSandboxProps(appId: string): {
-  apiBase: string;
-  fetcher: (input: string, init?: RequestInit) => Promise<Response>;
-} {
-  return {
-    apiBase: apiUrl(`/api/member/apps/${appId}`),
-    fetcher: (input, init) => fetch(input, withAuth(init)),
-  };
-}
 
 /** Where a member's app opens. */
 export function memberAppHref(appId: string): string {

@@ -9,9 +9,10 @@
  * A reference becomes the same admin byte path a page's image node carries
  * (`fileRawSrc` / `drawRawSrc`, the shared @mantle/content-core helpers), and
  * then goes through the reader's own `mapAssetPath`, the one a page in that
- * reader already uses: the member, client and review routes map it, the owner
- * keeps it. One rule for both kinds, so a note and a page cannot disagree on
- * where a picture lives.
+ * reader already uses: a reader with byte routes of its own maps it; every
+ * login of the app keeps it (W7e: the brain serves each login its bytes on
+ * these routes, in its own scope). One rule for both kinds, so a note and a
+ * page cannot disagree on where a picture lives.
  */
 import { defaultUrlTransform } from 'react-markdown';
 import {

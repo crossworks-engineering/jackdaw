@@ -13,12 +13,8 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { AppLoader } from '@/components/app-nav/app-loader';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
-import {
-  memberAppProblem,
-  memberAppSandboxProps,
-  memberHubNav,
-  type MemberHomeData,
-} from '@/lib/member-apps';
+import { memberAppProblem, memberHubNav, type MemberHomeData } from '@/lib/member-apps';
+import { ownerAppSandboxProps } from '@/lib/owner-app-sandbox';
 import { MemberHome } from './member-home';
 
 /**
@@ -88,7 +84,7 @@ export function MemberHomeSwitch() {
         <SurfaceErrorBoundary label="the home app" resetKeys={[homeApp.appId]}>
           <AppSandbox
             appId={homeApp.appId}
-            {...memberAppSandboxProps(homeApp.appId)}
+            {...ownerAppSandboxProps(homeApp.appId)}
             loader={<AppLoader title={homeApp.title} icon={homeApp.icon} color={homeApp.color} />}
             frame="viewport"
             hub={{

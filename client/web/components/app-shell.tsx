@@ -11,8 +11,7 @@ import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
-import { setAssetPathMap, setAssetToken } from '@mantle/web-ui/asset-url';
-import { memberAssetPath } from '@/lib/member-assets';
+import { setAssetToken } from '@mantle/web-ui/asset-url';
 import { assetTokenRefreshDelayMs } from '@mantle/web-ui/token-claims';
 import { RailHandle } from '@mantle/web-ui/ui/rail-handle';
 import {
@@ -132,7 +131,8 @@ function useShell() {
     queryFn: () => apiFetch<ShellData>('/api/shell'),
     // This payload carries the asset token, and that token EXPIRES — it rides
     // in the URL, so the brain keeps its life short (two hours, "one working
-    // session"). Nothing refreshed it: this query ran once per mount, so a tab
+    // session", for an Admin user; ten minutes for any other login, W7e: the
+    // delay below then refreshes it every five). Nothing refreshed it: this query ran once per mount, so a tab
     // left open past lunch got a 401 on every image, iframe and download until
     // someone reloaded.
     //
@@ -228,14 +228,8 @@ function ShellFrame({
   // phase W7.
   const manages = hasArea(shellAreasOf(shell), 'settings');
   const role = shellRoleOf(shell);
-  // A login that is not an Admin user reads bytes on the member routes (W6b
-  // contract item 2): set before the screens below resolve a URL, and said
-  // to the URL readers after the render.
-  const assetMap = role && role !== 'admin' ? memberAssetPath : null;
-  setAssetPathMap(assetMap, { notify: false });
-  useEffect(() => {
-    setAssetPathMap(assetMap);
-  }, [assetMap]);
+  // Every login reads bytes on the owner routes, in its own scope (W7e):
+  // no path map, the asset token signs them cross-origin.
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(initialNavCollapsed);

@@ -2,7 +2,6 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { NoteMarkdown } from '@/components/note-markdown';
-import { memberAssetPath } from './member-assets';
 import { noteAssetPath, noteRefPath, ownerNoteAssetPath } from './note-media';
 
 const FILE = '0e5c1a4e-1111-2222-3333-444455556666';
@@ -40,13 +39,11 @@ describe('noteAssetPath', () => {
     );
   });
 
-  it('a member reads a reference from the member routes, as a page does', () => {
-    const member = noteAssetPath(memberAssetPath);
-    expect(member(`media:${FILE}`)).toBe(`/api/member/files/${FILE}`);
-    expect(member(`draw:${DRAW}`)).toBe(`/api/member/draws/${DRAW}/svg`);
-    // A hand-written admin path maps too, instead of asking a route the
-    // member is refused on.
-    expect(member(`/api/files/files/${FILE}`)).toBe(`/api/member/files/${FILE}`);
+  it('a reader map still applies to a reference and a hand-written path', () => {
+    const mapped = noteAssetPath((p) => `/r${p}`);
+    expect(mapped(`media:${FILE}`)).toBe(`/r/api/files/files/${FILE}?raw=1`);
+    expect(mapped(`draw:${DRAW}`)).toBe(`/r/api/draws/${DRAW}/svg?raw=1`);
+    expect(mapped(`/api/files/files/${FILE}`)).toBe(`/r/api/files/files/${FILE}`);
   });
 
   it('drops an unsafe src', () => {
@@ -67,11 +64,10 @@ describe('NoteMarkdown', () => {
     expect(html).not.toContain('draw:');
   });
 
-  it('a member sees them from the member routes', () => {
-    const html = render(noteAssetPath(memberAssetPath));
-    expect(html).toContain(`<img src="/api/member/files/${FILE}" alt="the form"/>`);
-    expect(html).toContain(`<img src="/api/member/draws/${DRAW}/svg" alt="the plan"/>`);
-    expect(html).toContain(`<a href="/api/member/files/${FILE}"`);
+  it('every login reads them on the owner byte routes (W7e: in its own scope)', () => {
+    // There is one reader for every login now: no member route is named.
+    const html = render(ownerNoteAssetPath);
+    expect(html).not.toMatch(/\/api\/member\//);
   });
 
   it('a reference the reader may not read is its text, never a request', () => {

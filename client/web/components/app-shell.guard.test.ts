@@ -32,6 +32,11 @@ describe('one probe: GET /api/shell', () => {
     expect(shell).toContain('retry: 1,');
   });
 
+  it('every login reads bytes on the owner routes: no asset path map (W7e)', () => {
+    expect(shell).not.toMatch(/setAssetPathMap|memberAssetPath/);
+    expect(shell).toContain('setAssetToken(brand.assetToken);');
+  });
+
   it('an offline (paused) probe counts, so the shell does not sit on Loading', () => {
     expect(shell).toContain("paused: shell.fetchStatus === 'paused',");
     expect(shell).toContain('const failure = shellProbeFailure({');

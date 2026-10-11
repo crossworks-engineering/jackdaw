@@ -370,7 +370,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     }
     // A /n link (GET /api/nodes/:id) and the Files screen: the member reads
     // the file's detail on the owner route (W6b fix round, contract
-    // change 4); its bytes stay on /api/member/files/:id.
+    // change 4); since W7e its bytes are on the owner route too.
     const nodeM = /^\/api\/nodes\/([0-9a-f-]{36})$/.exec(path);
     if (nodeM && method === 'GET') {
       const page = pagesOf(role).find((x) => x.id === nodeM[1]);

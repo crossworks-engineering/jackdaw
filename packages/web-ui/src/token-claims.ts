@@ -56,8 +56,10 @@ export function tokenLogin(token: string): string | null {
 const MIN_REFRESH_MS = 30_000;
 
 /** Used when the token is there but its expiry cannot be read. Short enough to
- *  stay inside any plausible TTL, since the real one is unknown. */
-const UNKNOWN_EXPIRY_REFRESH_MS = 15 * 60_000;
+ *  stay inside any plausible TTL, since the real one is unknown: the shortest
+ *  the brain mints is a member's ten minutes (workspaces W7e), so under half
+ *  of that. */
+const UNKNOWN_EXPIRY_REFRESH_MS = 4 * 60_000;
 
 /** Refresh once this much of the token's life has passed. Half, so a refresh
  *  that fails — offline for a moment, a 500 — has a whole second half to be
@@ -69,7 +71,8 @@ const REFRESH_AT_FRACTION = 0.5;
  * "never" — the value TanStack Query's `refetchInterval` wants.
  *
  * The asset token is delivered IN THE URL (`?at=`), so the brain keeps its TTL
- * deliberately short — two hours, commented there as "one working session".
+ * deliberately short: two hours for an Admin user, commented there as "one
+ * working session", and ten minutes for any other login (workspaces W7e).
  * Nothing refreshed it: `/api/shell` ran once per mount, so a tab left open
  * past lunch got a 401 on every image, iframe and download until someone
  * reloaded. Rather than copy that two hours into this repo and let the two

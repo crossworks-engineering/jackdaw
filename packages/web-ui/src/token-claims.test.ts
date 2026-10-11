@@ -101,14 +101,30 @@ describe('assetTokenRefreshDelayMs', () => {
     // An unreadable token means the format moved, not that there is nothing to
     // do. Returning false here would restore the exact bug this fixes — and
     // silently, because everything works until the TTL runs out.
-    expect(assetTokenRefreshDelayMs('unreadable-token', NOW)).toBe(15 * 60_000);
+    expect(assetTokenRefreshDelayMs('unreadable-token', NOW)).toBe(4 * 60_000);
     expect(assetTokenRefreshDelayMs('unreadable-token', NOW)).not.toBe(false);
+  });
+
+  it("refreshes a member's ten-minute token at five minutes, and again after (W7e)", () => {
+    // A login that is not an Admin user gets a ten-minute asset token: the
+    // shell asks again half way, and each new token resets the clock.
+    const TEN_MIN_S = 10 * 60;
+    expect(assetTokenRefreshDelayMs(tokenWithExp(NOW / 1000 + TEN_MIN_S), NOW)).toBe(5 * 60_000);
+    const later = NOW + 5 * 60_000;
+    expect(assetTokenRefreshDelayMs(tokenWithExp(later / 1000 + TEN_MIN_S), later)).toBe(
+      5 * 60_000,
+    );
+  });
+
+  it('an unreadable expiry still refreshes inside the shortest token life (ten minutes)', () => {
+    const delay = assetTokenRefreshDelayMs('unreadable-token', NOW) as number;
+    expect(delay).toBeLessThan((10 * 60_000) / 2);
   });
 
   it('always lands inside the token life it was given', () => {
     // The property that actually matters, over a spread of remaining lives:
     // the next refresh is scheduled BEFORE the thing expires.
-    for (const remainingS of [30, 60, 300, 1800, 3600, TWO_HOURS_S, 6 * 3600]) {
+    for (const remainingS of [30, 60, 300, 600, 1800, 3600, TWO_HOURS_S, 6 * 3600]) {
       const delay = assetTokenRefreshDelayMs(tokenWithExp(NOW / 1000 + remainingS), NOW);
       expect(typeof delay).toBe('number');
       expect(delay as number).toBeLessThanOrEqual(remainingS * 1000);
