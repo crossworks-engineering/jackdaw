@@ -41,6 +41,7 @@ import {
 import { ClearFilter, TagFilter } from '@/components/item-list/item-filters';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
@@ -455,7 +456,8 @@ export function NotesClient() {
         // overflow, so only one bar is ever painted.
         detail={
           <div className="md:h-full md:overflow-hidden">
-            {editing ? (
+            {/* A snapshot copy is read only (W6b): its read view, never the editor. */}
+            {editing && (creating || !isReadOnlyItem(selected)) ? (
               <NoteEditor
                 note={creating ? null : selected}
                 focus={focus}
@@ -541,6 +543,8 @@ function NotePreview({
 }) {
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
+  // A snapshot copy is read only (W6b): no Edit and no Grant Access.
+  const readOnly = isReadOnlyItem(note);
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header
@@ -559,13 +563,20 @@ function NotePreview({
               ))}
             </div>
           )}
+          {readOnly ? (
+            <p className="mt-1.5 text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {isAdminUser ? <ExportButton nodeId={note.id} label="Word" /> : null}
-          <GrantAccessControl type="note" nodeId={note.id} />
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil /> Edit
-          </Button>
+          {readOnly ? null : (
+            <>
+              <GrantAccessControl type="note" nodeId={note.id} />
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                <Pencil /> Edit
+              </Button>
+            </>
+          )}
           <Button
             variant="ghost"
             size="sm"

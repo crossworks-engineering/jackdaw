@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { expect, type Page } from '@playwright/test';
+import { GONE_ROUTE, MEMBER_OPEN } from './shell-nav';
 
 /**
  * An in-memory brain for the workspace specs (phase W5c: one shell for every
@@ -9,12 +10,17 @@ import { expect, type Page } from '@playwright/test';
  * from POST /api/auth/token.
  *
  * Three logins, one password: an admin (every area, every workspace), a
- * member (Team and Field crew) and a client (Client desk). GET /api/shell
- * answers each as the W5c brain does (`role`, `loginId`, `workspaces`,
- * `areas`, `treeKinds`). A member reads its data from /api/member/*; a
- * client has no data routes. Each role is refused the routes the brain
- * refuses it (403), and every request is recorded with the role that sent
- * it, so a spec can assert what a login never asked for.
+ * member (a Moderator of Team, a user of Field crew, and its private
+ * workspace "Mo Member (only you)") and a client (Client desk). GET
+ * /api/shell answers each as the brain does (`role`, `loginId`,
+ * `workspaces`, `areas`, `treeKinds`). Since W6b every login reads and
+ * writes on the owner routes in its own scope: a member or a client is
+ * refused (403 member-login / client-login) every owner route that is not in
+ * the brain's open list (MEMBER_OPEN in shell-nav.ts), a create names its
+ * workspace with `?ws=` (403 workspace for one the login is not in), and the
+ * retired routes answer 410. A member keeps /api/member/realtime and
+ * /api/member/home. Every request is recorded with the role that sent it,
+ * so a spec can assert what a login never asked for.
  *
  * Only what the specs need is answered. Anything else is a plain 404 (never
  * a 401, which would bounce the page to /login).
@@ -58,6 +64,9 @@ export const WORKSPACES = {
   field: { id: 'c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2', name: 'Field crew' },
   board: { id: 'd3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3', name: 'Board room' },
   desk: { id: 'e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4', name: 'Client desk' },
+  /** The member's private workspace (W6b): the brain names it "<name> (only
+   *  you)"; the switcher calls it Only you. */
+  own: { id: 'f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5', name: 'Mo Member (only you)' },
 } as const;
 type WorkspaceKey = keyof typeof WORKSPACES;
 
@@ -71,8 +80,9 @@ const MEMBERSHIP: Record<Role, { ws: WorkspaceKey; moderator: boolean }[]> = {
     { ws: 'desk', moderator: true },
   ],
   member: [
-    { ws: 'team', moderator: false },
-    { ws: 'field', moderator: true },
+    { ws: 'team', moderator: true },
+    { ws: 'field', moderator: false },
+    { ws: 'own', moderator: true },
   ],
   client: [{ ws: 'desk', moderator: false }],
 };
@@ -98,7 +108,8 @@ export const PAGES = {
 } as const satisfies Record<string, { id: string; title: string; ws: WorkspaceKey }>;
 
 const ALL_AREAS = ['settings', 'users', 'assistants', 'connectors', 'keys'];
-/** The kinds a member's tree serves, by the tree's own name. */
+/** The kinds the tree serves, by the tree's own name (a member's and a
+ *  client's: the brain's reader kinds). */
 const MEMBER_TREE_KINDS = ['files', 'notes', 'pages', 'draw', 'tables'];
 
 const tokenOf = (role: Role) => `ws-e2e-${role}-bearer`;
@@ -119,7 +130,10 @@ const PUBLIC = [
 /** What the brain answers every signed-in login. */
 const EVERY_LOGIN = [/^\/api\/shell$/, /^\/api\/workspaces(\/|$)/];
 
-export type MockRequest = { method: string; path: string; role: Role | 'anon' };
+export type MockRequest = { method: string; path: string; query: string; role: Role | 'anon' };
+
+/** A page a spec made through POST /api/pages, and where the brain put it. */
+export type MockCreated = { id: string; title: string; ws: WorkspaceKey; role: Role };
 
 export type MockWorkspaceApi = {
   /** Every request, in order (CORS preflights left out). */
@@ -130,6 +144,11 @@ export type MockWorkspaceApi = {
   asked: (role: Role) => string[];
   /** What GET /api/shell says in `onboarded`, for every login (default true). */
   onboarded: boolean;
+  /** The pages made in this run, with the workspace each landed in. */
+  created: MockCreated[];
+  /** Workspaces a login was taken out of after its shell loaded: the shell
+   *  still lists them, the brain refuses a create there (403 workspace). */
+  leftSince: Partial<Record<Role, WorkspaceKey[]>>;
   close: () => Promise<void>;
 };
 
@@ -150,6 +169,8 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     asked: (role) =>
       state.requests.filter((r) => r.role === role).map((r) => `${r.method} ${r.path}`),
     onboarded: true,
+    created: [],
+    leftSince: {},
     close: async () => undefined,
   };
 
@@ -173,9 +194,40 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       isAdmin: ws === 'admin',
       moderator,
     }));
-  const pagesOf = (role: Role) => {
-    const mine = new Set(MEMBERSHIP[role].map((m) => m.ws));
-    return Object.values(PAGES).filter((p) => mine.has(p.ws));
+  /** The pages a login reads (its workspaces; the admin is in all of
+   *  them), narrowed to `ws` when a list names one. */
+  const pagesOf = (role: Role, ws: string | null = null) => {
+    const mine = new Set<WorkspaceKey>(MEMBERSHIP[role].map((m) => m.ws));
+    const all: { id: string; title: string; ws: WorkspaceKey }[] = [
+      ...Object.values(PAGES),
+      ...state.created,
+    ];
+    return all.filter((p) => mine.has(p.ws) && (!ws || WORKSPACES[p.ws].id === ws));
+  };
+  const keyOfWs = (id: string): WorkspaceKey | null =>
+    (Object.keys(WORKSPACES) as WorkspaceKey[]).find((k) => WORKSPACES[k].id === id) ?? null;
+  /** Where a create lands (W6b contract item 3): `?ws=` when the login
+   *  moderates it, else the login's private workspace (a member), else
+   *  Admin; or a refusal. */
+  const createHome = (
+    role: Role,
+    asked: string | null,
+  ): { ws: WorkspaceKey } | { status: number; body: unknown } => {
+    const fallback: WorkspaceKey = role === 'admin' ? 'admin' : 'own';
+    if (!asked) return { ws: fallback };
+    const key = keyOfWs(asked);
+    const m = key ? MEMBERSHIP[role].find((x) => x.ws === key) : undefined;
+    if (!key || !m || state.leftSince[role]?.includes(key)) {
+      return {
+        status: 403,
+        body: {
+          error: 'forbidden',
+          reason: 'workspace',
+          message: 'You are not in that workspace.',
+        },
+      };
+    }
+    return { ws: m.moderator ? key : fallback };
   };
 
   const shell = (role: Role) => ({
@@ -183,7 +235,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     loginId: LOGINS[role].loginId,
     workspaces: shellWorkspaces(role),
     areas: role === 'admin' ? ALL_AREAS : [],
-    ...(role === 'client' ? {} : { treeKinds: MEMBER_TREE_KINDS }),
+    treeKinds: MEMBER_TREE_KINDS,
     onboarded: state.onboarded,
     displayName: LOGINS[role].name,
     email: LOGINS[role].email,
@@ -227,35 +279,83 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     updatedAt: now,
   });
 
-  /** A member's routes (/api/member/*); true when it answered. */
-  const handleMember = (res: ServerResponse, url: URL, path: string): boolean => {
+  /** A member's own routes kept in W6b (/api/member/*); true when it
+   *  answered. */
+  const handleMember = (res: ServerResponse, path: string): boolean => {
     if (path === '/api/member/realtime')
       return (send(res, 200, 'text/event-stream', ':\n\n'), true);
     if (path === '/api/member/home') return (json(res, 200, { homeApp: null, hub: null }), true);
-    const treeM = /^\/api\/member\/tree\/([a-z]+)(\/search)?$/.exec(path);
-    if (treeM) {
+    return false;
+  };
+
+  /** The owner item routes every login uses in its own scope (W6b); true
+   *  when it answered. */
+  const handleItems = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    path: string,
+    role: Role,
+  ): Promise<boolean> => {
+    const method = req.method ?? 'GET';
+    const ws = url.searchParams.get('ws');
+    const treeM = /^\/api\/tree\/([a-z]+)(\/search)?$/.exec(path);
+    if (treeM && method === 'GET') {
       const kind = treeM[1]!;
-      if (!MEMBER_TREE_KINDS.includes(kind))
-        return (json(res, 404, { error: 'unknown kind' }), true);
-      const items = kind === 'pages' ? pagesOf('member').map(treeItem) : [];
+      const items = kind === 'pages' ? pagesOf(role, ws).map(treeItem) : [];
+      const echo = ws ? { ws } : {};
       if (treeM[2]) {
         const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
         const hits = items
           .filter((i) => String(i.title).toLowerCase().includes(q))
           .map((i) => ({ ...i, crumbs: [] }));
-        return (json(res, 200, { kind, folders: [], items: hits, nextCursor: null }), true);
+        return (
+          json(res, 200, { kind, folders: [], items: hits, nextCursor: null, ...echo }),
+          true
+        );
       }
-      return (json(res, 200, tree(kind, items, url)), true);
+      return (json(res, 200, { ...tree(kind, items, url), ...echo }), true);
+    }
+    if (path === '/api/pages' && method === 'POST') {
+      const body = JSON.parse((await readBody(req)) || '{}') as { title?: string };
+      const home = createHome(role, ws);
+      if ('status' in home) return (json(res, home.status, home.body), true);
+      const n = state.created.length + 1;
+      const id = `abcdef${String(n).padStart(2, '0')}-0000-4000-8000-000000000000`;
+      const made: MockCreated = { id, title: body.title ?? 'Untitled', ws: home.ws, role };
+      state.created.push(made);
+      return (json(res, 201, { page: pageRow(made) }), true);
+    }
+    const pageM = /^\/api\/pages\/([0-9a-f-]{36})$/.exec(path);
+    if (pageM && method === 'GET') {
+      const p = pagesOf(role).find((x) => x.id === pageM[1]);
+      return (
+        p ? json(res, 200, { page: pageRow(p) }) : json(res, 404, { error: 'not found' }),
+        true
+      );
     }
     return false;
   };
+  const pageRow = (p: { id: string; title: string; ws: WorkspaceKey }) => ({
+    id: p.id,
+    title: p.title,
+    icon: null,
+    tags: [],
+    parentId: null,
+    folderId: null,
+    content: { type: 'doc', content: [] },
+    hasDraft: false,
+    visibility: 'private',
+    width: 'narrow',
+    createdAt: now,
+    updatedAt: now,
+    workspaces: [{ id: WORKSPACES[p.ws].id, name: WORKSPACES[p.ws].name }],
+    hasLink: false,
+  });
 
-  /** The owner routes the admin's Pages and Users screens need; true when
-   *  it answered. */
+  /** The owner routes the admin's Users screen needs; true when it
+   *  answered. */
   const handleAdmin = (res: ServerResponse, url: URL, path: string): boolean => {
-    if (path === '/api/tree/pages') {
-      return (json(res, 200, tree('pages', Object.values(PAGES).map(treeItem), url)), true);
-    }
     // Settings > Users: every login, in the brain's UserRow shape.
     if (path === '/api/users') {
       const users = (Object.keys(LOGINS) as Role[]).map((r) => ({
@@ -299,7 +399,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     const url = new URL(req.url ?? '/', MOCK_API_ORIGIN);
     const path = url.pathname;
     const role = roleOfToken(req.headers.authorization);
-    state.requests.push({ method, path, role: role ?? 'anon' });
+    state.requests.push({ method, path, query: url.search, role: role ?? 'anon' });
 
     if (PUBLIC.some((re) => re.test(path))) {
       if (path === '/api/version') return json(res, 200, { version: 'mock' });
@@ -326,16 +426,21 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       if (path === '/api/shell') return json(res, 200, shell(role));
       return json(res, 404, { error: `not mocked: ${method} ${path}` });
     }
-    // The brain's gates: a member reads /api/member/* only, a client none of
-    // the data routes, an admin the owner routes.
-    if (path.startsWith('/api/member/')) {
+    // The routes a W6b brain retired (and the W5c client portal): 410.
+    if (GONE_ROUTE.test(path) || path.startsWith('/api/client/')) {
+      return json(res, 410, { error: 'This was removed from the brain.', code: 'gone' });
+    }
+    // The brain's gates (W6b): a member keeps its own /api/member/* routes; a
+    // member or a client uses the owner routes the brain opened to it; an
+    // admin every owner route.
+    if (/^\/api\/member\//.test(path)) {
       if (role !== 'member') return json(res, 403, { error: 'forbidden', reason: `${role}-login` });
-      if (handleMember(res, url, path)) return;
-    } else if (path.startsWith('/api/client/')) {
+      if (handleMember(res, path)) return;
+    } else if (role !== 'admin' && !MEMBER_OPEN.some((re) => re.test(`${method} ${path}`))) {
       return json(res, 403, { error: 'forbidden', reason: `${role}-login` });
-    } else if (role !== 'admin') {
-      return json(res, 403, { error: 'forbidden', reason: `${role}-login` });
-    } else if (handleAdmin(res, url, path)) {
+    } else if (await handleItems(req, res, url, path, role)) {
+      return;
+    } else if (role === 'admin' && handleAdmin(res, url, path)) {
       return;
     }
     return json(res, 404, { error: `not mocked: ${method} ${path}` });

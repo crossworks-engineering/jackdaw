@@ -4,6 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  MY_APP_LINES,
+  READ_LINE,
   claudeCodeKeyCommand,
   claudeCodeOauthCommand,
   memberMcpAccessLines,
@@ -50,6 +52,20 @@ describe("a member's MCP view", () => {
     }
     expect(write.lines).toContain('You build your own mini apps with the my_app tools.');
     for (const l of [...read.lines, ...write.lines]) expect(l).not.toMatch(DASHES);
+  });
+
+  it('matches the W6b MCP tools: none retired, own work in the private workspace', () => {
+    const write = memberMcpAccessLines({
+      remoteEnabled: true,
+      access: { enabled: true, writeEnabled: true },
+    });
+    const all = write.lines.join(' ');
+    expect(all).not.toMatch(/my_items_list|my_item_open|my_app_unshare|my_item_submit/);
+    expect(all).toMatch(/private workspace/);
+    expect(all).toMatch(/Grant Access/);
+    expect(all).toMatch(/my_app_undelete/);
+    expect(READ_LINE).toMatch(/your own work/);
+    for (const l of MY_APP_LINES) expect(l).not.toMatch(DASHES);
   });
 
   it('builds the disconnect path and the connect commands', () => {

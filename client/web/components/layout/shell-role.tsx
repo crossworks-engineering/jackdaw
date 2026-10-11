@@ -13,9 +13,9 @@ export type { ShellRole };
 /**
  * The login's role, from the shell the app frame already fetched (GET
  * /api/shell `role`, W5c contract). Never fetches it again from here; null
- * until the frame has it. One shell and one nav for every role: the role
- * picks only where a screen reads its data, until phase W6a scopes the
- * owner routes.
+ * until the frame has it. One shell, one nav and one set of data routes for
+ * every role (W6b): the role picks the chat, the app runner, the byte routes
+ * and the MCP screen.
  */
 export function useShellRole(): ShellRole | null {
   const { data } = useQuery({
@@ -27,10 +27,9 @@ export function useShellRole(): ShellRole | null {
   return data ?? null;
 }
 
-/** What a client login sees on a screen with nothing for it yet: clients
- *  read no data routes in W5c. */
-export const CLIENT_EMPTY_TEXT =
-  'Nothing to show here yet. Items shared with your workspaces show here soon.';
+/** What a client login sees on a screen with nothing for it yet: an app's
+ *  run screen (the app runner is a member's) and the MCP screen. */
+export const CLIENT_EMPTY_TEXT = 'There is nothing here for your login yet.';
 
 export function ClientEmpty() {
   return (
@@ -41,9 +40,9 @@ export function ClientEmpty() {
 }
 
 /**
- * Where a screen reads its data, by the brain's role: the owner screen
- * (`children`) for an admin, `member` for a member, `client` (else the plain
- * empty state) for a client. A spinner while the shell has not answered,
+ * A screen that differs by the brain's role (W6b: never for data; the MCP
+ * screen and an app's run screen): `children` for an admin, `member` for a
+ * member, `client` (else the plain empty state) for a client. A spinner while the shell has not answered,
  * which the frame's own gate makes rare: it renders pages only after.
  */
 export function RoleSwitch({

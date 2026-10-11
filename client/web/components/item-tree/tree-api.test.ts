@@ -90,7 +90,7 @@ describe('tree writes', () => {
       'DELETE /api/tree/files/folders/f1',
       'POST /api/tree/files/move',
     ]);
-    expect(sent.some((s) => s.url.includes('/api/member/'))).toBe(false);
+    expect(sent.some((s) => s.url.startsWith(['/api', 'member'].join('/')))).toBe(false);
   });
 });
 

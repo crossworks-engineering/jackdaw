@@ -41,6 +41,7 @@ import {
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { ExportMenu } from '@/components/export/export-menu';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { TableGrid } from '@/components/table-grid/table-grid';
@@ -76,6 +77,9 @@ export function TableDetailClient({
   // (AppBoundTableError), so the whole draft/commit cycle is off — only
   // metadata (title/icon/tags/sharing) stays editable here.
   const appLink = initial.appLink ?? null;
+  // A snapshot copy is read only (W6b): a read only grid, no draft controls,
+  // no Grant Access. Delete stays.
+  const readOnly = isReadOnlyItem(initial);
 
   const published = ensureTableDoc(initial.data);
   const [doc, setDoc] = useState<TableDoc>(ensureTableDoc(initial.draft ?? initial.data));
@@ -521,24 +525,31 @@ export function TableDetailClient({
             narrow master-detail pane it WRAPS to a second row (flex-wrap) rather
             than squeezing the name to a couple of characters. */}
         <div className="flex min-w-[12rem] flex-1 items-center gap-1">
-          <EmojiPicker
-            value={icon || null}
-            onSelect={setIcon}
-            onClear={() => setIcon('')}
-            align="start"
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label="Change table icon"
-                title="Change icon"
-                className="h-8 w-9 shrink-0 rounded-md p-0 text-lg leading-none hover:bg-accent"
-              >
-                {icon || '📊'}
-              </Button>
-            }
-          />
+          {readOnly ? (
+            <span className="flex h-8 w-9 shrink-0 items-center justify-center text-lg" aria-hidden>
+              {icon || '📊'}
+            </span>
+          ) : (
+            <EmojiPicker
+              value={icon || null}
+              onSelect={setIcon}
+              onClear={() => setIcon('')}
+              align="start"
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label="Change table icon"
+                  title="Change icon"
+                  className="h-8 w-9 shrink-0 rounded-md p-0 text-lg leading-none hover:bg-accent"
+                >
+                  {icon || '📊'}
+                </Button>
+              }
+            />
+          )}
           <Input
+            readOnly={readOnly}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="h-8 min-w-0 flex-1 border-0 bg-transparent px-1 text-left text-base font-semibold shadow-none focus-visible:ring-0"
@@ -559,10 +570,10 @@ export function TableDetailClient({
                 App table{appLink.appName ? ` · ${appLink.appName}` : ''}
               </Badge>
             </Link>
-          ) : (
+          ) : readOnly ? null : (
             <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />
           )}
-          {!appLink && isAdminUser && (
+          {!appLink && !readOnly && isAdminUser && (
             <Button
               size="sm"
               variant="outline"
@@ -573,13 +584,15 @@ export function TableDetailClient({
             </Button>
           )}
           {isAdminUser ? <ExportMenu nodeId={initial.id} kind="table" /> : null}
-          <GrantAccessControl
-            type="table"
-            nodeId={initial.id}
-            iconOnly
-            hint="Others and link holders always see the last committed version, never your draft."
-          />
-          {dirty && (
+          {readOnly ? null : (
+            <GrantAccessControl
+              type="table"
+              nodeId={initial.id}
+              iconOnly
+              hint="Others and link holders always see the last committed version, never your draft."
+            />
+          )}
+          {dirty && !readOnly && (
             <Button
               size="sm"
               variant="ghost"
@@ -589,7 +602,7 @@ export function TableDetailClient({
               <Undo2 /> Discard
             </Button>
           )}
-          {!appLink && (
+          {!appLink && !readOnly && (
             <Button
               size="sm"
               onClick={() => void commit()}
@@ -610,12 +623,18 @@ export function TableDetailClient({
         </div>
       </div>
 
+      {readOnly ? (
+        <p className="border-b border-border px-4 py-1.5 text-xs text-muted-foreground">
+          {SNAPSHOT_COPY_NOTE}
+        </p>
+      ) : null}
+
       {fileBacked && (
         <TabBar
           tabs={tabs ?? []}
           activeTab={activeTab}
           switching={tabSwitching}
-          readOnly={!!appLink}
+          readOnly={!!appLink || readOnly}
           onSwitch={(id) => void switchTab(id)}
           onAdd={() => {
             // Seed a fresh sheet with a labeled first column + a few empty rows
@@ -692,11 +711,11 @@ export function TableDetailClient({
             <SurfaceErrorBoundary label="this table" resetKeys={[initial.id, activeTab]}>
               <TableGrid
                 doc={doc}
-                onChange={clipped || appLink ? () => {} : setDoc}
+                onChange={clipped || appLink || readOnly ? () => {} : setDoc}
                 tableId={initial.id}
                 tabs={tabs}
                 activeTabId={activeTab}
-                readOnly={!!appLink}
+                readOnly={!!appLink || readOnly}
               />
             </SurfaceErrorBoundary>
           </div>

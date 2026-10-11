@@ -494,8 +494,8 @@ export function shellAreasOf(shell: { areas?: unknown } | null | undefined): str
 }
 
 /** What the brain says a login is (GET /api/shell `role`, W5c contract:
- *  lib/contract/shell.ts). The data a screen reads still depends on it
- *  until phase W6a scopes the owner routes. */
+ *  lib/contract/shell.ts). Since W6b every login reads its data on the same
+ *  routes; the role picks the chat, the app runner and the byte routes. */
 export type { ShellRole };
 
 /**
@@ -512,10 +512,9 @@ export function shellRoleOf(shell: { role?: unknown } | null | undefined): Shell
 }
 
 /**
- * Whether a loaded shell names an Admin user, the one rule for the admin
- * private rows (personal spaces, until phase W6b): the brain's role 'admin'
- * (a brain that sends no role: everyone it answered). /api/admin/space*
- * answers admins only. False for no shell at all.
+ * Whether a loaded shell names an Admin user: the brain's role 'admin' (a
+ * brain that sends no role: everyone it answered). The screens hide what the
+ * owner-only routes do for anyone else (W6b). False for no shell at all.
  */
 export function isAdminUserShell(shell: { role?: unknown } | null | undefined): boolean {
   return shellRoleOf(shell) === 'admin';

@@ -29,6 +29,8 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { TagPill } from '@mantle/web-ui/tag-pill';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
 import { revealFoldsAt } from '@/components/page-editor/heading-fold';
@@ -152,6 +154,9 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
   const queryClient = useQueryClient();
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
+  // A snapshot copy is read only (W6b): no editor, no draft controls, no
+  // Grant Access. Delete stays.
+  const readOnly = isReadOnlyItem(initial);
   // The Folder index slash item needs the pages tree (folder phase 7).
   const treeServes = useTreeServes('pages');
   const toast = useToast();
@@ -276,7 +281,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
 
   // ── Commit: publish + index. The only path that touches the brain. ──
   const commit = useCallback(async () => {
-    if (deletedRef.current || committingRef.current) return;
+    if (deletedRef.current || committingRef.current || readOnly) return;
     const docStr = JSON.stringify(docRef.current);
     if (docStr === committedRef.current) return; // nothing to commit
     committingRef.current = true;
@@ -326,7 +331,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
         void saveDraftRef.current();
       }
     }
-  }, [initial.id, queryClient, saveMeta, toast]);
+  }, [initial.id, queryClient, readOnly, saveMeta, toast]);
 
   // Timers fire stale closures otherwise — always reach the latest fns.
   const saveDraftRef = useRef(saveDraft);
@@ -830,7 +835,22 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
   // draws the separating border, so this stays flat and cheap on height.
   // Wraps on narrow panes (tags drop under the title). Rendered identically
   // by both pane layouts (rich-editor scroller and the flat markdown pane).
-  const headerBand = (
+  const headerBand = readOnly ? (
+    <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">
+      <span className="flex size-8 shrink-0 items-center justify-center text-xl" aria-hidden>
+        {icon ?? '📄'}
+      </span>
+      <h1 className="min-w-48 flex-1 truncate text-lg font-semibold">{title}</h1>
+      {tags.length > 0 ? (
+        <div className="ml-auto flex flex-wrap gap-1">
+          {tags.map((t) => (
+            <TagPill key={t} tag={t} />
+          ))}
+        </div>
+      ) : null}
+      <p className="w-full text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p>
+    </header>
+  ) : (
     <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">
       {/* The icon is still the picker trigger (click to pick or remove);
           saves with the title/tags metadata and reflects to the
@@ -890,11 +910,15 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         <BackLink href="/pages">All pages</BackLink>
         <div className="flex flex-wrap items-center gap-2 gap-y-1.5">
-          <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={docDirty} />
-          <Button size="sm" onClick={() => void commit()} disabled={!docDirty || committing}>
-            <GitCommitHorizontal /> Commit
-          </Button>
-          {docDirty && (
+          {readOnly ? null : (
+            <>
+              <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={docDirty} />
+              <Button size="sm" onClick={() => void commit()} disabled={!docDirty || committing}>
+                <GitCommitHorizontal /> Commit
+              </Button>
+            </>
+          )}
+          {docDirty && !readOnly && (
             <Button
               size="sm"
               variant={reviewMode ? 'default' : 'outline'}
@@ -952,7 +976,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
               </Button>
             </div>
           )}
-          {docDirty && (
+          {docDirty && !readOnly && (
             <Button
               size="sm"
               variant="ghost"
@@ -964,18 +988,22 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
               <Undo2 /> {reverting ? 'Reverting…' : 'Revert'}
             </Button>
           )}
-          <Button
-            size="sm"
-            variant={mdMode ? 'default' : 'outline'}
-            onClick={toggleMarkdown}
-            aria-pressed={mdMode}
-            disabled={aiPending}
-            title="Edit the page as raw markdown"
-          >
-            <FileCode2 /> Markdown
-          </Button>
+          {readOnly ? null : (
+            <Button
+              size="sm"
+              variant={mdMode ? 'default' : 'outline'}
+              onClick={toggleMarkdown}
+              aria-pressed={mdMode}
+              disabled={aiPending}
+              title="Edit the page as raw markdown"
+            >
+              <FileCode2 /> Markdown
+            </Button>
+          )}
           {isAdminUser ? <ExportMenu nodeId={initial.id} /> : null}
-          <GrantAccessControl type="page" nodeId={initial.id} beforeEnable={commit} />
+          {readOnly ? null : (
+            <GrantAccessControl type="page" nodeId={initial.id} beforeEnable={commit} />
+          )}
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
               page exits too (the shell drops focus on navigation). */}
@@ -1070,7 +1098,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
                       onChange={onDocChange}
                       onBlur={onEditorBlur}
                       onEditorReady={onEditorReady}
-                      editable={!aiPending}
+                      editable={!aiPending && !readOnly}
                     />
                   </SurfaceErrorBoundary>
                   {aiPending && (

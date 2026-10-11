@@ -62,7 +62,7 @@ export function memberMcpAccessLines(view: Pick<MemberMcpView, 'remoteEnabled' |
     return {
       state: 'read',
       lines: [
-        'You read what your login can read.',
+        READ_LINE,
         'You read the data of the mini apps an admin opened to MCP.',
         'You cannot change anything over MCP.',
       ],
@@ -71,12 +71,27 @@ export function memberMcpAccessLines(view: Pick<MemberMcpView, 'remoteEnabled' |
   return {
     state: 'write',
     lines: [
-      'You read what your login can read.',
+      READ_LINE,
       'You change rows in the mini apps an admin opened to MCP, unless an app is informational or public.',
       'You build your own mini apps with the my_app tools.',
+      ...MY_APP_LINES,
     ],
   };
 }
+
+/** What a login reads over MCP (W6b): its own items are brain items in its
+ *  private workspace, read with the normal tools (my_items_list and
+ *  my_item_open are gone). */
+export const READ_LINE =
+  'You read what your login can read: the items of your workspaces, your own work included.';
+
+/** How a member's apps work over MCP since W6b: a new app is homed in the
+ *  login's private workspace; giving it to a workspace is a grant on the Apps
+ *  screen (my_app_unshare is gone); a delete moves it to the brain's trash. */
+export const MY_APP_LINES: readonly string[] = [
+  'A new app is in your private workspace. To give it to a workspace, use Grant Access on the Apps screen.',
+  'my_app_delete moves an app to the trash with its code and data. my_app_undelete brings it back.',
+];
 
 /** The Claude Code command that adds this brain with an API key. */
 export function claudeCodeKeyCommand(connectorUrl: string): string {

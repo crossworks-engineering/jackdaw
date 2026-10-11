@@ -6,7 +6,7 @@ import {
   startMockWorkspaceApi,
   type MockWorkspaceApi,
 } from './mock-workspace-api';
-import { ADMIN_ROWS, WORK_ROWS, wholeNav } from './shell-nav';
+import { ADMIN_ROWS, GONE_ROUTE, WORK_ROWS, wholeNav } from './shell-nav';
 
 /**
  * An admin in the one shell (phase W5c): every area, so the full nav with
@@ -53,8 +53,9 @@ test('the full nav, the owner Pages screen and Settings > Users', async ({ page 
     expect(asked, read).toContain(`GET ${read}`);
   }
   expect(asked.filter((r) => /\/api\/(client|member)\//.test(r))).toEqual([]);
-  // The routes a W5c brain answers 410: never asked.
+  // The routes a W5c or W6b brain answers 410: never asked.
   expect(asked.filter((r) => GONE.test(r))).toEqual([]);
+  expect(asked.filter((r) => GONE_ROUTE.test(r.slice(r.indexOf(' ') + 1)))).toEqual([]);
   // The admin's live updates are the owner stream.
   expect(asked).not.toContain('GET /api/member/realtime');
 });

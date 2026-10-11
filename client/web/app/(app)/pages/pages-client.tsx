@@ -88,6 +88,7 @@ import {
   type TagCount,
 } from '@/components/item-list/item-filters';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
 import { ItemTree } from '@/components/item-tree/item-tree';
@@ -963,6 +964,8 @@ function PageCard({
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [allPages, descendantIdsOf, row.id]);
 
+  // A snapshot copy is read only: it may not move (W6b).
+  const readOnly = isReadOnlyItem(row);
   const nesting = isOver && !disabledDrop && draggable;
   const drills = childCount !== null && childCount > 0;
 
@@ -980,7 +983,7 @@ function PageCard({
       dropRef={setDropRef}
       footerStart={
         <>
-          {draggable && (
+          {draggable && !readOnly && (
             <Button
               type="button"
               variant="ghost"
@@ -1018,39 +1021,41 @@ function PageCard({
           {/* Kept even though the card is a big drop target: once a level
               pages, the page you want to drop onto may be on page 2, and this
               is the only way to reach it. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <ItemCardAction label="Move page" title="Move to…">
-                <FolderInput />
-              </ItemCardAction>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="max-h-72 w-56 overflow-y-auto scrollbar-thin"
-            >
-              <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
-                <CornerLeftUp />
-                Top level
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {moveTargets.length === 0 ? (
-                <DropdownMenuItem disabled>No other pages</DropdownMenuItem>
-              ) : (
-                moveTargets.map((t) => (
-                  <DropdownMenuItem
-                    key={t.id}
-                    disabled={t.id === row.parentId}
-                    onClick={() => onMove(t.id)}
-                  >
-                    <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
-                      {t.icon ?? '📄'}
-                    </span>
-                    <span className="min-w-0 truncate">{t.title}</span>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {readOnly ? null : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <ItemCardAction label="Move page" title="Move to…">
+                  <FolderInput />
+                </ItemCardAction>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="max-h-72 w-56 overflow-y-auto scrollbar-thin"
+              >
+                <DropdownMenuItem disabled={row.parentId === null} onClick={() => onMove(null)}>
+                  <CornerLeftUp />
+                  Top level
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {moveTargets.length === 0 ? (
+                  <DropdownMenuItem disabled>No other pages</DropdownMenuItem>
+                ) : (
+                  moveTargets.map((t) => (
+                    <DropdownMenuItem
+                      key={t.id}
+                      disabled={t.id === row.parentId}
+                      onClick={() => onMove(t.id)}
+                    >
+                      <span className="size-4 shrink-0 text-center text-sm leading-4" aria-hidden>
+                        {t.icon ?? '📄'}
+                      </span>
+                      <span className="min-w-0 truncate">{t.title}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <ItemCardAction label="Add sub-page" onClick={onAddChild}>
             <Plus />
           </ItemCardAction>
@@ -1190,6 +1195,8 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
   const bodyRef = useRef<HTMLDivElement>(null);
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
+  // A snapshot copy is read only: no Edit and no Grant Access (W6b).
+  const readOnly = isReadOnlyItem(row);
 
   // The outline reads the SAME doc the preview renders — the draft when there
   // is one, so the headings match what is on screen rather than what was last
@@ -1248,15 +1255,17 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               serves the last COMMITTED page — which is what /s renders in any
               case. The "Draft · uncommitted" badge beside the title is what
               says so. */}
-          <GrantAccessControl type="page" nodeId={row.id} />
+          {readOnly ? null : <GrantAccessControl type="page" nodeId={row.id} />}
           {/* This header survives focus mode (the shell's chrome doesn't), so
               the toggle here is the whole control, enter and exit. */}
           <FocusToggle />
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/pages/${row.id}`}>
-              <Pencil /> Edit
-            </Link>
-          </Button>
+          {readOnly ? null : (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/pages/${row.id}`}>
+                <Pencil /> Edit
+              </Link>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -1268,6 +1277,8 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
           </Button>
         </div>
       </div>
+
+      {readOnly ? <p className="text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p> : null}
 
       {row.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">

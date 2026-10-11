@@ -20,6 +20,9 @@ import { FocusToggle } from '@/components/layout/focus-toggle';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { DrawViewer } from '@/components/draw/draw-viewer';
+import { TagPill } from '@mantle/web-ui/tag-pill';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
@@ -129,6 +132,9 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
   const toast = useToast();
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
+  // A snapshot copy is read only (W6b): the read view, no draft controls,
+  // no Grant Access. Delete stays.
+  const readOnly = isReadOnlyItem(initial);
 
   const [title, setTitle] = useState(initial.title);
 
@@ -307,7 +313,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
 
   // ── Commit: publish + index + capture the SVG snapshot. ───────────────
   const commit = useCallback(async () => {
-    if (deletedRef.current || committingRef.current) return;
+    if (deletedRef.current || committingRef.current || readOnly) return;
     const mod = modRef.current;
     if (!mod) return;
     if (mod.hashElementsVersion(sceneRef.current.elements) === committedHashRef.current) return;
@@ -397,7 +403,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
         void saveDraftRef.current();
       }
     }
-  }, [initial.id, queryClient, saveMeta, toast]);
+  }, [initial.id, queryClient, readOnly, saveMeta, toast]);
 
   // Timers fire stale closures otherwise — always reach the latest fns.
   const saveDraftRef = useRef(saveDraft);
@@ -525,19 +531,23 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 gap-y-1.5 border-b border-border bg-background/60 px-4 py-2 backdrop-blur">
         <BackLink href="/draw">All drawings</BackLink>
         <div className="flex flex-wrap items-center gap-2 gap-y-1.5">
-          <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />
-          <Button size="sm" onClick={() => void commit()} disabled={!dirty || committing}>
-            <GitCommitHorizontal /> Commit
-          </Button>
-          {/* Share publishes first (beforeEnable=commit, the pages pattern) so
-              the minted link never points at a stale or absent snapshot. */}
-          <GrantAccessControl type="draw" nodeId={initial.id} beforeEnable={commit} />
+          {readOnly ? null : (
+            <>
+              <StatusIndicator committing={committing} draftSaving={draftSaving} dirty={dirty} />
+              <Button size="sm" onClick={() => void commit()} disabled={!dirty || committing}>
+                <GitCommitHorizontal /> Commit
+              </Button>
+              {/* Share publishes first (beforeEnable=commit, the pages pattern) so
+                  the minted link never points at a stale or absent snapshot. */}
+              <GrantAccessControl type="draw" nodeId={initial.id} beforeEnable={commit} />
+            </>
+          )}
           {isAdminUser ? <ExportMenu nodeId={initial.id} kind="draw" /> : null}
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
               drawing exits too (the shell drops focus on navigation). */}
           <FocusToggle />
-          {dirty && (
+          {dirty && !readOnly && (
             <Button
               size="sm"
               variant="ghost"
@@ -566,50 +576,73 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
           row, start-aligned, no band box (the toolbar above draws the
           separating border) — the same layout as the pages header, so the
           two workspaces read identically. */}
-      <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">
-        <EmojiPicker
-          value={icon}
-          onSelect={setIcon}
-          onClear={() => setIcon(null)}
-          align="start"
-          trigger={
-            <Button
-              type="button"
-              variant="ghost"
-              aria-label="Change drawing icon"
-              title="Change icon"
-              className="size-8 shrink-0 rounded-lg p-0 text-xl leading-none hover:bg-accent"
-            >
-              {icon ?? '✏️'}
-            </Button>
-          }
-        />
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="New drawing"
-          aria-label="Drawing title"
-          className="h-auto min-w-48 flex-1 rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-0 py-0.5 text-lg font-semibold shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-0 md:text-lg"
-        />
-        {/* Middle column: the user-authored one-liner (data.description) —
-            distinct from the extractor's summary, saves with the metadata. */}
-        <Input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Add a description…"
-          aria-label="Drawing description"
-          className="h-auto min-w-40 flex-1 rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-0 py-0.5 text-sm text-muted-foreground shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-0 md:text-sm"
-        />
-        <TagInput
-          value={tags}
-          onChange={setTags}
-          placeholder="Add tags…"
-          className="ml-auto min-h-8 w-auto max-w-full basis-auto justify-end border-transparent bg-transparent px-0 py-0 sm:max-w-[45%]"
-        />
-      </header>
+      {readOnly ? (
+        <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">
+          <span className="flex size-8 shrink-0 items-center justify-center text-xl" aria-hidden>
+            {icon ?? '✏️'}
+          </span>
+          <h1 className="min-w-48 flex-1 truncate text-lg font-semibold">{title}</h1>
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          {tags.length > 0 ? (
+            <div className="ml-auto flex flex-wrap gap-1">
+              {tags.map((t) => (
+                <TagPill key={t} tag={t} />
+              ))}
+            </div>
+          ) : null}
+          <p className="w-full text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p>
+        </header>
+      ) : (
+        <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">
+          <EmojiPicker
+            value={icon}
+            onSelect={setIcon}
+            onClear={() => setIcon(null)}
+            align="start"
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Change drawing icon"
+                title="Change icon"
+                className="size-8 shrink-0 rounded-lg p-0 text-xl leading-none hover:bg-accent"
+              >
+                {icon ?? '✏️'}
+              </Button>
+            }
+          />
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="New drawing"
+            aria-label="Drawing title"
+            className="h-auto min-w-48 flex-1 rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-0 py-0.5 text-lg font-semibold shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-0 md:text-lg"
+          />
+          {/* Middle column: the user-authored one-liner (data.description),
+            not the extractor's summary; it saves with the metadata. */}
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a description…"
+            aria-label="Drawing description"
+            className="h-auto min-w-40 flex-1 rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-0 py-0.5 text-sm text-muted-foreground shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-0 md:text-sm"
+          />
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            placeholder="Add tags…"
+            className="ml-auto min-h-8 w-auto max-w-full basis-auto justify-end border-transparent bg-transparent px-0 py-0 sm:max-w-[45%]"
+          />
+        </header>
+      )}
 
       <div className="min-h-0 flex-1">
-        {initialData ? (
+        {readOnly ? (
+          // The read view: pan and zoom, no editing.
+          <SurfaceErrorBoundary label="this drawing" resetKeys={[initial.id]}>
+            <DrawViewer drawId={initial.id} />
+          </SurfaceErrorBoundary>
+        ) : initialData ? (
           // The canvas parses a scene written by another client, and a scene it
           // cannot read used to take the whole screen — header, tags, the lot —
           // with no way back but a reload. `resetKeys` on the drawing id so a

@@ -26,6 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
 
 type FileRow = {
   id: string;
@@ -178,8 +179,12 @@ export function FileEditor({
 
   const { file } = state;
   const isMarkdown = file.extension === 'md' || file.extension === 'markdown';
+  // A snapshot copy is read only (W6b): no edit, no rename, no Grant Access.
+  // Delete stays (in the list).
+  const readOnly = isReadOnlyItem(file);
+  const canEdit = isAdminUser && !readOnly;
   // Without text editing the view is the preview only.
-  const view: Mode = isAdminUser ? mode : 'preview';
+  const view: Mode = canEdit ? mode : 'preview';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -192,7 +197,9 @@ export function FileEditor({
           const Icon = d.icon;
           return <Icon aria-hidden className={`size-4 shrink-0 ${KIND_TINT[d.kind]}`} />;
         })()}
-        {renaming ? (
+        {readOnly ? (
+          <span className="text-sm font-medium">{file.filename}</span>
+        ) : renaming ? (
           <form onSubmit={submitRename} className="flex items-center gap-1.5">
             <Input
               autoFocus
@@ -275,7 +282,7 @@ export function FileEditor({
               </>
             )}
           </Button>
-          {isMarkdown && isAdminUser && (
+          {isMarkdown && canEdit && (
             <ToggleGroup
               type="single"
               variant="outline"
@@ -294,7 +301,7 @@ export function FileEditor({
               </ToggleGroupItem>
             </ToggleGroup>
           )}
-          <GrantAccessControl type="file" nodeId={file.id} />
+          {readOnly ? null : <GrantAccessControl type="file" nodeId={file.id} />}
           {/* History link → /nodes/[id]/history: every trace that touched
               this file (ingest, extractor, summarizer, …). */}
           {isAdminUser ? (
@@ -313,7 +320,7 @@ export function FileEditor({
               <Download aria-hidden />
             </a>
           </Button>
-          {file.isText && isAdminUser && (
+          {file.isText && canEdit && (
             <Button size="sm" onClick={save} disabled={!dirty || saving}>
               {saving ? <Loader2 className="animate-spin" /> : <Save />}
               {saving ? 'Saving…' : dirty ? 'Save •' : 'Save'}
@@ -324,9 +331,14 @@ export function FileEditor({
           </Button>
         </div>
       </header>
+      {readOnly ? (
+        <p className="border-b border-border px-6 py-1.5 text-xs text-muted-foreground">
+          {SNAPSHOT_COPY_NOTE}
+        </p>
+      ) : null}
 
       {/* Body */}
-      {file.isText && !isAdminUser && !isMarkdown ? (
+      {file.isText && !canEdit && !isMarkdown ? (
         <pre className="flex-1 overflow-auto scrollbar-thin whitespace-pre-wrap p-4 font-mono text-sm">
           {draft}
         </pre>

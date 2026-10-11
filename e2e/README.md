@@ -40,20 +40,28 @@ when Playwright's bundled browser is not downloaded. `E2E_WORKSPACE_PORT` and
 Every spec signs in through the real `/login` form: the password goes to the
 mock's `POST /api/auth/token`, which answers one bearer per login (an admin,
 a member and a client, one test password). The mock answers `GET /api/shell`
-for each the way a W5c brain does (`role`, `loginId`, `workspaces`, `areas`,
-`treeKinds`), the member routes a member's Pages screen reads, and the few
-owner routes the admin's Pages and Users screens read. It refuses each login
-the routes the brain refuses it, and records every request with the login
+for each the way a W6b brain does (`role`, `loginId`, `workspaces`, `areas`,
+`treeKinds`; the member's private workspace is "Mo Member (only you)"), the
+owner tree and page routes every login's Pages screen reads in its own scope,
+`POST /api/pages` with the `?ws=` rules (a Moderator's workspace, else the
+private one; 403 for a workspace the login is not in), and the few owner
+routes the admin's Users screen reads. It refuses a member or a client every
+owner route the brain did not open to it (`MEMBER_OPEN` in shell-nav.ts),
+answers the retired routes 410, and records every request with the login
 that sent it, so a spec can assert what a login never asked for. Anything
 else is a plain 404.
 
 - `member-shell.spec.ts`: the rail with the work screens and Workspaces and no
-  Admin rows; a switcher with exactly the member's workspaces; Pages with only
-  the items of those workspaces, read from `/api/member/*` and never from an
-  owner route; a typed admin screen says "You cannot manage this part of the
-  brain."; `/review` and `/team-admin` land on the home.
-- `client-shell.spec.ts`: the plain home with the client's workspaces, the
-  empty state on Pages, and no `/api/client/*` or `/api/member/*` request.
+  Admin rows; a switcher with exactly the member's workspaces, its private one
+  as Only you; Pages with only the items of those workspaces, read from the
+  owner routes the brain opened to it and never a retired route; a new page
+  in the private workspace and in Team (as a Moderator), and a refusal in a
+  workspace the member is no longer in; a typed admin screen says "You cannot
+  manage this part of the brain."; `/review` and `/team-admin` land on the
+  home.
+- `client-shell.spec.ts`: the plain home with the client's workspaces, Pages
+  read from the owner tree in its scope, and no `/api/client/*`,
+  `/api/member/*` or unopened owner request.
 - `admin-shell.spec.ts`: the full nav with Settings > Users, the owner Pages
   screen (every page of the brain) and the Users screen.
 - `retired-links.spec.ts`: old portal links (`/team`, `/hub`, `/client-signin`)

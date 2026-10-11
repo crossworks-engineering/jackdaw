@@ -49,9 +49,9 @@ export function useViewerAreas(): string[] | undefined {
 
 /**
  * Whether the login is an Admin user (isAdminUserShell in lib/workspaces.ts):
- * false until the shell has answered. The admin private rows (personal
- * spaces, until phase W6b) read /api/admin/space*, which answers Admin
- * users only, so they render for this login only.
+ * false until the shell has answered. Since W6b every login has the same
+ * screens; this hides what only an Admin user may do there (the owner-only
+ * routes: export, the app editor and app nav, the trash list, history).
  */
 export function useIsAdminUser(): boolean {
   const { data } = useQuery({

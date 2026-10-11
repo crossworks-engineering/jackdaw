@@ -62,3 +62,52 @@ export function outside(asked: readonly string[], allowed: readonly RegExp[]): s
     return !allowed.some((re) => re.test(path));
   });
 }
+
+const ID = '[0-9a-f-]{36}';
+const KIND = '[a-z]+';
+const rx = (method: string, path: string) => new RegExp(`^${method} ${path}$`);
+
+/**
+ * The owner routes a W6b brain opens to a member or a client (route-scope.ts
+ * MEMBER_OPEN_READS and MEMBER_OPEN_WRITES at the brain commit this phase was
+ * built against), as `METHOD path`. Every other owner route refuses them.
+ * Also /api/grants and /api/workspaces, which answer every login.
+ */
+export const MEMBER_OPEN: readonly RegExp[] = [
+  // Reads.
+  rx('GET', `/api/(pages|notes|draws|tables|apps)`),
+  rx('GET', `/api/(pages|notes|draws|tables|apps)/${ID}`),
+  rx('GET', `/api/pages/${ID}/(backlinks|descendant-count)`),
+  rx('GET', `/api/tables/${ID}/rows`),
+  rx('GET', `/api/tree/${KIND}(/(search|tags|marks))?`),
+  rx('GET', `/api/nodes/${ID}`),
+  rx('GET', `/api/(search|mentions/search|formulas)`),
+  rx('GET', `/api/formulas/${ID}`),
+  rx('GET', `/api/files/(files|folders)`),
+  rx('GET', `/api/files/folders/${ID}`),
+  // Writes.
+  rx('POST', `/api/(pages|notes|draws|tables|apps|files/files|files/folders)`),
+  rx('(PATCH|DELETE)', `/api/(pages|notes|draws|tables|apps|files/files|files/folders)/${ID}`),
+  rx('PUT', `/api/(pages|draws|tables|apps)/${ID}/draft`),
+  rx('DELETE', `/api/apps/${ID}/draft`),
+  rx('POST', `/api/(pages|draws|tables)/${ID}/(commit|discard-draft)`),
+  rx('POST', `/api/pages/${ID}/move`),
+  rx('POST', `/api/tables/${ID}/draft-ops`),
+  rx('POST', `/api/apps/${ID}/(build|format|publish)`),
+  rx('POST', `/api/tree/${KIND}/(folders|move)`),
+  rx('(PATCH|DELETE)', `/api/tree/${KIND}/folders/${ID}`),
+  rx('POST', `/api/tree/items/${ID}/opened`),
+  rx('PUT', `/api/tree/items/${ID}/pin`),
+  // Every login.
+  /^[A-Z]+ \/api\/(grants|workspaces)(\/|$)/,
+];
+
+/** The paths a W6b brain answers 410 (contract item 1). */
+export const GONE_ROUTE =
+  /^\/api\/(member\/(space|space-files|my-apps|items|tree)|admin\/(space|space-files))(\/|$)/;
+
+/** The requests (`METHOD /path`) that match none of `allowed`, where each
+ *  allowed pattern is tested against the whole `METHOD /path`. */
+export function outsideRoutes(asked: readonly string[], allowed: readonly RegExp[]): string[] {
+  return asked.filter((r) => !allowed.some((re) => re.test(r)));
+}
