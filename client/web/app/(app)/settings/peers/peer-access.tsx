@@ -6,6 +6,8 @@
  * client) or nobody (a share-only peer), with a Write switch. Bound to the
  * owner, the owner can also allow risky tools by name. Every change saves at
  * once through PATCH /api/peers/:id; the brain checks the login and its role.
+ * Binding to the owner a peer someone else made mints a new inbound token: the
+ * answer carries it once, and it goes to the same one-time reveal as a rotate.
  */
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -22,6 +24,7 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { revealPatchToken, type PeerPatchAnswer } from './peer-patch';
 
 export type PeerAccess = {
   actsAsLoginId: string | null;
@@ -46,11 +49,13 @@ export function PeerAccessSection({
   peerName,
   access,
   onChanged,
+  onRevealNew,
 }: {
   peerId: string;
   peerName: string;
   access: PeerAccess;
   onChanged: (patch: PeerAccess) => void;
+  onRevealNew: (token: string) => void;
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
@@ -65,7 +70,9 @@ export function PeerAccessSection({
   const save = async (body: Record<string, unknown>) => {
     setSaving(true);
     try {
-      await apiSend(`/api/peers/${peerId}`, 'PATCH', body);
+      const answer = await apiSend<PeerPatchAnswer>(`/api/peers/${peerId}`, 'PATCH', body);
+      // Before the reload: the token is shown once, so a failed list read must not lose it.
+      const minted = revealPatchToken(answer, onRevealNew);
       const { peers } = await apiFetch<{ peers: (PeerAccess & { id: string })[] }>('/api/peers');
       const p = peers.find((x) => x.id === peerId);
       if (p) {
@@ -77,7 +84,7 @@ export function PeerAccessSection({
         });
         setRisky(p.allowedRiskyTools.join(', '));
       }
-      toast.success('Saved');
+      toast.success(minted ? 'Saved. New inbound token minted' : 'Saved');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save');
     } finally {

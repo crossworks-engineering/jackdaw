@@ -52,6 +52,8 @@ type Share = { id: string; nodeId: string; nodeType: string; title: string; crea
 type TypeShare = { id: string; nodeType: string; createdAt: string };
 type NodeHit = { id: string; title: string; type: string };
 type Selection = { mode: 'create' } | { mode: 'view'; id: string };
+/** A token to show once. `replaced`: it took the place of one that now fails. */
+type Reveal = { token: string; replaced: boolean };
 
 /** The categories a peer can subscribe to — mirrors PEER_SHAREABLE_TYPES
  *  (@mantle/content); the server enforces the allowlist. */
@@ -67,7 +69,15 @@ const CATEGORIES = [
 ] as const;
 
 /** Reveal-once box for a freshly-minted inbound token. */
-function TokenReveal({ token, onDone }: { token: string; onDone: () => void }) {
+function TokenReveal({
+  token,
+  replaced,
+  onDone,
+}: {
+  token: string;
+  replaced: boolean;
+  onDone: () => void;
+}) {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -82,6 +92,11 @@ function TokenReveal({ token, onDone }: { token: string; onDone: () => void }) {
         Send this to the peer: they paste it on their side so their Mantle can authenticate to
         yours. We store only its hash — you can&apos;t see it again (rotate to mint a new one).
       </p>
+      {replaced && (
+        <p className="text-xs font-medium text-foreground">
+          The old token no longer works. The other brain needs this new one.
+        </p>
+      )}
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 font-mono text-xs">
           {token}
@@ -138,7 +153,7 @@ function PeersView({ initialPeers }: { initialPeers: Peer[] }) {
     if (hit) return { mode: 'view', id: hit.id };
     return initialPeers[0] ? { mode: 'view', id: initialPeers[0].id } : { mode: 'create' };
   });
-  const [reveal, setReveal] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
 
   const selected = sel.mode === 'view' ? (peers.find((p) => p.id === sel.id) ?? null) : null;
 
@@ -219,7 +234,7 @@ function PeersView({ initialPeers }: { initialPeers: Peer[] }) {
             <CreatePeer
               onCreated={(peer, inboundToken) => {
                 setPeers((p) => [peer, ...p]);
-                setReveal(inboundToken);
+                setReveal({ token: inboundToken, replaced: false });
                 setSel({ mode: 'view', id: peer.id });
               }}
             />
@@ -227,12 +242,13 @@ function PeersView({ initialPeers }: { initialPeers: Peer[] }) {
             <PeerDetail
               key={selected.id}
               peer={selected}
-              revealToken={reveal}
+              reveal={reveal}
               onClearReveal={() => setReveal(null)}
               onChanged={(patch) =>
                 setPeers((list) => list.map((p) => (p.id === selected.id ? { ...p, ...patch } : p)))
               }
-              onRevealNew={(t) => setReveal(t)}
+              // A rotate or an owner bind: either way the old inbound token is gone.
+              onRevealNew={(t) => setReveal({ token: t, replaced: true })}
               onDeleted={() => {
                 const next = peers.filter((p) => p.id !== selected.id);
                 setPeers(next);
@@ -373,14 +389,14 @@ function CreatePeer({ onCreated }: { onCreated: (peer: Peer, inboundToken: strin
 
 function PeerDetail({
   peer,
-  revealToken,
+  reveal,
   onClearReveal,
   onChanged,
   onRevealNew,
   onDeleted,
 }: {
   peer: Peer;
-  revealToken: string | null;
+  reveal: Reveal | null;
   onClearReveal: () => void;
   onChanged: (patch: Partial<Peer>) => void;
   onRevealNew: (token: string) => void;
@@ -578,7 +594,9 @@ function PeerDetail({
         <div>Last seen from them: {peer.lastSeenAt ? formatDateTime(peer.lastSeenAt) : '—'}</div>
       </div>
 
-      {revealToken && <TokenReveal token={revealToken} onDone={onClearReveal} />}
+      {reveal && (
+        <TokenReveal token={reveal.token} replaced={reveal.replaced} onDone={onClearReveal} />
+      )}
 
       <PeerAccessSection
         peerId={peer.id}
@@ -590,6 +608,7 @@ function PeerDetail({
           allowedRiskyTools: peer.allowedRiskyTools ?? [],
         }}
         onChanged={onChanged}
+        onRevealNew={onRevealNew}
       />
 
       {/* Tokens */}
