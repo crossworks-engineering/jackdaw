@@ -736,7 +736,7 @@ function ShellFrame({
             See components/tour. */}
         <TourOverlay />
 
-        {/* Marker pick mode — highlights markable rows + intercepts their clicks
+        {/* Marker pick mode: highlights markable rows + intercepts their clicks
             while picking; renders nothing otherwise. It hands to the owner
             assistant: an admin's. */}
         {role === 'admin' ? <PickMode /> : null}
