@@ -269,6 +269,24 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       }));
       return (json(res, 200, { users, currentActorId: LOGINS.admin.loginId }), true);
     }
+    // The flat Users screen's other reads (kept W5c routes): open invites,
+    // the chat roster, and the agents a personal assistant copies from.
+    if (path === '/api/team-admin/invites') return (json(res, 200, { invites: [] }), true);
+    if (path === '/api/team-admin/member-chats') {
+      const members = (['member', 'client'] as const).map((r) => ({
+        loginId: LOGINS[r].loginId,
+        name: LOGINS[r].name,
+        email: LOGINS[r].email,
+        active: r === 'member',
+        role: r,
+        lastMessageAt: null,
+        lastMessageText: null,
+        lastMessageDirection: null,
+        messageCount: 0,
+      }));
+      return (json(res, 200, { members, selected: null }), true);
+    }
+    if (path === '/api/agents') return (json(res, 200, { agents: [] }), true);
     return false;
   };
 

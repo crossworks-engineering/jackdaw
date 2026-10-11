@@ -40,13 +40,9 @@ export const ANY_LOGIN = [
   /^\/api\/auth\//,
 ];
 
-/**
- * KNOWN GAP: the rail's live updates (useRealtime in sidebar-nav.tsx) open
- * the owner stream /api/realtime for every login, and the brain refuses it
- * to a member or a client. Listed here so the specs pin every other route;
- * drop it when the shell stops opening the stream for those logins.
- */
-export const KNOWN_SHARED_STREAM = /^\/api\/realtime$/;
+/** Any live-update stream: the owner's /api/realtime or a member's
+ *  /api/member/realtime (lib/realtime-stream.ts picks one by role). */
+export const ANY_STREAM = /^GET \/api\/(member\/)?realtime$/;
 
 /** The requests (`METHOD /path`) whose path matches none of `allowed`. */
 export function outside(asked: readonly string[], allowed: readonly RegExp[]): string[] {

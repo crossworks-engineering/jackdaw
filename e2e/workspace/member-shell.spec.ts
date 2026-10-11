@@ -1,13 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { PAGES, signIn, startMockWorkspaceApi, type MockWorkspaceApi } from './mock-workspace-api';
-import {
-  ADMIN_ROWS,
-  ANY_LOGIN,
-  KNOWN_SHARED_STREAM,
-  WORK_ROWS,
-  outside,
-  wholeNav,
-} from './shell-nav';
+import { ADMIN_ROWS, ANY_LOGIN, WORK_ROWS, outside, wholeNav } from './shell-nav';
 
 /**
  * A member in the one shell (phase W5c). Signs in through the real /login
@@ -24,8 +17,9 @@ test.afterEach(async () => {
   await api.close();
 });
 
-/** What a member may ask: its own routes and what every login asks. */
-const MEMBER_MAY = [...ANY_LOGIN, /^\/api\/member\//, KNOWN_SHARED_STREAM];
+/** What a member may ask: its own routes (its live updates are
+ *  /api/member/realtime) and what every login asks. */
+const MEMBER_MAY = [...ANY_LOGIN, /^\/api\/member\//];
 
 test('the rail: the work screens and Workspaces, no Admin rows', async ({ page }) => {
   await signIn(page, 'member');
@@ -66,6 +60,16 @@ test('Pages lists the member workspaces items from the member routes only', asyn
   expect(asked).toContain('GET /api/member/tree/pages');
   expect(asked.filter((r) => /\/api\/(pages|tree)(\/|$|\?)/.test(r))).toEqual([]);
   expect(outside(asked, MEMBER_MAY)).toEqual([]);
+});
+
+test("the member's live updates: its own stream, never the owner's", async ({ page }) => {
+  await signIn(page, 'member');
+  await page.goto('/pages');
+  await expect(page.getByRole('main').getByText(PAGES.handbook.title)).toBeVisible();
+  await expect
+    .poll(() => api.asked('member').filter((r) => r === 'GET /api/member/realtime').length)
+    .toBeGreaterThan(0);
+  expect(api.asked('member')).not.toContain('GET /api/realtime');
 });
 
 test('a typed admin screen says the member cannot manage it', async ({ page }) => {

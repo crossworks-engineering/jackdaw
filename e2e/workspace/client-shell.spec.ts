@@ -5,7 +5,7 @@ import {
   startMockWorkspaceApi,
   type MockWorkspaceApi,
 } from './mock-workspace-api';
-import { ANY_LOGIN, KNOWN_SHARED_STREAM, WORK_ROWS, outside, wholeNav } from './shell-nav';
+import { ANY_LOGIN, ANY_STREAM, WORK_ROWS, outside, wholeNav } from './shell-nav';
 
 /**
  * A client in the one shell (phase W5c): the plain home with its workspaces,
@@ -43,5 +43,7 @@ test('the plain home lists the client workspaces; Pages shows the empty state', 
 
   const asked = api.asked('client');
   expect(asked.filter((r) => /\/api\/(client|member)\//.test(r))).toEqual([]);
-  expect(outside(asked, [...ANY_LOGIN, KNOWN_SHARED_STREAM])).toEqual([]);
+  expect(outside(asked, ANY_LOGIN)).toEqual([]);
+  // A client reads no data routes in W5c: it opens no live-update stream.
+  expect(asked.filter((r) => ANY_STREAM.test(r))).toEqual([]);
 });
