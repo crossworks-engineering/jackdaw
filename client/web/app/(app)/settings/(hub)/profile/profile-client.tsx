@@ -43,6 +43,8 @@ import { Avatar, AvatarFallback } from '@mantle/web-ui/ui/avatar';
 import { agentInitials } from '@/lib/agent-color';
 import { PurposeFieldNote } from '@/components/purpose-field-note';
 import { checkPurpose } from '@/lib/purpose-input';
+import { useIsBrainOwner } from '@/components/workspaces/use-shell-workspaces';
+import { OWNER_ONLY_PROMPT_TEXT, profileSaveBody } from '@/lib/profile-owner-fields';
 // Import the value from the browser-safe LEAF, not the @mantle/content barrel —
 // the barrel pulls backup.ts (node:os) + identity-context (@mantle/db) into the
 // client bundle. The type is erased, so it's safe from the barrel.
@@ -115,6 +117,10 @@ function ProfileForm({ data }: { data: ProfileData }) {
   const { preferences: defaults, fallback: defaultsFallback, reminderAgents, userId } = data;
   const queryClient = useQueryClient();
   const toast = useToast();
+  // The brain's prompt text (the purpose, its speciality and the house
+  // style) is the brain owner's only (W7a): another login does not see or
+  // send it (PUT /api/profile answers 403 when it changes).
+  const owner = useIsBrainOwner();
   const [tz, setTz] = useState(defaults.timezone);
   const [loc, setLoc] = useState(defaults.locale);
   const [reminderAgent, setReminderAgent] = useState(defaults.reminderAgentSlug ?? REMINDER_AUTO);
@@ -207,7 +213,7 @@ function ProfileForm({ data }: { data: ProfileData }) {
     e.preventDefault();
     setError(null);
     // The server refuses an over-long purpose (400); stop here with the reason.
-    if (purposeCheck.over) {
+    if (owner && purposeCheck.over) {
       setError('“What this brain is for” is too long. Keep it to one or two sentences.');
       return;
     }
@@ -220,23 +226,26 @@ function ProfileForm({ data }: { data: ProfileData }) {
     const partsNow = JSON.stringify(avatar?.parts ?? {});
     const partsChanged = partsNow !== savedAvatarParts.current;
     save.mutate(
-      {
-        timezone: tz,
-        locale: loc,
-        ...(seedChanged ? { avatarSeed: seedNow } : {}),
-        ...(partsChanged ? { avatarParts: avatar?.parts ?? {} } : {}),
-        reminderAgentSlug: reminderAgent === REMINDER_AUTO ? '' : reminderAgent,
-        reminderChannel,
-        purpose,
-        houseStyle,
-        purposeArchetype: archetype,
-        siteName,
-        peerName,
-        streamThoughts,
-        thoughtTrailMode: replaceTrail ? 'replace' : 'list',
-        persistThoughts,
-        thinkingBudget,
-      },
+      profileSaveBody(
+        {
+          timezone: tz,
+          locale: loc,
+          ...(seedChanged ? { avatarSeed: seedNow } : {}),
+          ...(partsChanged ? { avatarParts: avatar?.parts ?? {} } : {}),
+          reminderAgentSlug: reminderAgent === REMINDER_AUTO ? '' : reminderAgent,
+          reminderChannel,
+          purpose,
+          houseStyle,
+          purposeArchetype: archetype,
+          siteName,
+          peerName,
+          streamThoughts,
+          thoughtTrailMode: replaceTrail ? 'replace' : 'list',
+          persistThoughts,
+          thinkingBudget,
+        },
+        owner,
+      ),
       {
         onSuccess: () => {
           if (seedChanged) savedAvatarSeed.current = seedNow;
@@ -325,60 +334,68 @@ function ProfileForm({ data }: { data: ProfileData }) {
             for an empty centre.
           </p>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="purposeArchetype">Speciality</Label>
-          <Select value={archetype} onValueChange={setArchetype}>
-            <SelectTrigger id="purposeArchetype">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PURPOSE_ARCHETYPES.map((a) => (
-                <SelectItem key={a.key} value={a.key}>
-                  {a.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <input type="hidden" name="purposeArchetype" value={archetype} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="purpose">What this brain is for</Label>
-          <Textarea
-            id="purpose"
-            name="purpose"
-            rows={3}
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            placeholder="A sentence or two on what this brain is mainly used for."
-            aria-invalid={purposeCheck.over || undefined}
-            aria-describedby="purpose-note purpose-help"
-          />
-          <PurposeFieldNote id="purpose-note" check={purposeCheck} />
-          <p id="purpose-help" className="text-xs text-muted-foreground">
-            Grounds every assistant in the brain&apos;s mission — injected at the top of each
-            conversation. Leave blank to clear it.
+        {owner ? (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="purposeArchetype">Speciality</Label>
+              <Select value={archetype} onValueChange={setArchetype}>
+                <SelectTrigger id="purposeArchetype">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PURPOSE_ARCHETYPES.map((a) => (
+                    <SelectItem key={a.key} value={a.key}>
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <input type="hidden" name="purposeArchetype" value={archetype} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="purpose">What this brain is for</Label>
+              <Textarea
+                id="purpose"
+                name="purpose"
+                rows={3}
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                placeholder="A sentence or two on what this brain is mainly used for."
+                aria-invalid={purposeCheck.over || undefined}
+                aria-describedby="purpose-note purpose-help"
+              />
+              <PurposeFieldNote id="purpose-note" check={purposeCheck} />
+              <p id="purpose-help" className="text-xs text-muted-foreground">
+                Grounds every assistant in the brain&apos;s mission — injected at the top of each
+                conversation. Leave blank to clear it.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="houseStyle">House style</Label>
+              <Textarea
+                id="houseStyle"
+                name="houseStyle"
+                rows={4}
+                value={houseStyle}
+                maxLength={2000}
+                onChange={(e) => setHouseStyle(e.target.value)}
+                placeholder={
+                  'e.g. Never use em dashes (\u2014). Use a comma, a colon, or parentheses instead.'
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Your writing rules, in your own words. Appended to <em>every</em> agent&apos;s
+                prompt, including the specialists that author pages and tables, and it outranks
+                their built-in writing guidance. Never applied to quoted text, code, or a document
+                being reproduced verbatim. Leave blank to clear it.
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground" data-testid="profile-owner-only">
+            {OWNER_ONLY_PROMPT_TEXT}
           </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="houseStyle">House style</Label>
-          <Textarea
-            id="houseStyle"
-            name="houseStyle"
-            rows={4}
-            value={houseStyle}
-            maxLength={2000}
-            onChange={(e) => setHouseStyle(e.target.value)}
-            placeholder={
-              'e.g. Never use em dashes (\u2014). Use a comma, a colon, or parentheses instead.'
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Your writing rules, in your own words. Appended to <em>every</em> agent&apos;s prompt,
-            including the specialists that author pages and tables, and it outranks their built-in
-            writing guidance. Never applied to quoted text, code, or a document being reproduced
-            verbatim. Leave blank to clear it.
-          </p>
-        </div>
+        )}
       </section>
 
       <section className="space-y-4">

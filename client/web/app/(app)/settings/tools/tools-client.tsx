@@ -261,9 +261,9 @@ export function ToolsClient() {
       }));
       return { prev };
     },
-    onError: (_e, _patch, ctx) => {
+    onError: (e, _patch, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(['tools', 'settings'], ctx.prev);
-      toast.error('Could not save that setting');
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not save that setting');
     },
     onSuccess: (data) => queryClient.setQueryData(['tools', 'settings'], data),
   });

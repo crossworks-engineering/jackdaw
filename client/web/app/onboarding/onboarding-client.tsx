@@ -39,7 +39,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { PurposeFieldNote } from '@/components/purpose-field-note';
 import type { Shell } from '@/lib/contract/shell';
-import { onboardingExit } from '@/lib/workspaces';
+import { isOwnerShell, onboardingExit } from '@/lib/workspaces';
+import { OWNER_ONLY_PROMPT_TEXT } from '@/lib/profile-owner-fields';
 import { checkPurpose } from '@/lib/purpose-input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 
@@ -166,6 +167,7 @@ function OnboardingGate() {
       initialLocale={d.locale}
       savedServices={d.savedServices}
       assistantAgentId={d.assistantAgentId}
+      owner={isOwnerShell(shellQuery.data)}
     />
   );
 }
@@ -176,12 +178,16 @@ function Wizard({
   initialLocale,
   savedServices,
   assistantAgentId,
+  owner,
 }: {
   initialStep: string;
   initialTimezone: string;
   initialLocale: string;
   savedServices: string[];
   assistantAgentId: string | null;
+  /** The brain owner: only it sets the purpose and the persona (W7a; the
+   *  brain answers 403 for anyone else). */
+  owner: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -443,6 +449,8 @@ function Wizard({
       if (!res.ok) return toast.error(res.error ?? 'Could not save.');
       toast.success(`${assistantName} is ready.`);
       go(index + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save.');
     } finally {
       setBusy(false);
     }
@@ -923,7 +931,22 @@ function Wizard({
           </StepShell>
         )}
 
-        {step === 'purpose' && (
+        {(step === 'purpose' || step === 'personality') && !owner && (
+          <StepShell
+            title={step === 'purpose' ? 'What is this brain for?' : 'Your assistant’s character'}
+            blurb={
+              step === 'purpose'
+                ? OWNER_ONLY_PROMPT_TEXT
+                : 'The assistant’s persona is the brain owner’s to set.'
+            }
+          >
+            <p className="text-sm text-muted-foreground" data-testid="onboarding-owner-only">
+              The brain owner sets this. Continue to the next step.
+            </p>
+          </StepShell>
+        )}
+
+        {step === 'purpose' && owner && (
           <StepShell
             title="What is this brain for?"
             blurb="Pick the speciality that fits best, then say in a sentence or two what the brain is for. This is not your assistant’s personality: you choose that on the next step."
@@ -963,7 +986,7 @@ function Wizard({
           </StepShell>
         )}
 
-        {step === 'personality' && (
+        {step === 'personality' && owner && (
           <StepShell
             title="Shape your assistant’s character"
             blurb="Pick a personality, give it a name and a voice, and tune how creative it is. You can change all of this later."
@@ -1175,9 +1198,13 @@ function Wizard({
             case 'sanity':
               return { label: 'Continue', onClick: () => go(index + 1) };
             case 'purpose':
-              return { label: 'Save & continue', onClick: onSavePurpose };
+              return owner
+                ? { label: 'Save & continue', onClick: onSavePurpose }
+                : { label: 'Continue', onClick: () => go(index + 1) };
             case 'personality':
-              return { label: 'Save & continue', onClick: onSavePersona };
+              return owner
+                ? { label: 'Save & continue', onClick: onSavePersona }
+                : { label: 'Continue', onClick: () => go(index + 1) };
             case 'telegram':
               // Connecting + pairing happen inline in <TelegramBotSection>; this
               // step is optional, so the footer just advances.

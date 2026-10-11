@@ -106,7 +106,12 @@ export function CombosClient({ initialCombo }: { initialCombo: string }) {
           `Applied ${res.applied.length} model change${res.applied.length === 1 ? '' : 's'}`,
         );
       } else {
-        toast.error(`${res.applied.length} applied, ${res.failed.length} failed`);
+        // The brain's words for the first refusal (W7a: pairing a vault key
+        // with a host needs the keys area), plainly.
+        const first = res.failed[0]?.error;
+        toast.error(
+          `${res.applied.length} applied, ${res.failed.length} failed${first ? `: ${first}` : ''}`,
+        );
       }
       setExcluded(new Set());
       await invalidateAgentQueries(queryClient);

@@ -140,7 +140,7 @@ export const API_CATALOG: CatalogGroup[] = [
       n: 'Manage persona notes (legacy)',
       m: 'POST',
       p: '/api/agents/{id}/persona',
-      d: 'Legacy: only agents with memory_config.notes_target = persona read these. Learned rules live in the Journal (GET /api/journal?learned_by={slug}). Add/edit/retire/restore; soft-retire only.',
+      d: 'Legacy: only agents with memory_config.notes_target = persona read these. Learned rules live in the Journal (GET /api/journal?learned_by={slug}). Add/edit/retire/restore; soft-retire only. The brain owner only (403 for any other login); an agent read by another login carries no persona notes.',
       b: '{\n  "action": "add",\n  "kind": "style",\n  "content": "Prefers concise replies"\n}',
     },
     {
