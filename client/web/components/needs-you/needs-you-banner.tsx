@@ -2,10 +2,10 @@
 
 /**
  * "Needs you" notice at the top of the rail, beside the update notice: how
- * much waits for an admin ("2 waiting for review · 1 open request"), live.
- * Renders NOTHING when nothing waits. Clicking opens the first workspace
- * with an item waiting for approval (or Requests when only requests wait). In the collapsed icon rail the
- * label hides and the icon carries the count.
+ * many contacts locked their sharing ("1 contact locked"), live. Renders
+ * NOTHING when none is. Clicking opens the newest locked contact. In the
+ * collapsed icon rail the label hides and the icon carries the count.
+ * Outages have their own red notice (provider-alert-banner.tsx).
  */
 import Link from 'next/link';
 import { Inbox } from 'lucide-react';

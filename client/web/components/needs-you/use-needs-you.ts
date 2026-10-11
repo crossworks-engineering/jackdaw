@@ -3,7 +3,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import { useRealtime } from '@/components/realtime/use-realtime';
-import { QUEUE_KEY } from '@/lib/member-review';
 import { NEEDS_YOU_KEY, NEEDS_YOU_REALTIME_TYPE, type NeedsYou } from '@/lib/needs-you';
 
 /** A safety net under the live stream (it has no replay: a change during a
@@ -37,14 +36,13 @@ export function useNeedsYou(enabled = true): NeedsYou | null {
 }
 
 /**
- * The one live subscription: on `needs_you`, refetch the counts, and the
- * Review queue and Requests list if they are open (they used to poll).
+ * The one live subscription: on `needs_you`, refetch the counts, and Team
+ * admin's Requests list if it is open (until Team admin goes in W5c).
  */
 export function useNeedsYouSync(): void {
   const queryClient = useQueryClient();
   useRealtime([NEEDS_YOU_REALTIME_TYPE], () => {
     void queryClient.invalidateQueries({ queryKey: NEEDS_YOU_KEY });
-    void queryClient.invalidateQueries({ queryKey: QUEUE_KEY });
     void queryClient.invalidateQueries({ queryKey: ['team-admin', 'requests'] });
   });
 }

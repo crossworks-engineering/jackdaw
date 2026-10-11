@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * The profile menu's opt-in for browser notifications about work waiting
- * for an admin (Review, Requests). Off until turned on here; only this click
+ * The profile menu's opt-in for browser notifications about what needs an
+ * admin (an outage of embeddings or extraction). Off until turned on here; only this click
  * makes the browser ask, never an unasked prompt. Per browser. Hidden where
  * it cannot work: the desktop app (it notifies natively) and a browser with
  * no notifications.
@@ -46,7 +46,7 @@ export function BrowserNotifyItem() {
         void enableBrowserNotify().then((answer) => {
           setPermission(answer);
           if (answer === 'granted') {
-            toast.success('This browser will tell you when something waits for review.');
+            toast.success('This browser will tell you when something needs you.');
           } else if (answer === 'denied') {
             toast.error('The browser blocked notifications. Allow them in its site settings.');
           }
