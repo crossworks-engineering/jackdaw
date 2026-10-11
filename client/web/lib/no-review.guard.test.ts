@@ -18,30 +18,27 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 /** Owned by another W5c part (the shell, Team admin and Users helpers). */
 const OTHER_PARTS = [
-  'components/member/',
-  'components/client/',
   'components/team-admin/',
   'components/team-chat/',
-  'components/layout/rail/',
   'app/(app)/team-admin/',
   'app/(app)/settings/users/',
   'app/client-signin/',
   'app/login/',
   'app/invite/',
-  'lib/member-',
-  'middleware',
 ];
 
 /** Kept ONLY for files the other parts own (each says who in its header). */
 const KEPT_FOR_OTHER_PARTS = [
   'components/review/item-review.tsx',
-  'components/review/review-dialogs.tsx',
   'components/review/review-redirect.tsx',
   'components/review/workspace-review-sections.tsx',
   'components/app-nav/member-apps-review.tsx',
   'lib/workspace-review.ts',
   'lib/workspace-review.test.ts',
-  'lib/review-no-note.ts',
+  // The submissions client (memberReview) for item-review.tsx (Team admin),
+  // and its tests.
+  'lib/member-review.ts',
+  'lib/member-review.test.ts',
 ];
 
 /** The review UI's words, its components and its routes. */
@@ -66,6 +63,11 @@ const NEEDLES: [string, RegExp][] = [
 
 const SELF = 'lib/no-review.guard.test.ts';
 
+/** Name a needle on purpose, and are no review UI: the retired-path
+ *  redirects (/review goes home), and the member space's own `review`
+ *  filter (Mine by state, a kept member route). */
+const NAMES_ON_PURPOSE = ['middleware.ts', 'middleware.test.ts', 'lib/member-takeover.test.ts'];
+
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (name === 'node_modules' || name === '.next' || name.startsWith('.')) continue;
@@ -78,7 +80,10 @@ function sources(dir: string, out: string[] = []): string[] {
 
 const scanned = sources(ROOT).filter(
   (f) =>
-    f !== SELF && !OTHER_PARTS.some((p) => f.startsWith(p)) && !KEPT_FOR_OTHER_PARTS.includes(f),
+    f !== SELF &&
+    !OTHER_PARTS.some((p) => f.startsWith(p)) &&
+    !KEPT_FOR_OTHER_PARTS.includes(f) &&
+    !NAMES_ON_PURPOSE.includes(f),
 );
 
 describe('no review UI in the owner screens (W5c)', () => {
@@ -92,6 +97,12 @@ describe('no review UI in the owner screens (W5c)', () => {
       'app/(app)/apps/apps-client.tsx',
       'components/item-list/admin-private-rows.tsx',
       'lib/needs-you.ts',
+      // The shell's (W5c): the member views, the rail and the member libs.
+      'components/member/mine-item.tsx',
+      'components/member/member-workspace.tsx',
+      'components/member/member-my-apps.tsx',
+      'components/layout/rail/profile-menu.tsx',
+      'lib/member-space.ts',
     ]) {
       expect(scanned).toContain(f);
     }

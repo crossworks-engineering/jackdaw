@@ -100,9 +100,9 @@ export function MemberHome() {
     queryKey: ['member-home', 'mine'],
     queryFn: () => apiFetch<SpaceList>('/api/member/space?page=1'),
   });
-  // What an admin took over to work on (audit F07). Its own read: a brain
-  // before Take over refuses the state by name (400), and then there is
-  // simply nothing with an admin.
+  // What an admin took over to work on (audit F07). Its own read: an older
+  // brain refuses the state by name (400), and then there is simply nothing
+  // with an admin.
   const withAdmin = useQuery({
     queryKey: ['member-home', 'with-admin'],
     queryFn: () => apiFetch<SpaceList>(reviewListPath(['with-admin'])),

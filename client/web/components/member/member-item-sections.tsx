@@ -16,7 +16,7 @@ import type { MemberItemRow } from '@mantle/client-types';
 import { updatedAgo } from '@mantle/web-ui/lib/format-datetime';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { ItemIcon } from '@/components/item-list/item-card';
-import { ReviewSections, type ReviewSection } from '@/components/review/workspace-review-sections';
+import { ListSections, type ListSection } from '@/components/item-list/list-sections';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { MEMBER_ITEM_SECTIONS, fetchMemberItems, srcOf } from '@/lib/member-items';
 import { LIBRARY_CLIENT_TITLE, libraryLevelBadge, type SpaceKind } from '@/lib/member-space';
@@ -68,7 +68,7 @@ export function MemberItemSections({
   onOpen: (row: MemberItemRow) => void;
 }) {
   const info = MEMBER_KIND[kind];
-  const sections: ReviewSection[] = lists.map((l) => ({
+  const sections: ListSection[] = lists.map((l) => ({
     id: l.id,
     title: l.title,
     count: l.total,
@@ -92,5 +92,5 @@ export function MemberItemSections({
       };
     }),
   }));
-  return <ReviewSections sections={sections} selectedId={selectedKey} collapsible />;
+  return <ListSections sections={sections} selectedId={selectedKey} collapsible />;
 }

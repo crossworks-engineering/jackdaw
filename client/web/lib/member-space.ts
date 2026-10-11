@@ -60,7 +60,7 @@ export type SpaceItemBody = MemberSpaceItemBody<Doc, TableDetail>;
 export type SpaceItem = MemberSpaceItem<Doc, TableDetail>;
 export type SpaceList = MemberSpaceList;
 
-/** The admin's private space (Take over, audit F07): each row names who
+/** The admin's private space (taken items, audit F07): each row names who
  *  wrote it when the admin took it over (`takenFrom`), else null. */
 export type {
   AdminSpaceItemRow,
@@ -233,9 +233,9 @@ export function listPath(
 }
 
 /**
- * Mine filtered by review state (`?review=` takes a comma list), for the
- * member home's Rejected and Waiting for review lists: read from the whole
- * space, not picked out of the newest page. A brain older than the filter
+ * Mine filtered by review state (the `review` param takes a comma list), for
+ * the member home's With an admin list: read from the whole space, not picked
+ * out of the newest page. A brain older than the filter
  * ignores it and answers the newest page, which `splitByReview` still sorts.
  */
 export function reviewListPath(states: readonly SpaceItemState[], page = 1): string {

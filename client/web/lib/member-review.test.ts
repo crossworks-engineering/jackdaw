@@ -58,22 +58,6 @@ describe('bundleSummary', () => {
   });
 });
 
-describe('the accept dialog: where a page lands', () => {
-  it('files a page like every tree kind (no parent page since folder phase 7)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { fileURLToPath } = await import('node:url');
-    const ui = readFileSync(
-      fileURLToPath(new URL('../components/review/review-dialogs.tsx', import.meta.url)),
-      'utf8',
-    );
-    expect(ui).not.toContain('parentPageId');
-    expect(ui).toContain('const filed = bundle.data?.place;');
-    expect(ui).toMatch(/onClick=\{\(\) => void bundle\.refetch\(\)\}\s*>\s*Retry/);
-    expect(ui).toContain('<Label id="review-level-label">Who can see it</Label>');
-    expect(ui).toContain('aria-labelledby="review-level-label"');
-  });
-});
-
 describe("a client's item at client or public (audit A28)", () => {
   const item = (id: string, audience: 'admin' | 'team' | 'client' | 'public') => ({
     id,
