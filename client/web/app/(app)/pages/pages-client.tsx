@@ -88,7 +88,7 @@ import {
   type TagCount,
 } from '@/components/item-list/item-filters';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
 import { ItemTree } from '@/components/item-tree/item-tree';
@@ -685,15 +685,17 @@ export function PagesClient() {
                   },
                 }}
                 onOpenItem={(item) => setSelectedId(item.id)}
-                itemActions={(item) => (
-                  <DropdownMenuItem
-                    className="text-destructive-ink focus:text-destructive-ink"
-                    onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                  >
-                    <Trash2 />
-                    Delete…
-                  </DropdownMenuItem>
-                )}
+                itemActions={(item) =>
+                  itemAccess(item).manage ? (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  ) : null
+                }
                 // A share or a move changes the level the open page is read
                 // at: its header badge, client thread and folder follow.
                 onChanged={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
@@ -964,8 +966,9 @@ function PageCard({
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [allPages, descendantIdsOf, row.id]);
 
-  // A snapshot copy is read only: it may not move (W6b).
-  const readOnly = isReadOnlyItem(row);
+  // Moves only for a login that manages the page, never a snapshot copy
+  // (its caps, W6b fix round).
+  const access = itemAccess(row);
   const nesting = isOver && !disabledDrop && draggable;
   const drills = childCount !== null && childCount > 0;
 
@@ -983,7 +986,7 @@ function PageCard({
       dropRef={setDropRef}
       footerStart={
         <>
-          {draggable && !readOnly && (
+          {draggable && access.move && (
             <Button
               type="button"
               variant="ghost"
@@ -1021,7 +1024,7 @@ function PageCard({
           {/* Kept even though the card is a big drop target: once a level
               pages, the page you want to drop onto may be on page 2, and this
               is the only way to reach it. */}
-          {readOnly ? null : (
+          {access.move ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <ItemCardAction label="Move page" title="Move to…">
@@ -1055,13 +1058,15 @@ function PageCard({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
+          ) : null}
           <ItemCardAction label="Add sub-page" onClick={onAddChild}>
             <Plus />
           </ItemCardAction>
-          <ItemCardAction label="Delete page" destructive onClick={onDelete}>
-            <Trash2 />
-          </ItemCardAction>
+          {access.manage ? (
+            <ItemCardAction label="Delete page" destructive onClick={onDelete}>
+              <Trash2 />
+            </ItemCardAction>
+          ) : null}
         </>
       }
     >
@@ -1195,8 +1200,11 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
   const bodyRef = useRef<HTMLDivElement>(null);
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
-  // A snapshot copy is read only: no Edit and no Grant Access (W6b).
-  const readOnly = isReadOnlyItem(row);
+  // The login's caps on the page (W6b fix round): no Edit without
+  // mayEdit (never on a snapshot copy), no Grant Access or Delete without
+  // mayManage.
+  const access = itemAccess(row);
+  const note = readOnlyNote(access);
 
   // The outline reads the SAME doc the preview renders — the draft when there
   // is one, so the headings match what is on screen rather than what was last
@@ -1255,30 +1263,32 @@ function PagePreview({ row, onDelete }: { row: PageRow; onDelete: () => void }) 
               serves the last COMMITTED page — which is what /s renders in any
               case. The "Draft · uncommitted" badge beside the title is what
               says so. */}
-          {readOnly ? null : <GrantAccessControl type="page" nodeId={row.id} />}
+          {access.share ? <GrantAccessControl type="page" nodeId={row.id} /> : null}
           {/* This header survives focus mode (the shell's chrome doesn't), so
               the toggle here is the whole control, enter and exit. */}
           <FocusToggle />
-          {readOnly ? null : (
+          {access.edit ? (
             <Button asChild variant="outline" size="sm">
               <Link href={`/pages/${row.id}`}>
                 <Pencil /> Edit
               </Link>
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive-ink"
-            onClick={onDelete}
-            aria-label="Delete page"
-          >
-            <Trash2 />
-          </Button>
+          ) : null}
+          {access.manage ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={onDelete}
+              aria-label="Delete page"
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      {readOnly ? <p className="text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p> : null}
+      {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
 
       {row.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">

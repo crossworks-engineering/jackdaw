@@ -1,5 +1,6 @@
 'use client';
 
+import { itemAccess } from '@/lib/item-access';
 import { noteListAnswer } from '@/lib/workspace-filter';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import { useEffect, useMemo, useState } from 'react';
@@ -238,15 +239,17 @@ export function AppsClient() {
                     actions={newButton}
                     newItemInFolder={{ label: 'app', icon: AppWindow, onCreate: openCreate }}
                     onOpenItem={(item) => select(item.id)}
-                    itemActions={(item) => (
-                      <DropdownMenuItem
-                        className="text-destructive-ink focus:text-destructive-ink"
-                        onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                      >
-                        <Trash2 />
-                        Delete…
-                      </DropdownMenuItem>
-                    )}
+                    itemActions={(item) =>
+                      itemAccess(item).manage ? (
+                        <DropdownMenuItem
+                          className="text-destructive-ink focus:text-destructive-ink"
+                          onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                        >
+                          <Trash2 />
+                          Delete…
+                        </DropdownMenuItem>
+                      ) : null
+                    }
                     // A share or a move changes the level the open app is read
                     // at: its header badge follows.
                     onChanged={() => void queryClient.invalidateQueries({ queryKey: ['apps'] })}
@@ -432,6 +435,9 @@ function AppPreview({
   const icon = face ? face.icon : app.icon;
   const color = face ? face.color : app.color;
   const hasBuild = app.hasBuild;
+  // The login's caps on the app (W6b fix round): no Grant Access or Delete
+  // without mayManage, no Open (the editor) without mayEdit.
+  const access = itemAccess(app);
 
   return (
     // `h-full`, not `flex-1`: MasterDetail's detail wrapper is a block, so a
@@ -457,13 +463,13 @@ function AppPreview({
         iconActions={
           <>
             {/* The level control, once there is a published build to share. */}
-            {hasBuild && (
+            {hasBuild && access.share && (
               <GrantAccessControl type="app" nodeId={app.id} hint={APP_SHARE_HINT} iconOnly />
             )}
             {/* Survives focus mode (the shell's chrome does not), so it is the
                 whole control: enter and exit. */}
             <FocusToggle />
-            {admin ? (
+            {admin && access.edit ? (
               <HeaderIconButton
                 label="Open app"
                 tooltip="Open the app: build, code, history"
@@ -474,13 +480,15 @@ function AppPreview({
                 </Link>
               </HeaderIconButton>
             ) : null}
-            <HeaderIconButton
-              label="Delete app"
-              className="text-muted-foreground hover:text-destructive-ink"
-              onClick={onDelete}
-            >
-              <Trash2 />
-            </HeaderIconButton>
+            {access.manage ? (
+              <HeaderIconButton
+                label="Delete app"
+                className="text-muted-foreground hover:text-destructive-ink"
+                onClick={onDelete}
+              >
+                <Trash2 />
+              </HeaderIconButton>
+            ) : null}
           </>
         }
       />

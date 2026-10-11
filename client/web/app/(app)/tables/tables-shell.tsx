@@ -1,5 +1,6 @@
 'use client';
 
+import { itemAccess } from '@/lib/item-access';
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
 import { useCallback, useEffect, useState } from 'react';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
@@ -351,15 +352,17 @@ export function TablesShell() {
                 }}
                 actions={listActions}
                 onOpenItem={(item) => selectTable(item.id)}
-                itemActions={(item) => (
-                  <DropdownMenuItem
-                    className="text-destructive-ink focus:text-destructive-ink"
-                    onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                  >
-                    <Trash2 />
-                    Delete…
-                  </DropdownMenuItem>
-                )}
+                itemActions={(item) =>
+                  itemAccess(item).manage ? (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  ) : null
+                }
                 // A share or a move changes the level the open item is read
                 // at: its header badge and client thread follow.
                 onChanged={() => void queryClient.invalidateQueries({ queryKey: ['tables'] })}
@@ -432,14 +435,16 @@ export function TablesShell() {
                         </>
                       }
                       actions={
-                        <ItemCardAction
-                          label={`Delete ${t.title}`}
-                          title="Delete table"
-                          destructive
-                          onClick={() => setDeleteTarget(t)}
-                        >
-                          <Trash2 />
-                        </ItemCardAction>
+                        itemAccess(t).manage ? (
+                          <ItemCardAction
+                            label={`Delete ${t.title}`}
+                            title="Delete table"
+                            destructive
+                            onClick={() => setDeleteTarget(t)}
+                          >
+                            <Trash2 />
+                          </ItemCardAction>
+                        ) : null
                       }
                     >
                       {/* App-bound export: read-only here, edited in the app.

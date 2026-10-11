@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from '@mantle/web-ui/ui/toggle-group';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 
 type FileRow = {
   id: string;
@@ -47,24 +47,21 @@ type Mode = 'edit' | 'preview' | 'split';
 
 export function FileEditor({
   fileId,
-  row = null,
   onClose,
   onSaved,
+  onLoaded,
 }: {
   fileId: string;
-  /** The file's row from the open folder's list. A login that is not an
-   *  Admin user reads the file from it, because GET /api/files/files/:id
-   *  (the row and its text) answers an Admin user only (W6b). */
-  row?: FileRow | null;
   onClose: () => void;
   onSaved: () => void;
+  /** The file's detail, once loaded: the files screen opens its folder when
+   *  the link named only the file (a /n link). */
+  onLoaded?: (file: { parentPath: string }) => void;
 }) {
   const toAsset = useAssetUrl();
   const toast = useToast();
-  // Not an Admin user: no text editing and no History. The text shows read
-  // only, read from the bytes route (the shell maps it for this login).
+  // History is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
-  const hasRow = row !== null;
   const [state, setState] = useState<
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
@@ -81,27 +78,10 @@ export function FileEditor({
 
   useEffect(() => {
     let cancelled = false;
+    // Every login reads the file's detail and its text here, in its own
+    // scope (W6b fix round, contract change 4); a file it cannot read is
+    // 404. Its bytes stay on the byte route the shell maps for the login.
     async function load() {
-      if (!isAdminUser) {
-        if (!row) {
-          setState({ kind: 'error', message: 'Open this file from its folder to see it.' });
-          return;
-        }
-        let content = '';
-        if (row.isText) {
-          try {
-            const res = await fetch(toAsset(`/api/files/files/${fileId}?raw=1`));
-            if (res.ok) content = await res.text();
-          } catch {
-            // The text stays empty: Download still gets the file.
-          }
-        }
-        if (cancelled) return;
-        setState({ kind: 'loaded', file: row, content });
-        setDraft(content);
-        setDirty(false);
-        return;
-      }
       try {
         const body = await apiFetch<{ file: FileRow; content?: string }>(
           `/api/files/files/${fileId}`,
@@ -111,6 +91,7 @@ export function FileEditor({
         setState({ kind: 'loaded', file: body.file, content });
         setDraft(content);
         setDirty(false);
+        onLoaded?.(body.file);
       } catch (err) {
         if (cancelled) return;
         setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
@@ -120,10 +101,10 @@ export function FileEditor({
     return () => {
       cancelled = true;
     };
-    // The row is read when it arrives, not on each list refresh: a refresh
-    // must not reload the open file over unsaved edits.
+    // Loaded once per file, not on each list refresh: a refresh must not
+    // reload the open file over unsaved edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId, isAdminUser, hasRow]);
+  }, [fileId]);
 
   const save = async () => {
     if (state.kind !== 'loaded') return;
@@ -179,10 +160,13 @@ export function FileEditor({
 
   const { file } = state;
   const isMarkdown = file.extension === 'md' || file.extension === 'markdown';
-  // A snapshot copy is read only (W6b): no edit, no rename, no Grant Access.
-  // Delete stays (in the list).
-  const readOnly = isReadOnlyItem(file);
-  const canEdit = isAdminUser && !readOnly;
+  // The login's caps on the file (W6b fix round): no edit, rename or
+  // indexing switch without mayEdit (never on a snapshot copy), no Grant
+  // Access without mayManage. Delete is in the list.
+  const access = itemAccess(file);
+  const readOnly = !access.edit;
+  const canEdit = access.edit;
+  const note = readOnlyNote(access);
   // Without text editing the view is the preview only.
   const view: Mode = canEdit ? mode : 'preview';
 
@@ -241,47 +225,49 @@ export function FileEditor({
               content-indexed and name-only; the folder chain's mode is
               restored via the files screen ('inherit' lives there — this
               button is the quick per-file escape hatch). */}
-          <Button
-            variant="ghost"
-            size="sm"
-            title={
-              file.indexing === 'metadata' || file.indexingApplied === 'metadata'
-                ? 'Name-only: content not indexed into the brain. Click to index content.'
-                : 'Content is indexed into the brain. Click for name-only (store & share without indexing content).'
-            }
-            onClick={async () => {
-              const next =
+          {canEdit ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              title={
                 file.indexing === 'metadata' || file.indexingApplied === 'metadata'
-                  ? 'full'
-                  : 'metadata';
-              try {
-                const { file: updated } = await apiSend<{ file: FileRow }>(
-                  `/api/files/files/${fileId}`,
-                  'PATCH',
-                  { indexing: next },
-                );
-                setState((prev) => (prev.kind === 'loaded' ? { ...prev, file: updated } : prev));
-                toast.success(
-                  next === 'metadata'
-                    ? 'Name-only — content will be removed from the index'
-                    : 'Content indexing queued',
-                );
-                onSaved();
-              } catch (err) {
-                toast.error(err instanceof ApiError ? err.message : 'Could not change indexing');
+                  ? 'Name-only: content not indexed into the brain. Click to index content.'
+                  : 'Content is indexed into the brain. Click for name-only (store & share without indexing content).'
               }
-            }}
-          >
-            {file.indexing === 'metadata' || file.indexingApplied === 'metadata' ? (
-              <>
-                <EyeOff /> Name-only
-              </>
-            ) : (
-              <>
-                <Eye /> Indexed
-              </>
-            )}
-          </Button>
+              onClick={async () => {
+                const next =
+                  file.indexing === 'metadata' || file.indexingApplied === 'metadata'
+                    ? 'full'
+                    : 'metadata';
+                try {
+                  const { file: updated } = await apiSend<{ file: FileRow }>(
+                    `/api/files/files/${fileId}`,
+                    'PATCH',
+                    { indexing: next },
+                  );
+                  setState((prev) => (prev.kind === 'loaded' ? { ...prev, file: updated } : prev));
+                  toast.success(
+                    next === 'metadata'
+                      ? 'Name only: its content leaves the index'
+                      : 'Content indexing queued',
+                  );
+                  onSaved();
+                } catch (err) {
+                  toast.error(err instanceof ApiError ? err.message : 'Could not change indexing');
+                }
+              }}
+            >
+              {file.indexing === 'metadata' || file.indexingApplied === 'metadata' ? (
+                <>
+                  <EyeOff /> Name-only
+                </>
+              ) : (
+                <>
+                  <Eye /> Indexed
+                </>
+              )}
+            </Button>
+          ) : null}
           {isMarkdown && canEdit && (
             <ToggleGroup
               type="single"
@@ -301,7 +287,7 @@ export function FileEditor({
               </ToggleGroupItem>
             </ToggleGroup>
           )}
-          {readOnly ? null : <GrantAccessControl type="file" nodeId={file.id} />}
+          {access.share ? <GrantAccessControl type="file" nodeId={file.id} /> : null}
           {/* History link → /nodes/[id]/history: every trace that touched
               this file (ingest, extractor, summarizer, …). */}
           {isAdminUser ? (
@@ -331,10 +317,8 @@ export function FileEditor({
           </Button>
         </div>
       </header>
-      {readOnly ? (
-        <p className="border-b border-border px-6 py-1.5 text-xs text-muted-foreground">
-          {SNAPSHOT_COPY_NOTE}
-        </p>
+      {note ? (
+        <p className="border-b border-border px-6 py-1.5 text-xs text-muted-foreground">{note}</p>
       ) : null}
 
       {/* Body */}

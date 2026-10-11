@@ -5,6 +5,20 @@
  */
 import type { TreeCrumb, TreeFolder, TreeFolderPage, TreeItem } from '@mantle/web-ui/types/tree';
 import { TREE_MAX_DEPTH } from '@mantle/web-ui/types/tree';
+import { itemAccess } from '@/lib/item-access';
+
+/** What moves (drag, the Move menu) and is picked: never an owner's private
+ *  item (no folder yet), a snapshot copy, or an item the login does not
+ *  manage (its caps, W6b fix round: lib/item-access.ts). */
+export function itemMovable(item: TreeItem): boolean {
+  return item.state !== 'private' && itemAccess(item).move;
+}
+
+/** A folder the login may move, order or delete: its caps, and never a
+ *  system folder. */
+export function folderManaged(folder: TreeFolder): boolean {
+  return !folder.system && itemAccess(folder).manage;
+}
 
 /** One folder's children as loaded so far: its subfolders (they all come
  *  with the first page) and every item page fetched, in order. */

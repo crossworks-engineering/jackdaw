@@ -1,5 +1,6 @@
 'use client';
 
+import { itemAccess } from '@/lib/item-access';
 import {
   grantsKey,
   grantsUrl,
@@ -64,6 +65,7 @@ import {
   fmtSize,
   sumDerivedCounts,
   dismissDialog,
+  fileFolderHref,
   folderShareOf,
   sharedUploadLine,
 } from './files-shared';
@@ -610,29 +612,33 @@ function FilesView({
                 }}
                 itemActions={(item) => (
                   <>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        setDialog({
-                          kind: 'rename',
-                          target: {
-                            kind: 'file',
-                            id: item.id,
-                            filename: item.title,
-                            extension: item.subtype ?? '',
-                          },
-                        })
-                      }
-                    >
-                      <Pencil />
-                      Rename…
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive-ink focus:text-destructive-ink"
-                      onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
-                    >
-                      <Trash2 />
-                      Delete…
-                    </DropdownMenuItem>
+                    {itemAccess(item).edit ? (
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setDialog({
+                            kind: 'rename',
+                            target: {
+                              kind: 'file',
+                              id: item.id,
+                              filename: item.title,
+                              extension: item.subtype ?? '',
+                            },
+                          })
+                        }
+                      >
+                        <Pencil />
+                        Rename…
+                      </DropdownMenuItem>
+                    ) : null}
+                    {itemAccess(item).manage ? (
+                      <DropdownMenuItem
+                        className="text-destructive-ink focus:text-destructive-ink"
+                        onSelect={() => setDialog({ kind: 'bulkDelete', ids: [item.id] })}
+                      >
+                        <Trash2 />
+                        Delete…
+                      </DropdownMenuItem>
+                    ) : null}
                   </>
                 )}
                 onChanged={refresh}
@@ -722,9 +728,13 @@ function FilesView({
               <FileEditor
                 key={openFileId}
                 fileId={openFileId}
-                row={openFileRow}
                 onClose={() => openFile(null)}
                 onSaved={refresh}
+                onLoaded={(file) => {
+                  // A /n link names only the file: open its folder too.
+                  const href = fileFolderHref(searchParams, file.parentPath);
+                  if (href) router.replace(href);
+                }}
               />
             ) : searchActive ? (
               /* ── Search results ────────────────────────────────── */
@@ -1106,16 +1116,18 @@ function FilesView({
                     </Button>
                   </div>
 
-                  {selectedFileIds.size > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="ml-auto text-muted-foreground hover:text-destructive-ink"
-                      onClick={() => setDialog({ kind: 'bulkDelete' })}
-                    >
-                      <Trash2 /> Delete {selectedFileIds.size}
-                    </Button>
-                  )}
+                  {selectedFileIds.size > 0 &&
+                    // Delete is a Moderator's of each file's home (its caps).
+                    files.every((f) => !selectedFileIds.has(f.id) || itemAccess(f).manage) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto text-muted-foreground hover:text-destructive-ink"
+                        onClick={() => setDialog({ kind: 'bulkDelete' })}
+                      >
+                        <Trash2 /> Delete {selectedFileIds.size}
+                      </Button>
+                    )}
                 </div>
 
                 {/* Grid */}
@@ -1373,25 +1385,27 @@ function FilesView({
                                 {fmtRelative(f.updatedAt)}
                               </td>
                               <td className="px-3 py-2 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  aria-label={`Rename ${f.filename}`}
-                                  onClick={() =>
-                                    setDialog({
-                                      kind: 'rename',
-                                      target: {
-                                        kind: 'file',
-                                        id: f.id,
-                                        filename: f.filename,
-                                        extension: f.extension,
-                                      },
-                                    })
-                                  }
-                                >
-                                  <Pencil className="size-3.5" />
-                                </Button>
+                                {itemAccess(f).edit ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    aria-label={`Rename ${f.filename}`}
+                                    onClick={() =>
+                                      setDialog({
+                                        kind: 'rename',
+                                        target: {
+                                          kind: 'file',
+                                          id: f.id,
+                                          filename: f.filename,
+                                          extension: f.extension,
+                                        },
+                                      })
+                                    }
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </Button>
+                                ) : null}
                               </td>
                             </tr>
                           );

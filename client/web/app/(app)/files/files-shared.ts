@@ -258,3 +258,20 @@ export function sharedUploadLine(share: 'team' | 'client', count: number): strin
     ? `Clients read everything in this folder, so they read ${what} as soon as ${count === 1 ? 'it lands' : 'they land'}.`
     : `The team reads everything in this folder, so members read ${what} as soon as ${count === 1 ? 'it lands' : 'they land'}.`;
 }
+
+/**
+ * Where a link that names only a file (`/files?file=<id>`, as /n builds it)
+ * goes once the file's detail is loaded: the same file in its own folder,
+ * so the list and the tree show where it is. Null when the link already
+ * names a folder, or the detail has no folder.
+ */
+export function fileFolderHref(
+  params: Pick<URLSearchParams, 'get' | 'has' | 'toString'>,
+  parentPath: string | null | undefined,
+): string | null {
+  const file = params.get('file');
+  if (!file || params.has('path') || !parentPath) return null;
+  const next = new URLSearchParams(params.toString());
+  next.set('path', parentPath);
+  return `/files?${next.toString()}`;
+}

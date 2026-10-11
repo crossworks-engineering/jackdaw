@@ -29,7 +29,7 @@ import { BackLink } from '@mantle/web-ui/layout/back-link';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { SetPageTitle } from '@/components/layout/page-title';
 import { PageEditor } from '@/components/page-editor/page-editor';
@@ -154,9 +154,11 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
   const queryClient = useQueryClient();
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
-  // A snapshot copy is read only (W6b): no editor, no draft controls, no
-  // Grant Access. Delete stays.
-  const readOnly = isReadOnlyItem(initial);
+  // The login's caps on the page (W6b fix round): no editor and no draft
+  // controls without mayEdit (never on a snapshot copy); no Grant Access or
+  // Delete without mayManage. A snapshot copy keeps Delete for its author.
+  const access = itemAccess(initial);
+  const readOnly = !access.edit;
   // The Folder index slash item needs the pages tree (folder phase 7).
   const treeServes = useTreeServes('pages');
   const toast = useToast();
@@ -848,7 +850,7 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
           ))}
         </div>
       ) : null}
-      <p className="w-full text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p>
+      <p className="w-full text-xs text-muted-foreground">{readOnlyNote(access)}</p>
     </header>
   ) : (
     <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">
@@ -1001,22 +1003,24 @@ function PageDetailEditor({ initial, backlinks }: { initial: PageDetail; backlin
             </Button>
           )}
           {isAdminUser ? <ExportMenu nodeId={initial.id} /> : null}
-          {readOnly ? null : (
+          {access.share ? (
             <GrantAccessControl type="page" nodeId={initial.id} beforeEnable={commit} />
-          )}
+          ) : null}
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
               page exits too (the shell drops focus on navigation). */}
           <FocusToggle />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive-ink"
-            onClick={() => setDeleteOpen(true)}
-            title="Delete page"
-          >
-            <Trash2 /> Delete
-          </Button>
+          {access.manage ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={() => setDeleteOpen(true)}
+              title="Delete page"
+            >
+              <Trash2 /> Delete
+            </Button>
+          ) : null}
         </div>
       </div>
 

@@ -50,7 +50,7 @@ import { ClearFilter, SortMenu, TagFilter } from '@/components/item-list/item-fi
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
@@ -276,15 +276,17 @@ export function DrawsClient() {
                 newItemInFolder={{ label: 'drawing', onCreate: (f) => openCreate(f) }}
                 actions={<NewButton onClick={() => openCreate()} busy={creating} />}
                 onOpenItem={(item) => select(item.id)}
-                itemActions={(item) => (
-                  <DropdownMenuItem
-                    className="text-destructive-ink focus:text-destructive-ink"
-                    onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                  >
-                    <Trash2 />
-                    Delete…
-                  </DropdownMenuItem>
-                )}
+                itemActions={(item) =>
+                  itemAccess(item).manage ? (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  ) : null
+                }
                 // A share or a move changes the level the open item is read
                 // at: its header badge and client thread follow.
                 onChanged={() => void queryClient.invalidateQueries({ queryKey: ['draws'] })}
@@ -514,8 +516,11 @@ function DrawPreview({
   // maps that path onto the route their login may read.
   const isAdminUser = useIsAdminUser();
   const toAsset = useAssetUrl();
-  // A snapshot copy is read only (W6b): no Edit and no Grant Access.
-  const readOnly = isReadOnlyItem(draw);
+  // The login's caps on the drawing (W6b fix round): no Edit without
+  // mayEdit (never on a snapshot copy), no Grant Access or Delete without
+  // mayManage.
+  const access = itemAccess(draw);
+  const note = readOnlyNote(access);
   const svgQuery = useQuery({
     queryKey: ['draws', draw.id, 'svg'],
     queryFn: () => apiFetch<{ svg: string | null }>(`/api/draws/${draw.id}/svg`).then((r) => r.svg),
@@ -579,7 +584,7 @@ function DrawPreview({
               the editor, which a list screen cannot do, so the link serves the
               last COMMITTED scene. The "Draft · uncommitted" badge says when
               that is behind. */}
-          {readOnly ? null : <GrantAccessControl type="draw" nodeId={draw.id} />}
+          {access.share ? <GrantAccessControl type="draw" nodeId={draw.id} /> : null}
           {/* The snapshot can't be panned or zoomed, so a diagram bigger than
               the pane was unreadable without opening it for EDITING. This
               mounts the real canvas in upstream's view mode instead: pan and
@@ -602,26 +607,28 @@ function DrawPreview({
           {/* Survives focus mode (the shell's chrome doesn't), so this is the
               whole control — enter and exit. */}
           <FocusToggle />
-          {readOnly ? null : (
+          {access.edit ? (
             <Button asChild variant="outline" size="sm">
               <Link href={`/draw/${draw.id}`}>
                 <Pencil /> Edit
               </Link>
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive-ink"
-            onClick={onDelete}
-            aria-label="Delete drawing"
-          >
-            <Trash2 />
-          </Button>
+          ) : null}
+          {access.manage ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={onDelete}
+              aria-label="Delete drawing"
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      {readOnly ? <p className="text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p> : null}
+      {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
 
       {draw.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">

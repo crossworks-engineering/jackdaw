@@ -41,7 +41,7 @@ import {
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { ExportMenu } from '@/components/export/export-menu';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { TableGrid } from '@/components/table-grid/table-grid';
@@ -77,9 +77,13 @@ export function TableDetailClient({
   // (AppBoundTableError), so the whole draft/commit cycle is off — only
   // metadata (title/icon/tags/sharing) stays editable here.
   const appLink = initial.appLink ?? null;
-  // A snapshot copy is read only (W6b): a read only grid, no draft controls,
-  // no Grant Access. Delete stays.
-  const readOnly = isReadOnlyItem(initial);
+  // The login's caps on the table (W6b fix round): a read only grid and no
+  // draft controls without mayEdit (never on a snapshot copy); no Grant
+  // Access or Delete without mayManage. A snapshot copy keeps Delete for its
+  // author.
+  const access = itemAccess(initial);
+  const readOnly = !access.edit;
+  const readNote = readOnlyNote(access);
 
   const published = ensureTableDoc(initial.data);
   const [doc, setDoc] = useState<TableDoc>(ensureTableDoc(initial.draft ?? initial.data));
@@ -584,14 +588,14 @@ export function TableDetailClient({
             </Button>
           )}
           {isAdminUser ? <ExportMenu nodeId={initial.id} kind="table" /> : null}
-          {readOnly ? null : (
+          {access.share ? (
             <GrantAccessControl
               type="table"
               nodeId={initial.id}
               iconOnly
               hint="Others and link holders always see the last committed version, never your draft."
             />
-          )}
+          ) : null}
           {dirty && !readOnly && (
             <Button
               size="sm"
@@ -611,21 +615,23 @@ export function TableDetailClient({
               <GitCommitHorizontal /> Commit
             </Button>
           )}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8 text-muted-foreground hover:text-destructive-ink"
-            onClick={() => setConfirmDelete(true)}
-            aria-label="Delete table"
-          >
-            <Trash2 />
-          </Button>
+          {access.manage ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-8 text-muted-foreground hover:text-destructive-ink"
+              onClick={() => setConfirmDelete(true)}
+              aria-label="Delete table"
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      {readOnly ? (
+      {readNote ? (
         <p className="border-b border-border px-4 py-1.5 text-xs text-muted-foreground">
-          {SNAPSHOT_COPY_NOTE}
+          {readNote}
         </p>
       ) : null}
 

@@ -20,7 +20,7 @@ import { FocusToggle } from '@/components/layout/focus-toggle';
 import { GrantAccessControl } from '@/components/share/grant-access';
 import { ExportMenu } from '@/components/export/export-menu';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 import { DrawViewer } from '@/components/draw/draw-viewer';
 import { TagPill } from '@mantle/web-ui/tag-pill';
 import { BackLink } from '@mantle/web-ui/layout/back-link';
@@ -132,9 +132,12 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
   const toast = useToast();
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
-  // A snapshot copy is read only (W6b): the read view, no draft controls,
-  // no Grant Access. Delete stays.
-  const readOnly = isReadOnlyItem(initial);
+  // The login's caps on the drawing (W6b fix round): the read view and no
+  // draft controls without mayEdit (never on a snapshot copy); no Grant
+  // Access or Delete without mayManage. A snapshot copy keeps Delete for its
+  // author.
+  const access = itemAccess(initial);
+  const readOnly = !access.edit;
 
   const [title, setTitle] = useState(initial.title);
 
@@ -537,11 +540,13 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
               <Button size="sm" onClick={() => void commit()} disabled={!dirty || committing}>
                 <GitCommitHorizontal /> Commit
               </Button>
-              {/* Share publishes first (beforeEnable=commit, the pages pattern) so
-                  the minted link never points at a stale or absent snapshot. */}
-              <GrantAccessControl type="draw" nodeId={initial.id} beforeEnable={commit} />
             </>
           )}
+          {/* Share publishes first (beforeEnable=commit, the pages pattern) so
+              the minted link never points at a stale or absent snapshot. */}
+          {access.share ? (
+            <GrantAccessControl type="draw" nodeId={initial.id} beforeEnable={commit} />
+          ) : null}
           {isAdminUser ? <ExportMenu nodeId={initial.id} kind="draw" /> : null}
           {/* Focus mode: the shell hides its chrome and this toolbar stays, so
               this button is the whole control — enter AND exit. Leaving the
@@ -559,16 +564,18 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
               <Undo2 /> {reverting ? 'Reverting…' : 'Revert'}
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive-ink"
-            onClick={() => setDeleteOpen(true)}
-            aria-label="Delete drawing"
-            title="Delete this drawing"
-          >
-            <Trash2 />
-          </Button>
+          {access.manage ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={() => setDeleteOpen(true)}
+              aria-label="Delete drawing"
+              title="Delete this drawing"
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -590,7 +597,7 @@ function DrawEditor({ initial }: { initial: DrawDetail }) {
               ))}
             </div>
           ) : null}
-          <p className="w-full text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p>
+          <p className="w-full text-xs text-muted-foreground">{readOnlyNote(access)}</p>
         </header>
       ) : (
         <header className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5">

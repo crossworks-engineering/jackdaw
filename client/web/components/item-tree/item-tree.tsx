@@ -111,6 +111,8 @@ import {
   dropPosition,
   isAtOrBelow,
   isOnTheWayTo,
+  folderManaged,
+  itemMovable,
   pickedAfterMove,
   rangeOfItems,
   refreshFor,
@@ -127,6 +129,7 @@ import {
 } from './tree-rows';
 import { FolderPickerDialog } from './folder-picker';
 import { canGrantFolder, seenOf, visibilityRefusal } from './sharing';
+import { itemAccess } from '@/lib/item-access';
 import { VisibilityConfirmDialog, type PendingConfirm } from './visibility-confirm';
 
 /**
@@ -209,9 +212,7 @@ type MoveTarget =
   | { type: 'items'; items: TreeItem[]; from: string | null | undefined }
   | { type: 'folder'; folder: TreeFolder };
 
-/** An owner's private items have no folder yet: they cannot be moved or
- *  picked. */
-const movable = (item: TreeItem) => item.state !== 'private';
+const movable = itemMovable;
 
 /** Where a move lands, inside a sentence. */
 const into = (dest: string | null | undefined) => (dest ? `into “${dest}”` : 'to the top level');
@@ -705,29 +706,29 @@ export function ItemTree({
                 {newInside.label}
               </DropdownMenuItem>
             )}
-            {!folder.system && (
+            {!folder.system && itemAccess(folder).edit && (
               <DropdownMenuItem onSelect={() => setFolderDialog({ mode: 'rename', folder })}>
                 Rename…
               </DropdownMenuItem>
             )}
-            {
+            {itemAccess(folder).edit && (
               <DropdownMenuItem onSelect={() => openLook(`f:${folder.id}`, folder)}>
                 Icon and colour…
               </DropdownMenuItem>
-            }
-            {owner && canGrantFolder(kind, folder) && (
+            )}
+            {owner && canGrantFolder(kind, folder) && itemAccess(folder).share && (
               <DropdownMenuItem onSelect={() => openAccess(folder)}>
                 <Share2 />
                 Access…
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            {!folder.system && (
+            {folderManaged(folder) && (
               <DropdownMenuItem onSelect={() => setMoveTarget({ type: 'folder', folder })}>
                 Move to…
               </DropdownMenuItem>
             )}
-            {owner && (
+            {owner && itemAccess(folder).manage && (
               <>
                 <DropdownMenuItem
                   disabled={up === undefined}
@@ -743,7 +744,7 @@ export function ItemTree({
                 </DropdownMenuItem>
               </>
             )}
-            {!folder.system && (
+            {folderManaged(folder) && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -765,14 +766,16 @@ export function ItemTree({
         return (
           <DropdownMenuContent align="start" side="right" className="w-52">
             <DropdownMenuItem onSelect={() => openItem(item, where)}>Open</DropdownMenuItem>
+            {/* A pin is the login's own mark, not a change to the item: it
+                shows on every item that has a folder, a read-only one too. */}
+            {owner && item.state !== 'private' && (
+              <DropdownMenuItem onSelect={() => togglePin(item)}>
+                {pinned.has(item.id) ? <PinOff /> : <Pin />}
+                {pinned.has(item.id) ? 'Unpin' : 'Pin to top'}
+              </DropdownMenuItem>
+            )}
             {canMove(item) && (
               <>
-                {owner && (
-                  <DropdownMenuItem onSelect={() => togglePin(item)}>
-                    {pinned.has(item.id) ? <PinOff /> : <Pin />}
-                    {pinned.has(item.id) ? 'Unpin' : 'Pin to top'}
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuItem
                   onSelect={() => {
                     const items = carried(item);
@@ -876,6 +879,9 @@ export function ItemTree({
     onFolderClick: openFolder,
     onItemClick: clickItem,
     picked: pickedIds,
+    // Drag follows the same rule as the Move menu: the item's caps.
+    canMoveItem: canMove,
+    canMoveFolder: folderManaged,
     folderMenu,
     itemMenu,
     menuFor,

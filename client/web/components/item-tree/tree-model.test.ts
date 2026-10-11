@@ -9,7 +9,9 @@ import {
   crumbLine,
   dropPosition,
   flattenTree,
+  folderManaged,
   isOnTheWayTo,
+  itemMovable,
   liveFolder,
   mergeFolderPages,
   pickedAfterMove,
@@ -432,5 +434,28 @@ describe('refreshFor (a realtime ping about one item)', () => {
   it('an item no loaded folder holds refreshes them all (it is new)', () => {
     expect(refreshFor(loaded, 'z')).toEqual({ all: true });
     expect(refreshFor([], 'z')).toEqual({ all: true });
+  });
+});
+
+describe('itemMovable and folderManaged (W6b fix round: the item caps)', () => {
+  it('an item moves when the brain sends no caps, or says the login manages it', () => {
+    expect(itemMovable(item('a'))).toBe(true);
+    expect(itemMovable({ ...item('a'), mayEdit: true, mayManage: true } as TreeItem)).toBe(true);
+  });
+
+  it('never a snapshot copy, even for its author (who may delete it)', () => {
+    const copy = { ...item('c'), mayManage: true, readOnly: true, snapshotOf: 'n1' };
+    expect(itemMovable(copy as TreeItem)).toBe(false);
+  });
+
+  it('never an item the login does not manage, or a private one', () => {
+    expect(itemMovable({ ...item('g'), mayEdit: true, mayManage: false } as TreeItem)).toBe(false);
+    expect(itemMovable({ ...item('p'), state: 'private' })).toBe(false);
+  });
+
+  it('a folder: its caps, and never a system folder', () => {
+    expect(folderManaged(folder('f', '1'))).toBe(true);
+    expect(folderManaged({ ...folder('f', '1'), mayManage: false } as TreeFolder)).toBe(false);
+    expect(folderManaged({ ...folder('s', '1'), system: true })).toBe(false);
   });
 });

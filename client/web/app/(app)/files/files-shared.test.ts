@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   describeDerivedCounts,
   dismissDialog,
+  fileFolderHref,
   folderShareOf,
   sharedUploadLine,
   slugify,
@@ -149,5 +150,20 @@ describe('Files asks before a shared folder exposes what lands in it', () => {
     );
     expect(src).toContain('refusal: mergeRefusals(refused.map((r) => r.refusal)),');
     expect(src).toContain('new Map(refused.map((r) => [r.key, r.refusal.total])),');
+  });
+});
+
+describe('fileFolderHref (a /n link to a file, W6b fix round)', () => {
+  it('opens the file in its own folder when the link names only the file', () => {
+    expect(fileFolderHref(new URLSearchParams('file=f1'), 'files/reports')).toBe(
+      '/files?file=f1&path=files%2Freports',
+    );
+  });
+
+  it('leaves a link that names a folder, or a file with no folder', () => {
+    expect(fileFolderHref(new URLSearchParams('file=f1&path=files'), 'files/reports')).toBeNull();
+    expect(fileFolderHref(new URLSearchParams('file=f1'), null)).toBeNull();
+    expect(fileFolderHref(new URLSearchParams('file=f1'), '')).toBeNull();
+    expect(fileFolderHref(new URLSearchParams(''), 'files/reports')).toBeNull();
   });
 });

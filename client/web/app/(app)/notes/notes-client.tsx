@@ -41,7 +41,7 @@ import {
 import { ClearFilter, TagFilter } from '@/components/item-list/item-filters';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { isReadOnlyItem, SNAPSHOT_COPY_NOTE } from '@/lib/item-access';
+import { itemAccess, readOnlyNote } from '@/lib/item-access';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
@@ -338,15 +338,17 @@ export function NotesClient() {
                 newItemInFolder={{ label: 'note', onCreate: (f) => startCreate(f) }}
                 actions={<NewButton onClick={() => startCreate()} />}
                 onOpenItem={(item) => selectNote(item.id)}
-                itemActions={(item) => (
-                  <DropdownMenuItem
-                    className="text-destructive-ink focus:text-destructive-ink"
-                    onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                  >
-                    <Trash2 />
-                    Delete…
-                  </DropdownMenuItem>
-                )}
+                itemActions={(item) =>
+                  itemAccess(item).manage ? (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  ) : null
+                }
                 // A share or a move changes the level the open item is read
                 // at: its header badge and client thread follow.
                 onChanged={() => void queryClient.invalidateQueries({ queryKey: ['notes'] })}
@@ -456,8 +458,9 @@ export function NotesClient() {
         // overflow, so only one bar is ever painted.
         detail={
           <div className="md:h-full md:overflow-hidden">
-            {/* A snapshot copy is read only (W6b): its read view, never the editor. */}
-            {editing && (creating || !isReadOnlyItem(selected)) ? (
+            {/* No editor without mayEdit, never on a snapshot copy (W6b fix
+                round): the read view instead. */}
+            {editing && (creating || itemAccess(selected).edit) ? (
               <NoteEditor
                 note={creating ? null : selected}
                 focus={focus}
@@ -543,8 +546,10 @@ function NotePreview({
 }) {
   // Export is a route only an Admin user may call (W6b).
   const isAdminUser = useIsAdminUser();
-  // A snapshot copy is read only (W6b): no Edit and no Grant Access.
-  const readOnly = isReadOnlyItem(note);
+  // The login's caps on the note (W6b fix round): no Edit without mayEdit
+  // (never on a snapshot copy), no Grant Access or Delete without mayManage.
+  const access = itemAccess(note);
+  const readNote = readOnlyNote(access);
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header
@@ -563,29 +568,27 @@ function NotePreview({
               ))}
             </div>
           )}
-          {readOnly ? (
-            <p className="mt-1.5 text-xs text-muted-foreground">{SNAPSHOT_COPY_NOTE}</p>
-          ) : null}
+          {readNote ? <p className="mt-1.5 text-xs text-muted-foreground">{readNote}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {isAdminUser ? <ExportButton nodeId={note.id} label="Word" /> : null}
-          {readOnly ? null : (
-            <>
-              <GrantAccessControl type="note" nodeId={note.id} />
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                <Pencil /> Edit
-              </Button>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive-ink"
-            onClick={onDelete}
-            aria-label="Delete note"
-          >
-            <Trash2 />
-          </Button>
+          {access.share ? <GrantAccessControl type="note" nodeId={note.id} /> : null}
+          {access.edit ? (
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil /> Edit
+            </Button>
+          ) : null}
+          {access.manage ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive-ink"
+              onClick={onDelete}
+              aria-label="Delete note"
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -595,8 +598,14 @@ function NotePreview({
             <NoteMarkdown content={note.content} assetPath={ownerNoteAssetPath} />
           ) : (
             <p className="text-sm italic text-muted-foreground">
-              No content yet. Click{' '}
-              <span className="font-medium not-italic text-foreground">Edit</span> to add some.
+              No content yet.
+              {access.edit ? (
+                <>
+                  {' '}
+                  Click <span className="font-medium not-italic text-foreground">Edit</span> to add
+                  some.
+                </>
+              ) : null}
             </p>
           )}
         </article>
