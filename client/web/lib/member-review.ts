@@ -1,16 +1,21 @@
 /**
- * Member review, the admin side (member logins Phase 4): the brain's
- * /api/team-admin/submissions routes. An admin sees exactly two kinds of
- * personal item there: one a member SUBMITTED for review, and one a
- * deactivated login left SHARED with the team. Never a private item; the
- * brain answers those with a plain 404, the same as an item that is no
- * longer waiting (recalled by its author, or handled by another admin).
+ * Removed in W5c: the review flow (the /api/team-admin/submissions queue,
+ * Approve, Reject, Take over, Discard) is gone from the owner screens;
+ * workspaces replace it. What stays here serves only files other W5c parts
+ * still own:
  *
- * Types mirror the brain's member-review.ts; they move into the published
- * contract with the member-space types (lib/member-space.ts).
+ *  - the queue read and the saved-version asset paths: components/review/
+ *    item-review.tsx (kept for Team admin and a member guard test);
+ *  - the Accept types and rules: components/review/review-dialogs.tsx
+ *    (AcceptIntoBrainDialog, for components/member/mine-item.tsx) and
+ *    lib/member-space.ts;
+ *  - authorRoleLabel: components/member/client-request-item.tsx;
+ *  - bundleSummary: lib/member-kinds.test.ts.
+ *
+ * Delete this file when those go.
  */
-import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import type { AccessItemView, AccessLevel, TakeOverResult } from '@mantle/client-types';
+import { ApiError, apiFetch } from '@mantle/web-ui/api-fetch';
+import type { AccessItemView, AccessLevel } from '@mantle/client-types';
 import { closureAbove, LEVEL_LABEL } from './access-levels';
 import type {
   AcceptConfirmLevelRefusal,
@@ -20,7 +25,6 @@ import type {
   ReviewAuthorView,
 } from '@mantle/client-types';
 import { MEMBER_KIND } from './member-kinds';
-import { OLDER_BRAIN_RETURN_NOTE } from './review-no-note';
 import type {
   TreeCrumb,
   TreeKind,
@@ -29,7 +33,6 @@ import type {
   TreeVisibilityRefusal,
 } from '@mantle/web-ui/types/tree';
 import {
-  refusalReason,
   type SpaceItemBody,
   type SpaceKind,
   type SpaceSharing,
@@ -141,61 +144,11 @@ export type AcceptResult = {
 
 const base = (id: string) => `/api/team-admin/submissions/${encodeURIComponent(id)}`;
 
-/** The bundle preview; `?folderId=` (an id, or `root` for the top level)
- *  works the place out for the admin's pick. A brain before it ignores it. */
-export function bundlePath(id: string, pick?: string | null): string {
-  if (pick === undefined) return `${base(id)}/bundle`;
-  return `${base(id)}/bundle?folderId=${pick === null ? 'root' : encodeURIComponent(pick)}`;
-}
-
 export const QUEUE_KEY = ['team-admin', 'submissions'] as const;
-export const itemKey = (id: string) => ['team-admin', 'submissions', id] as const;
 
 export const memberReview = {
   queue: () => apiFetch<ReviewQueue>('/api/team-admin/submissions'),
-  item: (id: string) => apiFetch<ReviewItem>(base(id)),
-  /** `pick` (folder plan phase 5): the place worked out for the folder the
-   *  admin picked (null = the top level) instead of where it was filed. */
-  bundle: (id: string, pick?: string | null) => apiFetch<Bundle>(bundlePath(id, pick)),
-  accept: (id: string, input: AcceptInput) =>
-    apiSend<AcceptResult>(`${base(id)}/accept`, 'POST', input),
-  /** Back to its author. No note of the admin's (review flows carry no
-   *  messages); OLDER_BRAIN_RETURN_NOTE only satisfies a brain that still
-   *  requires one, and a current brain ignores it. */
-  giveBack: (id: string) =>
-    apiSend(`${base(id)}/return`, 'POST', { note: OLDER_BRAIN_RETURN_NOTE }),
-  discard: (id: string) => apiSend(`${base(id)}/discard`, 'POST'),
-  /** Into the acting admin's own private space, with its bundle (audit F07). */
-  takeOver: (id: string) => apiSend<TakeOverResult>(`${base(id)}/take-over`, 'POST'),
 };
-
-/**
- * Can an admin take this queue item over? A submitted item can, and so can
- * one released back to the queue (its taker was deactivated). A left-behind
- * item its author never submitted cannot (the brain answers 409
- * `not-submitted`): accept it or discard it.
- */
-export function canTakeOver(row: Pick<ReviewItemRow, 'reviewState'>): boolean {
-  return row.reviewState === 'submitted' || row.reviewState === 'taken';
-}
-
-/** Released: an admin took it over and was deactivated since, so it came
- *  back to the queue with what was taken with it. */
-export function isReleased(row: Pick<ReviewItemRow, 'reviewState'>): boolean {
-  return row.reviewState === 'taken';
-}
-
-/** The sentence for a refused Take over. */
-export function takeOverErrorMessage(err: unknown): string {
-  const reason = refusalReason(err);
-  if (reason === 'not-submitted') {
-    return 'Only an item that was submitted for review can be taken over. Accept it or discard it instead.';
-  }
-  if (reason === 'too-large') {
-    return 'This item shows too many others to take over at once (more than 200). Accept it or return it instead.';
-  }
-  return reviewErrorMessage(err, 'Could not take this item over.');
-}
 
 /** The item's own bytes, or a file in its bundle (an image a page shows). */
 export const reviewBytesPath = (id: string, node = id, root: (id: string) => string = base) =>
@@ -235,17 +188,6 @@ export function reviewAssetPath(
   return path;
 }
 
-/** The queue split for the list: waiting for review, then left behind. */
-export function splitQueue(items: readonly ReviewItemRow[]): {
-  submitted: ReviewItemRow[];
-  leftBehind: ReviewItemRow[];
-} {
-  return {
-    submitted: items.filter((i) => i.reason === 'submitted'),
-    leftBehind: items.filter((i) => i.reason === 'left-behind'),
-  };
-}
-
 /** What the dialog says moves along, in words: "2 images, 1 drawing". */
 export function bundleSummary(items: readonly BundleItem[]): string {
   const rest = items.slice(1);
@@ -256,18 +198,6 @@ export function bundleSummary(items: readonly BundleItem[]): string {
     ([k, n]) => `${n} ${n === 1 ? MEMBER_KIND[k].one : MEMBER_KIND[k].many}`,
   );
   return `Also moves ${parts.join(', ')}.`;
-}
-
-/** The sentence for a refused review action. A 404 means the item is no
- *  longer waiting (the brain does not say why, on purpose). */
-export function reviewErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    if (err.status === 404) {
-      return 'This item is not waiting for review any more. The author may have recalled it, or another admin handled it.';
-    }
-    if (err.message) return err.message;
-  }
-  return fallback;
 }
 
 // ── A client's item at client or public (audit A28) ─────────────────────────

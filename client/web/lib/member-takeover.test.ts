@@ -20,7 +20,6 @@ import {
   type SpaceItemState,
   type SpaceSource,
 } from './member-space';
-import { canTakeOver, isReleased, memberReview, takeOverErrorMessage } from './member-review';
 import {
   canDeletePrivate,
   canGiveBack,
@@ -162,37 +161,6 @@ describe('the bundle refusals (audit F04)', () => {
   });
 });
 
-describe('the Review queue side', () => {
-  const row = (reviewState: 'submitted' | 'taken' | 'draft', reason = 'submitted') => ({
-    reviewState,
-    reason: reason as 'submitted' | 'left-behind',
-  });
-
-  it('offers Take over on a submitted or a released item, never on a left-behind draft', () => {
-    expect(canTakeOver(row('submitted'))).toBe(true);
-    // Left behind but submitted before the author was deactivated: it can.
-    expect(canTakeOver(row('submitted', 'left-behind'))).toBe(true);
-    expect(canTakeOver(row('taken'))).toBe(true);
-    expect(canTakeOver(row('taken', 'left-behind'))).toBe(true);
-    // Shared, never submitted: the brain answers 409 not-submitted.
-    expect(canTakeOver(row('draft', 'left-behind'))).toBe(false);
-  });
-
-  it('marks a released item', () => {
-    expect(isReleased(row('taken'))).toBe(true);
-    expect(isReleased(row('submitted'))).toBe(false);
-  });
-
-  it('says why a Take over was refused', () => {
-    expect(takeOverErrorMessage(refusal('not-submitted'))).toMatch(/^Only an item that was/);
-    expect(takeOverErrorMessage(refusal('too-large'))).toMatch(/more than 200/);
-    expect(takeOverErrorMessage(new ApiError('Not found', 404))).toMatch(
-      /not waiting for review any more/,
-    );
-    expect(takeOverErrorMessage(new Error('boom'))).toBe('Could not take this item over.');
-  });
-});
-
 describe('the admin’s private view of a taken item', () => {
   const from = (canGiveBack: boolean) => ({
     takenFrom: { loginId: 'l1', name: 'Mo Member', canGiveBack, takenAt: null },
@@ -271,7 +239,7 @@ describe('the accepted snapshot: a file or drawing an admin changed', () => {
   });
 });
 
-describe('the take over and give back routes', () => {
+describe('the give back route', () => {
   let calls: { method: string; url: string; body: unknown }[] = [];
   beforeEach(() => {
     calls = [];
@@ -291,30 +259,12 @@ describe('the take over and give back routes', () => {
     vi.unstubAllGlobals();
   });
 
-  it('Take over posts to the submission, with no body', async () => {
-    await memberReview.takeOver(OWN);
-    expect(calls).toEqual([
-      { method: 'POST', url: `/api/team-admin/submissions/${OWN}/take-over`, body: undefined },
-    ]);
-  });
-
   it('Give back posts to the admin’s own item, with only the older-brain note', async () => {
     await adminSpace.giveBack(OWN);
     expect(calls).toEqual([
       {
         method: 'POST',
         url: `/api/admin/space/${OWN}/give-back`,
-        body: { note: OLDER_BRAIN_RETURN_NOTE },
-      },
-    ]);
-  });
-
-  it('Return posts to the submission, with only the older-brain note', async () => {
-    await memberReview.giveBack(OWN);
-    expect(calls).toEqual([
-      {
-        method: 'POST',
-        url: `/api/team-admin/submissions/${OWN}/return`,
         body: { note: OLDER_BRAIN_RETURN_NOTE },
       },
     ]);

@@ -1,22 +1,15 @@
 /**
- * Member items reviewed in their own workspace (workspace review pattern,
- * part 2, 2026-10-09): what a member submitted (a page, note, table, drawing
- * or file) waits in a "Waiting for approval" section above that workspace's
- * tree, and opens in its normal item pane with the review actions (Approve,
- * Reject, Take over, Discard) in its one header. Team admin > Review is gone.
- *
- * The brain's review routes are unchanged (/api/team-admin/submissions, admin
- * only, lib/member-review.ts): one queue for every kind, which each
- * workspace filters to its own. "Shared by members" sits below it (the
- * items members shared with the team, read only, with Unshare). Pure
- * helpers only.
+ * Removed in W5c: the owner screens no longer show "Waiting for approval" or
+ * the review actions (workspaces replace review). What stays here is used
+ * ONLY by app/(app)/team-admin/page.tsx and components/review/review-redirect.tsx
+ * (the "N waiting in Pages" strip and old ?view=review links), which a later
+ * W5c part removes with Team admin. Delete this file then. Pure helpers.
  */
 import type { ReviewItemRow } from './member-review';
-import { refusalReason, type SpaceKind } from './member-space';
+import type { SpaceKind } from './member-space';
 
-/** The selection param a workspace reads: `?review=<id>` opens a waiting
- *  item in the detail pane, beside the tree, as /apps does. */
-export const REVIEW_PARAM = 'review';
+/** The old selection param (`?review=<id>`). No screen reads it now. */
+const REVIEW_PARAM = 'review';
 
 /** Each kind's workspace screen and its name in words. */
 export const REVIEW_WORKSPACE: Record<SpaceKind, { path: string; label: string }> = {
@@ -61,101 +54,3 @@ export function waitingByWorkspace(
   }
   return out;
 }
-
-/** Left behind: shared with the team by a login that is deactivated or gone,
- *  never submitted. Approve or Discard it; it cannot be rejected. */
-export const isLeftBehind = (row: Pick<ReviewItemRow, 'reason'>) => row.reason === 'left-behind';
-
-/** The small state badge beside the title, or null for a plain submission. */
-export function reviewStateBadge(
-  row: Pick<ReviewItemRow, 'reason' | 'reviewState'>,
-): string | null {
-  if (row.reason === 'left-behind') return 'Left behind';
-  if (row.reviewState === 'taken') return 'Released';
-  return null;
-}
-
-/** A row's one line of meta in the section: who, and when it started
- *  waiting. `when` is already formatted. */
-export function reviewRowMeta(row: Pick<ReviewItemRow, 'reason' | 'author'>, when: string): string {
-  const who = row.author.name || 'A member';
-  if (row.reason === 'left-behind') return `${who} (inactive) · shared ${when}`;
-  return `${who} · sent ${when}`;
-}
-
-/** The first line of the Info popover: what the admin is looking at. */
-export function reviewInfoLine(row: Pick<ReviewItemRow, 'reason' | 'author'>): string {
-  const who = row.author.name || 'a member';
-  if (row.reason === 'left-behind') {
-    return `Shared with the team by ${who}, who is no longer active. Approve it into the brain or discard it.`;
-  }
-  return `Submitted by ${who}. Waiting for your approval.`;
-}
-
-/** An Approve the brain refused because the item changed since the dialog
- *  opened (409 `changed`: its author recalled it and sent it again). */
-export function isChangedRefusal(err: unknown): boolean {
-  return refusalReason(err) === 'changed';
-}
-
-/** The toast when that happens: the dialog closes, the pane shows the new
- *  version. */
-export const REVIEW_CHANGED_TOAST =
-  'This item changed. Look at the new version, then Approve again.';
-
-/** The Reject confirm: no note (review flows carry no messages). */
-export function rejectConfirm(row: Pick<ReviewItemRow, 'author'>): string {
-  return `It goes back to ${row.author.name || 'its author'}. They can change it and submit it again.`;
-}
-
-// ── Shared by members (Jason 2026-10-09, option 1) ──────────────────────────
-//
-// What active members shared with the team, for the admin, from the brain's
-// /api/team-admin/member-items (admin only, read at team level: never a
-// private item, never a working draft). A brain before it answers 404: the
-// section stays hidden.
-
-/** TEMPORARY contract shim until the pin bump: the author as the section
- *  shows them (the brain's SharedItemAuthor). */
-export type SharedItemAuthor = { loginId: string | null; name: string | null; active: boolean };
-
-/** One row of "Shared by members" (the brain's SharedMemberItem). */
-export type SharedMemberItem = {
-  id: string;
-  type: SpaceKind;
-  title: string;
-  icon: string | null;
-  author: SharedItemAuthor;
-  updatedAt: string;
-};
-
-export const SHARED_ITEMS_PATH = '/api/team-admin/member-items';
-export const SHARED_ITEMS_KEY = ['team-admin', 'member-items'] as const;
-
-/** One shared item's route root (its detail, bytes, svg, unshare). */
-export const sharedItemPath = (id: string) => `${SHARED_ITEMS_PATH}/${encodeURIComponent(id)}`;
-
-/** The list for one workspace. */
-export const sharedItemsPath = (kind: SpaceKind) =>
-  `${SHARED_ITEMS_PATH}?kind=${encodeURIComponent(kind)}`;
-
-/** A shared row's one line of meta: who, and when it last changed. */
-export function sharedRowMeta(row: Pick<SharedMemberItem, 'author'>, when: string): string {
-  return `${row.author.name || 'A member'} · changed ${when}`;
-}
-
-/** The first line of a shared item's Info popover. */
-export function sharedInfoLine(row: Pick<SharedMemberItem, 'author'>): string {
-  return `Shared with the team by ${row.author.name || 'a member'}.`;
-}
-
-/** The Unshare confirm: who keeps it, and that nothing is deleted. */
-export function unshareConfirm(row: Pick<SharedMemberItem, 'author'>): string {
-  return `It goes back to private for ${row.author.name || 'its author'}, who keeps it. The team no longer sees it. Nothing is deleted.`;
-}
-
-/** The toast after Unshare. */
-export const SHARED_UNSHARED_TOAST = 'Unshared: only its author sees it now.';
-/** Unshare's tooltip: what it does, and what it does not. */
-export const SHARED_UNSHARE_HINT =
-  'Back to private for its author. Nothing is deleted; the team no longer sees it.';

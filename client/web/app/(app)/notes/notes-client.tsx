@@ -48,10 +48,8 @@ import {
   adminStateOf,
   isPrivateRow,
   usePrivateOpen,
-  useReviewOpen,
   type AdminListState,
 } from '@/components/item-list/admin-private-rows';
-import { ItemReview, ItemReviewSections } from '@/components/review/item-review';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
@@ -100,8 +98,6 @@ export function NotesClient() {
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
   const { pid, openPrivate } = usePrivateOpen();
-  // A member's note waiting for approval, open in the pane (`?review=`).
-  const { reviewId, openReview } = useReviewOpen();
 
   // The item tree when this brain serves it for notes (docs/folder-tree.md);
   // the paged card list for a brain before it, or if a tree call 404s.
@@ -217,14 +213,8 @@ export function NotesClient() {
     guard(() => {
       setSelectedId(id);
       syncSelectionParam('selected', id);
-      if (pid || reviewId) openPrivate(null);
+      if (pid) openPrivate(null);
       exitEdit();
-    });
-
-  const selectReview = (id: string) =>
-    guard(() => {
-      exitEdit();
-      openReview(id);
     });
 
   const selectPrivate = (id: string) =>
@@ -235,7 +225,6 @@ export function NotesClient() {
 
   const startCreate = (folder: TreeFolder | null = null) =>
     guard(() => {
-      if (reviewId) openReview(null);
       setCreateIn(folder);
       setCreating(true);
       setEditing(true);
@@ -367,162 +356,149 @@ export function NotesClient() {
         // note in master-detail.tsx.
         listCollapsed={focus}
         list={
-          <div className="flex h-full min-h-0 flex-col">
-            {/* Members' notes waiting for approval (workspace review
-                pattern), above the tree; hidden while none wait. */}
-            <ItemReviewSections kind="note" selectedId={reviewId} onSelect={selectReview} />
-            <div className="flex min-h-0 flex-1 flex-col">
-              {showTree ? (
-                <aside className="flex h-full flex-col bg-muted/20">
-                  <ItemTree
-                    kind="notes"
-                    adapter={notesAdapter}
-                    selectedItemId={
-                      reviewId ? null : (privateOpen ?? (creating ? null : (selected?.id ?? null)))
-                    }
-                    query={treeQuery}
-                    onQueryChange={setTreeQuery}
-                    searchPlaceholder="Search notes and folders…"
-                    newItemInFolder={{ label: 'note', onCreate: (f) => startCreate(f) }}
-                    actions={<NewButton onClick={() => startCreate()} />}
-                    onOpenItem={(item) =>
-                      item.state === 'private' ? selectPrivate(item.id) : selectNote(item.id)
-                    }
-                    itemActions={(item) =>
-                      item.state === 'private' ? null : (
-                        <DropdownMenuItem
-                          className="text-destructive-ink focus:text-destructive-ink"
-                          onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                        >
-                          <Trash2 />
-                          Delete…
-                        </DropdownMenuItem>
-                      )
-                    }
-                    // A share or a move changes the level the open item is read
-                    // at: its header badge and client thread follow.
-                    onChanged={() => void queryClient.invalidateQueries({ queryKey: ['notes'] })}
-                    onUnsupported={() => setTreeGone(true)}
-                  />
-                </aside>
-              ) : (
-                <>
-                  <ItemListHeader
-                    search={searchInput}
-                    onSearch={setSearchInput}
-                    placeholder="Search notes…"
-                    actions={<NewButton onClick={() => startCreate()} />}
-                  >
-                    <TagFilter
-                      tags={tags}
-                      activeTag={activeTag}
-                      onSelect={(t) => go({ tag: t, page: 1 })}
-                      details={details}
-                      onDetailsChange={changeDetails}
-                      allLabel="All notes"
-                    />
-                    <StateFilter
-                      value={state}
-                      options={ADMIN_STATE_OPTIONS}
-                      onChange={(v) => go({ state: v, page: 1 })}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className={cn(
-                        'h-7 gap-1 px-2',
-                        showDigests ? 'text-foreground' : 'text-muted-foreground',
-                      )}
-                      aria-pressed={showDigests}
-                      onClick={() =>
-                        go({
-                          digests: !showDigests,
-                          page: 1,
-                          // Hiding digests while filtered on a digest tag would show an
-                          // empty list — drop the tag along with them.
-                          ...(showDigests && activeTag && isDigestTag(activeTag)
-                            ? { tag: null }
-                            : {}),
-                        })
-                      }
-                      title={
-                        showDigests
-                          ? 'Hide agent conversation digests'
-                          : 'Show agent conversation digests'
-                      }
+          showTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="notes"
+                adapter={notesAdapter}
+                selectedItemId={privateOpen ?? (creating ? null : (selected?.id ?? null))}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search notes and folders…"
+                newItemInFolder={{ label: 'note', onCreate: (f) => startCreate(f) }}
+                actions={<NewButton onClick={() => startCreate()} />}
+                onOpenItem={(item) =>
+                  item.state === 'private' ? selectPrivate(item.id) : selectNote(item.id)
+                }
+                itemActions={(item) =>
+                  item.state === 'private' ? null : (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
                     >
-                      <Sparkles className="size-3.5" /> Digests
-                    </Button>
-                    {activeTag && (
-                      <ClearFilter
-                        onClear={() => go({ tag: null, page: 1 })}
-                        title="Clear tag filter"
-                      />
-                    )}
-                  </ItemListHeader>
-
-                  <ItemListScroll pending={navPending}>
-                    {rows.length === 0 ? (
-                      <ItemListEmpty>
-                        {state === 'private' && !query
-                          ? 'You have no private notes. Only you would see them, until you accept one into the brain.'
-                          : query || activeTag
-                            ? 'No notes match your search or filter.'
-                            : 'No notes yet. Click “New” or ask your assistant to add one.'}
-                      </ItemListEmpty>
-                    ) : (
-                      rows.map((n) =>
-                        isPrivateRow(n) ? (
-                          <PrivateItemCard
-                            key={n.id}
-                            row={n}
-                            selected={!reviewId && privateOpen === n.id}
-                            onSelect={() => selectPrivate(n.id)}
-                          />
-                        ) : (
-                          <ItemCard
-                            key={n.id}
-                            id={n.id}
-                            kind="note"
-                            title={n.title}
-                            icon={<ItemIcon fallback={<FileText />} />}
-                            badge={<WorkspaceChips item={n} className="mt-0.5" />}
-                            selected={
-                              !reviewId && !privateOpen && selected?.id === n.id && !creating
-                            }
-                            onSelect={() => selectNote(n.id)}
-                            updatedAt={n.updatedAt}
-                          >
-                            {details && (n.summary || n.content) && (
-                              <p className="line-clamp-2 text-xs text-muted-foreground">
-                                {n.summary ?? n.content.slice(0, 200)}
-                              </p>
-                            )}
-                            {details && n.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {n.tags.map((t) => (
-                                  <TagPill key={t} tag={t} />
-                                ))}
-                              </div>
-                            )}
-                          </ItemCard>
-                        ),
-                      )
-                    )}
-                  </ItemListScroll>
-
-                  <ListPager
-                    page={page}
-                    total={total}
-                    pageSize={pageSize}
-                    pending={navPending}
-                    onGo={(p) => go({ page: p })}
-                    noun={{ one: 'note', many: 'notes' }}
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  )
+                }
+                // A share or a move changes the level the open item is read
+                // at: its header badge and client thread follow.
+                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['notes'] })}
+                onUnsupported={() => setTreeGone(true)}
+              />
+            </aside>
+          ) : (
+            <>
+              <ItemListHeader
+                search={searchInput}
+                onSearch={setSearchInput}
+                placeholder="Search notes…"
+                actions={<NewButton onClick={() => startCreate()} />}
+              >
+                <TagFilter
+                  tags={tags}
+                  activeTag={activeTag}
+                  onSelect={(t) => go({ tag: t, page: 1 })}
+                  details={details}
+                  onDetailsChange={changeDetails}
+                  allLabel="All notes"
+                />
+                <StateFilter
+                  value={state}
+                  options={ADMIN_STATE_OPTIONS}
+                  onChange={(v) => go({ state: v, page: 1 })}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={cn(
+                    'h-7 gap-1 px-2',
+                    showDigests ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                  aria-pressed={showDigests}
+                  onClick={() =>
+                    go({
+                      digests: !showDigests,
+                      page: 1,
+                      // Hiding digests while filtered on a digest tag would show an
+                      // empty list — drop the tag along with them.
+                      ...(showDigests && activeTag && isDigestTag(activeTag) ? { tag: null } : {}),
+                    })
+                  }
+                  title={
+                    showDigests
+                      ? 'Hide agent conversation digests'
+                      : 'Show agent conversation digests'
+                  }
+                >
+                  <Sparkles className="size-3.5" /> Digests
+                </Button>
+                {activeTag && (
+                  <ClearFilter
+                    onClear={() => go({ tag: null, page: 1 })}
+                    title="Clear tag filter"
                   />
-                </>
-              )}
-            </div>
-          </div>
+                )}
+              </ItemListHeader>
+
+              <ItemListScroll pending={navPending}>
+                {rows.length === 0 ? (
+                  <ItemListEmpty>
+                    {state === 'private' && !query
+                      ? 'You have no private notes. Only you would see them, until you accept one into the brain.'
+                      : query || activeTag
+                        ? 'No notes match your search or filter.'
+                        : 'No notes yet. Click “New” or ask your assistant to add one.'}
+                  </ItemListEmpty>
+                ) : (
+                  rows.map((n) =>
+                    isPrivateRow(n) ? (
+                      <PrivateItemCard
+                        key={n.id}
+                        row={n}
+                        selected={privateOpen === n.id}
+                        onSelect={() => selectPrivate(n.id)}
+                      />
+                    ) : (
+                      <ItemCard
+                        key={n.id}
+                        id={n.id}
+                        kind="note"
+                        title={n.title}
+                        icon={<ItemIcon fallback={<FileText />} />}
+                        badge={<WorkspaceChips item={n} className="mt-0.5" />}
+                        selected={!privateOpen && selected?.id === n.id && !creating}
+                        onSelect={() => selectNote(n.id)}
+                        updatedAt={n.updatedAt}
+                      >
+                        {details && (n.summary || n.content) && (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            {n.summary ?? n.content.slice(0, 200)}
+                          </p>
+                        )}
+                        {details && n.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {n.tags.map((t) => (
+                              <TagPill key={t} tag={t} />
+                            ))}
+                          </div>
+                        )}
+                      </ItemCard>
+                    ),
+                  )
+                )}
+              </ItemListScroll>
+
+              <ListPager
+                page={page}
+                total={total}
+                pageSize={pageSize}
+                pending={navPending}
+                onGo={(p) => go({ page: p })}
+                noun={{ one: 'note', many: 'notes' }}
+              />
+            </>
+          )
         }
         // Both the editor and the preview open with their own sticky header
         // above a scrolling body, so each keeps its own scroller.
@@ -530,18 +506,7 @@ export function NotesClient() {
         // overflow, so only one bar is ever painted.
         detail={
           <div className="md:h-full md:overflow-hidden">
-            {reviewId && !editing ? (
-              <ItemReview
-                key={reviewId}
-                id={reviewId}
-                kind="note"
-                onDone={(opened) => {
-                  // Approved: it is a brain note now, with the same id.
-                  if (opened) setSelectedId(opened);
-                  openReview(null);
-                }}
-              />
-            ) : privateOpen ? (
+            {privateOpen ? (
               <div className="relative h-full min-h-0">
                 <PrivateItemDetail
                   key={privateOpen}

@@ -1,23 +1,17 @@
 'use client';
 
 /**
- * The review actions (member logins Phase 4), in the header of the item's
- * own workspace pane since Team admin > Review went (workspace review
- * pattern, 2026-10-09): Approve into the brain (the admin picks the level,
- * and for a page or files where they land), Reject (back to its author, no
- * note), Take over, and Discard for an item a deactivated login left behind.
- * The accept dialog also serves an admin's own private items (Phase 7).
- *
- * Every action takes two callbacks: `onDone(opened?)` once the item left the
- * queue (`opened`: the brain item it became, after an Approve), and
- * `onChanged()` after a refusal, so the queue is read again.
+ * Accept into the brain. Removed in W5c: the review actions (Approve,
+ * Reject, Take over, Discard) went with the review flow; workspaces replace
+ * it. `AcceptIntoBrainDialog` stays ONLY for components/member/mine-item.tsx
+ * (an admin's own private item, kept until phase W6b, and the member shell
+ * another W5c part removes). Delete this file when mine-item.tsx goes.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
-import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Hand, Handshake, Loader2, Trash2, Undo2, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { CheckCircle2, Handshake, Loader2, Users } from 'lucide-react';
 import type { AccessItemView, AccessLevel } from '@mantle/client-types';
 import type { ReviewAuthorRole } from '@mantle/client-types';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
@@ -39,17 +33,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@mantle/web-ui/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@mantle/web-ui/ui/alert-dialog';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import {
   LEVEL_LABEL,
@@ -59,7 +42,6 @@ import {
   isAccessLevel,
   offeredUnder,
 } from '@/lib/access-levels';
-import { privateViewHref } from '@/lib/admin-private';
 import {
   acceptVisibilityRefusal,
   acceptedLine,
@@ -70,20 +52,15 @@ import {
   goingDownAt,
   goingDownLine,
   levelConfirmation,
-  memberReview,
   needsLevelConfirm,
   placeIsFor,
   placeShareLine,
-  reviewErrorMessage,
-  takeOverErrorMessage,
   type AcceptInput,
   type AcceptPlace,
   type AcceptResult,
   type Bundle,
-  type ReviewItemRow,
 } from '@/lib/member-review';
 import type { SpaceKind } from '@/lib/member-space';
-import { REVIEW_CHANGED_TOAST, isChangedRefusal, rejectConfirm } from '@/lib/workspace-review';
 import { FolderPickerDialog } from '@/components/item-tree/folder-picker';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import {
@@ -93,46 +70,6 @@ import {
 import { TREE_KIND_SPECS, type TreeFolder } from '@mantle/web-ui/types/tree';
 
 type FolderRow = { path: string; title: string; slug: string };
-
-/** What a review action does once it is through, or refused. */
-type ReviewActionProps = {
-  row: ReviewItemRow;
-  /** The item left the queue; `opened` is the brain item it became. */
-  onDone: (opened?: string) => void;
-  /** Refused (handled elsewhere, recalled): read the queue again. */
-  onChanged: () => void;
-};
-
-export function AcceptDialog({ row, onDone, onChanged }: ReviewActionProps) {
-  // The pin, taken once when the dialog opens: what is approved is the
-  // version on screen then, never one a refetch brought in while it is open
-  // (a 409 `changed` closes the dialog, audit re-audit L1).
-  const pinned = useRef<string | null>(row.submittedAt);
-  return (
-    <AcceptIntoBrainDialog
-      item={row}
-      triggerLabel="Approve"
-      onOpen={() => {
-        pinned.current = row.submittedAt;
-      }}
-      authorRole={row.author.role}
-      description={
-        <>
-          “{row.title || 'Untitled'}” moves out of {row.author.name}&rsquo;s space and becomes a
-          brain item you can edit. Links to it keep working.
-        </>
-      }
-      bundle={{
-        key: ['team-admin', 'submissions', row.id, 'bundle'],
-        load: (pick) => memberReview.bundle(row.id, pick),
-      }}
-      accept={(input) => memberReview.accept(row.id, { ...input, submittedAt: pinned.current })}
-      onAccepted={(res) => onDone(res.id)}
-      onFailed={onChanged}
-      errorMessage={reviewErrorMessage}
-    />
-  );
-}
 
 /** What an accept moves: its id, kind and title. */
 export type AcceptTarget = { id: string; type: SpaceKind; title: string };
@@ -342,14 +279,6 @@ export function AcceptIntoBrainDialog({
             void accept(true);
           },
         });
-        return;
-      }
-      if (isChangedRefusal(err)) {
-        // The author sent it again since it was opened: what this dialog
-        // was about is gone. Close it; the pane shows the new version.
-        setOpen(false);
-        toast.error(REVIEW_CHANGED_TOAST);
-        onFailed?.();
         return;
       }
       toast.error(errorMessage(err, 'Could not accept this item.'));
@@ -681,185 +610,5 @@ function GoingDownList({
         </ul>
       ) : null}
     </div>
-  );
-}
-
-/** Reject: back to its author, who can change it and submit it again. No
- *  note: review flows carry no messages. On a released taken item this is a
- *  give-back, with what was taken with it. */
-export function RejectDialog({ row, onDone, onChanged }: ReviewActionProps) {
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const send = async () => {
-    setBusy(true);
-    try {
-      await memberReview.giveBack(row.id);
-      toast.success(`Rejected “${row.title || 'Untitled'}”: it went back to ${row.author.name}.`);
-      setOpen(false);
-      onDone();
-    } catch (err) {
-      toast.error(reviewErrorMessage(err, 'Could not reject this item.'));
-      setOpen(false);
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-      <AlertDialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Undo2 /> Reject
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Reject “{row.title || 'Untitled'}”?</AlertDialogTitle>
-          <AlertDialogDescription>{rejectConfirm(row)}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-          <Button disabled={busy} onClick={() => void send()}>
-            {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
-            Reject
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-export function DiscardDialog({ row, onDone, onChanged }: ReviewActionProps) {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const discard = async () => {
-    setBusy(true);
-    try {
-      await memberReview.discard(row.id);
-      toast.success(`Discarded “${row.title || 'Untitled'}”.`);
-      onDone();
-    } catch (err) {
-      toast.error(reviewErrorMessage(err, 'Could not discard this item.'));
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="text-destructive-ink" disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <Trash2 />}
-          Discard
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Discard this item?</AlertDialogTitle>
-          <AlertDialogDescription>
-            “{row.title || 'Untitled'}” from {row.author.name} (deactivated) is deleted, with its
-            bytes. It never enters the brain. This can&rsquo;t be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep it</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={() => void discard()}
-          >
-            Discard
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-/**
- * Take over (audit F07): the item, and what it shows, moves into this
- * admin's own private items, out of its author's reach, until the admin
- * accepts it into the brain or gives it back. Nothing is indexed or learned
- * on the way; the admin works on it in the Private view, which opens next.
- */
-export function TakeOverDialog({ row, onDone, onChanged }: ReviewActionProps) {
-  const toast = useToast();
-  const router = useRouter();
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  // What moves with it: the bundle Accept would move is the one recorded at
-  // Submit, and that is what Take over moves too.
-  const bundle = useQuery({
-    queryKey: ['team-admin', 'submissions', row.id, 'bundle'],
-    queryFn: () => memberReview.bundle(row.id),
-    enabled: open,
-  });
-  const rest = bundle.data?.items.slice(1) ?? [];
-  const take = async () => {
-    setBusy(true);
-    try {
-      const res = await memberReview.takeOver(row.id);
-      const also = res.moved.length > 1 ? ` with ${res.moved.length - 1} more` : '';
-      toast.success(`Took over “${row.title || 'Untitled'}”${also}. Only you can see it now.`);
-      setOpen(false);
-      onDone();
-      void qc.invalidateQueries({ queryKey: ['admin-space-list'] });
-      router.push(privateViewHref(row.type, res.id));
-    } catch (err) {
-      toast.error(takeOverErrorMessage(err));
-      setOpen(false);
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-      <AlertDialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Hand /> Take over
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Take this over?</AlertDialogTitle>
-          <AlertDialogDescription>
-            “{row.title || 'Untitled'}” moves into your private items, out of {row.author.name}
-            &rsquo;s reach, until you accept it into the brain or give it back.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
-          {bundle.isError ? (
-            <p className="text-muted-foreground">
-              Could not work out what moves with it. Everything it shows moves along.
-            </p>
-          ) : !bundle.data ? (
-            <p className="text-muted-foreground">Working out what moves with it…</p>
-          ) : (
-            <>
-              <p>{bundleSummary(bundle.data.items)}</p>
-              {rest.length ? (
-                <ul className="list-disc pl-5 text-xs text-muted-foreground">
-                  {rest.slice(0, 10).map((i) => (
-                    <li key={i.id} className="truncate">
-                      {i.title || 'Untitled'}
-                    </li>
-                  ))}
-                  {rest.length > 10 ? <li>and {rest.length - 10} more</li> : null}
-                </ul>
-              ) : null}
-            </>
-          )}
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-          <Button disabled={busy} onClick={() => void take()}>
-            {busy ? <Loader2 className="animate-spin" /> : <Hand />}
-            Take over
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }

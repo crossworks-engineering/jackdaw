@@ -1,6 +1,7 @@
 /**
  * The confirm's list (W5b2 contract 29): a tree write lists each item with
- * the workspaces it gains and loses; a review accept still lists levels.
+ * the workspaces it gains and loses; an Accept of a private item still
+ * lists levels.
  */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -37,7 +38,7 @@ describe('ChangeList', () => {
     expect(html).not.toContain('becomes');
   });
 
-  it('still shows a level change (review accept, until W5c)', () => {
+  it('still shows a level change (an Accept of a private item, until W6b)', () => {
     const html = renderToStaticMarkup(
       createElement(ChangeList, {
         label: 'x',

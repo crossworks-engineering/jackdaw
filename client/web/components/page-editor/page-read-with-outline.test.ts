@@ -7,15 +7,12 @@ import type { JSONContent } from '@tiptap/core';
 import { describe, expect, it } from 'vitest';
 import { ReadOnlyItemBody, type ReaderAssets } from '@/components/member/read-only-item';
 import { SpaceItemView } from '@/components/member/space-item-view';
-import { ReviewItemView } from '@/components/review/item-review';
-import type { ReviewItem } from '@/lib/member-review';
 import type { SpaceItem } from '@/lib/member-space';
 import { PageReadWithOutline, closeThenJump, readerToc } from './page-read-with-outline';
 
 /**
- * The heading outline for the READERS of a page (a member, a client, a
- * reviewer): one wrapper, used by every read view, built from the doc the
- * view renders.
+ * The heading outline for the READERS of a page (a member, a client): one
+ * wrapper, used by every read view, built from the doc the view renders.
  *
  * The render tests run on the server render, where the document body itself
  * is not drawn yet (StaticDoc renders in an effect) but the outline is: it
@@ -167,12 +164,6 @@ const spaceItem = (saved: JSONContent, draft: JSONContent | null = null) =>
     body: { type: 'page', page: { doc: saved, draft } },
   }) as unknown as SpaceItem;
 
-const reviewItem = (content: JSONContent) =>
-  ({
-    row: { id: 'i-3', type: 'page', title: 'A page', icon: null },
-    body: { type: 'page', page: { doc: content, draft: null } },
-  }) as unknown as ReviewItem;
-
 describe('the outline in each reader', () => {
   it('a Library, accepted or client shared page (ReadOnlyItemBody)', () => {
     expectOutline(render(libraryPage(LONG)));
@@ -191,18 +182,13 @@ describe('the outline in each reader', () => {
     expectNoOutline(render(createElement(SpaceItemView, { source: 'mine', item })));
     expectOutline(render(createElement(SpaceItemView, { source: 'mine', item, working: true })));
   });
-
-  it('a submitted page in the admin Review pane (ReviewItemView)', () => {
-    expectOutline(render(createElement(ReviewItemView, { item: reviewItem(LONG) })));
-    expectNoOutline(render(createElement(ReviewItemView, { item: reviewItem(FLAT) })));
-  });
 });
 
 describe('no reader draws a page without the outline wrapper', () => {
   it('nothing under member, client or team-admin imports PageView itself', () => {
     const components = fileURLToPath(new URL('..', import.meta.url));
     const seen: string[] = [];
-    for (const dir of ['member', 'client', 'team-admin', 'review']) {
+    for (const dir of ['member', 'client', 'team-admin']) {
       for (const f of readdirSync(`${components}/${dir}`)) {
         if (!f.endsWith('.tsx')) continue;
         seen.push(`${dir}/${f}`);
@@ -212,11 +198,7 @@ describe('no reader draws a page without the outline wrapper', () => {
       }
     }
     expect(seen).toEqual(
-      expect.arrayContaining([
-        'member/read-only-item.tsx',
-        'member/space-item-view.tsx',
-        'review/item-review.tsx',
-      ]),
+      expect.arrayContaining(['member/read-only-item.tsx', 'member/space-item-view.tsx']),
     );
   });
 });

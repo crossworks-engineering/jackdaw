@@ -6,7 +6,6 @@ import type { AdminPrivateListRow } from '@mantle/client-types';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { adminSpace, type SpaceKind } from '@/lib/member-space';
 import { PRIVATE_ID_PARAM } from '@/lib/admin-private';
-import { REVIEW_PARAM } from '@/lib/workspace-review';
 import { MineItem } from '@/components/member/mine-item';
 import { SpaceApiProvider } from '@/components/member/space-api';
 import { ItemCard, ItemIcon, UpdatedStamp } from './item-card';
@@ -41,10 +40,7 @@ export function isPrivateRow(row: object): row is AdminPrivateListRow {
 }
 
 /** The open private item (`?pid=`), and how to open or close one. Opening a
- *  private item is a replace (it is a selection, like the brain cards').
- *  Either way it closes a member's item under review (`?review=`, workspace
- *  review pattern): the pane shows one thing, so a screen clears both with
- *  this one replace. */
+ *  private item is a replace (it is a selection, like the brain cards'). */
 export function usePrivateOpen(): {
   pid: string | null;
   openPrivate: (id: string | null) => void;
@@ -58,7 +54,6 @@ export function usePrivateOpen(): {
       const sp = new URLSearchParams(params.toString());
       if (id) sp.set(PRIVATE_ID_PARAM, id);
       else sp.delete(PRIVATE_ID_PARAM);
-      sp.delete(REVIEW_PARAM);
       const s = sp.toString();
       router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
     },
@@ -67,34 +62,9 @@ export function usePrivateOpen(): {
   return { pid, openPrivate };
 }
 
-/** The member's item open for review (`?review=`), and how to open or close
- *  one. Opening one closes an open private item (`?pid=`) in the same
- *  replace. */
-export function useReviewOpen(): {
-  reviewId: string | null;
-  openReview: (id: string | null) => void;
-} {
-  const router = useRouter();
-  const pathname = usePathname() ?? '/';
-  const params = useSearchParams();
-  const reviewId = params.get(REVIEW_PARAM);
-  const openReview = useCallback(
-    (id: string | null) => {
-      const sp = new URLSearchParams(params.toString());
-      if (id) sp.set(REVIEW_PARAM, id);
-      else sp.delete(REVIEW_PARAM);
-      sp.delete(PRIVATE_ID_PARAM);
-      const s = sp.toString();
-      router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
-    },
-    [params, pathname, router],
-  );
-  return { reviewId, openReview };
-}
-
-/** A private item's card: the kind's glyph, `private`, and who it was taken
- *  from when an admin took it over from the Review queue. No brain actions:
- *  its own view (accept, give back, delete) opens beside it. */
+/** A private item's card: the kind's glyph, `private`, and the member it
+ *  came from when the brain names one (`takenFrom`). No brain actions: its
+ *  own view opens beside it. */
 export function PrivateItemCard({
   row,
   selected,

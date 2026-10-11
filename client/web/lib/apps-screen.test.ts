@@ -9,8 +9,6 @@ import {
   appDetailQuery,
   appsLegacyHref,
   appsUrlId,
-  appsUrlSelection,
-  selectionParams,
 } from './apps-screen';
 
 const sp = (s: string) => new URLSearchParams(s);
@@ -30,6 +28,11 @@ describe('appsLegacyHref', () => {
 
   it('drops sort on the paged list too, and keeps its page', () => {
     expect(appsLegacyHref(sp('page=2&sort=newest'), false)).toBe('/apps?page=2');
+  });
+
+  it('drops an old member app review link (its review param, gone in W5c)', () => {
+    expect(appsLegacyHref(sp('review=m1'), true)).toBe('/apps');
+    expect(appsLegacyHref(sp('review=m1&id=a1'), false)).toBe('/apps?id=a1');
   });
 
   it('reads ?selected= as ?id=', () => {
@@ -72,20 +75,5 @@ describe('appDetailQuery', () => {
     expect(apiFetch).toHaveBeenCalledWith('/api/apps/a1');
     expect(data).toEqual({ app });
     expect(data.app.id).toBe('a1');
-  });
-});
-
-describe('the pane selection in the URL', () => {
-  it('reads ?review= first, then ?id= and ?selected=', () => {
-    expect(appsUrlSelection(sp('review=m1&id=a1'))).toEqual({ kind: 'review', id: 'm1' });
-    expect(appsUrlSelection(sp('id=a1'))).toEqual({ kind: 'app', id: 'a1' });
-    expect(appsUrlSelection(sp('selected=a1'))).toEqual({ kind: 'app', id: 'a1' });
-    expect(appsUrlSelection(sp('review=%20'))).toBeNull();
-  });
-
-  it('writes one param and clears the other', () => {
-    expect(selectionParams({ kind: 'review', id: 'm1' })).toEqual({ id: null, review: 'm1' });
-    expect(selectionParams({ kind: 'app', id: 'a1' })).toEqual({ id: 'a1', review: null });
-    expect(selectionParams(null)).toEqual({ id: null, review: null });
   });
 });

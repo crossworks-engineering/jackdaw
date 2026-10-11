@@ -4,7 +4,6 @@ import {
   acceptVisibilityRefusal,
   acceptedLine,
   authorRoleLabel,
-  bundlePath,
   placeIsFor,
   placeShareLine,
   confirmLevelRefusal,
@@ -15,9 +14,6 @@ import {
   needsLevelConfirm,
   bundleSummary,
   reviewAssetPath,
-  reviewErrorMessage,
-  splitQueue,
-  type ReviewItemRow,
 } from './member-review';
 
 const S = '11111111-1111-4111-8111-111111111111';
@@ -47,16 +43,7 @@ describe('reviewAssetPath', () => {
   });
 });
 
-describe('splitQueue and bundleSummary', () => {
-  const row = (id: string, reason: ReviewItemRow['reason']) =>
-    ({ id, reason }) as unknown as ReviewItemRow;
-
-  it('splits waiting items from left-behind ones, keeping order', () => {
-    const s = splitQueue([row('a', 'submitted'), row('b', 'left-behind'), row('c', 'submitted')]);
-    expect(s.submitted.map((r) => r.id)).toEqual(['a', 'c']);
-    expect(s.leftBehind.map((r) => r.id)).toEqual(['b']);
-  });
-
+describe('bundleSummary', () => {
   it('says what moves along with the item', () => {
     const item = { id: S, type: 'page' as const, title: 'Plan' };
     expect(bundleSummary([item])).toBe('Nothing else moves with it.');
@@ -68,22 +55,6 @@ describe('splitQueue and bundleSummary', () => {
         { id: 'x', type: 'draw', title: 'Sketch' },
       ]),
     ).toBe('Also moves 2 files, 1 drawing.');
-  });
-});
-
-describe('reviewErrorMessage', () => {
-  it('reads a 404 as "not waiting any more", never as "private"', () => {
-    const msg = reviewErrorMessage(new ApiError('Not found.', 404, {}), 'x');
-    expect(msg).toMatch(/not waiting for review/);
-    expect(reviewErrorMessage(new ApiError('Pick a level.', 400, {}), 'x')).toBe('Pick a level.');
-    expect(reviewErrorMessage(new Error('boom'), 'fallback')).toBe('fallback');
-  });
-
-  it("shows Accept's confirm-level refusal in the brain's words (client logins C1)", () => {
-    const words =
-      'A client wrote this. At client level every client login reads it, and what it embeds goes down with it. Confirm that, or accept it at team.';
-    const err = new ApiError(words, 409, { error: words, reason: 'confirm-level' });
-    expect(reviewErrorMessage(err, 'Could not accept this item.')).toBe(words);
   });
 });
 
@@ -181,12 +152,6 @@ describe("a client's item at client or public (audit A28)", () => {
 });
 
 describe('the accept dialog: a shared folder where it lands (folder plan phase 5)', () => {
-  it('asks the preview for the admin’s pick, or the top level', () => {
-    expect(bundlePath(S)).toBe(`/api/team-admin/submissions/${S}/bundle`);
-    expect(bundlePath(S, F)).toBe(`/api/team-admin/submissions/${S}/bundle?folderId=${F}`);
-    expect(bundlePath(S, null)).toBe(`/api/team-admin/submissions/${S}/bundle?folderId=root`);
-  });
-
   it('trusts a preview place only for the pick it was asked for', () => {
     expect(placeIsFor({ folderId: F }, undefined)).toBe(true);
     expect(placeIsFor({ folderId: F }, { id: F })).toBe(true);

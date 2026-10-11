@@ -46,10 +46,7 @@ import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { FocusToggle } from '@/components/layout/focus-toggle';
 import { useZenMode } from '@/components/layout/zen-mode';
 import type { AppDetail, AppRow } from '@mantle/client-types';
-import {
-  MemberAppsReviewSections,
-  RecentlyDeletedApps,
-} from '@/components/app-nav/member-apps-review';
+import { RecentlyDeletedApps } from '@/components/app-nav/recently-deleted-apps';
 import { APP_NAV_KEY, useAppNav } from '@/components/app-nav/use-app-nav';
 import { AppTile } from '@/components/app-nav/app-tile';
 import { AppTreePills } from '@/components/app-nav/app-tree-pills';
@@ -70,11 +67,8 @@ import {
   APP_SHARE_HINT,
   appDetailQuery,
   appsLegacyHref,
-  appsUrlSelection,
-  selectionParams,
-  type AppsSelection,
+  appsUrlId,
 } from '@/lib/apps-screen';
-import { MemberAppReview } from '@/components/app-nav/member-app-review';
 import { AppItemHeader, HeaderIconButton } from '@/components/app-nav/app-item-header';
 
 type AppsPage = { apps: AppRow[]; total: number; page: number; pageSize: number };
@@ -91,8 +85,7 @@ type DeleteTarget = { id: string; title: string };
  * changes an app (Builder, Code, History, Activity, the switches) is its own
  * screen, /apps/<id>, as an editor is for a page or a drawing.
  *
- * Members' apps sit above the tree (what waits for approval, what members
- * shared) and the trash at its foot. A brain that does not serve Apps as a
+ * The trash sits at the foot of the list. A brain that does not serve Apps as a
  * tree kind keeps the paged list (GET /api/apps), as Draw does.
  */
 export function AppsClient() {
@@ -106,8 +99,7 @@ export function AppsClient() {
 
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
-  const urlSel = appsUrlSelection(searchParams);
-  const urlKey = urlSel ? `${urlSel.kind}:${urlSel.id}` : null;
+  const urlId = appsUrlId(searchParams);
 
   // The item tree when this brain serves it for apps (docs/folder-tree.md);
   // the paged list for a brain before it, or if a tree call 404s.
@@ -124,24 +116,17 @@ export function AppsClient() {
     if (to) router.replace(to, { scroll: false });
   }, [searchParams, showTree, treeServes, router]);
 
-  // One selection: a brain app (`?id=`) or a member's app to review
-  // (`?review=`), each shown in the same pane beside the tree. It lives in
+  // The picked app (`?id=`), shown in the pane beside the tree. It lives in
   // client state; `select` mirrors it to the URL with replaceState (no
   // navigation): the param is an entry point, not truth.
-  const [selection, setSelection] = useState<AppsSelection | null>(urlSel);
+  const [selectedId, setSelectedId] = useState<string | null>(urlId);
   useEffect(() => {
-    if (urlSel) setSelection(urlSel);
-    // `urlKey` stands for `urlSel`, a new object on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlKey]);
-  function select(sel: AppsSelection | null) {
-    setSelection(sel);
-    const p = selectionParams(sel);
-    syncSelectionParam('review', p.review);
-    syncSelectionParam('id', p.id);
+    if (urlId) setSelectedId(urlId);
+  }, [urlId]);
+  function select(id: string | null) {
+    setSelectedId(id);
+    syncSelectionParam('id', id);
   }
-  const selectedId = selection?.kind === 'app' ? selection.id : null;
-  const reviewId = selection?.kind === 'review' ? selection.id : null;
 
   // The paged list's search box; the tree's lives in the tree.
   const [searchInput, setSearchInput] = useState(query);
@@ -172,7 +157,7 @@ export function AppsClient() {
 
   // The first card when nothing is picked (the paged list only, as on the
   // other screens: the tree opens on its folders with nothing picked).
-  const activeId = reviewId ? null : (selectedId ?? rows[0]?.id ?? null);
+  const activeId = selectedId ?? rows[0]?.id ?? null;
   // The picked app as its own screen reads it: the same query and the same
   // cached shape (appDetailQuery), so opening it from here is instant.
   const activeQuery = useQuery({ ...appDetailQuery(activeId ?? ''), enabled: !!activeId });
@@ -226,12 +211,6 @@ export function AppsClient() {
         listCollapsed={zen}
         list={
           <div className="flex h-full min-h-0 flex-col">
-            {/* Members' apps first (workspace review pattern): what waits for
-                approval and what members shared, each hidden while empty. */}
-            <MemberAppsReviewSections
-              selectedId={reviewId}
-              onSelect={(id) => select({ kind: 'review', id })}
-            />
             <div className="flex min-h-0 flex-1 flex-col">
               {listLoading ? (
                 <div className="flex h-full items-center justify-center p-6">
@@ -248,7 +227,7 @@ export function AppsClient() {
                     searchPlaceholder="Search apps and folders…"
                     actions={newButton}
                     newItemInFolder={{ label: 'app', icon: AppWindow, onCreate: openCreate }}
-                    onOpenItem={(item) => select({ kind: 'app', id: item.id })}
+                    onOpenItem={(item) => select(item.id)}
                     itemActions={(item) => (
                       <DropdownMenuItem
                         className="text-destructive-ink focus:text-destructive-ink"
@@ -320,7 +299,7 @@ export function AppsClient() {
                             </span>
                           }
                           selected={activeId === app.id}
-                          onSelect={() => select({ kind: 'app', id: app.id })}
+                          onSelect={() => select(app.id)}
                           updatedAt={app.updatedAt}
                         >
                           {app.description ? (
@@ -347,13 +326,7 @@ export function AppsClient() {
           </div>
         }
         detail={
-          reviewId ? (
-            <MemberAppReview
-              key={reviewId}
-              id={reviewId}
-              onDone={(open) => select(open ? { kind: 'app', id: open } : null)}
-            />
-          ) : active ? (
+          active ? (
             <AppPreview
               key={active.id}
               app={active}

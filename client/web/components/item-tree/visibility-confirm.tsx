@@ -26,7 +26,8 @@ const levelWord = (l: AccessLevel) => (l === 'admin' ? 'Admin only' : LEVEL_LABE
 
 /** A write the brain refused because it changes who can see items: each
  *  item and the workspaces it gains and loses (a tree write, W5b2 contract
- *  29), or its levels before and after (a member review accept, until W5c).
+ *  29), or its levels before and after (an Accept into the brain of an
+ *  admin's private item, until private items go in W6b).
  *  Going ahead repeats the write with `confirm` (and `seen`, the total
  *  shown, where the route takes it). */
 export type PendingConfirm = {
@@ -112,7 +113,7 @@ function WorkspaceDelta({ change }: { change: Parameters<typeof workspaceChangeW
   );
 }
 
-/** A review accept's change: its level before and after (until W5c). */
+/** An Accept's change: its level before and after (private items, until W6b). */
 function LevelDelta({ change: c }: { change: TreeVisibilityChange }) {
   return (
     <>

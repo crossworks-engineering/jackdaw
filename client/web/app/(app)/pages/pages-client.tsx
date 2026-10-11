@@ -95,10 +95,8 @@ import {
   adminStateOf,
   isPrivateRow,
   usePrivateOpen,
-  useReviewOpen,
   type AdminListState,
 } from '@/components/item-list/admin-private-rows';
-import { ItemReview, ItemReviewSections } from '@/components/review/item-review';
 import { mergeSortedRows } from '@/components/item-list/merge-rows';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
@@ -211,8 +209,6 @@ export function PagesClient() {
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
   const { pid, openPrivate } = usePrivateOpen();
-  // A member's page waiting for approval, open in the pane (`?review=`).
-  const { reviewId, openReview } = useReviewOpen();
 
   // The item tree when this brain serves it for pages (folder phase 7,
   // docs/folder-tree.md: pages live in folders and never nest); the card
@@ -627,7 +623,7 @@ export function PagesClient() {
           <PrivateItemCard
             key={p.id}
             row={p}
-            selected={!reviewId && privateOpen === p.id}
+            selected={privateOpen === p.id}
             onSelect={() => openPrivate(p.id)}
           />
         );
@@ -654,7 +650,7 @@ export function PagesClient() {
           }
           subEdit={subEdit}
           details={details}
-          selected={!reviewId && !privateOpen && selected?.id === p.id}
+          selected={!privateOpen && selected?.id === p.id}
           allPages={pages}
           descendantIdsOf={descendantIdsOf}
           draggable={mode === 'tree'}
@@ -663,7 +659,7 @@ export function PagesClient() {
           onSelect={() => {
             setSelectedId(p.id);
             if (!kids || kids <= 0) {
-              if (pid || reviewId) openPrivate(null);
+              if (pid) openPrivate(null);
               return;
             }
             if (mode === 'list') leaveSearchFor(p.id, p.id);
@@ -731,191 +727,169 @@ export function PagesClient() {
         // note in master-detail.tsx.
         listCollapsed={zen}
         list={
-          <div className="flex h-full min-h-0 flex-col">
-            {/* Members' pages waiting for approval (workspace review
-                pattern), above the tree; hidden while none wait. */}
-            <ItemReviewSections kind="page" selectedId={reviewId} onSelect={openReview} />
-            <div className="flex min-h-0 flex-1 flex-col">
-              {showTree ? (
-                <aside className="flex h-full flex-col bg-muted/20">
-                  <ItemTree
-                    kind="pages"
-                    adapter={pagesAdapter}
-                    selectedItemId={reviewId ? null : (privateOpen ?? selected?.id ?? null)}
-                    query={treeQuery}
-                    onQueryChange={setTreeQuery}
-                    searchPlaceholder="Search pages and folders…"
-                    // The root row: New back at the top level.
-                    rootLabel="All pages"
-                    actions={
-                      <NewButton
-                        onClick={() => {
-                          setInside(false);
-                          setOpen(true);
-                        }}
-                        title={
-                          treeFolder
-                            ? `New page in ${treeFolder.name}`
-                            : 'New page at the top level'
-                        }
-                      />
-                    }
-                    onOpenFolder={(f) => setTreeFolder(f)}
-                    // New, with that folder open: the page lands in it.
-                    newItemInFolder={{
-                      label: 'page',
-                      onCreate: (f) => {
-                        setTreeFolder(f);
-                        setInside(true);
-                        setOpen(true);
-                      },
+          showTree ? (
+            <aside className="flex h-full flex-col bg-muted/20">
+              <ItemTree
+                kind="pages"
+                adapter={pagesAdapter}
+                selectedItemId={privateOpen ?? selected?.id ?? null}
+                query={treeQuery}
+                onQueryChange={setTreeQuery}
+                searchPlaceholder="Search pages and folders…"
+                // The root row: New back at the top level.
+                rootLabel="All pages"
+                actions={
+                  <NewButton
+                    onClick={() => {
+                      setInside(false);
+                      setOpen(true);
                     }}
-                    onOpenItem={(item) => {
-                      if (item.state === 'private') {
-                        openPrivate(item.id);
-                        return;
-                      }
-                      setSelectedId(item.id);
-                      if (pid || reviewId) openPrivate(null);
-                    }}
-                    itemActions={(item) =>
-                      item.state === 'private' ? null : (
-                        <DropdownMenuItem
-                          className="text-destructive-ink focus:text-destructive-ink"
-                          onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
-                        >
-                          <Trash2 />
-                          Delete…
-                        </DropdownMenuItem>
-                      )
+                    title={
+                      treeFolder ? `New page in ${treeFolder.name}` : 'New page at the top level'
                     }
-                    // A share or a move changes the level the open page is read
-                    // at: its header badge, client thread and folder follow.
-                    onChanged={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
-                    onUnsupported={() => setTreeGone(true)}
                   />
-                </aside>
-              ) : (
-                <>
-                  <ItemListHeader
-                    search={searchInput}
-                    onSearch={setSearchInput}
-                    placeholder="Search pages…"
-                    actions={
-                      <NewButton
-                        onClick={() => {
-                          setInside(false);
-                          setOpen(true);
-                        }}
-                      />
-                    }
-                  >
-                    <SortMenu
-                      value={sort}
-                      labels={SORT_LABELS}
-                      onChange={(v) => go({ sort: v, page: 1 })}
-                    />
-                    {/* Rendered even with no tags: it also holds the density
+                }
+                onOpenFolder={(f) => setTreeFolder(f)}
+                // New, with that folder open: the page lands in it.
+                newItemInFolder={{
+                  label: 'page',
+                  onCreate: (f) => {
+                    setTreeFolder(f);
+                    setInside(true);
+                    setOpen(true);
+                  },
+                }}
+                onOpenItem={(item) => {
+                  if (item.state === 'private') {
+                    openPrivate(item.id);
+                    return;
+                  }
+                  setSelectedId(item.id);
+                  if (pid) openPrivate(null);
+                }}
+                itemActions={(item) =>
+                  item.state === 'private' ? null : (
+                    <DropdownMenuItem
+                      className="text-destructive-ink focus:text-destructive-ink"
+                      onSelect={() => setDeleteTarget({ id: item.id, title: item.title })}
+                    >
+                      <Trash2 />
+                      Delete…
+                    </DropdownMenuItem>
+                  )
+                }
+                // A share or a move changes the level the open page is read
+                // at: its header badge, client thread and folder follow.
+                onChanged={() => void queryClient.invalidateQueries({ queryKey: ['pages'] })}
+                onUnsupported={() => setTreeGone(true)}
+              />
+            </aside>
+          ) : (
+            <>
+              <ItemListHeader
+                search={searchInput}
+                onSearch={setSearchInput}
+                placeholder="Search pages…"
+                actions={
+                  <NewButton
+                    onClick={() => {
+                      setInside(false);
+                      setOpen(true);
+                    }}
+                  />
+                }
+              >
+                <SortMenu
+                  value={sort}
+                  labels={SORT_LABELS}
+                  onChange={(v) => go({ sort: v, page: 1 })}
+                />
+                {/* Rendered even with no tags: it also holds the density
                   switch, which is not about tags and must stay reachable on
                   a brain that has never used one. */}
-                    <TagFilter
-                      tags={tags}
-                      activeTag={activeTag}
-                      onSelect={(t) => go({ tag: t, page: 1, parent: null })}
-                      details={details}
-                      onDetailsChange={changeDetails}
-                      allLabel="All pages"
-                    />
-                    <StateFilter
-                      value={state}
-                      options={ADMIN_STATE_OPTIONS}
-                      onChange={(v) => go({ state: v, page: 1, parent: null })}
-                    />
-                    {activeTag && (
-                      <ClearFilter
-                        onClear={() => go({ tag: null, page: 1 })}
-                        title="Clear tag filter"
-                      />
-                    )}
-                  </ItemListHeader>
+                <TagFilter
+                  tags={tags}
+                  activeTag={activeTag}
+                  onSelect={(t) => go({ tag: t, page: 1, parent: null })}
+                  details={details}
+                  onDetailsChange={changeDetails}
+                  allLabel="All pages"
+                />
+                <StateFilter
+                  value={state}
+                  options={ADMIN_STATE_OPTIONS}
+                  onChange={(v) => go({ state: v, page: 1, parent: null })}
+                />
+                {activeTag && (
+                  <ClearFilter
+                    onClear={() => go({ tag: null, page: 1 })}
+                    title="Clear tag filter"
+                  />
+                )}
+              </ItemListHeader>
 
-                  {/* One DndContext for BOTH modes so `PageCard` can call the dnd
+              {/* One DndContext for BOTH modes so `PageCard` can call the dnd
                 hooks unconditionally; drag itself is off in search mode, where
                 a cross-level hit list has no level to re-parent within. Keyed
                 on the level so `placeholderData` can't leave the previous
                 level's cards on screen mid-navigation. */}
-                  <ItemListScroll key={drillId ?? 'root'} pending={navPending}>
-                    {/* The breadcrumb is itself a drop target, so it has to sit
+              <ItemListScroll key={drillId ?? 'root'} pending={navPending}>
+                {/* The breadcrumb is itself a drop target, so it has to sit
                   INSIDE the context — a `useDroppable` rendered outside one
                   registers with nothing and silently never fires. */}
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={pointerWithin}
-                      onDragStart={(e) => setActiveId(String(e.active.id))}
-                      onDragEnd={onDragEnd}
-                      onDragCancel={() => setActiveId(null)}
-                    >
-                      {drillParent && (
-                        <Breadcrumb
-                          parent={drillParent}
-                          backLabel={backParent ? backParent.title : 'all pages'}
-                          // The breadcrumb doubles as the un-nest target while
-                          // dragging — in a drilled level it is the "move up" gesture.
-                          dropActive={activeRow !== null && activeRow.parentId === drillParent.id}
-                          onBack={() => go({ parent: backParent?.id ?? null, page: 1 })}
-                        />
-                      )}
-                      {visiblePages.length === 0 ? (
-                        emptyState
-                      ) : (
-                        <>
-                          {/* Un-nest-to-root target — only at the top level, and only
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={pointerWithin}
+                  onDragStart={(e) => setActiveId(String(e.active.id))}
+                  onDragEnd={onDragEnd}
+                  onDragCancel={() => setActiveId(null)}
+                >
+                  {drillParent && (
+                    <Breadcrumb
+                      parent={drillParent}
+                      backLabel={backParent ? backParent.title : 'all pages'}
+                      // The breadcrumb doubles as the un-nest target while
+                      // dragging — in a drilled level it is the "move up" gesture.
+                      dropActive={activeRow !== null && activeRow.parentId === drillParent.id}
+                      onBack={() => go({ parent: backParent?.id ?? null, page: 1 })}
+                    />
+                  )}
+                  {visiblePages.length === 0 ? (
+                    emptyState
+                  ) : (
+                    <>
+                      {/* Un-nest-to-root target — only at the top level, and only
                         while dragging a page that actually has a parent. Deeper
                         levels use the breadcrumb instead. */}
-                          {drillId === null && activeRow && activeRow.parentId !== null && (
-                            <TopLevelDropZone />
-                          )}
-                          {renderCards()}
-                        </>
+                      {drillId === null && activeRow && activeRow.parentId !== null && (
+                        <TopLevelDropZone />
                       )}
-                      <DragOverlay dropAnimation={null}>
-                        {activeRow ? <DragGhost row={activeRow} /> : null}
-                      </DragOverlay>
-                    </DndContext>
-                  </ItemListScroll>
+                      {renderCards()}
+                    </>
+                  )}
+                  <DragOverlay dropAnimation={null}>
+                    {activeRow ? <DragGhost row={activeRow} /> : null}
+                  </DragOverlay>
+                </DndContext>
+              </ItemListScroll>
 
-                  <ListPager
-                    page={page}
-                    total={levelTotal}
-                    pageSize={levelPageSize}
-                    pending={navPending}
-                    onGo={(p) => go({ page: p })}
-                    noun={{ one: 'page', many: 'pages' }}
-                  />
-                </>
-              )}
-            </div>
-          </div>
+              <ListPager
+                page={page}
+                total={levelTotal}
+                pageSize={levelPageSize}
+                pending={navPending}
+                onGo={(p) => go({ page: p })}
+                noun={{ one: 'page', many: 'pages' }}
+              />
+            </>
+          )
         }
         // The measure owns the scroller: it has to sit INSIDE the centered
         // column, or the handle (pinned to the column's viewport height)
         // would scroll away with the page. 900px, not the 672px default: the
         // preview also holds the `xl:` outline rail (a 224px aside).
         detail={
-          reviewId ? (
-            <MeasurePane id="pages-preview" defaultSize="900px" minSize="480px">
-              <ItemReview
-                key={reviewId}
-                id={reviewId}
-                kind="page"
-                onDone={(opened) => {
-                  // Approved: it is a brain page now, with the same id.
-                  if (opened) setSelectedId(opened);
-                  openReview(null);
-                }}
-              />
-            </MeasurePane>
-          ) : privateOpen ? (
+          privateOpen ? (
             <MeasurePane id="pages-preview" defaultSize="900px" minSize="480px">
               <div className="relative h-full min-h-0">
                 <PrivateItemDetail

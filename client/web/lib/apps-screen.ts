@@ -6,8 +6,7 @@
  * /apps is the same folder view as Pages, Notes, Tables, Draw and Files: the
  * tree in the list column (search in `?q=`), the picked app in `?id=`, and
  * the app's own screen at /apps/<id> (Builder, Code, History, Activity and
- * the switches). A member's app (waiting for approval, or shared by members)
- * opens in the same pane, in `?review=`.
+ * the switches).
  */
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import type { AppDetail } from '@mantle/client-types';
@@ -28,31 +27,10 @@ export function appDetailQuery(id: string) {
   };
 }
 
-/** What the /apps pane shows: a brain app, or a member's app to review. */
-export type AppsSelection = { kind: 'app' | 'review'; id: string };
-
-/** The URL params a selection writes (the other one cleared). */
-export function selectionParams(sel: AppsSelection | null): {
-  id: string | null;
-  review: string | null;
-} {
-  return {
-    id: sel?.kind === 'app' ? sel.id : null,
-    review: sel?.kind === 'review' ? sel.id : null,
-  };
-}
-
-/** The selection the URL opens: `?review=` wins over `?id=`. */
-export function appsUrlSelection(params: Pick<URLSearchParams, 'get'>): AppsSelection | null {
-  const review = params.get('review')?.trim();
-  if (review) return { kind: 'review', id: review };
-  const id = appsUrlId(params);
-  return id ? { kind: 'app', id } : null;
-}
-
 /** Params the old /apps screens wrote that this one does not read: the paged
- *  list's `sort`, and its `page` once the tree is the list. */
-const LEGACY_ALWAYS = ['sort'] as const;
+ *  list's `sort`, the old member app review's `review` (gone in W5c), and
+ *  the list's `page` once the tree is the list. */
+const LEGACY_ALWAYS = ['sort', 'review'] as const;
 const LEGACY_IN_TREE = ['page'] as const;
 
 /**

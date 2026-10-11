@@ -47,8 +47,8 @@ export type TreeWorkspaceChange = {
   removedFrom: GrantWorkspaceRef[];
 };
 
-/** A change the confirm lists: a tree write's (workspaces), or a member
- *  review accept's (levels, until W5c). */
+/** A change the confirm lists: a tree write's (workspaces), or an Accept
+ *  into the brain's (levels: an admin's private item, until W6b). */
 export type VisibilityChange = TreeWorkspaceChange | TreeVisibilityChange;
 
 /** The brain's "this changes who can see items" refusal, either shape. */
@@ -56,7 +56,7 @@ export type VisibilityRefusal = {
   error: 'visibility';
   changes: VisibilityChange[];
   total: number;
-  /** A level refusal only (the review accept); never sent since W5b2. */
+  /** A level refusal only (an Accept); never sent since W5b2. */
   alsoEmbeds?: TreeVisibilityChange[];
   embedsTotal?: number;
 };

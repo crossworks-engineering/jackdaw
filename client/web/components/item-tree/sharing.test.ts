@@ -104,7 +104,7 @@ describe('visibilityRefusal, the tree (workspaces, contract 29)', () => {
   });
 });
 
-describe('visibilityRefusal, a review accept (levels, until W5c)', () => {
+describe('visibilityRefusal, an Accept of a private item (levels, until W6b)', () => {
   const change = { id: 'a', title: 'Plan', from: 'admin', to: 'client' };
 
   it('reads the brain’s refusal', () => {
