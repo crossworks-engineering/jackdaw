@@ -6,8 +6,8 @@
  * client) or nobody (a share-only peer), with a Write switch. Bound to the
  * owner, the owner can also allow risky tools by name. Every change saves at
  * once through PATCH /api/peers/:id; the brain checks the login and its role.
- * Binding to the owner a peer someone else made mints a new inbound token: the
- * answer carries it once, and it goes to the same one-time reveal as a rotate.
+ * Binding a peer to the owner may mint a new inbound token; the answer then
+ * carries it and the reveal shows it once.
  */
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -69,8 +69,10 @@ export function PeerAccessSection({
 
   const save = async (body: Record<string, unknown>) => {
     setSaving(true);
+    let saved = false;
     try {
       const answer = await apiSend<PeerPatchAnswer>(`/api/peers/${peerId}`, 'PATCH', body);
+      saved = true;
       // Before the reload: the token is shown once, so a failed list read must not lose it.
       const minted = revealPatchToken(answer, onRevealNew);
       const { peers } = await apiFetch<{ peers: (PeerAccess & { id: string })[] }>('/api/peers');
@@ -86,7 +88,8 @@ export function PeerAccessSection({
       }
       toast.success(minted ? 'Saved. New inbound token minted' : 'Saved');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save');
+      if (saved) toast.error('Saved, but the list could not reload');
+      else toast.error(err instanceof ApiError ? err.message : 'Could not save');
     } finally {
       setSaving(false);
     }

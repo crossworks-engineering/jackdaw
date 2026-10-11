@@ -1,8 +1,8 @@
 /**
  * The brain's answer to PATCH /api/peers/:id. Typed here: the route's shape is
- * not in @mantle/client-types. Binding a peer to the owner when someone else
- * made it mints a fresh inbound token: the brain answers it once, in plain
- * text, and the old token stops working. Every other change answers `{ ok }`.
+ * not in @mantle/client-types. Binding a peer to the owner may mint a new
+ * inbound token; the answer then carries it and the reveal shows it once. The
+ * old token stops working. Otherwise the answer is `{ ok }`.
  */
 export type PeerPatchAnswer = { ok: true; inboundToken?: string };
 
