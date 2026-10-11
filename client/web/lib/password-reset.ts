@@ -27,7 +27,7 @@ export function isNotAPasswordLogin(err: unknown): boolean {
 }
 
 export const NOT_A_PASSWORD_LOGIN =
-  'This login has no password to reset: a client signs in with a link from Settings > Logins.';
+  'This login has no password to reset. A client signs in with a code sent by email.';
 
 /** The toast for a failed reset. */
 export function resetPasswordErrorMessage(err: unknown): string {

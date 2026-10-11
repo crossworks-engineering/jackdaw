@@ -1,8 +1,8 @@
 /**
- * Sign-in by email code, the pure half (plan 15: a sign-in method for any
- * login without a password). On the sign-in page a person types their
- * email; the brain answers the same for every email and, when it is a login
- * that may use a code, mails an 8-digit code that works for 10 minutes in
+ * Sign-in by email code, the pure half (plan 15: the sign-in method of a
+ * CLIENT login, which has no password; the brain sends codes to client
+ * logins only). On the sign-in page a person types their email; the brain
+ * answers the same for every email and, when it is a client login, mails an 8-digit code that works for 10 minutes in
  * THIS browser (the request cookie the answer sets). The person types the
  * code and is signed in.
  *
@@ -64,7 +64,7 @@ export function emailAddressError(email: string): string | null {
 
 /** What the page says once a code was asked for, whoever asked. */
 export const EMAIL_CODE_SENT =
-  `If this email has a login, we sent it a code. It works for ` +
+  `If this email has a client login, we sent it a code. It works for ` +
   `${EMAIL_CODE_LIFETIME_MINUTES} minutes, in this browser.`;
 export const EMAIL_CODE_RATE_LIMITED = 'Too many attempts. Wait a minute, then try again.';
 const REQUEST_FAILED = 'Could not ask for a code. Try again.';

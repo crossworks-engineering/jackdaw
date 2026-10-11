@@ -37,9 +37,10 @@ const notice = (html: string) =>
 describe('EmailCodeFormView', () => {
   it('the email step: the email and Email me a code, and no code field', () => {
     const html = view();
-    expect(html).toContain('The email you sign in with. We send a sign-in code to it.');
+    expect(html).toContain('For client logins. We send a sign-in code to this email.');
     expect(html).toContain('Use your password');
-    expect(html).not.toMatch(/client/i);
+    // Codes go to client logins only (W5c contract): never "any login".
+    expect(html).not.toMatch(/any login|without a password/i);
     expect(html).toContain('id="email-code-email"');
     expect(html).toContain('type="email"');
     expect(html).toContain('Email me a code');
@@ -72,7 +73,8 @@ describe('EmailCodeFormView', () => {
     expect(html).toContain('Send a new code');
     expect(html).toContain('Use a different email');
     expect(html).toContain('Use your password');
-    expect(html).not.toMatch(/client/i);
+    // Codes go to client logins only (W5c contract): never "any login".
+    expect(html).not.toMatch(/any login|without a password/i);
     // The email step is gone.
     expect(html).not.toContain('id="email-code-email"');
   });

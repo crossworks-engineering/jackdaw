@@ -42,7 +42,7 @@ describe('emailCodeRequestOutcome', () => {
     // Conditional, never a confirmation that this email has a login, and
     // naming no kind of login.
     expect(EMAIL_CODE_SENT).toBe(
-      'If this email has a login, we sent it a code. It works for 10 minutes, in this browser.',
+      'If this email has a client login, we sent it a code. It works for 10 minutes, in this browser.',
     );
   });
 

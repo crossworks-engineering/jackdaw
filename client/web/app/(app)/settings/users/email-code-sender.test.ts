@@ -30,8 +30,11 @@ const CAP = 'The daily limit of 200 sign-in codes is reached.';
 describe('Sign-in codes by email', () => {
   it('a sender: its address, the folders kept out, the count, no banner', () => {
     const html = view(data());
-    expect(html).toContain('Any login without a password can ask for a code');
-    expect(html).not.toMatch(/client/i);
+    expect(html).toContain(
+      'Client logins have no password. They sign in with a code sent by email. Set who sends it.',
+    );
+    // Codes go to client logins only (W5c contract): never "any login".
+    expect(html).not.toMatch(/any login|without a password/i);
     expect(html).toMatch(/id="email-codes-sender"[^>]*>.*desk@example\.invalid/);
     expect(html).toContain(
       'Sent mail from this account is kept out of the brain: Sent, Sent Items.',

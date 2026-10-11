@@ -28,8 +28,8 @@ import {
 import { signInErrorMessage } from '@/lib/sign-in-error';
 
 /**
- * Sign in with an emailed code: the sign-in page's way in for a login
- * without a password. Two steps: the email, then the 8-digit code. The first
+ * Sign in with an emailed code: the sign-in page's way in for a client
+ * login (it has no password; the brain sends codes to client logins only). Two steps: the email, then the 8-digit code. The first
  * step has ONE way forward: the brain answers every email the same (it never
  * says whether one has a login), so the page does too, and moves on to the
  * code step whatever was typed. "Use your password" goes back to the
@@ -234,7 +234,7 @@ export function EmailCodeFormView({
               }
             />
             <FieldDescription id="email-code-email-hint">
-              The email you sign in with. We send a sign-in code to it.
+              For client logins. We send a sign-in code to this email.
             </FieldDescription>
             <FieldError id="email-code-email-error">{emailError}</FieldError>
           </Field>

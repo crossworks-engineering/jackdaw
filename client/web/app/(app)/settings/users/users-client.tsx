@@ -23,7 +23,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import type { MemberChatsResponse } from '@mantle/client-types';
+import type { MemberChatsResponse } from '@/lib/contract/member-apps';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { ListCard, ListCardMeta } from '@mantle/web-ui/ui/list-card';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -375,7 +375,7 @@ export function UsersClient() {
                       {EMAIL_CODE_TITLE}
                     </span>
                   </div>
-                  <ListCardMeta>For logins without a password</ListCardMeta>
+                  <ListCardMeta>For client logins</ListCardMeta>
                 </ListCard>
               </section>
             </div>
@@ -399,8 +399,8 @@ export function UsersClient() {
                 iconActions={
                   <HeaderInfoButton label="About sign-in by email code">
                     <p>
-                      A login without a password can ask for a code on the sign-in page. The brain
-                      mails it from the account picked here. The code works once, for 10 minutes.
+                      A client login asks for a code on the sign-in page. The brain mails it from
+                      the account set here. The code works once, for 10 minutes.
                     </p>
                   </HeaderInfoButton>
                 }

@@ -29,7 +29,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; error?: string; add?: string; session?: string }>;
 }) {
-  // Whether this brain mails sign-in codes: a login without a password
+  // Whether this brain mails sign-in codes: a client login (no password)
   // signs in with one, and the screen offers the way then.
   const [params, appearance, emailCodes, origin] = await Promise.all([
     searchParams,

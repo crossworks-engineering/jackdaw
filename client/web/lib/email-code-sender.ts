@@ -1,8 +1,8 @@
 /**
  * Settings > Users > Sign-in by email code, the pure half. An admin picks
  * the email account sign-in codes are mailed from; none means codes are off
- * (every login signs in with its password). Any login without a password
- * can sign in with a code. Nothing here fetches, so each wording is pinned
+ * (a client login then cannot sign in). Codes go to client logins only:
+ * they have no password. Nothing here fetches, so each wording is pinned
  * by a test (email-code-sender.test.ts).
  *
  * Server: GET and PUT /api/team-admin/clients/signin-sender, and (brains

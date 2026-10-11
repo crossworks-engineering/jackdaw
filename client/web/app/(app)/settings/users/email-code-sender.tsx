@@ -2,9 +2,9 @@
 
 /**
  * Settings > Users > Sign-in by email code: the email account sign-in codes
- * are mailed from. Any login without a password can ask for a code on the
- * sign-in page and sign in with it, once an admin picks a sender here. None:
- * codes are off, and the sign-in page offers no code.
+ * are mailed from. Client logins have no password: a client asks for a code
+ * on the sign-in page and signs in with it, once an admin picks a sender
+ * here. Codes go to client logins only. None: codes are off.
  *
  * Picking a sender keeps its sent mail out of the brain (the brain leaves
  * its sent-mail folders out of mail sync, and each code mail carries a
@@ -221,8 +221,7 @@ export function EmailCodeSenderView({
   return (
     <section className="space-y-3" aria-label="Sign-in by email code">
       <p className="text-sm text-muted-foreground">
-        Any login without a password can ask for a code by email on the sign-in page, and sign in
-        with it. Pick the account the codes are sent from.
+        Client logins have no password. They sign in with a code sent by email. Set who sends it.
       </p>
       <div className="space-y-3">
         {codesWorkerOff(data) ? (

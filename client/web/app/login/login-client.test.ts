@@ -10,8 +10,8 @@ vi.mock('next/navigation', () => ({
 const { LoginClient } = await import('./login-client');
 
 /**
- * The sign-in page's way in by email code (plan 15: for any login without a
- * password): a quiet link under the password form, shown only when the
+ * The sign-in page's way in by email code (plan 15: for client logins, which
+ * have no password): a quiet link under the password form, shown only when the
  * brain sends codes, and never on the first run or while adding a login.
  * No Staff / Client choice any more (W5c).
  */

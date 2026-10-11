@@ -103,7 +103,7 @@ export function LoginClient({
       .catch(() => undefined);
   }, [add]);
 
-  // Sign-in by email code (plan 15: for any login without a password). Same
+  // Sign-in by email code (plan 15: for client logins, which have no password). Same
   // origin only: the code's cookies live on the brain's origin, which is
   // known after mount.
   const [crossOrigin, setCrossOrigin] = useState(false);
