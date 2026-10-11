@@ -5,13 +5,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Loader2, SendHorizontal } from 'lucide-react';
-import type { MemberChatMessage } from '@mantle/client-types';
+import type { MemberChatMessage } from '@/lib/contract/member';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { cn } from '@mantle/web-ui/lib/utils';
-import { pollForPending, replyLanded, sendKey } from '@/lib/member-chat';
+import {
+  closedThreadText,
+  pollForPending,
+  replyLanded,
+  retryThreadRead,
+  sendKey,
+} from '@/lib/member-chat';
 
 const GIVE_UP_MS = 120_000;
 
@@ -73,6 +79,7 @@ export function ThreadChat({ config }: { config: ThreadChatConfig }) {
     queryKey: config.queryKey,
     queryFn: () => apiFetch<OwnThread>(config.path),
     enabled: config.enabled ?? true,
+    retry: retryThreadRead,
     refetchInterval: (q) =>
       config.pollMs(
         sendingRef.current ||
@@ -143,6 +150,17 @@ export function ThreadChat({ config }: { config: ThreadChatConfig }) {
     }
   };
 
+  // Chat not open: the screen's words, or the brain's when it refused the
+  // read (409). A state, not a failure: no Try again, and no retry.
+  const closed = closedThreadText(thread, config.closedText);
+  if (closed) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <p className="max-w-sm text-center text-sm text-muted-foreground">{closed}</p>
+      </div>
+    );
+  }
+
   if (thread.isError && !thread.data) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
@@ -150,14 +168,6 @@ export function ThreadChat({ config }: { config: ThreadChatConfig }) {
         <Button size="sm" variant="outline" onClick={() => void thread.refetch()}>
           Try again
         </Button>
-      </div>
-    );
-  }
-
-  if (thread.data && !thread.data.agent) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <p className="max-w-sm text-center text-sm text-muted-foreground">{config.closedText}</p>
       </div>
     );
   }

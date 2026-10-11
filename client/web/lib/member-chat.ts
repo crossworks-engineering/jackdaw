@@ -1,5 +1,5 @@
 import { ApiError } from '@mantle/web-ui/api-fetch';
-import type { MemberChatMessage } from '@mantle/client-types';
+import type { MemberChatMessage } from './contract/member';
 
 /**
  * Has the reply to a send landed? `known` is the thread's message ids from
@@ -68,4 +68,34 @@ export function memberChatRefusal(e: unknown): { message: string | null; reload:
     message: e instanceof Error ? e.message : 'Could not send that',
     reload: e instanceof ApiError && e.status === 409,
   };
+}
+
+/** Chat is not open: the Team workspace has no assistant. The brain's own
+ *  words: GET /api/member/chat answers `{ agent: null }`, and a send (or a
+ *  brain that refuses the read too) answers 409 with this text. */
+export const CHAT_NOT_OPEN_TEXT = 'Chat is not open yet: the Team workspace has no assistant.';
+
+/** A refused thread read that is a state, not a failure: a 409 (chat not
+ *  open). The brain's own words, else null. */
+export function closedChatText(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  return err.message.trim() || CHAT_NOT_OPEN_TEXT;
+}
+
+/** What the closed thread says, or null while it is open (or unknown): the
+ *  screen's own words when the brain sends no agent, the brain's words when
+ *  it refused the read with 409. */
+export function closedThreadText(
+  thread: { data?: { agent: unknown } | undefined; error: unknown },
+  closedText: string,
+): string | null {
+  if (thread.data) return thread.data.agent ? null : closedText;
+  return closedChatText(thread.error);
+}
+
+/** Retry a failed thread read once, but never a 4xx: chat not open (409),
+ *  gone (410) or refused stays that way, so a retry only loops. */
+export function retryThreadRead(failures: number, err: unknown): boolean {
+  if (err instanceof ApiError && err.status >= 400 && err.status < 500) return false;
+  return failures < 1;
 }

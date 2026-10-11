@@ -2,20 +2,21 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Minus } from 'lucide-react';
-import type { MemberChatThread as MemberChatThreadData } from '@mantle/client-types';
+import type { MemberChatThread as MemberChatThreadData } from '@/lib/contract/member';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AssistantDockToggle, useAssistantDock } from '@/components/assistant/assistant-dock';
+import { retryThreadRead } from '@/lib/member-chat';
 import { MEMBER_CHAT_KEY, MemberChat } from './member-chat';
 
 /**
  * A member's chat inside the admin assistant dock (member logins, Phase 3):
  * the same panel, with its three shapes (side column, movable window, full
- * display) and minimise, around the member's own thread with the team-level
- * agent (/api/member/chat). The admin-only parts of the owner thread are not
+ * display) and minimise, around the member's own thread with the Team
+ * workspace's assistant (/api/member/chat). The admin-only parts of the owner thread are not
  * here: no agent picker (members have one agent), no pinned-context strip,
  * pending questions, active runs or settings links.
  */
@@ -25,6 +26,7 @@ export function MemberChatThread() {
   const thread = useQuery({
     queryKey: MEMBER_CHAT_KEY,
     queryFn: () => apiFetch<MemberChatThreadData>('/api/member/chat'),
+    retry: retryThreadRead,
   });
   const agent = thread.data?.agent ?? null;
 

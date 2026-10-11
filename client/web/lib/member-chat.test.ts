@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { MemberChatMessage } from '@mantle/client-types';
+import type { MemberChatMessage } from './contract/member';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
+  CHAT_NOT_OPEN_TEXT,
   PENDING_POLL_MS,
+  closedChatText,
+  closedThreadText,
   memberChatRefusal,
+  retryThreadRead,
   pollForPending,
   replyLanded,
   sendKey,
@@ -102,5 +106,47 @@ describe('memberChatRefusal', () => {
       message: null,
       reload: false,
     });
+  });
+});
+
+/** Chat not open (workspaces W5c): the Team workspace has no assistant. The
+ *  thread shows the brain's own words, and a 409 is never retried. */
+describe('a closed chat', () => {
+  const notOpen = new ApiError(CHAT_NOT_OPEN_TEXT, 409, { error: CHAT_NOT_OPEN_TEXT });
+
+  it("shows the brain's message for a 409 read", () => {
+    expect(closedChatText(notOpen)).toBe(CHAT_NOT_OPEN_TEXT);
+    expect(closedThreadText({ data: undefined, error: notOpen }, 'Closed.')).toBe(
+      'Chat is not open yet: the Team workspace has no assistant.',
+    );
+    const other = new ApiError('The Team workspace is being set up.', 409);
+    expect(closedThreadText({ data: undefined, error: other }, 'Closed.')).toBe(
+      'The Team workspace is being set up.',
+    );
+  });
+
+  it('says the screen words when the brain sends no agent', () => {
+    expect(closedThreadText({ data: { agent: null }, error: null }, CHAT_NOT_OPEN_TEXT)).toBe(
+      CHAT_NOT_OPEN_TEXT,
+    );
+    expect(closedThreadText({ data: { agent: { name: 'A' } }, error: null }, 'x')).toBeNull();
+  });
+
+  it('is not closed for a failure that is not a 409 (the error card and Try again)', () => {
+    for (const err of [new ApiError('boom', 500), new TypeError('Failed to fetch'), null]) {
+      expect(closedThreadText({ data: undefined, error: err }, 'Closed.')).toBeNull();
+    }
+  });
+
+  it('never retries a 409 or another refusal, and a failure once', () => {
+    expect(retryThreadRead(0, notOpen)).toBe(false);
+    expect(retryThreadRead(0, new ApiError('Gone.', 410, { code: 'gone' }))).toBe(false);
+    expect(retryThreadRead(0, new ApiError('boom', 502))).toBe(true);
+    expect(retryThreadRead(1, new ApiError('boom', 502))).toBe(false);
+    expect(retryThreadRead(0, new TypeError('Failed to fetch'))).toBe(true);
+  });
+
+  it("a refused send shows the brain's message and reloads the thread", () => {
+    expect(memberChatRefusal(notOpen)).toEqual({ message: CHAT_NOT_OPEN_TEXT, reload: true });
   });
 });
