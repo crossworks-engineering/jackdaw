@@ -234,8 +234,8 @@ function GrantAccessPanel({
   const toast = useToast();
   const qc = useQueryClient();
   const shell = useShellWorkspaces();
-  // An app's MCP access is set by an Admin user only (W6b: the brain refuses
-  // mcpAccess from anyone else).
+  // An app's MCP access is an Admin user's only (W6b fix round: the brain
+  // answers 403 admin-only to anyone else): hidden for any other login.
   const adminUser = useIsAdminUser();
   const adminWsId = shell?.workspaces.find((w) => w.isAdmin)?.id ?? null;
   const moderated = new Set(shell?.workspaces.filter((w) => w.moderator).map((w) => w.id));

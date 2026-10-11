@@ -145,8 +145,15 @@ describe('GrantAccessView for a Moderator', () => {
     expect(out).toContain('aria-label="MCP access"');
   });
 
-  it('MCP access reads On or Off for a login that is not an Admin user (W6b)', () => {
+  it('MCP access is hidden for a login that is not an Admin user (W6b fix round: 403 admin-only)', () => {
     const out = render(view({ app: { mcpAccess: true } }), { type: 'app', mcpSwitch: false });
+    expect(out).not.toContain(APP_MCP_LABEL);
+    expect(out).not.toContain('aria-label="MCP access"');
+    expect(out).not.toContain('>On</span>');
+  });
+
+  it('an Admin user who does not manage the app reads MCP access as On or Off', () => {
+    const out = render(view({ app: { mcpAccess: true }, mayManage: false }), { type: 'app' });
     expect(out).toContain(APP_MCP_LABEL);
     expect(out).not.toContain('aria-label="MCP access"');
     expect(out).toContain('>On</span>');

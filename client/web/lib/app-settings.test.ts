@@ -16,6 +16,12 @@ describe('hasAppSettings', () => {
     expect(hasAppSettings(app({ mcpAccess: true }))).toBe(false);
   });
 
+  it('is false for a login that is not an Admin user (W6b fix round: 403 admin-only)', () => {
+    expect(hasAppSettings(app({ dataReadOnly: false }), false)).toBe(false);
+    expect(hasAppSettings(app({ authorLevel: 'team' }), false)).toBe(false);
+    expect(hasAppSettings(app({ dataReadOnly: false }), true)).toBe(true);
+  });
+
   it('is true when Trust its tools has something to say', () => {
     expect(hasAppSettings(app({ authorLevel: 'team' }))).toBe(true);
     expect(hasAppSettings(app({ authorLevel: 'admin', authorCeilingSeen: true }))).toBe(true);

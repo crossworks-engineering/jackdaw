@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   APP_TRUST_CONFIRM,
   APP_TRUST_OFF_HINT,
+  DELETED_APPS_NOTE,
+  DELETED_APP_HELD_TEXT,
   appAuthorLevel,
+  deletedAppLine,
   deletedAppRestorePath,
   showsTrustSwitch,
 } from './space-apps';
@@ -37,5 +40,27 @@ describe('the trash of brain apps', () => {
   it('builds the restore path of a deleted app', () => {
     const id = '11111111-2222-4333-8444-555555555555';
     expect(deletedAppRestorePath(id)).toBe(`/api/apps/deleted/${id}/restore`);
+  });
+
+  it('a held app (purgeAfter null) waits for the brain owner, with no day (W6b fix round)', () => {
+    const day = (iso: string) => `day ${iso}`;
+    expect(deletedAppLine({ purgeAfter: null, hasData: true }, day)).toBe(DELETED_APP_HELD_TEXT);
+    expect(deletedAppLine({ purgeAfter: null, hasData: false }, day)).toBe(
+      `${DELETED_APP_HELD_TEXT} No data was kept.`,
+    );
+    expect(deletedAppLine({ purgeAfter: null, hasData: true }, day)).not.toMatch(/\bdays?\b/);
+  });
+
+  it('an owner delete shows its last day', () => {
+    const day = (iso: string) => `day ${iso}`;
+    expect(deletedAppLine({ purgeAfter: 'X', hasData: true }, day)).toBe('Restore until day X.');
+    expect(deletedAppLine({ purgeAfter: 'X', hasData: false }, day)).toBe(
+      'Restore until day X. No data was kept.',
+    );
+  });
+
+  it('says it with no dash', () => {
+    expect(DELETED_APP_HELD_TEXT).not.toMatch(DASHES);
+    expect(DELETED_APPS_NOTE).not.toMatch(DASHES);
   });
 });

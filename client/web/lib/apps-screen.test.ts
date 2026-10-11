@@ -67,10 +67,11 @@ describe('copy', () => {
       expect(s).not.toMatch(/[–—]/);
   });
 
-  it('a member delete names no purge and no days (W6b owner decision)', () => {
+  it('a member delete: the trash, only the owner deletes it for good, no days (W6b fix round)', () => {
     for (const s of [MEMBER_APP_DELETE_CONFIRM, MEMBER_APP_DELETED_TOAST]) {
-      expect(s).not.toMatch(/\bdays?\b|purge|for good|Recently deleted/i);
+      expect(s).not.toMatch(/\bdays?\b|purge|Recently deleted|An Admin user can restore/i);
       expect(s).toMatch(/trash/);
+      expect(s).toMatch(/Only the brain owner can delete it for good\./);
     }
   });
 });
