@@ -7,7 +7,6 @@
  *   - With admin: the member's own items an admin took over.
  *   - By me (accepted): what the member wrote that an admin accepted into
  *     the brain, at any level.
- *   - Client requests: clients' submitted items, read only.
  * Each reads the brain's one item list with that filter
  * (GET /api/member/items?state=, item-list alignment P4), and a row opens in
  * the workspace's own detail pane.
@@ -18,7 +17,6 @@ import { updatedAgo } from '@mantle/web-ui/lib/format-datetime';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { ItemIcon } from '@/components/item-list/item-card';
 import { ReviewSections, type ReviewSection } from '@/components/review/workspace-review-sections';
-import { authorName } from '@/lib/item-author';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { MEMBER_ITEM_SECTIONS, fetchMemberItems, srcOf } from '@/lib/member-items';
 import { LIBRARY_CLIENT_TITLE, libraryLevelBadge, type SpaceKind } from '@/lib/member-space';
@@ -55,9 +53,7 @@ export function useMemberSectionLists(kind: SpaceKind): MemberSectionList[] {
 }
 
 function meta(row: MemberItemRow): string {
-  const when = updatedAgo(row.updatedAt);
-  if (row.source === 'client-request' && row.author) return `${authorName(row.author)} · ${when}`;
-  return when;
+  return updatedAgo(row.updatedAt);
 }
 
 export function MemberItemSections({

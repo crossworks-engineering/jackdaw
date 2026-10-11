@@ -102,10 +102,9 @@ describe('WorkspacesView', () => {
   });
 });
 
-describe('WorkspacesClient for a member', () => {
-  it('never offers the Admin parts, even with areas left in the cache', async () => {
+describe('WorkspacesClient for a login with no areas (a Moderator)', () => {
+  it('never offers the Admin parts', async () => {
     const { WorkspacesClient } = await import('./workspaces-client');
-    const { ViewerRoleProvider } = await import('@/components/member/viewer-role');
     const { workspaceKey } = await import('@/lib/workspaces');
     const team = ws('w-field', 'Field crew', {
       me: { member: true, moderator: true },
@@ -119,16 +118,13 @@ describe('WorkspacesClient for a member', () => {
       resources: [],
       hasHistory: false,
     });
-    // A stale admin shell in this browser must not count for a member.
-    client.setQueryData(['shell'], { areas: ['users', 'assistants', 'connectors'] });
+    // One shell for every login (W5c): the areas are the shell's.
+    client.setQueryData(['shell'], { areas: [] });
     client.setQueryData(['workspaces', 'connector-options'], [{ slug: 'crm', name: 'CRM' }]);
     const html = renderToStaticMarkup(
       createElement(QueryClientProvider, {
         client,
-        children: createElement(ViewerRoleProvider, {
-          role: 'member',
-          children: createElement(ToastProvider, null, createElement(WorkspacesClient)),
-        }),
+        children: createElement(ToastProvider, null, createElement(WorkspacesClient)),
       }),
     );
     expect(html).toContain('Field crew');

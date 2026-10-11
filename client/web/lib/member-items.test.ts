@@ -71,11 +71,7 @@ describe('the request and the URL', () => {
   });
 
   it('asks only for filters the brain takes (the sections above the tree)', () => {
-    expect(MEMBER_ITEM_SECTIONS.map((s) => s.state)).toEqual([
-      'with-admin',
-      'by-me',
-      'client-requests',
-    ]);
+    expect(MEMBER_ITEM_SECTIONS.map((s) => s.state)).toEqual(['with-admin', 'by-me']);
     for (const s of MEMBER_ITEM_SECTIONS) expect(MEMBER_ITEM_FILTERS).toContain(s.state);
   });
 
@@ -123,12 +119,8 @@ describe('fetchMemberItems', () => {
     expect(h.calls).toEqual(['/api/member/items?kind=page']);
   });
 
-  it('on an older brain merges the four source lists newest first, once each item', async () => {
+  it('on an older brain merges the three source lists newest first, once each item', async () => {
     h.answers.set('/api/member/space', { items: [space('own', 5)], total: 1 });
-    h.answers.set('/api/member/team-drafts', {
-      items: [space('mate', 7, { sharing: 'team', reviewState: 'submitted' })],
-      total: 1,
-    });
     h.answers.set('/api/member/library', {
       items: [
         {
@@ -171,20 +163,17 @@ describe('fetchMemberItems', () => {
     const res = await fetchMemberItems({ kind: 'page', state: 'all', page: 1 });
     expect(res.items.map((r) => [r.id, r.source, r.pill])).toEqual([
       ['lib', 'library', null],
-      ['mate', 'team', 'submitted'],
       ['own', 'own', 'private'],
       ['acc', 'accepted', null],
     ]);
     const priv = await fetchMemberItems({ kind: 'page', state: 'private', page: 1 });
     expect(priv.items.map((r) => r.id)).toEqual(['own']);
+    // Team drafts went in W5c (the brain answers 410): never asked.
+    expect(h.calls.some((c) => c.includes('team-drafts'))).toBe(false);
   });
 
-  it('asks the brain for client requests, and a brain before C5 (400) shows none', async () => {
+  it('a 400 is an error, for every filter', async () => {
     h.answers.set('/api/member/items', new ApiError('Invalid query.', 400));
-    const res = await fetchMemberItems({ kind: 'page', state: 'client-requests', page: 1 });
-    expect(h.calls).toEqual(['/api/member/items?kind=page&state=client-requests']);
-    expect(res.items).toEqual([]);
-    // Any other filter's 400 is still an error.
     await expect(fetchMemberItems({ kind: 'page', state: 'private', page: 1 })).rejects.toThrow(
       'Invalid query.',
     );

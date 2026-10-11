@@ -121,11 +121,11 @@ describe('the confirm for another login (client tier audit U11)', () => {
 describe('the screens that offer it', () => {
   const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 
-  it('the account menu (admins and members, rail and phone bar) confirms, then signs out here too', () => {
+  it('the account menu (every login, rail and phone bar) confirms, then signs out here too', () => {
     const menu = src('../components/layout/rail/profile-menu.tsx');
     expect(EVERYWHERE_CONFIRM).toBe('This signs you out on every device, this one too.');
     expect(menu).toContain('<MonitorOff className="size-4" /> Sign out everywhere');
-    expect(menu).toContain('{everywhereConfirmText(client)}');
+    expect(menu).toContain('{everywhereConfirmText(false)}');
     expect(menu).toMatch(
       /const outcome = await signOutEverywhere\(\);[\s\S]*?return;\s*\}\s*await signOut\(\);/,
     );

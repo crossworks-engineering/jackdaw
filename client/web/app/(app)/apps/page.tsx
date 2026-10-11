@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { SetPageTitle } from '@/components/layout/page-title';
-import { RoleSwitch } from '@/components/member/viewer-role';
+import { RoleSwitch } from '@/components/layout/shell-role';
 import { MemberApps } from '@/components/member/member-apps';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { AppsClient } from './apps-client';

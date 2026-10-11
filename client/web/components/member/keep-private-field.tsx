@@ -5,11 +5,14 @@ import { Lock } from 'lucide-react';
 import { Label } from '@mantle/web-ui/ui/label';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { KEEP_PRIVATE_HELP } from '@/lib/admin-private';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 
 /**
  * "Keep private" in an owner create flow (member logins Phase 7). On, the
  * new item goes into the admin's own private space instead of the brain.
- * Off by default; the flow reads `checked` when it creates.
+ * Off by default; the flow reads `checked` when it creates. An Admin user's
+ * only (the private space answers no one else), so for anyone else it
+ * renders nothing and `checked` stays off.
  */
 export function KeepPrivateField({
   checked,
@@ -21,6 +24,8 @@ export function KeepPrivateField({
   disabled?: boolean;
 }) {
   const id = useId();
+  const isAdminUser = useIsAdminUser();
+  if (!isAdminUser) return null;
   return (
     <div className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2">
       <div className="min-w-0 space-y-0.5">

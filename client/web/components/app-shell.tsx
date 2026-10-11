@@ -1,24 +1,11 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  destinationAfterSignIn,
-  isAdminLoginRefusal,
-  isClientLoginRefusal,
-  isLoginRefusal,
-  isMemberLoginRefusal,
-  memberHome,
-  setClientHint,
-  setMemberHint,
-} from '@/lib/member-destination';
-import { resolveShellRole, shellProbeFailure, type ViewerRole } from '@/lib/shell-role';
+import { shellProbeFailure } from '@/lib/shell-probe';
+import { hasArea, shellAreasOf, shellRoleOf } from '@/lib/workspaces';
 import { usePathname, useRouter } from 'next/navigation';
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
-import type { MemberShell as MemberShellData } from '@mantle/client-types';
-import type { ClientShell as ClientShellData } from '@mantle/client-types';
-import { clientShellPollMs } from '@/lib/client-portal';
-import { ClientPortal } from '@/components/client/client-portal';
 import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { useFonts } from '@mantle/web-ui/font-provider';
 import { COLOR_THEMES } from '@mantle/web-ui/lib/themes';
@@ -34,7 +21,6 @@ import {
   NAV_W_MIN,
 } from '@/lib/nav-width';
 import { recordActiveIdentity } from '@mantle/web-ui/session-registry';
-import { setSwitchLanding } from '@mantle/web-ui/session-switch';
 import { refreshAllSessions } from '@mantle/web-ui/token-refresh';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { NeatSurface } from '@/components/neat-surface';
@@ -59,16 +45,13 @@ import { TourProvider } from '@/components/tour/tour-provider';
 import { TourOverlay } from '@/components/tour/tour-overlay';
 import { PendingQuestionWatcher } from '@/components/pending/question-watcher';
 import { DesktopBridge } from '@/components/desktop/desktop-bridge';
-import { NeedsYouBanner } from '@/components/needs-you/needs-you-banner';
 import { ProviderAlertBanner } from '@/components/needs-you/provider-alert-banner';
-import { NeedsYouWatcher } from '@/components/needs-you/needs-you-watcher';
 import { PickMode } from '@/components/assistant/pick-mode';
 import { ZenModeContext } from '@/components/layout/zen-mode';
 import { SearchPalette } from '@/components/search/search-palette';
 import { WorkspaceSwitcher } from '@/components/workspaces/workspace-switcher';
-import { MemberSidebarNav } from '@/components/member/member-sidebar-nav';
-import { ShellRoleGate, ViewerRoleProvider } from '@/components/member/viewer-role';
-import { MEMBER_MAX_UPLOAD_BYTES } from '@/lib/member-space';
+import { AreaGate } from '@/components/workspaces/area-gate';
+import { ShellGate } from '@/components/layout/shell-screens';
 import { clearRescues, rescueOwnerFor, setRescueOwner, sweepRescues } from '@/lib/member-rescue';
 import { noteRoute } from '@/lib/last-opened';
 import { LastOpenedLoginProvider } from '@/components/last-opened/last-opened';
@@ -158,35 +141,27 @@ type ShellData = {
   /** The Admin areas this login may manage (plan 1.4, requireArea); absent
    *  before W5a, which means all of them. */
   areas?: string[];
+  /** What the brain says this login is (W5c contract); absent from a brain
+   *  before it, which answered admins only. Picks where screens read their
+   *  data until phase W6a (components/layout/shell-role.tsx). */
+  role?: string;
+  /** The login's id (W5c contract): a member's rescue copies key by it. */
+  loginId?: string | null;
   /** Short-lived asset-access token for browser-native srcs in detached mode
    *  (see lib/asset-url). Absent/ignored same-origin. */
   assetToken?: string;
 };
 
-/** The two shell probes, run once above the providers (the role decides
- *  whether the shell renders at all) and handed to the frame. */
-type ShellProbes = {
-  shell: UseQueryResult<ShellData>;
-  member: UseQueryResult<MemberShellData>;
-  client: UseQueryResult<ClientShellData>;
-};
-
 /**
- * Who this shell is for, asked of the brain (client logins C0, C2). The seed
- * is a hint or nothing: an admin is NEVER assumed. Seeded as a member, the
- * member shell answers (and a member-route `admin-login` reloads without the
- * hint); seeded as a client, the client shell answers (and its `admin-login`
- * or `member-login` reloads without the hint); otherwise /api/shell answers,
- * and only its 200 makes an admin. Its `member-login` refusal reloads as the
- * member; its `client-login` refusal is the client portal, with no
- * navigation at all, so a client can never loop between /login and here.
+ * The shell, asked of the brain once (phase W5c: one shell for every login).
+ * GET /api/shell answers every signed-in login; what it may manage comes
+ * from its `areas`. A 401 is apiFetch's (on its way to /login); any other
+ * failure is the failure card's (lib/shell-probe.ts).
  */
-function useShellRole(seed: 'member' | 'client' | null) {
-  const isMemberSeed = seed === 'member';
+function useShell() {
   const shell = useQuery({
     queryKey: ['shell'],
     queryFn: () => apiFetch<ShellData>('/api/shell'),
-    enabled: seed === null,
     // This payload carries the asset token, and that token EXPIRES — it rides
     // in the URL, so the brain keeps its life short (two hours, "one working
     // session"). Nothing refreshed it: this query ran once per mount, so a tab
@@ -204,119 +179,27 @@ function useShellRole(seed: 'member' | 'client' | null) {
     // is about. Focus covers the one you came back to; the interval covers the
     // one that has been open in front of you for hours. It is one small
     // request, and it is the one carrying a credential with a hard expiry.
-    // Not once the brain refused this login here (a client or a member): the
-    // answer is final, and asking on every focus only repeats the refusal
-    // (client tier audit U8).
-    refetchOnWindowFocus: (query) => !isLoginRefusal(query.state.error),
-    // A member or client login is refused here for good (403): retrying only
-    // delays what the shell does about it.
-    retry: (count, err) => !isLoginRefusal(err) && count < 1,
-  });
-  // The member's shell: brand, identity and the asset token, from the member
-  // route (every admin route refuses a member).
-  const member = useQuery({
-    queryKey: ['member-shell'],
-    queryFn: () => apiFetch<MemberShellData>('/api/member/shell'),
-    enabled: isMemberSeed,
-    refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),
-    refetchOnWindowFocus: (query) => !isLoginRefusal(query.state.error),
-    retry: (count, err) => !isLoginRefusal(err) && count < 1,
-  });
-  // A client login is not a member: drop a stale member hint so the
-  // middleware stops routing it as one, and keep the client hint so it
-  // routes the client. No reload and no redirect: the gate below shows the
-  // client portal on whatever path this is.
-  const isClient =
-    seed === 'client' || isClientLoginRefusal(shell.error) || isClientLoginRefusal(member.error);
-  // The client's shell: brand, identity and the asset token, from the client
-  // route (every admin and member route refuses a client). Asked only once
-  // this is a client; polled, since a client has no realtime: an ended
-  // session answers 401 on the next ask, which goes to sign-in.
-  const client = useQuery({
-    queryKey: ['client-shell'],
-    queryFn: () => apiFetch<ClientShellData>('/api/client/shell'),
-    enabled: isClient,
-    refetchInterval: (query) => clientShellPollMs(query.state.data?.assetToken),
     refetchOnWindowFocus: true,
-    retry: (count, err) => !isLoginRefusal(err) && count < 1,
+    retry: 1,
   });
-  // A wrong hint either way reloads as what the brain says this login is: a
-  // full reload, so the layout renders the right shell from the first paint.
-  // The hint cookie also lets the middleware keep a member off admin paths.
-  // Only the brain's own refusal counts (a proxy 403 names nobody, and
-  // reacting to one flipped the hint back and forth in a reload loop), and
-  // the reload keeps the deep link wherever a member may open it.
-  useEffect(() => {
-    if (isMemberLoginRefusal(shell.error)) {
-      setMemberHint(true);
-      window.location.replace(memberHome(window.location.pathname + window.location.search));
-    }
-  }, [shell.error]);
-  useEffect(() => {
-    if (isAdminLoginRefusal(member.error)) {
-      setMemberHint(false);
-      window.location.reload();
-    }
-  }, [member.error]);
-  // A client hint the brain contradicts: a full reload without it, and the
-  // member hint when the brain named a member, as the member's first paint.
-  useEffect(() => {
-    if (isAdminLoginRefusal(client.error) || isMemberLoginRefusal(client.error)) {
-      setClientHint(false);
-      setMemberHint(isMemberLoginRefusal(client.error));
-      window.location.reload();
-    }
-  }, [client.error]);
-  const clientConfirmed =
-    isClient && !isAdminLoginRefusal(client.error) && !isMemberLoginRefusal(client.error);
-  useEffect(() => {
-    if (!clientConfirmed) return;
-    setMemberHint(false);
-    setClientHint(true);
-  }, [clientConfirmed]);
-  const shellLoaded = shell.isSuccess;
-  useEffect(() => {
-    if (!shellLoaded) return;
-    setMemberHint(false);
-    setClientHint(false);
-  }, [shellLoaded]);
-  const memberLoaded = member.isSuccess;
-  useEffect(() => {
-    if (!memberLoaded) return;
-    setMemberHint(true);
-    setClientHint(false);
-  }, [memberLoaded]);
-
-  const input = {
-    seed,
-    shell: {
-      hasData: shell.data !== undefined,
-      error: shell.error,
-      // Offline: TanStack parks the query instead of failing it, so without
-      // this the shell sat on Loading, with no way out, until the network came
-      // back (the same trap build-card.tsx names).
-      paused: shell.fetchStatus === 'paused',
-    },
-    member: { hasData: member.data !== undefined, error: member.error },
-    client: { hasData: client.data !== undefined, error: client.error },
-  };
-  const role = resolveShellRole(input);
-  const failure = shellProbeFailure(input, role);
+  const failure = shellProbeFailure({
+    hasData: shell.data !== undefined,
+    error: shell.error,
+    // Offline: TanStack parks the query instead of failing it, so without
+    // this the shell sat on Loading, with no way out, until the network came
+    // back (the same trap build-card.tsx names).
+    paused: shell.fetchStatus === 'paused',
+  });
   return {
-    role,
-    probeFailed: failure !== null,
+    data: shell.data,
     failure,
     retrying: shell.fetchStatus === 'fetching',
     retry: () => void shell.refetch(),
-    probes: { shell, member, client } satisfies ShellProbes,
   };
 }
 
 export function AppShell(props: {
   contextCard: React.ReactNode;
-  /** Seeded from the hint cookies by the layout ('member', 'client', or null
-   *  to ask the brain); confirmed here. Never admin. */
-  role: 'member' | 'client' | null;
   initialNavCollapsed?: boolean;
   /** Rail widths in px, seeded from cookies for the same no-flash reason. */
   initialNavWidth?: number;
@@ -324,52 +207,35 @@ export function AppShell(props: {
   initialActivityCollapsed?: boolean;
   children: React.ReactNode;
 }) {
-  const { role, probeFailed, failure, retrying, retry, probes } = useShellRole(props.role);
-  // A switch to another login held here lands the way a sign-in does: the
-  // brain is asked, with the new credential, whether it is a member or a
-  // client, and the role hints follow, so the page load after the switch
-  // opens the right surface instead of reloading its way there. Registered
-  // here, above the role gate, so the client portal's menu has it too.
-  useEffect(() => setSwitchLanding(destinationAfterSignIn), []);
+  const { data, failure, retrying, retry } = useShell();
   // Providers only — the frame itself lives in <ShellFrame/>, which sits INSIDE
   // AssistantDockProvider and HelpRailProvider so it can read both dock states
   // (each open column publishes its width to the frame's CSS vars). None of it
-  // mounts until the brain has confirmed an admin or a member. A client gets
-  // the client portal in place of all of it (client logins C2).
+  // mounts until the shell has answered: a neutral screen until then.
   return (
-    <ViewerRoleProvider role={role}>
-      <ShellRoleGate
-        role={role}
-        probeFailed={probeFailed}
-        failure={failure}
-        retrying={retrying}
-        onRetry={retry}
-        client={<ClientPortal query={probes.client} />}
-      >
-        {(confirmed) => (
-          <ToastProvider>
-            <PageTitleProvider>
-              <UploadProvider>
-                <AssistantDockProvider>
-                  <HelpRailProvider>
-                    <TourProvider>
-                      <ShellFrame {...props} role={confirmed} probes={probes} />
-                    </TourProvider>
-                  </HelpRailProvider>
-                </AssistantDockProvider>
-              </UploadProvider>
-            </PageTitleProvider>
-          </ToastProvider>
-        )}
-      </ShellRoleGate>
-    </ViewerRoleProvider>
+    <ShellGate ready={data !== undefined} failure={failure} retrying={retrying} onRetry={retry}>
+      {data !== undefined ? (
+        <ToastProvider>
+          <PageTitleProvider>
+            <UploadProvider>
+              <AssistantDockProvider>
+                <HelpRailProvider>
+                  <TourProvider>
+                    <ShellFrame {...props} shell={data} />
+                  </TourProvider>
+                </HelpRailProvider>
+              </AssistantDockProvider>
+            </UploadProvider>
+          </PageTitleProvider>
+        </ToastProvider>
+      ) : null}
+    </ShellGate>
   );
 }
 
 function ShellFrame({
   contextCard,
-  role,
-  probes,
+  shell,
   initialNavCollapsed = false,
   initialNavWidth = NAV_W_DEFAULT,
   initialActivityWidth = ACTIVITY_W_DEFAULT,
@@ -377,21 +243,23 @@ function ShellFrame({
   children,
 }: {
   contextCard: React.ReactNode;
-  /** Confirmed by the brain: the gate renders the frame for nothing else. */
-  role: Extract<ViewerRole, 'admin' | 'member'>;
-  probes: ShellProbes;
+  /** GET /api/shell's answer: the gate renders the frame for nothing else. */
+  shell: ShellData;
   initialNavCollapsed?: boolean;
   initialNavWidth?: number;
   initialActivityWidth?: number;
   initialActivityCollapsed?: boolean;
   children: React.ReactNode;
 }) {
-  // A MEMBER login runs in this same shell (member logins, the real app
-  // shell) with the admin-only chrome switched off: no usage card, update
-  // banner, activity column, search palette, event stream, approvals,
-  // assistant launchers. Each of those would only collect 403s. The tour
-  // stays: a member gets their own (lib/tour/tours.ts).
-  const isMember = role === 'member';
+  // Every login runs in this one shell (phase W5c). The owner chrome (usage
+  // card, update and provider banners, the activity column, the question
+  // watcher, the search palette) needs the settings area: without
+  // it each would only collect 403s. A brain that names no areas leaves them
+  // all on. The role (the brain's) picks only the assistant: the owner one
+  // for an admin, a member's own chat for a member, none for a client, until
+  // phase W7.
+  const manages = hasArea(shellAreasOf(shell), 'settings');
+  const role = shellRoleOf(shell);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(initialNavCollapsed);
@@ -447,14 +315,6 @@ function ShellFrame({
   const { open: helpOpen } = useHelpRail();
   const helpW = helpOpen ? '22rem' : '0rem';
 
-  // Shell chrome (avatar, pending-approvals badge, onboarding gate) from
-  // the probes the role came from (useShellRole above the providers): the
-  // same queries, so the chrome and the gate read one answer.
-  const shellQuery = probes.shell;
-  const memberShellQuery = probes.member;
-  // The frame renders for a confirmed admin only when /api/shell answered,
-  // so the owner-only banners below have their answer already.
-  const shellSettledAsAdmin = !isMember && shellQuery.data !== undefined;
   // Big-save rescue copies (lib/member-rescue.ts) are a login's private
   // drafts at rest: expired ones go at boot, the rest are kept under the
   // login the shell names and all go at sign-out.
@@ -465,7 +325,7 @@ function ShellFrame({
       clearRescues();
     });
   }, []);
-  const rescueWho = rescueOwnerFor(isMember, memberShellQuery.data, shellQuery.data);
+  const rescueWho = rescueOwnerFor(shell);
   useEffect(() => {
     setRescueOwner(rescueWho);
   }, [rescueWho]);
@@ -475,28 +335,24 @@ function ShellFrame({
   useEffect(() => {
     noteRoute(pathname);
   }, [pathname]);
-  // What the chrome shows (brand, identity, theme, fonts, asset token) comes
-  // from whichever shell answered; the two share those fields.
-  const brand = isMember ? memberShellQuery.data : shellQuery.data;
-  // The member shell types avatar parts loosely; both carry the same shape.
-  const userAvatar = (brand?.avatar ?? null) as ShellData['avatar'];
+  // What the chrome shows (brand, identity, theme, fonts, asset token).
+  const brand = shell;
+  const userAvatar = brand.avatar ?? null;
   // Hand the uploader the server's cap as soon as it is known, so an oversized
   // file is refused before a byte is sent, with the real number in the message.
   const { setMaxUploadBytes } = useUploads();
-  const maxUploadBytes = isMember
-    ? MEMBER_MAX_UPLOAD_BYTES
-    : (shellQuery.data?.maxUploadBytes ?? null);
+  const maxUploadBytes = shell.maxUploadBytes ?? null;
   useEffect(() => {
     setMaxUploadBytes(maxUploadBytes);
   }, [maxUploadBytes, setMaxUploadBytes]);
-  const pendingApprovals = shellQuery.data?.pendingApprovals ?? 0;
+  const pendingApprovals = shell.pendingApprovals ?? 0;
 
   // First-run gate: a logged-in but not-yet-onboarded user goes to the wizard
   // (outside the (app) group, so no redirect loop). Moved here from the server
   // layout so the shell makes no in-process DB read.
   useEffect(() => {
-    if (shellQuery.data && !shellQuery.data.onboarded) router.replace('/onboarding');
-  }, [shellQuery.data, router]);
+    if (!shell.onboarded) router.replace('/onboarding');
+  }, [shell.onboarded, router]);
 
   // Colour-theme sync: the DB copy is the cross-browser source of truth; the
   // localStorage the pre-paint script read is only this browser's cache. Adopt
@@ -507,8 +363,7 @@ function ShellFrame({
   const adoptedTheme = useRef(false);
   useEffect(() => {
     if (adoptedTheme.current) return;
-    const stored = brand?.colorTheme;
-    if (brand === undefined) return;
+    const stored = brand.colorTheme;
     adoptedTheme.current = true;
     if (!stored || stored === activeColorTheme) return;
     if (!COLOR_THEMES.some((t) => t.id === stored)) return;
@@ -524,7 +379,6 @@ function ShellFrame({
   const adoptedFonts = useRef(false);
   useEffect(() => {
     if (adoptedFonts.current) return;
-    if (brand === undefined) return;
     adoptedFonts.current = true;
     adoptServerFonts(
       {
@@ -545,8 +399,8 @@ function ShellFrame({
   // Publish the asset-access token so `assetUrl()` can sign browser-native srcs
   // (<img>/<iframe>/download) for a detached client. No-op same-origin.
   useEffect(() => {
-    setAssetToken(brand?.assetToken);
-  }, [brand?.assetToken]);
+    setAssetToken(brand.assetToken);
+  }, [brand.assetToken]);
 
   // Same-origin bearer→cookie upgrade, once per shell load. Owners signed in
   // before the origin predicate was fixed hold ONLY a localStorage bearer, and
@@ -555,8 +409,8 @@ function ShellFrame({
   // before any asset-bearing screen. No-op cross-origin and for cookie
   // sessions. See upgradeOwnerCookie.
   useEffect(() => {
-    if (!isMember) void upgradeOwnerCookie();
-  }, [isMember]);
+    void upgradeOwnerCookie();
+  }, []);
 
   // Bearer upkeep, piggybacked on the shell boot round-trip: every login held
   // on this device is rotated when <7d from expiry, and the active one learns
@@ -564,19 +418,13 @@ function ShellFrame({
   // no email until now). No-op for a cookie-only login, which holds no bearer.
   // See @mantle/web-ui/token-refresh and session-registry.
   useEffect(() => {
-    // Whichever shell answered: an admin's /api/shell or a member's
-    // /api/member/shell. Both name the login, and both are bearers worth
-    // keeping alive.
-    if (!brand) return;
     recordActiveIdentity({
       email: brand.email,
       displayName: brand.displayName,
       siteName: brand.siteName,
-      // The role the brain confirmed for this frame (never assumed).
-      role,
     });
     void refreshAllSessions();
-  }, [brand, role]);
+  }, [brand]);
 
   // Close the drawer on navigation.
   useEffect(() => {
@@ -625,7 +473,7 @@ function ShellFrame({
       const typing =
         t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
       if (k === 'k') {
-        if (isMember) return; // no palette: brain search is admin-only
+        if (!manages) return; // no palette: brain search is the settings area's
         // Toggle from anywhere except a real editor/input — unless the input is
         // the palette's own, where ⌘K should still close it.
         if (typing && !t.closest('[data-slot=command-input-wrapper]')) return;
@@ -649,16 +497,16 @@ function ShellFrame({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isMember]);
+  }, [manages]);
 
   // Who the profile row names. Undefined until /api/shell lands, at which point
   // the row fills in — it renders a neutral "Signed in" in the meantime rather
   // than reserving an empty slot.
   const identity = {
-    displayName: brand?.displayName ?? null,
-    email: brand?.email ?? null,
+    displayName: brand.displayName ?? null,
+    email: brand.email ?? null,
     avatar: userAvatar,
-    photoVersion: brand?.avatarPhotoVersion ?? null,
+    photoVersion: brand.avatarPhotoVersion ?? null,
   };
 
   /**
@@ -673,64 +521,48 @@ function ShellFrame({
   const body = (onNavigate?: () => void, collapsed = false, inDrawer = false) => (
     <>
       <BrandBlock
-        siteName={brand?.siteName ?? null}
-        peerName={shellQuery.data?.peerName ?? null}
-        logoVersion={brand?.logoVersion ?? null}
-        logoDarkVersion={brand?.logoDarkVersion ?? null}
+        siteName={brand.siteName ?? null}
+        peerName={brand.peerName ?? null}
+        logoVersion={brand.logoVersion ?? null}
+        logoDarkVersion={brand.logoDarkVersion ?? null}
         inDrawer={inDrawer}
         onNavigate={onNavigate}
-        // A member's shell has no workspaces route yet (members move to this
-        // shell in W5c); the switcher renders nothing for a brain that sends
-        // none.
-        switcher={isMember ? null : <WorkspaceSwitcher onNavigate={onNavigate} />}
+        // The switcher renders nothing for a brain that sends no workspaces.
+        switcher={<WorkspaceSwitcher onNavigate={onNavigate} />}
       />
       <RailControls
         identity={identity}
         onSearchClick={
-          isMember
-            ? undefined
-            : () => {
+          manages
+            ? () => {
                 onNavigate?.();
                 setSearchOpen(true);
               }
+            : undefined
         }
         onNavigate={onNavigate}
-        member={isMember}
       />
 
       {/* `relative` is load-bearing: the menu backdrop is absolutely positioned
           and would otherwise paint OVER this in-flow content regardless of DOM
           order. Same reason the brand block and the toolbar carry it. */}
       <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
-        {isMember ? null : contextCard}
+        {manages ? contextCard : null}
         {/* Above the update chip: incompatibility explains WHY things are
             failing right now, an available update is merely nice to have. */}
         <ContractBanner onNavigate={onNavigate} />
-        {isMember ? (
-          <MemberSidebarNav onNavigate={onNavigate} collapsed={collapsed} />
-        ) : (
-          <>
-            {/* Only once /api/shell has answered, and never for a member
-                refusal: the banner's route answers a member with 401, which
-                bounces to /login before the shell can switch to the member
-                view (a member whose hint cookie is gone). An admin whose
-                shell failed for any other reason still sees it. */}
-            {shellSettledAsAdmin ? <UpdateBanner onNavigate={onNavigate} /> : null}
-            {/* Embeddings or extraction failing (no credits, a refused key):
-                red, above what waits, because the brain is degraded now.
-                Same gate and same live answer as the notice below. */}
-            {shellSettledAsAdmin ? <ProviderAlertBanner onNavigate={onNavigate} /> : null}
-            {/* What waits for an admin (Review, Requests), live. Same gate:
-                the count route refuses a member. */}
-            {shellSettledAsAdmin ? <NeedsYouBanner onNavigate={onNavigate} /> : null}
-            <SidebarNav
-              pendingApprovals={pendingApprovals}
-              onNavigate={onNavigate}
-              collapsed={collapsed}
-            />
-            <ChangelogLink onNavigate={onNavigate} />
-          </>
-        )}
+        {/* The owner banners: the settings area's (their routes refuse
+            anyone else). */}
+        {manages ? <UpdateBanner onNavigate={onNavigate} /> : null}
+        {/* Embeddings or extraction failing (no credits, a refused key):
+            red, above what waits, because the brain is degraded now. */}
+        {manages ? <ProviderAlertBanner onNavigate={onNavigate} /> : null}
+        <SidebarNav
+          pendingApprovals={pendingApprovals}
+          onNavigate={onNavigate}
+          collapsed={collapsed}
+        />
+        <ChangelogLink onNavigate={onNavigate} />
       </div>
 
       <RailToolbar
@@ -743,7 +575,6 @@ function ShellFrame({
         // appears dead. Not wired to navigation like the other bands' —
         // launchers don't navigate — hence its own prop.
         onLaunch={onNavigate}
-        member={isMember}
       />
     </>
   );
@@ -770,7 +601,7 @@ function ShellFrame({
             // offered on the expanded rail, so a drag can never fight a toggle.
             '--nav-w': zen ? '0px' : navCollapsed ? '3.5rem' : `${navWidth}px`,
             '--activity-w':
-              zen || isMember ? '0px' : activityCollapsed ? '3.5rem' : `${activityWidth}px`,
+              zen || !manages ? '0px' : activityCollapsed ? '3.5rem' : `${activityWidth}px`,
             '--assistant-w': assistantW,
             '--help-w': helpW,
           } as React.CSSProperties
@@ -780,19 +611,18 @@ function ShellFrame({
         {zen ? null : (
           <MobileBar
             identity={identity}
-            siteName={brand?.siteName ?? null}
-            logoVersion={brand?.logoVersion ?? null}
-            logoDarkVersion={brand?.logoDarkVersion ?? null}
+            siteName={brand.siteName ?? null}
+            logoVersion={brand.logoVersion ?? null}
+            logoDarkVersion={brand.logoDarkVersion ?? null}
             onMenuClick={() => setMobileOpen(true)}
-            onSearchClick={isMember ? undefined : () => setSearchOpen(true)}
-            member={isMember}
-            switcher={isMember ? null : <WorkspaceSwitcher variant="bar" />}
+            onSearchClick={manages ? () => setSearchOpen(true) : undefined}
+            switcher={<WorkspaceSwitcher variant="bar" />}
           />
         )}
 
         {/* Global search palette — one instance for the whole shell, summoned by
             ⌘K or the header magnifier. */}
-        {isMember ? null : <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />}
+        {manages ? <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} /> : null}
 
         {/* The rail. Full window height now that nothing brackets it: it owns
             the brand, the account/theme/search controls, the nav and the
@@ -841,8 +671,9 @@ function ShellFrame({
           </SheetContent>
         </Sheet>
 
-        {/* Right live-activity column (admin only: it polls the brain's activity) */}
-        {zen || isMember ? null : (
+        {/* Right live-activity column (the settings area's: it polls the
+            brain's activity) */}
+        {zen || !manages ? null : (
           <LiveColumn
             collapsed={activityCollapsed}
             onToggle={toggleActivity}
@@ -880,40 +711,40 @@ function ShellFrame({
           className="fixed inset-0 top-[var(--top-bar-h)] overflow-y-auto scrollbar-thin md:left-[var(--nav-w)] lg:right-[calc(var(--activity-w)+var(--assistant-w)+var(--help-w))]"
         >
           <Suspense fallback={null}>
-            <LastOpenedLoginProvider login={rescueWho}>{children}</LastOpenedLoginProvider>
+            <LastOpenedLoginProvider login={rescueWho}>
+              {/* One check for every screen: a typed link to a screen this
+                  login may not manage says so, not a screen of 403s. */}
+              <AreaGate>{children}</AreaGate>
+            </LastOpenedLoginProvider>
           </Suspense>
         </main>
 
         {/* The full assistant as a content-area overlay — fills the same box as
-            <main>, above every route, summoned from anywhere by the bubble/⌘I. */}
-        {/* A member chats in the same dock (member logins, Phase 3): the
-            panel renders the member's own thread. Everything else here is
-            admin-only. */}
-        {isMember ? <AssistantPanel member /> : null}
+            <main>, above every route, summoned from anywhere by the bubble/⌘I.
+            A member chats in the same dock with its own thread; a client has
+            no chat in W5c. */}
+        {role === 'admin' ? (
+          <AssistantPanel />
+        ) : role === 'member' ? (
+          <AssistantPanel member />
+        ) : null}
+        {/* Help reads the owner help route: an admin's in W5c. */}
+        {role === 'admin' ? <HelpRail /> : null}
 
         {/* The guided tour — a spotlight and a card above everything, only
-            when a tour is running (MANTLE_TOUR once per browser, or ?tour=;
-            a member gets the member tour once instead). See components/tour. */}
+            when a tour is running (MANTLE_TOUR once per browser, or ?tour=).
+            See components/tour. */}
         <TourOverlay />
 
-        {isMember ? null : (
-          <>
-            <AssistantPanel />
-            <HelpRail />
+        {/* Marker pick mode — highlights markable rows + intercepts their clicks
+            while picking; renders nothing otherwise. It hands to the owner
+            assistant: an admin's. */}
+        {role === 'admin' ? <PickMode /> : null}
 
-            {/* Marker pick mode — highlights markable rows + intercepts their clicks
-            while picking; renders nothing otherwise. */}
-            <PickMode />
-
-            {/* Headless: toasts a blocked run's question the moment it arrives, with
+        {/* Headless: toasts a blocked run's question the moment it arrives, with
             an "Answer" action that opens the assistant. Renders nothing. */}
-            <PendingQuestionWatcher />
-            <DesktopBridge />
-            {/* Headless: never blind to work waiting (toast, tab title and
-            favicon, browser notification opt-in, desktop dock). */}
-            {shellSettledAsAdmin ? <NeedsYouWatcher /> : null}
-          </>
-        )}
+        {manages ? <PendingQuestionWatcher /> : null}
+        <DesktopBridge />
 
         {/* Upload dock — floats in the bottom-right corner of the content area,
             which now runs to the bottom of the window. Inside the shell so it

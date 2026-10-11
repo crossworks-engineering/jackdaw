@@ -49,7 +49,7 @@ export function SpaceItemView({
   const admin = isAdminSpace(api);
   // A client's own item reads its bytes from the client routes (C5).
   const client = isClientSpace(api);
-  const treeServesPages = useReaderTreeServes('member', 'pages');
+  const treeServesPages = useReaderTreeServes('pages');
   const { row, body } = item;
   switch (body.type) {
     case 'page': {

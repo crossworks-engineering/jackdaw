@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TreeFolder, TreeFolderPage, TreeItem } from '@mantle/web-ui/types/tree';
 import {
-  acceptedSince,
   afterFor,
   afterForStep,
   canNestFolder,
@@ -13,11 +12,9 @@ import {
   isOnTheWayTo,
   liveFolder,
   mergeFolderPages,
-  ownDraftIds,
   pickedAfterMove,
   rangeOfItems,
   refreshFor,
-  submittedDrafts,
   type CachedFolderPages,
   type FolderLoad,
   type TreeRow,
@@ -425,41 +422,6 @@ describe('liveFolder (the member tree’s New and Upload target)', () => {
       { folderId: null, ok: true, notFound: false, pages: [page([])] },
     ];
     expect(liveFolder(cache, top)).toBeNull();
-  });
-});
-
-describe('a submitted draft that an admin accepted', () => {
-  const draft = (id: string, state: TreeItem['state'], source: TreeItem['source'] = 'own') => ({
-    ...item(id),
-    title: `T${id}`,
-    state,
-    source,
-  });
-  const page = (items: TreeItem[]): TreeFolderPage => ({
-    kind: 'notes',
-    folder: null,
-    crumbs: [],
-    folders: [],
-    items,
-    sort: 'updated',
-    nextCursor: null,
-  });
-
-  it('lists only own drafts that are with an admin', () => {
-    const p = page([draft('a', 'submitted'), draft('b', 'draft'), draft('c', 'submitted', 'team')]);
-    expect([...submittedDrafts([p])]).toEqual([['a', 'Ta']]);
-    expect([...ownDraftIds([p])].sort()).toEqual(['a', 'b']);
-  });
-
-  it('reports one that left and is no draft anywhere else', () => {
-    const before = submittedDrafts([page([draft('a', 'submitted'), draft('b', 'submitted')])]);
-    const after = submittedDrafts([page([draft('b', 'submitted')])]);
-    expect(acceptedSince(before, after, new Set())).toEqual([{ id: 'a', title: 'Ta' }]);
-  });
-
-  it('says nothing of one still a draft (recalled, or listed elsewhere)', () => {
-    const before = submittedDrafts([page([draft('a', 'submitted')])]);
-    expect(acceptedSince(before, new Map(), new Set(['a']))).toEqual([]);
   });
 });
 

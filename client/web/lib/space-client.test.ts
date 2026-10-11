@@ -90,10 +90,9 @@ describe('spaceClient: one client, two bases (member logins Phase 7)', () => {
     expect(calls.map((c) => c.body)).toEqual(member);
   });
 
-  it('accept posts the submission accept body to the admin item', async () => {
-    const input = { audience: 'team' as const, parentPageId: null, folderPath: 'files.docs' };
-    await adminSpace.accept('i1', input);
-    expect(calls).toEqual([{ method: 'POST', url: '/api/admin/space/i1/accept', body: input }]);
+  it('the admin client has no Accept or Give back (W5c: 410)', () => {
+    expect('accept' in adminSpace).toBe(false);
+    expect('giveBack' in adminSpace).toBe(false);
   });
 
   it('the admin client has nothing that reaches another person', () => {
@@ -106,7 +105,6 @@ describe('spaceClient: one client, two bases (member logins Phase 7)', () => {
 
   it('no admin call ever reaches /api/member', async () => {
     await driveOwnSpace(adminSpace);
-    await adminSpace.accept('i1', { audience: 'admin' });
     expect(calls.length).toBeGreaterThan(0);
     for (const c of calls) expect(c.url.startsWith('/api/admin/')).toBe(true);
   });

@@ -162,19 +162,16 @@ describe('resolveMemberSource', () => {
     expect(asked).toEqual(['mine']);
   });
 
-  it('opens a teammate draft in Team drafts and a Library item in the Library', async () => {
-    const team = found(['team']);
-    await expect(resolveMemberSource(team.probe)).resolves.toBe('team');
-    expect(team.asked).toEqual(['mine', 'team']);
-    const lib = found(['library']);
+  it('opens a Library item in the Library, and never asks Team drafts (W5c: 410)', async () => {
+    const lib = found(['library', 'team']);
     await expect(resolveMemberSource(lib.probe)).resolves.toBe('library');
-    expect(lib.asked).toEqual(['mine', 'team', 'library']);
+    expect(lib.asked).toEqual(['mine', 'library']);
   });
 
   it('opens an item the member wrote and an admin accepted, last', async () => {
     const acc = found(['accepted']);
     await expect(resolveMemberSource(acc.probe)).resolves.toBe('accepted');
-    expect(acc.asked).toEqual(['mine', 'team', 'library', 'accepted']);
+    expect(acc.asked).toEqual(['mine', 'library', 'accepted']);
     // At team level it is in the Library too: the Library wins.
     const both = found(['library', 'accepted']);
     await expect(resolveMemberSource(both.probe)).resolves.toBe('library');
@@ -187,9 +184,9 @@ describe('resolveMemberSource', () => {
   });
 
   it('stops at any other failure and falls back to Mine', async () => {
-    const down = found(['library'], { source: 'team', err: new TypeError('Failed to fetch') });
+    const down = found(['accepted'], { source: 'library', err: new TypeError('Failed to fetch') });
     await expect(resolveMemberSource(down.probe)).resolves.toBe('mine');
-    expect(down.asked).toEqual(['mine', 'team']);
+    expect(down.asked).toEqual(['mine', 'library']);
   });
 });
 
@@ -210,7 +207,6 @@ describe('resolveMemberItem (a link to an item: /n/<id>, /notes/<id>, ...)', () 
 
   it.each([
     ['mine', 'page'],
-    ['team', 'draw'],
     ['library', 'note'],
     ['accepted', 'table'],
     ['library', 'file'],

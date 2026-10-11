@@ -1,10 +1,9 @@
 /**
  * The five kinds a member works with, and everything the client says about
  * each: its screen, its names and its emoji. The ONE map (audit M2): the
- * home, the workspace, the review dialog, the nav and the route guard read
- * it. The kind list itself is the brain's (@mantle/client-types). Plain data
- * on purpose: middleware reads the paths, so no React or icon import here
- * (the nav's icons sit in member-nav.ts).
+ * home, the workspace and the review dialog read it. The kind list itself is
+ * the brain's (@mantle/client-types). Plain data on purpose: no React or
+ * icon import here.
  */
 import { MEMBER_ITEM_KINDS, type MemberItemKind } from '@mantle/client-types/member-kinds';
 

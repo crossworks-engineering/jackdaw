@@ -47,7 +47,30 @@ export function hasArea(areas: readonly string[] | null | undefined, area: Area)
   return areas == null ? true : areas.includes(area);
 }
 
-const AREA_PATHS: ReadonlyArray<[prefix: string, area: Area]> = [
+/**
+ * THE table of which area each screen needs (phase W5c: one shell for every
+ * login). A row is a path prefix, matched as whole segments (`/settings/users`
+ * covers `/settings/users/x`, not `/settings/usersx`); the first match wins,
+ * so the narrower rows sit above `/settings`. `null`: open to every login.
+ * `/` matches the home only. A path no row names needs `settings`: in W5c
+ * every login that is not an admin holds no area, so for it only the `null`
+ * rows are open.
+ */
+export const PATH_AREAS: ReadonlyArray<readonly [prefix: string, area: Area | null]> = [
+  // Open to every login: the home, the workspace screens, and the screens
+  // about the login itself.
+  ['/', null],
+  ['/files', null],
+  ['/notes', null],
+  ['/pages', null],
+  ['/draw', null],
+  ['/tables', null],
+  ['/apps', null],
+  ['/n', null],
+  ['/settings/workspaces', null],
+  ['/settings/mcp', null],
+  ['/settings/api-access', null],
+  // Settings screens with an area of their own.
   ['/settings/users', 'users'],
   ['/settings/agents', 'assistants'],
   ['/settings/ai-workers', 'assistants'],
@@ -57,24 +80,45 @@ const AREA_PATHS: ReadonlyArray<[prefix: string, area: Area]> = [
   ['/settings/connectors', 'connectors'],
   ['/settings/tool-groups', 'connectors'],
   ['/settings/tools', 'connectors'],
-  ['/settings/mcp', 'connectors'],
   ['/settings/peers', 'connectors'],
   ['/settings/keys', 'keys'],
-  ['/settings/api-access', 'keys'],
+  // Every other settings screen.
+  ['/settings', 'settings'],
+  // The brain's own screens: whoever manages the brain's settings.
+  ['/journal', 'settings'],
+  ['/inbox', 'settings'],
+  ['/recall', 'settings'],
+  ['/formulas', 'settings'],
+  ['/events', 'settings'],
+  ['/contacts', 'settings'],
+  ['/secrets', 'settings'],
+  ['/docs', 'settings'],
+  ['/models', 'settings'],
+  ['/pending', 'settings'],
+  ['/assistant', 'settings'],
+  ['/nodes', 'settings'],
+  ['/heartbeats', 'settings'],
+  ['/studio', 'settings'],
+  ['/dev-tools', 'settings'],
+  ['/runners', 'settings'],
+  ['/runs', 'settings'],
+  ['/sandboxes', 'settings'],
+  ['/traces', 'settings'],
+  ['/debug', 'settings'],
+  ['/changelog', 'settings'],
+  ['/tasks', 'settings'],
 ];
 
-/**
- * The area a settings path needs, or null when it needs none. The Workspaces
- * list needs none: every login sees the workspaces it is in, and a Moderator
- * manages theirs. Any other settings screen is the `settings` area.
- */
+function underPrefix(pathname: string, prefix: string): boolean {
+  if (prefix === '/') return pathname === '/';
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** The area a path needs (PATH_AREAS), or null when every login may open it. */
 export function areaForPath(pathname: string): Area | null {
-  if (pathname !== '/settings' && !pathname.startsWith('/settings/')) return null;
-  if (pathname === '/settings/workspaces' || pathname.startsWith('/settings/workspaces/')) {
-    return null;
-  }
-  for (const [prefix, area] of AREA_PATHS) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return area;
+  const path = pathname.split(/[?#]/)[0] || '/';
+  for (const [prefix, area] of PATH_AREAS) {
+    if (underPrefix(path, prefix)) return area;
   }
   return 'settings';
 }
@@ -380,6 +424,34 @@ export function shellWorkspacesOf(
 export function shellAreasOf(shell: { areas?: unknown } | null | undefined): string[] | undefined {
   const raw = shell?.areas;
   return Array.isArray(raw) ? raw.filter((a): a is string => typeof a === 'string') : undefined;
+}
+
+/** What the brain says a login is (GET /api/shell `role`, W5c contract).
+ *  The data a screen reads still depends on it until phase W6a scopes the
+ *  owner routes. */
+export type ShellRole = 'admin' | 'member' | 'client';
+
+/**
+ * The login's role from a loaded shell: null with no shell yet. A brain that
+ * sends no role answered /api/shell for an admin only, so that is 'admin'. A
+ * role this build does not know reads as 'client' (fail closed: the screens
+ * that read nothing).
+ */
+export function shellRoleOf(shell: { role?: unknown } | null | undefined): ShellRole | null {
+  if (!shell) return null;
+  const role = shell.role;
+  if (role === undefined || role === null) return 'admin';
+  return role === 'admin' || role === 'member' ? role : 'client';
+}
+
+/**
+ * Whether a loaded shell names an Admin user, the one rule for the admin
+ * private rows (personal spaces, until phase W6b): the brain's role 'admin'
+ * (a brain that sends no role: everyone it answered). /api/admin/space*
+ * answers admins only. False for no shell at all.
+ */
+export function isAdminUserShell(shell: { role?: unknown } | null | undefined): boolean {
+  return shellRoleOf(shell) === 'admin';
 }
 
 /** The nav without the screens the login may not manage (plan 7.1: screens

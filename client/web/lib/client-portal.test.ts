@@ -236,18 +236,6 @@ describe('the portal offline (audit B27)', () => {
     expect(clientPortalView({ data: { role: 'client' }, fetchStatus: 'paused' })).toBe('ready');
     expect(clientPortalView({ fetchStatus: 'fetching' })).toBe('loading');
   });
-
-  it('the portal draws the failure card for offline, never the loading screen', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { fileURLToPath } = await import('node:url');
-    const portal = readFileSync(
-      fileURLToPath(new URL('../components/client/client-portal.tsx', import.meta.url)),
-      'utf8',
-    );
-    expect(portal).toMatch(
-      /case 'offline':\s*return \(\s*<RoleProbeFailedScreen\s+fullScreen\s+client\s+failure="offline"/,
-    );
-  });
 });
 
 describe('the portal stays fresh (audit B27)', () => {
@@ -273,22 +261,6 @@ describe('the portal stays fresh (audit B27)', () => {
     expect(isNewShellAnswer(0, 1000)).toBe(false);
     expect(isNewShellAnswer(1000, 1000)).toBe(false);
     expect(isNewShellAnswer(1000, 61_000)).toBe(true);
-  });
-
-  it('the portal refreshes on each new shell answer and on window focus', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { fileURLToPath } = await import('node:url');
-    const portal = readFileSync(
-      fileURLToPath(new URL('../components/client/client-portal.tsx', import.meta.url)),
-      'utf8',
-    );
-    expect(portal).toContain('useFreshList(query.dataUpdatedAt);');
-    expect(portal).toMatch(
-      /if \(isNewShellAnswer\(last\.current, dataUpdatedAt\)\) void refreshClientPortal\(queryClient\);/,
-    );
-    expect(portal).toMatch(
-      /const onFocus = \(\) => void refreshClientPortal\(queryClient\);\s*window\.addEventListener\('focus', onFocus\);/,
-    );
   });
 });
 

@@ -1,5 +1,5 @@
 import { PageDetailClient } from './page-detail-client';
-import { RoleSwitch } from '@/components/member/viewer-role';
+import { RoleSwitch } from '@/components/layout/shell-role';
 import { MemberGoToList } from '@/components/member/member-go-to-list';
 
 /**

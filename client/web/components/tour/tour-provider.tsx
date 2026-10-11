@@ -15,8 +15,8 @@ import {
   type TourMemory,
   type TourStep,
 } from '@/lib/tour/model';
-import { toursFor } from '@/lib/tour/tours';
-import { useViewerRole } from '@/components/member/viewer-role';
+import { tourById as builtInTourById } from '@/lib/tour/tours';
+import { useShellRole } from '@/components/layout/shell-role';
 
 /**
  * The guided tour's state: which tour, which step, and where its target is on
@@ -115,12 +115,14 @@ export function TourProvider({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  // A member knows only the member tour; an admin, the deployment's tours.
-  const role = useViewerRole();
-  const known = React.useMemo(() => toursFor(role, runtimeTour()), [role]);
+  // The deployment's tours walk the owner screens: an admin's (the brain's
+  // role). Any other login knows no tour, so a ?tour= link starts nothing
+  // instead of pushing it to screens it may not open.
+  const admin = useShellRole() === 'admin';
+  const autoTour = React.useMemo(() => (admin ? runtimeTour() : null), [admin]);
   const tourById = React.useCallback(
-    (id: string): Tour | null => (tours ? (tours[id] ?? null) : known.byId(id)),
-    [tours, known],
+    (id: string): Tour | null => (tours ? (tours[id] ?? null) : admin ? builtInTourById(id) : null),
+    [tours, admin],
   );
   const [state, setState] = React.useState<{ tour: Tour; index: number } | null>(null);
   const [rect, setRect] = React.useState<Rect | null>(null);
@@ -148,7 +150,7 @@ export function TourProvider({
     })();
     const id = decideAutoStart({
       urlTour,
-      envTour: known.autoTour,
+      envTour: autoTour,
       pathname,
       known: (candidate) => tourById(candidate) !== null,
       firstRoute: (candidate) => tourById(candidate)?.steps[0]?.route ?? null,
@@ -158,7 +160,7 @@ export function TourProvider({
     // Re-decided on every route change on purpose: the deployment tour waits
     // for its first screen, and a visitor who deep-linked elsewhere reaches
     // it by navigating. Once started, `start` is idempotent for that tour.
-  }, [start, tourById, known, pathname]);
+  }, [start, tourById, autoTour, pathname]);
 
   const active = React.useMemo<TourActive | null>(
     () => (state ? { ...state, step: state.tour.steps[state.index]! } : null),

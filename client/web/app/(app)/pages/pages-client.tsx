@@ -97,6 +97,7 @@ import {
   usePrivateOpen,
   type AdminListState,
 } from '@/components/item-list/admin-private-rows';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { mergeSortedRows } from '@/components/item-list/merge-rows';
 import { useCardDetails } from '@/components/item-list/use-card-details';
 import { TagInput } from '@/components/tag-input';
@@ -208,6 +209,9 @@ export function PagesClient() {
   // Which items: all (default), the brain's, or this admin's private ones
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
+  // Only an Admin user has a private space (phase W5c: one shell): anyone
+  // else asks for the brain's items, with no State filter.
+  const isAdminUser = useIsAdminUser();
   const { pid, openPrivate } = usePrivateOpen();
 
   // The item tree when this brain serves it for pages (folder phase 7,
@@ -242,7 +246,7 @@ export function PagesClient() {
       if (activeTag) qs.set('tag', activeTag);
       if (sort !== 'edited') qs.set('sort', sort);
       if (page > 1) qs.set('page', String(page));
-      qs.set('state', state);
+      if (isAdminUser) qs.set('state', state);
       if (ws) qs.set('ws', ws);
       return apiFetch<PagesListResponse>(`/api/pages?${qs.toString()}`).then((r) =>
         noteListAnswer(r, ws),
@@ -815,11 +819,13 @@ export function PagesClient() {
                   onDetailsChange={changeDetails}
                   allLabel="All pages"
                 />
-                <StateFilter
-                  value={state}
-                  options={ADMIN_STATE_OPTIONS}
-                  onChange={(v) => go({ state: v, page: 1, parent: null })}
-                />
+                {isAdminUser ? (
+                  <StateFilter
+                    value={state}
+                    options={ADMIN_STATE_OPTIONS}
+                    onChange={(v) => go({ state: v, page: 1, parent: null })}
+                  />
+                ) : null}
                 {activeTag && (
                   <ClearFilter
                     onClear={() => go({ tag: null, page: 1 })}

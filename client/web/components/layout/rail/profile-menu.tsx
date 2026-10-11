@@ -8,14 +8,12 @@ import {
   KeyRound,
   LogOut,
   MonitorOff,
-  Map as MapIcon,
   Plus,
   Search as SearchIcon,
   SunMoon,
   User as UserIcon,
 } from 'lucide-react';
 import { currentBrainOrigin } from '@mantle/web-ui/session-registry';
-import { performSignOut } from '@mantle/web-ui/sign-out';
 import { signInAgainPath, signOutActive, switchSession } from '@mantle/web-ui/session-switch';
 import { useSessions, type HeldSession } from '@mantle/web-ui/use-sessions';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
@@ -52,13 +50,11 @@ import { useColorTheme } from '@mantle/web-ui/color-theme-provider';
 import { themeLabel } from '@mantle/web-ui/lib/themes';
 import { RandomThemeItems } from '@/components/random-theme-toggle';
 import { agentInitials } from '@/lib/agent-color';
-import { setClientHint, setMemberHint } from '@/lib/member-destination';
-import { CLIENT_SIGNIN_PATH } from '@/lib/client-surface';
+import { hasArea } from '@/lib/workspaces';
+import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
+import { useShellRole } from '@/components/layout/shell-role';
 import { MemberPasswordDialog } from '@/components/member/member-password-dialog';
-import { useTour } from '@/components/tour/tour-provider';
-import { MEMBER_TOUR_ID } from '@/lib/tour/tours';
 import { everywhereConfirmText, signOutEverywhere } from '@/lib/sign-out-everywhere';
-import { BrowserNotifyItem } from '@/components/needs-you/browser-notify-item';
 
 export type ProfileIdentity = {
   /** The actor's display name, when they have set one. */
@@ -127,31 +123,25 @@ export function ProfileMenu({
   variant = 'rail',
   onNavigate,
   onSearchClick,
-  member = false,
-  client = false,
 }: {
   identity: ProfileIdentity;
   variant?: 'rail' | 'bar';
   onNavigate?: () => void;
-  /** A member login: no Profile screen (it is admin-only) and no profile
-   *  photo (its route is admin-only too); sign-out also clears the member
-   *  hint. The random theme stays: it is visitor-local and never writes to
-   *  the brain. */
-  member?: boolean;
-  /** A client login (client logins C2): its name, the theme (visitor-local),
-   *  Sign out and Sign out everywhere, and nothing else: no Profile, no
-   *  password (a client signs in with a link), no tour, no notices. Sign-out
-   *  clears the client hint and lands on the client sign-in page. */
-  client?: boolean;
   /** Opens the search palette. Absent on surfaces that have no palette to open
    *  — the item is then not rendered rather than rendered inert. */
   onSearchClick?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const [everywhereOpen, setEverywhereOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const toast = useToast();
-  const tour = useTour();
+  // The Profile screen, its photo route and Manage logins are the
+  // settings area's (phase W5c: one shell for every login). A brain that
+  // names no areas leaves them all on.
+  const manages = hasArea(useViewerAreas(), 'settings');
+  // A member's account is its password (POST /api/auth/change-password
+  // serves every login): no owner screen offers a self-serve change.
+  const member = useShellRole() === 'member';
   const { primary, initials } = identityOf(identity);
   const { avatar, email, photoVersion } = identity;
   const { colorTheme } = useColorTheme();
@@ -159,15 +149,8 @@ export function ProfileMenu({
 
   // The other logins this device holds for THIS brain. One that its brain has
   // signed out stays in the list on purpose: it leads to signing back in.
-  //
-  // A client login is one of them only where it holds a bearer: the desktop
-  // app adds one by emailed code (lib/client-device-signin.ts), and then its
-  // menu switches and adds like anyone's. A browser's client is a cookie (the
-  // browser keeps client credentials out of page script on purpose): no
-  // session of its own, so no Switch and no Add, as before.
   const held = useSessions();
-  const clientHeld = client && held.active?.role === 'client';
-  const holdsLogins = held.canHoldSeveral && (!client || clientHeld);
+  const holdsLogins = held.canHoldSeveral;
   const others =
     held.ready && holdsLogins
       ? held.sessions.filter((s) => !s.active && s.origin === currentBrainOrigin())
@@ -176,20 +159,8 @@ export function ProfileMenu({
   // Ends in a page load either way: on the next login held here, or on the
   // sign-in screen. The router is not used because a client navigation would
   // carry this login's cache into whoever comes next (sign-out.ts).
-  //
-  // A client's Sign out ends every session it holds on the brain (audit B23):
-  // a held client's through its own bearer (mobile-logout, which for a client
-  // ends them all), then on to the next login held here. A cookie client signs
-  // out the plain way onto its own sign-in page, never onto a staff login.
   async function signOut() {
     setBusy(true);
-    if (member) setMemberHint(false);
-    if (client) setClientHint(false);
-    if (client && !clientHeld) {
-      await performSignOut();
-      window.location.assign(CLIENT_SIGNIN_PATH);
-      return;
-    }
     await signOutActive();
   }
 
@@ -235,10 +206,10 @@ export function ProfileMenu({
       <AvatarFallback className="text-[10px] font-semibold">{initials}</AvatarFallback>
     </Avatar>
   );
-  // A member has no photo route (the brain's /api/profile/photo is admin
-  // only), so a member's face starts at the generated rung.
+  // The photo route is the settings area's: without it the face starts at
+  // the generated rung.
   const face =
-    photoVersion && !member && !client ? (
+    photoVersion && manages ? (
       <ProfilePhoto version={photoVersion} size={28} fallback={generated} />
     ) : (
       generated
@@ -308,30 +279,18 @@ export function ProfileMenu({
           </DropdownMenuItem>
         )}
 
-        {client ? null : member ? (
-          // A member's account is their password: the Profile screen and its
-          // routes are admin-only, and an admin sets a member's name.
-          <>
-            <DropdownMenuItem onSelect={() => setPasswordOpen(true)} className="cursor-pointer">
-              <KeyRound className="size-4" /> Change password
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                onNavigate?.();
-                tour.start(MEMBER_TOUR_ID);
-              }}
-              className="cursor-pointer"
-            >
-              <MapIcon className="size-4" /> Take the tour
-            </DropdownMenuItem>
-          </>
-        ) : (
+        {manages ? (
           <DropdownMenuItem asChild>
             <Link href="/settings/profile" onClick={onNavigate} className="cursor-pointer">
               <UserIcon className="size-4" /> Profile
             </Link>
           </DropdownMenuItem>
-        )}
+        ) : null}
+        {member ? (
+          <DropdownMenuItem onSelect={() => setPasswordOpen(true)} className="cursor-pointer">
+            <KeyRound className="size-4" /> Change password
+          </DropdownMenuItem>
+        ) : null}
 
         {/* Appearance lives here rather than as its own rail row: it is a
             once-a-month decision sitting permanently in a column that has to
@@ -366,9 +325,6 @@ export function ProfileMenu({
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
         </DropdownMenuSub>
-        {/* Admins: an OS notice when a member submits or files a request
-            while this tab is in the background. Opt-in, per browser. */}
-        {member || client ? null : <BrowserNotifyItem />}
         <DropdownMenuSeparator />
 
         {/* The logins this device holds. Plain anchors for the two links, not
@@ -408,15 +364,15 @@ export function ProfileMenu({
             </a>
           </DropdownMenuItem>
         )}
-        {/* /settings is an admin's: the middleware sends a member home from it. */}
-        {member || client ? null : (
+        {/* /settings/sessions is the settings area's. */}
+        {manages ? (
           <DropdownMenuItem asChild>
             <Link href="/settings/sessions" onClick={onNavigate} className="cursor-pointer">
               <KeyRound className="size-4" /> Manage logins…
             </Link>
           </DropdownMenuItem>
-        )}
-        {holdsLogins || !(member || client) ? <DropdownMenuSeparator /> : null}
+        ) : null}
+        {holdsLogins || manages ? <DropdownMenuSeparator /> : null}
 
         <DropdownMenuItem
           onClick={signOut}
@@ -441,7 +397,7 @@ export function ProfileMenu({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out everywhere?</AlertDialogTitle>
-            <AlertDialogDescription>{everywhereConfirmText(client)}</AlertDialogDescription>
+            <AlertDialogDescription>{everywhereConfirmText(false)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>

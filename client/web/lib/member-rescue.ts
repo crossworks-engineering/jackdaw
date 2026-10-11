@@ -21,6 +21,7 @@
  * signed in, nothing is kept and nothing is sent.
  */
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
+import { shellRoleOf } from './workspaces';
 
 export const RESCUE_MAX_AGE_MS = 10 * 60_000;
 const PREFIX = 'mantle_member_rescue:';
@@ -29,8 +30,8 @@ export type RescueEntry = { method: 'PUT' | 'PATCH'; body: string; at: number };
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>;
 
-/** Who this tab is signed in as (a member's login id, an admin's own name
- *  for their login), or null until the shell has said. */
+/** Who this tab is signed in as (the login the shell names), or null until
+ *  the shell has said. */
 let owner: string | null = null;
 let ownerWaiters: ((who: string) => void)[] = [];
 
@@ -47,26 +48,17 @@ export function rescueOwner(): string | null {
   return owner;
 }
 
-/** The owner a loaded shell names: a member's login id, or an admin's own
- *  login (the actor's email; admins have no private space rescue across
- *  logins otherwise). Null until the shell has loaded. */
-export function rescueOwnerFor(
-  isMember: boolean,
-  memberShell: { loginId?: string | null } | undefined,
-  adminShell: { email?: string | null } | undefined,
-): string | null {
-  if (isMember) return memberShell?.loginId ? `member:${memberShell.loginId}` : null;
-  if (!adminShell) return null;
-  return `admin:${adminShell.email ?? ''}`;
-}
-
-/** The owner a loaded CLIENT shell names (client tier audit U7): the client
- *  portal never mounts the owner or member shell, so it sets this itself.
+/** The owner a loaded shell names (phase W5c: one shell, GET /api/shell
+ *  names the role and the login): a member's login id, an admin's own login
+ *  (the actor's email). A client keeps nothing (it has no space in W5c).
  *  Null until the shell has loaded. */
-export function clientRescueOwner(
-  clientShell: { loginId?: string | null } | undefined,
+export function rescueOwnerFor(
+  shell: { role?: unknown; loginId?: string | null; email?: string | null } | undefined,
 ): string | null {
-  return clientShell?.loginId ? `client:${clientShell.loginId}` : null;
+  const role = shellRoleOf(shell);
+  if (role === 'member') return shell?.loginId ? `member:${shell.loginId}` : null;
+  if (role === 'admin') return `admin:${shell?.email ?? ''}`;
+  return null;
 }
 
 /** The owner, once known, or null after `timeoutMs`. */

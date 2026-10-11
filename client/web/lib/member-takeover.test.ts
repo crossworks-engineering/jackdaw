@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OLDER_BRAIN_RETURN_NOTE } from './review-no-note';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   WITH_ADMIN_TEXT,
   acceptedBytesChanged,
   CLIENT_WITH_REVIEWER_TEXT,
   acceptedChangedText,
-  adminSpace,
   frozenByOther,
   isEditable,
   isWithAdmin,
@@ -20,13 +18,7 @@ import {
   type SpaceItemState,
   type SpaceSource,
 } from './member-space';
-import {
-  canDeletePrivate,
-  canGiveBack,
-  giveBackRefusal,
-  privateDeleteMessage,
-  takenFromOf,
-} from './admin-private';
+import { canDeletePrivate, privateDeleteMessage, takenFromOf } from './admin-private';
 import type { AdminSpaceItemRow } from '@mantle/client-types';
 
 /**
@@ -168,11 +160,7 @@ describe('the admin’s private view of a taken item', () => {
   // A brain before Take over sends no `takenFrom` at all.
   const older = {} as Pick<AdminSpaceItemRow, 'takenFrom'>;
 
-  it('gives back only while the member can take it; deletes only once they cannot', () => {
-    expect(canGiveBack(from(true))).toBe(true);
-    expect(canGiveBack(from(false))).toBe(false);
-    expect(canGiveBack({ takenFrom: null })).toBe(false);
-    expect(canGiveBack(older)).toBe(false);
+  it('deletes only once the member cannot take it back', () => {
     // The admin's own item: always theirs to delete.
     expect(canDeletePrivate({ takenFrom: null })).toBe(true);
     expect(canDeletePrivate(older)).toBe(true);
@@ -181,33 +169,6 @@ describe('the admin’s private view of a taken item', () => {
     expect(canDeletePrivate(from(false))).toBe(true);
     expect(takenFromOf(older)).toBeNull();
     expect(takenFromOf(from(true))?.name).toBe('Mo Member');
-  });
-
-  it('sorts a refused Give back: what to say, and the items to act on', () => {
-    expect(giveBackRefusal(refusal('author-inactive'))).toEqual({
-      kind: 'author-inactive',
-      message: expect.stringMatching(/Accept it into the brain, or delete it\.$/),
-      ids: [],
-    });
-    expect(giveBackRefusal(refusal('unsaved-draft', { ids: [CHILD] }))).toEqual({
-      kind: 'unsaved-draft',
-      message: expect.stringMatching(/^Save a version first/),
-      ids: [CHILD],
-    });
-    expect(giveBackRefusal(refusal('embed', { ids: [HOLDER, CHILD] }))).toEqual({
-      kind: 'embed',
-      message: expect.stringMatching(/Remove these, save a version, then give it back:$/),
-      ids: [HOLDER, CHILD],
-    });
-    expect(giveBackRefusal(new ApiError('Not found', 404)).kind).toBe('gone');
-    expect(giveBackRefusal(new ApiError('invalid', 400, { reason: 'invalid' })).kind).toBe(
-      'invalid',
-    );
-    expect(giveBackRefusal(new Error('x'))).toEqual({
-      kind: 'other',
-      message: 'Could not give it back.',
-      ids: [],
-    });
   });
 
   it('says why a taken item cannot be deleted yet', () => {
@@ -236,44 +197,5 @@ describe('the accepted snapshot: a file or drawing an admin changed', () => {
     expect(acceptedChangedText('file', true)).toMatch(/^The reviewer changed this file/);
     expect(acceptedChangedText('draw', true)).not.toMatch(/admin/i);
     expect(CLIENT_WITH_REVIEWER_TEXT).not.toMatch(/admin/i);
-  });
-});
-
-describe('the give back route', () => {
-  let calls: { method: string; url: string; body: unknown }[] = [];
-  beforeEach(() => {
-    calls = [];
-    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
-      calls.push({
-        method: init?.method ?? 'GET',
-        url,
-        body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
-      });
-      return new Response(JSON.stringify({ id: OWN, moved: [], returned: [] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    });
-  });
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('Give back posts to the admin’s own item, with only the older-brain note', async () => {
-    await adminSpace.giveBack(OWN);
-    expect(calls).toEqual([
-      {
-        method: 'POST',
-        url: `/api/admin/space/${OWN}/give-back`,
-        body: { note: OLDER_BRAIN_RETURN_NOTE },
-      },
-    ]);
-  });
-
-  it('the older-brain note is never empty (an older brain refuses an empty one)', () => {
-    expect(OLDER_BRAIN_RETURN_NOTE.trim().length).toBeGreaterThan(0);
-    expect(OLDER_BRAIN_RETURN_NOTE).not.toMatch(
-      new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`),
-    );
   });
 });

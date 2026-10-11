@@ -37,9 +37,5 @@ describe('item author', () => {
       expect(src, rel).toMatch(/authorBadgeText\(/);
       expect(src, rel).toMatch(/Written by \{authorName\(/);
     }
-    // A client request above the member's tree names its author the same way.
-    expect(read('../components/member/member-item-sections.tsx')).toMatch(
-      /authorName\(row\.author\)/,
-    );
   });
 });

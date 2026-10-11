@@ -27,10 +27,9 @@ const MEMBER_ONLY = [
 
 describe('the admin private screens never reach a member-only route', () => {
   it.each([
-    './admin-private-workspace.tsx',
-    '../item-list/admin-private-rows.tsx',
-    './keep-private-field.tsx',
-    './give-back-dialog.tsx',
+    './admin-spaces.tsx',
+    './admin-private-rows.tsx',
+    '../member/keep-private-field.tsx',
     '../../lib/admin-private.ts',
   ])('%s names none of them', (file) => {
     const text = src(file);
@@ -38,7 +37,7 @@ describe('the admin private screens never reach a member-only route', () => {
   });
 
   it('a private item in an owner list opens under the admin client only', () => {
-    const text = src('../item-list/admin-private-rows.tsx');
+    const text = src('./admin-private-rows.tsx');
     expect(text).toMatch(/<SpaceApiProvider client=\{adminSpace\}>\s*<MineItem/);
   });
 
@@ -49,16 +48,16 @@ describe('the admin private screens never reach a member-only route', () => {
   // member-takeover (a member's own item has them) and client-requests (a
   // client's has no sharing).
   it('MineItem reads and writes through the provided client only', () => {
-    const text = src('./mine-item.tsx');
+    const text = src('../member/mine-item.tsx');
     expect(text).not.toContain('memberSpace');
     expect(text).not.toContain('/api/member');
   });
 
   it.each([
-    './mine-page-editor.tsx',
-    './mine-note-editor.tsx',
-    './member-draw-editor.tsx',
-    './member-table-editor.tsx',
+    '../member/mine-page-editor.tsx',
+    '../member/mine-note-editor.tsx',
+    '../member/member-draw-editor.tsx',
+    '../member/member-table-editor.tsx',
   ])('%s writes through the provided client, not the member one', (file) => {
     const text = src(file);
     expect(text).toContain('useSpaceApi()');
@@ -67,7 +66,7 @@ describe('the admin private screens never reach a member-only route', () => {
   });
 
   it("a private item's read-only view reads admin and owner routes", () => {
-    const text = src('./space-item-view.tsx');
+    const text = src('../member/space-item-view.tsx');
     // (A client's own item reads the client routes: client logins C5.)
     expect(text).toContain(
       'mapAssetPath={admin ? undefined : client ? clientAssetPath : memberAssetPath}',
@@ -104,12 +103,46 @@ describe('each owner create flow routes Keep private into the private space', ()
   });
 
   it.each(['pages', 'notes', 'draw', 'tables', 'files'])(
-    'the %s screen keeps old Private-view links working, for an admin only',
+    'the %s screen keeps old Private-view links working',
     (dir) => {
       const text = src(`../../app/(app)/${dir}/page.tsx`);
-      expect(text).toMatch(
-        /<RoleSwitch member=\{<MemberWorkspace kind="\w+" \/>\}>\s*<AdminSpaces/,
-      );
+      expect(text).toMatch(/<AdminSpaces kind="\w+">/);
     },
   );
+});
+
+/**
+ * Phase W5c: one shell for every login, and /api/admin/space* answers only
+ * Admin users. So the private parts render for an Admin user only
+ * (useIsAdminUser), and the lists ask for private rows for one only.
+ */
+describe("the private parts are an Admin user's only", () => {
+  it('the private item pane and the Keep private switch render nothing for anyone else', () => {
+    for (const file of ['./admin-private-rows.tsx', '../member/keep-private-field.tsx']) {
+      const text = src(file);
+      expect(text, file).toContain('const isAdminUser = useIsAdminUser();');
+      expect(text, file).toContain('if (!isAdminUser) return null;');
+    }
+  });
+
+  it.each([
+    '../../app/(app)/pages/pages-client.tsx',
+    '../../app/(app)/notes/notes-client.tsx',
+    '../../app/(app)/draw/draws-client.tsx',
+    '../../app/(app)/tables/tables-shell.tsx',
+  ])('%s asks for private rows, and offers the State filter, for an Admin user only', (file) => {
+    const text = src(file);
+    expect(text).toContain("if (isAdminUser) qs.set('state', state);");
+    expect(text).not.toMatch(/^\s*qs\.set\('state', state\);/m);
+    expect(text).toMatch(/\{isAdminUser \? \(\s*<StateFilter/);
+  });
+
+  it('the files screen asks for private rows, and offers Private upload, for an Admin user only', () => {
+    const text = src('../../app/(app)/files/files-client.tsx');
+    expect(text).not.toMatch(/state=all[`']\s*,/);
+    expect(text.match(/\$\{isAdminUser \? '&state=all' : ''\}/g)).toHaveLength(2);
+    expect(text).toMatch(
+      /\{isAdminUser \? \(\s*<>\s*<DropdownMenuSeparator \/>\s*<DropdownMenuItem\s+onSelect=\{\(\) => privateInputRef/,
+    );
+  });
 });

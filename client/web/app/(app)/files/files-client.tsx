@@ -85,6 +85,7 @@ import {
   isPrivateRow,
   usePrivateOpen,
 } from '@/components/item-list/admin-private-rows';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { KEEP_PRIVATE_HELP, uploadPrivateFile } from '@/lib/admin-private';
 import { refusalMessage } from '@/lib/member-space';
 import { GrantAccessControl } from '@/components/share/grant-access';
@@ -118,6 +119,8 @@ const VIEW_CHOICES = oneOf('list', 'grid', 'dual');
 export function FilesClient() {
   const searchParams = useSearchParams();
   const requestedPath = searchParams.get('path') || FILES_ROOT;
+  // Only an Admin user has a private space (phase W5c: one shell).
+  const isAdminUser = useIsAdminUser();
 
   const treeQuery = useQuery({
     queryKey: ['files', 'tree'],
@@ -135,7 +138,7 @@ export function FilesClient() {
     queryKey: ['files', 'list', currentPath],
     queryFn: () =>
       apiFetch<{ files: Array<FileRow | AdminPrivateListRow> }>(
-        `/api/files/files?parent=${encodeURIComponent(currentPath)}&state=all`,
+        `/api/files/files?parent=${encodeURIComponent(currentPath)}${isAdminUser ? '&state=all' : ''}`,
       ),
     enabled: treeQuery.isSuccess,
     placeholderData: (prev) => prev,
@@ -192,6 +195,7 @@ function FilesView({
   privateFiles: AdminPrivateListRow[];
 }) {
   const { pid, openPrivate } = usePrivateOpen();
+  const isAdminUser = useIsAdminUser();
   const toAsset = useAssetUrl();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -258,7 +262,7 @@ function FilesView({
     queryKey: ['files', 'recent'],
     queryFn: () =>
       apiFetch<{ files: Array<FileRow | AdminPrivateListRow> }>(
-        '/api/files/files?recent=1&limit=100&state=all',
+        `/api/files/files?recent=1&limit=100${isAdminUser ? '&state=all' : ''}`,
       ).then((r) => r.files),
     enabled: recentView,
   });
@@ -1134,13 +1138,17 @@ function FilesView({
                       >
                         <FileJson /> JSON file
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onSelect={() => privateInputRef.current?.click()}
-                        title={KEEP_PRIVATE_HELP}
-                      >
-                        <Lock /> Private upload
-                      </DropdownMenuItem>
+                      {isAdminUser ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => privateInputRef.current?.click()}
+                            title={KEEP_PRIVATE_HELP}
+                          >
+                            <Lock /> Private upload
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
 

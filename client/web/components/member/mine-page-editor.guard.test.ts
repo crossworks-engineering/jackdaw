@@ -19,8 +19,8 @@ describe("a member's draft editor and the Folder index", () => {
     );
   });
 
-  it("asks the MEMBER shell whether the tree serves pages, never the owner's", () => {
-    expect(editor).toContain("const treeServesPages = useReaderTreeServes('member', 'pages');");
+  it("asks the member's reader kinds whether the tree serves pages, never the owner's", () => {
+    expect(editor).toContain("const treeServesPages = useReaderTreeServes('pages');");
     expect(editor).not.toContain('useTreeServes(');
   });
 
@@ -67,8 +67,7 @@ describe('read-only views pass the folder only where the reader can list it', ()
     expect(view).not.toContain('folderId={(body.page as');
   });
 
-  it("a client's submitted item is in no folder, and the review view is quiet", () => {
-    expect(src('./client-request-item.tsx')).toMatch(/<SpaceItemView[\s\S]{0,400}noFolder\s/);
+  it('the review view is quiet', () => {
     // The review view draws the page through the outline wrapper, which hands
     // every PageView prop on (page-read-with-outline.tsx).
     expect(src('../review/item-review.tsx')).toMatch(

@@ -25,13 +25,12 @@ import { listPath, type SpaceKind, type WorkspaceSource } from './member-space';
 /** The sections a member's workspace shows above its folder tree, in their
  *  order: what the tree does not hold (member-item-sections.tsx). */
 export const MEMBER_ITEM_SECTIONS: readonly {
-  state: Extract<MemberItemFilter, 'with-admin' | 'by-me' | 'client-requests'>;
+  state: Extract<MemberItemFilter, 'with-admin' | 'by-me'>;
   id: string;
   title: string;
 }[] = [
   { state: 'with-admin', id: 'member-with-admin', title: 'With admin' },
   { state: 'by-me', id: 'member-by-me', title: 'By me (accepted)' },
-  { state: 'client-requests', id: 'member-client-requests', title: 'Client requests' },
 ];
 
 export function memberItemsPath(opts: {
@@ -116,16 +115,14 @@ export async function legacyMemberItems(opts: {
   state: MemberItemFilter;
 }): Promise<MemberItemsPage> {
   const q = { kind: opts.kind, q: opts.q, page: 1 };
-  const [mine, team, library, accepted] = await Promise.all([
+  const [mine, library, accepted] = await Promise.all([
     apiFetch<MemberSpaceList>(listPath('mine', q)),
-    apiFetch<MemberSpaceList>(listPath('team', q)).catch(() => null),
     apiFetch<MemberLibraryPage>(listPath('library', q)).catch(() => null),
     apiFetch<MemberAcceptedPage>(listPath('accepted', q)).catch(() => null),
   ]);
   const inLibrary = new Set(library?.items.map((r) => r.id) ?? []);
   const rows: MemberItemRow[] = [
     ...mine.items.map((r) => spaceRow(r, 'own')),
-    ...(team?.items ?? []).map((r) => spaceRow(r, 'team')),
     ...(library?.items ?? []).map((r): MemberItemRow => ({
       id: r.id,
       type: r.type,
@@ -163,9 +160,7 @@ export async function legacyMemberItems(opts: {
 }
 
 /** The one list: the brain's merge, or the fallback on an older brain (the
- *  route is unknown there: 404, or the member gate's 403). A brain before
- *  client logins C5 refuses the `client-requests` filter as an invalid query
- *  (400): it has no client requests, so the list is empty, not broken. */
+ *  route is unknown there: 404, or the member gate's 403). */
 export async function fetchMemberItems(opts: {
   kind: SpaceKind;
   q?: string;
@@ -177,9 +172,6 @@ export async function fetchMemberItems(opts: {
   } catch (err) {
     if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
       return legacyMemberItems(opts);
-    }
-    if (err instanceof ApiError && err.status === 400 && opts.state === 'client-requests') {
-      return { items: [], total: 0, page: 1, pageSize: 50 };
     }
     throw err;
   }

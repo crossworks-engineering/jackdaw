@@ -28,8 +28,11 @@ import {
   userSearchMin,
   currentWorkspaceLabel,
   hasArea,
+  isAdminUserShell,
+  shellRoleOf,
   mayOpenPath,
   navWithAreas,
+  PATH_AREAS,
   resolveCurrentWorkspace,
   shellAreasOf,
   shellWorkspacesOf,
@@ -88,6 +91,78 @@ describe('areas', () => {
     expect(areaForPath('/settings/usersx')).toBe('settings');
   });
 
+  // Phase W5c: one table for every screen (PATH_AREAS).
+  it.each([
+    '/journal',
+    '/inbox',
+    '/recall',
+    '/formulas',
+    '/events',
+    '/contacts',
+    '/secrets',
+    '/docs',
+    '/models',
+    '/pending',
+    '/assistant',
+    '/nodes',
+    '/heartbeats',
+    '/studio',
+    '/dev-tools',
+    '/runners',
+    '/runs',
+    '/sandboxes',
+    '/traces',
+    '/debug',
+    '/changelog',
+    '/tasks',
+  ])('%s and what is under it need the settings area', (p) => {
+    expect(areaForPath(p)).toBe('settings');
+    expect(areaForPath(`${p}/x/y`)).toBe('settings');
+    expect(areaForPath(`${p}?q=1`)).toBe('settings');
+    expect(mayOpenPath([], p)).toBe(false);
+    expect(mayOpenPath(['users'], p)).toBe(false);
+    expect(mayOpenPath(['settings'], p)).toBe(true);
+    // A path no row names needs the settings area too.
+    expect(areaForPath(`${p}x`)).toBe('settings');
+  });
+
+  it.each([
+    '/',
+    '/files',
+    '/notes',
+    '/pages',
+    '/draw',
+    '/tables',
+    '/apps',
+    '/n',
+    '/settings/workspaces',
+    '/settings/mcp',
+    '/settings/api-access',
+  ])('%s and what is under it are open to every login', (p) => {
+    expect(areaForPath(p)).toBeNull();
+    expect(mayOpenPath([], p)).toBe(true);
+    if (p !== '/') {
+      expect(areaForPath(`${p}/abc`)).toBeNull();
+      expect(mayOpenPath([], `${p}/abc`)).toBe(true);
+    }
+  });
+
+  it('the table names each prefix once, the narrow settings rows above /settings', () => {
+    const prefixes = PATH_AREAS.map(([p]) => p);
+    expect(new Set(prefixes).size).toBe(prefixes.length);
+    const settingsAt = prefixes.indexOf('/settings');
+    prefixes.forEach((p, i) => {
+      if (p.startsWith('/settings/')) expect(i, p).toBeLessThan(settingsAt);
+    });
+  });
+
+  it('a path no row names needs the settings area; / matches the home only', () => {
+    expect(areaForPath('/somewhere-new')).toBe('settings');
+    expect(areaForPath('/nx')).toBe('settings');
+    expect(areaForPath('/pagesx')).toBe('settings');
+    expect(areaForPath('')).toBeNull();
+  });
+
   it('opens a path only with its area', () => {
     expect(mayOpenPath(['settings'], '/settings/keys')).toBe(false);
     expect(mayOpenPath(['keys'], '/settings/keys')).toBe(true);
@@ -103,7 +178,7 @@ describe('areas', () => {
         items: [{ href: '/settings/keys' }, { href: '/settings/workspaces' }],
         defaultHead: ['/settings/keys', '/settings/workspaces'],
       },
-      { label: 'Keys', items: [{ href: '/settings/api-access' }] },
+      { label: 'Keys', items: [{ href: '/settings/keys' }] },
       { label: 'Work', items: [{ href: '/pages' }] },
     ];
     const out = navWithAreas(groups, ['settings']);
@@ -111,6 +186,33 @@ describe('areas', () => {
     expect(out[0]!.items.map((i) => i.href)).toEqual(['/settings/workspaces']);
     expect(out[0]!.defaultHead).toEqual(['/settings/workspaces']);
     expect(navWithAreas(groups, undefined)).toEqual(groups);
+  });
+});
+
+describe('shellRoleOf and isAdminUserShell', () => {
+  it('reads the role the brain names', () => {
+    expect(shellRoleOf({ role: 'admin' })).toBe('admin');
+    expect(shellRoleOf({ role: 'member' })).toBe('member');
+    expect(shellRoleOf({ role: 'client' })).toBe('client');
+  });
+  it('a brain that names no role answered an admin only', () => {
+    expect(shellRoleOf({})).toBe('admin');
+    expect(shellRoleOf({ role: null })).toBe('admin');
+  });
+  it('a role this build does not know fails closed, as a client', () => {
+    expect(shellRoleOf({ role: 'guest' })).toBe('client');
+    expect(shellRoleOf({ role: 7 })).toBe('client');
+  });
+  it('no shell yet: no role', () => {
+    expect(shellRoleOf(undefined)).toBeNull();
+    expect(shellRoleOf(null)).toBeNull();
+  });
+  it('an Admin user is the admin role, and only that', () => {
+    expect(isAdminUserShell({ role: 'admin' })).toBe(true);
+    expect(isAdminUserShell({})).toBe(true);
+    expect(isAdminUserShell({ role: 'member' })).toBe(false);
+    expect(isAdminUserShell({ role: 'client' })).toBe(false);
+    expect(isAdminUserShell(undefined)).toBe(false);
   });
 });
 

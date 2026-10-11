@@ -145,10 +145,11 @@ describe('labels', () => {
   });
 });
 
-describe('the screen is admin-only', () => {
-  it('a member is sent home from Settings > Services', async () => {
-    const { memberMayOpen } = await import('./member-surface');
-    expect(memberMayOpen('/settings/services')).toBe(false);
+describe("the screen is the settings area's", () => {
+  it('a login without it is refused Settings > Services', async () => {
+    const { mayOpenPath } = await import('./workspaces');
+    expect(mayOpenPath([], '/settings/services')).toBe(false);
+    expect(mayOpenPath(['settings'], '/settings/services')).toBe(true);
   });
 });
 

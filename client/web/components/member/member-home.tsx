@@ -90,21 +90,15 @@ function Section({
 }
 
 /**
- * A member's home (member logins, plan section 7): what came back from review,
- * what waits for it, their recent work, what teammates shared, and what is new
- * in the Library. None of the admin dashboard's ops cards: they are admin data.
+ * A member's home (member logins, plan section 7): their own work an admin
+ * holds, their recent work, and what is new in the Library. None of the
+ * admin dashboard's ops cards: they are admin data.
  */
 export function MemberHome() {
   const { openAssistant } = useAssistantDock();
   const mine = useQuery({
     queryKey: ['member-home', 'mine'],
     queryFn: () => apiFetch<SpaceList>('/api/member/space?page=1'),
-  });
-  // What came back and what waits, from the whole space (a filtered read),
-  // not picked out of the newest page of Mine above.
-  const review = useQuery({
-    queryKey: ['member-home', 'review'],
-    queryFn: () => apiFetch<SpaceList>(reviewListPath(['returned', 'submitted'])),
   });
   // What an admin took over to work on (audit F07). Its own read: a brain
   // before Take over refuses the state by name (400), and then there is
@@ -113,10 +107,6 @@ export function MemberHome() {
     queryKey: ['member-home', 'with-admin'],
     queryFn: () => apiFetch<SpaceList>(reviewListPath(['with-admin'])),
     retry: false,
-  });
-  const team = useQuery({
-    queryKey: ['member-home', 'team'],
-    queryFn: () => apiFetch<SpaceList>('/api/member/team-drafts?page=1'),
   });
   const library = useQuery({
     queryKey: ['member-home', 'library'],
@@ -131,21 +121,11 @@ export function MemberHome() {
     updatedAt: r.updatedAt,
     status: r,
   });
-  const inReview = splitByReview(review.data?.items ?? []);
-  const returned = inReview.returned.map(ownEntry);
-  const submitted = inReview.submitted.map(ownEntry);
   const heldByAdmin = splitByReview(withAdmin.data?.items ?? []).withAdmin.map(ownEntry);
   const recent = (mine.data?.items ?? [])
-    .filter((r) => r.reviewState !== 'returned' && r.reviewState !== 'submitted' && !isWithAdmin(r))
+    .filter((r) => !isWithAdmin(r))
     .slice(0, 8)
     .map(ownEntry);
-  const shared: Entry[] = (team.data?.items ?? []).slice(0, 8).map((r) => ({
-    id: r.id,
-    type: r.type,
-    title: r.title,
-    icon: r.icon,
-    updatedAt: r.updatedAt,
-  }));
   const lib: Entry[] = (library.data?.items ?? []).slice(0, 8).map((r) => ({
     id: r.id,
     type: r.type,
@@ -164,8 +144,6 @@ export function MemberHome() {
           <MessageSquare /> Ask the assistant
         </Button>
       </header>
-      <Section title="Rejected" entries={returned} src="mine" />
-      <Section title="Waiting for review" entries={submitted} src="mine" />
       <Section
         title="With an admin"
         entries={heldByAdmin}
@@ -178,7 +156,6 @@ export function MemberHome() {
         src="mine"
         empty="Nothing yet. Start a page, note, drawing or table from the menu."
       />
-      <Section title="Shared by teammates" entries={shared} src="team" />
       <Section
         title="New in the Library"
         entries={lib}

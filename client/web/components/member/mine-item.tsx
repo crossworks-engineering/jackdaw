@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, ShieldCheck, Trash2, UserRound, X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
@@ -27,28 +26,19 @@ import {
   type AutosaveState,
 } from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
-import {
-  acceptedBrainHref,
-  canDeletePrivate,
-  canGiveBack,
-  privateDeleteMessage,
-  takenFromOf,
-} from '@/lib/admin-private';
+import { canDeletePrivate, privateDeleteMessage, takenFromOf } from '@/lib/admin-private';
 import {
   CLIENT_WITH_REVIEWER_TEXT,
   WITH_ADMIN_TEXT,
-  adminSpace,
   frozenByOther,
   isAdminSpace,
   isClientSpace,
   isEditable,
   isWithAdminRefusal,
-  unsavedBundleIds,
   type AdminSpaceItemRow,
   type SpaceItem,
 } from '@/lib/member-space';
-import { AcceptIntoBrainDialog } from '@/components/review/review-dialogs';
-import { ReviewActions, SharingControl, StatusChip, spaceErrorMessage } from './space-status';
+import { StatusChip, spaceErrorMessage } from './space-status';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { CLIENT_REQUESTS_KEY } from '@/lib/client-requests';
 import { useSpaceApi } from './space-api';
@@ -57,26 +47,18 @@ import { MemberDrawEditor } from './member-draw-editor';
 import { MemberTableEditor } from './member-table-editor';
 import { MineNoteEditor } from './mine-note-editor';
 import { MinePageEditor } from './mine-page-editor';
-import { GiveBackDialog } from './give-back-dialog';
-import { ItemLinksNotice, ownItemResolver } from './item-links-notice';
+import { ownItemResolver } from './item-links-notice';
 import type { MemberEditorHandle } from './member-editor';
 
 /**
  * One of the member's OWN items (member logins Phase 2): edit it (pages,
  * notes, drawings and tables; files are upload and download only), Save
- * version (what teammates and a reviewer see), share it with the team or keep
- * it private, submit it for review or recall it, discuss it, delete it.
- * A submitted item is frozen: read-only until Recall, Accept or Return.
- *
- * Under a `clientSpace` provider it is a CLIENT's own item (client logins
- * C5): the same editors on the client routes, Save version, Submit, Recall,
- * Delete and the review talk while submitted; never sharing (a client has no
- * Team drafts).
+ * version, delete it. Sharing and Submit went in phase W5c (the brain's
+ * routes answer 410). An item submitted before then stays frozen.
  *
  * Under an `adminSpace` provider it is an ADMIN's own private item (Phase
- * 7): the same editors on the admin routes, Save version and Delete, and
- * "Accept into brain" in place of sharing, review and the discussion, none
- * of which an item only its admin sees has.
+ * 7): the same editors on the admin routes, Save version and Delete.
+ * Accept into brain and Give back went in phase W5c (410).
  */
 export function MineItem({
   id,
@@ -261,7 +243,6 @@ function MineItemLoaded({
   const { row, body } = item;
   const toast = useToast();
   const qc = useQueryClient();
-  const router = useRouter();
   const api = useSpaceApi();
   const admin = isAdminSpace(api);
   const client = isClientSpace(api);
@@ -270,13 +251,6 @@ function MineItemLoaded({
   // wrote it, and whether it can still go back to them.
   const takenFrom = admin ? takenFromOf(row as AdminSpaceItemRow) : null;
   const deletable = !admin || canDeletePrivate(row as AdminSpaceItemRow);
-  // Items shown inside this one that Submit wants saved first (audit F04).
-  const [mustSave, setMustSave] = useState<string[]>([]);
-  const onSubmitRefused = (err: unknown) => {
-    const ids = unsavedBundleIds(err, row.id);
-    setMustSave(ids);
-    return ids.length > 0;
-  };
   const [title, setTitle] = useState(row.title);
   const refreshLists = useCallback(() => {
     if (admin) {
@@ -372,18 +346,6 @@ function MineItemLoaded({
     }
   };
 
-  // Submit takes the SAVED version: the title and everything typed go to the
-  // brain first (awaited, for notes too), then a Save version when the saved
-  // version is behind. A refusal on the way stops the submit. (The title
-  // saved on blur, unawaited, and could race the freeze.)
-  const beforeSubmit = async () => {
-    if (!(await saveTitle())) return false;
-    const h = editorHandle.current;
-    if (!h) return true;
-    if (!(await h.flush())) return false;
-    return unsavedRef.current ? saveEditorVersion() : true;
-  };
-
   const editorProps = {
     id: row.id,
     handleRef: editorHandle,
@@ -435,7 +397,6 @@ function MineItemLoaded({
             </Badge>
           ) : null}
           <span className="flex-1" />
-          {admin || client ? null : <SharingControl row={row} />}
           {(body.type === 'page' || body.type === 'draw' || body.type === 'table') &&
           editable &&
           !held ? (
@@ -455,52 +416,6 @@ function MineItemLoaded({
               <Save /> {editorSaving ? 'Saving…' : 'Save version'}
             </Button>
           ) : null}
-          {admin ? (
-            <AcceptIntoBrainDialog
-              item={row}
-              triggerLabel="Accept into brain"
-              description={
-                takenFrom ? (
-                  <>
-                    “{row.title || 'Untitled'}” by {takenFrom.name} leaves your private space and
-                    becomes a brain item at the level you pick, with everything you took over with
-                    it. Its saved version goes in, and {takenFrom.name} sees it under Accepted.
-                  </>
-                ) : (
-                  <>
-                    “{row.title || 'Untitled'}” leaves your private space and becomes a brain item
-                    at the level you pick. Its saved version goes in.
-                  </>
-                )
-              }
-              // The saved version goes in: what was typed is saved first.
-              beforeAccept={beforeSubmit}
-              accept={(input) => adminSpace.accept(row.id, input)}
-              onAccepted={(res, input) => {
-                refreshLists();
-                router.push(acceptedBrainHref(row.type, res.id, input.folderPath));
-              }}
-              errorMessage={spaceErrorMessage}
-            />
-          ) : (
-            <ReviewActions row={row} beforeSubmit={beforeSubmit} onRefused={onSubmitRefused} />
-          )}
-          {takenFrom && canGiveBack(row as AdminSpaceItemRow) ? (
-            <GiveBackDialog
-              row={row}
-              from={takenFrom}
-              // What was typed goes with it: the brain refuses unsaved edits.
-              beforeGiveBack={beforeSubmit}
-              onGivenBack={() => {
-                refreshLists();
-                onClose();
-              }}
-              onRefused={() => {
-                refreshLists();
-                refreshItem();
-              }}
-            />
-          ) : null}
           {editable && !held && deletable ? (
             <Button
               size="icon-sm"
@@ -513,32 +428,6 @@ function MineItemLoaded({
             </Button>
           ) : null}
         </div>
-
-        {/* No reviewer note (review flows carry no messages, 2026-10-09). */}
-        {row.reviewState === 'returned' ? (
-          <p className="text-sm text-muted-foreground">
-            Rejected by the reviewer. Change it and submit it again.
-          </p>
-        ) : null}
-        {row.reviewState === 'submitted' ? (
-          <p className="text-sm text-muted-foreground">
-            Submitted for review: nobody can change it now. Recall it to make a correction.
-          </p>
-        ) : null}
-
-        {takenFrom && !takenFrom.canGiveBack ? (
-          <p className="text-sm text-muted-foreground">
-            {takenFrom.name} cannot take this back any more. Accept it into the brain, or delete it.
-          </p>
-        ) : null}
-
-        {mustSave.length ? (
-          <ItemLinksNotice
-            message="These are shown in this item and have unsaved changes. Save a version of each, then submit:"
-            ids={mustSave}
-            resolve={ownItemResolver(api)}
-          />
-        ) : null}
 
         {held && holderId ? (
           <FrozenByNotice holderId={holderId} onRelease={release} />

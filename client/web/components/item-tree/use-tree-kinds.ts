@@ -31,15 +31,15 @@ export function treeKindsOf(shell: { treeKinds?: unknown } | null | undefined): 
   return Array.isArray(raw) ? raw.filter(isTreeKind) : [];
 }
 
-/** The kinds a member's or client's shell browses as a read-only tree
- * (`treeKinds` on /api/member/shell or /api/client/shell). Reads the shell
- * the app frame already fetched, like `useTreeServes`; [] for a brain before
- * folder sharing (the screen keeps its list), undefined until it is known. */
-export function useReaderTreeKinds(source: 'member' | 'client'): TreeKind[] | undefined {
-  const url = source === 'member' ? '/api/member/shell' : '/api/client/shell';
+/** The kinds a member browses as a read-only tree: `treeKinds` on the one
+ *  shell (GET /api/shell names the reader kinds for a member, W5c contract).
+ *  Reads the shell the app frame already fetched, like `useTreeServes`; []
+ *  for a brain before folder sharing (the screen keeps its list), undefined
+ *  until it is known. */
+export function useReaderTreeKinds(): TreeKind[] | undefined {
   const { data } = useQuery({
-    queryKey: [source === 'member' ? 'member-shell' : 'client-shell'],
-    queryFn: () => apiFetch<{ treeKinds?: unknown }>(url),
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<{ treeKinds?: unknown }>('/api/shell'),
     enabled: false,
     select: (d: { treeKinds?: unknown }) => treeKindsOf(d),
   });
@@ -57,11 +57,8 @@ export function useReaderTreeKinds(source: 'member' | 'client'): TreeKind[] | un
 const noSubscribe = () => () => {};
 
 /** Whether that shell names `kind`. */
-export function useReaderTreeServes(
-  source: 'member' | 'client',
-  kind: TreeKind | null,
-): boolean | undefined {
-  const kinds = useReaderTreeKinds(source);
+export function useReaderTreeServes(kind: TreeKind | null): boolean | undefined {
+  const kinds = useReaderTreeKinds();
   return kinds === undefined ? undefined : kind !== null && kinds.includes(kind);
 }
 

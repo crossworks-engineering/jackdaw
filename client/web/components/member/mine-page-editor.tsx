@@ -50,7 +50,7 @@ export function MinePageEditor({
   // The Folder index block: `here` is the draft's own folder in the
   // member's tree, and the slash item shows only when that tree serves
   // pages and the folder is known (lib/member-folder-index.ts).
-  const treeServesPages = useReaderTreeServes('member', 'pages');
+  const treeServesPages = useReaderTreeServes('pages');
   const folder = memberFolderIndex({
     space: admin ? 'admin' : client ? 'client' : 'member',
     treeServesPages,

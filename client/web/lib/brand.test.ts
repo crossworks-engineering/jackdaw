@@ -186,7 +186,7 @@ describe('client surfaces never name the peer (client logins audit B27)', () => 
     });
   });
 
-  it('the client sign-in page and the client tab use them', async () => {
+  it('the client sign-in page uses them', async () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const read = (rel: string) =>
@@ -195,11 +195,5 @@ describe('client surfaces never name the peer (client logins audit B27)', () => 
     expect(page).toContain('const brand = clientLoginBrand(readBrandFields(appearance));');
     expect(page).toMatch(/title: \{ absolute: `Sign in · \$\{clientTabTitle\(fields\)\}` \}/);
     expect(page).not.toContain('resolveLoginBrand');
-    const layout = read('../app/(app)/layout.tsx');
-    expect(layout).toMatch(
-      /CLIENT_HINT_COOKIE\)\?\.value !== '1'\) return \{\};[\s\S]*absolute: clientTabTitle\(fields\)/,
-    );
-    const portal = read('../components/client/client-portal.tsx');
-    expect(portal).toContain('document.title = clientTabTitle({ siteName });');
   });
 });

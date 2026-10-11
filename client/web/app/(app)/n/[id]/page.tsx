@@ -4,7 +4,7 @@ import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
-import { RoleSwitch } from '@/components/member/viewer-role';
+import { RoleSwitch } from '@/components/layout/shell-role';
 import { MemberGoToList } from '@/components/member/member-go-to-list';
 
 /**
@@ -22,7 +22,7 @@ import { MemberGoToList } from '@/components/member/member-go-to-list';
  *
  * A member login cannot read /api/nodes (admins only), and cites the same
  * links (the team agent's `nodeUrl`): for a member the id is found in their
- * sources instead (Mine, Team drafts, the Library, Accepted) and opens on
+ * sources instead (Mine, the Library, Accepted) and opens on
  * that kind's member screen (MemberGoToList).
  */
 function surfaceFor(type: string, id: string): string {

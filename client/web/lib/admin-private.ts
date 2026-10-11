@@ -7,12 +7,10 @@
  * `?pid=<id>` opens one. The old Private view (`?space=private&id=`) still
  * resolves: the screens redirect it (legacyPrivateHref).
  */
-import { ApiError } from '@mantle/web-ui/api-fetch';
 import { MEMBER_KIND } from './member-kinds';
 import {
   adminSpace,
   memberUploadRefusal,
-  refusalIds,
   refusalReason,
   type AdminSpaceClient,
   type AdminSpaceItemRow,
@@ -49,18 +47,6 @@ export function legacyPrivateHref(kind: SpaceKind, params: Pick<URLSearchParams,
 /** The kind's screen, unfiltered. */
 export function brainViewHref(kind: SpaceKind): string {
   return MEMBER_KIND[kind].path;
-}
-
-/** Where an item accepted into the brain opens: its own brain route. A file
- *  opens in the folder the accept put it in. */
-export function acceptedBrainHref(kind: SpaceKind, id: string, folderPath?: string | null): string {
-  if (kind === 'file') {
-    const sp = new URLSearchParams();
-    if (folderPath) sp.set('path', folderPath);
-    sp.set('file', id);
-    return `/files?${sp.toString()}`;
-  }
-  return `${MEMBER_KIND[kind].path}/${id}`;
 }
 
 /**
@@ -117,11 +103,6 @@ export function takenFromOf(row: Pick<AdminSpaceItemRow, 'takenFrom'>) {
   return row.takenFrom ?? null;
 }
 
-/** Can the admin give it back? Only while its member can take it. */
-export function canGiveBack(row: Pick<AdminSpaceItemRow, 'takenFrom'>): boolean {
-  return row.takenFrom?.canGiveBack === true;
-}
-
 /**
  * May the admin delete this private item? Their own, always. A taken item
  * only once its member cannot take it back (deactivated or removed): while
@@ -131,61 +112,10 @@ export function canDeletePrivate(row: Pick<AdminSpaceItemRow, 'takenFrom'>): boo
   return !row.takenFrom || !row.takenFrom.canGiveBack;
 }
 
-/** A refused Give back, sorted for the dialog: what to say, and the items
- *  it names (to save, or to remove) when there are any. */
-export type GiveBackRefusal = {
-  kind: 'author-inactive' | 'unsaved-draft' | 'embed' | 'gone' | 'invalid' | 'other';
-  message: string;
-  ids: string[];
-};
-
-export function giveBackRefusal(err: unknown): GiveBackRefusal {
-  const reason = refusalReason(err);
-  const ids = refusalIds(err);
-  if (reason === 'author-inactive') {
-    return {
-      kind: reason,
-      message:
-        'The member who wrote this cannot take it back any more (deactivated or removed). Accept it into the brain, or delete it.',
-      ids: [],
-    };
-  }
-  if (reason === 'unsaved-draft') {
-    return {
-      kind: reason,
-      message: 'Save a version first. These have unsaved changes:',
-      ids,
-    };
-  }
-  if (reason === 'embed') {
-    return {
-      kind: reason,
-      message:
-        'It now uses things the member may not see: brain items above the team level, or your own private items. Remove these, save a version, then give it back:',
-      ids,
-    };
-  }
-  if (err instanceof ApiError && err.status === 404) {
-    return {
-      kind: 'gone',
-      message: 'This item is not in your private space any more.',
-      ids: [],
-    };
-  }
-  if (err instanceof ApiError && err.status === 400) {
-    return { kind: 'invalid', message: 'Write a note for the member.', ids: [] };
-  }
-  return {
-    kind: 'other',
-    message: err instanceof ApiError && err.message ? err.message : 'Could not give it back.',
-    ids: [],
-  };
-}
-
 /** The sentence for a refused delete of a private item. */
 export function privateDeleteMessage(err: unknown): string | null {
   if (refusalReason(err) === 'taken') {
-    return 'Its member can still take this back: give it back, or accept it into the brain.';
+    return 'Its member can still take this back, so it cannot be deleted yet.';
   }
   return null;
 }

@@ -2,10 +2,19 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
-import { shellAreasOf, shellWorkspacesOf, type ShellWorkspace } from '@/lib/workspaces';
-import { useViewerRole } from '@/components/member/viewer-role';
+import {
+  isAdminUserShell,
+  shellAreasOf,
+  shellWorkspacesOf,
+  type ShellWorkspace,
+} from '@/lib/workspaces';
 
-type ShellSlice = { workspaces?: unknown; areas?: unknown; email?: string | null };
+type ShellSlice = {
+  workspaces?: unknown;
+  areas?: unknown;
+  email?: string | null;
+  role?: unknown;
+};
 
 export type ShellWorkspaceInfo = {
   /** The login's workspaces, as the shell names them ([] when it names none). */
@@ -38,14 +47,24 @@ export function useShellWorkspaces(): ShellWorkspaceInfo | undefined {
   return data;
 }
 
-/**
- * The areas a workspaces screen goes by. A member's shell has no /api/shell
- * (members move to the one shell in W5c), and a member is never an Admin
- * user: no areas. Elsewhere, the shell's (undefined from a brain before W5a:
- * it serves the owner shell to admins only).
- */
+/** The areas the login holds, from the shell (undefined from a brain that
+ *  names none: before W5a it served the shell to admins only). */
 export function useViewerAreas(): string[] | undefined {
-  const role = useViewerRole();
-  const areas = useShellWorkspaces()?.areas;
-  return role === 'member' ? [] : areas;
+  return useShellWorkspaces()?.areas;
+}
+
+/**
+ * Whether the login is an Admin user (isAdminUserShell in lib/workspaces.ts):
+ * false until the shell has answered. The admin private rows (personal
+ * spaces, until phase W6b) read /api/admin/space*, which answers Admin
+ * users only, so they render for this login only.
+ */
+export function useIsAdminUser(): boolean {
+  const { data } = useQuery({
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<ShellSlice>('/api/shell'),
+    enabled: false,
+    select: (d: ShellSlice) => isAdminUserShell(d),
+  });
+  return data === true;
 }

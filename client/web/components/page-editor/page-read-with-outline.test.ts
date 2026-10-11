@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -185,10 +185,14 @@ describe('the outline in each reader', () => {
 });
 
 describe('no reader draws a page without the outline wrapper', () => {
-  it('nothing under member, client or team-admin imports PageView itself', () => {
+  it('nothing under member or team-admin imports PageView itself', () => {
     const components = fileURLToPath(new URL('..', import.meta.url));
     const seen: string[] = [];
-    for (const dir of ['member', 'client', 'team-admin']) {
+    // The client portal went in phase W5c, review too; a folder that is gone
+    // has nothing.
+    for (const dir of ['member', 'team-admin', 'review'].filter((d) =>
+      existsSync(`${components}/${d}`),
+    )) {
       for (const f of readdirSync(`${components}/${dir}`)) {
         if (!f.endsWith('.tsx')) continue;
         seen.push(`${dir}/${f}`);

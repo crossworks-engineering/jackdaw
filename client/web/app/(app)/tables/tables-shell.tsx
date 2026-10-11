@@ -63,6 +63,7 @@ import {
   isPrivateRow,
   usePrivateOpen,
 } from '@/components/item-list/admin-private-rows';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { KeepPrivateField } from '@/components/member/keep-private-field';
 import { createPrivateItem } from '@/lib/admin-private';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
@@ -112,6 +113,9 @@ export function TablesShell() {
   // Which items: all (default), the brain's, or this admin's private ones
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
+  // Only an Admin user has a private space (phase W5c: one shell): anyone
+  // else asks for the brain's items, with no State filter.
+  const isAdminUser = useIsAdminUser();
   const { pid, openPrivate } = usePrivateOpen();
   const [details, changeDetails] = useCardDetails('mantle_tables_card_details_v1');
 
@@ -130,7 +134,7 @@ export function TablesShell() {
       if (activeTag) qs.set('tag', activeTag);
       if (sort !== 'edited') qs.set('sort', sort);
       if (page > 1) qs.set('page', String(page));
-      qs.set('state', state);
+      if (isAdminUser) qs.set('state', state);
       return apiFetch<TablesListResponse>(`/api/tables?${qs.toString()}`);
     },
     placeholderData: (prev) => prev,
@@ -425,11 +429,13 @@ export function TablesShell() {
                   onDetailsChange={changeDetails}
                   allLabel="All tables"
                 />
-                <StateFilter
-                  value={state}
-                  options={ADMIN_STATE_OPTIONS}
-                  onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
-                />
+                {isAdminUser ? (
+                  <StateFilter
+                    value={state}
+                    options={ADMIN_STATE_OPTIONS}
+                    onChange={(v) => go({ state: v === 'all' ? null : v, page: null, pid: null })}
+                  />
+                ) : null}
                 {activeTag && (
                   <ClearFilter
                     onClear={() => go({ tag: null, page: null })}

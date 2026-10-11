@@ -6,16 +6,14 @@
  *
  * An ADMIN's own private space (Phase 7) is the same routes under
  * /api/admin/* (same methods, bodies and shapes), minus everything a member
- * does with other people (share, submit, recall, comments, realtime), plus a
- * self-accept into the brain. `spaceClient(base)` serves both.
+ * does with other people (share, submit, recall, comments, realtime).
+ * `spaceClient(base)` serves both.
  */
 import { ApiError, apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
-import { OLDER_BRAIN_RETURN_NOTE } from './review-no-note';
 import type { TableDetail } from '@mantle/content-core/table-model';
 import type {
   AccessLevel,
   MemberItemKind,
-  GiveBackResult,
   MemberAcceptedItem,
   MemberReviewState,
   MemberSpaceFile,
@@ -29,7 +27,6 @@ import type {
 import { MEMBER_ITEM_KINDS, MEMBER_KIND } from './member-kinds';
 import { formatBytes } from './upload-progress';
 import { dropRescue, keepRescue } from './member-rescue';
-import type { AcceptInput, AcceptResult } from './member-review';
 
 export type SpaceKind = MemberItemKind;
 export type SpaceSharing = MemberSpaceSharing;
@@ -69,7 +66,6 @@ export type {
   AdminSpaceItemRow,
   AdminSpaceList,
   AdminTakenFrom,
-  GiveBackResult,
   MovedSpaceItem,
 } from '@mantle/client-types';
 
@@ -426,21 +422,10 @@ export const memberSpace = {
 
 /**
  * An admin's own private space (member logins Phase 7): seen by that admin
- * only, no review. `accept` moves an item into the brain directly, with the
- * body and answer of the Team admin submissions accept route.
+ * only, no review. Accept into brain and Give back went in phase W5c (the
+ * brain answers 410).
  */
-export const adminSpace = {
-  ...spaceClient(ADMIN_API_BASE),
-  accept: (id: string, input: AcceptInput) =>
-    apiSend<AcceptResult>(`${ownItemPath(id, ADMIN_API_BASE)}/accept`, 'POST', input),
-  /** An item taken over from the Review queue goes back to its member,
-   *  with everything taken with it (audit F07). No note: review flows carry
-   *  no messages (2026-10-09). */
-  giveBack: (id: string) =>
-    apiSend<GiveBackResult>(`${ownItemPath(id, ADMIN_API_BASE)}/give-back`, 'POST', {
-      note: OLDER_BRAIN_RETURN_NOTE,
-    }),
-};
+export const adminSpace = spaceClient(ADMIN_API_BASE);
 
 export type AdminSpaceClient = typeof adminSpace;
 
@@ -522,8 +507,8 @@ export function workspaceNavMode(
 /**
  * Which source an item id opens from, for a link to its own route
  * (/pages/<id>, /draw/<id>, /notes/<id>, /tables/<id>, /n/<id>): Mine first,
- * then Team drafts, the Library, and last what the member wrote and an admin
- * accepted (at any level). `probe` reads the item from one source and answers
+ * then the Library, and last what the member wrote and an admin accepted (at
+ * any level). Team drafts went in phase W5c (the brain answers 410). `probe` reads the item from one source and answers
  * what that source sent, so the item's kind comes with it. A 404 (or a 400
  * for an id that is no item's) means "not in this source"; any other failure
  * stops the search and answers Mine with no kind, whose screen says it could
@@ -532,7 +517,7 @@ export function workspaceNavMode(
 export async function resolveMemberItem(
   probe: (source: SpaceSource) => Promise<unknown>,
 ): Promise<{ source: SpaceSource; kind: SpaceKind | null; withAdmin?: true } | null> {
-  for (const source of ['mine', 'team', 'library', 'accepted'] as const) {
+  for (const source of ['mine', 'library', 'accepted'] as const) {
     try {
       return { source, kind: memberItemKind(await probe(source)) };
     } catch (err) {

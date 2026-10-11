@@ -373,43 +373,6 @@ export function liveFolder(
   return folder;
 }
 
-/** The member's own drafts that are with an admin for review on these
- *  pages, by id, with their titles. */
-export function submittedDrafts(pages: readonly TreeFolderPage[] | undefined): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const p of pages ?? []) {
-    for (const it of p.items) {
-      if (it.source === 'own' && it.state === 'submitted') out.set(it.id, it.title);
-    }
-  }
-  return out;
-}
-
-/** Every own draft on these pages, whatever its state. */
-export function ownDraftIds(pages: readonly TreeFolderPage[] | undefined): Set<string> {
-  const out = new Set<string>();
-  for (const p of pages ?? []) for (const it of p.items) if (it.source === 'own') out.add(it.id);
-  return out;
-}
-
-/**
- * The submitted drafts that left a folder's pages between two loads of them
- * and are no draft of the member's anywhere else it has loaded: an admin
- * accepted them into the brain (a draft with an admin cannot be moved,
- * recalled drafts stay as drafts, and one taken over stays, as with-admin).
- */
-export function acceptedSince(
-  before: ReadonlyMap<string, string>,
-  after: ReadonlyMap<string, string>,
-  ownElsewhere: ReadonlySet<string>,
-): Array<{ id: string; title: string }> {
-  const out: Array<{ id: string; title: string }> = [];
-  for (const [id, title] of before) {
-    if (!after.has(id) && !ownElsewhere.has(id)) out.push({ id, title });
-  }
-  return out;
-}
-
 /**
  * What a realtime ping about one item refreshes. The owner's stream says only
  * "an item of this type changed" (an insert, or the extractor finishing with

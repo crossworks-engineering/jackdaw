@@ -377,14 +377,12 @@ describe('desktop: admin, then a client login, then back', () => {
     const client = registry.signInSession({
       email: 'client@example.com',
       token: 'client.sig',
-      role: 'client',
       loginId: 'login-c',
     })!;
     // Bearers live in the keychain slots, never in localStorage.
     expect([...map.keys()].some((k) => k.startsWith('mantle_token'))).toBe(false);
     expect(vault.slots.get(client.id)).toBe('client.sig');
     expect(registry.listSessions().find((s) => s.id === client.id)).toMatchObject({
-      role: 'client',
       loginId: 'login-c',
     });
 
@@ -454,7 +452,6 @@ describe('desktop: admin, then a client login, then back', () => {
     const client = registry.signInSession({
       email: 'client@example.com',
       token: 'client.sig',
-      role: 'client',
     })!;
 
     await switcher.signOutActive();
@@ -563,7 +560,7 @@ describe('signing out with copies of the login still listed', () => {
       brain();
       roles['me.sig'] = role;
       const { registry, switcher } = await fresh();
-      registry.signInSession({ email: 'me@example.com', token: 'me.sig', role });
+      registry.signInSession({ email: 'me@example.com', token: 'me.sig' });
       addCopies(registry, 'me.sig', 3);
 
       await switcher.signOutActive();
@@ -580,7 +577,7 @@ describe('signing out with copies of the login still listed', () => {
       roles['other.sig'] = 'member';
       const { registry, switcher } = await fresh();
       const other = registry.signInSession({ email: 'other@example.com', token: 'other.sig' })!;
-      registry.signInSession({ email: 'me@example.com', token: 'me.sig', role });
+      registry.signInSession({ email: 'me@example.com', token: 'me.sig' });
       addCopies(registry, 'me.sig', 3);
 
       await switcher.signOutActive();
@@ -599,7 +596,7 @@ describe('signing out with copies of the login still listed', () => {
     const vault = scopedVault();
     stubDesktop(vault);
     const { registry, switcher } = await fresh();
-    registry.signInSession({ email: 'c@example.com', token: 'client.sig', role: 'client' });
+    registry.signInSession({ email: 'c@example.com', token: 'client.sig' });
     addCopies(registry, 'client.sig', 3, vault);
 
     await switcher.signOutActive();
@@ -617,7 +614,7 @@ describe('signing out with copies of the login still listed', () => {
     stubDesktop(vault);
     const { registry, switcher } = await fresh();
     const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
-    registry.signInSession({ email: 'c@example.com', token: 'client.sig', role: 'client' });
+    registry.signInSession({ email: 'c@example.com', token: 'client.sig' });
     addCopies(registry, 'client.sig', 3, vault);
 
     await switcher.signOutActive();
@@ -698,7 +695,7 @@ describe('signing out with copies of the login still listed', () => {
     roles['other.sig'] = 'member';
     const { registry, switcher } = await fresh();
     const other = registry.signInSession({ email: 'other@example.com', token: 'other.sig' })!;
-    registry.signInSession({ email: 'me@example.com', token: tok('u1', 'live'), role: 'member' });
+    registry.signInSession({ email: 'me@example.com', token: tok('u1', 'live') });
     registry.listSessions(); // the load-time repair has run
     const list = JSON.parse(map.get('mantle_sessions')!) as unknown[];
     for (const jti of ['old1', 'old2']) {

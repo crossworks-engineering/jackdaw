@@ -7,7 +7,6 @@ import {
   dropRescue,
   keepRescue,
   replayRescue,
-  clientRescueOwner,
   rescueOwnerFor,
   setRescueOwner,
   sweepRescues,
@@ -118,19 +117,16 @@ describe('a kept write belongs to the login that wrote it', () => {
     expect(takeRescue(PATH, 0, s, null)).toBeNull();
   });
 
-  it('the owner is the member login, or the admin login', () => {
-    expect(rescueOwnerFor(true, { loginId: 'L1' }, undefined)).toBe('member:L1');
-    expect(rescueOwnerFor(true, undefined, { email: 'a@example.com' })).toBeNull();
-    expect(rescueOwnerFor(false, undefined, { email: 'a@example.com' })).toBe(
-      'admin:a@example.com',
+  it('the owner is the member login, or the admin login, from the one shell (W5c)', () => {
+    expect(rescueOwnerFor({ role: 'member', loginId: 'L1', email: 'm@example.com' })).toBe(
+      'member:L1',
     );
-    expect(rescueOwnerFor(false, undefined, undefined)).toBeNull();
-  });
-
-  it('a client portal names its client login (tier U7)', () => {
-    expect(clientRescueOwner({ loginId: 'C1' })).toBe('client:C1');
-    expect(clientRescueOwner({ loginId: '' })).toBeNull();
-    expect(clientRescueOwner(undefined)).toBeNull();
+    expect(rescueOwnerFor({ role: 'member', email: 'm@example.com' })).toBeNull();
+    expect(rescueOwnerFor({ role: 'admin', email: 'a@example.com' })).toBe('admin:a@example.com');
+    // A brain that names no role answered an admin only.
+    expect(rescueOwnerFor({ email: 'a@example.com' })).toBe('admin:a@example.com');
+    expect(rescueOwnerFor({ role: 'client', loginId: 'C1' })).toBeNull();
+    expect(rescueOwnerFor(undefined)).toBeNull();
   });
 });
 
@@ -169,9 +165,7 @@ describe('sweeping and clearing', () => {
     expect(shell).toMatch(
       /sweepRescues\(Date\.now\(\)\);\s*return onSignOut\(\(\) => \{\s*setRescueOwner\(null\);\s*clearRescues\(\);/,
     );
-    expect(shell).toContain(
-      'const rescueWho = rescueOwnerFor(isMember, memberShellQuery.data, shellQuery.data);',
-    );
+    expect(shell).toContain('const rescueWho = rescueOwnerFor(shell);');
     expect(shell).toContain('setRescueOwner(rescueWho);');
   });
 });

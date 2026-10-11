@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { runtimeApiBase } from '@mantle/web-ui/runtime-env';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { useViewerRole } from '@/components/member/viewer-role';
+import { useShellRole } from '@/components/layout/shell-role';
 import {
   adminRestore,
   forgetLastOpened,
@@ -28,7 +28,8 @@ import { memberItemHref, probeMemberItem, resolveMemberItem } from '@/lib/member
  */
 
 /** The signed-in login, as the app shell names it (`admin:<email>`,
- *  `member:<loginId>`), or null until the shell has loaded. */
+ *  `member:<loginId>`), or null until the shell has loaded (and for a client,
+ *  which keeps nothing). */
 const LoginContext = createContext<string | null>(null);
 
 export function LastOpenedLoginProvider({
@@ -81,7 +82,7 @@ export function RestoreLastOpened({
   section: LastOpenedSection;
   children: ReactNode;
 }) {
-  const role = useViewerRole();
+  const role = useShellRole();
   const login = useContext(LoginContext);
   const pathname = usePathname();
   const search = useSearchParams().toString();
@@ -143,8 +144,8 @@ export function RestoreLastOpened({
   }, [phase, role, login, section, router]);
 
   if (phase === 'done' || !bare) return <>{children}</>;
-  // Role not known yet: the children's RoleSwitch shows its own loading
-  // screen, and a second spinner would only flicker.
+  // Role not known yet: the children's RoleSwitch shows its own spinner,
+  // and a second one would only flicker.
   if (phase === 'check' && role !== 'admin' && role !== 'member') return <>{children}</>;
   return (
     <div className="flex h-full items-center justify-center">

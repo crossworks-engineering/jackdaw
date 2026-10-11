@@ -1,4 +1,4 @@
-import { RoleSwitch } from '@/components/member/viewer-role';
+import { RoleSwitch } from '@/components/layout/shell-role';
 import { MemberAppRun } from '@/components/member/member-app-run';
 import { AppDetailClient } from './app-detail-client';
 

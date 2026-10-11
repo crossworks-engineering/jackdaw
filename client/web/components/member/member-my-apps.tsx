@@ -39,7 +39,6 @@ import {
   MY_APP_RESTORED_TOAST,
   MY_APP_SHARE_HINT,
   MY_APP_SNAPSHOT_DELETED_TOAST,
-  MY_APP_SUBMIT_HINT,
   MY_APPS_KEY,
   MY_APPS_PATH,
   isMyAppInTrash,
@@ -50,7 +49,6 @@ import {
   myAppSnapshotPath,
   spaceAppActions,
   spaceAppStatus,
-  spaceAppSubmitHint,
   type DeletedSpaceApp,
   type MyAppHistoryEntry,
   type SpaceAppCard,
@@ -211,31 +209,16 @@ function MyAppRow({ app }: { app: SpaceAppCard }) {
   const [history, setHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const actions = spaceAppActions(app);
-  const hint = spaceAppSubmitHint(app);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: MY_APPS_KEY });
     void qc.invalidateQueries({ queryKey: ['member-apps'] });
   };
   const act = useMutation({
-    mutationFn: (
-      a: { kind: 'share'; sharing: 'private' | 'team' } | { kind: 'submit' | 'recall' },
-    ) =>
-      apiSend(
-        myAppActionPath(app.id, a.kind),
-        'POST',
-        a.kind === 'share' ? { sharing: a.sharing } : undefined,
-      ),
+    mutationFn: (a: { kind: 'share'; sharing: 'private' | 'team' }) =>
+      apiSend(myAppActionPath(app.id, a.kind), 'POST', { sharing: a.sharing }),
     onSuccess: (_res, a) => {
       refresh();
-      toast.success(
-        a.kind === 'share'
-          ? a.sharing === 'team'
-            ? 'Shared with the team'
-            : 'Private again'
-          : a.kind === 'submit'
-            ? 'Submitted for review'
-            : 'Taken back from review',
-      );
+      toast.success(a.sharing === 'team' ? 'Shared with the team' : 'Private again');
     },
     onError: (e) => {
       // Moved to Trash from another tab or over MCP: the list catches up.
@@ -273,13 +256,9 @@ function MyAppRow({ app }: { app: SpaceAppCard }) {
           <AppDataPills app={app} />
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{spaceAppStatus(app)}</p>
-        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
-        {/* What Share and Submit do, before the click (M3 audit, low 4). */}
+        {/* What Share does, before the click (M3 audit, low 4). */}
         {actions.share === 'team' ? (
           <p className="mt-1 text-xs text-muted-foreground">Share: {MY_APP_SHARE_HINT}</p>
-        ) : null}
-        {actions.submit ? (
-          <p className="mt-1 text-xs text-muted-foreground">Submit: {MY_APP_SUBMIT_HINT}</p>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -296,26 +275,6 @@ function MyAppRow({ app }: { app: SpaceAppCard }) {
             onClick={() => act.mutate({ kind: 'share', sharing: actions.share! })}
           >
             {actions.share === 'team' ? 'Share with team' : 'Make private'}
-          </Button>
-        ) : null}
-        {actions.submit ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => act.mutate({ kind: 'submit' })}
-          >
-            Submit
-          </Button>
-        ) : null}
-        {actions.recall ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => act.mutate({ kind: 'recall' })}
-          >
-            Recall
           </Button>
         ) : null}
         {app.mine ? (

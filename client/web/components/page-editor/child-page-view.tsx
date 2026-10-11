@@ -5,7 +5,7 @@ import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import Link from 'next/link';
 import { ChevronRight, FileText } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
-import { useViewerRole } from '@/components/member/viewer-role';
+import { useShellRole } from '@/components/layout/shell-role';
 import { childPageHref, childPageLivePath } from '@/lib/child-page-card';
 
 /**
@@ -29,7 +29,7 @@ export function ChildPageView({ node }: NodeViewProps) {
   // Only a confirmed admin reads the admin page route: a member or a client
   // has none (the brain refuses them), so the card keeps its snapshot, and a
   // client's card links nowhere (client tier audit U3).
-  const role = useViewerRole();
+  const role = useShellRole();
   const livePath = childPageLivePath(role, pageId);
   const href = childPageHref(role, pageId);
 

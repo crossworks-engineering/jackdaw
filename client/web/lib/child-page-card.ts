@@ -8,7 +8,7 @@
  *
  * Pure: pinned by child-page-card.test.ts.
  */
-import type { ViewerRole } from './shell-role';
+import type { ShellRole as ViewerRole } from './workspaces';
 
 /** The route the card asks for the live title and icon, or null to keep the
  *  snapshot. */

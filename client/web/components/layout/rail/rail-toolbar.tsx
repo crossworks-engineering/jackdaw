@@ -4,8 +4,9 @@ import { PanelLeft, PanelLeftClose } from 'lucide-react';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AssistantButton, HighlightButton } from '@/components/assistant/assistant-dock';
-import { MemberChatButton } from '@/components/member/member-chat-button';
 import { HelpLauncher } from '@/components/help/help-launcher';
+import { MemberChatButton } from '@/components/member/member-chat-button';
+import { useShellRole } from '@/components/layout/shell-role';
 
 /**
  * The strip at the foot of the rail, and the last of the old footer bar. Four
@@ -27,11 +28,7 @@ export function RailToolbar({
   onToggleNav,
   showCollapse = true,
   onLaunch,
-  member = false,
 }: {
-  /** A member login: no help rail or marker pick, and the chat launcher
-   *  instead of the Assistant (member logins, Phase 3). */
-  member?: boolean;
   navCollapsed: boolean;
   onToggleNav: () => void;
   /** The mobile drawer has nothing to collapse to — it is open or it is gone. */
@@ -45,6 +42,10 @@ export function RailToolbar({
    *  handler still fires after the drawer state flips. */
   onLaunch?: () => void;
 }) {
+  // The launchers by the brain's role (phase W5c, until W7): help, marker
+  // pick and the Assistant for an admin, a member's own chat for a member,
+  // none for a client.
+  const role = useShellRole();
   return (
     <div
       className="relative flex shrink-0 items-center gap-1 border-t border-sidebar-border px-3 py-2 group-data-[nav-collapsed=true]/shell:flex-col group-data-[nav-collapsed=true]/shell:px-2"
@@ -74,12 +75,12 @@ export function RailToolbar({
         </Button>
       )}
 
-      {member ? null : (
+      {role === 'admin' ? (
         <>
           <HelpLauncher />
           <HighlightButton />
         </>
-      )}
+      ) : null}
 
       {/* Pushed to the far end of the row so the strip reads as "three utilities,
           then the thing you actually came for". In the stacked icon rail there is
@@ -91,7 +92,7 @@ export function RailToolbar({
           strip would overflow the rail exactly when it most needs to be read.
           The label truncates instead; the badge never does. */}
       <span className="ml-auto min-w-0 group-data-[nav-collapsed=true]/shell:ml-0">
-        {member ? <MemberChatButton /> : <AssistantButton />}
+        {role === 'admin' ? <AssistantButton /> : role === 'member' ? <MemberChatButton /> : null}
       </span>
     </div>
   );

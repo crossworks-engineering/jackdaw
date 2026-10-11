@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   KEEP_PRIVATE_HELP,
-  acceptedBrainHref,
   brainViewHref,
   createPrivateItem,
   isPrivateView,
@@ -56,15 +55,6 @@ describe('the Private view (member logins Phase 7)', () => {
     expect(isPrivateView(new URLSearchParams('space=brain'))).toBe(false);
     expect(isPrivateView(new URLSearchParams(''))).toBe(false);
     expect(isPrivateView(null)).toBe(false);
-  });
-
-  it('an accepted item opens on its brain route', () => {
-    expect(acceptedBrainHref('page', 'p1')).toBe('/pages/p1');
-    expect(acceptedBrainHref('note', 'n1')).toBe('/notes/n1');
-    expect(acceptedBrainHref('draw', 'd1')).toBe('/draw/d1');
-    expect(acceptedBrainHref('table', 't1')).toBe('/tables/t1');
-    expect(acceptedBrainHref('file', 'f1', 'files.docs')).toBe('/files?path=files.docs&file=f1');
-    expect(acceptedBrainHref('file', 'f1', null)).toBe('/files?file=f1');
   });
 
   it('says one line of help', () => {

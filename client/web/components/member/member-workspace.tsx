@@ -30,20 +30,18 @@ import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
 import { treeKey } from '@/components/item-tree/tree-api';
 import { TREE_KIND_SPECS, type TreeFolder, type TreeItem } from '@mantle/web-ui/types/tree';
-import { useAcceptedDraftNotice, useLiveTreeFolder } from '@/components/item-tree/use-tree-cache';
+import { useLiveTreeFolder } from '@/components/item-tree/use-tree-cache';
 import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import { treeKindOfItem, useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
-import { ClientRequestItem } from './client-request-item';
-import { TeamDraftItem } from './team-draft-item';
 import { MemberItemSections, useMemberSectionLists } from './member-item-sections';
 import { spaceErrorMessage } from './space-status';
 
 const KIND = MEMBER_KIND;
 
 function asSource(v: string | null): WorkspaceSource {
-  return v === 'team' || v === 'library' || v === 'accepted' || v === 'client-request' ? v : 'mine';
+  return v === 'library' || v === 'accepted' ? v : 'mine';
 }
 
 /** The params of the member list this screen replaced (its view switch,
@@ -62,7 +60,7 @@ export function withoutRetiredParams(current: string): string | null {
 
 /** The tree row's source as the URL's `src` (which item view opens it). */
 export function srcOfTreeItem(item: Pick<TreeItem, 'source'>): WorkspaceSource {
-  return item.source === 'own' ? 'mine' : item.source === 'team' ? 'team' : 'library';
+  return item.source === 'own' ? 'mine' : 'library';
 }
 
 /**
@@ -133,10 +131,9 @@ function useSpaceEvents() {
  * own folders and drafts there; nothing an admin does is offered.
  *
  * Above the tree, small sections hold what the tree does not: own items with
- * an admin, the member's accepted work, and clients' requests
- * (member-item-sections.tsx). The open item is `?id=` with `?src=` naming
- * which view opens it (own, a teammate's draft, the Library, accepted, or a
- * client's submitted item, read only); the tree's search is `?q=`.
+ * an admin and the member's accepted work (member-item-sections.tsx). The
+ * open item is `?id=` with `?src=` naming which view opens it (own, the
+ * Library or accepted); the tree's search is `?q=`.
  */
 export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const router = useRouter();
@@ -150,15 +147,11 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   // redirects write; a member's screen reads it the same way.
   const openId = params.get('id') ?? params.get('selected');
   const openSource = asSource(params.get('src'));
-  // The section opens on this item next time (lib/last-opened.ts). A
-  // client's submitted item is not one of the member's sources to restore.
-  useRememberLastOpened(
-    sectionOf(MEMBER_KIND[kind].path),
-    openId && openSource !== 'client-request' ? openId : null,
-  );
+  // The section opens on this item next time (lib/last-opened.ts).
+  useRememberLastOpened(sectionOf(MEMBER_KIND[kind].path), openId);
   const treeKind = treeKindOfItem(kind);
   const treeAdapter = treeKind ? readerTreeAdapter(treeKind) : null;
-  const serves = useReaderTreeServes('member', treeKind);
+  const serves = useReaderTreeServes(treeKind);
   const [treeGone, setTreeGone] = useState(false);
   const [treeQuery, setTreeQuery] = useTreeSearch();
   // The folder the tree has open: where New and Upload file a draft (null =
@@ -170,13 +163,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   useEffect(() => {
     if (pickedFolder && !treeFolder) setTreeFolder(null);
   }, [pickedFolder, treeFolder]);
-  // A draft that was with an admin leaves the folders when it is accepted
-  // into the brain: say where it went rather than lose it quietly.
-  useAcceptedDraftNotice(treeKind, (d) =>
-    toast.info(
-      `“${d.title || 'Untitled'}” is no longer in your folders: an admin accepted it into the brain. It shows under By me above the tree.`,
-    ),
-  );
   const sectionLists = useMemberSectionLists(kind);
   // The state of the tree row last opened: an own draft an admin holds opens
   // as such (audit F07), as its list row did.
@@ -257,8 +243,8 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     }
   };
 
-  // The open item's row in a section, when it came from one: a client
-  // request names its author, an own item with an admin opens as such.
+  // The open item's row in a section, when it came from one: an own item
+  // with an admin opens as such.
   const sectionRow: MemberItemRow | null = openId
     ? (sectionLists
         .flatMap((l) => l.rows)
@@ -380,15 +366,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   const detailPane = openId ? (
     openSource === 'mine' ? (
       <MineItem key={openId} id={openId} onClose={close} withAdmin={withAdmin} />
-    ) : openSource === 'team' ? (
-      <TeamDraftItem key={openId} id={openId} onClose={close} />
-    ) : openSource === 'client-request' ? (
-      <ClientRequestItem
-        key={openId}
-        id={openId}
-        author={sectionRow?.author ?? null}
-        onClose={close}
-      />
     ) : (
       <MemberReader
         key={`${openSource}:${openId}`}

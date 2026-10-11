@@ -8,6 +8,7 @@ import { adminSpace, type SpaceKind } from '@/lib/member-space';
 import { PRIVATE_ID_PARAM } from '@/lib/admin-private';
 import { MineItem } from '@/components/member/mine-item';
 import { SpaceApiProvider } from '@/components/member/space-api';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { ItemCard, ItemIcon, UpdatedStamp } from './item-card';
 import { StatePill } from './state-pill';
 
@@ -97,7 +98,9 @@ export function PrivateItemCard({
 }
 
 /** The detail pane for a private item: the admin-space item view (edit,
- *  save, accept into the brain, give back, delete). */
+ *  save, accept into the brain, give back, delete). An Admin user's only:
+ *  /api/admin/space* answers no one else (phase W5c: one shell), so for
+ *  anyone else it renders nothing. */
 export function PrivateItemDetail({
   id,
   onClose,
@@ -106,6 +109,8 @@ export function PrivateItemDetail({
   kind?: SpaceKind;
   onClose: () => void;
 }) {
+  const isAdminUser = useIsAdminUser();
+  if (!isAdminUser) return null;
   return (
     <SpaceApiProvider client={adminSpace}>
       <MineItem id={id} onClose={onClose} />

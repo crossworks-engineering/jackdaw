@@ -13,7 +13,8 @@ import type { SpaceKind } from '@/lib/member-space';
  * there is no separate Private view and no Brain / Private switch any more.
  * An old Private-view link (`?space=private[&id=]`) still lands: it is
  * redirected to the screen filtered to private items, or with that item open.
- * Mounted inside RoleSwitch's admin branch, so a member never reaches it.
+ * A redirect and nothing else, so it is safe for every login (phase W5c):
+ * the private rows themselves render for an Admin user only.
  */
 export function AdminSpaces({ kind, children }: { kind: SpaceKind; children: ReactNode }) {
   const params = useSearchParams();

@@ -34,10 +34,15 @@ describe('an item frozen elsewhere keeps the editor, read-only, until let go', (
   });
 });
 
-describe('Submit waits for the title', () => {
-  it('saves the title before anything else, and a failed rename stops it', () => {
-    expect(item).toMatch(
-      /const beforeSubmit = async \(\) => \{\s*if \(!\(await saveTitle\(\)\)\) return false;/,
-    );
+describe('no Submit, Recall, Share, Accept or Give back (W5c: the routes answer 410)', () => {
+  it('MineItem offers none of them', () => {
+    for (const gone of [
+      'ReviewActions',
+      'SharingControl',
+      'AcceptIntoBrainDialog',
+      'GiveBackDialog',
+    ]) {
+      expect(item, gone).not.toContain(gone);
+    }
   });
 });

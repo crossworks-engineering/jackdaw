@@ -33,8 +33,6 @@ export function MobileBar({
   logoDarkVersion,
   onMenuClick,
   onSearchClick,
-  member = false,
-  client = false,
   switcher,
 }: {
   identity: ProfileIdentity;
@@ -42,13 +40,8 @@ export function MobileBar({
   logoVersion?: string | null;
   logoDarkVersion?: string | null;
   onMenuClick: () => void;
-  /** Absent = no search palette on this shell (a member's). */
+  /** Opens the search palette. */
   onSearchClick?: () => void;
-  /** A member login: the account menu drops Profile and its sign-out clears
-   *  the member hint, exactly as the rail's does. */
-  member?: boolean;
-  /** A client login: the client's short menu (see ProfileMenu). */
-  client?: boolean;
   /** The workspace switcher's icon form (plan 7.1). */
   switcher?: React.ReactNode;
 }) {
@@ -106,7 +99,7 @@ export function MobileBar({
           <Search />
         </Button>
       ) : null}
-      <ProfileMenu identity={identity} variant="bar" member={member} client={client} />
+      <ProfileMenu identity={identity} variant="bar" />
     </header>
   );
 }

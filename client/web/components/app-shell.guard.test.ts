@@ -1,81 +1,107 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The shell fails closed (client logins C0), pinned where the node test
- * runner cannot render it (the shell needs the Next router and the query
- * client). The rules themselves are unit-tested: lib/shell-role.test.ts (the
- * role) and components/member/viewer-role.test.ts (the gate's screens).
+ * One shell for every login (phase W5c), pinned where the node test runner
+ * cannot render it (the shell needs the Next router and the query client).
+ * The parts are unit-tested: lib/shell-probe.test.ts (the probe),
+ * components/layout/shell-screens.test.ts (the gate's screens),
+ * components/layout/shell-role.test.ts (the brain's role) and
+ * lib/workspaces.test.ts (the area table).
  */
-const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+const here = fileURLToPath(new URL('.', import.meta.url));
+const web = join(here, '..');
+const src = (rel: string) => readFileSync(join(here, rel), 'utf8');
 const shell = src('./app-shell.tsx');
 const layout = src('../app/(app)/layout.tsx');
 
-describe('no default of admin', () => {
-  it('the layout seeds a client or a member from the hints (the client first), or nothing', () => {
-    expect(layout.replace(/\s+/g, ' ')).toContain(
-      "const role = cookieStore.get(CLIENT_HINT_COOKIE)?.value === '1' ? 'client' : cookieStore.get(MEMBER_HINT_COOKIE)?.value === '1' ? 'member' : null;",
-    );
-    expect(layout).not.toMatch(/'admin'/);
+describe('one probe: GET /api/shell', () => {
+  it('the shell asks /api/shell once, and no member or client shell', () => {
+    expect(shell.match(/queryKey: \['shell'\]/g)).toHaveLength(1);
+    expect(shell.match(/apiFetch<ShellData>\('\/api\/shell'\)/g)).toHaveLength(1);
+    expect(shell).not.toMatch(/\/api\/member|\/api\/client|\/api\/team-admin/);
   });
 
-  it('the shell never falls back to admin', () => {
-    expect(shell).not.toMatch(/\?\? 'admin'|= 'admin'|: 'admin'\s*[,;)]/);
-    expect(shell).toContain("role: 'member' | 'client' | null;");
-  });
-});
-
-describe('a client gets the client portal and nothing of the owner or member shell', () => {
-  it('the gate renders the portal for a client, beside (not inside) the frame', () => {
-    expect(shell).toContain('client={<ClientPortal query={probes.client} />}');
-  });
-
-  it('a seeded shell asks neither the admin nor the other role probe', () => {
-    // /api/shell only when nothing is seeded, the member shell only for a
-    // member seed, the client shell only once this is a client.
-    expect(shell).toContain('enabled: seed === null,');
-    expect(shell).toContain('enabled: isMemberSeed,');
-    expect(shell).toContain('enabled: isClient,');
-  });
-});
-
-describe('the shell renders for a confirmed role only', () => {
-  it('everything, providers and frame, sits inside the role gate', () => {
-    expect(shell).toMatch(
-      /<ViewerRoleProvider role=\{role\}>\s*<ShellRoleGate\s+role=\{role\}\s+probeFailed=\{probeFailed\}\s+failure=\{failure\}\s+retrying=\{retrying\}\s+onRetry=\{retry\}\s+client=\{<ClientPortal query=\{probes\.client\} \/>\}\s*>\s*\{\(confirmed\) => \(\s*<ToastProvider>/,
-    );
-    expect(shell).toContain('<ShellFrame {...props} role={confirmed} probes={probes} />');
-    // One frame, and only there.
-    expect(shell.match(/<ShellFrame /g)).toHaveLength(1);
-  });
-
-  it('the role comes from the brain through resolveShellRole', () => {
-    expect(shell).toContain('const role = resolveShellRole(input);');
+  it('it keeps the asset token fresh, refetches on focus, and retries once', () => {
     expect(shell).toContain(
-      'const { role, probeFailed, failure, retrying, retry, probes } = useShellRole(props.role);',
+      'refetchInterval: (query) => assetTokenRefreshDelayMs(query.state.data?.assetToken),',
     );
+    expect(shell).toContain('refetchOnWindowFocus: true,');
+    expect(shell).toContain('retry: 1,');
   });
 
   it('an offline (paused) probe counts, so the shell does not sit on Loading', () => {
     expect(shell).toContain("paused: shell.fetchStatus === 'paused',");
-    expect(shell).toContain('const failure = shellProbeFailure(input, role);');
-    expect(shell).toContain('probeFailed: failure !== null,');
+    expect(shell).toContain('const failure = shellProbeFailure({');
   });
 
-  it('no retry on any of the three refusals', () => {
-    expect(
-      shell.match(/retry: \(count, err\) => !isLoginRefusal\(err\) && count < 1/g),
-    ).toHaveLength(3);
-  });
-
-  it('a confirmed client clears the member hint, keeps the client hint and navigates nowhere', () => {
-    const effect = shell.slice(
-      shell.indexOf('const clientConfirmed'),
-      shell.indexOf('const shellLoaded'),
+  it('everything, providers and frame, renders once the shell has answered', () => {
+    expect(shell).toMatch(
+      /<ShellGate ready=\{data !== undefined\} failure=\{failure\} retrying=\{retrying\} onRetry=\{retry\}>\s*\{data !== undefined \? \(\s*<ToastProvider>/,
     );
-    expect(effect).toContain('setMemberHint(false);');
-    expect(effect).toContain('setClientHint(true);');
-    expect(effect).not.toMatch(/location|router/);
+    expect(shell.match(/<ShellFrame /g)).toHaveLength(1);
+    expect(shell).toContain('<ShellFrame {...props} shell={data} />');
+  });
+});
+
+describe('no role routing in the shell itself', () => {
+  it('the layout seeds no role and sets no client tab title', () => {
+    expect(layout).not.toMatch(/role|HINT_COOKIE|generateMetadata|clientTabTitle/);
+    expect(layout).toContain('<AppShell');
+  });
+
+  it('the shell reads no hint, parses no refusal and reloads nobody', () => {
+    expect(shell).not.toMatch(
+      /setMemberHint|setClientHint|LoginRefusal|location\.(reload|replace)|ClientPortal|setSwitchLanding/,
+    );
+  });
+
+  it('owner chrome needs the settings area, read from the same answer', () => {
+    expect(shell).toContain("const manages = hasArea(shellAreasOf(shell), 'settings');");
+    for (const chrome of [
+      '{manages ? contextCard : null}',
+      '{manages ? <UpdateBanner onNavigate={onNavigate} /> : null}',
+      '{manages ? <ProviderAlertBanner onNavigate={onNavigate} /> : null}',
+      '{manages ? <PendingQuestionWatcher /> : null}',
+      '{manages ? <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} /> : null}',
+    ]) {
+      expect(shell, chrome).toContain(chrome);
+    }
+    expect(shell).toContain('{zen || !manages ? null : (');
+  });
+
+  it('every page sits inside the one area check', () => {
+    expect(shell).toContain('<AreaGate>{children}</AreaGate>');
+  });
+
+  it('the same nav for every login: no member nav', () => {
+    expect(shell).toContain('<SidebarNav');
+    expect(shell).not.toMatch(/MemberSidebarNav/);
+  });
+});
+
+/** Every source file of the app, tests excluded. */
+function sources(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === '.next') continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) sources(p, out);
+    else if (/\.(ts|tsx)$/.test(name) && !/\.test\.ts$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
+describe('the role plumbing of old is gone from the app', () => {
+  it('no file names the retired role gate, role context or hint cookies', () => {
+    const offenders = sources(web)
+      .filter((f) =>
+        /ShellRoleGate|useViewerRole|ViewerRoleProvider|MEMBER_HINT|CLIENT_HINT_COOKIE|\/api\/member\/shell|\/api\/client\/shell/.test(
+          readFileSync(f, 'utf8'),
+        ),
+      )
+      .map((f) => relative(web, f));
+    expect(offenders).toEqual([]);
   });
 });

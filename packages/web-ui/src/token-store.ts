@@ -26,7 +26,6 @@ import {
   setSessionToken,
   signInSession,
   TOKEN_STORAGE_KEY,
-  type SessionRole,
 } from './session-registry';
 
 const PRESENCE_COOKIE = 'mantle_authed';
@@ -93,12 +92,18 @@ export const tokenStore = {
   signIn(login: {
     email: string;
     token: string;
-    role?: SessionRole | null;
+    /** Ignored (phase W5c: a held login is a login). Accepted until the
+     *  last caller that names one, the desktop client code sign-in, goes. */
+    role?: unknown;
     loginId?: string | null;
   }): void {
     if (!canStore()) return;
     try {
-      signInSession(login);
+      signInSession({
+        email: login.email,
+        token: login.token,
+        ...(login.loginId !== undefined ? { loginId: login.loginId } : {}),
+      });
       setPresenceCookie();
     } catch {
       /* storage unavailable (private mode etc.); the session just won't persist */

@@ -18,14 +18,16 @@ import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { CONTRACT_VERSION } from '@mantle/web-ui/version';
-import { useIsMember } from '@/components/member/viewer-role';
+import { hasArea } from '@/lib/workspaces';
+import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 
 // A mismatch cannot fix itself without a roll on one side, and a roll reloads
 // the tab — so one check per hour is plenty and keeps the rail quiet.
 const RECHECK_MS = 60 * 60 * 1000;
 
 export function ContractBanner({ onNavigate }: { onNavigate?: () => void }) {
-  const member = useIsMember();
+  // /settings/updates is the settings area's.
+  const manages = hasArea(useViewerAreas(), 'settings');
   const versionQuery = useQuery({
     queryKey: ['server-version'],
     queryFn: () => apiFetch<{ version?: string; contractVersion?: number }>('/api/version'),
@@ -40,9 +42,9 @@ export function ContractBanner({ onNavigate }: { onNavigate?: () => void }) {
   const older = server.contractVersion < CONTRACT_VERSION;
   const tone =
     'flex items-center gap-2 rounded-md bg-destructive px-3 py-2 text-xs font-medium text-destructive-foreground group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:px-0 group-data-[nav-collapsed=true]/shell:py-2';
-  if (member) {
-    // A member cannot update anything, and /settings/updates is admin-only:
-    // say it, with no link.
+  if (!manages) {
+    // Without the settings area nothing here can be updated, and
+    // /settings/updates is closed: say it, with no link.
     return (
       <div className="px-3 pt-3 group-data-[nav-collapsed=true]/shell:px-2">
         <div

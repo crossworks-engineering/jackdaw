@@ -50,6 +50,7 @@ import {
   usePrivateOpen,
   type AdminListState,
 } from '@/components/item-list/admin-private-rows';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 import { DropdownMenuItem } from '@mantle/web-ui/ui/dropdown-menu';
 import { ItemTree } from '@/components/item-tree/item-tree';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
@@ -97,6 +98,9 @@ export function NotesClient() {
   // Which items: all (default), the brain's, or this admin's private ones
   // (item-list alignment). Always sent: the brain's default is `brain`.
   const state = adminStateOf(searchParams);
+  // Only an Admin user has a private space (phase W5c: one shell): anyone
+  // else asks for the brain's items, with no State filter.
+  const isAdminUser = useIsAdminUser();
   const { pid, openPrivate } = usePrivateOpen();
 
   // The item tree when this brain serves it for notes (docs/folder-tree.md);
@@ -116,7 +120,7 @@ export function NotesClient() {
       if (activeTag) qs.set('tag', activeTag);
       if (showDigests) qs.set('digests', '1');
       if (page > 1) qs.set('page', String(page));
-      qs.set('state', state);
+      if (isAdminUser) qs.set('state', state);
       if (ws) qs.set('ws', ws);
       return apiFetch<NotesListResponse>(`/api/notes?${qs.toString()}`).then((r) =>
         noteListAnswer(r, ws),
@@ -403,11 +407,13 @@ export function NotesClient() {
                   onDetailsChange={changeDetails}
                   allLabel="All notes"
                 />
-                <StateFilter
-                  value={state}
-                  options={ADMIN_STATE_OPTIONS}
-                  onChange={(v) => go({ state: v, page: 1 })}
-                />
+                {isAdminUser ? (
+                  <StateFilter
+                    value={state}
+                    options={ADMIN_STATE_OPTIONS}
+                    onChange={(v) => go({ state: v, page: 1 })}
+                  />
+                ) : null}
                 <Button
                   size="sm"
                   variant="ghost"

@@ -135,15 +135,16 @@ describe('the admin list screens are built from the kit', () => {
 describe('every admin list shows the admin’s private items beside the brain’s (D1)', () => {
   it.each(Object.entries(SCREENS))('%s asks for them and lists them with the pill', (_, rel) => {
     const src = read(rel);
-    // The brain's default is `brain` (older clients): the screen always sends it.
-    expect(src).toMatch(/qs\.set\('state', state\)/);
+    // The brain's default is `brain` (older clients): the screen sends it for
+    // an Admin user, the one login with a private space (W5c).
+    expect(src).toContain("if (isAdminUser) qs.set('state', state);");
     expect(src).toContain('<PrivateItemCard');
     expect(src).toContain('<PrivateItemDetail');
   });
 
   it('files lists them in its root folder and in Recent', () => {
     const src = read('../../app/(app)/files/files-client.tsx');
-    expect(src).toContain('&state=all');
+    expect(src).toContain("${isAdminUser ? '&state=all' : ''}");
     expect(src).toContain('<StatePill state="private" />');
     expect(src).toContain('<PrivateItemDetail');
   });
@@ -152,9 +153,7 @@ describe('every admin list shows the admin’s private items beside the brain’
     for (const rel of [...Object.values(SCREENS), '../../app/(app)/files/files-client.tsx']) {
       expect(read(rel)).not.toContain('SpaceSwitch');
     }
-    expect(read('../member/admin-private-workspace.tsx')).not.toMatch(
-      /export function SpaceSwitch/,
-    );
+    expect(read('./admin-spaces.tsx')).not.toMatch(/export function SpaceSwitch/);
   });
 });
 
@@ -181,23 +180,5 @@ describe("the member workspace is the admin's folder view (2026-10-09)", () => {
   it('sizes its panes as each admin screen does', () => {
     expect(src).toMatch(/<MasterDetail id=\{`member-\$\{kind\}`\} \{\.\.\.LAYOUT\[kind\]\}/);
     expect(src).toContain("note: {\n    defaultListSize: '380px'");
-  });
-});
-
-describe('the client portal is the same list (P5)', () => {
-  const src = read('../client/client-home.tsx');
-
-  it('uses the kit, keeps its state in the URL, and shows no summary (0.232.333)', () => {
-    for (const part of ['<ItemListHeader', '<ClientSharedCard', '<ChoiceFilter', '<ListPager']) {
-      expect(src, part).toContain(part);
-    }
-    expect(src).toContain("params.get('kind')");
-    expect(src).toContain("params.get('q')");
-    expect(src).not.toContain('summary');
-    // Read-only: no state pill, no actions.
-    expect(src).not.toContain('StatePill');
-    expect(src).not.toContain('actions=');
-    // The card is the kit's.
-    expect(read('../client/client-shared-card.tsx')).toContain('<ItemCard');
   });
 });
