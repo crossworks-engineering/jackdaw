@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
-import type { TeamAgentAccess } from '@/lib/team-agent-access';
+import type { TeamAssistant } from '@/lib/team-assistant';
 
-/** The kept Team settings route (W5c brain contract): the team agent, the
- *  read posture and the member home app. */
+/** The kept Team settings route (W5c brain contract): the Team assistant,
+ *  the read posture and the member home app. */
 export const TEAM_SETTINGS_PATH = '/api/team-admin/settings';
 
 export const TEAM_SETTINGS_KEY = ['workspaces', 'team-settings'] as const;
@@ -13,8 +13,9 @@ export type TeamSettings = {
   privateReads: boolean;
   hubAppId: string | null;
   hubCandidates: Array<{ id: string; title: string }>;
-  /** The team agent and its level; absent on a brain before the field. */
-  teamAgent?: TeamAgentAccess | null;
+  /** The Team workspace's assistant members chat with; null when it has
+   *  none (brain b017d1874: replaces `teamAgent`, no level). */
+  teamAssistant: TeamAssistant | null;
 };
 
 export function useTeamSettings(enabled = true) {

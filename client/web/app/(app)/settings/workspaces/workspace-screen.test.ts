@@ -10,6 +10,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
+import type { TeamSettings } from '@/components/workspaces/team-settings-query';
 import { ToastProvider } from '@mantle/web-ui/ui/toast';
 import {
   ADMIN_ADD_TEXT,
@@ -25,6 +26,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/settings/workspaces' })
 
 const { WorkspaceScreen, WorkspaceSections } = await import('./workspace-screen');
 const { TEAM_SETTINGS_KEY } = await import('@/components/workspaces/team-settings-query');
+const { NO_TEAM_ASSISTANT_TEXT } = await import('@/lib/team-assistant');
 
 function ws(over: Partial<Workspace> = {}): Workspace {
   return {
@@ -407,8 +409,8 @@ describe('built-in workspaces (Admin and Team)', () => {
     });
   }
 
-  it('Team ends with the Team settings for an Admin user', () => {
-    const html = render(
+  const teamWith = (teamAssistant: TeamSettings['teamAssistant']) =>
+    render(
       createElement(WorkspaceScreen, {
         workspace: teamNow.workspace,
         areas: ADMIN_AREAS,
@@ -416,24 +418,32 @@ describe('built-in workspaces (Admin and Team)', () => {
       }),
       (c) => {
         seed(teamNow)(c);
-        c.setQueryData(TEAM_SETTINGS_KEY, {
+        c.setQueryData<TeamSettings>(TEAM_SETTINGS_KEY, {
           privateReads: false,
           hubAppId: null,
           hubCandidates: [{ id: 'app1', title: 'Desk' }],
-          teamAgent: {
-            slug: 'team-responder',
-            name: 'Team agent',
-            audience: 'team',
-            enabled: true,
-          },
+          teamAssistant,
         });
       },
     );
+
+  it('Team ends with the Team settings for an Admin user', () => {
+    const html = teamWith({ slug: 'team-responder', name: 'Team agent', workspaceId: 'ws-team' });
     for (const t of ['Member chat', 'Read posture', 'Member home app']) {
       expect(html).toContain(`>${t}</h3>`);
     }
-    expect(html).toContain('Stop member chat');
+    // W5c: the Team assistant's name, a link to it, and no level to set.
+    expect(html).toContain('Members chat with');
+    expect(html).toContain('href="/settings/agents?selected=team-responder"');
+    expect(html).toContain('>Team agent</a>');
+    expect(html).not.toMatch(/Let members chat|Stop member chat|Team level/);
     expect(html).toContain('Expose email &amp; journal');
+  });
+
+  it('Team says so plainly when it has no assistant', () => {
+    const html = teamWith(null);
+    expect(html).toContain(NO_TEAM_ASSISTANT_TEXT);
+    expect(html).not.toMatch(/Let members chat|Stop member chat/);
   });
 
   it('Team shows no Team settings to a Moderator without the settings area', () => {

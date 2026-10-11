@@ -5,14 +5,14 @@ import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { workspaceErrorText } from '@/lib/workspaces';
 import { HubAppPicker } from './hub-app-picker';
 import { PrivateReadsToggle } from './private-reads-toggle';
-import { MemberChatAccess } from './team-agent-access';
+import { TeamAssistantLine } from './team-assistant';
 import { useTeamSettings } from './team-settings-query';
 import { WorkspaceSection } from './workspace-section';
 
 /**
  * The Team settings (W5c: Team admin is gone, its settings live here): three
  * sections at the end of the built-in Team workspace's screen, for an Admin
- * user only (the caller decides). Member chat sets the team agent's level,
+ * user only (the caller decides). Member chat names the Team assistant,
  * Read posture gates the owner's email and journal, and Member home app
  * picks the app a member sees as home. Data: GET /api/team-admin/settings.
  */
@@ -42,14 +42,14 @@ export function TeamSettingsSections() {
       <WorkspaceSection
         title="Member chat"
         labelledBy="workspace-member-chat"
-        description="Members chat with the team agent. It must be at Team level first."
+        description="Members chat with this workspace's assistant."
       >
-        <MemberChatAccess agent={data.teamAgent} />
+        <TeamAssistantLine assistant={data.teamAssistant} />
       </WorkspaceSection>
       <WorkspaceSection
         title="Read posture"
         labelledBy="workspace-read-posture"
-        description="Members always get the brain's knowledge reads. This gates your private email and journal when the team agent answers a member. Default off."
+        description="Members always get the brain's knowledge reads. This gates your private email and journal when the Team assistant answers a member. Default off."
       >
         <PrivateReadsToggle initial={data.privateReads} />
       </WorkspaceSection>
