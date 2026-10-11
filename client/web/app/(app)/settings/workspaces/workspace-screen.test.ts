@@ -24,6 +24,7 @@ import {
 vi.mock('next/navigation', () => ({ usePathname: () => '/settings/workspaces' }));
 
 const { WorkspaceScreen, WorkspaceSections } = await import('./workspace-screen');
+const { TEAM_SETTINGS_KEY } = await import('@/components/workspaces/team-settings-query');
 
 function ws(over: Partial<Workspace> = {}): Workspace {
   return {
@@ -405,6 +406,62 @@ describe('built-in workspaces (Admin and Team)', () => {
       expect(html).not.toMatch(/connector level/);
     });
   }
+
+  it('Team ends with the Team settings for an Admin user', () => {
+    const html = render(
+      createElement(WorkspaceScreen, {
+        workspace: teamNow.workspace,
+        areas: ADMIN_AREAS,
+        onArchived: () => {},
+      }),
+      (c) => {
+        seed(teamNow)(c);
+        c.setQueryData(TEAM_SETTINGS_KEY, {
+          privateReads: false,
+          hubAppId: null,
+          hubCandidates: [{ id: 'app1', title: 'Desk' }],
+          teamAgent: {
+            slug: 'team-responder',
+            name: 'Team agent',
+            audience: 'team',
+            enabled: true,
+          },
+        });
+      },
+    );
+    for (const t of ['Member chat', 'Read posture', 'Member home app']) {
+      expect(html).toContain(`>${t}</h3>`);
+    }
+    expect(html).toContain('Stop member chat');
+    expect(html).toContain('Expose email &amp; journal');
+  });
+
+  it('Team shows no Team settings to a Moderator without the settings area', () => {
+    const html = render(
+      createElement(WorkspaceScreen, {
+        workspace: teamNow.workspace,
+        areas: ['users'],
+        onArchived: () => {},
+      }),
+      seed(teamNow),
+    );
+    expect(html).not.toContain('Member chat');
+    expect(html).not.toContain('Read posture');
+  });
+
+  it('Admin and a plain workspace show no Team settings', () => {
+    for (const d of [admin, detail({ builtIn: false, adminModerated: false })]) {
+      const html = render(
+        createElement(WorkspaceScreen, {
+          workspace: d.workspace,
+          areas: ADMIN_AREAS,
+          onArchived: () => {},
+        }),
+        seed(d),
+      );
+      expect(html).not.toContain('Member home app');
+    }
+  });
 
   it('a workspace that is not built in keeps its name field and Archive', () => {
     const d = detail({ builtIn: false, adminModerated: false });

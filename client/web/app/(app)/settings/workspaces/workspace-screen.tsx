@@ -37,7 +37,7 @@ import {
   ContactPicker,
   contactLabel,
   type PickedContact,
-} from '@/components/team-admin/contact-picker';
+} from '@/components/contacts/contact-picker';
 import {
   ADMIN_ADD_TEXT,
   ADMIN_MODERATED_TEXT,
@@ -58,6 +58,7 @@ import {
   isBuiltIn,
   userSearchPaged,
   canSetContact,
+  showsTeamSettings,
   removeUserText,
   userLabel,
   userSearchMin,
@@ -78,6 +79,8 @@ import {
   useWorkspaceDetail,
 } from '@/components/workspaces/workspace-queries';
 import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
+import { TeamSettingsSections } from '@/components/workspaces/team-settings';
+import { WorkspaceSection as Section } from '@/components/workspaces/workspace-section';
 
 /** A contact is set, but this login does not read contacts. */
 const CONTACT_SET_TEXT = 'Set by an Admin user';
@@ -89,7 +92,8 @@ const NO_ASSISTANT = 'none';
  * The ONE workspace screen (plan 1.4, 7.1): the same screen for every
  * workspace. Its sections, top to bottom: name, description and contact;
  * users with a Moderator tick; the assistant (at most one); then one section
- * per resource type (connectors in W5a), each row with a Write tick.
+ * per resource type (connectors in W5a), each row with a Write tick. The
+ * built-in Team workspace ends with the Team settings, for an Admin user.
  *
  * Who sees what: a Moderator of the workspace, or a login with the Users and
  * workspaces area, gets the controls; any other user reads the same screen
@@ -198,31 +202,8 @@ export function WorkspaceSections({
           manage={manage && canSetConnectors(areas)}
         />
       ))}
+      {showsTeamSettings(ws, areas) ? <TeamSettingsSections /> : null}
     </div>
-  );
-}
-
-function Section({
-  title,
-  description,
-  children,
-  labelledBy,
-}: {
-  title: string;
-  description?: React.ReactNode;
-  children: React.ReactNode;
-  labelledBy: string;
-}) {
-  return (
-    <section aria-labelledby={labelledBy} className="space-y-3 rounded-md border border-border p-4">
-      <div className="min-w-0">
-        <h3 id={labelledBy} className="text-sm font-medium">
-          {title}
-        </h3>
-        {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </section>
   );
 }
 

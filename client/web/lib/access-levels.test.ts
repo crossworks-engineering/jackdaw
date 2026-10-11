@@ -14,9 +14,7 @@ import {
   takesLink,
   AUDIENCE_TITLE,
   LEVEL_MEANING,
-  OLD_CLIENT_LINK,
   accessErrorMessage,
-  isOldClientLink,
   kindLabel,
   linkLevels,
   LEVEL_ORDER,
@@ -67,14 +65,6 @@ describe('access levels', () => {
     }
     // Public keeps its link.
     expect(LEVEL_MEANING.public).toMatch(/anyone with the link/i);
-  });
-
-  it('marks a live link on a client item as an old client link, and nothing else', () => {
-    expect(isOldClientLink('client')).toBe(true);
-    for (const l of ['admin', 'team', 'public', undefined] as const) {
-      expect(isOldClientLink(l), String(l)).toBe(false);
-    }
-    expect(OLD_CLIENT_LINK).toBe('Old client link: clients will sign in instead');
   });
 
   it("says a refused client link in the brain's words", () => {

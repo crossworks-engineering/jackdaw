@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 /**
  * Team codes are gone (member logins Phase 6, brain migration 0178 drops
  * `contact_team_tokens`): only a 16-character invite code redeems, on /invite
- * as everywhere. The Team admin tab that listed code holders now lists every
- * contact with old portal chat (Chat archive), and the brain no longer
+ * as everywhere. The Team admin tab that listed code holders is gone (W5c),
+ * and the brain no longer
  * answers `tokenLastUsedAt` (it was always null). So no screen may offer a
  * team code, name code holders, or show when a code was last used.
  *
@@ -43,8 +43,8 @@ const hits = (re: RegExp) => FILES.filter((f) => re.test(f.text)).map((f) => f.p
 
 describe('retired team codes', () => {
   it('scans the client (the control)', () => {
-    const page = FILES.find((f) => f.path.endsWith('app/(app)/team-admin/page.tsx'));
-    expect(page?.text).toMatch(/'Requests'/);
+    const page = FILES.find((f) => f.path.endsWith('app/(app)/settings/users/invites.tsx'));
+    expect(page?.text).toMatch(/Invite ready/);
     expect(FILES.some((f) => f.path.endsWith('app/invite/invite-client.tsx'))).toBe(true);
   });
 

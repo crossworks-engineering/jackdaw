@@ -1,16 +1,18 @@
 'use client';
 
 /**
- * Owner switch on the Team admin Settings tab: whether the team agent may
- * read the owner's PRIVATE corpus (email + journal) for a team member. Default
- * OFF — team members always get brain-wide knowledge reads, but personal email
- * and journal stay off-limits until the owner opts in here.
+ * The Team workspace's Read posture switch (Team settings, shown to an Admin
+ * user): whether the team agent may read the owner's PRIVATE corpus (email
+ * and journal) for a team member. Default off: team members always get the
+ * brain's knowledge reads, but personal email and journal stay out until the
+ * owner opts in here.
  */
 import { useState } from 'react';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Label } from '@mantle/web-ui/ui/label';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
+import { TEAM_SETTINGS_PATH } from './team-settings-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +34,7 @@ export function PrivateReadsToggle({ initial }: { initial: boolean }) {
     setEnabled(next); // optimistic
     setPending(true);
     try {
-      await apiSend('/api/team-admin/settings', 'PATCH', { teamPrivateReads: next });
+      await apiSend(TEAM_SETTINGS_PATH, 'PATCH', { teamPrivateReads: next });
       toast.success(
         next
           ? 'Team members can now have email & journal read on their behalf.'
@@ -40,7 +42,7 @@ export function PrivateReadsToggle({ initial }: { initial: boolean }) {
       );
     } catch {
       setEnabled(!next); // revert
-      toast.error('Could not update the setting — try again.');
+      toast.error('Could not update the setting. Try again.');
     } finally {
       setPending(false);
     }
@@ -74,7 +76,7 @@ export function PrivateReadsToggle({ initial }: { initial: boolean }) {
             <AlertDialogTitle>Expose your email &amp; journal to team members?</AlertDialogTitle>
             <AlertDialogDescription>
               Team members can already have your notes, pages, tables, files, tasks, events and
-              contacts read on their behalf through the responder — the brain is the trust boundary.
+              contacts read on their behalf through the responder. The brain is the trust boundary.
               Enabling this <strong>also</strong> lets them reach your{' '}
               <strong>email history and personal journal</strong>, including anything an uploaded
               document tries to make the responder look up. Only turn this on if every team member

@@ -1,4 +1,4 @@
-import { Layers, Power } from 'lucide-react';
+import { Layers, Link2, Power } from 'lucide-react';
 import {
   NAV_GROUPS as SHARED_NAV_GROUPS,
   navItemMatches,
@@ -11,11 +11,13 @@ export * from '@mantle/share-ui/nav-items';
 /**
  * Screens the shared nav list still names but this client no longer has.
  * `/team-portal` was the owner's signpost to the team-code portal, retired in
- * member logins Phase 6; the list comes from @crossworks/share-ui (the mantle
- * repo), which still carries the row, so it is dropped here rather than
- * rendered as a link to a 404. Remove an entry once the shared list drops it.
+ * member logins Phase 6; `/team-admin` was Team admin, gone in workspaces W5c
+ * (its settings are on the Team workspace, its links in Settings > Shared
+ * links). The list comes from @crossworks/share-ui (the mantle repo), which
+ * still carries the rows, so they are dropped here rather than rendered as
+ * links to a 404. Remove an entry once the shared list drops it.
  */
-export const RETIRED_NAV_HREFS: ReadonlySet<string> = new Set(['/team-portal']);
+export const RETIRED_NAV_HREFS: ReadonlySet<string> = new Set(['/team-portal', '/team-admin']);
 
 /** Pure, so the filter is unit-tested against any list. A group left with no
  *  items goes too, and a retired href leaves a collapsible group's cold-start
@@ -50,6 +52,13 @@ export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item
     group: 'Settings',
     after: '/settings/users',
     item: { name: 'Workspaces', href: '/settings/workspaces', icon: Layers },
+  },
+  {
+    // Shared links (W5c): every live share link, from Team admin. After
+    // Workspaces, so this entry comes after the one that adds it.
+    group: 'Settings',
+    after: '/settings/workspaces',
+    item: { name: 'Shared links', href: '/settings/shared-links', icon: Link2 },
   },
 ];
 

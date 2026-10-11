@@ -18,8 +18,7 @@ export type RevokeTarget = {
   /** Always false since folder phase 7 (a link no longer shares sub-pages);
    *  kept so older callers still type-check. */
   cascade: boolean;
-  /** What happens to the item's level, when worth saying ("It stays at
-   *  Client, for signed-in clients."). */
+  /** One more sentence, when worth saying (who loses a contact share). */
   stays?: string | null;
 };
 
@@ -67,6 +66,3 @@ export function RevokeLinkDialog({
     </AlertDialog>
   );
 }
-
-/** The level note for a revoked old client link. */
-export const STAYS_AT_CLIENT = 'It stays at Client, for signed-in clients.';

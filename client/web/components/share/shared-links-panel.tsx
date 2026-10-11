@@ -3,29 +3,24 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import type { AccessLevel } from '@mantle/client-types';
 import { Check, Copy, ExternalLink, Link2, Link2Off } from 'lucide-react';
-import { Button } from '@mantle/web-ui/ui/button';
 import { ListCard, ListCardMeta, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import { isOldClientLink, kindLabel } from '@/lib/access-levels';
-import { SHARES_KEY, canCopyLink, revokeShareLink } from '@/lib/shared-links';
-import type { RetiredClientLinkRow } from '@mantle/client-types';
-import { LinkLevel } from './link-level';
-import { RetiredClientLinks } from './retired-client-links';
-import { RevokeLinkDialog, STAYS_AT_CLIENT } from './revoke-link-dialog';
+import { kindLabel } from '@/lib/access-levels';
+import { SHARES_KEY, revokeShareLink } from '@/lib/shared-links';
+import { HeaderIconButton, ItemHeader } from '@/components/layout/item-header';
+import { RevokeLinkDialog } from './revoke-link-dialog';
 
 export { SHARES_KEY };
 
 /** One active link from GET /api/team-admin/shares. Every link is open
  *  (anyone with it can view): team links are retired (member logins Phase 6
  *  stage 6), so the row's share `mode` is always 'public' and is not read.
- *  `level` was the item's level; a W5b2 brain sends none (a link follows no
- *  level, contract 30), and then no level badge shows. */
+ *  A link follows no level since W5b2 (contract 30), so none shows. */
 export type SharedLinkRow = {
   id: string;
   path: string;
@@ -37,7 +32,6 @@ export type SharedLinkRow = {
   createdAt: string;
   viewCount: number;
   lastViewedAt: string | null;
-  level?: AccessLevel;
   /** A contact share (brain migration 0214): the contact it is for, and
    *  whether that contact may write the app. Absent on an open link and on
    *  older brains. */
@@ -56,32 +50,25 @@ function contactLine(row: SharedLinkRow): string | null {
 type SharesData = { shares: SharedLinkRow[] };
 
 /**
- * The owner's exposure registry: every active share link, newest first. One
- * glance answers "what can people outside see right now?". A link is always
- * open: members read team items by level with their own logins, not by link.
- * Each link shows its item's level; a live link on a client item is an OLD
- * client link (client logins C1: clients will sign in instead), marked so.
- * Client logins C3 retired those (brain migration 0192), so on a C3 brain
- * every live link is public and none is marked; the retired ones are listed
- * below the live links (RetiredClientLinks), with no copy and no open.
+ * The owner's exposure registry (Settings > Shared links): every active
+ * share link, newest first. One glance answers "what can people outside see
+ * right now?". A link is always open: users read items through their
+ * workspaces with their own logins, not by link.
  *
  * Master-detail: the links as cards on the left, and the SELECTED link's real
- * `/s/…` page framed on the right. The preview is the server surface itself,
- * so it shows exactly what a visitor gets. Copy, open and revoke live in the
- * detail header. The rows are the tab's query, not a copy of it: a revoke
- * takes the link out of that query at once and then refetches it, so a
- * revoked link cannot come back on the next tab switch, and a later refetch
+ * `/s/...` page framed on the right under the one header. The preview is the
+ * server surface itself, so it shows exactly what a visitor gets. Copy, open
+ * and revoke are the header's icons. The rows are the screen's query, not a
+ * copy of it: a revoke takes the link out of that query at once and then
+ * refetches it, so a revoked link cannot come back, and a later refetch
  * always shows.
  */
 export function SharedLinksPanel({
   rows,
-  retired = [],
   initialSelectedId,
 }: {
   rows: SharedLinkRow[];
-  /** The old client links the brain retired (C3); none from an older brain. */
-  retired?: readonly RetiredClientLinkRow[];
-  /** Open at this link (`?share=` from "What clients see"). */
+  /** Open at this link (`?share=`). */
   initialSelectedId?: string;
 }) {
   const toast = useToast();
@@ -92,9 +79,6 @@ export function SharedLinksPanel({
   const [confirmRevoke, setConfirmRevoke] = useState<SharedLinkRow | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
-  // No level since W5b2 (contract 30): a row's own `level`, when an older
-  // brain sends one, else none and no badge.
-  const levelOf = (row: SharedLinkRow): AccessLevel | undefined => row.level;
 
   // Keep the selection on a live row: a revoke (or a refetch) must not leave
   // the preview on a link that no longer exists.
@@ -107,7 +91,7 @@ export function SharedLinksPanel({
 
   const copy = async (row: SharedLinkRow) => {
     try {
-      // Same origin fix as AccessControl: /s/… is the server tier’s surface.
+      // Same origin fix as AccessControl: /s/... is the server tier's surface.
       await navigator.clipboard.writeText(serverUrl(row.path));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -145,34 +129,24 @@ export function SharedLinksPanel({
     </div>
   );
 
-  if (rows.length === 0 && retired.length === 0) {
-    return <div className="flex flex-1 items-center justify-center p-8">{nothingShared}</div>;
-  }
-
-  // No live link, but links C3 retired: the empty note, and those below it.
   if (rows.length === 0) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-        <div className="mx-auto w-full max-w-xl space-y-8 px-4 py-8">
-          {nothingShared}
-          <RetiredClientLinks rows={retired} />
-        </div>
-      </div>
-    );
+    return <div className="flex flex-1 items-center justify-center p-8">{nothingShared}</div>;
   }
 
   return (
     <>
       <MasterDetail
-        id="team-admin-shares"
+        id="settings-shared-links"
         className="min-h-0 flex-1"
         defaultListSize="340px"
         defaultDetailSize="768px"
         maxDetailSize="100%"
         list={
           <>
-            <div className="flex items-baseline gap-2 border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">Shared links</h2>
+            <div className="flex items-baseline gap-2 border-b border-border p-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Shared links
+              </h2>
               <span className="text-xs text-muted-foreground">{rows.length}</span>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
@@ -197,20 +171,11 @@ export function SharedLinksPanel({
                         {row.viewCount === 1 ? '' : 's'}
                         {row.lastViewedAt ? `, last ${formatDate(row.lastViewedAt)}` : ''}
                       </ListCardMeta>
-                      {contactLine(row) ? (
-                        <ListCardMeta>{contactLine(row)}</ListCardMeta>
-                      ) : (
-                        <LinkLevel level={levelOf(row)} />
-                      )}
+                      {contactLine(row) ? <ListCardMeta>{contactLine(row)}</ListCardMeta> : null}
                     </ListCard>
                   </li>
                 ))}
               </ul>
-              {retired.length > 0 ? (
-                <div className="border-t border-border p-3">
-                  <RetiredClientLinks rows={retired} />
-                </div>
-              ) : null}
             </div>
           </>
         }
@@ -218,71 +183,47 @@ export function SharedLinksPanel({
           <section className="flex h-full min-h-0 flex-col">
             {selected ? (
               <>
-                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                  <div className="min-w-0">
-                    <h2 className="flex items-center gap-2 text-sm font-semibold">
-                      {selected.icon ? <span aria-hidden>{selected.icon}</span> : null}
-                      <span className="truncate">{selected.title}</span>
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {kindLabel(selected.nodeType)} · shared {formatDate(selected.createdAt)} ·{' '}
-                      {selected.viewCount} view
-                      {selected.viewCount === 1 ? '' : 's'}
-                    </p>
-                    <div className="mt-1">
-                      {contactLine(selected) ? (
-                        <p className="text-xs text-muted-foreground">
-                          {contactLine(selected)}. It opens with their code; the workspaces do not
-                          change.
-                        </p>
-                      ) : (
-                        <LinkLevel level={levelOf(selected)} />
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    {/* An old client link is not handed out any more: clients
-                        sign in. It can still be opened and revoked. */}
-                    {canCopyLink(levelOf(selected)) ? (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-8"
-                        onClick={() => void copy(selected)}
-                        aria-label="Copy link"
-                      >
+                <ItemHeader
+                  visual={
+                    selected.icon ? (
+                      <span aria-hidden>{selected.icon}</span>
+                    ) : (
+                      <Link2 className="size-4 text-muted-foreground" aria-hidden />
+                    )
+                  }
+                  title={selected.title}
+                  subtitle={
+                    contactLine(selected)
+                      ? `${contactLine(selected)}. It opens with their code.`
+                      : `${kindLabel(selected.nodeType)} · shared ${formatDate(selected.createdAt)} · ${selected.viewCount} view${selected.viewCount === 1 ? '' : 's'}`
+                  }
+                  iconActions={
+                    <>
+                      <HeaderIconButton label="Copy link" onClick={() => void copy(selected)}>
                         {copied ? <Check /> : <Copy />}
-                      </Button>
-                    ) : null}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      asChild
-                      aria-label="Open link"
-                    >
-                      <Link href={selected.path} target="_blank" rel="noopener">
-                        <ExternalLink />
-                      </Link>
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 text-muted-foreground hover:text-destructive-ink"
-                      onClick={() => setConfirmRevoke(selected)}
-                      aria-label="Revoke link"
-                    >
-                      <Link2Off />
-                    </Button>
-                  </div>
-                </div>
+                      </HeaderIconButton>
+                      <HeaderIconButton label="Open link" asChild>
+                        <Link href={selected.path} target="_blank" rel="noopener">
+                          <ExternalLink />
+                        </Link>
+                      </HeaderIconButton>
+                      <HeaderIconButton
+                        label="Revoke link"
+                        className="text-muted-foreground hover:text-destructive-ink"
+                        onClick={() => setConfirmRevoke(selected)}
+                      >
+                        <Link2Off />
+                      </HeaderIconButton>
+                    </>
+                  }
+                />
                 {/* The share surface itself, framed: what a visitor actually
                     sees at this link. Keyed so a selection change remounts
                     rather than pushing iframe history. */}
                 <iframe
                   key={selected.id}
                   src={serverUrl(selected.path)}
-                  title={`Share preview — ${selected.title}`}
+                  title={`Share preview: ${selected.title}`}
                   className="min-h-0 w-full flex-1 border-0 bg-background"
                 />
               </>
@@ -307,9 +248,7 @@ export function SharedLinksPanel({
                 cascade: confirmRevoke.cascade,
                 stays: confirmRevoke.contactId
                   ? `Only ${confirmRevoke.contactName || 'that contact'} loses it. The workspaces do not change.`
-                  : isOldClientLink(levelOf(confirmRevoke))
-                    ? STAYS_AT_CLIENT
-                    : null,
+                  : null,
               }
             : null
         }

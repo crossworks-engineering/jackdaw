@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Owner control on the Team admin Settings tab: which mini-app (if any) a
+ * The Team workspace's Member home app (Team settings, shown to an Admin
+ * user): which mini app (if any) a
  * member login sees as their home (PUT/DELETE /api/team-admin/hub-app; the
  * route keeps its name from the retired team-code /hub, its first reader).
  * Designating requires a published build (enforced server-side); clearing
@@ -11,7 +12,7 @@
  * grants alone.
  */
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { LayoutTemplate } from 'lucide-react';
 import { Label } from '@mantle/web-ui/ui/label';
 import {
@@ -29,6 +30,7 @@ import {
   isNotInTeam,
   type HubAppSetResponse,
 } from '@/lib/hub-app';
+import { TEAM_SETTINGS_KEY } from './team-settings-query';
 
 const BUILT_IN = '__built_in__';
 
@@ -44,7 +46,7 @@ export function HubAppPicker({
   const [value, setValue] = useState(currentAppId ?? BUILT_IN);
   const [pending, setPending] = useState(false);
   const toast = useToast();
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const apply = async (next: string) => {
     const prev = value;
@@ -60,7 +62,7 @@ export function HubAppPicker({
         });
         toast.success(hubAppSetMessage(res));
       }
-      router.refresh();
+      void queryClient.invalidateQueries({ queryKey: TEAM_SETTINGS_KEY });
     } catch (err) {
       setValue(prev); // revert
       toast.error(

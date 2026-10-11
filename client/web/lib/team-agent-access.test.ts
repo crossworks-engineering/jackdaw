@@ -7,10 +7,9 @@ import {
   teamAgentState,
   type TeamAgentAccess,
 } from './team-agent-access';
-import { TeamAgentNotice } from '../components/team-admin/team-agent-access';
 
 /**
- * Team > Settings, Member chat: the team agent ships at Admin level and a
+ * The Team workspace's Member chat section: the team agent ships at Admin level and a
  * member login chats only with a Team-level agent, so this card is the one
  * step that opens member chat (it replaced the MCP/API steps in the docs).
  */
@@ -55,14 +54,5 @@ describe('openedMessage', () => {
     expect(openedMessage('T', ['a', 'b'])).toBe(
       'Members can now chat with T. Removed tool groups above Team: a, b.',
     );
-  });
-});
-
-describe('TeamAgentNotice (Invites tab)', () => {
-  it('shows only when members cannot chat', () => {
-    expect(TeamAgentNotice({ agent: agent('team') })).toBeNull();
-    expect(TeamAgentNotice({ agent: undefined })).toBeNull();
-    expect(TeamAgentNotice({ agent: agent('admin') })).not.toBeNull();
-    expect(TeamAgentNotice({ agent: null })).not.toBeNull();
   });
 });

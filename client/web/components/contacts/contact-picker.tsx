@@ -1,10 +1,9 @@
 'use client';
 
 /**
- * Pick a contact in a dialog (Add client, Invite): a search box with up to six
- * matches, or the picked contact with Change. Used by both so a login made
- * for a contact takes its email and name, and keeps the link to it (a member
- * invited from a contact shows the contact's old portal chat in its Chat).
+ * Pick a contact (the Invite dialog, a workspace's contact): a search box
+ * with up to six matches, or the picked contact with Change. A login invited
+ * for a contact takes its email and name, and keeps the link to it.
  */
 import { useQuery } from '@tanstack/react-query';
 import type { ContactRow } from '@mantle/content-core/contacts-format';
@@ -14,7 +13,7 @@ import { Input } from '@mantle/web-ui/ui/input';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { useState } from 'react';
 
-import type { PickedContact } from '../../lib/member-invites';
+import type { PickedContact } from '@/lib/user-invites';
 
 export type { PickedContact };
 

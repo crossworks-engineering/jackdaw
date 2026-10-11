@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * Team > Settings: let members chat with the team agent. A member login chats
- * only with a Team-level agent, and the team agent ships at Admin level, so
- * this card is the one step that opens member chat. It sets the level through
+ * The Team workspace's Member chat section (Team settings, shown to an Admin
+ * user): let members chat with the team agent. A member login chats only
+ * with a Team-level agent, and the team agent ships at Admin level, so this
+ * is the one step that opens member chat. It sets the level through
  * PATCH /api/access/agents/:slug, after a confirm that says what members then
- * reach. `TeamAgentNotice` is the Invite dialog's pointer to it.
+ * reach. The section frame is the caller's (WorkspaceSection).
  */
-import Link from 'next/link';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiSend } from '@mantle/web-ui/api-fetch';
@@ -32,12 +32,11 @@ import {
   teamAgentState,
   type TeamAgentAccess,
 } from '@/lib/team-agent-access';
-
-const SETTINGS_KEY = ['team-admin', 'settings'] as const;
+import { TEAM_SETTINGS_KEY } from './team-settings-query';
 /** The shipped slug: used on a brain that does not report the agent. */
 const DEFAULT_SLUG = 'team-responder';
 
-export function TeamAgentAccessCard({ agent }: { agent: TeamAgentAccess | null | undefined }) {
+export function MemberChatAccess({ agent }: { agent: TeamAgentAccess | null | undefined }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [confirm, setConfirm] = useState<'open' | 'close' | null>(null);
@@ -61,17 +60,13 @@ export function TeamAgentAccessCard({ agent }: { agent: TeamAgentAccess | null |
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : 'Could not change the level.');
     } finally {
-      await queryClient.invalidateQueries({ queryKey: SETTINGS_KEY });
+      await queryClient.invalidateQueries({ queryKey: TEAM_SETTINGS_KEY });
       setPending(false);
     }
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
-      <h2 className="text-sm font-semibold">Member chat</h2>
-      <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
-        Members chat with the team agent. It must be at Team level first.
-      </p>
+    <div>
       {state === 'missing' ? (
         <p className="text-sm text-muted-foreground">
           This brain has no team agent, so members cannot chat.
@@ -152,7 +147,7 @@ export function TeamAgentAccessCard({ agent }: { agent: TeamAgentAccess | null |
             <AlertDialogTitle>Stop member chat?</AlertDialogTitle>
             <AlertDialogDescription>
               {name} goes back to Admin level. Members can no longer chat with it. Their past
-              threads stay, and you can still read each one in Settings &gt; Logins.
+              threads stay, and you can still read each one in Settings &gt; Users.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -163,28 +158,6 @@ export function TeamAgentAccessCard({ agent }: { agent: TeamAgentAccess | null |
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-/** In the Invite dialog (Settings > Logins): says when an invited member could not chat yet, and
- *  links to the card above. Nothing when chat is on, or the brain cannot say. */
-export function TeamAgentNotice({ agent }: { agent: TeamAgentAccess | null | undefined }) {
-  const state = teamAgentState(agent);
-  if (state !== 'off' && state !== 'missing') return null;
-  return (
-    <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
-      <p>
-        {state === 'missing'
-          ? 'Members cannot chat: this brain has no team agent.'
-          : 'Members cannot chat yet: the team agent is not at Team level.'}{' '}
-        <Link
-          href="/team-admin?view=settings"
-          className="font-medium text-primary-ink underline underline-offset-2"
-        >
-          Open Settings
-        </Link>
-      </p>
     </div>
   );
 }

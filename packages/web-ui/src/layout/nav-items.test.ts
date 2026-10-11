@@ -23,18 +23,21 @@ const ADDED = new Set(ADDED_NAV_ITEMS.map((a) => a.item.href));
 const SERVICES_ONLY = ADDED_NAV_ITEMS.filter((a) => a.item.href === '/settings/services');
 
 describe('nav items without retired screens', () => {
-  it('drops /team-portal from the groups, the flat list and the matcher', () => {
-    expect(hrefs(NAV_GROUPS)).not.toContain('/team-portal');
-    expect(ALL_NAV_ITEMS.map((i) => i.href)).not.toContain('/team-portal');
-    expect(matchNavItem('/team-portal')).toBeUndefined();
+  it('drops /team-portal and /team-admin from the groups, the flat list and the matcher', () => {
+    for (const gone of ['/team-portal', '/team-admin']) {
+      expect(hrefs(NAV_GROUPS)).not.toContain(gone);
+      expect(ALL_NAV_ITEMS.map((i) => i.href)).not.toContain(gone);
+      expect(matchNavItem(gone)).toBeUndefined();
+    }
   });
 
   it('keeps everything else the shared list has, in order', () => {
-    const shared = hrefs(SHARED_NAV_GROUPS).filter((h) => h !== '/team-portal');
+    const shared = hrefs(SHARED_NAV_GROUPS).filter(
+      (h) => h !== '/team-portal' && h !== '/team-admin',
+    );
     expect(hrefs(NAV_GROUPS).filter((h) => !ADDED.has(h))).toEqual(
       shared.filter((h) => !ADDED.has(h)),
     );
-    expect(matchNavItem('/team-admin')?.href).toBe('/team-admin');
   });
 
   it('drops a group left empty and a retired href from a cold-start head', () => {
@@ -114,6 +117,16 @@ describe('nav items this client adds before the shared list names them', () => {
       '/settings/services',
       '/debug',
     ]);
+  });
+});
+
+describe('Shared links (W5c) in the nav', () => {
+  it('adds Shared links after Workspaces in Settings, once', () => {
+    const settings = NAV_GROUPS.find((g) => g.label === 'Settings')!;
+    const list = settings.items.map((i) => i.href);
+    expect(list.filter((h) => h === '/settings/shared-links')).toHaveLength(1);
+    expect(list[list.indexOf('/settings/workspaces') + 1]).toBe('/settings/shared-links');
+    expect(matchNavItem('/settings/shared-links')?.name).toBe('Shared links');
   });
 });
 

@@ -24,6 +24,8 @@ import {
   BUILT_IN_NAME_HINT,
   canRemoveUser,
   isBuiltIn,
+  isTeamWorkspace,
+  showsTeamSettings,
   userSearchPaged,
   userSearchMin,
   currentWorkspaceLabel,
@@ -250,6 +252,27 @@ describe('who may change what', () => {
     expect(isBuiltIn({ isAdmin: false, adminModerated: true })).toBe(true);
     expect(isBuiltIn({ isAdmin: false, adminModerated: false })).toBe(false);
     expect(BUILT_IN_NAME_HINT).toBe('Built-in workspaces keep their names.');
+  });
+
+  it('Team is the built-in workspace that is not Admin', () => {
+    expect(isTeamWorkspace({ builtIn: true, isAdmin: false, adminModerated: true })).toBe(true);
+    expect(isTeamWorkspace({ isAdmin: false, adminModerated: true })).toBe(true);
+    expect(isTeamWorkspace({ builtIn: true, isAdmin: true, adminModerated: false })).toBe(false);
+    expect(isTeamWorkspace({ builtIn: false, isAdmin: false, adminModerated: false })).toBe(false);
+  });
+
+  it('the Team settings show on the live Team workspace to the settings area only', () => {
+    const team = { builtIn: true, isAdmin: false, adminModerated: true, archived: false };
+    expect(showsTeamSettings(team, ['settings'])).toBe(true);
+    // A brain that sends no areas answered the shell for an admin.
+    expect(showsTeamSettings(team, undefined)).toBe(true);
+    expect(showsTeamSettings(team, ['users'])).toBe(false);
+    expect(showsTeamSettings(team, [])).toBe(false);
+    expect(showsTeamSettings({ ...team, archived: true }, ['settings'])).toBe(false);
+    expect(showsTeamSettings({ ...team, isAdmin: true }, ['settings'])).toBe(false);
+    expect(
+      showsTeamSettings({ ...team, builtIn: false, adminModerated: false }, ['settings']),
+    ).toBe(false);
   });
 
   it('Team is never offered Archive, even to its Moderator with the users area', () => {

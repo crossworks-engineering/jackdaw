@@ -103,15 +103,6 @@ export function levelMeaning(
   return LEVEL_MEANING[level];
 }
 
-/** A live link on an item at client level is an OLD client link: made when
- *  client meant "anyone with the link". Client logins C3 retired them all
- *  (brain migration 0192), so only a brain before C3 still shows one; on a
- *  C3 brain this is never true of a live link. Undefined (a brain before C1
- *  sends no level): nothing to say. */
-export function isOldClientLink(level: AccessLevel | undefined): boolean {
-  return level === 'client';
-}
-
 /** Each live link's item level by link id, from GET /api/shares/all (whose
  *  rows carry `level` since client logins C1). A row without one (an older
  *  brain) is left out, so the caller shows nothing extra for it. */
@@ -122,9 +113,6 @@ export function linkLevels(
   for (const r of rows ?? []) if (r.level && isAccessLevel(r.level)) out.set(r.id, r.level);
   return out;
 }
-
-/** What an old client link is, in the owner's words. */
-export const OLD_CLIENT_LINK = 'Old client link: clients will sign in instead';
 
 /** The reason of a refused link (400 from the share routes), or null. */
 export function shareRetiredReason(err: unknown): ShareRetiredReason | null {

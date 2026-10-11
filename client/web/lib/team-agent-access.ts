@@ -1,5 +1,6 @@
 /**
- * The team agent's level, as Team > Settings shows it. A member login chats
+ * The team agent's level, as the Team workspace's Member chat section shows
+ * it (Team settings). A member login chats
  * only with a Team-level agent, and the team agent ships at Admin level, so
  * members cannot chat until the owner moves it. The brain reports the agent
  * on GET /api/team-admin/settings (`teamAgent`) and changes it with

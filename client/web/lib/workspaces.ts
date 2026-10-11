@@ -156,6 +156,23 @@ export function isBuiltIn(
   return ws.builtIn ?? (ws.isAdmin || ws.adminModerated);
 }
 
+/** The built-in Team workspace: built in, and not Admin. */
+export function isTeamWorkspace(
+  ws: Pick<Workspace, 'isAdmin' | 'adminModerated'> & { builtIn?: boolean },
+): boolean {
+  return isBuiltIn(ws) && !ws.isAdmin;
+}
+
+/** The Team settings (member chat, read posture, member home app; Team
+ *  admin's settings before W5c) show on the live Team workspace, to an Admin
+ *  user only: the settings area. */
+export function showsTeamSettings(
+  ws: Pick<Workspace, 'isAdmin' | 'adminModerated' | 'archived'> & { builtIn?: boolean },
+  areas: readonly string[] | null | undefined,
+): boolean {
+  return !ws.archived && isTeamWorkspace(ws) && hasArea(areas, 'settings');
+}
+
 /** What the name field says on a built-in workspace (change 19: 409
  *  reserved_name on a rename). */
 export const BUILT_IN_NAME_HINT = 'Built-in workspaces keep their names.';

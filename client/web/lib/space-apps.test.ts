@@ -16,7 +16,6 @@ import {
   MY_APPS_TRASH_INFO,
   MY_APPS_TRASH_MAX,
   deletedAppRestorePath,
-  waitingInAppsLabel,
   appAuthorLevel,
   APP_TRUST_CONFIRM,
   showsTrustSwitch,
@@ -146,12 +145,7 @@ describe('the trust switch on an app in the brain', () => {
   });
 });
 
-describe('Team admin and the trash of brain apps', () => {
-  it('links to Apps from Team admin only when something waits', () => {
-    expect(waitingInAppsLabel(0)).toBeNull();
-    expect(waitingInAppsLabel(2)).toBe('2 waiting in Apps');
-  });
-
+describe('the trash of brain apps', () => {
   it('builds the restore path of a deleted app', () => {
     const id = '11111111-2222-4333-8444-555555555555';
     expect(deletedAppRestorePath(id)).toBe(`/api/apps/deleted/${id}/restore`);

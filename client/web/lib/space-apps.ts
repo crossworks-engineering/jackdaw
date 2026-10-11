@@ -1,13 +1,10 @@
 /**
  * Apps members build (brain team apps Phase 3): a member's own apps and the
- * ones teammates shared, on the member's Apps page, and, for an admin, the
- * ones members submitted or shared, in the admin's own Apps screen
- * (workspace review pattern, 2026-10-09). Members build over their own MCP
- * connection (the brain's `my_app_*` tools); here they share, submit, recall
- * and run them, and an admin tests, approves or sends them back.
+ * ones teammates shared, on the member's Apps page. Members build over their
+ * own MCP connection (the brain's `my_app_*` tools); here they run them. No
+ * review since W5c: nothing is submitted, approved or sent back.
  *
- * The types mirror the brain's `SpaceAppCard`, `ReviewWaitingApp`,
- * `ReviewSharedApp` and `MemberAppForReview` (@mantle/content
+ * The types mirror the brain's `SpaceAppCard` (@mantle/content
  * member-space-apps.ts); they live here until a contract package carries
  * them.
  *
@@ -212,44 +209,6 @@ export function runnableSpaceApp(
 ): SpaceAppCard | null {
   const app = apps?.find((a) => a.id === id.toLowerCase());
   return app && app.runnable ? app : null;
-}
-
-// ── Members' apps waiting or shared (the old GET /api/apps/members) ────────
-// Removed in W5c with the review flow (the route is 410): only the type
-// stays, for the Team admin stub (components/app-nav/member-apps-review.tsx).
-// A later W5c part removes it.
-
-/** The author as the review lists show them. */
-export type ReviewAppAuthor = { loginId: string | null; name: string | null; active: boolean };
-
-/** One app a member submitted (GET /api/apps/members `waiting`). */
-export type ReviewWaitingApp = {
-  id: string;
-  title: string;
-  icon: string | null;
-  color: string | null;
-  author: ReviewAppAuthor;
-  submittedAt: string | null;
-  version: number;
-};
-
-/** One app a member shared with the team (GET /api/apps/members `shared`). */
-export type ReviewSharedApp = {
-  id: string;
-  title: string;
-  icon: string | null;
-  color: string | null;
-  author: ReviewAppAuthor;
-  lastActivityAt: string;
-  runnable: boolean;
-};
-
-export type ReviewAppLists = { waiting: ReviewWaitingApp[]; shared: ReviewSharedApp[] };
-
-/** The Team admin link to what waits in Apps, or null when nothing does. */
-export function waitingInAppsLabel(count: number): string | null {
-  if (count <= 0) return null;
-  return `${count} waiting in Apps`;
 }
 
 // ── The trust switch on a brain app ─────────────────────────────────────────

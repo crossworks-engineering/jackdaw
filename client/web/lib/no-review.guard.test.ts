@@ -9,37 +9,11 @@ import { describe, expect, it } from 'vitest';
  * Discard of a submitted item, no "Shared by members" and no member app
  * review. Items are shared by grants to workspaces (the Grant Access panel).
  *
- * The scan skips what other W5c parts still own (the member and client
- * shells, Team admin, Users, the sign-in pages), and the few files kept only
- * because those still import them. Each part that lands takes its paths out
- * of these lists; when all have landed, both lists are empty.
+ * Every W5c part has landed: Team admin, the client sign-in page and the
+ * review leftovers are gone, and the Users screen and the sign-in pages are
+ * scanned like any other screen.
  */
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-
-/** Owned by another W5c part (the shell, Team admin and Users helpers). */
-const OTHER_PARTS = [
-  'components/team-admin/',
-  'components/team-chat/',
-  'app/(app)/team-admin/',
-  'app/(app)/settings/users/',
-  'app/client-signin/',
-  'app/login/',
-  'app/invite/',
-];
-
-/** Kept ONLY for files the other parts own (each says who in its header). */
-const KEPT_FOR_OTHER_PARTS = [
-  'components/review/item-review.tsx',
-  'components/review/review-redirect.tsx',
-  'components/review/workspace-review-sections.tsx',
-  'components/app-nav/member-apps-review.tsx',
-  'lib/workspace-review.ts',
-  'lib/workspace-review.test.ts',
-  // The submissions client (memberReview) for item-review.tsx (Team admin),
-  // and its tests.
-  'lib/member-review.ts',
-  'lib/member-review.test.ts',
-];
 
 /** The review UI's words, its components and its routes. */
 const NEEDLES: [string, RegExp][] = [
@@ -78,13 +52,7 @@ function sources(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const scanned = sources(ROOT).filter(
-  (f) =>
-    f !== SELF &&
-    !OTHER_PARTS.some((p) => f.startsWith(p)) &&
-    !KEPT_FOR_OTHER_PARTS.includes(f) &&
-    !NAMES_ON_PURPOSE.includes(f),
-);
+const scanned = sources(ROOT).filter((f) => f !== SELF && !NAMES_ON_PURPOSE.includes(f));
 
 describe('no review UI in the owner screens (W5c)', () => {
   it('scans the owner screens', () => {
@@ -96,7 +64,12 @@ describe('no review UI in the owner screens (W5c)', () => {
       'app/(app)/tables/tables-shell.tsx',
       'app/(app)/apps/apps-client.tsx',
       'components/item-list/admin-private-rows.tsx',
-      'lib/needs-you.ts',
+      // Users and the sign-in pages (W5c, once the other parts landed).
+      'app/(app)/settings/users/users-client.tsx',
+      'app/(app)/settings/users/invites.tsx',
+      'app/login/login-client.tsx',
+      'app/login/email-code-form.tsx',
+      'app/invite/invite-client.tsx',
       // The shell's (W5c): the member views, the rail and the member libs.
       'components/member/mine-item.tsx',
       'components/member/member-workspace.tsx',
@@ -113,18 +86,23 @@ describe('no review UI in the owner screens (W5c)', () => {
     expect(hits).toEqual([]);
   });
 
-  it('the review screens and the member app review are gone', () => {
+  it('the review screens, Team admin and the review leftovers are gone', () => {
     for (const gone of [
       'app/(app)/review',
       'app/(app)/apps/review',
+      'app/(app)/team-admin',
+      'app/client-signin',
+      'components/review',
+      'components/team-admin',
+      'components/team-chat',
       'components/app-nav/member-app-review.tsx',
       'components/app-nav/member-app-activity.tsx',
+      'components/app-nav/member-apps-review.tsx',
+      'lib/workspace-review.ts',
+      'lib/member-review.ts',
+      'lib/needs-you.ts',
     ]) {
       expect(existsSync(join(ROOT, gone)), gone).toBe(false);
     }
-  });
-
-  it('the kept files are still there, so this list stays honest', () => {
-    for (const f of KEPT_FOR_OTHER_PARTS) expect(existsSync(join(ROOT, f)), f).toBe(true);
   });
 });
