@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   EVERYWHERE_CONFIRM,
-  everywhereConfirmText,
+  EVERYWHERE_CONFIRM_TEXT,
   everywhereOutcome,
-  otherLoginEverywhereText,
+  OTHER_LOGIN_EVERYWHERE_TEXT,
   signLoginOutEverywhere,
   signOutEverywhere,
 } from './sign-out-everywhere';
@@ -85,36 +85,17 @@ describe('everywhereOutcome', () => {
   });
 });
 
-describe('the confirm (client logins audit B14)', () => {
-  it('admins and members hear about the phone app and connected clients', () => {
-    expect(everywhereConfirmText(false)).toBe(
+describe('the confirms', () => {
+  it('your own: every device, the phone app and connected clients', () => {
+    expect(EVERYWHERE_CONFIRM_TEXT).toBe(
       'This signs you out on every device, this one too. Every browser, the phone app and any connected client must sign in again.',
     );
   });
 
-  it('a client hears about browsers only: it has no phone app and no connected client', () => {
-    const text = everywhereConfirmText(true);
-    expect(text).toMatch(/^This signs you out on every device, this one too\. Every browser/);
-    expect(text).not.toMatch(/phone app|connected client/);
-  });
-});
-
-describe('the confirm for another login (client tier audit U11)', () => {
-  const row = { displayName: 'Pat', email: 'pat@example.invalid' };
-
-  it('an admin or a member: every device, and nothing else changes', () => {
-    for (const role of ['admin', 'member']) {
-      expect(otherLoginEverywhereText({ ...row, role })).toMatch(
-        /phone app.*Nothing else about the login changes\.$/,
-      );
-    }
-  });
-
-  it('a client: its open sign-in link is revoked too, as End sessions says', () => {
-    const text = otherLoginEverywhereText({ ...row, role: 'client' });
-    expect(text).toContain('any open sign-in link is revoked');
-    expect(text).not.toContain('Nothing else about the login changes');
-    expect(text).not.toMatch(/phone app|connected client/);
+  it('another login: every device, and nothing else changes', () => {
+    expect(OTHER_LOGIN_EVERYWHERE_TEXT).toMatch(
+      /phone app.*Nothing else about the login changes\.$/,
+    );
   });
 });
 
@@ -125,13 +106,13 @@ describe('the screens that offer it', () => {
     const menu = src('../components/layout/rail/profile-menu.tsx');
     expect(EVERYWHERE_CONFIRM).toBe('This signs you out on every device, this one too.');
     expect(menu).toContain('<MonitorOff className="size-4" /> Sign out everywhere');
-    expect(menu).toContain('{everywhereConfirmText(false)}');
+    expect(menu).toContain('{EVERYWHERE_CONFIRM_TEXT}');
     expect(menu).toMatch(
       /const outcome = await signOutEverywhere\(\);[\s\S]*?return;\s*\}\s*await signOut\(\);/,
     );
   });
 
-  it('Settings > Logins signs a login out everywhere from its Devices card', () => {
+  it('Settings > Users signs a login out everywhere from its Devices card', () => {
     const users = src('../app/(app)/settings/users/users-client.tsx');
     expect(users).toContain('<SignOutEverywhereButton user={user} isSelf={isSelf} />');
     expect(users).toContain(

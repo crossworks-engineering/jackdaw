@@ -1,5 +1,5 @@
 /**
- * Settings > Logins > Chat, the pure half (login-chat.test.ts). GET
+ * Settings > Users > Chat, the pure half (login-chat.test.ts). GET
  * /api/team-admin/member-chats?login=<id> falls back to the roster's first
  * login when the asked one has no row, so its answer counts only when it is
  * about THIS login.
@@ -20,11 +20,15 @@ export function loginChatOf(
   return { selected, messageCount: row?.messageCount ?? selected.thread.length };
 }
 
-/** Whether a login has a Chat view: members and clients chat with the team
- *  agent; an admin login only when it has a team thread from before (a
- *  member later made admin: the roster still lists its old thread). */
+/** The kept member chats route (W5c brain contract): the roster, plus a
+ *  window of one login's thread with `?login=`. */
+export const MEMBER_CHATS_PATH = '/api/team-admin/member-chats';
+
+/** Whether a login has a Chat view: a member chats with the team agent; any
+ *  other login only when the roster lists a thread from before (a member
+ *  later made admin, or a former client: its old thread stays readable). */
 export function loginHasChat(role: string, inRoster = false): boolean {
-  return role === 'member' || role === 'client' || inRoster;
+  return role === 'member' || inRoster;
 }
 
 /** The logins the chat roster lists (GET /api/team-admin/member-chats). */

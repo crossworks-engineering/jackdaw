@@ -15,10 +15,10 @@ import {
   senderPreviewPath,
   senderStateText,
   sentCountText,
-} from './client-signin-sender';
+} from './email-code-sender';
 
 /**
- * Sign-in codes by email (client logins C2b), the admin's pure half: what
+ * Sign-in by email code, the admin's pure half: what
  * the picker sends, what it says under it, and each refusal.
  */
 const SENDER = { id: '11111111-1111-4111-8111-111111111111', address: 'desk@example.invalid' };
@@ -174,7 +174,7 @@ describe('a sender change is confirmed first (audit B4)', () => {
     const c = senderChangeConfirm({ kind: 'none', restored: ['Sent', 'Sent Items'] });
     expect(c.title).toBe('Turn sign-in codes off?');
     expect(c.body).toBe(
-      'Clients then sign in only with a link you issue. These folders come back into mail sync: Sent, Sent Items.',
+      'Logins then sign in with their password only. These folders come back into mail sync: Sent, Sent Items.',
     );
     expect(senderChangedText({ sender: null }, ['Sent', 'Sent Items'])).toBe(
       'Sign-in codes are off. Sent, Sent Items came back into mail sync.',

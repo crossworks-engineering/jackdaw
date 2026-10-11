@@ -1,17 +1,17 @@
 'use client';
 
 /**
- * Member invites in Settings > Logins (member logins, Phase 6; moved out of
- * Team admin 2026-10-09). The admin clicks Invite beside Add login, copies
- * the link the brain answers with and hands it over; the person opens
- * /invite, sets a password and is a member login. Nobody hands a password
- * around. Open invites are a section above the logins; one opens in the
+ * Invites in Settings > Users. The admin clicks Invite beside Add user,
+ * copies the link the brain answers with and hands it over; the person
+ * opens /invite, sets a password and has a login. Nobody hands a password
+ * around. What the login reads comes from the workspaces an admin adds it
+ * to. Open invites are a small list above the users; one opens in the
  * detail pane with Revoke and New link.
  *
  * The code and link are in the create answer ONCE (the brain keeps only the
  * hash), so the dialog shows them there and then. A new invite for the same
- * contact or email replaces the old one. Server: /api/team-admin/invites
- * (docs/member-logins.md §9 in the mantle repo).
+ * contact or email replaces the old one. Route: INVITES_PATH
+ * (lib/user-invites.ts).
  */
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -55,24 +55,24 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { cn } from '@mantle/web-ui/lib/utils';
 import {
+  INVITES_PATH,
   INVITE_LIFETIME_HOURS,
   inviteCreateErrorText,
   inviteLink,
   inviteName,
-} from '@/lib/member-invites';
+  invitePath,
+} from '@/lib/user-invites';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
-import { TeamAgentNotice } from '@/components/team-admin/team-agent-access';
-import { ContactPicker, type PickedContact } from '@/components/team-admin/contact-picker';
-import type { TeamAgentAccess } from '@/lib/team-agent-access';
+import { ContactPicker, type PickedContact } from '@/components/contacts/contact-picker';
 
-export const INVITES_KEY = ['team-admin', 'invites'] as const;
+export const INVITES_KEY = ['users', 'invites'] as const;
 
-/** The brain's invites, newest first. Shared by the Logins list and the
+/** The brain's invites, newest first. Shared by the Users list and the
  *  invite pane, so a create or revoke refreshes both. */
-export function useMemberInvites() {
+export function useInvites() {
   return useQuery({
     queryKey: INVITES_KEY,
-    queryFn: () => apiFetch<MemberInviteList>('/api/team-admin/invites'),
+    queryFn: () => apiFetch<MemberInviteList>(INVITES_PATH),
   });
 }
 
@@ -107,14 +107,7 @@ export function InviteDialog({
   onCreated?: (inviteId: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const invites = useMemberInvites();
-  // An invited member cannot chat until the team agent is at Team level: the
-  // form says so (Team admin > Settings holds the switch).
-  const settings = useQuery({
-    queryKey: ['team-admin', 'settings'],
-    queryFn: () => apiFetch<{ teamAgent?: TeamAgentAccess | null }>('/api/team-admin/settings'),
-    enabled: open,
-  });
+  const invites = useInvites();
   const [contact, setContact] = useState<PickedContact | null>(initialContact);
   const [email, setEmail] = useState(initialEmail);
   const [displayName, setDisplayName] = useState(initialName);
@@ -162,7 +155,7 @@ export function InviteDialog({
     }
     setPending(true);
     try {
-      const res = await apiSend<MemberInviteCreated>('/api/team-admin/invites', 'POST', {
+      const res = await apiSend<MemberInviteCreated>(INVITES_PATH, 'POST', {
         ...(contact ? { contactId: contact.id } : {}),
         ...(trimmed ? { email: trimmed } : {}),
         ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
@@ -191,8 +184,7 @@ export function InviteDialog({
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       {/* Once the link is shown it closes only by Done: the brain keeps only
-          a hash, so a stray Escape or click outside must not lose it (as the
-          client sign-in link dialog). */}
+          a hash, so a stray Escape or click outside must not lose it. */}
       <DialogContent
         className="sm:max-w-md"
         hideClose={!!created}
@@ -204,7 +196,7 @@ export function InviteDialog({
             <DialogHeader>
               <DialogTitle>Invite ready</DialogTitle>
               <DialogDescription>
-                Send {who} this link. They set their own password and are signed in as a member.
+                Send {who} this link. They set their own password and are signed in.
               </DialogDescription>
             </DialogHeader>
             <FieldGroup>
@@ -261,9 +253,7 @@ export function InviteDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>
-                {contact ? `Invite ${contact.name} as a member` : 'Invite a member'}
-              </DialogTitle>
+              <DialogTitle>{contact ? `Invite ${contact.name}` : 'Invite a user'}</DialogTitle>
               <DialogDescription>
                 You get a link to hand over. It works once and expires in {INVITE_LIFETIME_HOURS}{' '}
                 hours. Nothing is emailed.
@@ -271,7 +261,6 @@ export function InviteDialog({
             </DialogHeader>
             <form onSubmit={submit} noValidate>
               <FieldGroup>
-                <TeamAgentNotice agent={settings.data?.teamAgent} />
                 <Field>
                   <FieldLabel htmlFor="invite-contact">Contact (optional)</FieldLabel>
                   <ContactPicker
@@ -282,8 +271,7 @@ export function InviteDialog({
                     onChange={setContact}
                   />
                   <FieldDescription id="invite-contact-hint">
-                    Pick a contact to use their email and name and keep their old portal chat with
-                    the login, or leave it and enter an email.
+                    Pick a contact to use their email and name, or leave it and enter an email.
                   </FieldDescription>
                 </Field>
                 <Field data-invalid={!!emailError || undefined}>
@@ -396,7 +384,7 @@ export function InviteDetail({
   const revoke = async () => {
     setBusy(true);
     try {
-      await apiSend(`/api/team-admin/invites/${encodeURIComponent(invite.id)}`, 'DELETE');
+      await apiSend(invitePath(invite.id), 'DELETE');
       toast.success('Invite revoked');
       onRevoked();
     } catch (e) {
@@ -428,8 +416,8 @@ export function InviteDetail({
           <>
             <HeaderInfoButton label="About this invite">
               <p>
-                An invite link makes a member login: the person opens it and sets their own
-                password. It works once, for {INVITE_LIFETIME_HOURS} hours.
+                An invite link makes a login: the person opens it and sets their own password. It
+                works once, for {INVITE_LIFETIME_HOURS} hours. Add them to workspaces after.
               </p>
               <p className="text-muted-foreground">
                 The link is shown once, when it is made. To send it again, click New link: the old

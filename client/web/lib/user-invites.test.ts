@@ -10,7 +10,7 @@ import {
   inviteLink,
   readInviteCode,
   validateInviteForm,
-} from './member-invites';
+} from './user-invites';
 
 describe('inviteLink', () => {
   it('prefixes the client origin to the brain link path', () => {
@@ -129,18 +129,15 @@ describe('the link code leaves the address at once (B12)', () => {
     return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
   };
 
-  it('both pages render the inline script first, before the brand image', async () => {
-    for (const rel of ['../app/invite/page.tsx', '../app/client-signin/page.tsx']) {
+  it('the page renders the inline script first, before the brand image', async () => {
+    for (const rel of ['../app/invite/page.tsx']) {
       const page = await read(rel);
       expect(page, rel).toMatch(/<main[^>]*>\s*<LinkCodeScript \/>/);
     }
   });
 
-  it('both clients take the code in a layout effect (before the first paint)', async () => {
-    for (const rel of [
-      '../app/invite/invite-client.tsx',
-      '../app/client-signin/client-signin-client.tsx',
-    ]) {
+  it('the client takes the code in a layout effect (before the first paint)', async () => {
+    for (const rel of ['../app/invite/invite-client.tsx']) {
       const client = await read(rel);
       expect(client, rel).toMatch(
         /useLayoutEffect\(\(\) => \{\s*const (code|taken) = read\w+Code\(takeLinkCode\(window, document\.documentElement\)\);/,
@@ -185,7 +182,7 @@ describe('acceptOutcome', () => {
   });
 });
 
-describe('the open invites in Settings > Logins', () => {
+describe('the open invites in Settings > Users', () => {
   const row = (over: Partial<MemberInviteRow>): MemberInviteRow => ({
     id: 'i1',
     contactId: null,
@@ -222,7 +219,7 @@ describe('the open invites in Settings > Logins', () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const ui = readFileSync(
-      fileURLToPath(new URL('../components/team-admin/member-invites.tsx', import.meta.url)),
+      fileURLToPath(new URL('../app/(app)/settings/users/invites.tsx', import.meta.url)),
       'utf8',
     );
     expect(ui).toContain('ariaLabel="Copy the invite link"');
@@ -249,7 +246,7 @@ describe('the open invites in Settings > Logins', () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-    const ui = read('../components/team-admin/member-invites.tsx');
+    const ui = read('../app/(app)/settings/users/invites.tsx');
     const screen = read('../app/(app)/settings/users/users-client.tsx');
     // The screen owns the dialog (a New link replaces the pane's invite).
     expect(screen).toMatch(/<InviteDialog\s+key=\{inviteSeed\.key\}/);

@@ -54,7 +54,7 @@ import { hasArea } from '@/lib/workspaces';
 import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { useShellRole } from '@/components/layout/shell-role';
 import { MemberPasswordDialog } from '@/components/member/member-password-dialog';
-import { everywhereConfirmText, signOutEverywhere } from '@/lib/sign-out-everywhere';
+import { EVERYWHERE_CONFIRM_TEXT, signOutEverywhere } from '@/lib/sign-out-everywhere';
 
 export type ProfileIdentity = {
   /** The actor's display name, when they have set one. */
@@ -397,7 +397,7 @@ export function ProfileMenu({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out everywhere?</AlertDialogTitle>
-            <AlertDialogDescription>{everywhereConfirmText(false)}</AlertDialogDescription>
+            <AlertDialogDescription>{EVERYWHERE_CONFIRM_TEXT}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>

@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Settings > Logins > Client settings > Sign-in codes by email (client logins C2b). A
- * client with no sign-in link can ask for a code by email, once an admin
- * picks the account the codes are mailed from here. None: codes are off,
- * and /client-signin and /login offer no code at all.
+ * Settings > Users > Sign-in by email code: the email account sign-in codes
+ * are mailed from. Any login without a password can ask for a code on the
+ * sign-in page and sign in with it, once an admin picks a sender here. None:
+ * codes are off, and the sign-in page offers no code.
  *
  * Picking a sender keeps its sent mail out of the brain (the brain leaves
  * its sent-mail folders out of mail sync, and each code mail carries a
@@ -12,17 +12,17 @@
  * That is a real change to the admin's mail, so it is confirmed first: the
  * brain's preview names the folders (or refuses an account it cannot keep
  * out), and choosing None, or another sender, says which folders come back
- * (audit B4). The brain caps codes per day for all clients together; once
+ * (audit B4). The brain caps codes per day for all logins together; once
  * reached, requests still get the same answer and nothing is sent, and the
- * card says so. It also shows what was delivered, what failed (and the last
+ * pane says so. It also shows what was delivered, what failed (and the last
  * failure), what a limit skipped, and when no email worker runs on this box
- * (codes are then off whatever the sender, audit B3). A brain before C2b
- * answers 404 here: the card is left out.
+ * (codes are then off whatever the sender, audit B3). A brain without the
+ * route answers 404: the pane says it has no codes.
  */
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MailCheck, TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import {
   AlertDialog,
@@ -51,11 +51,9 @@ import {
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
-// Relative, not '@/': the node test runner renders this
-// (client-signin-sender.test.ts).
 import {
-  CLIENT_SENDER_KEY,
-  CLIENT_SENDER_PATH,
+  EMAIL_CODE_SENDER_KEY,
+  EMAIL_CODE_SENDER_PATH,
   EMAIL_WORKER_OFF_TEXT,
   NO_SENDER,
   capReachedText,
@@ -71,16 +69,16 @@ import {
   senderStateText,
   sentCountText,
   type SenderChange,
-} from '../../lib/client-signin-sender';
+} from '@/lib/email-code-sender';
 import type { ClientSigninSender, ClientSigninSenderPreview } from '@mantle/client-types';
 
-/** The card: owns the query and the change; the markup is the view. */
-export function ClientSigninSenderPanel() {
+/** The pane's body: owns the query and the change; the markup is the view. */
+export function EmailCodeSenderPanel() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const q = useQuery({
-    queryKey: CLIENT_SENDER_KEY,
-    queryFn: () => apiFetch<ClientSigninSender>(CLIENT_SENDER_PATH),
+    queryKey: EMAIL_CODE_SENDER_KEY,
+    queryFn: () => apiFetch<ClientSigninSender>(EMAIL_CODE_SENDER_PATH),
     // Another admin may have changed it, and the daily count moves.
     refetchOnMount: 'always',
   });
@@ -135,11 +133,11 @@ export function ClientSigninSenderPanel() {
     setError(undefined);
     try {
       const next = await apiSend<ClientSigninSender>(
-        CLIENT_SENDER_PATH,
+        EMAIL_CODE_SENDER_PATH,
         'PUT',
         senderBody(change.kind === 'none' ? NO_SENDER : change.accountId),
       );
-      queryClient.setQueryData(CLIENT_SENDER_KEY, next);
+      queryClient.setQueryData(EMAIL_CODE_SENDER_KEY, next);
       toast.success(senderChangedText(next, change.restored));
     } catch (e) {
       fail(e);
@@ -149,13 +147,15 @@ export function ClientSigninSenderPanel() {
     }
   };
 
-  if (q.isPending) return null;
+  if (q.isPending) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (q.isError) {
-    // A brain before C2b has no such route: nothing to offer.
-    if (q.error instanceof ApiError && q.error.status === 404) return null;
+    // A brain without the route: nothing to offer.
+    if (q.error instanceof ApiError && q.error.status === 404) {
+      return <p className="text-sm text-muted-foreground">{NO_CODES_ROUTE_TEXT}</p>;
+    }
     return (
-      <section className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-        Couldn&apos;t load the sign-in code settings.
+      <section className="flex items-center gap-3 text-sm text-muted-foreground">
+        Could not load the sign-in code settings.
         <Button variant="outline" size="sm" onClick={() => void q.refetch()}>
           Retry
         </Button>
@@ -165,7 +165,7 @@ export function ClientSigninSenderPanel() {
   const confirm = change ? senderChangeConfirm(change) : null;
   return (
     <>
-      <ClientSigninSenderView
+      <EmailCodeSenderView
         data={q.data}
         saving={saving}
         error={error}
@@ -195,8 +195,11 @@ export function ClientSigninSenderPanel() {
   );
 }
 
-/** The card as markup: no state and no requests (the tests render it). */
-export function ClientSigninSenderView({
+/** What the pane says on a brain without the sender route. */
+export const NO_CODES_ROUTE_TEXT = 'This brain does not send sign-in codes.';
+
+/** The pane's body as markup: no state and no requests (the tests render it). */
+export function EmailCodeSenderView({
   data,
   saving = false,
   error,
@@ -216,26 +219,17 @@ export function ClientSigninSenderView({
   const label = data.sender ? data.sender.address : 'None (codes off)';
   const failure = lastFailureText(data, formatDateTime);
   return (
-    <section
-      className="rounded-lg border border-border bg-card text-card-foreground"
-      aria-labelledby="client-codes-title"
-    >
-      <div className="border-b border-border p-4">
-        <h2 id="client-codes-title" className="flex items-center gap-2 text-sm font-semibold">
-          <MailCheck className="size-4 text-muted-foreground" aria-hidden />
-          Sign-in codes by email
-        </h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          A client without a sign-in link can ask for a code by email and sign in with it. Pick the
-          account the codes are sent from.
-        </p>
-      </div>
-      <div className="space-y-3 p-4">
+    <section className="space-y-3" aria-label="Sign-in by email code">
+      <p className="text-sm text-muted-foreground">
+        Any login without a password can ask for a code by email on the sign-in page, and sign in
+        with it. Pick the account the codes are sent from.
+      </p>
+      <div className="space-y-3">
         {codesWorkerOff(data) ? (
           <p
             role="status"
             className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink"
-            data-testid="client-codes-worker-off"
+            data-testid="email-codes-worker-off"
           >
             <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
             {EMAIL_WORKER_OFF_TEXT}
@@ -245,7 +239,7 @@ export function ClientSigninSenderView({
           <p
             role="status"
             className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-ink"
-            data-testid="client-codes-cap"
+            data-testid="email-codes-cap"
           >
             <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
             {capReachedText(data.dailyCap)}
@@ -253,16 +247,16 @@ export function ClientSigninSenderView({
         ) : null}
         <FieldGroup>
           <Field data-invalid={!!error || undefined}>
-            <FieldLabel htmlFor="client-codes-sender">Send codes from</FieldLabel>
+            <FieldLabel htmlFor="email-codes-sender">Send codes from</FieldLabel>
             <Select value={value} onValueChange={onChange} disabled={saving}>
               <SelectTrigger
-                id="client-codes-sender"
+                id="email-codes-sender"
                 className="sm:max-w-sm"
                 aria-invalid={!!error || undefined}
                 aria-describedby={
                   error
-                    ? 'client-codes-sender-error client-codes-sender-hint'
-                    : 'client-codes-sender-hint'
+                    ? 'email-codes-sender-error email-codes-sender-hint'
+                    : 'email-codes-sender-hint'
                 }
               >
                 <SelectValue>{label}</SelectValue>
@@ -276,7 +270,7 @@ export function ClientSigninSenderView({
                 ))}
               </SelectContent>
             </Select>
-            <FieldDescription id="client-codes-sender-hint">
+            <FieldDescription id="email-codes-sender-hint">
               {senderStateText(data)}
               {options.length === 0 ? (
                 <>
@@ -289,14 +283,14 @@ export function ClientSigninSenderView({
                 </>
               ) : null}
             </FieldDescription>
-            <FieldError id="client-codes-sender-error">{error}</FieldError>
+            <FieldError id="email-codes-sender-error">{error}</FieldError>
           </Field>
         </FieldGroup>
-        <p className="text-xs text-muted-foreground" data-testid="client-codes-count">
+        <p className="text-xs text-muted-foreground" data-testid="email-codes-count">
           {sentCountText(data)}
         </p>
         {failure ? (
-          <p className="text-xs text-destructive-ink" data-testid="client-codes-last-failure">
+          <p className="text-xs text-destructive-ink" data-testid="email-codes-last-failure">
             {failure}
           </p>
         ) : null}

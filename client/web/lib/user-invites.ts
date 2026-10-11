@@ -1,7 +1,8 @@
 /**
- * Member invites (member logins, Phase 6), the client's side. An admin makes
- * an invite in Settings > Logins and hands over the link; the person opens /invite,
- * sets a password and is a member login.
+ * User invites, the client's side. An admin makes an invite in Settings >
+ * Users and hands over the link; the person opens /invite, sets a password
+ * and has a login. What it reads comes from the workspaces an admin adds it
+ * to.
  *
  * The public half cannot use `apiFetch`: the accept route answers every bad
  * code with a 401, and `apiFetch` reads a 401 as a dead session and sends the
@@ -14,6 +15,13 @@ import { readLinkCode } from './link-code';
 import { MAX_PASSWORD, MIN_PASSWORD } from './member-password';
 
 export { MAX_PASSWORD, MIN_PASSWORD };
+
+/** The invites route (GET, POST; DELETE /:id). Kept under Team admin's
+ *  old name by the W5c brain contract: one constant, so a move is one line. */
+export const INVITES_PATH = '/api/team-admin/invites';
+
+/** One invite's route, for Revoke. */
+export const invitePath = (id: string) => `${INVITES_PATH}/${encodeURIComponent(id)}`;
 
 /** How long an invite lives, as the brain sets it (docs/member-logins.md §9). */
 export const INVITE_LIFETIME_HOURS = 72;
@@ -55,9 +63,9 @@ export function inviteCreateErrorText(
 ): string {
   switch (body?.reason) {
     case 'email-has-login':
-      return 'Someone already signs in with that email. Find them in Settings > Logins.';
+      return 'Someone already signs in with that email. Find them in Settings > Users.';
     case 'contact-has-login':
-      return 'This contact already has a login. Find them in Settings > Logins.';
+      return 'This contact already has a login. Find them in Settings > Users.';
     case 'no-email':
       return 'This contact has no email address. Enter the email the invite is for.';
     case 'contact-not-found':
@@ -69,7 +77,7 @@ export function inviteCreateErrorText(
 }
 
 /** The open invites, newest first (the brain's order): the section above
- *  the logins in Settings > Logins. Accepted ones are logins now, and
+ *  the logins in Settings > Users. Accepted ones are logins now, and
  *  expired ones need a new invite. */
 export function openInvites(invites: readonly MemberInviteRow[] | undefined): MemberInviteRow[] {
   return (invites ?? []).filter((i) => i.state === 'open');
@@ -128,7 +136,7 @@ export function acceptOutcome(status: number, body: unknown): AcceptOutcome {
   return { kind: 'error', message: 'Could not accept the invite. Try again.' };
 }
 
-/** A contact picked in a dialog (Add client, Invite): its id, how it is
+/** A contact picked in a dialog (Invite, a workspace's contact): its id, how it is
  *  named, and its email if it has one. */
 export type PickedContact = { id: string; name: string; email: string | null };
 

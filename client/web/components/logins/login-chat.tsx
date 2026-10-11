@@ -1,11 +1,10 @@
 'use client';
 
 /**
- * Settings > Logins > a login > Chat: a member's or a client's chat with the
- * team agent, read only (was Team admin > Member chats, moved 2026-10-09 when
- * Team admin started to dissolve). The brain route is unchanged and admin
- * only: GET /api/team-admin/member-chats?login=<id>, which answers the roster
- * plus a window of the selected login's thread.
+ * Settings > Users > a login > Chat: a member's chat with the team agent,
+ * read only. The brain route is kept and admin only (MEMBER_CHATS_PATH,
+ * lib/login-chat.ts): `?login=<id>` answers the roster plus a window of the
+ * selected login's thread.
  *
  * The route falls back to the roster's FIRST login when the asked one has no
  * row (an admin login, or a brain that predates a role), so the answer is
@@ -33,19 +32,19 @@ import { NO_IMAGES } from '@mantle/web-ui/no-images';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { portalAtStart, portalCursor, prependOlder } from '@/lib/portal-thread';
-import { loginChatOf } from '@/lib/login-chat';
+import { MEMBER_CHATS_PATH, loginChatOf } from '@/lib/login-chat';
 
-export const memberChatKey = (loginId: string) => ['team-admin', 'member-chats', loginId] as const;
+export const memberChatKey = (loginId: string) => ['users', 'member-chats', loginId] as const;
 
 function chatPath(loginId: string, portalBefore?: string) {
   const qs = new URLSearchParams({ login: loginId });
   if (portalBefore) qs.set('portalBefore', portalBefore);
-  return `/api/team-admin/member-chats?${qs}`;
+  return `${MEMBER_CHATS_PATH}?${qs}`;
 }
 
 /** The thread, oldest first: the login's messages on the right, the agent's
  *  replies (with a trace link) on the left. A reply draws no picture (client
- *  tier audit U5): a client can talk the agent into writing one, and it would
+ *  tier audit U5): a user can talk the agent into writing one, and it would
  *  load in the admin's browser. */
 function ThreadMessages({ thread }: { thread: MemberChatArchiveMessage[] }) {
   return (

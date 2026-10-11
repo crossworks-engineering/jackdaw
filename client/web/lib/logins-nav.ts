@@ -1,20 +1,24 @@
 /**
- * Settings > Logins: where things are (2026-10-09, Team admin dissolving,
- * part 1). Invites, Clients, What clients see and each login's Chat moved
- * here from Team admin; the old Team admin links land here. Pure, pinned by
- * logins-nav.test.ts.
+ * Settings > Users: what the detail pane shows, and links into it. Pure,
+ * pinned by logins-nav.test.ts.
  *
- * The detail pane shows one of: a login (by id), an open invite
- * (`invite:<id>`), or one of the two client steps (`what-clients-see`, then
- * `client-settings`). A login opens on its details, or on its Chat with
- * `view=chat`.
+ * The detail pane shows one of: a login (by id or email), an open invite
+ * (`invite:<id>`), or the Sign-in by email code entry (`email-code`). A
+ * login opens on its details, or on its Chat with `view=chat` when it has
+ * one.
+ *
+ * Old links (W5c): the Clients steps (`what-clients-see`, `client-settings`)
+ * are gone, so they open the plain list, details and not Chat.
  */
 
 export const LOGINS_PATH = '/settings/users';
 
-/** The two client steps in the Clients section, in order. */
-export const WHAT_CLIENTS_SEE = 'what-clients-see';
-export const CLIENT_SETTINGS = 'client-settings';
+/** The Sign-in by email code entry in the list. */
+export const EMAIL_CODE = 'email-code';
+
+/** The Clients steps of the screen before W5c; an old link to one opens
+ *  the plain list. */
+const RETIRED_SELECTIONS = new Set(['what-clients-see', 'client-settings']);
 
 const INVITE_PREFIX = 'invite:';
 
@@ -25,7 +29,17 @@ export function inviteIdOf(key: string | null | undefined): string | null {
   return key?.startsWith(INVITE_PREFIX) ? key.slice(INVITE_PREFIX.length) || null : null;
 }
 
-/** A link into Settings > Logins: what to select, and the Chat view. */
+/** What a deep link selects at first: `selected` and `view` from the URL. A
+ *  retired selection opens the plain list (nothing selected, no Chat). */
+export function initialSelection(
+  selected: string | null | undefined,
+  view: string | null | undefined,
+): { selected: string | null; chat: boolean } {
+  if (!selected || RETIRED_SELECTIONS.has(selected)) return { selected: null, chat: false };
+  return { selected, chat: view === 'chat' };
+}
+
+/** A link into Settings > Users: what to select, and the Chat view. */
 export function loginsHref(selected?: string | null, opts: { chat?: boolean } = {}): string {
   const qs = new URLSearchParams();
   if (selected) qs.set('selected', selected);
@@ -36,23 +50,3 @@ export function loginsHref(selected?: string | null, opts: { chat?: boolean } = 
 
 /** A login's Chat view. */
 export const loginChatHref = (loginId: string) => loginsHref(loginId, { chat: true });
-
-/**
- * Where an old Team admin link goes now, or null when it stays on Team admin.
- * Invites, Member chats, Clients and What clients see moved to Settings >
- * Logins; Chat archive was removed, so its links (the bare `?contact=` URL)
- * stay on Team admin, which opens on Review.
- */
-export function movedTeamAdminHref(params: { view?: string; login?: string }): string | null {
-  switch (params.view) {
-    case 'invites':
-      return LOGINS_PATH;
-    case 'chats':
-      return params.login ? loginChatHref(params.login) : LOGINS_PATH;
-    case 'client-logins':
-    case 'clients':
-      return loginsHref(WHAT_CLIENTS_SEE);
-    default:
-      return null;
-  }
-}

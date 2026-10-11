@@ -12,20 +12,18 @@ import {
 import {
   Anchor,
   Bot,
-  Eye,
   KeyRound,
+  MailCheck,
   MailPlus,
   MessagesSquare,
   Monitor,
   MonitorSmartphone,
   Plus,
-  Settings2,
   Smartphone,
   Trash2,
-  UserPlus,
   Users,
 } from 'lucide-react';
-import type { ClientReport, MemberChatsResponse } from '@mantle/client-types';
+import type { MemberChatsResponse } from '@mantle/client-types';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { ListCard, ListCardMeta } from '@mantle/web-ui/ui/list-card';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -68,43 +66,26 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { signOutActive } from '@mantle/web-ui/session-switch';
 import {
   EVERYWHERE_CONFIRM,
-  otherLoginEverywhereText,
+  OTHER_LOGIN_EVERYWHERE_TEXT,
   signLoginOutEverywhere,
   signOutEverywhere,
 } from '@/lib/sign-out-everywhere';
-import {
-  CLIENT_ACTIONS_BLOCKED_TEXT,
-  CLIENT_LOGINS_KEY,
-  clientActionsBlocked,
-  loginDeleteText,
-} from '@/lib/client-logins';
-import {
-  CLIENT_REPORT_KEY,
-  NOT_ON_THIS_BRAIN,
-  fetchClientReport,
-  isReportMissing,
-} from '@/lib/client-report';
-import { loginHasChat, rosterIds } from '@/lib/login-chat';
-import { CLIENT_SETTINGS, WHAT_CLIENTS_SEE, inviteIdOf, inviteKey } from '@/lib/logins-nav';
+import { MEMBER_CHATS_PATH, loginHasChat, rosterIds } from '@/lib/login-chat';
+import { EMAIL_CODE, initialSelection, inviteIdOf, inviteKey } from '@/lib/logins-nav';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
-import { ReviewSections } from '@/components/review/workspace-review-sections';
 import { LoginChat } from '@/components/logins/login-chat';
-import {
-  InviteDetail,
-  InviteDialog,
-  stateLine,
-  useMemberInvites,
-} from '@/components/team-admin/member-invites';
-import { inviteName, newLinkSeed, openInvites } from '@/lib/member-invites';
-import {
-  AddClientDialog,
-  ClientSettingsPanel,
-  ClientSigninCard,
-  useClientLogins,
-} from '@/components/team-admin/client-logins';
-import { ClientReportPanel } from '@/components/team-admin/client-report';
+import { InviteDetail, InviteDialog, stateLine, useInvites } from './invites';
+import { inviteName, newLinkSeed, openInvites } from '@/lib/user-invites';
+import { EmailCodeSenderPanel } from './email-code-sender';
 import { PairPhoneCard } from './pair-phone-card';
 import { LoginWorkspaces } from './login-workspaces';
+
+/** The list entry and pane title for the email code sender. */
+export const EMAIL_CODE_TITLE = 'Sign-in by email code';
+
+/** What the delete confirm says. */
+export const LOGIN_DELETE_TEXT =
+  'Their login stops working immediately. Nothing in the brain is removed: everything they created stays, and their past actions remain in the audit log.';
 
 /** The role a new login is made with. Not a choice on this screen: the
  *  brain's least (workspaces W5a). */
@@ -119,13 +100,11 @@ type UserRow = {
   lastLoginAt: string | null;
   /** This login's personal assistant, or null when it shares the brain default. */
   agent: { id: string; slug: string; name: string } | null;
-  /** 'member' = a team member's login (users are the team): refused by every
-   *  admin screen, reads team-level items at /m (member logins, Phase 1).
-   *  'client' = a person at the brain's client company (client logins C2):
-   *  reads client-level items only and signs in with a link. Made and managed
-   *  in this screen's Clients section; the brain refuses a role change to or
-   *  from it. */
-  role: 'admin' | 'member' | 'client';
+  /** The brain's role for the login. Not a control here: what a login reads
+   *  comes from its workspaces. Read only for what it changes on this screen:
+   *  the Chat view (a member's thread), Reset password (a password login) and
+   *  the personal assistant (an admin login). */
+  role: string;
   contactId: string | null;
   disabledAt: string | null;
 };
@@ -154,18 +133,8 @@ function useSourceAgents() {
   });
 }
 
-/** The client report, for the What clients see step's card. A brain before
- *  client logins C1 answers 404: the step is left out. */
-function useClientReport() {
-  return useQuery({
-    queryKey: CLIENT_REPORT_KEY,
-    queryFn: fetchClientReport,
-    retry: (count, err) => !isReportMissing(err) && count < 1,
-  });
-}
-
-/** A section heading in the list column, in the review sections' style, with
- *  an optional count and one small text action on the right. */
+/** A small section heading in the list column, with an optional count and
+ *  one small text action on the right. */
 function ListSectionHeading({
   id,
   title,
@@ -242,27 +211,17 @@ function LoginCard({
   );
 }
 
-/** What the What clients see step's card says under its title. */
-function reportMeta(report: ClientReport | undefined, failed: boolean): string {
-  if (!report) return failed ? 'Could not load the list' : 'Loading…';
-  if (report.acknowledged) return 'Checked. Clients can be added.';
-  if (report.acknowledgement) return 'Changed since the check: check it again';
-  return 'Step 1: check it before adding clients';
-}
-
 /**
- * Logins: ways INTO the one brain, not tenants. Everyone with an admin login
- * sees the same data; a member or client login sees only its level. The
- * list column holds, top to bottom: Open invites (a section above the list,
- * while any is open), the admin and member logins, then Clients: its two
- * steps (What clients see, Client settings) and the client logins. Invite and
- * Add login head the column; Add client heads Clients. One detail pane shows
- * whatever is selected, under its one header (ItemHeader).
+ * Users: ways INTO the one brain, not tenants. Account actions only: what a
+ * login reads comes from its workspaces (Settings > Workspaces). The list
+ * column holds, top to bottom: Open invites (while any is open), the logins,
+ * then Sign-in by email code (the sender setting). Invite and Add user head
+ * the column. One detail pane shows whatever is selected, under its one
+ * header (ItemHeader).
  *
- * Invites, Clients, What clients see and each login's Chat moved here from
- * Team admin on 2026-10-09; their brain routes and admin-only gates are
- * unchanged (/api/team-admin/invites, /clients, /member-chats and
- * /api/access/client-report). The server enforces the invariants (anchor
+ * Kept brain routes (W5c contract): /api/team-admin/invites (INVITES_PATH),
+ * /member-chats (MEMBER_CHATS_PATH) and /clients/signin-sender
+ * (EMAIL_CODE_SENDER_PATH). The server enforces the invariants (anchor
  * undeletable, no self-delete); the UI just mirrors them.
  */
 export function UsersClient() {
@@ -271,22 +230,23 @@ export function UsersClient() {
     queryKey: ['users'],
     queryFn: () => apiFetch<{ users: UserRow[]; currentActorId: string }>('/api/users'),
   });
-  const invitesQuery = useMemberInvites();
-  const clientsQuery = useClientLogins();
-  const reportQuery = useClientReport();
+  const invitesQuery = useInvites();
   // Which logins have a team thread: an admin in it (a former member) keeps
   // its Chat. The same admin-only route the Chat view reads.
   const rosterQuery = useQuery({
-    queryKey: ['team-admin', 'member-chats', 'roster'],
-    queryFn: () => apiFetch<MemberChatsResponse>('/api/team-admin/member-chats'),
+    queryKey: ['users', 'member-chats', 'roster'],
+    queryFn: () => apiFetch<MemberChatsResponse>(MEMBER_CHATS_PATH),
   });
 
   // Deep link: /settings/users?selected=<id-or-email | invite:<id> |
-  // what-clients-see | client-settings>[&view=chat] preselects (initial state
-  // only: selection stays client-state after).
+  // email-code>[&view=chat] preselects (initial state only: selection stays
+  // client state after). An old Clients step opens the plain list.
   const searchParams = useSearchParams();
-  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('selected'));
-  const [chat, setChat] = useState(searchParams.get('view') === 'chat');
+  const [first] = useState(() =>
+    initialSelection(searchParams.get('selected'), searchParams.get('view')),
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(first.selected);
+  const [chat, setChat] = useState(first.chat);
   const [addOpen, setAddOpen] = useState(false);
   // The Invite dialog, empty (Invite) or for an open invite's person (New
   // link). Owned here, not by the invite pane: a New link replaces that
@@ -294,7 +254,6 @@ export function UsersClient() {
   const [inviteSeed, setInviteSeed] = useState<
     (ReturnType<typeof newLinkSeed> & { key: number }) | null
   >(null);
-  const [addClientOpen, setAddClientOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
@@ -302,10 +261,7 @@ export function UsersClient() {
     setSelectedId(id);
     setChat(!!opts.chat);
   };
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: CLIENT_LOGINS_KEY });
-    return queryClient.invalidateQueries({ queryKey: ['users'] });
-  };
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] });
 
   if (usersQuery.isPending) {
     return (
@@ -326,30 +282,24 @@ export function UsersClient() {
   }
 
   const { users, currentActorId } = usersQuery.data;
-  const team = users.filter((u) => u.role !== 'client');
-  const clients = users.filter((u) => u.role === 'client');
   const invites = openInvites(invitesQuery.data?.invites);
-  const reportMissing = isReportMissing(reportQuery.error);
-  const clientsBlocked = clientActionsBlocked(clientsQuery.data);
 
-  // What the detail pane shows: an open invite, a client step, or a login
-  // (by id or email; the first login when nothing, or something gone, is
-  // selected).
+  // What the detail pane shows: an open invite, the email code entry, or a
+  // login (by id or email; the first login when nothing, or something gone,
+  // is selected).
   const inviteId = inviteIdOf(selectedId);
   const invite = inviteId ? (invites.find((i) => i.id === inviteId) ?? null) : null;
-  const step =
-    selectedId === WHAT_CLIENTS_SEE && !reportMissing
-      ? WHAT_CLIENTS_SEE
-      : selectedId === CLIENT_SETTINGS
-        ? CLIENT_SETTINGS
-        : null;
+  const emailCode = selectedId === EMAIL_CODE;
   const selected =
-    invite || step
+    invite || emailCode
       ? null
       : (users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null);
-  const selectedKey = invite ? inviteKey(invite.id) : (step ?? selected?.id ?? null);
+  const selectedKey = invite
+    ? inviteKey(invite.id)
+    : emailCode
+      ? EMAIL_CODE
+      : (selected?.id ?? null);
 
-  const showReport = () => select(WHAT_CLIENTS_SEE);
   const inRoster = rosterIds(rosterQuery.data);
 
   return (
@@ -381,23 +331,33 @@ export function UsersClient() {
                 </Button>
               </div>
             </div>
-            <ReviewSections
-              sections={[
-                {
-                  id: 'logins-open-invites',
-                  title: 'Open invites',
-                  rows: invites.map((i) => ({
-                    id: inviteKey(i.id),
-                    title: inviteName(i),
-                    meta: `${i.email} · ${stateLine(i)}`,
-                    onSelect: () => select(inviteKey(i.id)),
-                  })),
-                },
-              ]}
-              selectedId={selectedKey}
-            />
             <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto md:scrollbar-thin">
-              {team.map((u) => (
+              {invites.length > 0 ? (
+                <section aria-labelledby="logins-open-invites" className="space-y-2 pb-2">
+                  <ListSectionHeading
+                    id="logins-open-invites"
+                    title="Open invites"
+                    count={invites.length}
+                  />
+                  {invites.map((i) => (
+                    <ListCard
+                      key={i.id}
+                      onClick={() => select(inviteKey(i.id))}
+                      selected={selectedKey === inviteKey(i.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <MailPlus className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {inviteName(i)}
+                        </span>
+                      </div>
+                      <ListCardMeta>{`${i.email} · ${stateLine(i)}`}</ListCardMeta>
+                    </ListCard>
+                  ))}
+                </section>
+              ) : null}
+
+              {users.map((u) => (
                 <LoginCard
                   key={u.id}
                   user={u}
@@ -406,66 +366,17 @@ export function UsersClient() {
                 />
               ))}
 
-              <section aria-labelledby="logins-clients" className="space-y-2">
-                <ListSectionHeading
-                  id="logins-clients"
-                  title="Clients"
-                  count={clients.length}
-                  action={
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={clientsBlocked}
-                      title={clientsBlocked ? CLIENT_ACTIONS_BLOCKED_TEXT : undefined}
-                      onClick={() => setAddClientOpen(true)}
-                    >
-                      <UserPlus /> Add client
-                    </Button>
-                  }
-                />
-                {reportMissing ? null : (
-                  <ListCard
-                    onClick={() => select(WHAT_CLIENTS_SEE)}
-                    selected={selectedKey === WHAT_CLIENTS_SEE}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Eye className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        What clients see
-                      </span>
-                      {reportQuery.data && !reportQuery.data.acknowledged ? (
-                        <Badge variant="outline" className="shrink-0">
-                          To check
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <ListCardMeta>{reportMeta(reportQuery.data, reportQuery.isError)}</ListCardMeta>
-                  </ListCard>
-                )}
-                <ListCard
-                  onClick={() => select(CLIENT_SETTINGS)}
-                  selected={selectedKey === CLIENT_SETTINGS}
-                >
+              <section aria-labelledby="logins-sign-in" className="space-y-2">
+                <ListSectionHeading id="logins-sign-in" title="Sign-in" />
+                <ListCard onClick={() => select(EMAIL_CODE)} selected={selectedKey === EMAIL_CODE}>
                   <div className="flex items-center gap-2">
-                    <Settings2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    <MailCheck className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      Client settings
+                      {EMAIL_CODE_TITLE}
                     </span>
                   </div>
-                  <ListCardMeta>Sign-in codes by email, chat use, storage</ListCardMeta>
+                  <ListCardMeta>For logins without a password</ListCardMeta>
                 </ListCard>
-                {clients.length === 0 ? (
-                  <p className="px-1 text-xs text-muted-foreground">No client logins yet.</p>
-                ) : (
-                  clients.map((u) => (
-                    <LoginCard
-                      key={u.id}
-                      user={u}
-                      selected={selectedKey === u.id}
-                      onSelect={() => select(u.id)}
-                    />
-                  ))
-                )}
               </section>
             </div>
           </>
@@ -479,24 +390,24 @@ export function UsersClient() {
               onRevoked={() => select(null)}
               onNewLink={() => setInviteSeed({ key: Date.now(), ...newLinkSeed(invite) })}
             />
-          ) : step === WHAT_CLIENTS_SEE ? (
-            <ClientReportPane query={reportQuery} />
-          ) : step === CLIENT_SETTINGS ? (
+          ) : emailCode ? (
             <div>
               <ItemHeader
                 sticky
-                visual={<Settings2 className="size-4 text-muted-foreground" aria-hidden />}
-                title="Client settings"
+                visual={<MailCheck className="size-4 text-muted-foreground" aria-hidden />}
+                title={EMAIL_CODE_TITLE}
                 iconActions={
-                  <HeaderInfoButton label="About client settings">
+                  <HeaderInfoButton label="About sign-in by email code">
                     <p>
-                      What applies to every client login: how they get a sign-in code by email,
-                      their chat use today against the daily limits, and what their own spaces hold.
+                      A login without a password can ask for a code on the sign-in page. The brain
+                      mails it from the account picked here. The code works once, for 10 minutes.
                     </p>
                   </HeaderInfoButton>
                 }
               />
-              <ClientSettingsPanel />
+              <div className="p-6">
+                <EmailCodeSenderPanel />
+              </div>
             </div>
           ) : selected ? (
             <UserDetail
@@ -509,7 +420,6 @@ export function UsersClient() {
               onChanged={() => void invalidate()}
               onRequestDelete={() => setDeleteOpen(true)}
               onRequestReset={() => setResetOpen(true)}
-              onShowReport={showReport}
             />
           ) : (
             <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -538,14 +448,6 @@ export function UsersClient() {
           onCreated={(id) => select(inviteKey(id))}
         />
       ) : null}
-      <AddClientDialog
-        open={addClientOpen}
-        onOpenChange={setAddClientOpen}
-        onCreated={(id) => {
-          select(id);
-          void invalidate();
-        }}
-      />
       {selected && (
         <>
           <ResetPasswordDialog open={resetOpen} onOpenChange={setResetOpen} user={selected} />
@@ -564,31 +466,9 @@ export function UsersClient() {
   );
 }
 
-/** The What clients see step: the report under its one header, or why it
- *  cannot show. */
-function ClientReportPane({ query }: { query: ReturnType<typeof useClientReport> }) {
-  if (query.data) return <ClientReportPanel report={query.data} />;
-  if (isReportMissing(query.error)) {
-    return <p className="p-6 text-sm text-muted-foreground">{NOT_ON_THIS_BRAIN}</p>;
-  }
-  if (query.isError) {
-    return (
-      <div className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
-        Couldn&apos;t load the client list.
-        <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-  return <p className="p-6 text-sm text-muted-foreground">Loading…</p>;
-}
-
 /** What a login is, in a sentence: the Info button's text. */
 function loginAbout(user: UserRow): string {
   if (user.isOwner) return 'The anchor login. The brain is keyed to it, so it can’t be deleted.';
-  if (user.role === 'client')
-    return 'A client login: client-level items only, signed in with a link issued below.';
   return 'A login. What it reads comes from its workspaces, not from this screen. Its actions are recorded under this identity.';
 }
 
@@ -601,11 +481,10 @@ function UserDetail({
   onChanged,
   onRequestDelete,
   onRequestReset,
-  onShowReport,
 }: {
   user: UserRow;
   isSelf: boolean;
-  /** Whether it has a Chat: members, clients, and an admin with a team thread. */
+  /** Whether it has a Chat: a member, or a login the roster lists. */
   hasChat: boolean;
   /** The Chat view instead of the details. */
   chat: boolean;
@@ -613,7 +492,6 @@ function UserDetail({
   onChanged: () => void;
   onRequestDelete: () => void;
   onRequestReset: () => void;
-  onShowReport: () => void;
 }) {
   const toast = useToast();
   const [displayName, setDisplayName] = useState(user.displayName ?? '');
@@ -638,7 +516,7 @@ function UserDetail({
 
   return (
     <div>
-      {/* The pane's one header: name and state; Chat (members and clients) as
+      {/* The pane's one header: name and state; Chat (a member's thread) as
           the text action; Info and Delete as icons. */}
       <ItemHeader
         sticky
@@ -651,7 +529,6 @@ function UserDetail({
               </Badge>
             )}
             {isSelf && <Badge variant="outline">You</Badge>}
-            {user.role === 'client' && <Badge variant="outline">Client</Badge>}
             {user.disabledAt && <Badge variant="outline">Disabled</Badge>}
           </>
         }
@@ -726,16 +603,12 @@ function UserDetail({
             <SubmitButton pending={saving}>Save user</SubmitButton>
           </form>
 
-          {user.role === 'client' && (
-            <ClientSigninCard loginId={user.id} onShowReport={onShowReport} />
-          )}
-
           {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
 
           {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
 
-          {/* Only a password login (admin, member) has one: a client signs in
-              with a link, and a role this app does not know gets nothing. */}
+          {/* Only a password login (admin, member) has one: a role this app
+              does not know gets nothing. */}
           {canResetPassword(user.role) && (
             <div className="rounded-md border border-border p-4">
               <div className="flex items-center justify-between gap-3">
@@ -766,9 +639,8 @@ function UserDetail({
  * Account state for one login: a Disabled switch that stops the login at
  * once (sessions are re-checked every request; bearers are revoked). No role
  * here: what a login may do comes from its workspaces (workspaces W5a, plan
- * 21.9: logins carry no permission). A client login keeps its note until the
- * client portal goes (W5c).
- * Never shown for the anchor or your own login.
+ * 21.9: logins carry no permission). Never shown for the anchor or your own
+ * login.
  */
 function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void }) {
   const toast = useToast();
@@ -788,7 +660,7 @@ function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void 
   };
 
   return (
-    <div className="space-y-4 rounded-md border border-border p-4">
+    <div className="rounded-md border border-border p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-medium">Disabled</div>
@@ -803,14 +675,6 @@ function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void 
           aria-label="Disable this login"
         />
       </div>
-      {user.role === 'client' ? (
-        <div className="border-t border-border pt-4">
-          <p className="text-xs text-muted-foreground">
-            A client login stays a client. To give this person more, delete the client login and
-            invite them again.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -992,7 +856,7 @@ function SignOutEverywhereButton({ user, isSelf }: { user: UserRow; isSelf: bool
               : `Sign ${user.displayName || user.email} out everywhere?`}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {isSelf ? EVERYWHERE_CONFIRM : otherLoginEverywhereText(user)}
+            {isSelf ? EVERYWHERE_CONFIRM : OTHER_LOGIN_EVERYWHERE_TEXT}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -1528,7 +1392,7 @@ function DeleteUserDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {user.displayName || user.email}?</AlertDialogTitle>
-          <AlertDialogDescription>{loginDeleteText(user)}</AlertDialogDescription>
+          <AlertDialogDescription>{LOGIN_DELETE_TEXT}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>

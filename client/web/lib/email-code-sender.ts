@@ -1,9 +1,9 @@
 /**
- * Settings > Logins > Client settings > Sign-in codes by email (client logins C2b), the
- * pure half. An admin picks the email account client sign-in codes are
- * mailed from; none means codes are off (clients sign in with a link only).
- * Nothing here fetches, so each wording is pinned by a test
- * (client-signin-sender.test.ts).
+ * Settings > Users > Sign-in by email code, the pure half. An admin picks
+ * the email account sign-in codes are mailed from; none means codes are off
+ * (every login signs in with its password). Any login without a password
+ * can sign in with a code. Nothing here fetches, so each wording is pinned
+ * by a test (email-code-sender.test.ts).
  *
  * Server: GET and PUT /api/team-admin/clients/signin-sender, and (brains
  * with the audit fixes) GET …/signin-sender/preview?accountId=, which names
@@ -16,12 +16,13 @@ import type {
   ClientSigninSenderPreview,
 } from '@mantle/client-types';
 
-export const CLIENT_SENDER_PATH = '/api/team-admin/clients/signin-sender';
-export const CLIENT_SENDER_KEY = ['team-admin', 'client-signin-sender'] as const;
+/** The kept route (W5c brain contract): the sender setting stays here. */
+export const EMAIL_CODE_SENDER_PATH = '/api/team-admin/clients/signin-sender';
+export const EMAIL_CODE_SENDER_KEY = ['team-admin', 'email-code-sender'] as const;
 
 /** What picking `accountId` would do, asked before the change. */
 export function senderPreviewPath(accountId: string): string {
-  return `${CLIENT_SENDER_PATH}/preview?accountId=${encodeURIComponent(accountId)}`;
+  return `${EMAIL_CODE_SENDER_PATH}/preview?accountId=${encodeURIComponent(accountId)}`;
 }
 
 /** The select's value for "no sender": codes off. Not an account id (those
@@ -36,7 +37,7 @@ export function senderBody(value: string): { accountId: string | null } {
 /** The banner when no email worker serves the code queue on this box: the
  *  brain queues each request, and nothing ever mails it. */
 export const EMAIL_WORKER_OFF_TEXT =
-  'The email worker is not running on this box: codes are off. Clients sign in with a link you issue until it runs.';
+  'The email worker is not running on this box: codes are off. Logins sign in with their password until it runs.';
 
 /** True when this box cannot mail codes whatever the sender (a brain that
  *  does not say is taken at its word that it can). */
@@ -48,7 +49,7 @@ export function codesWorkerOff(s: Pick<ClientSigninSender, 'emailWorker'>): bool
 export function senderStateText(
   s: Pick<ClientSigninSender, 'sender' | 'sentFoldersExcluded' | 'emailWorker'>,
 ) {
-  if (!s.sender) return 'Codes are off. Clients sign in with a link you issue, and nothing else.';
+  if (!s.sender) return 'Codes are off. Every login signs in with its password.';
   if (codesWorkerOff(s)) {
     return `Codes are off on this box (no email worker), though ${s.sender.address} is picked.`;
   }
@@ -155,7 +156,7 @@ export function senderChangeConfirm(c: SenderChange): {
     return {
       title: 'Turn sign-in codes off?',
       body:
-        'Clients then sign in only with a link you issue.' +
+        'Logins then sign in with their password only.' +
         (c.restored.length ? ` These folders come back into mail sync: ${list(c.restored)}.` : ''),
       action: 'Turn codes off',
     };

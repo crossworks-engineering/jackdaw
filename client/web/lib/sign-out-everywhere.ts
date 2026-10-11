@@ -7,40 +7,24 @@
  *    or member, signs ITSELF out everywhere. This browser's session ends too,
  *    so the caller then runs the ordinary sign-out and goes to /login.
  *  - PATCH /api/users/:id `{ signOut: true }`: an admin signs another login
- *    out everywhere (Settings > Logins). Admin only.
+ *    out everywhere (Settings > Users). Admin only.
  *
  * Raw fetch, as the password helpers do (member-password.ts): `apiFetch`
  * reads every 401 as a dead session and bounces the browser, and here the
  * caller decides what a 401 means. Pure outcome mapping, pinned by a test.
  */
 import { apiUrl, withAuth } from '@mantle/web-ui/api-fetch';
-import { clientActionConfirm } from './client-logins';
 
 /** What the confirm dialog says before a login signs itself out everywhere. */
 export const EVERYWHERE_CONFIRM = 'This signs you out on every device, this one too.';
 
-/** The whole confirm, for the login signing itself out. A client has no
- *  phone app and no connected client (it signs in with a link or a code in
- *  a browser), so it is told only about browsers (client logins audit B14). */
-export function everywhereConfirmText(client: boolean): string {
-  return client
-    ? `${EVERYWHERE_CONFIRM} Every browser you signed in on must sign in again, with a new link or an email code.`
-    : `${EVERYWHERE_CONFIRM} Every browser, the phone app and any connected client must sign in again.`;
-}
+/** The whole confirm, for the login signing itself out. */
+export const EVERYWHERE_CONFIRM_TEXT = `${EVERYWHERE_CONFIRM} Every browser, the phone app and any connected client must sign in again.`;
 
 /** The whole confirm, for an admin signing ANOTHER login out (Settings >
- *  Logins). For a client the brain also revokes its open sign-in link and
- *  codes, so it says what the old Team admin > Clients End sessions said (client
- *  tier audit U11). */
-export function otherLoginEverywhereText(user: {
-  role: string;
-  displayName: string | null;
-  email: string;
-}): string {
-  return user.role === 'client'
-    ? clientActionConfirm('end', user).body
-    : 'Every browser, the phone app and any connected client they use must sign in again. Nothing else about the login changes.';
-}
+ *  Users). */
+export const OTHER_LOGIN_EVERYWHERE_TEXT =
+  'Every browser, the phone app and any connected client they use must sign in again. Nothing else about the login changes.';
 
 export type EverywhereOutcome =
   | { kind: 'ok' }

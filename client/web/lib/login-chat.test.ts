@@ -40,9 +40,9 @@ describe('loginChatOf', () => {
 });
 
 describe('loginHasChat', () => {
-  it('members and clients chat with the team agent; an admin does not', () => {
+  it('a member chats with the team agent; an admin or a client does not', () => {
     expect(loginHasChat('member')).toBe(true);
-    expect(loginHasChat('client')).toBe(true);
+    expect(loginHasChat('client')).toBe(false);
     expect(loginHasChat('admin')).toBe(false);
   });
 

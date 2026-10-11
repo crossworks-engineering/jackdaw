@@ -1,7 +1,9 @@
 /**
- * The Users screen is flat (workspaces W5a, plan 7.1 and 21.9): account
- * actions only (disable, reset password, devices, phone pairing), no role or
- * other permission control, and the login's workspaces as links.
+ * The Users screen is flat (workspaces W5a, plan 7.1 and 21.9; W5c): account
+ * actions only (disable, reset password, devices, sign out everywhere, phone
+ * pairing, delete), no role or other permission control, the login's
+ * workspaces as links, each login's Chat, invites, and the sender of
+ * sign-in codes. No Clients section and nothing about clients (W5c).
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +12,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LoginWorkspacesView } from './login-workspaces';
 
-const src = readFileSync(fileURLToPath(new URL('./users-client.tsx', import.meta.url)), 'utf8');
+const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
+const src = read('./users-client.tsx');
+/** The screen and the files only it renders. */
+const screen = [src, read('./invites.tsx'), read('./email-code-sender.tsx')].join('\n');
 
 describe('Users screen source', () => {
   it('has no role control', () => {
@@ -38,6 +43,45 @@ describe('Users screen source', () => {
 
   it('no role badge on a login', () => {
     expect(src).not.toMatch(/user\.role === 'member' && /);
+    expect(src).not.toMatch(/user\.role === 'client'/);
+  });
+
+  it('keeps sign out everywhere and delete', () => {
+    expect(src).toContain('<SignOutEverywhereButton user={user} isSelf={isSelf} />');
+    expect(src).toContain('label="Delete login"');
+  });
+
+  it('has no Clients section, no What clients see and no Client settings (W5c)', () => {
+    for (const gone of [
+      'title="Clients"',
+      'Add client',
+      'What clients see',
+      'Client settings',
+      '/api/access/client-report',
+      'ClientReport',
+      'ClientStorage',
+      'ClientChatUsage',
+      'components/team-admin',
+    ]) {
+      expect(screen, gone).not.toContain(gone);
+    }
+    // The only Team admin client route left is the sender setting.
+    const clientRoutes = screen.match(/\/api\/team-admin\/clients[^'"`\s]*/g) ?? [];
+    expect(clientRoutes.every((r) => r.startsWith('/api/team-admin/clients/signin-sender'))).toBe(
+      true,
+    );
+  });
+
+  it("keeps each login's Chat and the Sign-in by email code entry", () => {
+    expect(src).toContain('<LoginChat loginId={user.id} name={name} />');
+    expect(src).toContain("export const EMAIL_CODE_TITLE = 'Sign-in by email code';");
+    expect(src).toContain('<EmailCodeSenderPanel />');
+  });
+
+  it('keeps invites: the dialog, the open invites and the invite pane', () => {
+    expect(src).toContain('<InviteDialog');
+    expect(src).toContain('title="Open invites"');
+    expect(src).toContain('<InviteDetail');
   });
 });
 
