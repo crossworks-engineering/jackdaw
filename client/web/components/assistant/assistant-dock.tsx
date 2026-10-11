@@ -31,12 +31,17 @@ import {
   withAuth,
 } from '@mantle/web-ui/api-fetch';
 import { usePendingQuestions } from '@/components/pending/use-pending-questions';
-import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
-import { turnRefusalText } from '@/lib/assistant-turn-refusal';
+import { useIsAdminUser, useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
+import { chatFeatures, turnRefusalText } from '@/lib/assistant-turn-refusal';
 import { useAssistantUnreadCount } from './use-assistant-unread';
 import { ASSISTANT_W_DEFAULT, clampAssistantWidth } from '@/lib/nav-width';
 import type { TurnEvent } from '@mantle/client-types';
-import { startTurnSafetyPoll, turnSinceIso, type SafetyPollRow } from './turn-safety-poll';
+import {
+  replyPollDelayMs,
+  startTurnSafetyPoll,
+  turnSinceIso,
+  type SafetyPollRow,
+} from './turn-safety-poll';
 
 /**
  * App-wide assistant provider. The turn fetch runs here (in the persistent
@@ -901,7 +906,7 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
               // switched off server-side) returns silently, and a real outage
               // reconnects forever. Either way the terminal `done` this bubble waits
               // for never arrives. The turn itself is durable and usually still
-              // finishes — hence the wording, which sends the reader to the place
+              // finishes, hence the wording, which sends the reader to the place
               // that reconciles against the row rather than claiming a failure.
               maxAttempts: DOCK_STREAM_MAX_ATTEMPTS,
               // The stream is gone, the turn usually is not. The safety poll below
@@ -947,6 +952,17 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
           settle({ text: row.error || 'The turn failed.', pending: false, error: true }, 'error'),
         shouldGiveUp: () => streamDead && Date.now() - subscribedAt > DOCK_POLL_GIVE_UP_MS,
         onGiveUp: lostConnection,
+        // Without the live stream the poll IS the reply: every 3 s for the
+        // first minute, then every 10 s, nothing while the tab is hidden, and
+        // slower after failed reads (replyPollDelayMs).
+        ...(live
+          ? {}
+          : {
+              schedule: {
+                delayMs: replyPollDelayMs,
+                isHidden: () => typeof document !== 'undefined' && document.hidden,
+              },
+            }),
       });
 
       dockStreamRef.current = () => {
@@ -1288,8 +1304,10 @@ export function AssistantButton({ adminUser = true }: { adminUser?: boolean } = 
   const { panel, busy, toggle, messages } = useAssistantDock();
   const [seenId, setSeenId] = useState<string | null>(null);
   // Blocked runs waiting on an answer — the panel renders the questionnaire,
-  // so the button is what tells you to go there. An Admin user's only.
-  const { count: questionCount } = usePendingQuestions({ enabled: adminUser });
+  // so the button is what tells you to go there. An Admin user's with the
+  // Settings area only (/api/pending, chatFeatures().runs).
+  const runs = chatFeatures(adminUser, useViewerAreas()).runs;
+  const { count: questionCount } = usePendingQuestions({ enabled: runs });
   // Any other login (W7c): the unread replies of its own threads, from the
   // brain (lib/assistant-unread), so a reply that landed elsewhere shows too.
   const threadUnread = useAssistantUnreadCount(!adminUser);

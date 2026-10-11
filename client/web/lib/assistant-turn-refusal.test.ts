@@ -59,12 +59,30 @@ describe('a refused send, in plain words', () => {
 });
 
 describe('the parts of the chat a login gets', () => {
-  it('an Admin user gets everything', () => {
-    expect(chatFeatures(true)).toEqual({ attachments: true, pick: true, live: true, runs: true });
+  it('an Admin user with the Settings area gets everything', () => {
+    expect(chatFeatures(true, ['settings'])).toEqual({
+      attachments: true,
+      pick: true,
+      live: true,
+      runs: true,
+    });
+    // A brain that names no areas: an admin, who holds them all.
+    expect(chatFeatures(true, undefined).runs).toBe(true);
+  });
+
+  it('an Admin user without the Settings area: no runs strips (/api/pending, /api/runs)', () => {
+    expect(chatFeatures(true, ['users', 'connectors'])).toEqual({
+      attachments: true,
+      pick: true,
+      live: true,
+      runs: false,
+    });
+    expect(chatFeatures(true, []).runs).toBe(false);
   });
 
   it('anyone else: no attachments, no pick, no live tokens, no runs strips', () => {
-    expect(chatFeatures(false)).toEqual({
+    expect(chatFeatures(false, ['settings']).runs).toBe(false);
+    expect(chatFeatures(false, [])).toEqual({
       attachments: false,
       pick: false,
       live: false,

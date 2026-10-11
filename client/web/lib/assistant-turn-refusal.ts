@@ -12,6 +12,8 @@
  * yet) and sends no attachments.
  */
 
+import { hasArea } from './workspaces';
+
 /** The JSON body of a refused POST /api/assistant/turn. */
 export type TurnRefusalBody = { error?: unknown; reason?: unknown };
 
@@ -63,12 +65,24 @@ export type ChatFeatures = {
    *  the premature-Enter replace and the follow-up suggestion: all on the
    *  Admin-only live-stream routes. */
   live: boolean;
-  /** The pending questions and active runs strips (Admin-only routes). */
+  /** The pending questions and active runs strips, and the Assistant
+   *  button's needs-you count: /api/pending and /api/runs, which the brain
+   *  opens to an Admin user with the Settings area (the app shell's
+   *  `manages` rule). */
   runs: boolean;
 };
 
-/** Which parts of the chat a login gets: everything for an Admin user, the
- *  thread and a text composer for anyone else. */
-export function chatFeatures(adminUser: boolean): ChatFeatures {
-  return { attachments: adminUser, pick: adminUser, live: adminUser, runs: adminUser };
+/** Which parts of the chat a login gets: everything for an Admin user (the
+ *  runs strips only with the Settings area), the thread and a text composer
+ *  for anyone else. A brain that names no areas leaves the strips on. */
+export function chatFeatures(
+  adminUser: boolean,
+  areas: readonly string[] | null | undefined,
+): ChatFeatures {
+  return {
+    attachments: adminUser,
+    pick: adminUser,
+    live: adminUser,
+    runs: adminUser && hasArea(areas, 'settings'),
+  };
 }

@@ -1,6 +1,6 @@
 /**
  * /settings/mcp is one screen for every user (workspaces W7b), on the side
- * the login reads: the brain's for an Admin user with Connectors, its own for
+ * the login reads: the brain's for an Admin user with Settings, its own for
  * a member. No per-login switch and no Team and client access list.
  */
 import { createElement } from 'react';
@@ -24,17 +24,30 @@ async function renderFor(shell: unknown): Promise<string> {
 }
 
 describe('/settings/mcp: one screen, on the side the login reads', () => {
-  it('an admin with the Connectors area reads the brain side', async () => {
-    const html = await renderFor({ role: 'admin', areas: ['connectors'] });
+  it('an admin with the Settings area reads the brain side', async () => {
+    const html = await renderFor({ role: 'admin', areas: ['settings', 'connectors'] });
     expect(html).toContain('MCP-SCREEN:brain');
+  });
+
+  it('an admin with only the Settings area reads the brain side', async () => {
+    // The brain classes /api/mcp-settings, /api/mcp-clients and
+    // /api/mcp-status as `settings` (route-scope.ts), not `connectors`.
+    const html = await renderFor({ role: 'admin', areas: ['settings'] });
+    expect(html).toContain('MCP-SCREEN:brain');
+  });
+
+  it('an admin with only the Connectors area is told so', async () => {
+    const html = await renderFor({ role: 'admin', areas: ['connectors'] });
+    expect(html).toContain('You cannot manage this part of the brain.');
+    expect(html).not.toContain('MCP-SCREEN');
   });
 
   it('a brain that names no role or areas: the brain side', async () => {
     expect(await renderFor({ siteName: null })).toContain('MCP-SCREEN:brain');
   });
 
-  it('an admin without the Connectors area is told so', async () => {
-    const html = await renderFor({ role: 'admin', areas: ['settings'] });
+  it('an admin without the Settings area is told so', async () => {
+    const html = await renderFor({ role: 'admin', areas: ['users'] });
     expect(html).toContain('You cannot manage this part of the brain.');
     expect(html).not.toContain('MCP-SCREEN');
   });

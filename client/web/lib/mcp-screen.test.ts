@@ -29,13 +29,13 @@ const client = {
 };
 
 describe('which side of the one MCP screen a login reads', () => {
-  it('the brain side for an admin with Connectors, its own for a member', () => {
+  it('the brain side for an admin with Settings, its own for a member', () => {
     expect(mcpSourceFor('admin', true)).toBe('brain');
     expect(mcpSourceFor('member', false)).toBe('own');
     expect(mcpSourceFor('member', true)).toBe('own');
   });
 
-  it('an admin without Connectors is refused, a client has none, no shell waits', () => {
+  it('an admin without Settings is refused, a client has none, no shell waits', () => {
     expect(mcpSourceFor('admin', false)).toBe('refused');
     expect(mcpSourceFor('client', false)).toBe('none');
     expect(mcpSourceFor(null, true)).toBeNull();

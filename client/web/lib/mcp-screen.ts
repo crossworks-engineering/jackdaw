@@ -6,7 +6,7 @@
  *
  * The screen reads one of two routes and shows the same layout either way:
  *
- *  - `brain`: an Admin user with the Connectors area reads GET
+ *  - `brain`: an Admin user with the Settings area reads GET
  *    /api/mcp-settings (the box switch, the connector URL, every connected
  *    client), disconnects with DELETE /api/mcp-clients/:id;
  *  - `own`: any other user reads GET /api/member/mcp (its own connection
@@ -20,7 +20,7 @@
 export type { MemberMcpClient, MemberMcpConnector, MemberMcpView } from './contract/member-mcp';
 import type { MemberMcpClient, MemberMcpConnector, MemberMcpView } from './contract/member-mcp';
 
-/** GET /api/mcp-settings: the brain's screen (an Admin user with Connectors). */
+/** GET /api/mcp-settings: the brain's screen (an Admin user with Settings). */
 export type McpSettings = {
   enabled: boolean;
   connectorUrl: string;
@@ -129,17 +129,18 @@ export function claudeCodeOauthCommand(connectorUrl: string): string {
 
 /**
  * Which side of the one screen a login reads: the brain's for an Admin user
- * with the Connectors area, its own for a member. An Admin user without the
+ * with the Settings area (the brain classes /api/mcp-settings,
+ * /api/mcp-clients and /api/mcp-status as `settings`), its own for a member. An Admin user without the
  * area is told so (`refused`); a client has no MCP yet (`none`); null while
  * the shell has not answered. A brain that names no role reads as an admin's.
  */
 export function mcpSourceFor(
   role: 'admin' | 'member' | 'client' | null,
-  connectors: boolean,
+  settings: boolean,
 ): McpSource | 'refused' | 'none' | null {
   switch (role) {
     case 'admin':
-      return connectors ? 'brain' : 'refused';
+      return settings ? 'brain' : 'refused';
     case 'member':
       return 'own';
     case 'client':

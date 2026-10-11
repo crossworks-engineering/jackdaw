@@ -4,6 +4,8 @@ import { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { StaticDoc } from '@/components/page-editor/static-doc';
 import { richMarkdownToHtml } from '@/lib/rich-markdown';
+import { chatLinkAction } from '@/lib/chat-links';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 
 /**
  * Render Saskia's settled reply as a rich document, through the SAME TipTap
@@ -24,27 +26,38 @@ import { richMarkdownToHtml } from '@/lib/rich-markdown';
  */
 export function RichText({ markdown }: { markdown: string }) {
   const router = useRouter();
-  const html = useMemo(() => richMarkdownToHtml(markdown), [markdown]);
+  // A login that is not an Admin user sees only the pictures it can load
+  // (lib/chat-links.ts); false until the shell answers, so nothing it cannot
+  // load is asked for meanwhile.
+  const adminUser = useIsAdminUser();
+  const html = useMemo(() => richMarkdownToHtml(markdown, { adminUser }), [markdown, adminUser]);
 
   // The shared page extensions set `link.openOnClick:false` (right for the
   // editable canvas, where a click places the cursor). Here the reply is
   // read-only, so links should actually navigate — including the `/n/<id>`
   // permalinks responders embed to point at a document. Same-origin links go
-  // through the SPA router (no full reload); external links open in a new tab.
+  // through the SPA router (no full reload); other http(s) links open in a new
+  // tab; mailto is the browser's; any other scheme does nothing at all
+  // (chatLinkAction).
   const onClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
-        return;
       const anchor = (e.target as HTMLElement).closest('a');
       const href = anchor?.getAttribute('href');
-      if (!href) return;
-      const url = new URL(href, window.location.origin);
-      if (url.origin === window.location.origin) {
+      if (href == null) return;
+      const action = chatLinkAction(href, window.location.origin);
+      // A blocked scheme is refused whatever the modifier keys say.
+      if (action.kind === 'block') {
         e.preventDefault();
-        router.push(url.pathname + url.search + url.hash);
-      } else {
+        return;
+      }
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+        return;
+      if (action.kind === 'route') {
         e.preventDefault();
-        window.open(url.href, '_blank', 'noopener,noreferrer');
+        router.push(action.path);
+      } else if (action.kind === 'open') {
+        e.preventDefault();
+        window.open(action.href, '_blank', 'noopener,noreferrer');
       }
     },
     [router],

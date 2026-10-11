@@ -51,22 +51,6 @@ export type MemberLibraryItem =
       sizeBytes: number | null;
     });
 
-export type MemberChatMessage = {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  text: string;
-  status: 'pending' | 'complete' | 'failed';
-  failed: boolean;
-  createdAt: string;
-};
-
-/** GET /api/member/chat. `agent` null = chat not open yet (the Team workspace
- *  has no assistant). */
-export type MemberChatThread = {
-  agent: { slug: string; name: string } | null;
-  messages: MemberChatMessage[];
-};
-
 // ── Personal spaces (member logins Phase 2) ──────────────────────────────
 
 export type MemberSpaceSharing = 'private' | 'team';

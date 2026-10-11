@@ -58,6 +58,12 @@ import {
   mediaFileId,
 } from '@mantle/content-core/markdown-refs';
 import { splitFoldMarker } from '@mantle/content-core/heading-fold';
+import { chatImageAllowed, isSafeChatHref } from './chat-links';
+
+/** Who reads the reply being converted (richMarkdownToHtml sets it for the
+ *  one synchronous call): a login that is not an Admin user sees only the
+ *  pictures it can load (lib/chat-links.ts). */
+let viewerIsAdmin = true;
 
 const CALLOUT_VARIANTS = ['info', 'success', 'warning', 'danger'] as const;
 type CalloutVariant = (typeof CALLOUT_VARIANTS)[number];
@@ -195,9 +201,13 @@ const mediaImageExtension: TokenizerAndRendererExtension = {
 };
 
 /** The `<img>` for a stored file. One spelling for both entry points: the
- *  line-level standalone form and the inline-in-prose extension above. */
+ *  line-level standalone form and the inline-in-prose extension above. A
+ *  login that is not an Admin user cannot read the owner byte route: its alt
+ *  text instead. */
 function mediaImageHtml(nodeId: string, alt: string): string {
-  return `<img src="${escapeAttr(fileRawSrc(nodeId))}" data-node-id="${escapeAttr(
+  const src = fileRawSrc(nodeId);
+  if (!chatImageAllowed(src, viewerIsAdmin)) return escapeText(alt);
+  return `<img src="${escapeAttr(src)}" data-node-id="${escapeAttr(
     nodeId,
   )}" alt="${escapeAttr(alt)}">`;
 }
@@ -205,7 +215,9 @@ function mediaImageHtml(nodeId: string, alt: string): string {
 /** The `<img>` for an embedded drawing's committed snapshot. Same shape as
  *  mediaImageHtml — always an image element, never inline SVG markup. */
 function drawImageHtml(drawId: string, alt: string): string {
-  return `<img src="${escapeAttr(drawRawSrc(drawId))}" data-draw-id="${escapeAttr(
+  const src = drawRawSrc(drawId);
+  if (!chatImageAllowed(src, viewerIsAdmin)) return escapeText(alt);
+  return `<img src="${escapeAttr(src)}" data-draw-id="${escapeAttr(
     drawId,
   )}" alt="${escapeAttr(alt)}">`;
 }
@@ -222,6 +234,23 @@ md.use({
       const { tokens: rest, fold } = splitFoldMarker(tokens);
       const attr = fold ? ` data-fold="${fold}"` : '';
       return `<h${depth}${attr}>${this.parser.parseInline(rest ?? [])}</h${depth}>\n`;
+    },
+    // Only http(s), mailto and relative links stay links (lib/chat-links.ts);
+    // any other scheme reads as its text.
+    link({ href, tokens }) {
+      if (isSafeChatHref(href)) return false;
+      return this.parser.parseInline(tokens);
+    },
+    // A URL picture a login that is not an Admin user may not load: its alt.
+    image({ href, text }) {
+      if (chatImageAllowed(href, viewerIsAdmin)) return false;
+      return escapeText(text);
+    },
+    // Raw HTML in a reply reads as text for a login that is not an Admin
+    // user: it would carry pictures and links past the two rules above.
+    html({ text, block }) {
+      if (viewerIsAdmin) return false;
+      return block ? `<p>${escapeText(text.trim())}</p>\n` : escapeText(text);
     },
   },
 });
@@ -252,6 +281,11 @@ function escapeAttr(s: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/** Text content escaping, for what renders as words instead of markup. */
+function escapeText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function renderInline(text: string): string {
@@ -300,8 +334,27 @@ function renderTaskList(items: Array<{ checked: boolean; text: string }>): strin
   return `<ul data-type="taskList">${lis}</ul>`;
 }
 
-export function richMarkdownToHtml(source: string): string {
+/**
+ * `adminUser`: who reads the reply. For a login that is not an Admin user
+ * only same-origin pictures off the owner byte routes show (anything else is
+ * its alt text) and raw HTML reads as text. Links are http(s), mailto or
+ * relative for everyone (lib/chat-links.ts).
+ */
+export function richMarkdownToHtml(
+  source: string,
+  { adminUser = true }: { adminUser?: boolean } = {},
+): string {
   if (!source?.trim()) return '';
+  const before = viewerIsAdmin;
+  viewerIsAdmin = adminUser;
+  try {
+    return convert(source);
+  } finally {
+    viewerIsAdmin = before;
+  }
+}
+
+function convert(source: string): string {
   const lines = source.replace(/\r\n/g, '\n').split('\n');
   const out: string[] = [];
   let plain: string[] = [];
@@ -365,7 +418,10 @@ export function richMarkdownToHtml(source: string): string {
     const mediaLine = MEDIA_IMAGE_LINE_RE.exec(line);
     if (mediaLine) {
       flush();
-      out.push(mediaImageHtml(mediaLine[2]!, mediaLine[1] ?? ''));
+      const html = mediaImageHtml(mediaLine[2]!, mediaLine[1] ?? '');
+      // A picture this login cannot load is its alt text, in a paragraph.
+      if (html.startsWith('<img')) out.push(html);
+      else if (html) out.push(`<p>${html}</p>`);
       i++;
       continue;
     }

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   findTurnOutboundRow,
+  replyPollDelayMs,
   startTurnSafetyPoll,
   turnSinceIso,
   verdictForSettled,
@@ -311,5 +312,82 @@ describe('verdictForSettled', () => {
 
   it('accepts a keyless signal: a transcript has at most one turn pending', () => {
     expect(verdictForSettled(pending, { status: 'done' })).toBe('done');
+  });
+});
+
+describe('the reply poll of a login without the live stream', () => {
+  it('every 3 s for the first minute, then every 10 s', () => {
+    expect(replyPollDelayMs(0, 0)).toBe(3000);
+    expect(replyPollDelayMs(59_999, 0)).toBe(3000);
+    expect(replyPollDelayMs(60_000, 0)).toBe(10_000);
+    expect(replyPollDelayMs(10 * 60_000, 0)).toBe(10_000);
+  });
+
+  it('backs off on failed reads, up to one minute, and recovers', () => {
+    expect(replyPollDelayMs(0, 1)).toBe(6000);
+    expect(replyPollDelayMs(0, 2)).toBe(12_000);
+    expect(replyPollDelayMs(120_000, 1)).toBe(20_000);
+    expect(replyPollDelayMs(120_000, 9)).toBe(60_000);
+    expect(replyPollDelayMs(0, 50)).toBe(60_000);
+    expect(replyPollDelayMs(120_000, 0)).toBe(10_000);
+  });
+
+  it('fetches only when due, never while hidden, and later after a failure', async () => {
+    const t = manualTimers();
+    let clock = 0;
+    let hidden = false;
+    let fail = false;
+    const fetchRows = vi.fn(async () => {
+      if (fail) throw new Error('offline');
+      return [row({ id: 'r', status: 'pending', createdAt: '2026-09-18T09:00:01.000Z' })];
+    });
+    const stop = startTurnSafetyPoll({
+      fetchRows,
+      getOutboundId: () => 'r',
+      sinceIso: '2026-09-18T09:00:00.000Z',
+      onComplete: vi.fn(),
+      onFailed: vi.fn(),
+      schedule: { delayMs: replyPollDelayMs, isHidden: () => hidden, now: () => clock },
+      timers: t.timers,
+    });
+
+    clock = 2000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(0); // not due before 3 s
+    clock = 3000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(1);
+
+    hidden = true;
+    clock = 30_000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(1); // a hidden tab asks nothing
+    hidden = false;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(2);
+
+    fail = true;
+    clock = 33_000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(3); // fails: next one 6 s on
+    clock = 36_000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(3);
+    clock = 39_000;
+    fail = false;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(4);
+
+    // Past the first minute: every 10 s.
+    clock = 70_000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(5);
+    clock = 75_000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(5);
+    clock = 80_000;
+    await t.tick();
+    expect(fetchRows).toHaveBeenCalledTimes(6);
+    stop();
   });
 });

@@ -2,22 +2,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { GONE_ROUTE, GONE_ROUTE_NEEDLES } from './gone-routes';
 
 /**
- * Nothing calls a route a W6b or W7 brain answers 410.
- *
- * W6b (contract item 1): the personal spaces are folded into the brain, and
- * every login uses the owner routes in its own scope. The member space, its
- * files, the member's own apps and trash, the member items list and the
- * member tree are gone, and so are the admin's private space and its files.
- *
- * W7b: the per-login MCP switches (/api/mcp-logins) and the agent and tool
- * group levels (PATCH /api/access/agents/:slug and
- * /api/access/tool-groups/:slug) are gone: one MCP surface, no levels.
- *
- * W7c: every login chats on /api/assistant in its own threads, so the member
- * chat (/api/member/chat, its read and unread) and the Admin member chats
- * (/api/team-admin/member-chats) are gone.
+ * Nothing calls a route a W6b or W7 brain answers 410. The routes and their
+ * needles are THE list in lib/gone-routes.ts, which the e2e specs read too
+ * (e2e/workspace/shell-nav.ts GONE_ROUTE).
  *
  * Every source file of the app, the UI kit, the desktop shell and the e2e
  * specs is scanned for a quoted path (or a quoted route base that such a path
@@ -25,27 +15,8 @@ import { describe, expect, it } from 'vitest';
  */
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 const ROOTS = ['client/web/', 'packages/web-ui/src/', 'client/desktop/src/', 'e2e/'];
-const SELF = 'client/web/lib/no-gone-route.guard.test.ts';
-
-/** The 410 routes of the W6b, W7b and W7c contracts, as a quoted path starts. */
-export const GONE_ROUTES: [string, RegExp][] = [
-  ['/api/member/space (and its items, drafts, saves and bytes)', /['"`]\/api\/member\/space\b/],
-  ['/api/member/space-files', /['"`]\/api\/member\/space-files\b/],
-  ['/api/member/my-apps (and its trash, history and share)', /['"`]\/api\/member\/my-apps\b/],
-  ['/api/member/items', /['"`]\/api\/member\/items\b/],
-  ['/api/member/tree (and its search, move and folders)', /['"`]\/api\/member\/tree\b/],
-  ['/api/admin/space (and its items, drafts, saves and bytes)', /['"`]\/api\/admin\/space\b/],
-  ['/api/admin/space-files', /['"`]\/api\/admin\/space-files\b/],
-  // A route base the paths above were built on ('/api/member' + '/space').
-  ['a bare /api/member or /api/admin base', /['"`]\/api\/(member|admin)\/?['"`]/],
-  // W7b.
-  ['/api/mcp-logins (and its tokens)', /['"`]\/api\/mcp-logins\b/],
-  ['/api/access/agents/:slug (an agent level)', /['"`]\/api\/access\/agents\b/],
-  ['/api/access/tool-groups/:slug (a tool group level)', /['"`]\/api\/access\/tool-groups\b/],
-  // W7c.
-  ['/api/member/chat (and its read and unread)', /['"`]\/api\/member\/chat\b/],
-  ['/api/team-admin/member-chats', /['"`]\/api\/team-admin\/member-chats\b/],
-];
+/** The guard itself and the list it reads name every gone route. */
+const SELF = ['client/web/lib/no-gone-route.guard.test.ts', 'client/web/lib/gone-routes.ts'];
 
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -57,7 +28,7 @@ function sources(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const scanned = ROOTS.flatMap((r) => sources(join(REPO, r))).filter((f) => f !== SELF);
+const scanned = ROOTS.flatMap((r) => sources(join(REPO, r))).filter((f) => !SELF.includes(f));
 
 describe('no call to a route a W6b or W7 brain answers 410', () => {
   it('scans the app, the UI kit, the desktop shell and the e2e specs', () => {
@@ -81,13 +52,13 @@ describe('no call to a route a W6b or W7 brain answers 410', () => {
     }
   });
 
-  it.each(GONE_ROUTES)('no file names %s', (_name, needle) => {
+  it.each(GONE_ROUTE_NEEDLES)('no file names %s', (_name, needle) => {
     const hits = scanned.filter((f) => needle.test(readFileSync(join(REPO, f), 'utf8')));
     expect(hits).toEqual([]);
   });
 
   it('the needles catch what they are for', () => {
-    const caught = (src: string) => GONE_ROUTES.some(([, re]) => re.test(src));
+    const caught = (src: string) => GONE_ROUTE_NEEDLES.some(([, re]) => re.test(src));
     expect(caught("apiFetch('/api/member/space?page=1')")).toBe(true);
     expect(caught('`/api/member/tree/${kind}/search`')).toBe(true);
     expect(caught("'/api/admin/space/' + id")).toBe(true);
@@ -106,6 +77,31 @@ describe('no call to a route a W6b or W7 brain answers 410', () => {
     expect(caught("apiFetch('/api/member/mcp')")).toBe(false);
     expect(caught("apiFetch('/api/assistant/conversations')")).toBe(false);
     expect(caught("apiFetch('/api/mcp-settings')")).toBe(false);
+    // Template strings built on another base (W7f).
+    expect(caught('`${origin}/api/mcp-logins`')).toBe(true);
+    expect(caught('`${origin}/api/mcp-logins/${id}/tokens`')).toBe(true);
+    expect(caught('`${base}/api/access/agents/${slug}`')).toBe(true);
+    expect(caught('`${base}/api/access/tool-groups${q}`')).toBe(true);
+    expect(caught('`${base}/api/team-admin/member-chats?login=${id}`')).toBe(true);
+    expect(caught("'/api/access/agents' + '/' + slug")).toBe(true);
+    // Prose in a comment is not a call; a live sibling route is not gone.
+    expect(caught(' * PATCH /api/access/tool-groups/:slug answers 410')).toBe(false);
+    expect(caught('`${base}/api/team-admin/members`')).toBe(false);
+    expect(caught("apiFetch('/api/access/agentsx')")).toBe(false);
+  });
+
+  it('the e2e specs read the same list', () => {
+    expect(GONE_ROUTE.test('/api/mcp-logins')).toBe(true);
+    expect(GONE_ROUTE.test('/api/mcp-logins/x/tokens')).toBe(true);
+    expect(GONE_ROUTE.test('/api/access/tool-groups/core')).toBe(true);
+    expect(GONE_ROUTE.test('/api/team-admin/member-chats')).toBe(true);
+    expect(GONE_ROUTE.test('/api/member/space-files/x')).toBe(true);
+    expect(GONE_ROUTE.test('/api/member/chat/unread')).toBe(true);
+    expect(GONE_ROUTE.test('/api/member/mcp')).toBe(false);
+    expect(GONE_ROUTE.test('/api/member/chats')).toBe(false);
+    expect(GONE_ROUTE.test('/api/team-admin/members')).toBe(false);
+    const shellNav = readFileSync(join(REPO, 'e2e/workspace/shell-nav.ts'), 'utf8');
+    expect(shellNav).toContain("from '../../client/web/lib/gone-routes'");
   });
 
   it('the W7 screens that called them are gone', () => {

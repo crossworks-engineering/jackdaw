@@ -10,12 +10,13 @@ import { McpSettingsClient } from './mcp-client';
 
 /**
  * The one MCP screen (workspaces W7b), on the side this login reads
- * (mcpSourceFor): the brain's for an Admin user with the Connectors area,
- * its own for a member. An Admin user without the area is told so; a client
- * has no MCP yet.
+ * (mcpSourceFor): the brain's for an Admin user with the Settings area (the
+ * brain classes /api/mcp-settings, /api/mcp-clients and /api/mcp-status as
+ * `settings`), its own for a member. An Admin user without the area is told
+ * so; a client has no MCP yet.
  */
 export function McpScreen() {
-  const source = mcpSourceFor(useShellRole(), hasArea(useViewerAreas(), 'connectors'));
+  const source = mcpSourceFor(useShellRole(), hasArea(useViewerAreas(), 'settings'));
   switch (source) {
     case 'brain':
     case 'own':

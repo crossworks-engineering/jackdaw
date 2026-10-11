@@ -165,3 +165,75 @@ describe('richMarkdownToHtml', () => {
     expect(richMarkdownToHtml('$$\nx^2\n$$')).toContain('data-type="block-math"');
   });
 });
+
+describe('links and pictures in a reply (W7f)', () => {
+  it('keeps http(s), mailto and relative links for every login', () => {
+    const html = richMarkdownToHtml(
+      '[a](https://example.test/a) [b](mailto:b@example.test) [c](/n/abc) <https://example.test/auto>',
+    );
+    expect(html).toContain('href="https://example.test/a"');
+    expect(html).toContain('href="mailto:b@example.test"');
+    expect(html).toContain('href="/n/abc"');
+    expect(html).toContain('href="https://example.test/auto"');
+  });
+
+  it('renders any other scheme as its text, for an Admin user too', () => {
+    for (const adminUser of [true, false]) {
+      const html = richMarkdownToHtml('[click](javascript:alert(1)) and [d](data:text/html,x)', {
+        adminUser,
+      });
+      expect(html).not.toContain('href=');
+      expect(html).not.toContain('javascript:');
+      expect(html).toContain('click');
+    }
+  });
+
+  it('an Admin user sees every picture', () => {
+    const html = richMarkdownToHtml('![ext](https://x/y.png)\n\n![m](media:f-1)', {
+      adminUser: true,
+    });
+    expect(html).toContain('<img src="https://x/y.png"');
+    expect(html).toContain('data-node-id="f-1"');
+  });
+
+  it('anyone else: another origin, data: and media: pictures read as their alt text', () => {
+    const html = richMarkdownToHtml(
+      [
+        '![external chart](https://x/y.png)',
+        '',
+        '![inline data](data:image/png;base64,AAAA)',
+        '',
+        '![the gantry](media:f-1)',
+        '',
+        'Open ![the form](media:f-2) and ![a drawing](draw:d-1) here.',
+      ].join('\n'),
+      { adminUser: false },
+    );
+    expect(html).not.toContain('<img');
+    for (const alt of ['external chart', 'inline data', 'the gantry', 'the form', 'a drawing']) {
+      expect(html).toContain(alt);
+    }
+    // The standalone marker's alt sits in a paragraph, not loose.
+    expect(html).toContain('<p>the gantry</p>');
+  });
+
+  it('anyone else: a same-origin picture off the owner routes still shows', () => {
+    const html = richMarkdownToHtml('![logo](/brand/logo.png)', { adminUser: false });
+    expect(html).toContain('<img src="/brand/logo.png"');
+  });
+
+  it('anyone else: raw HTML reads as text, so it cannot carry a picture or link', () => {
+    const html = richMarkdownToHtml('hi <img src="https://x/y.png"> there', { adminUser: false });
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img');
+    const block = richMarkdownToHtml('<div><a href="https://x">x</a></div>', { adminUser: false });
+    expect(block).not.toContain('<a ');
+    expect(block).not.toContain('<div>');
+  });
+
+  it('an alt that looks like markup stays text', () => {
+    const html = richMarkdownToHtml('![<b>x</b>](https://x/y.png)', { adminUser: false });
+    expect(html).not.toContain('<b>');
+    expect(html).toContain('&lt;b&gt;');
+  });
+});

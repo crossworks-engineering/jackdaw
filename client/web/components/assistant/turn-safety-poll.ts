@@ -104,13 +104,47 @@ export type TurnSafetyPollOptions = {
   onGiveUp?: () => void;
   /** Tick cadence. The first tick is one interval in: the stream usually wins. */
   intervalMs?: number;
+  /**
+   * A cadence that changes over time, for the poll that IS the reply (a login
+   * without the live stream). The interval then only wakes the poll every
+   * SCHEDULED_POLL_WAKE_MS; a fetch runs when `delayMs` says one is due, never
+   * while `isHidden()` (a hidden tab asks nothing), and later after failures.
+   */
+  schedule?: PollSchedule;
   timers?: {
     setInterval: (fn: () => void, ms: number) => unknown;
     clearInterval: (handle: unknown) => void;
   };
 };
 
+export type PollSchedule = {
+  /** ms from a fetch to the next, by how long the poll has run and how many
+   *  fetches in a row failed. */
+  delayMs: (elapsedMs: number, failures: number) => number;
+  /** True while no fetch should run (document.hidden). */
+  isHidden?: () => boolean;
+  /** The clock, injectable for tests. */
+  now?: () => number;
+};
+
 export const TURN_SAFETY_POLL_MS = 3000;
+
+/** How often a scheduled poll wakes to see whether a fetch is due. */
+export const SCHEDULED_POLL_WAKE_MS = 1000;
+
+/** The reply poll of a login without the live stream: every 3 s for the
+ *  first minute, every 10 s after, doubling per failed fetch in a row up to
+ *  one minute. */
+export const REPLY_POLL_FAST_MS = 3000;
+export const REPLY_POLL_SLOW_MS = 10_000;
+export const REPLY_POLL_FAST_FOR_MS = 60_000;
+export const REPLY_POLL_MAX_MS = 60_000;
+
+export function replyPollDelayMs(elapsedMs: number, failures: number): number {
+  const base = elapsedMs < REPLY_POLL_FAST_FOR_MS ? REPLY_POLL_FAST_MS : REPLY_POLL_SLOW_MS;
+  if (failures <= 0) return base;
+  return Math.min(REPLY_POLL_MAX_MS, base * 2 ** Math.min(failures, 5));
+}
 
 /**
  * Start polling. Returns a disposer; safe to call more than once. Ticks never
@@ -125,6 +159,11 @@ export function startTurnSafetyPoll(opts: TurnSafetyPollOptions): () => void {
   let stopped = false;
   let inFlight = false;
   let handle: unknown = null;
+  const schedule = opts.schedule;
+  const now = schedule?.now ?? (() => Date.now());
+  const startedAt = now();
+  let failures = 0;
+  let nextAt = schedule ? startedAt + schedule.delayMs(0, 0) : 0;
 
   const stop = () => {
     if (stopped) return;
@@ -135,9 +174,11 @@ export function startTurnSafetyPoll(opts: TurnSafetyPollOptions): () => void {
 
   const tick = async () => {
     if (stopped || inFlight) return;
+    if (schedule && (schedule.isHidden?.() || now() < nextAt)) return;
     inFlight = true;
     try {
       const rows = await opts.fetchRows();
+      failures = 0;
       if (stopped) return;
       const row = findTurnOutboundRow(rows, {
         outboundId: opts.getOutboundId(),
@@ -154,9 +195,11 @@ export function startTurnSafetyPoll(opts: TurnSafetyPollOptions): () => void {
         return;
       }
     } catch {
-      /* transient: try again next tick */
+      /* transient: try again next tick (a scheduled poll backs off) */
+      failures += 1;
     } finally {
       inFlight = false;
+      if (schedule) nextAt = now() + schedule.delayMs(now() - startedAt, failures);
     }
     if (!stopped && opts.shouldGiveUp?.()) {
       stop();
@@ -164,7 +207,8 @@ export function startTurnSafetyPoll(opts: TurnSafetyPollOptions): () => void {
     }
   };
 
-  handle = timers.setInterval(() => void tick(), opts.intervalMs ?? TURN_SAFETY_POLL_MS);
+  const every = schedule ? SCHEDULED_POLL_WAKE_MS : (opts.intervalMs ?? TURN_SAFETY_POLL_MS);
+  handle = timers.setInterval(() => void tick(), every);
   return stop;
 }
 

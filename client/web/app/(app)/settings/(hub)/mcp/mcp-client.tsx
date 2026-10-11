@@ -3,7 +3,7 @@
 /**
  * Settings > MCP: one screen for every user (workspaces W7b). The connector
  * URL and how to connect, the data sources the login's workspaces hold, and
- * the connected clients with Disconnect. An Admin user with the Connectors
+ * the connected clients with Disconnect. An Admin user with the Settings
  * area reads the brain's side (`source="brain"`): the box switch, the
  * endpoint check and every client. Any other user reads its own side
  * (`source="own"`): its own connection info and the clients it connected.

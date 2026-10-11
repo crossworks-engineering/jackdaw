@@ -49,7 +49,7 @@ import { MAX_CONTEXT } from '@/components/assistant/assistant-dock';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
-import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { useIsAdminUser, useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { chatFeatures, TURN_REFUSAL_TEXT } from '@/lib/assistant-turn-refusal';
 import {
   canReplaceInFlightTurn,
@@ -88,7 +88,8 @@ export function AssistantClient({
   // user sends text only and reads the reply from the thread: the live
   // stream, Stop, the stage label and the suggestion are Admin-only routes.
   const adminUser = useIsAdminUser();
-  const features = chatFeatures(adminUser);
+  const viewerAreas = useViewerAreas();
+  const features = chatFeatures(adminUser, viewerAreas);
   const liveStream = features.live;
   // Turns run through the app-wide dock provider, so a long turn keeps going
   // (and stays visible in the floating dock) when you navigate away mid-answer.
@@ -183,16 +184,19 @@ export function AssistantClient({
   const streamingOn = liveStream && isTurnStreamingEnabledClient();
   const polledLabel = useTurnStage(liveStream && sending);
   const stageLabel = streamLabel ?? polledLabel;
-  // Live trail display mode (Settings → Profile). Fetched once on mount; the
-  // trail renders 'list' (stacking, default) until it loads.
+  // Live trail display mode (Settings → Profile). Fetched once the chat is
+  // live; the trail renders 'list' (stacking, default) until it loads. Only
+  // the live chat has a trail, and GET /api/profile is an Admin user's: a
+  // login without the live chat asks nothing (no 403 on every mount).
   const [trailMode, setTrailMode] = useState<'list' | 'replace'>('list');
   useEffect(() => {
+    if (!liveStream) return;
     void apiFetch<{ preferences?: { thoughtTrailMode?: string } }>('/api/profile')
       .then((d) => {
         if (d.preferences?.thoughtTrailMode === 'replace') setTrailMode('replace');
       })
       .catch(() => {});
-  }, []);
+  }, [liveStream]);
   // Mirror the live trail + the durable outbound id into refs so the completion
   // reconciler (which runs async, off the stream's `done`) reads fresh values
   // rather than stale closure captures.

@@ -24,7 +24,16 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
+import { hasArea } from '@/lib/workspaces';
+import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { revealPatchToken, type PeerPatchAnswer } from './peer-patch';
+import {
+  ACTS_AS_NEEDS_USERS,
+  ACTS_AS_NONE,
+  actsAsOptions,
+  actsAsValue,
+  type ActsAsLogin,
+} from './peer-acts-as';
 
 export type PeerAccess = {
   actsAsLoginId: string | null;
@@ -32,18 +41,6 @@ export type PeerAccess = {
   writeEnabled: boolean;
   allowedRiskyTools: string[];
 };
-
-/** A login as GET /api/users lists it (the MCP logins list is gone, W7b). */
-type Login = {
-  id: string;
-  email: string;
-  displayName: string | null;
-  role: string;
-  disabledAt: string | null;
-};
-
-const NONE = 'none';
-const OWNER = 'owner';
 
 export function PeerAccessSection({
   peerId,
@@ -61,12 +58,17 @@ export function PeerAccessSection({
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [risky, setRisky] = useState(access.allowedRiskyTools.join(', '));
+  // GET /api/users is open to the `users` area only: without it the list is
+  // not asked, and the bound login stays a choice (peer-acts-as.ts).
+  const mayListUsers = hasArea(useViewerAreas(), 'users');
   const logins = useQuery({
     queryKey: ['users'],
-    queryFn: () => apiFetch<{ users: Login[] }>('/api/users'),
+    queryFn: () => apiFetch<{ users: ActsAsLogin[] }>('/api/users'),
+    enabled: mayListUsers,
+    retry: false,
   });
 
-  const value = access.actsAsRole === 'admin' ? OWNER : (access.actsAsLoginId ?? NONE);
+  const value = actsAsValue(access);
 
   const save = async (body: Record<string, unknown>) => {
     setSaving(true);
@@ -98,9 +100,7 @@ export function PeerAccessSection({
 
   const bound = access.actsAsRole !== null;
   const asOwner = access.actsAsRole === 'admin';
-  const others = (logins.data?.users ?? []).filter(
-    (l) => (l.role === 'member' || l.role === 'client') && !l.disabledAt,
-  );
+  const options = actsAsOptions(logins.data?.users, access);
 
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
@@ -117,22 +117,21 @@ export function PeerAccessSection({
         <Select
           value={value}
           disabled={saving}
-          onValueChange={(v) => save({ actsAs: v === NONE ? null : v })}
+          onValueChange={(v) => save({ actsAs: v === ACTS_AS_NONE ? null : v })}
         >
           <SelectTrigger size="sm" className="min-w-56" aria-label="Acts as">
             <SelectValue placeholder="Nobody (share only)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE}>Nobody (share only)</SelectItem>
-            <SelectItem value={OWNER}>Owner (admin)</SelectItem>
-            {others.map((l) => (
-              <SelectItem key={l.id} value={l.id}>
-                {(l.displayName || l.email) + (l.role === 'client' ? ' (client)' : ' (member)')}
+            {options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
+      {!mayListUsers && <p className="text-xs text-muted-foreground">{ACTS_AS_NEEDS_USERS}</p>}
 
       {bound && (
         <div className="space-y-3">

@@ -1,7 +1,6 @@
 /**
  * Apps for members (member logins Phase 4b): what a MEMBER login's client
- * reads from /api/member/apps and /api/member/home, plus the admin's view of
- * member chats (/api/team-admin/member-chats). A member RUNS the brain apps
+ * reads from /api/member/apps and /api/member/home. A member RUNS the brain apps
  * a workspace of theirs holds, with a green published build (its own apps
  * are the my-apps routes). A CLIENT login runs apps at client level only (client logins
  * C6, /api/client/apps).
@@ -10,7 +9,8 @@
  * (brain W5c, e1b3e5518). Replace the copy by hand when the brain's file
  * changes. The imports differ: AppTint is the published package's, and
  * AppDataAccess is ../app-data-pill.ts (the published pin does not have it
- * yet; the same type).
+ * yet; the same type). The admin's member chats types are left out: W7c
+ * retired /api/team-admin/member-chats and nothing here reads it.
  */
 import type { AppTint } from '@mantle/client-types/app-nav';
 import type { AppDataAccess } from '../app-data-pill';
@@ -83,65 +83,3 @@ export type MemberHomeApp = {
  */
 export type MemberHomeData<THub = unknown> =
   { homeApp: MemberHomeApp; hub: THub } | { homeApp: null; hub: null };
-
-// ── Admin: member chats ──────────────────────────────────────────────────
-
-/** GET /api/team-admin/member-chats: one member login and its chat. */
-export type MemberChatRow = {
-  loginId: string;
-  /** Display name, else the part of the email before the @. */
-  name: string;
-  email: string;
-  /** False when the login is disabled or no longer a member (its old
-   *  thread still shows). Always false for a client: a client is never a
-   *  team member (client logins audit B26). */
-  active: boolean;
-  /** The login's role, named (0.232.333 on): 'member' for the team; 'client'
-   *  for a client login with a chat thread, which is NOT a team member; absent
-   *  for a former member who is an admin now (its old thread still shows). */
-  role?: 'member' | 'client';
-  lastMessageAt: string | null;
-  lastMessageText: string | null;
-  lastMessageDirection: 'inbound' | 'outbound' | null;
-  messageCount: number;
-};
-
-/** One message of a member's thread, as the admin reads it. */
-export type MemberChatArchiveMessage = {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  text: string;
-  status: 'pending' | 'complete' | 'failed';
-  error: string | null;
-  traceId: string | null;
-  createdAt: string;
-};
-
-/** The selected login's OLD team portal chat (member logins Phase 6): the
- *  thread its contact had with the team code before the invite made it a
- *  login. History only, for the admin: never part of the member's live
- *  thread, never shown to the member, never in the agent's context. Show it
- *  apart from `thread`, labelled as the portal history. */
-export type MemberChatPortalThread = {
-  /** The contact the login was invited from. */
-  contactId: string;
-  /** A window, ascending; `portalBefore` pages older. */
-  thread: MemberChatArchiveMessage[];
-  windowSize: number;
-};
-
-/** GET /api/team-admin/member-chats?login=&before=&portalBefore= : every
- *  member login, and a window of the selected login's thread (null when
- *  there is no login). */
-export type MemberChatsResponse = {
-  members: MemberChatRow[];
-  selected: {
-    loginId: string;
-    thread: MemberChatArchiveMessage[];
-    windowSize: number;
-    /** The login's old portal chat, separate from `thread`. Null (or absent,
-     *  from an older brain) when the login has no contact or the contact
-     *  never chatted on the portal. */
-    portalThread?: MemberChatPortalThread | null;
-  } | null;
-};

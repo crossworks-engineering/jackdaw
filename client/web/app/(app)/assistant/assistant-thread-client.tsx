@@ -15,7 +15,7 @@ import { experienceOf, experienceTitle } from '@/lib/experience';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import { useMarkThreadRead } from '@/components/assistant/use-assistant-unread';
-import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { useIsAdminUser, useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { chatFeatures, TURN_REFUSAL_TEXT } from '@/lib/assistant-turn-refusal';
 import { shortModelName } from '@mantle/web-ui/lib/model-name';
 import { cn } from '@mantle/web-ui/lib/utils';
@@ -80,7 +80,8 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
   // Every login chats here, in its own threads (W7c). An Admin user gets
   // everything; anyone else the thread and a text composer (chatFeatures).
   const adminUser = useIsAdminUser();
-  const features = chatFeatures(adminUser);
+  const viewerAreas = useViewerAreas();
+  const features = chatFeatures(adminUser, viewerAreas);
   const queryClient = useQueryClient();
   const toast = useToast();
   // What sits under the header: the live chat, the Previous chats list, or one

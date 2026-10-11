@@ -25,6 +25,11 @@ export const CLIENT_URL = (process.env.E2E_CLIENT_URL || SERVER_URL).replace(/\/
 export const OWNER_EMAIL = process.env.E2E_EMAIL || 'e2e-owner@example.com';
 export const OWNER_PASSWORD = process.env.E2E_PASSWORD || 'e2e-owner-password-1';
 
+/** A member login of the brain (W7f member chat spec). Blank: the specs
+ *  that need one skip. */
+export const MEMBER_EMAIL = process.env.E2E_MEMBER_EMAIL || '';
+export const MEMBER_PASSWORD = process.env.E2E_MEMBER_PASSWORD || '';
+
 /** Set E2E_SKIP_PDF=1 on stacks without the browserless sidecar. */
 export const SKIP_PDF = process.env.E2E_SKIP_PDF === '1';
 

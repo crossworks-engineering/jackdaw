@@ -111,11 +111,9 @@ export const MEMBER_OPEN: readonly RegExp[] = [
   rx('POST', `/api/assistant/threads/${ID}/(continue|summarize)`),
 ];
 
-/** The paths a W6b brain answers 410 (contract item 1), and the ones a W7b
- *  or W7c brain answers 410: the member chat and its unread count, the Admin
- *  member chats, the MCP logins and the agent and tool group levels. */
-export const GONE_ROUTE =
-  /^\/api\/(member\/(space|space-files|my-apps|items|tree|chat)|admin\/(space|space-files)|team-admin\/member-chats|mcp-logins|access\/(agents|tool-groups))(\/|$)/;
+/** The paths a W6b, W7b or W7c brain answers 410: THE list the app's
+ *  source guard reads too (client/web/lib/gone-routes.ts). */
+export { GONE_ROUTE } from '../../client/web/lib/gone-routes';
 
 /** The requests (`METHOD /path`) that match none of `allowed`, where each
  *  allowed pattern is tested against the whole `METHOD /path`. */

@@ -88,14 +88,16 @@ describe('rich-markdown ↔ markdownToDoc: media: image parity', () => {
   });
 
   it('records the schemes that are still server-only', () => {
-    // fileEmbed + childPage are Pages block nodes with no chat equivalent; the
-    // chat converter renders them as the plain links they look like. If chat
-    // ever grows those nodes, this expectation is the thing to update.
+    // fileEmbed + childPage are Pages block nodes with no chat equivalent. A
+    // chat link is http(s), mailto or relative only (W7f, lib/chat-links.ts),
+    // so the chat converter renders them as their label text. If chat ever
+    // grows those nodes, this expectation is the thing to update.
     const doc = markdownToDoc('[spec.pdf](media:f-2)\n\n[Sub plan](page:p-9)') as unknown as PMNode;
     expect((doc.content ?? []).map((n) => n.type)).toEqual(['fileEmbed', 'childPage']);
     const html = richMarkdownToHtml('[spec.pdf](media:f-2)\n\n[Sub plan](page:p-9)');
-    expect(html).toContain('href="media:f-2"');
-    expect(html).toContain('href="page:p-9"');
+    expect(html).not.toContain('href=');
+    expect(html).toContain('spec.pdf');
+    expect(html).toContain('Sub plan');
   });
 });
 
