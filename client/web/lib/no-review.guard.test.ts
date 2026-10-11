@@ -33,6 +33,24 @@ const NEEDLES: [string, RegExp][] = [
   ['the member app review route', /['"`]\/api\/apps\/members/],
   ['the send-back route', /\/send-back\b/],
   ['the take-over route', /\/take-over\b/],
+  // The rest of the W5c brain's 410 routes (contract e1b3e5518).
+  ['the requests and notify routes', /\/api\/team-admin\/(requests|notify)\b/],
+  ['a Team admin clients route', /\/api\/team-admin\/clients(?!\/signin-sender)/],
+  ['Accept or Give back', /\/api\/admin\/space\/[^'"`\s]+\/(accept|give-back)\b|\/give-back\b/],
+  ['the client report route', /\/api\/access\/client-report/],
+  ['team drafts', /\/api\/member\/team-drafts/],
+  ['client requests', /\/api\/member\/client-requests|['"`]client-requests['"`]/],
+  ['the member shell route', /\/api\/member\/shell\b/],
+  [
+    'Share, Submit or Recall of a member item',
+    /\/api\/member\/space\/[^'"`\s]+\/(submit|recall|share)\b|\$\{ownItemPath\([^)]*\)\}\/(submit|recall|share)\b/,
+  ],
+  [
+    'Submit or Recall of a member app',
+    /\/api\/member\/my-apps\/[^'"`\s]+\/(submit|recall)\b|myAppActionPath\([^)]*'(submit|recall)'\)/,
+  ],
+  ['the client portal routes', /['"`]\/api\/client\//],
+  ['the client link route', /\/api\/auth\/client-link/],
 ];
 
 const SELF = 'lib/no-review.guard.test.ts';
@@ -40,7 +58,13 @@ const SELF = 'lib/no-review.guard.test.ts';
 /** Name a needle on purpose, and are no review UI: the retired-path
  *  redirects (/review goes home), and the member space's own `review`
  *  filter (Mine by state, a kept member route). */
-const NAMES_ON_PURPOSE = ['middleware.ts', 'middleware.test.ts', 'lib/member-takeover.test.ts'];
+const NAMES_ON_PURPOSE = [
+  'middleware.ts',
+  'middleware.test.ts',
+  'lib/member-takeover.test.ts',
+  // Lists the client report route as one the Users screen must not name.
+  'app/(app)/settings/users/users-flat.test.ts',
+];
 
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
