@@ -98,8 +98,13 @@ function highlightCodeBlocks(root: ParentNode, doc: Document): void {
 
 /** Serialise once, off the schema's own `renderHTML`. Browser-only: both
  *  helpers parse through the DOM, which the SSR pass has no implementation of. */
-function renderStatic(input: { html?: string; json?: JSONContent }): string {
-  const doc = input.json ?? (generateJSON(input.html ?? '', pageExtensions) as JSONContent);
+function renderStatic(input: {
+  html?: string;
+  json?: JSONContent;
+  transformDoc?: (doc: JSONContent) => JSONContent;
+}): string {
+  const parsed = input.json ?? (generateJSON(input.html ?? '', pageExtensions) as JSONContent);
+  const doc = input.transformDoc ? input.transformDoc(parsed) : parsed;
   const serialised = generateHTML(doc, pageExtensions);
   // Round-trip through a detached <template>: it parses without running
   // scripts, loading images or touching the live document.
@@ -166,6 +171,7 @@ export function StaticDoc({
   mapAssetPath,
   fileEmbedPath,
   hereFolderId,
+  transformDoc,
 }: {
   /** HTML to normalise through the schema (the assistant's markdown path). */
   html?: string;
@@ -182,6 +188,10 @@ export function StaticDoc({
    *  with no folder of its own (`here`) lists; null at the top level,
    *  undefined when unknown (the block then shows its label alone). */
   hereFolderId?: string | null;
+  /** A last pass over the parsed document before it renders, on values the
+   *  DOM has already decoded (the assistant's link and picture rules,
+   *  lib/chat-links.ts). Pass a stable function. */
+  transformDoc?: (doc: JSONContent) => JSONContent;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Rendered in an effect, not in a `useMemo`, so the SSR pass and the
@@ -190,11 +200,11 @@ export function StaticDoc({
   // mounted. Rendering during hydration instead would be a mismatch.
   const [rendered, setRendered] = useState<string | null>(null);
   useEffect(() => {
-    let out = renderStatic({ html, json });
+    let out = renderStatic({ html, json, transformDoc });
     if (mapAssetPath) out = remapAssets(out, mapAssetPath);
     if (fileEmbedPath) out = fillFileEmbeds(out, fileEmbedPath);
     setRendered(out);
-  }, [html, json, mapAssetPath, fileEmbedPath]);
+  }, [html, json, mapAssetPath, fileEmbedPath, transformDoc]);
 
   // The editor path gets this from a ProseMirror plugin (see image.ts); a
   // static container has no plugins, so it re-signs its own images when the

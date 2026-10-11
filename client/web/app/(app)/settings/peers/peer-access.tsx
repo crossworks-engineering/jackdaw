@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { hasArea } from '@/lib/workspaces';
 import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { revealPatchToken, type PeerPatchAnswer } from './peer-patch';
 import {
@@ -32,6 +31,7 @@ import {
   ACTS_AS_NONE,
   actsAsOptions,
   actsAsValue,
+  mayListUsers,
   type ActsAsLogin,
 } from './peer-acts-as';
 
@@ -58,13 +58,15 @@ export function PeerAccessSection({
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [risky, setRisky] = useState(access.allowedRiskyTools.join(', '));
-  // GET /api/users is open to the `users` area only: without it the list is
-  // not asked, and the bound login stays a choice (peer-acts-as.ts).
-  const mayListUsers = hasArea(useViewerAreas(), 'users');
+  // GET /api/users is open to the `users` area only: until the shell names
+  // the areas, or without it, the list is not asked, and the bound login
+  // stays a choice (peer-acts-as.ts).
+  const areas = useViewerAreas();
+  const listUsers = mayListUsers(areas);
   const logins = useQuery({
     queryKey: ['users'],
     queryFn: () => apiFetch<{ users: ActsAsLogin[] }>('/api/users'),
-    enabled: mayListUsers,
+    enabled: listUsers,
     retry: false,
   });
 
@@ -131,7 +133,9 @@ export function PeerAccessSection({
           </SelectContent>
         </Select>
       </div>
-      {!mayListUsers && <p className="text-xs text-muted-foreground">{ACTS_AS_NEEDS_USERS}</p>}
+      {areas !== undefined && !listUsers && (
+        <p className="text-xs text-muted-foreground">{ACTS_AS_NEEDS_USERS}</p>
+      )}
 
       {bound && (
         <div className="space-y-3">

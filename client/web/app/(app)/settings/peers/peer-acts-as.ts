@@ -3,7 +3,8 @@
  * client logins come from GET /api/users, which the brain opens to the
  * `users` area only: an Admin user without it lists none. The login a peer is
  * bound to stays a choice even then (or when the list does not name it), as
- * "A member login", so the select never shows a blank for a saved binding.
+ * "Another login" (it may be a member or a client), so the select never shows
+ * a blank for a saved binding.
  */
 
 export const ACTS_AS_NONE = 'none';
@@ -29,6 +30,16 @@ export type ActsAsOption = { value: string; label: string };
 export const ACTS_AS_NEEDS_USERS =
   'Choosing a member or client login needs the Users area. Nobody and Owner stay open.';
 
+/** The label of a bound login the list does not name: a member or a client. */
+export const ACTS_AS_UNLISTED = 'Another login';
+
+/** Whether GET /api/users may be asked: only once the shell has named the
+ *  login's areas and they hold `users`. Unknown areas (the shell has not
+ *  answered yet) ask nothing, so no request goes out that the brain refuses. */
+export function mayListUsers(areas: readonly string[] | null | undefined): boolean {
+  return Array.isArray(areas) && areas.includes('users');
+}
+
 /** The select's value for a binding. */
 export function actsAsValue(access: ActsAsBinding): string {
   return access.actsAsRole === 'admin' ? ACTS_AS_OWNER : (access.actsAsLoginId ?? ACTS_AS_NONE);
@@ -53,7 +64,7 @@ export function actsAsOptions(
   ];
   const bound = access.actsAsRole !== 'admin' ? access.actsAsLoginId : null;
   if (bound && !options.some((o) => o.value === bound)) {
-    options.push({ value: bound, label: 'A member login' });
+    options.push({ value: bound, label: ACTS_AS_UNLISTED });
   }
   return options;
 }

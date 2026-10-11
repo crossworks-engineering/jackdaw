@@ -2,9 +2,10 @@
 
 import { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import type { JSONContent } from '@tiptap/core';
 import { StaticDoc } from '@/components/page-editor/static-doc';
 import { richMarkdownToHtml } from '@/lib/rich-markdown';
-import { chatLinkAction } from '@/lib/chat-links';
+import { chatLinkAction, sanitizeChatDoc } from '@/lib/chat-links';
 import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
 
 /**
@@ -31,6 +32,12 @@ export function RichText({ markdown }: { markdown: string }) {
   // load is asked for meanwhile.
   const adminUser = useIsAdminUser();
   const html = useMemo(() => richMarkdownToHtml(markdown, { adminUser }), [markdown, adminUser]);
+  // The same rules once more on the parsed document, whose values the DOM has
+  // decoded: whatever an entity hid from the markdown pass is caught here.
+  const transformDoc = useCallback(
+    (doc: JSONContent) => sanitizeChatDoc(doc, adminUser),
+    [adminUser],
+  );
 
   // The shared page extensions set `link.openOnClick:false` (right for the
   // editable canvas, where a click places the cursor). Here the reply is
@@ -66,6 +73,7 @@ export function RichText({ markdown }: { markdown: string }) {
   return (
     <StaticDoc
       html={html}
+      transformDoc={transformDoc}
       onClick={onClick}
       // Base `prose` (16px reading size) — Saskia's reply is the document, so
       // it reads at full size like a page (not the smaller prose-sm).
