@@ -38,7 +38,6 @@ import {
   createTreeFolder,
   deleteTreeFolder,
   fetchFolderPage,
-  fetchSearch,
   moveTreeItems,
   patchTreeFolder,
 } from './tree-api';

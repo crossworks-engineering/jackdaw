@@ -11,7 +11,6 @@ import type {
   TreeFilter,
   TreeFolder,
   TreeFolderPage,
-  TreeItem,
   TreeKind,
   TreeMarkList,
   TreeMarkView,

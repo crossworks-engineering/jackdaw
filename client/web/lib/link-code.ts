@@ -1,6 +1,7 @@
 /**
- * The code a sign-in link (/client-signin) or a member invite (/invite)
- * carries, and how it leaves the address bar.
+ * The code an invite link (/invite) carries, and how it leaves the address
+ * bar. /client-signin stays in the no-referrer list below: an old client
+ * sign-in link still lands there before the middleware sends it to /login.
  *
  * Links carry it in the FRAGMENT (`#code=…`, since the client logins audit
  * fixes): a fragment never reaches a server, so it lands in no access log and

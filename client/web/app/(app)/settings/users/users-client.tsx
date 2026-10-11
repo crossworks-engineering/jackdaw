@@ -114,14 +114,14 @@ type SourceAgent = { id: string; slug: string; name: string; role: string; model
 
 /**
  * Agents a personal assistant can be copied from: the brain's ENTRY-POINT
- * agents only (role assistant/responder), highest priority first — so the
+ * agents only (role assistant/responder), highest priority first, so the
  * canonical persona is the default pick.
  *
  * Specialists (role `custom`: researcher, appsmith, …) are deliberately absent.
  * They're delegation targets, not chat entry points, and only responder/assistant
  * rows get the manifest's persona convergence on upgrade
  * (`reconcilePersonaCapabilitiesByRole`) and new specialists wired into their
- * delegation (`wireDelegation`) — a `custom` clone would quietly drift.
+ * delegation (`wireDelegation`), a `custom` clone would quietly drift.
  */
 function useSourceAgents() {
   return useQuery({
@@ -691,7 +691,7 @@ type Device = {
 /**
  * This login's live bearer sessions (mobile companion, detached web client),
  * revocable one at a time. Moved here from the retired Settings → Security
- * screen so that cutting someone off — delete the login, sign its devices out —
+ * screen so that cutting someone off (delete the login, sign its devices out)
  * is one screen's work rather than two.
  *
  * The session COOKIE isn't listed: it has no row (it's stateless), so a
@@ -726,7 +726,7 @@ function DevicesCard({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Live sessions signed in as {isSelf ? 'you' : user.email}. Signing one out revokes its
-            token immediately — the next request from it fails.
+            token at once: the next request from it fails.
           </p>
         </div>
         <SignOutEverywhereButton user={user} isSelf={isSelf} />
@@ -783,8 +783,8 @@ function DevicesCard({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Sign out “{d.label}”?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      The device&apos;s token is revoked immediately — its next request fails and it
-                      must sign in again.
+                      The device&apos;s token is revoked at once. Its next request fails and it must
+                      sign in again.
                       {d.current ? ' This is the device you are using right now.' : ''}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -880,7 +880,7 @@ function SignOutEverywhereButton({ user, isSelf }: { user: UserRow; isSelf: bool
 /**
  * A login's personal assistant: create it, rename it, or release it.
  *
- * Releasing only drops the binding — the agent and its whole chat history stay,
+ * Releasing only drops the binding, the agent and its whole chat history stay,
  * as an ordinary shared agent under /settings/agents. Nothing here ever deletes
  * an agent; that stays a deliberate act on the agents screen.
  */
@@ -904,7 +904,7 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
     }
     setNameError(undefined);
     // With an assistant already in place and no explicit new source, this is a
-    // rename — the server keeps the slug, so the existing thread survives.
+    // rename, the server keeps the slug, so the existing thread survives.
     const source = user.agent ? sourceAgentId || undefined : sourceAgentId || sources.data?.[0]?.id;
     if (!user.agent && !source) {
       toast.error('No agent available to copy from.');
@@ -961,7 +961,7 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
                 for this login, on its own thread.
               </>
             ) : (
-              'Shares the brain’s default assistant — chats land in the same thread as everyone else’s.'
+              'Shares the brain’s default assistant: chats land in the same thread as everyone else’s.'
             )}
           </p>
         </div>
@@ -1009,7 +1009,7 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
             <AlertDialogDescription>
               It stops being this login&apos;s assistant, so a fresh sign-in lands on the
               brain&apos;s default instead. Someone already chatting to it keeps their place until
-              they pick another agent. The agent and its whole chat history stay — it becomes an
+              they pick another agent. The agent and its whole chat history stay: it becomes an
               ordinary shared agent, and you can delete it from Settings → Agents if you want it
               gone.
             </AlertDialogDescription>
@@ -1035,7 +1035,7 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
 /**
  * Name + source-agent inputs for a login's personal assistant. Shared by the
  * Add-login dialog and the detail panel's assistant card, so the wording of
- * what this does — and what it does NOT do — is written once.
+ * what this does, and what it does NOT do, is written once.
  */
 function AssistantFields({
   idPrefix,
@@ -1058,13 +1058,13 @@ function AssistantFields({
   nameLabel?: string;
   nameHint?: React.ReactNode;
   /**
-   * §6b. The name rule lives with the caller (it differs per caller — blank is
+   * §6b. The name rule lives with the caller (it differs per caller, blank is
    * legal when adding a login, and a failure when renaming an assistant), so
    * the message comes down rather than the rule going up. Same shape as
    * `ToolGroupIntegrationSection`'s `serviceError`.
    */
   nameError?: string;
-  /** False once an assistant exists — then the only in-place edit is a rename,
+  /** False once an assistant exists, then the only in-place edit is a rename,
    *  which keeps the slug and therefore the thread. Pointing a login at a
    *  different source is Release + Create, so nobody strands a live thread by
    *  nudging a dropdown. */
@@ -1119,8 +1119,8 @@ function AssistantFields({
           </Select>
           <FieldHint id={sourceId}>
             The copy keeps its source&apos;s model, prompt, skills and tools, but answers to the
-            name you give it here — it just gets its own chat history. Telegram bots and the rules
-            it learned (in the Journal) aren&apos;t copied.
+            name you give it here. It just gets its own chat history. Telegram bots and the rules it
+            learned (in the Journal) aren&apos;t copied.
           </FieldHint>
         </Field>
       )}
@@ -1237,7 +1237,7 @@ function AddUserDialog({
             />
             <FieldHint
               id="new-user-password"
-              warn="You'll need to pass this to them yourself — it isn't emailed."
+              warn="You'll need to pass this to them yourself. It isn't emailed."
             >
               What they sign in with the first time.
             </FieldHint>

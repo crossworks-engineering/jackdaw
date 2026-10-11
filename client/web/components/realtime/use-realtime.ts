@@ -8,19 +8,19 @@ import { realtimeStreamPath } from '@/lib/realtime-stream';
 export type RealtimeChange = { type: string; id: string };
 
 /**
- * All `useRealtime()` consumers share ONE `/api/realtime` connection per tab —
+ * All `useRealtime()` consumers share ONE `/api/realtime` connection per tab:
  * a module-level singleton that fans out to every subscriber and filters by
  * type client-side. Per-hook connections exhausted the browser's HTTP/1.1
  * ~6-per-origin pool: ~4 held-open SSE sockets app-wide (sidebar pending badge,
  * pending-question sync, runs strip, a list screen) left ordinary `fetch`es
- * starving intermittently — the tables "spinner-forever" over the plain-`http://`
+ * starving intermittently, the tables "spinner-forever" over the plain-`http://`
  * workstation dev path (prod negotiates HTTP/2, which multiplexes, so it was
  * dev-only). Collapsing to one socket removes the pressure and makes the
  * duplicate `pending_tool_call` subscription harmless (two subscribers, one
  * stream).
  *
- * The server route's `?types=` filter is only a bandwidth nicety — an unfiltered
- * stream is already owner-scoped — so the per-consumer type filter moved here.
+ * The server route's `?types=` filter is only a bandwidth nicety, an unfiltered
+ * stream is already owner-scoped, so the per-consumer type filter moved here.
  * Reconnect/backoff/auth-bounce all still come from `apiEventStream` unchanged.
  *
  * Which stream (phase W5c: one shell for every login): the shell's role picks
@@ -99,21 +99,21 @@ function subscribe(path: string, sub: Subscriber): () => void {
 /**
  * Subscribe to live node changes over SSE (/api/realtime). Calls `onChange`
  * whenever a node of one of the given `types` is created/ingested for the
- * current owner — e.g. `useRealtime(['event'], () => router.refresh())` makes a
+ * current owner, e.g. `useRealtime(['event'], () => router.refresh())` makes a
  * server-rendered screen repaint the moment the data changes, no manual refresh.
  * An empty `types` array subscribes to every type.
  *
  * Backed by a single shared connection per tab (see the module comment above),
  * itself built on `apiEventStream` (not raw `EventSource`) so a detached/Electron
- * client can carry the base-URL + bearer — `EventSource` can do neither. It
+ * client can carry the base-URL + bearer, `EventSource` can do neither. It
  * auto-reconnects with exponential backoff + jitter, so transient drops
  * self-heal; the connection closes once the last subscriber unmounts.
  *
- * **Best-effort by design — NOT guaranteed delivery.** The server side is a
+ * **Best-effort by design, NOT guaranteed delivery.** The server side is a
  * Postgres LISTEN/NOTIFY bridge (ephemeral pub/sub, no replayable backlog), so
  * there's no `Last-Event-ID` resumption: a change that fires *during* a
  * reconnect gap is missed. This is a "ping to refetch" trigger, not a data
- * channel — the next change re-pings and the screen catches up, so a stale row
+ * channel, the next change re-pings and the screen catches up, so a stale row
  * self-heals on the following event. For a screen that must not miss the gap,
  * pair this with a periodic `refetchInterval` on its query as a safety net.
  */

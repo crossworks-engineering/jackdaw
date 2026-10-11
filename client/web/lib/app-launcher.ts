@@ -1,7 +1,7 @@
 /**
- * The Apps launcher of a member or a client (read only), the pure half: the
- * admin's Apps folders as the brain answers them next to the apps a reader
- * may run (`folders` on GET /api/member/apps and /api/client/apps, brains
+ * The Apps launcher of a member (read only), the pure half: the admin's
+ * Apps folders as the brain answers them next to the apps a reader may run
+ * (`folders` on GET /api/member/apps, brains
  * from 0.232.368), turned into one level to draw.
  *
  * The brain answers only folders that lead to an app of the same answer.

@@ -18,7 +18,7 @@ import type {
 
 /** The kept route (W5c brain contract): the sender setting stays here. */
 export const EMAIL_CODE_SENDER_PATH = '/api/team-admin/clients/signin-sender';
-export const EMAIL_CODE_SENDER_KEY = ['team-admin', 'email-code-sender'] as const;
+export const EMAIL_CODE_SENDER_KEY = ['users', 'email-code-sender'] as const;
 
 /** What picking `accountId` would do, asked before the change. */
 export function senderPreviewPath(accountId: string): string {

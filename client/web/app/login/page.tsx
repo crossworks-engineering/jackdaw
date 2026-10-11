@@ -12,13 +12,13 @@ import { LoginCredit } from './login-credit';
 /**
  * Owner sign-in screen, zero-secret flavor: no server session read (this app
  * can't verify one). Already-holding-a-bearer visitors bounce straight in;
- * fresh installs (GET /api/auth/bootstrap-state — public, boolean-only) get
+ * fresh installs (GET /api/auth/bootstrap-state, public, boolean-only) get
  * the create-account variant, exactly like the monolith's first-run gate. Both
  * of those live in `LoginClient`.
  *
  * A SERVER component now, where it used to be a client one, for one reason:
- * the screen wears the BRAIN's branding — an uploaded logo, else the site name
- * in the owner's chosen face, else the Jackdaw lockup — and resolving that
+ * the screen wears the BRAIN's branding, an uploaded logo, else the site name
+ * in the owner's chosen face, else the Jackdaw lockup, and resolving that
  * after mount would flash the wrong brand on every load. `loadBrainAppearance`
  * is the same cached, public, server-to-server fetch the root layout already
  * awaits, so this costs no extra request; it reads no session and remains
@@ -38,7 +38,7 @@ export default async function LoginPage({
     brainOrigin(),
   ]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
-  // The saved Neat background, decoded defensively like every appearance field —
+  // The saved Neat background, decoded defensively like every appearance field:
   // absence simply decodes to null (the plain fill), per the contract's own
   // optional-field rule.
   const neat = decodeNeatSpec(appearance?.neatBackground);
@@ -47,10 +47,10 @@ export default async function LoginPage({
     // A COLUMN, not a single centred box, so the product's mark can sit at the
     // foot without fighting the card for the middle. The card keeps the centre
     // of whatever height is left (`flex-1` + `items-center`), and the credit
-    // sits below it in normal flow rather than absolutely positioned — so on a
+    // sits below it in normal flow rather than absolutely positioned, so on a
     // short viewport the page scrolls instead of the two overlapping.
     // `isolate` + the backdrop's -z-10 keep the gradient above this main's own
-    // bg-background but below the card and credit — the chat AreaBackdrop idiom.
+    // bg-background but below the card and credit, the chat AreaBackdrop idiom.
     <main className="relative isolate flex min-h-screen flex-col bg-background px-4 py-8">
       {neat && <NeatBackdrop spec={neat} className="-z-10" resolution={0.75} />}
       <div className="flex w-full flex-1 items-center justify-center">
@@ -61,10 +61,10 @@ export default async function LoginPage({
             // it: the browser gets the same value from /env.js, but this HTML
             // is built before any script runs. Passing it down is what keeps a
             // custom logo working when the client and the brain sit on
-            // different origins — see `components/layout/rail/brand-logo.tsx`,
+            // different origins, see `components/layout/rail/brand-logo.tsx`,
             // which also normalises the trailing slash for every caller.
             mark={<LoginMark brand={brand} srcBase={origin} />}
-            // Reduced to an in-app path before either client half sees it —
+            // Reduced to an in-app path before either client half sees it:
             // the raw parameter was an open redirect (lib/safe-next.ts).
             next={safeNext(params.next)}
             error={params.error}
