@@ -70,8 +70,10 @@ function ensureStream(path: string, s: Stream): void {
   });
 }
 
-/** Register a subscriber against the shared stream; returns an unsubscribe fn. */
-function subscribe(path: string, sub: Subscriber): () => void {
+/** Register a subscriber against the shared stream; returns an unsubscribe
+ *  fn. Exported for use-realtime.test.ts: every subscriber of one path shares
+ *  one connection. */
+export function subscribeRealtime(path: string, sub: Subscriber): () => void {
   const s = streamFor(path);
   const id = nextId++;
   s.subscribers.set(id, sub);
@@ -133,6 +135,6 @@ export function useRealtime(
   useEffect(() => {
     if (typeof window === 'undefined' || !enabled || !path) return;
     const filter = key ? key.split(',') : null; // '' means all types, as before
-    return subscribe(path, { types: filter, cb: (c) => cbRef.current(c) });
+    return subscribeRealtime(path, { types: filter, cb: (c) => cbRef.current(c) });
   }, [key, enabled, path]);
 }

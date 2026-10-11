@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
 import type { MemberItemRow } from '@/lib/contract/member';
-import { apiEventStream, apiFetch } from '@mantle/web-ui/api-fetch';
+import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { useRealtime } from '@/components/realtime/use-realtime';
 import { Button } from '@mantle/web-ui/ui/button';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
@@ -100,26 +101,19 @@ const LAYOUT: Record<
 };
 
 /**
- * Personal items change under a member from other tabs and teammates: one
- * event stream (own space + team-shared, ids only) refreshes what shows.
+ * Personal items change under a member from other tabs: the member's event
+ * stream (ids only) refreshes what shows. It is the tab's ONE shared stream
+ * (useRealtime, /api/member/realtime for a member), the same connection the
+ * rail holds, never a second one.
  */
 function useSpaceEvents() {
   const qc = useQueryClient();
-  const qcRef = useRef(qc);
-  qcRef.current = qc;
-  useEffect(() => {
-    const stop = apiEventStream(
-      '/api/member/realtime',
-      () => {
-        void qcRef.current.invalidateQueries({ queryKey: ['member-space-list'] });
-        void qcRef.current.invalidateQueries({ queryKey: ['member-space-item'] });
-        // The member's tree shows its drafts' states too (folder plan phase 5).
-        void qcRef.current.invalidateQueries({ queryKey: ['tree'] });
-      },
-      { maxAttempts: 8 },
-    );
-    return stop;
-  }, []);
+  useRealtime([], () => {
+    void qc.invalidateQueries({ queryKey: ['member-space-list'] });
+    void qc.invalidateQueries({ queryKey: ['member-space-item'] });
+    // The member's tree shows its drafts' states too (folder plan phase 5).
+    void qc.invalidateQueries({ queryKey: ['tree'] });
+  });
 }
 
 /**
