@@ -2,8 +2,9 @@
  * The Users screen is flat (workspaces W5a, plan 7.1 and 21.9; W5c): account
  * actions only (disable, reset password, devices, sign out everywhere, phone
  * pairing, delete), no role or other permission control, the login's
- * workspaces as links, each login's Chat, invites, and the sender of
- * sign-in codes. No Clients section and nothing about clients (W5c).
+ * workspaces as links, invites, and the sender of sign-in codes. No Clients
+ * section and nothing about clients (W5c). No Chat view: each user reads only
+ * their own chats (W7c).
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -72,8 +73,13 @@ describe('Users screen source', () => {
     );
   });
 
-  it("keeps each login's Chat and the Sign-in by email code entry", () => {
-    expect(src).toContain('<LoginChat loginId={user.id} name={name} />');
+  it("has no Chat view of another login's chats (W7c)", () => {
+    for (const gone of ['LoginChat', 'member-chats', 'MEMBER_CHATS_PATH', 'view=chat']) {
+      expect(screen, gone).not.toContain(gone);
+    }
+  });
+
+  it('keeps the Sign-in by email code entry', () => {
     expect(src).toContain("export const EMAIL_CODE_TITLE = 'Sign-in by email code';");
     expect(src).toContain('<EmailCodeSenderPanel />');
   });

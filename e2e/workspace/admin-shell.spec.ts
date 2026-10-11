@@ -49,7 +49,7 @@ test('the full nav, the owner Pages screen and Settings > Users', async ({ page 
   await expect(main.getByText('For client logins')).toBeVisible();
   await expect(page.getByText('You cannot manage this part of the brain.')).toHaveCount(0);
   const asked = api.asked('admin');
-  for (const read of ['/api/users', '/api/team-admin/invites', '/api/team-admin/member-chats']) {
+  for (const read of ['/api/users', '/api/team-admin/invites']) {
     expect(asked, read).toContain(`GET ${read}`);
   }
   expect(asked.filter((r) => /\/api\/(client|member)\//.test(r))).toEqual([]);

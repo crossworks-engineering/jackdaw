@@ -111,7 +111,6 @@ describe('areas', () => {
     '/docs',
     '/models',
     '/pending',
-    '/assistant',
     '/nodes',
     '/heartbeats',
     '/studio',
@@ -147,6 +146,7 @@ describe('areas', () => {
     '/settings/workspaces',
     '/settings/mcp',
     '/settings/api-access',
+    '/assistant',
   ])('%s and what is under it are open to every login', (p) => {
     expect(areaForPath(p)).toBeNull();
     expect(mayOpenPath([], p)).toBe(true);

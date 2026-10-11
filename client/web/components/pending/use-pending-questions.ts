@@ -39,10 +39,14 @@ export function invalidatePending(queryClient: QueryClient): Promise<void> {
  *
  * Deliberately NOT gated on MANTLE_RUNS: the flag lives server-side, and any
  * future non-run questionnaire row would surface through the same queue.
+ *
+ * `enabled: false` asks nothing: the pending queue is an Admin user's route,
+ * so a member's Assistant button (W7c) has no questions.
  */
-export function usePendingQuestions() {
+export function usePendingQuestions({ enabled = true }: { enabled?: boolean } = {}) {
   const queryClient = useQueryClient();
   const query = useQuery({
+    enabled,
     // Its OWN key, deliberately not `['pending']`. This hook is mounted
     // app-wide (the footer button, the watcher, the panel strip) and wants a
     // narrow slice; /pending wants every row including history. Sharing one

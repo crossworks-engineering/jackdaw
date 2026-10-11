@@ -42,6 +42,7 @@ import { PageTitleProvider } from '@/components/layout/page-title';
 import { UploadProvider, UploadDock, useUploads } from '@/components/uploads/upload-provider';
 import { AssistantDockProvider, useDockLayout } from '@/components/assistant/assistant-dock';
 import { AssistantPanel } from '@/components/assistant/assistant-panel';
+import { AssistantUnreadSync } from '@/components/assistant/use-assistant-unread';
 import { HelpRailProvider, useHelpRail } from '@/components/help/help-rail-context';
 import { HelpRail } from '@/components/help/help-rail';
 import { TourProvider } from '@/components/tour/tour-provider';
@@ -690,13 +691,11 @@ function ShellFrame({
 
         {/* The full assistant as a content-area overlay — fills the same box as
             <main>, above every route, summoned from anywhere by the bubble/⌘I.
-            A member chats in the same dock with its own thread; a client has
-            no chat in W5c. */}
-        {role === 'admin' ? (
-          <AssistantPanel />
-        ) : role === 'member' ? (
-          <AssistantPanel member />
-        ) : null}
+            A member chats in the same assistant, on its own threads (W7c), and
+            its unread count follows its thread stream; a client has no chat
+            yet. */}
+        {role === 'admin' || role === 'member' ? <AssistantPanel /> : null}
+        {role === 'member' ? <AssistantUnreadSync /> : null}
         {/* Help reads the owner help route: an admin's in W5c. */}
         {role === 'admin' ? <HelpRail /> : null}
 

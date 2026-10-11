@@ -15,7 +15,6 @@ import {
   KeyRound,
   MailCheck,
   MailPlus,
-  MessagesSquare,
   Monitor,
   MonitorSmartphone,
   Plus,
@@ -23,7 +22,6 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import type { MemberChatsResponse } from '@/lib/contract/member-apps';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { ListCard, ListCardMeta } from '@mantle/web-ui/ui/list-card';
 import { Badge } from '@mantle/web-ui/ui/badge';
@@ -70,10 +68,8 @@ import {
   signLoginOutEverywhere,
   signOutEverywhere,
 } from '@/lib/sign-out-everywhere';
-import { MEMBER_CHATS_PATH, loginHasChat, rosterIds } from '@/lib/login-chat';
 import { EMAIL_CODE, initialSelection, inviteIdOf, inviteKey } from '@/lib/logins-nav';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
-import { LoginChat } from '@/components/logins/login-chat';
 import { InviteDetail, InviteDialog, stateLine, useInvites } from './invites';
 import { inviteName, newLinkSeed, openInvites } from '@/lib/user-invites';
 import { EmailCodeSenderPanel } from './email-code-sender';
@@ -102,8 +98,8 @@ type UserRow = {
   agent: { id: string; slug: string; name: string } | null;
   /** The brain's role for the login. Not a control here: what a login reads
    *  comes from its workspaces. Read only for what it changes on this screen:
-   *  the Chat view (a member's thread), Reset password (a password login) and
-   *  the personal assistant (an admin login). */
+   *  Reset password (a password login) and the personal assistant (an admin
+   *  login). No Chat view: each user reads only their own chats (W7c). */
   role: string;
   contactId: string | null;
   disabledAt: string | null;
@@ -219,9 +215,8 @@ function LoginCard({
  * the column. One detail pane shows whatever is selected, under its one
  * header (ItemHeader).
  *
- * Kept brain routes (W5c contract): /api/team-admin/invites (INVITES_PATH),
- * /member-chats (MEMBER_CHATS_PATH) and /clients/signin-sender
- * (EMAIL_CODE_SENDER_PATH). The server enforces the invariants (anchor
+ * Kept brain routes (W5c contract): /api/team-admin/invites (INVITES_PATH)
+ * and /clients/signin-sender (EMAIL_CODE_SENDER_PATH). The server enforces the invariants (anchor
  * undeletable, no self-delete); the UI just mirrors them.
  */
 export function UsersClient() {
@@ -231,22 +226,14 @@ export function UsersClient() {
     queryFn: () => apiFetch<{ users: UserRow[]; currentActorId: string }>('/api/users'),
   });
   const invitesQuery = useInvites();
-  // Which logins have a team thread: an admin in it (a former member) keeps
-  // its Chat. The same admin-only route the Chat view reads.
-  const rosterQuery = useQuery({
-    queryKey: ['users', 'member-chats', 'roster'],
-    queryFn: () => apiFetch<MemberChatsResponse>(MEMBER_CHATS_PATH),
-  });
 
   // Deep link: /settings/users?selected=<id-or-email | invite:<id> |
-  // email-code>[&view=chat] preselects (initial state only: selection stays
-  // client state after). An old Clients step opens the plain list.
+  // email-code> preselects (initial state only: selection stays client state
+  // after). An old Clients step opens the plain list.
   const searchParams = useSearchParams();
-  const [first] = useState(() =>
-    initialSelection(searchParams.get('selected'), searchParams.get('view')),
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    initialSelection(searchParams.get('selected')),
   );
-  const [selectedId, setSelectedId] = useState<string | null>(first.selected);
-  const [chat, setChat] = useState(first.chat);
   const [addOpen, setAddOpen] = useState(false);
   // The Invite dialog, empty (Invite) or for an open invite's person (New
   // link). Owned here, not by the invite pane: a New link replaces that
@@ -257,10 +244,7 @@ export function UsersClient() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
-  const select = (id: string | null, opts: { chat?: boolean } = {}) => {
-    setSelectedId(id);
-    setChat(!!opts.chat);
-  };
+  const select = (id: string | null) => setSelectedId(id);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] });
 
   if (usersQuery.isPending) {
@@ -299,8 +283,6 @@ export function UsersClient() {
     : emailCode
       ? EMAIL_CODE
       : (selected?.id ?? null);
-
-  const inRoster = rosterIds(rosterQuery.data);
 
   return (
     <>
@@ -414,9 +396,6 @@ export function UsersClient() {
               key={selected.id}
               user={selected}
               isSelf={selected.id === currentActorId}
-              hasChat={loginHasChat(selected.role, inRoster.has(selected.id))}
-              chat={chat && loginHasChat(selected.role, inRoster.has(selected.id))}
-              onChatChange={setChat}
               onChanged={() => void invalidate()}
               onRequestDelete={() => setDeleteOpen(true)}
               onRequestReset={() => setResetOpen(true)}
@@ -475,20 +454,12 @@ function loginAbout(user: UserRow): string {
 function UserDetail({
   user,
   isSelf,
-  hasChat,
-  chat,
-  onChatChange,
   onChanged,
   onRequestDelete,
   onRequestReset,
 }: {
   user: UserRow;
   isSelf: boolean;
-  /** Whether it has a Chat: a member, or a login the roster lists. */
-  hasChat: boolean;
-  /** The Chat view instead of the details. */
-  chat: boolean;
-  onChatChange: (chat: boolean) => void;
   onChanged: () => void;
   onRequestDelete: () => void;
   onRequestReset: () => void;
@@ -516,8 +487,7 @@ function UserDetail({
 
   return (
     <div>
-      {/* The pane's one header: name and state; Chat (a member's thread) as
-          the text action; Info and Delete as icons. */}
+      {/* The pane's one header: name and state; Info and Delete as icons. */}
       <ItemHeader
         sticky
         title={name}
@@ -531,18 +501,6 @@ function UserDetail({
             {isSelf && <Badge variant="outline">You</Badge>}
             {user.disabledAt && <Badge variant="outline">Disabled</Badge>}
           </>
-        }
-        textActions={
-          hasChat ? (
-            <Button
-              size="sm"
-              variant={chat ? 'secondary' : 'outline'}
-              aria-pressed={chat}
-              onClick={() => onChatChange(!chat)}
-            >
-              <MessagesSquare /> Chat
-            </Button>
-          ) : null
         }
         iconActions={
           <>
@@ -562,75 +520,69 @@ function UserDetail({
         }
       />
 
-      {chat ? (
-        <LoginChat loginId={user.id} name={name} />
-      ) : (
-        <div className="space-y-6 p-6">
-          <div className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Email</div>
-              <div className="mt-0.5 break-all">{user.email}</div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Created</div>
-              <div className="mt-0.5">{formatDateTime(user.createdAt)}</div>
-            </div>
-            <LoginWorkspaces loginId={user.id} />
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Last login
-              </div>
-              <div className="mt-0.5">
-                {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'Never signed in'}
-              </div>
+      <div className="space-y-6 p-6">
+        <div className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Email</div>
+            <div className="mt-0.5 break-all">{user.email}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Created</div>
+            <div className="mt-0.5">{formatDateTime(user.createdAt)}</div>
+          </div>
+          <LoginWorkspaces loginId={user.id} />
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Last login</div>
+            <div className="mt-0.5">
+              {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'Never signed in'}
             </div>
           </div>
-
-          <form onSubmit={saveDisplayName} noValidate className="space-y-3">
-            <Field>
-              <FieldLabel htmlFor="display-name">Display name</FieldLabel>
-              <Input
-                id="display-name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Their full name"
-                aria-describedby={hintId('display-name')}
-              />
-              <FieldHint id="display-name">
-                How this person appears in the app. Changing it doesn&apos;t affect their login.
-              </FieldHint>
-            </Field>
-            <SubmitButton pending={saving}>Save user</SubmitButton>
-          </form>
-
-          {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
-
-          {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
-
-          {/* Only a password login (admin, member) has one: a role this app
-              does not know gets nothing. */}
-          {canResetPassword(user.role) && (
-            <div className="rounded-md border border-border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <KeyRound className="size-4 text-muted-foreground" /> Password
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Set a new password for this login. The reset is recorded in the audit log.
-                  </p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={onRequestReset}>
-                  Reset password
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <DevicesCard user={user} isSelf={isSelf} />
-          {isSelf && <PairPhoneCard userId={user.id} />}
         </div>
-      )}
+
+        <form onSubmit={saveDisplayName} noValidate className="space-y-3">
+          <Field>
+            <FieldLabel htmlFor="display-name">Display name</FieldLabel>
+            <Input
+              id="display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Their full name"
+              aria-describedby={hintId('display-name')}
+            />
+            <FieldHint id="display-name">
+              How this person appears in the app. Changing it doesn&apos;t affect their login.
+            </FieldHint>
+          </Field>
+          <SubmitButton pending={saving}>Save user</SubmitButton>
+        </form>
+
+        {!user.isOwner && !isSelf && <AccessCard user={user} onChanged={onChanged} />}
+
+        {user.role === 'admin' && <AssistantCard user={user} onChanged={onChanged} />}
+
+        {/* Only a password login (admin, member) has one: a role this app
+            does not know gets nothing. */}
+        {canResetPassword(user.role) && (
+          <div className="rounded-md border border-border p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <KeyRound className="size-4 text-muted-foreground" /> Password
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Set a new password for this login. The reset is recorded in the audit log.
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={onRequestReset}>
+                Reset password
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <DevicesCard user={user} isSelf={isSelf} />
+        {isSelf && <PairPhoneCard userId={user.id} />}
+      </div>
     </div>
   );
 }
@@ -961,7 +913,7 @@ function AssistantCard({ user, onChanged }: { user: UserRow; onChanged: () => vo
                 for this login, on its own thread.
               </>
             ) : (
-              'Shares the brain’s default assistant: chats land in the same thread as everyone else’s.'
+              'Shares the brain’s default assistant. Each user’s chat with it is their own.'
             )}
           </p>
         </div>
@@ -1087,13 +1039,12 @@ function AssistantFields({
         />
         <FieldHint
           id={nameId}
-          warn="Not private: every login can still open this assistant and read its chat."
+          warn="Not exclusive: other Admin users can chat with this assistant too, each in their own chat."
         >
           {nameHint ?? (
             <>
-              Gives this login its own copy of an assistant, so their chat is a separate
-              conversation instead of sharing one thread with everyone else. Leave blank to share
-              the brain&apos;s default assistant.
+              Gives this login its own copy of an assistant. Leave blank to share the brain&apos;s
+              default assistant. Each user&apos;s chat is their own either way.
             </>
           )}
         </FieldHint>

@@ -103,11 +103,19 @@ export const MEMBER_OPEN: readonly RegExp[] = [
   rx('PUT', `/api/tree/items/${ID}/pin`),
   // Every login.
   /^[A-Z]+ \/api\/(grants|workspaces)(\/|$)/,
+  // Every login's own chats (W7c). The live-stream sub-routes of a turn
+  // (/turn/:id/stream, cancel, suggestion) and /turn/stage stay Admin-only.
+  rx('GET', `/api/assistant/(thread|messages|threads|conversations|stream)`),
+  rx('GET', `/api/assistant/threads/${ID}`),
+  rx('POST', `/api/assistant/(turn|threads|read|transcribe)`),
+  rx('POST', `/api/assistant/threads/${ID}/(continue|summarize)`),
 ];
 
-/** The paths a W6b brain answers 410 (contract item 1). */
+/** The paths a W6b brain answers 410 (contract item 1), and the ones a W7b
+ *  or W7c brain answers 410: the member chat and its unread count, the Admin
+ *  member chats, the MCP logins and the agent and tool group levels. */
 export const GONE_ROUTE =
-  /^\/api\/(member\/(space|space-files|my-apps|items|tree)|admin\/(space|space-files))(\/|$)/;
+  /^\/api\/(member\/(space|space-files|my-apps|items|tree|chat)|admin\/(space|space-files)|team-admin\/member-chats|mcp-logins|access\/(agents|tool-groups))(\/|$)/;
 
 /** The requests (`METHOD /path`) that match none of `allowed`, where each
  *  allowed pattern is tested against the whole `METHOD /path`. */

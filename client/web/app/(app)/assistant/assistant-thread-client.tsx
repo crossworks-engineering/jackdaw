@@ -14,6 +14,9 @@ import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/experience';
 import { AreaBackdrop } from '@mantle/web-ui/area-backdrop';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
+import { useMarkThreadRead } from '@/components/assistant/use-assistant-unread';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { chatFeatures, TURN_REFUSAL_TEXT } from '@/lib/assistant-turn-refusal';
 import { shortModelName } from '@mantle/web-ui/lib/model-name';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
@@ -29,13 +32,15 @@ import type {
 import { PreviousChatView, PreviousChatsList } from './previous-chats';
 import { NEW_CHAT_HINT, NEW_CHAT_LABEL, newChatToast, type ChatView } from './chat-threads-state';
 
-/** The fields the header + chat need off the resolved agent. */
+/** The fields the header + chat need off the resolved agent. For a login
+ *  that is not an Admin user the brain sends only id, slug, name, role and
+ *  model (W7c): no avatar, and experience null. */
 type ResolvedAgent = {
   id: string;
   slug: string;
   name: string;
   model: string;
-  avatar: { style: string; seed: string } | null;
+  avatar?: { style: string; seed: string } | null;
 };
 
 type ThreadData = {
@@ -70,7 +75,12 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
     display,
     startPopoutMove,
     busy,
+    panel,
   } = useAssistantDock();
+  // Every login chats here, in its own threads (W7c). An Admin user gets
+  // everything; anyone else the thread and a text composer (chatFeatures).
+  const adminUser = useIsAdminUser();
+  const features = chatFeatures(adminUser);
   const queryClient = useQueryClient();
   const toast = useToast();
   // What sits under the header: the live chat, the Previous chats list, or one
@@ -96,6 +106,13 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
   // from the agent picker afterwards is left alone.
   const assignedSlug = threadQuery.data?.assigned?.slug ?? null;
   const assignedAt = threadQuery.data?.assigned?.assignedAt ?? null;
+  // The unread badge of a login that is not an Admin user reads its own
+  // threads (W7c): showing the live thread marks it read.
+  useMarkThreadRead(
+    threadQuery.data?.agent?.slug,
+    !adminUser && panel === 'open' && view.kind === 'live',
+  );
+
   useEffect(() => {
     if (!assignedAt || !assignedSlug) return;
     if (window.localStorage.getItem(ASSIGNED_SEEN_KEY) === assignedAt) return;
@@ -200,7 +217,7 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
                 <span className="block truncate" title={agent.model}>
                   {agent.slug} · {shortModelName(agent.model)}
                 </span>
-              ) : (
+              ) : adminUser ? (
                 <span className="text-destructive-ink">
                   No enabled agent. Configure one at{' '}
                   <a href="/settings/agents" className="underline">
@@ -208,6 +225,8 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
                   </a>
                   .
                 </span>
+              ) : (
+                <span className="text-destructive-ink">{TURN_REFUSAL_TEXT.noAssistant}</span>
               )}
             </p>
           </div>
@@ -277,10 +296,11 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
 
       {/* Blocked runs first: a question is the only thing here the operator
           MUST act on — the run cannot advance without it. Self-hiding. */}
-      <PendingQuestionsStrip />
+      {features.runs && <PendingQuestionsStrip />}
       {/* Background runs the owner has in flight — compact cards, self-hiding
-          when none are active (slice 4 WP-A). */}
-      <ActiveRunsStrip />
+          when none are active (slice 4 WP-A). Both strips read Admin-only
+          routes. */}
+      {features.runs && <ActiveRunsStrip />}
       {view.kind === 'live' && openThread?.continuedFrom && (
         <RowButton
           onClick={() => setView({ kind: 'thread', id: openThread.continuedFrom!.id })}

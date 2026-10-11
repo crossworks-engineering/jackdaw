@@ -93,6 +93,8 @@ describe('middleware: retired pages', () => {
     ['/team-admin?view=shares', '/'],
     ['/apps/review', '/'],
     ['/apps/review/abc', '/'],
+    ['/portal/chat', '/assistant'],
+    ['/portal/chat?x=Xy7kPq2M', '/assistant'],
   ];
 
   for (const [who, cookies] of Object.entries(SESSIONS)) {

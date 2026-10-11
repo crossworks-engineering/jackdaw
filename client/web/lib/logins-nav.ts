@@ -4,8 +4,8 @@
  *
  * The detail pane shows one of: a login (by id or email), an open invite
  * (`invite:<id>`), or the Sign-in by email code entry (`email-code`). A
- * login opens on its details, or on its Chat with `view=chat` when it has
- * one.
+ * login opens on its details. There is no Chat view (W7c: each user reads
+ * only their own chats), so an old `view=chat` link opens the details.
  *
  * Old links (W5c): the Clients steps (`what-clients-see`, `client-settings`)
  * are gone, so they open the plain list, details and not Chat.
@@ -29,24 +29,14 @@ export function inviteIdOf(key: string | null | undefined): string | null {
   return key?.startsWith(INVITE_PREFIX) ? key.slice(INVITE_PREFIX.length) || null : null;
 }
 
-/** What a deep link selects at first: `selected` and `view` from the URL. A
- *  retired selection opens the plain list (nothing selected, no Chat). */
-export function initialSelection(
-  selected: string | null | undefined,
-  view: string | null | undefined,
-): { selected: string | null; chat: boolean } {
-  if (!selected || RETIRED_SELECTIONS.has(selected)) return { selected: null, chat: false };
-  return { selected, chat: view === 'chat' };
+/** What a deep link selects at first: `selected` from the URL. A retired
+ *  selection opens the plain list (nothing selected). */
+export function initialSelection(selected: string | null | undefined): string | null {
+  if (!selected || RETIRED_SELECTIONS.has(selected)) return null;
+  return selected;
 }
 
-/** A link into Settings > Users: what to select, and the Chat view. */
-export function loginsHref(selected?: string | null, opts: { chat?: boolean } = {}): string {
-  const qs = new URLSearchParams();
-  if (selected) qs.set('selected', selected);
-  if (opts.chat) qs.set('view', 'chat');
-  const s = qs.toString();
-  return s ? `${LOGINS_PATH}?${s}` : LOGINS_PATH;
+/** A link into Settings > Users: what to select. */
+export function loginsHref(selected?: string | null): string {
+  return selected ? `${LOGINS_PATH}?${new URLSearchParams({ selected }).toString()}` : LOGINS_PATH;
 }
-
-/** A login's Chat view. */
-export const loginChatHref = (loginId: string) => loginsHref(loginId, { chat: true });

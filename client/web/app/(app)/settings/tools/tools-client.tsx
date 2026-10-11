@@ -40,7 +40,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { slugify } from '@mantle/web-ui/slugify';
 import { ListSearchBar, ListSearchEmpty, useListQuery } from '@/components/list-search';
 import { filterTools } from '@/lib/tool-search';
-import { connectorOff, groupsHolding, type ToolGroupWithLevel } from '@/lib/tool-group-level';
+import { connectorOff, groupsHolding, type ToolGroupRow } from '@/lib/tool-group-links';
 import { ExternalAccessSection, type ToolWithExternalAccess } from './external-access-section';
 import { toolAccessBadge } from '@/lib/tool-access-copy';
 import { ConnectorOffNote, ToolGroupsOfTool } from './tool-groups-of-tool';
@@ -226,8 +226,7 @@ export function ToolsClient() {
   // there shows here at once.
   const groupsQuery = useQuery({
     queryKey: ['tool-groups'],
-    queryFn: () =>
-      apiFetch<{ groups: ToolGroupWithLevel[] }>('/api/tool-groups').then((r) => r.groups),
+    queryFn: () => apiFetch<{ groups: ToolGroupRow[] }>('/api/tool-groups').then((r) => r.groups),
   });
   const tools = useMemo(() => toolsQuery.data ?? [], [toolsQuery.data]);
   const settings = settingsQuery.data ?? DEFAULT_SETTINGS;

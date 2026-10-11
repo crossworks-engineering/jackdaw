@@ -5,7 +5,6 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { Button } from '@mantle/web-ui/ui/button';
 import { AssistantButton, HighlightButton } from '@/components/assistant/assistant-dock';
 import { HelpLauncher } from '@/components/help/help-launcher';
-import { MemberChatButton } from '@/components/member/member-chat-button';
 import { useShellRole } from '@/components/layout/shell-role';
 
 /**
@@ -42,9 +41,10 @@ export function RailToolbar({
    *  handler still fires after the drawer state flips. */
   onLaunch?: () => void;
 }) {
-  // The launchers by the brain's role (phase W5c, until W7): help, marker
-  // pick and the Assistant for an admin, a member's own chat for a member,
-  // none for a client.
+  // The launchers by the brain's role: help, marker pick and the Assistant
+  // for an admin; the same Assistant for a member, on its own threads (W7c:
+  // no pending questions, its own unread count); none for a client (no
+  // client chat yet).
   const role = useShellRole();
   return (
     <div
@@ -92,7 +92,11 @@ export function RailToolbar({
           strip would overflow the rail exactly when it most needs to be read.
           The label truncates instead; the badge never does. */}
       <span className="ml-auto min-w-0 group-data-[nav-collapsed=true]/shell:ml-0">
-        {role === 'admin' ? <AssistantButton /> : role === 'member' ? <MemberChatButton /> : null}
+        {role === 'admin' ? (
+          <AssistantButton />
+        ) : role === 'member' ? (
+          <AssistantButton adminUser={false} />
+        ) : null}
       </span>
     </div>
   );

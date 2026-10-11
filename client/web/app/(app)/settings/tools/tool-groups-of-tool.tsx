@@ -2,17 +2,12 @@
 
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
-import { LEVEL_LABEL } from '@/lib/access-levels';
-import {
-  GROUP_LEVEL_UNKNOWN,
-  toolGroupHref,
-  type ToolGroupWithLevel,
-} from '@/lib/tool-group-level';
+import { toolGroupHref, type ToolGroupRow } from '@/lib/tool-group-links';
 
 /**
- * The groups that hold one tool, each with its level and whether it is on.
- * A tool reaches an agent or a team app only through a group, so this is
- * where its reach shows. Each name opens the group, where its level is set.
+ * The groups that hold one tool, each with whether it is on. A tool reaches
+ * an agent or an app only through a group, so this is where its reach shows.
+ * Each name opens the group. No level (W7b): nothing has one.
  */
 export function ToolGroupsOfTool({
   groups,
@@ -20,7 +15,7 @@ export function ToolGroupsOfTool({
   error,
 }: {
   /** The groups holding this tool (`groupsHolding`). */
-  groups: ToolGroupWithLevel[];
+  groups: ToolGroupRow[];
   pending: boolean;
   error: string | null;
 }) {
@@ -53,17 +48,10 @@ export function ToolGroupsOfTool({
               >
                 {g.name}
               </Link>
-              <span className="text-xs text-muted-foreground">
-                {g.audience ? `${LEVEL_LABEL[g.audience]} level` : 'Level not shown'}
-                {' · '}
-                {g.enabled ? 'on' : 'off'}
-              </span>
+              <span className="text-xs text-muted-foreground">{g.enabled ? 'on' : 'off'}</span>
             </li>
           ))}
         </ul>
-      )}
-      {!pending && !error && groups.some((g) => g.audience === undefined) && (
-        <p className="text-xs text-muted-foreground">{GROUP_LEVEL_UNKNOWN}</p>
       )}
     </section>
   );
@@ -73,7 +61,7 @@ export function ToolGroupsOfTool({
  * Beside "External access": an MCP tool's connector that is switched off
  * stops every call, whatever the switch says. Links to the connector's group.
  */
-export function ConnectorOffNote({ group }: { group: ToolGroupWithLevel | null }) {
+export function ConnectorOffNote({ group }: { group: ToolGroupRow | null }) {
   if (!group) return null;
   return (
     <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-ink">

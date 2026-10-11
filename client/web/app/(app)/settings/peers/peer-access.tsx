@@ -33,12 +33,13 @@ export type PeerAccess = {
   allowedRiskyTools: string[];
 };
 
+/** A login as GET /api/users lists it (the MCP logins list is gone, W7b). */
 type Login = {
   id: string;
   email: string;
   displayName: string | null;
   role: string;
-  disabled?: boolean;
+  disabledAt: string | null;
 };
 
 const NONE = 'none';
@@ -61,8 +62,8 @@ export function PeerAccessSection({
   const [saving, setSaving] = useState(false);
   const [risky, setRisky] = useState(access.allowedRiskyTools.join(', '));
   const logins = useQuery({
-    queryKey: ['mcp-logins'],
-    queryFn: () => apiFetch<{ logins: Login[] }>('/api/mcp-logins'),
+    queryKey: ['users'],
+    queryFn: () => apiFetch<{ users: Login[] }>('/api/users'),
   });
 
   const value = access.actsAsRole === 'admin' ? OWNER : (access.actsAsLoginId ?? NONE);
@@ -97,8 +98,8 @@ export function PeerAccessSection({
 
   const bound = access.actsAsRole !== null;
   const asOwner = access.actsAsRole === 'admin';
-  const others = (logins.data?.logins ?? []).filter(
-    (l) => (l.role === 'member' || l.role === 'client') && !l.disabled,
+  const others = (logins.data?.users ?? []).filter(
+    (l) => (l.role === 'member' || l.role === 'client') && !l.disabledAt,
   );
 
   return (

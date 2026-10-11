@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  groupsHolding,
-  levelNeedsConfirm,
   connectorOff,
+  groupsHolding,
+  isConnectorGroup,
   toolGroupHref,
-  type ToolGroupWithLevel,
-} from './tool-group-level';
+  type ToolGroupRow,
+} from './tool-group-links';
 
-const group = (p: Partial<ToolGroupWithLevel> & { slug: string }): ToolGroupWithLevel => ({
+const group = (p: Partial<ToolGroupRow> & { slug: string }): ToolGroupRow => ({
   id: p.slug,
   name: p.slug,
   description: '',
@@ -20,14 +20,11 @@ const group = (p: Partial<ToolGroupWithLevel> & { slug: string }): ToolGroupWith
   ...p,
 });
 
-describe('levelNeedsConfirm', () => {
-  it('asks before client or public, never before admin or team, never for no change', () => {
-    expect(levelNeedsConfirm('admin', 'client')).toBe(true);
-    expect(levelNeedsConfirm('team', 'public')).toBe(true);
-    expect(levelNeedsConfirm(undefined, 'client')).toBe(true);
-    expect(levelNeedsConfirm('client', 'team')).toBe(false);
-    expect(levelNeedsConfirm('team', 'admin')).toBe(false);
-    expect(levelNeedsConfirm('client', 'client')).toBe(false);
+describe('isConnectorGroup', () => {
+  it('is true for an MCP connector only', () => {
+    expect(isConnectorGroup({ integration: { mcp: { url: 'https://x.example/mcp' } } })).toBe(true);
+    expect(isConnectorGroup({ integration: null })).toBe(false);
+    expect(isConnectorGroup({})).toBe(false);
   });
 });
 

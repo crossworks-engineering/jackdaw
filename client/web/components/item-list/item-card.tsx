@@ -46,7 +46,7 @@ export function ItemCard({
   title: string;
   /** The leading glyph: an `<ItemIcon>`. */
   icon: ReactNode;
-  /** Beside the title, e.g. the AudienceBadge. */
+  /** Beside the title, e.g. the workspace chips. */
   badge?: ReactNode;
   selected?: boolean;
   dimmed?: boolean;

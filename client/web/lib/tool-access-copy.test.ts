@@ -4,14 +4,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import { blockedReason, toolAccessBadge, toolAccessCopy } from './tool-access-copy';
-import {
-  CONNECTOR_WORKSPACES_NOTE,
-  GROUP_LEVEL_MEANING,
-  groupLevelMeaning,
-  isConnectorGroup,
-  levelNeedsConfirm,
-} from './tool-group-level';
-import { connectorLine } from './member-mcp';
 
 /** An en or an em dash, named by code point so this file carries neither. */
 const DASHES = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
@@ -23,7 +15,8 @@ describe('the switch on an outside tool', () => {
     // Contract 28: workspaces decide who uses a connector, not its level.
     expect(c.hint).toMatch(/workspace screen/);
     expect(c.hint).not.toMatch(/level/);
-    expect(c.hint).toMatch(/Write switch/);
+    // W7b: no per-login Write switch on MCP any more.
+    for (const t of [c.hint, ...c.dialogBody]) expect(t).not.toMatch(/Write switch/);
     for (const t of [c.hint, c.warn, c.stale, ...c.dialogBody]) {
       expect(t).not.toMatch(/connector.s level|public agents|contact link/);
     }
@@ -52,48 +45,6 @@ describe('the switch on an outside tool', () => {
         expect(t, t).not.toMatch(DASHES);
       }
     }
-  });
-});
-
-describe("a connector group's level", () => {
-  const connector = { integration: { mcp: { url: 'https://x.example/mcp' } } };
-  const plain = { integration: null };
-
-  it('says the workspaces share a connector, not its level (contracts 21, 28)', () => {
-    expect(isConnectorGroup(connector)).toBe(true);
-    expect(isConnectorGroup(plain)).toBe(false);
-    expect(
-      isConnectorGroup({ integration: { openapi: { url: 'https://x.example/o.json' } } } as never),
-    ).toBe(false);
-    expect(isConnectorGroup({})).toBe(false);
-    expect(groupLevelMeaning(connector, 'team')).toBe(
-      `${GROUP_LEVEL_MEANING.team} ${CONNECTOR_WORKSPACES_NOTE}`,
-    );
-    expect(groupLevelMeaning(connector, 'team')).not.toMatch(/own MCP/);
-    expect(groupLevelMeaning(plain, 'team')).toBe(GROUP_LEVEL_MEANING.team);
-    expect(CONNECTOR_WORKSPACES_NOTE).not.toMatch(DASHES);
-  });
-
-  it('asks before client or public only, connector or not', () => {
-    expect(levelNeedsConfirm('admin', 'team')).toBe(false);
-    expect(levelNeedsConfirm('team', 'client')).toBe(true);
-    expect(levelNeedsConfirm('team', 'public')).toBe(true);
-    expect(levelNeedsConfirm('team', 'team')).toBe(false);
-  });
-});
-
-describe('a connector on the member MCP screen', () => {
-  it('names its reads, and its writes with the Write switch', () => {
-    // No `level` since W5b2 (contract 28).
-    const c = { id: 'g', name: 'Site data', readTools: 3, writeTools: 1 };
-    expect(connectorLine(c, true)).toBe('3 read tools, 1 tool that changes data');
-    expect(connectorLine({ ...c, writeTools: 2 }, true)).toBe(
-      '3 read tools, 2 tools that change data',
-    );
-    expect(connectorLine(c, false)).toBe(
-      '3 read tools; 1 tool that changes data needs the Write switch on your MCP',
-    );
-    expect(connectorLine({ ...c, writeTools: 0 }, false)).toBe('3 read tools');
   });
 });
 

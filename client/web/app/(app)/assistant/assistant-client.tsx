@@ -49,6 +49,8 @@ import { MAX_CONTEXT } from '@/components/assistant/assistant-dock';
 import { COMPOSER_BAND_GRADIENT, COMPOSER_BOX } from '@mantle/web-ui/lib/composer-style';
 import { uuid } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { isTurnStreamingEnabledClient } from '@mantle/web-ui/turn-streaming';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { chatFeatures, TURN_REFUSAL_TEXT } from '@/lib/assistant-turn-refusal';
 import {
   canReplaceInFlightTurn,
   combineCorrectedPrompt,
@@ -82,6 +84,12 @@ export function AssistantClient({
   // Per-agent visual identity: a stable colour + monogram so it's obvious
   // which agent you're talking to when you switch.
   const accent = agentAccent(agentSlug ?? 'assistant');
+  // Every login chats here, in its own threads (W7c). Anyone but an Admin
+  // user sends text only and reads the reply from the thread: the live
+  // stream, Stop, the stage label and the suggestion are Admin-only routes.
+  const adminUser = useIsAdminUser();
+  const features = chatFeatures(adminUser);
+  const liveStream = features.live;
   // Turns run through the app-wide dock provider, so a long turn keeps going
   // (and stays visible in the floating dock) when you navigate away mid-answer.
   const {
@@ -168,12 +176,12 @@ export function AssistantClient({
     startedAt: streamStartedAt,
     tokens: streamTokens,
     tokensApprox: streamTokensApprox,
-  } = useTurnStream(activeTurnId);
+  } = useTurnStream(liveStream ? activeTurnId : null);
   // Non-blocking streaming on for this client build? Gates the whole
   // premature-Enter replace flow — blocking mode has no cancel primitive, so
   // there the composer stays disabled mid-turn exactly as before.
-  const streamingOn = isTurnStreamingEnabledClient();
-  const polledLabel = useTurnStage(sending);
+  const streamingOn = liveStream && isTurnStreamingEnabledClient();
+  const polledLabel = useTurnStage(liveStream && sending);
   const stageLabel = streamLabel ?? polledLabel;
   // Live trail display mode (Settings → Profile). Fetched once on mount; the
   // trail renders 'list' (stacking, default) until it loads.
@@ -271,32 +279,36 @@ export function AssistantClient({
     suggestionEpochRef.current += 1;
     setSuggestion(null);
   }, []);
-  const fetchSuggestion = useCallback((outboundId: string) => {
-    const epoch = ++suggestionEpochRef.current;
-    setSuggestion(null);
-    void (async () => {
-      // ~1s, ~2.5s, ~4s after done; give up quietly at ~5s (a slow suggester
-      // model that lands later is acceptable waste; it just never shows).
-      for (const delay of [1000, 1500, 1500]) {
-        await new Promise((r) => setTimeout(r, delay));
-        if (suggestionEpochRef.current !== epoch) return;
-        try {
-          const res = await apiFetch<{ suggestion?: string }>(
-            `/api/assistant/turn/${outboundId}/suggestion`,
-            { cache: 'no-store' },
-          );
+  const fetchSuggestion = useCallback(
+    (outboundId: string) => {
+      if (!liveStream) return;
+      const epoch = ++suggestionEpochRef.current;
+      setSuggestion(null);
+      void (async () => {
+        // ~1s, ~2.5s, ~4s after done; give up quietly at ~5s (a slow suggester
+        // model that lands later is acceptable waste; it just never shows).
+        for (const delay of [1000, 1500, 1500]) {
+          await new Promise((r) => setTimeout(r, delay));
           if (suggestionEpochRef.current !== epoch) return;
-          const s = typeof res.suggestion === 'string' ? res.suggestion.trim() : '';
-          if (s) {
-            setSuggestion(s);
-            return;
+          try {
+            const res = await apiFetch<{ suggestion?: string }>(
+              `/api/assistant/turn/${outboundId}/suggestion`,
+              { cache: 'no-store' },
+            );
+            if (suggestionEpochRef.current !== epoch) return;
+            const s = typeof res.suggestion === 'string' ? res.suggestion.trim() : '';
+            if (s) {
+              setSuggestion(s);
+              return;
+            }
+          } catch {
+            /* transient; retry on the next tick, or give up */
           }
-        } catch {
-          /* transient; retry on the next tick, or give up */
         }
-      }
-    })();
-  }, []);
+      })();
+    },
+    [liveStream],
+  );
 
   // ── Share-location toggle ──
   // Sticky opt-in: when on, each send attaches a fresh browser geolocation fix
@@ -1426,23 +1438,25 @@ export function AssistantClient({
               </div>
             )}
             <div className="flex gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={COMPOSER_ATTACH_ACCEPT}
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  addFiles(Array.from(e.target.files ?? []));
-                  // Reset so picking the same file again still fires onChange.
-                  e.target.value = '';
-                }}
-              />
+              {features.attachments && (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={COMPOSER_ATTACH_ACCEPT}
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    addFiles(Array.from(e.target.files ?? []));
+                    // Reset so picking the same file again still fires onChange.
+                    e.target.value = '';
+                  }}
+                />
+              )}
               <ComposerToolbar
                 agentReady={agentReady}
                 sending={sending}
-                onAttachClick={() => fileInputRef.current?.click()}
-                onPick={startPicking}
+                onAttachClick={features.attachments ? () => fileInputRef.current?.click() : null}
+                onPick={features.pick ? startPicking : null}
                 shareLocation={shareLocation}
                 onToggleShareLocation={() => void toggleShareLocation()}
                 recording={recording}
@@ -1469,12 +1483,15 @@ export function AssistantClient({
                   // Mid-turn the attach button is disabled too: a correction
                   // resend carries text only.
                   if (sending) return;
-                  if (d.kind === 'reject') setError(d.reason);
+                  if (!features.attachments) setError(TURN_REFUSAL_TEXT.textOnly);
+                  else if (d.kind === 'reject') setError(d.reason);
                   else addFiles(d.files);
                 }}
                 placeholder={
                   !agentReady
-                    ? 'Configure an assistant or responder agent first at /settings/agents.'
+                    ? adminUser
+                      ? 'Configure an assistant or responder agent first at /settings/agents.'
+                      : TURN_REFUSAL_TEXT.noAssistant
                     : attachedFile
                       ? 'Add a question about the attachment (optional) — Enter to send.'
                       : recording
@@ -1529,7 +1546,19 @@ export function AssistantClient({
                   }
                 }}
               />
-              {sending ? (
+              {sending && !liveStream ? (
+                // No Stop for a login that is not an Admin user (the cancel
+                // route is Admin-only): the reply lands in the thread.
+                <Button
+                  type="button"
+                  aria-label="Sending"
+                  title="Waiting for the reply"
+                  disabled
+                  className="h-auto w-12 self-stretch px-0"
+                >
+                  <Loader2 className="animate-spin" aria-hidden />
+                </Button>
+              ) : sending ? (
                 // Mid-turn the send slot holds a Stop button — and, when a
                 // correction has been typed (streaming mode), a "stop and
                 // resend" button beside it: one press supersedes the in-flight

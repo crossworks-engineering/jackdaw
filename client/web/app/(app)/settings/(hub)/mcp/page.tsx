@@ -2,13 +2,13 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import { McpScreen } from './mcp-screen';
 
 /**
- * /settings/mcp: the remote MCP connector. Data-free. An admin with the
- * Connectors area gets the brain's screen, McpSettingsClient: GET
- * /api/mcp-settings (enabled flag, connector URL, connected clients), toggles
- * via PATCH, disconnects via DELETE /api/mcp-clients/[id], and health-checks
- * via POST /api/mcp-status. A member gets its own view, MemberMcpClient (GET
- * /api/member/mcp, until phase W7): no request of the brain's screen fires
- * for it (mcp-screen.tsx).
+ * /settings/mcp: the remote MCP connector, one screen for every user
+ * (workspaces W7b). Data-free. An Admin user with the Connectors area reads
+ * the brain's side (GET /api/mcp-settings: the box switch, the connector URL,
+ * every connected client; PATCH to toggle, DELETE /api/mcp-clients/[id],
+ * POST /api/mcp-status); a member reads its own (GET /api/member/mcp: its
+ * connection info, its data sources, the clients it connected). The same
+ * layout either way (mcp-screen.tsx, lib/mcp-screen.ts).
  */
 export default async function McpSettingsPage() {
   return (

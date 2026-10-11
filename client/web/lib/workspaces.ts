@@ -71,6 +71,8 @@ export const PATH_AREAS: ReadonlyArray<readonly [prefix: string, area: Area | nu
   ['/settings/workspaces', null],
   ['/settings/mcp', null],
   ['/settings/api-access', null],
+  // Every login chats with its own assistants, in its own threads (W7c).
+  ['/assistant', null],
   // Settings screens with an area of their own.
   ['/settings/users', 'users'],
   ['/settings/agents', 'assistants'],
@@ -96,7 +98,6 @@ export const PATH_AREAS: ReadonlyArray<readonly [prefix: string, area: Area | nu
   ['/docs', 'settings'],
   ['/models', 'settings'],
   ['/pending', 'settings'],
-  ['/assistant', 'settings'],
   ['/nodes', 'settings'],
   ['/heartbeats', 'settings'],
   ['/studio', 'settings'],

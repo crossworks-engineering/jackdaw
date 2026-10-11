@@ -477,22 +477,8 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       return (json(res, 200, { users, currentActorId: LOGINS.admin.loginId }), true);
     }
     // The flat Users screen's other reads (kept W5c routes): open invites,
-    // the chat roster, and the agents a personal assistant copies from.
+    // and the agents a personal assistant copies from.
     if (path === '/api/team-admin/invites') return (json(res, 200, { invites: [] }), true);
-    if (path === '/api/team-admin/member-chats') {
-      const members = (['member', 'client'] as const).map((r) => ({
-        loginId: LOGINS[r].loginId,
-        name: LOGINS[r].name,
-        email: LOGINS[r].email,
-        active: r === 'member',
-        role: r,
-        lastMessageAt: null,
-        lastMessageText: null,
-        lastMessageDirection: null,
-        messageCount: 0,
-      }));
-      return (json(res, 200, { members, selected: null }), true);
-    }
     if (path === '/api/agents') return (json(res, 200, { agents: [] }), true);
     return false;
   };
@@ -530,10 +516,12 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       if (path === '/api/shell') return json(res, 200, shell(role));
       return json(res, 404, { error: `not mocked: ${method} ${path}` });
     }
-    // The routes a W6b brain retired (and the W5c client portal): 410.
+    // The routes a W6b or W7 brain retired (and the W5c client portal): 410.
     if (GONE_ROUTE.test(path) || path.startsWith('/api/client/')) {
       return json(res, 410, { error: 'This was removed from the brain.', code: 'gone' });
     }
+    // Every login's own chats (W7c): no unread replies in the mock.
+    if (path === '/api/assistant/conversations') return json(res, 200, { conversations: [] });
     // The brain's gates (W6b): a member keeps its own /api/member/* routes; a
     // member or a client uses the owner routes the brain opened to it; an
     // admin every owner route.

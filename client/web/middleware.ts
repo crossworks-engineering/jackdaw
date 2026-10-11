@@ -33,7 +33,9 @@ const PUBLIC_PREFIXES: readonly string[] = ['/login', '/env.js', '/pair', '/invi
  *  - `/client-signin`: the client sign-in page (phase W5c). Its old link held
  *    a token, so not even the query goes along.
  *  - `/review`, `/team-admin`, `/apps/review`: review and Team admin
- *    (phase W5c), home instead. */
+ *    (phase W5c), home instead.
+ *  - `/portal/chat`: a member's chat as the brain's push deep link still
+ *    names it; the chat is the assistant now (W7c). */
 const RETIRED: ReadonlyArray<readonly [prefix: string, to: string]> = [
   ['/team', '/login'],
   ['/hub', '/login'],
@@ -41,6 +43,7 @@ const RETIRED: ReadonlyArray<readonly [prefix: string, to: string]> = [
   ['/review', '/'],
   ['/team-admin', '/'],
   ['/apps/review', '/'],
+  ['/portal/chat', '/assistant'],
 ];
 
 const under = (pathname: string, prefix: string) =>

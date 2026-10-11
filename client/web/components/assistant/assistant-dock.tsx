@@ -31,6 +31,9 @@ import {
   withAuth,
 } from '@mantle/web-ui/api-fetch';
 import { usePendingQuestions } from '@/components/pending/use-pending-questions';
+import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { turnRefusalText } from '@/lib/assistant-turn-refusal';
+import { useAssistantUnreadCount } from './use-assistant-unread';
 import { ASSISTANT_W_DEFAULT, clampAssistantWidth } from '@/lib/nav-width';
 import type { TurnEvent } from '@mantle/client-types';
 import { startTurnSafetyPoll, turnSinceIso, type SafetyPollRow } from './turn-safety-poll';
@@ -423,6 +426,12 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
   const [agentSlug, setAgentSlug] = useState<string | undefined>(undefined);
   const [agentName, setAgentName] = useState('Assistant');
   const agentRef = useRef<string | undefined>(undefined);
+  // The live-stream routes of a turn are an Admin user's (W7c): any other
+  // login's reply is read from its thread by the safety poll below. A ref,
+  // read when a turn starts (the shell has answered by then).
+  const adminUser = useIsAdminUser();
+  const adminUserRef = useRef(adminUser);
+  adminUserRef.current = adminUser;
 
   // ── Global panel UI state ──
   const [panel, setPanel] = useState<AssistantPanelState>('closed');
@@ -813,7 +822,10 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
       // The reply row's durable id, once `turn-start` says it. The safety poll
       // reads it lazily, and falls back to pairing by time when it never comes.
       let outboundId: string | null = null;
-      let streamDead = false;
+      // No live stream for a login that is not an Admin user (W7c): the poll
+      // alone reads the reply, so it may give up as if the stream had died.
+      const live = adminUserRef.current;
+      let streamDead = !live;
       const subscribedAt = Date.now();
 
       /**
@@ -841,60 +853,66 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
         });
       };
 
-      const stop = apiEventStream(
-        `/api/assistant/turn/${turnId}/stream`,
-        (raw) => {
-          if (settled) return;
-          let ev: TurnEvent;
-          try {
-            ev = JSON.parse(raw) as TurnEvent;
-          } catch {
-            return;
-          }
-          if (ev.type === 'turn-start') {
-            if (typeof ev.data?.outboundId === 'string') outboundId = ev.data.outboundId;
-            return;
-          }
-          if (ev.type === 'text-delta' && typeof ev.data?.text === 'string') {
-            const r = typeof ev.round === 'number' ? ev.round : 0;
-            if (r > round) {
-              round = r;
-              replyBuf = ev.data.text;
-            } else {
-              replyBuf += ev.data.text;
-            }
-            setMessages((prev) => prev.map((m) => (m.id === botId ? { ...m, text: replyBuf } : m)));
-            return;
-          }
-          if (ev.type === 'done') {
-            settle({ pending: false }, 'done');
-            return;
-          }
-          if (ev.type === 'error') {
-            const message =
-              ev.data && typeof ev.data.message === 'string' ? ev.data.message : 'The turn failed.';
-            settle({ text: message, pending: false, error: true }, 'error');
-            return;
-          }
-        },
-        {
-          onError: () => {},
-          // Without these the stream can end with nothing said: a 404 (streaming
-          // switched off server-side) returns silently, and a real outage
-          // reconnects forever. Either way the terminal `done` this bubble waits
-          // for never arrives. The turn itself is durable and usually still
-          // finishes — hence the wording, which sends the reader to the place
-          // that reconciles against the row rather than claiming a failure.
-          maxAttempts: DOCK_STREAM_MAX_ATTEMPTS,
-          // The stream is gone, the turn usually is not. The safety poll below
-          // is still watching the durable row, so let IT finish the bubble with
-          // the real reply; it gives up (with `lostConnection`) only if the row
-          // stays pending past DOCK_POLL_GIVE_UP_MS.
-          onExhausted: () => {
-            streamDead = true;
-          },
-        },
-      );
+      const stop = !live
+        ? () => {}
+        : apiEventStream(
+            `/api/assistant/turn/${turnId}/stream`,
+            (raw) => {
+              if (settled) return;
+              let ev: TurnEvent;
+              try {
+                ev = JSON.parse(raw) as TurnEvent;
+              } catch {
+                return;
+              }
+              if (ev.type === 'turn-start') {
+                if (typeof ev.data?.outboundId === 'string') outboundId = ev.data.outboundId;
+                return;
+              }
+              if (ev.type === 'text-delta' && typeof ev.data?.text === 'string') {
+                const r = typeof ev.round === 'number' ? ev.round : 0;
+                if (r > round) {
+                  round = r;
+                  replyBuf = ev.data.text;
+                } else {
+                  replyBuf += ev.data.text;
+                }
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === botId ? { ...m, text: replyBuf } : m)),
+                );
+                return;
+              }
+              if (ev.type === 'done') {
+                settle({ pending: false }, 'done');
+                return;
+              }
+              if (ev.type === 'error') {
+                const message =
+                  ev.data && typeof ev.data.message === 'string'
+                    ? ev.data.message
+                    : 'The turn failed.';
+                settle({ text: message, pending: false, error: true }, 'error');
+                return;
+              }
+            },
+            {
+              onError: () => {},
+              // Without these the stream can end with nothing said: a 404 (streaming
+              // switched off server-side) returns silently, and a real outage
+              // reconnects forever. Either way the terminal `done` this bubble waits
+              // for never arrives. The turn itself is durable and usually still
+              // finishes — hence the wording, which sends the reader to the place
+              // that reconciles against the row rather than claiming a failure.
+              maxAttempts: DOCK_STREAM_MAX_ATTEMPTS,
+              // The stream is gone, the turn usually is not. The safety poll below
+              // is still watching the durable row, so let IT finish the bubble with
+              // the real reply; it gives up (with `lostConnection`) only if the row
+              // stays pending past DOCK_POLL_GIVE_UP_MS.
+              onExhausted: () => {
+                streamDead = true;
+              },
+            },
+          );
 
       const lostConnection = () =>
         settle(
@@ -1050,8 +1068,10 @@ export function AssistantDockProvider({ children }: { children: React.ReactNode 
               res.status === 522 ||
               res.status === 524;
             if (!proxyTimeout) {
-              const b = (await res.json().catch(() => ({}))) as { error?: string };
-              throw new Error(b.error ?? `request failed (${res.status})`);
+              // A refusal in plain words: text only (415), a limit (429), a
+              // reused key (409), no assistant (404) (lib/assistant-turn-refusal).
+              const b = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+              throw new Error(turnRefusalText(res.status, b));
             }
           }
 
@@ -1264,12 +1284,15 @@ export function useAssistantDock(): AssistantDockApi {
  * Owns the global ⌘I / Ctrl+I shortcut (it stays mounted even when the panel is
  * open, since it only renders null then).
  */
-export function AssistantButton() {
+export function AssistantButton({ adminUser = true }: { adminUser?: boolean } = {}) {
   const { panel, busy, toggle, messages } = useAssistantDock();
   const [seenId, setSeenId] = useState<string | null>(null);
   // Blocked runs waiting on an answer — the panel renders the questionnaire,
-  // so the button is what tells you to go there.
-  const { count: questionCount } = usePendingQuestions();
+  // so the button is what tells you to go there. An Admin user's only.
+  const { count: questionCount } = usePendingQuestions({ enabled: adminUser });
+  // Any other login (W7c): the unread replies of its own threads, from the
+  // brain (lib/assistant-unread), so a reply that landed elsewhere shows too.
+  const threadUnread = useAssistantUnreadCount(!adminUser);
 
   // Latest settled assistant reply — what an "unread" dot keys off.
   const latestReplyId = useMemo(() => {
@@ -1290,7 +1313,9 @@ export function AssistantButton() {
   // toggling the same panel cancel each other out.
 
   const open = panel === 'open';
-  const unread = !busy && latestReplyId != null && latestReplyId !== seenId;
+  const unread = adminUser
+    ? !busy && latestReplyId != null && latestReplyId !== seenId
+    : !busy && !open && threadUnread > 0;
   // "Needs you" outranks "unread": a parked run is blocked until answered.
   // It stops the moment the panel is OPEN (the question is then on screen) —
   // not when answered, so glancing at it is what clears the alarm.

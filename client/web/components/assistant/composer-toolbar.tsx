@@ -28,8 +28,10 @@ export function ComposerToolbar({
 }: {
   agentReady: boolean;
   sending: boolean;
-  onAttachClick: () => void;
-  onPick: () => void;
+  /** null: no attach button (a chat that takes text only, W7c). */
+  onAttachClick: (() => void) | null;
+  /** null: no pick button (pick mode is an Admin user's). */
+  onPick: (() => void) | null;
   shareLocation: boolean;
   onToggleShareLocation: () => void;
   recording: boolean;
@@ -42,30 +44,34 @@ export function ComposerToolbar({
       {/* Attach picker — images + documents, one or several. Triggers the
                       hidden file input. The first file is read inline with the
                       message; further ones are uploaded and linked as context. */}
-      <Button
-        variant="outline"
-        size="icon-xs"
-        onClick={() => onAttachClick()}
-        disabled={!agentReady || sending}
-        className="text-muted-foreground"
-        title="Attach images or documents (or paste them with Ctrl/Cmd+V)"
-        aria-label="Attach images or documents"
-      >
-        <Paperclip aria-hidden />
-      </Button>
+      {onAttachClick && (
+        <Button
+          variant="outline"
+          size="icon-xs"
+          onClick={() => onAttachClick()}
+          disabled={!agentReady || sending}
+          className="text-muted-foreground"
+          title="Attach images or documents (or paste them with Ctrl/Cmd+V)"
+          aria-label="Attach images or documents"
+        >
+          <Paperclip aria-hidden />
+        </Button>
+      )}
       {/* Marker — enter pick mode (minimises the chat) to attach
                       files, pages, notes… as context for the next turn. */}
-      <Button
-        variant="outline"
-        size="icon-xs"
-        onClick={onPick}
-        disabled={!agentReady || sending}
-        className="text-muted-foreground"
-        title="Pick content to attach (files, pages, notes…)"
-        aria-label="Pick content to attach"
-      >
-        <SquareDashedMousePointer aria-hidden />
-      </Button>
+      {onPick && (
+        <Button
+          variant="outline"
+          size="icon-xs"
+          onClick={onPick}
+          disabled={!agentReady || sending}
+          className="text-muted-foreground"
+          title="Pick content to attach (files, pages, notes…)"
+          aria-label="Pick content to attach"
+        >
+          <SquareDashedMousePointer aria-hidden />
+        </Button>
+      )}
       {/* Share-location toggle — sticky opt-in. When on, each send
                       attaches a fresh browser geolocation fix so the assistant
                       knows where you are (directions, "what's nearby"). */}
