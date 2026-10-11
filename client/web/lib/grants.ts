@@ -534,11 +534,18 @@ export function serveCappedText(type: string | undefined, offered: number): stri
 /** Said when the link changed under the panel (another user, another tab). */
 export const LINK_CHANGED_TEXT = 'This link changed. Check the list again.';
 
+/** The brain's 404 for a link that is gone (revoked by another user or tab
+ *  after the panel read it). Only that 404: any other 404 is thrown. */
+function isLinkGone(e: ApiError): boolean {
+  return e.status === 404 && (e.body?.error === 'not_found' || e.message === 'not_found');
+}
+
 /** A served-list write: the panel's view can be old, and the brain replaces
  *  the whole list, so a write from it could put back an item another user
  *  took off. Read the link again first and apply only this change to what
  *  it serves now. 'changed' when the link is gone or is another link now,
- *  or the brain refuses with 409; the caller then shows LINK_CHANGED_TEXT
+ *  when the brain refuses with 409, or when the link went between the read
+ *  and the write (404 not_found); the caller then shows LINK_CHANGED_TEXT
  *  and loads the panel again. Other refusals are thrown. */
 export async function sendServeChange(
   deps: {
@@ -554,7 +561,7 @@ export async function sendServeChange(
   try {
     await deps.send(linkServeRequest(linkId, nextServed(fresh, ids, on)));
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) return 'changed';
+    if (e instanceof ApiError && (e.status === 409 || isLinkGone(e))) return 'changed';
     throw e;
   }
   return 'done';

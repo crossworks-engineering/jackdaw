@@ -459,13 +459,25 @@ describe('a served-list write reads the link again first (L4)', () => {
     expect(LINK_CHANGED_TEXT).toBe('This link changed. Check the list again.');
   });
 
-  it('a 409 from the brain is "changed"; other refusals are thrown', async () => {
+  it('a 409 or a 404 not_found from the brain is "changed"; other refusals are thrown', async () => {
     const conflict = vi.fn(async () => {
       throw new ApiError('conflict', 409);
     });
     expect(
       await sendServeChange({ read: async () => fresh([]), send: conflict }, 's1', ['a'], true),
     ).toBe('changed');
+    const gone = vi.fn(async () => {
+      throw new ApiError('not_found', 404, { error: 'not_found' });
+    });
+    expect(
+      await sendServeChange({ read: async () => fresh([]), send: gone }, 's1', ['a'], true),
+    ).toBe('changed');
+    const otherMissing = vi.fn(async () => {
+      throw new ApiError('Not Found', 404);
+    });
+    await expect(
+      sendServeChange({ read: async () => fresh([]), send: otherMissing }, 's1', ['a'], true),
+    ).rejects.toBeInstanceOf(ApiError);
     const refused = vi.fn(async () => {
       throw new ApiError('no', 403);
     });
