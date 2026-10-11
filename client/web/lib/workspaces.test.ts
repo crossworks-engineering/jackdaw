@@ -146,6 +146,7 @@ describe('areas', () => {
     '/settings/workspaces',
     '/settings/mcp',
     '/settings/api-access',
+    '/settings/telegram',
     '/assistant',
   ])('%s and what is under it are open to every login', (p) => {
     expect(areaForPath(p)).toBeNull();

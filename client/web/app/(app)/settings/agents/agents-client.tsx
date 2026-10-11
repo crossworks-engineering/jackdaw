@@ -913,8 +913,9 @@ export function AgentsClient() {
                                 >
                                   @BotFather
                                 </a>{' '}
-                                and paste the token — it&apos;s encrypted at rest. DMs to this bot
-                                are answered by this agent.
+                                and paste the token, it&apos;s encrypted at rest. DMs to this bot
+                                are answered by this agent, for the person whose chat it is: each
+                                person pairs their own chat with the code the bot sends them.
                               </p>
                             </fieldset>
                           )}

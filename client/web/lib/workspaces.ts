@@ -71,6 +71,8 @@ export const PATH_AREAS: ReadonlyArray<readonly [prefix: string, area: Area | nu
   ['/settings/workspaces', null],
   ['/settings/mcp', null],
   ['/settings/api-access', null],
+  // Every login pairs its own Telegram chat and lists its own chats (W7d).
+  ['/settings/telegram', null],
   // Every login chats with its own assistants, in its own threads (W7c).
   ['/assistant', null],
   // Settings screens with an area of their own.

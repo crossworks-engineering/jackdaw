@@ -7,16 +7,17 @@
  * (`/api/agents/[id]/telegram` + `/telegram/chats`).
  *
  * Loads the agent's currently-linked bot (if any) and lets the operator paste a
- * token to connect / rotate, approve or block a pending pairing request (a DM to
- * the bot), or disconnect. The token is validated (getMe) + sealed server-side;
- * only the bot @username + poll status come back here. Polls every 10s so a
- * fresh DM's pairing request appears without a manual refresh.
+ * token to connect / rotate, or disconnect. The token is validated (getMe) +
+ * sealed server-side; only the bot @username + poll status come back here.
  *
- * Only an admin-level agent can be on Telegram (a paired chat acts as the
- * owner, access matrix T21), so the brain refuses Connect and Approve for a
- * team, client or public agent. That refusal stays on screen under the control
- * it refused, since trying again gives the same answer (lib/telegram-level.ts);
- * any other failure is a toast.
+ * Telegram per user (workspaces W7d): a chat is paired to ONE user, by that
+ * user, signed in, with the code the bot sent them (the pair form below, the
+ * same as Settings > Telegram). Nobody approves another person's chat: the
+ * brain refuses status 'allowed' (403 pair_with_code). This section lists
+ * the bot's chats for the people who moderate it, with Block, Unpair or
+ * Unblock ('denied' blocks, 'pending' unpairs). Polls every 10s so a fresh
+ * DM shows up without a manual refresh. No level text: levels are gone.
+ * A refused Connect stays under the token field, in the brain's words.
  */
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
@@ -27,11 +28,13 @@ import { FieldError } from '@mantle/web-ui/ui/field';
 import { SecretInput } from '@mantle/web-ui/ui/secret-input';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
-import type { AgentTelegramBinding, AgentTelegramChat } from '@mantle/client-types';
-import { telegramLevelRefusal } from '@/lib/telegram-level';
+import type { AgentTelegramBinding } from '@mantle/client-types';
+import type { AgentTelegramChat } from '@/lib/contract/telegram';
+import { agentChatStatusFor, moderatedText } from '@/lib/telegram-pairing';
+import { TelegramChatRows } from './telegram-chat-rows';
+import { TelegramPairForm } from './telegram-pair-form';
 
 const CONNECT_ERROR_ID = 'telegram-connect-error';
-const PAIR_ERROR_ID = 'telegram-pair-error';
 
 export function TelegramBotSection({ agentId }: { agentId: string }) {
   const toast = useToast();
@@ -43,8 +46,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyChat, setBusyChat] = useState<string | null>(null);
-  // The brain's level refusal, kept beside the control it refused.
-  const [refusal, setRefusal] = useState<{ at: 'connect' | 'pair'; message: string } | null>(null);
+  // A refused Connect, in the brain's words, kept under the token field.
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   // `initial` shows the loading state + flips to null on failure; polled
   // refreshes update in place without flashing.
@@ -67,7 +70,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
 
   useEffect(() => {
     setToken('');
-    setRefusal(null);
+    setConnectError(null);
     void load(true);
     // Poll so a fresh DM's pairing request shows up without a manual refresh.
     const timer = setInterval(() => void load(), 10_000);
@@ -77,7 +80,7 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
   const connect = async () => {
     if (!token.trim()) return;
     setBusy(true);
-    setRefusal(null);
+    setConnectError(null);
     let b: { binding?: AgentTelegramBinding };
     try {
       b = await apiSend<{ binding?: AgentTelegramBinding }>(
@@ -89,9 +92,8 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
       );
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
-      const refused = telegramLevelRefusal(e);
-      if (refused) {
-        setRefusal({ at: 'connect', message: refused });
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.message) {
+        setConnectError(e.message);
         return;
       }
       toast.error(e instanceof Error ? e.message : 'Could not link the bot.');
@@ -127,24 +129,21 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
     startRefresh(() => router.refresh());
   };
 
-  const setChatStatus = async (chatId: string, status: 'allowed' | 'denied') => {
-    setBusyChat(chatId);
-    setRefusal(null);
+  const moderate = async (chat: AgentTelegramChat, action: 'block' | 'unpair') => {
+    setBusyChat(chat.id);
     try {
-      await apiSend(`/api/agents/${agentId}/telegram/chats`, 'POST', { chatId, status });
+      await apiSend(`/api/agents/${agentId}/telegram/chats`, 'POST', {
+        chatId: chat.id,
+        status: agentChatStatusFor(action),
+      });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return; // already bounced to /login
-      const refused = telegramLevelRefusal(e);
-      if (refused) {
-        setRefusal({ at: 'pair', message: refused });
-        return;
-      }
       toast.error(e instanceof Error ? e.message : 'Could not update the chat.');
       return;
     } finally {
       setBusyChat(null);
     }
-    toast.success(status === 'allowed' ? 'Paired' : 'Blocked');
+    toast.success(moderatedText(action, chat.status === 'denied'));
     void load();
   };
 
@@ -156,9 +155,6 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
     );
   }
 
-  const pending = chats.filter((c) => c.status === 'pending');
-  const connectError = refusal?.at === 'connect' ? refusal.message : null;
-  const pairError = refusal?.at === 'pair' ? refusal.message : null;
   const allowedCount = chats.filter((c) => c.status === 'allowed').length;
 
   return (
@@ -188,40 +184,16 @@ export function TelegramBotSection({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      {/* Pending pairing requests — approve a DM without copying a code. */}
-      {pending.length > 0 && (
-        <div className="space-y-1.5 rounded-md border border-warning/40 bg-warning/5 p-2">
-          <p className="text-xs font-medium text-warning-ink">
-            Pairing request{pending.length === 1 ? '' : 's'} — someone DM&apos;d this bot
-          </p>
-          {pending.map((c) => (
-            <div key={c.id} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {c.label}{' '}
-                <code className="text-[11px] text-muted-foreground">{c.telegramChatId}</code>
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setChatStatus(c.id, 'allowed')}
-                disabled={busyChat === c.id}
-                aria-describedby={pairError ? PAIR_ERROR_ID : undefined}
-              >
-                {busyChat === c.id && <Loader2 className="animate-spin" aria-hidden />}
-                Approve
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setChatStatus(c.id, 'denied')}
-                disabled={busyChat === c.id}
-              >
-                Block
-              </Button>
-            </div>
-          ))}
-          <FieldError id={PAIR_ERROR_ID}>{pairError}</FieldError>
+      {/* The bot's chats, for the people who moderate it: Block, Unpair or
+          Unblock. Never Approve: a chat's own user pairs it, with its code. */}
+      {binding && chats.length > 0 && (
+        <TelegramChatRows chats={chats} busyId={busyChat} onAction={moderate} />
+      )}
+
+      {/* The signed-in user pairs their own chat on this bot. */}
+      {binding && (
+        <div className="rounded-md border border-border p-3">
+          <TelegramPairForm onPaired={() => void load()} />
         </div>
       )}
 

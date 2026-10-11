@@ -1,4 +1,4 @@
-import { Layers, Link2, Power } from 'lucide-react';
+import { Layers, Link2, Power, Send } from 'lucide-react';
 import {
   NAV_GROUPS as SHARED_NAV_GROUPS,
   navItemMatches,
@@ -59,6 +59,12 @@ export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item
     group: 'Settings',
     after: '/settings/workspaces',
     item: { name: 'Shared links', href: '/settings/shared-links', icon: Link2 },
+  },
+  {
+    // Telegram per user (W7d): pair your own chat, list your own chats.
+    group: 'Settings',
+    after: '/settings/api-access',
+    item: { name: 'Telegram', href: '/settings/telegram', icon: Send },
   },
 ];
 

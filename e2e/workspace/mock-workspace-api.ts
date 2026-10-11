@@ -522,6 +522,10 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     }
     // Every login's own chats (W7c): no unread replies in the mock.
     if (path === '/api/assistant/conversations') return json(res, 200, { conversations: [] });
+    // Telegram per user (W7d): no chats paired, none moderated.
+    if (path === '/api/telegram/my-chats' || path === '/api/telegram/moderated-chats') {
+      return json(res, 200, { chats: [] });
+    }
     // The brain's gates (W6b): a member keeps its own /api/member/* routes; a
     // member or a client uses the owner routes the brain opened to it; an
     // admin every owner route.

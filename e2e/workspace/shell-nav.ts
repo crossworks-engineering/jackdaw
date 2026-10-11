@@ -85,9 +85,13 @@ export const MEMBER_OPEN: readonly RegExp[] = [
   rx('GET', `/api/formulas/${ID}`),
   rx('GET', `/api/files/(files|folders)`),
   rx('GET', `/api/files/folders/${ID}`),
-  // W6b fix round: a file's detail and text (its bytes stay on the member
-  // route; ?raw and ?thumb answer 401 here).
+  // A file's detail and text, and since W7e its bytes (?raw, ?thumb) and a
+  // drawing's SVG, in the login's own scope.
   rx('GET', `/api/files/files/${ID}`),
+  rx('GET', `/api/draws/${ID}/svg`),
+  // The app runner (W7e).
+  rx('POST', `/api/apps/${ID}/(frame-ticket|db-broker|tool-broker)`),
+  rx('GET', `/api/apps/${ID}/frame`),
   // Writes.
   rx('POST', `/api/(pages|notes|draws|tables|apps|files/files|files/folders)`),
   rx('(PATCH|DELETE)', `/api/(pages|notes|draws|tables|apps|files/files|files/folders)/${ID}`),
@@ -109,10 +113,17 @@ export const MEMBER_OPEN: readonly RegExp[] = [
   rx('GET', `/api/assistant/threads/${ID}`),
   rx('POST', `/api/assistant/(turn|threads|read|transcribe)`),
   rx('POST', `/api/assistant/threads/${ID}/(continue|summarize)`),
+  // Telegram per user (W7d): pair your own chat, your own chats, and the
+  // chats of the bots you moderate.
+  rx('GET', `/api/telegram/(my-chats|moderated-chats)`),
+  rx('POST', `/api/telegram/pair`),
+  rx('DELETE', `/api/telegram/my-chats/${ID}`),
+  rx('POST', `/api/telegram/chats/${ID}/(block|unpair)`),
 ];
 
-/** The paths a W6b, W7b or W7c brain answers 410: THE list the app's
- *  source guard reads too (client/web/lib/gone-routes.ts). */
+/** The paths a W6b or W7 brain answers 410, and the ones a W7e brain
+ *  deprecated: THE list the app's source guard reads too
+ *  (client/web/lib/gone-routes.ts). */
 export { GONE_ROUTE } from '../../client/web/lib/gone-routes';
 
 /** The requests (`METHOD /path`) that match none of `allowed`, where each

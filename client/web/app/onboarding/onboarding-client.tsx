@@ -1074,14 +1074,14 @@ function Wizard({
               </li>
               <li>Pick a name and username, then copy the token it gives you.</li>
               <li>
-                Paste the token below and connect — then DM your new bot and approve the pairing
-                request that appears here.
+                Paste the token below and connect. Then message your new bot: it answers with a
+                pairing code. Enter the code here to pair the chat to you.
               </li>
             </ol>
             {(provisionedAgentId ?? assistantAgentId) ? (
-              // Same connect → pair → manage flow as /settings/agents, bound to
-              // the assistant. The bot starts polling on connect, so a DM shows
-              // up as a pending pairing request (this section polls every 10s).
+              // Same connect, pair and manage flow as /settings/agents, bound to
+              // the assistant. The bot starts polling on connect; a DM gets a
+              // pairing code the signed-in user enters here (W7d).
               <TelegramBotSection agentId={(provisionedAgentId ?? assistantAgentId)!} />
             ) : (
               <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">

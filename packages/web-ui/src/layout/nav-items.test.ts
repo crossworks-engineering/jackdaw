@@ -77,6 +77,14 @@ describe('nav items this client adds before the shared list names them', () => {
     expect(matchNavItem('/settings/api-access')?.name).toBe('API access');
   });
 
+  it('Settings > Telegram is in the Settings group, once, right after API access (W7d)', () => {
+    const settings = NAV_GROUPS.find((g) => g.label === 'Settings')!;
+    const list = settings.items.map((i) => i.href);
+    expect(list.filter((h) => h === '/settings/telegram')).toHaveLength(1);
+    expect(list[list.indexOf('/settings/api-access') + 1]).toBe('/settings/telegram');
+    expect(matchNavItem('/settings/telegram')?.name).toBe('Telegram');
+  });
+
   const groups: NavGroup[] = [
     {
       label: 'Settings',

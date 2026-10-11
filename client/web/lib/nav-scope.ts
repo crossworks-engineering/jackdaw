@@ -65,6 +65,7 @@ const SETTINGS_HREFS = new Set([
   // What they can reach.
   '/settings/mcp',
   '/settings/api-access',
+  '/settings/telegram',
   '/settings/tools',
   '/settings/tool-groups',
   '/settings/skills',

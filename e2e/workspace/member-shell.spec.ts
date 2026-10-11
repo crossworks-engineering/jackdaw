@@ -64,7 +64,7 @@ test('the rail: the work screens and Workspaces, flat, no scope choice and no Ad
 }) => {
   await signIn(page, 'member');
   const nav = await wholeNav(page, 'member');
-  for (const name of [...WORK_ROWS, 'Workspaces']) {
+  for (const name of [...WORK_ROWS, 'Workspaces', 'Telegram']) {
     await expect(nav.getByRole('link', { name, exact: true }), name).toBeVisible();
   }
   for (const name of ADMIN_ROWS) {
