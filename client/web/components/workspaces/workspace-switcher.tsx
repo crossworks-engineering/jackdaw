@@ -21,8 +21,10 @@ import {
   ALL_WORKSPACES_LABEL,
   switcherNote,
   currentWorkspaceLabel,
+  isPrivateWorkspace,
   resolveCurrentWorkspace,
   sortWorkspaces,
+  workspaceLabel,
   type ShellWorkspace,
 } from '@/lib/workspaces';
 import { useCurrentWorkspace } from '@/lib/workspace-current';
@@ -30,13 +32,18 @@ import { useShellWorkspaces } from './use-shell-workspaces';
 
 export type SwitcherOption = { value: string; label: string; hint: string | null };
 
-/** The menu's choices, top to bottom: All my workspaces, then each workspace
- *  (Admin first, then by name), each Moderator one marked. */
+/** The menu's choices, top to bottom: All my workspaces, the login's private
+ *  workspace ("Only you", W6b: unmarked, it is always the login's own), then
+ *  each other workspace (Admin first, then by name), each Moderator one
+ *  marked. */
 export function switcherOptions(workspaces: readonly ShellWorkspace[]): SwitcherOption[] {
   const sorted = sortWorkspaces(workspaces.map((w) => ({ ...w, archived: false })));
+  const own = sorted.filter(isPrivateWorkspace);
+  const rest = sorted.filter((w) => !isPrivateWorkspace(w));
   return [
     { value: ALL_WORKSPACES, label: ALL_WORKSPACES_LABEL, hint: null },
-    ...sorted.map((w) => ({ value: w.id, label: w.name, hint: w.moderator ? 'Moderator' : null })),
+    ...own.map((w) => ({ value: w.id, label: workspaceLabel(w), hint: null })),
+    ...rest.map((w) => ({ value: w.id, label: w.name, hint: w.moderator ? 'Moderator' : null })),
   ];
 }
 

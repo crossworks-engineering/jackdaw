@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { shellProbeFailure } from '@/lib/shell-probe';
 import { goesToOnboarding, hasArea, shellAreasOf, shellRoleOf } from '@/lib/workspaces';
+import { CreateWorkspaceSync } from '@/components/workspaces/create-workspace-sync';
 import type { Shell } from '@/lib/contract/shell';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -713,6 +714,8 @@ function ShellFrame({
             an "Answer" action that opens the assistant. Renders nothing. */}
         {manages ? <PendingQuestionWatcher /> : null}
         <DesktopBridge />
+        {/* A create names the switcher's workspace (W6b). */}
+        <CreateWorkspaceSync />
 
         {/* Upload dock — floats in the bottom-right corner of the content area,
             which now runs to the bottom of the window. Inside the shell so it

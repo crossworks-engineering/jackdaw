@@ -29,6 +29,9 @@ import {
   userSearchPaged,
   userSearchMin,
   currentWorkspaceLabel,
+  isPrivateWorkspace,
+  PRIVATE_WORKSPACE_LABEL,
+  workspaceLabel,
   hasArea,
   isAdminUserShell,
   shellRoleOf,
@@ -468,9 +471,18 @@ describe('lists', () => {
 
 describe('the switcher choice', () => {
   const list = [
-    { id: 'a', name: 'Admin' },
-    { id: 't', name: 'Team' },
+    { id: 'a', name: 'Admin', isAdmin: true },
+    { id: 't', name: 'Team', isAdmin: false },
+    { id: 'p', name: 'Mo Member (only you)', isAdmin: false },
   ];
+
+  it('calls the private workspace Only you (W6b)', () => {
+    expect(currentWorkspaceLabel('p', list)).toBe(PRIVATE_WORKSPACE_LABEL);
+    expect(isPrivateWorkspace({ name: 'Mo (Only You)', isAdmin: false })).toBe(true);
+    expect(isPrivateWorkspace({ name: 'Team', isAdmin: false })).toBe(false);
+    expect(isPrivateWorkspace({ name: 'x (only you)', isAdmin: true })).toBe(false);
+    expect(workspaceLabel({ name: 'Team', isAdmin: false })).toBe('Team');
+  });
 
   it('keeps a stored workspace the login is still in', () => {
     expect(resolveCurrentWorkspace('t', list)).toBe('t');

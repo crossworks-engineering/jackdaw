@@ -33,6 +33,33 @@ describe('switcherOptions', () => {
   });
 });
 
+describe('the private workspace (W6b)', () => {
+  const withPrivate = [
+    ...WORKSPACES,
+    { id: 'p', name: 'Mo Member (only you)', isAdmin: false, moderator: true },
+  ];
+
+  it('is "Only you", right after All, with no Moderator mark', () => {
+    expect(switcherOptions(withPrivate).slice(0, 3)).toEqual([
+      { value: ALL_WORKSPACES, label: ALL_WORKSPACES_LABEL, hint: null },
+      { value: 'p', label: 'Only you', hint: null },
+      { value: 'a', label: 'Admin', hint: 'Moderator' },
+    ]);
+  });
+
+  it('the button says Only you when it is picked', () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkspaceSwitcherView, {
+        variant: 'rail',
+        workspaces: withPrivate,
+        current: 'p',
+        onChange: () => {},
+      }),
+    );
+    expect(html).toContain('aria-label="Workspace: Only you"');
+  });
+});
+
 describe('WorkspaceSwitcherView', () => {
   it('the rail button names the current workspace', () => {
     const html = renderToStaticMarkup(

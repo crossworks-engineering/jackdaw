@@ -191,19 +191,49 @@ export function bounceToLogin(): void {
   void runSessionFlushes().then(go, go);
 }
 
+/** Rewrites a request path before it is sent (the app registers one: a
+ *  create names the switcher's workspace, workspaces W6b). */
+export type PathRewrite = (path: string, method: string) => string;
+
+let pathRewrite: PathRewrite | null = null;
+
+/** Register the app's path rewrite (null: none). */
+export function setPathRewrite(rewrite: PathRewrite | null): void {
+  pathRewrite = rewrite;
+}
+
+/** `path` as apiFetch sends it for `method`. */
+export function rewritePath(path: string, method = 'GET'): string {
+  return pathRewrite ? pathRewrite(path, method.toUpperCase()) : path;
+}
+
 /** Fetch a JSON resource, returning the parsed body or throwing `ApiError`. */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${apiBaseValue()}${path}`, withAuth(init));
+  const sent = rewritePath(path, init?.method ?? 'GET');
+  const res = await fetch(`${apiBaseValue()}${sent}`, withAuth(init));
   if (isAuthFailure(res)) {
     bounceToLogin();
     throw new ApiError('unauthorized', 401);
   }
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    const msg = typeof body.error === 'string' ? body.error : `${res.status} ${res.statusText}`;
-    throw new ApiError(msg, res.status, body);
-  }
+  if (!res.ok) throw new ApiError(errorMessageOf(body, res), res.status, body);
   return body as T;
+}
+
+/**
+ * The words an error body gives the user. A refusal of the session guard is
+ * `{ error: 'forbidden', reason, message }` (workspaces W6b: 403
+ * item-workspace, 403 workspace): `error` is a code there, so the brain's
+ * `message` is shown. Every other body keeps its `error` text.
+ */
+export function errorMessageOf(
+  body: Record<string, unknown>,
+  res: Pick<Response, 'status' | 'statusText'>,
+): string {
+  if (body.error === 'forbidden' && typeof body.message === 'string' && body.message) {
+    return body.message;
+  }
+  return typeof body.error === 'string' ? body.error : `${res.status} ${res.statusText}`;
 }
 
 /**

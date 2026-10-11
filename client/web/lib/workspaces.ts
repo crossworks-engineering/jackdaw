@@ -446,12 +446,32 @@ export function resolveCurrentWorkspace(
   return ALL_WORKSPACES;
 }
 
+/** The end of a private workspace's name (W6b: the brain names it
+ *  "<name> (only you)"; the login is its only user and its Moderator). The
+ *  shell sends no flag for it, so the name is the one sign. */
+export const PRIVATE_WORKSPACE_SUFFIX = '(only you)';
+
+/** What the switcher calls the login's private workspace. */
+export const PRIVATE_WORKSPACE_LABEL = 'Only you';
+
+/** Whether this is the login's private workspace (where its own work lands
+ *  when it names no other: the "Mine" of before W6b). */
+export function isPrivateWorkspace(w: Pick<ShellWorkspace, 'name' | 'isAdmin'>): boolean {
+  return !w.isAdmin && w.name.trim().toLowerCase().endsWith(PRIVATE_WORKSPACE_SUFFIX);
+}
+
+/** A workspace's name in the switcher: "Only you" for the private one. */
+export function workspaceLabel(w: Pick<ShellWorkspace, 'name' | 'isAdmin'>): string {
+  return isPrivateWorkspace(w) ? PRIVATE_WORKSPACE_LABEL : w.name;
+}
+
 /** What the switcher's button says. */
 export function currentWorkspaceLabel(
   current: string,
-  workspaces: readonly Pick<ShellWorkspace, 'id' | 'name'>[],
+  workspaces: readonly Pick<ShellWorkspace, 'id' | 'name' | 'isAdmin'>[],
 ): string {
-  return workspaces.find((w) => w.id === current)?.name ?? ALL_WORKSPACES_LABEL;
+  const ws = workspaces.find((w) => w.id === current);
+  return ws ? workspaceLabel(ws) : ALL_WORKSPACES_LABEL;
 }
 
 /** The shell's workspaces, as far as this client can read them: [] for a

@@ -43,6 +43,7 @@ import {
 } from '@/lib/upload-progress';
 import type { ClashVerdict } from '@/lib/upload-progress';
 import { UploadAbortedError, UploadHttpError, xhrUpload } from '@/lib/xhr-upload';
+import { withCreateWs } from '@/lib/create-workspace';
 
 /**
  * App-wide background file uploader. Lives in the persistent app shell so a
@@ -208,7 +209,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       );
       const token = tokenStore.get();
       await xhrUpload({
-        url: `${runtimeApiBase()}/api/files/files`,
+        url: `${runtimeApiBase()}${withCreateWs('/api/files/files')}`,
         form,
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         // Same rule as apiFetch: cookie on same-origin, bearer only across origins.
