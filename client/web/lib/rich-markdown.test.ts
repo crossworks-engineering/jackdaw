@@ -196,7 +196,7 @@ describe('links and pictures in a reply (W7f)', () => {
     expect(html).toContain('data-node-id="f-1"');
   });
 
-  it('anyone else: another origin, data: and media: pictures read as their alt text', () => {
+  it('anyone else: another origin, data: and malformed media: pictures read as their alt text', () => {
     const html = richMarkdownToHtml(
       [
         '![external chart](https://x/y.png)',
@@ -215,6 +215,20 @@ describe('links and pictures in a reply (W7f)', () => {
     }
     // The standalone marker's alt sits in a paragraph, not loose.
     expect(html).toContain('<p>the gantry</p>');
+  });
+
+  it('anyone else: media: and draw: pictures of real ids show from the owner byte routes (W7e)', () => {
+    const FILE = '0b6f2a52-3c1d-4e5f-8a9b-0c1d2e3f4a5b';
+    const DRAW = '7d1e2f30-4a5b-4c6d-9e7f-8091a2b3c4d5';
+    const html = richMarkdownToHtml(
+      [`![the gantry](media:${FILE})`, '', `Open ![a drawing](draw:${DRAW}) here.`].join('\n'),
+      { adminUser: false },
+    );
+    expect(html).toContain(`<img src="/api/files/files/${FILE}?raw=1" data-node-id="${FILE}"`);
+    expect(html).toContain(`<img src="/api/draws/${DRAW}/svg?raw=1" data-draw-id="${DRAW}"`);
+    // The same routes written as a plain URL picture show too.
+    const url = richMarkdownToHtml(`![t](/api/files/files/${FILE}?thumb=1)`, { adminUser: false });
+    expect(url).toContain(`<img src="/api/files/files/${FILE}?thumb=1"`);
   });
 
   it('anyone else: a same-origin picture off the owner routes still shows', () => {

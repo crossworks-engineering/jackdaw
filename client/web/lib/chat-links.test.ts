@@ -77,18 +77,65 @@ describe('which pictures of a reply show', () => {
     expect(chatImageAllowed('data:image/png;base64,AAAA', true)).toBe(true);
   });
 
-  it('anyone else: same-origin pictures off the owner byte routes only', () => {
+  it('anyone else: same-origin pictures, the owner byte routes in their exact shape only', () => {
     expect(chatImageAllowed('/brand/logo.png', false)).toBe(true);
     expect(chatImageAllowed('https://cdn.example.test/a.png', false)).toBe(false);
     expect(chatImageAllowed('http://cdn.example.test/a.png', false)).toBe(false);
     expect(chatImageAllowed('//cdn.example.test/a.png', false)).toBe(false);
     expect(chatImageAllowed('/\\cdn.example.test/a.png', false)).toBe(false);
     expect(chatImageAllowed('data:image/png;base64,AAAA', false)).toBe(false);
-    // The owner byte routes answer a member 401.
+    // An id that is not one, or any other shape of the owner byte routes.
     expect(chatImageAllowed('/api/files/files/f-1?raw=1', false)).toBe(false);
     expect(chatImageAllowed('/api/draws/d-1/svg?raw=1', false)).toBe(false);
     expect(chatImageAllowed('/somewhere/x?raw', false)).toBe(false);
     expect(chatImageAllowed('', false)).toBe(false);
+  });
+
+  // W7e: the brain serves every login a file's bytes and a drawing's SVG on
+  // the owner routes, in its own scope (unreadable: 404).
+  const FILE = '0b6f2a52-3c1d-4e5f-8a9b-0c1d2e3f4a5b';
+  const DRAW = '7d1e2f30-4a5b-4c6d-9e7f-8091a2b3c4d5';
+
+  it('anyone else: a file or a drawing on the owner byte routes, in the one shape', () => {
+    expect(chatImageAllowed(`/api/files/files/${FILE}?raw=1`, false)).toBe(true);
+    expect(chatImageAllowed(`/api/files/files/${FILE}?thumb=1`, false)).toBe(true);
+    expect(chatImageAllowed(`/api/draws/${DRAW}/svg?raw=1`, false)).toBe(true);
+    expect(chatImageAllowed(`/api/files/files/${FILE.toUpperCase()}?raw=1`, false)).toBe(true);
+    // An entity before the query is refused, even one that spells the shape.
+    expect(chatImageAllowed(`&#47;api/files/files/${FILE}?raw=1`, false)).toBe(false);
+  });
+
+  it('anyone else: every other spelling of the owner byte routes is refused', () => {
+    for (const src of [
+      `/api/files/files/${FILE}`,
+      `/api/files/files/${FILE}?raw=1&x=2`,
+      `/api/files/files/${FILE}?raw=0`,
+      `/api/files/files/${FILE}?raw`,
+      `/api/files/files/${FILE}?download=1`,
+      `/api/files/files/${FILE}/x?raw=1`,
+      `/api/files/files/${FILE}?raw=1#x`,
+      `/api//files/files/${FILE}?raw=1`,
+      `/api/files/../files/files/${FILE}?raw=1`,
+      `/api/%66iles/files/${FILE}?raw=1`,
+      `/api/files/files/${FILE}%3Fraw=1`,
+      `/x/../api/files/files/${FILE}?raw=1`,
+      `/api/draws/${DRAW}/svg`,
+      `/api/draws/${DRAW}/svg?raw=1&y=1`,
+      `/api/draws/${DRAW}?raw=1`,
+      `/api/draws/${DRAW}/svg?thumb=1`,
+      `/api/files/files/${FILE}?raw=1/../../x`,
+      // Never another origin, whatever the path.
+      `https://evil.example.test/api/files/files/${FILE}?raw=1`,
+      `//evil.example.test/api/files/files/${FILE}?raw=1`,
+      `&#47;&#47;evil.example.test/api/files/files/${FILE}?raw=1`,
+      `/\\evil.example.test/api/files/files/${FILE}?raw=1`,
+      `data:image/svg+xml,<svg/>`,
+      // An entity before the query is refused outright.
+      `/api/files/files/${FILE}&#63;raw=1`,
+      `/api&#47;files/files/${FILE}?raw=1`,
+    ]) {
+      expect(chatImageAllowed(src, false), src).toBe(false);
+    }
   });
 });
 
@@ -153,6 +200,9 @@ describe('entities and escapes cannot hide a URL (W7f fix round 2)', () => {
   });
 });
 
+const FILE_ID = '0b6f2a52-3c1d-4e5f-8a9b-0c1d2e3f4a5b';
+const DRAW_ID = '7d1e2f30-4a5b-4c6d-9e7f-8091a2b3c4d5';
+
 describe('the last pass over the parsed document', () => {
   const doc = (content: ChatDocNode[]): ChatDocNode => ({ type: 'doc', content });
   const linked = (href: string): ChatDocNode => ({
@@ -179,6 +229,13 @@ describe('the last pass over the parsed document', () => {
       image({ src: '/brand/logo.png', nodeId: 'f-1', alt: 'file' }),
       image({ src: '/brand/logo.png', drawId: 'd-1', alt: 'drawing' }),
       image({ src: '/brand/logo.png', alt: 'logo' }),
+      // W7e: a real file or drawing id renders from its owner byte route.
+      image({ src: 'https://evil.example.test/x.png', nodeId: FILE_ID, alt: 'f' }),
+      image({ src: '/brand/logo.png', drawId: DRAW_ID, alt: 'd' }),
+      // The drawing wins (it is what renders): a bad drawing id is refused
+      // even beside a good file id.
+      image({ nodeId: FILE_ID, drawId: '../x', alt: 'both' }),
+      image({ nodeId: `${FILE_ID}?x=1`, alt: 'spliced' }),
     ]);
     const out = sanitizeChatDoc(input, false);
     expect(out.content).toEqual([
@@ -187,6 +244,10 @@ describe('the last pass over the parsed document', () => {
       { type: 'paragraph', content: [{ type: 'text', text: 'file' }] },
       { type: 'paragraph', content: [{ type: 'text', text: 'drawing' }] },
       { type: 'image', attrs: { src: '/brand/logo.png', alt: 'logo' } },
+      input.content![5],
+      input.content![6],
+      { type: 'paragraph', content: [{ type: 'text', text: 'both' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'spliced' }] },
     ]);
     // An Admin user keeps every picture.
     expect(sanitizeChatDoc(input, true).content).toEqual(input.content);

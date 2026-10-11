@@ -7,9 +7,12 @@
  *    relative link resolves to this origin, so it is http(s) too); any other
  *    scheme (javascript:, data:, media:, page:, ...) renders as its text;
  *  - a login that is not an Admin user: a picture shows only from this
- *    origin, and never an owner byte route (`?raw`, /api/files, /api/draws:
- *    the brain answers a member 401 there). Anything else renders as its alt
- *    text.
+ *    origin. An owner byte route shows only in its one exact shape (W7e: the
+ *    brain serves every login its bytes there, in its own scope): a file's
+ *    `/api/files/files/<uuid>?raw=1` or `?thumb=1`, a drawing's
+ *    `/api/draws/<uuid>/svg?raw=1`. Any other spelling of those routes
+ *    (escapes, dot segments, another query) and any other `?raw` is refused.
+ *    Anything refused renders as its alt text.
  *
  * Every check reads the URL the browser will read: HTML entities decoded
  * first (`&#106;avascript:` is javascript:, `&#47;&#47;host` is another
@@ -151,8 +154,32 @@ export function chatLinkAction(href: string, origin: string): ChatLinkAction {
   return { kind: 'open', href: url.href };
 }
 
-/** Owner byte routes a login that is not an Admin user cannot read. */
+/** The owner byte routes. Only their exact shapes below show for a login
+ *  that is not an Admin user. */
 const OWNER_BYTES = /^\/api\/(?:files|draws)(?:\/|$)/i;
+
+/** A file or drawing id as the brain mints it. */
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const UUID_RE = new RegExp(`^${UUID}$`, 'i');
+
+/** The exact owner byte shapes a login that is not an Admin user may show
+ *  (W7e): a file's bytes or thumbnail, a drawing's SVG. Matched against the
+ *  src as written (after entities), so an escape, a dot segment, a second
+ *  slash or any other query is not one of them. */
+const OWNER_BYTE_SHAPES = [
+  new RegExp(`^/api/files/files/${UUID}\\?(?:raw|thumb)=1$`, 'i'),
+  new RegExp(`^/api/draws/${UUID}/svg\\?raw=1$`, 'i'),
+];
+
+/** Whether a normalised same-origin src is one of the owner byte shapes. */
+export function isOwnerByteShape(normalised: string): boolean {
+  return OWNER_BYTE_SHAPES.some((re) => re.test(normalised));
+}
+
+/** Whether a file or drawing id is one the owner byte routes take as is. */
+export function isAssetId(id: unknown): id is string {
+  return typeof id === 'string' && UUID_RE.test(id);
+}
 
 /** A base no reply can name, to resolve a relative src against. */
 const PROBE_ORIGIN = 'http://chat-src.invalid';
@@ -191,7 +218,8 @@ function reachesOwnerBytes(pathname: string): boolean {
 }
 
 /** Whether a reply's picture shows for this login: any for an Admin user;
- *  for anyone else only a same-origin one that is not an owner byte route. */
+ *  for anyone else only a same-origin one, and of the owner byte routes only
+ *  their exact shapes (isOwnerByteShape). */
 export function chatImageAllowed(src: string | null | undefined, adminUser: boolean): boolean {
   if (typeof src !== 'string' || !src.trim()) return false;
   if (adminUser) return true;
@@ -202,6 +230,9 @@ export function chatImageAllowed(src: string | null | undefined, adminUser: bool
   const s = normaliseChatUrl(src);
   // Another origin (`https://`, `//host`, `data:`, any scheme): not shown.
   if (schemeOf(s) !== null || s.startsWith('//')) return false;
+  // A file's bytes or a drawing's SVG, in the one shape the brain serves
+  // every login in its scope (W7e).
+  if (isOwnerByteShape(s)) return true;
   let url: URL;
   try {
     url = new URL(s, PROBE_ORIGIN);
@@ -222,11 +253,14 @@ export type ChatDocNode = {
   text?: string;
 };
 
-/** Whether an image node may render for this login. One carrying a file or
- *  drawing id renders from an owner byte route whatever its src says. */
+/** Whether an image node may render for this login. One carrying a drawing
+ *  or a file id renders from that owner byte route whatever its src says
+ *  (components/page-editor/image.ts, the drawing first): it shows only when
+ *  that id is one (a file id is spliced into the path unescaped). */
 function docImageAllowed(attrs: Record<string, unknown> | undefined, adminUser: boolean): boolean {
   if (adminUser) return true;
-  if (attrs?.nodeId || attrs?.drawId) return false;
+  if (attrs?.drawId) return isAssetId(attrs.drawId);
+  if (attrs?.nodeId) return isAssetId(attrs.nodeId);
   return chatImageAllowed(typeof attrs?.src === 'string' ? attrs.src : null, adminUser);
 }
 
