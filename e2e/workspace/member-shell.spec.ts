@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  COPY,
+  FILE,
   PAGES,
   WORKSPACES,
   signIn,
@@ -208,4 +210,77 @@ test('a member that types /onboarding lands on the home', async ({ page }) => {
   await expect(page).toHaveURL((u) => u.pathname === '/');
   expect(api.asked('member')).not.toContain('GET /api/onboarding');
   expect(beyondMember(api.asked('member'))).toEqual([]);
+});
+
+/** The item tree row menu of a page, by its title. */
+async function rowMenu(page: Page, title: string) {
+  await page.getByRole('button', { name: `More actions for ${title}` }).click();
+  return page.getByRole('menu');
+}
+
+test('the item caps: a Team page moves and deletes; a read page and a snapshot copy do not move', async ({
+  page,
+}) => {
+  await signIn(page, 'member');
+  await page.goto('/pages');
+  const main = page.getByRole('main');
+  await expect(main.getByText(COPY.title, { exact: true })).toBeVisible();
+
+  // Team: the member is a Moderator there (mayEdit, mayManage).
+  let menu = await rowMenu(page, PAGES.handbook.title);
+  await expect(menu.getByRole('menuitem', { name: 'Move to…' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Delete…' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // Field crew: the member only reads (no mayEdit, no mayManage).
+  menu = await rowMenu(page, PAGES.survey.title);
+  await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Move to…' })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: 'Delete…' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // The snapshot copy: read only, never moved; its author deletes it.
+  menu = await rowMenu(page, COPY.title);
+  await expect(menu.getByRole('menuitem', { name: 'Move to…' })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: 'Delete…' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // The read page: no Edit, no Grant Access, no Delete, and the note.
+  await main.getByText(PAGES.survey.title, { exact: true }).click();
+  const header = page.getByTestId('item-header');
+  await expect(header.getByText(PAGES.survey.title)).toBeVisible();
+  await expect(page.getByText('You can read this item. You cannot change it.')).toBeVisible();
+  await expect(header.getByRole('link', { name: 'Edit' })).toHaveCount(0);
+  await expect(header.getByRole('button', { name: 'Delete page' })).toHaveCount(0);
+
+  // The copy: the copy note and Delete, no Edit.
+  await main.getByText(COPY.title, { exact: true }).click();
+  await expect(header.getByText(COPY.title)).toBeVisible();
+  await expect(page.getByText(/This is your copy of an item that was accepted/)).toBeVisible();
+  await expect(header.getByRole('link', { name: 'Edit' })).toHaveCount(0);
+  await expect(header.getByRole('button', { name: 'Delete page' })).toBeVisible();
+
+  // The Team page: Edit and Delete.
+  await main.getByText(PAGES.handbook.title, { exact: true }).click();
+  await expect(header.getByText(PAGES.handbook.title)).toBeVisible();
+  await expect(header.getByRole('link', { name: 'Edit' })).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Delete page' })).toBeVisible();
+  expect(beyondMember(api.asked('member'))).toEqual([]);
+});
+
+test('a /n link to a file opens it in its folder, read from the owner file route', async ({
+  page,
+}) => {
+  await signIn(page, 'member');
+  await page.goto(`/n/${FILE.id}`);
+  await expect(page).toHaveURL(
+    (u) =>
+      u.pathname === '/files' &&
+      u.searchParams.get('file') === FILE.id &&
+      u.searchParams.get('path') === FILE.parentPath,
+  );
+  await expect(page.getByTestId('item-header').getByText(FILE.filename)).toBeVisible();
+  const asked = api.asked('member');
+  expect(asked).toContain(`GET /api/files/files/${FILE.id}`);
+  expect(beyondMember(asked)).toEqual([]);
 });

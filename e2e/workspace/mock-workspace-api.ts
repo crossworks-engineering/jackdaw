@@ -65,7 +65,8 @@ export const WORKSPACES = {
   board: { id: 'd3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3', name: 'Board room' },
   desk: { id: 'e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4', name: 'Client desk' },
   /** The member's private workspace (W6b): the brain names it "<name> (only
-   *  you)"; the switcher calls it Only you. */
+   *  you)" and the shell marks it `private: true` (fix round); the switcher
+   *  calls it Only you by the mark. */
   own: { id: 'f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5', name: 'Mo Member (only you)' },
 } as const;
 type WorkspaceKey = keyof typeof WORKSPACES;
@@ -107,6 +108,23 @@ export const PAGES = {
   },
 } as const satisfies Record<string, { id: string; title: string; ws: WorkspaceKey }>;
 
+/** The member's snapshot copy of an accepted page (W6b): read only, in its
+ *  private workspace (no other login reads it); the member may delete it. */
+export const COPY = {
+  id: '88888888-8888-4888-8888-888888888888',
+  title: 'My accepted rota',
+  ws: 'own',
+  snapshotOf: PAGES.handbook.id,
+} as const satisfies { id: string; title: string; ws: WorkspaceKey; snapshotOf: string };
+
+/** A file in the brain the member reads (Team), for the /n link spec. */
+export const FILE = {
+  id: '66666666-6666-4666-8666-666666666666',
+  filename: 'rota.md',
+  parentPath: 'files/crew',
+  content: 'Monday: Mo.',
+} as const;
+
 const ALL_AREAS = ['settings', 'users', 'assistants', 'connectors', 'keys'];
 /** The kinds the tree serves, by the tree's own name (a member's and a
  *  client's: the brain's reader kinds). */
@@ -134,6 +152,9 @@ export type MockRequest = { method: string; path: string; query: string; role: R
 
 /** A page a spec made through POST /api/pages, and where the brain put it. */
 export type MockCreated = { id: string; title: string; ws: WorkspaceKey; role: Role };
+
+/** A page as the mock holds it (a created one, or one of PAGES). */
+type MockPage = { id: string; title: string; ws: WorkspaceKey; snapshotOf?: string };
 
 export type MockWorkspaceApi = {
   /** Every request, in order (CORS preflights left out). */
@@ -193,15 +214,13 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       name: WORKSPACES[ws].name,
       isAdmin: ws === 'admin',
       moderator,
+      ...(ws === 'own' ? { private: true as const } : {}),
     }));
   /** The pages a login reads (its workspaces; the admin is in all of
    *  them), narrowed to `ws` when a list names one. */
   const pagesOf = (role: Role, ws: string | null = null) => {
     const mine = new Set<WorkspaceKey>(MEMBERSHIP[role].map((m) => m.ws));
-    const all: { id: string; title: string; ws: WorkspaceKey }[] = [
-      ...Object.values(PAGES),
-      ...state.created,
-    ];
+    const all: MockPage[] = [...Object.values(PAGES), COPY, ...state.created];
     return all.filter((p) => mine.has(p.ws) && (!ws || WORKSPACES[p.ws].id === ws));
   };
   const keyOfWs = (id: string): WorkspaceKey | null =>
@@ -268,7 +287,19 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     sort: url.searchParams.get('sort') ?? 'name',
     nextCursor: null,
   });
-  const treeItem = (p: { id: string; title: string }) => ({
+  /** The caller's caps on a page (W6b fix round, ItemCaps): an admin may
+   *  do everything (the system pool); a member edits and manages in the
+   *  workspaces it moderates and only reads the rest. A snapshot copy is
+   *  read only for everyone; its author may delete it. */
+  const capsOf = (role: Role, p: MockPage) => {
+    if (role === 'admin') return { mayEdit: true, mayManage: true };
+    const mod = MEMBERSHIP[role].some((m) => m.ws === p.ws && m.moderator);
+    if (p.snapshotOf) {
+      return { mayEdit: false, mayManage: mod, readOnly: true, snapshotOf: p.snapshotOf };
+    }
+    return { mayEdit: mod, mayManage: mod };
+  };
+  const treeItem = (role: Role) => (p: MockPage) => ({
     id: p.id,
     title: p.title,
     icon: null,
@@ -277,6 +308,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     level: 'team',
     state: null,
     updatedAt: now,
+    ...capsOf(role, p),
   });
 
   /** A member's own routes kept in W6b (/api/member/*); true when it
@@ -302,7 +334,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     const treeM = /^\/api\/tree\/([a-z]+)(\/search)?$/.exec(path);
     if (treeM && method === 'GET') {
       const kind = treeM[1]!;
-      const items = kind === 'pages' ? pagesOf(role, ws).map(treeItem) : [];
+      const items = kind === 'pages' ? pagesOf(role, ws).map(treeItem(role)) : [];
       const echo = ws ? { ws } : {};
       if (treeM[2]) {
         const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
@@ -324,19 +356,88 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
       const id = `abcdef${String(n).padStart(2, '0')}-0000-4000-8000-000000000000`;
       const made: MockCreated = { id, title: body.title ?? 'Untitled', ws: home.ws, role };
       state.created.push(made);
-      return (json(res, 201, { page: pageRow(made) }), true);
+      return (json(res, 201, { page: pageRow(role, made) }), true);
     }
     const pageM = /^\/api\/pages\/([0-9a-f-]{36})$/.exec(path);
     if (pageM && method === 'GET') {
       const p = pagesOf(role).find((x) => x.id === pageM[1]);
       return (
-        p ? json(res, 200, { page: pageRow(p) }) : json(res, 404, { error: 'not found' }),
+        p ? json(res, 200, { page: pageRow(role, p) }) : json(res, 404, { error: 'not found' }),
+        true
+      );
+    }
+    // A /n link (GET /api/nodes/:id) and the Files screen: the member reads
+    // the file's detail on the owner route (W6b fix round, contract
+    // change 4); its bytes stay on /api/member/files/:id.
+    const nodeM = /^\/api\/nodes\/([0-9a-f-]{36})$/.exec(path);
+    if (nodeM && method === 'GET') {
+      const page = pagesOf(role).find((x) => x.id === nodeM[1]);
+      if (nodeM[1] === FILE.id && role !== 'client') {
+        return (json(res, 200, { node: { id: FILE.id, type: 'file' } }), true);
+      }
+      return (
+        page
+          ? json(res, 200, { node: { id: page.id, type: 'page', ...capsOf(role, page) } })
+          : json(res, 404, { error: 'not found' }),
+        true
+      );
+    }
+    if (path === '/api/files/folders' && method === 'GET') {
+      return (
+        json(res, 200, {
+          folders: [folderRow('files', 'Files'), folderRow(FILE.parentPath, 'crew')],
+        }),
+        true
+      );
+    }
+    if (path === '/api/files/files' && method === 'GET') {
+      const parent = url.searchParams.get('parent');
+      const files = parent === FILE.parentPath && role !== 'client' ? [fileRow()] : [];
+      return (json(res, 200, { files }), true);
+    }
+    if (path === `/api/files/files/${FILE.id}` && method === 'GET') {
+      if (url.searchParams.has('raw') || url.searchParams.has('thumb')) {
+        return (json(res, 401, { error: 'Unauthorized' }), true);
+      }
+      return (
+        role === 'client'
+          ? json(res, 404, { error: 'not found' })
+          : json(res, 200, { file: fileRow(), content: FILE.content }),
         true
       );
     }
     return false;
   };
-  const pageRow = (p: { id: string; title: string; ws: WorkspaceKey }) => ({
+  const folderRow = (p: string, title: string) => ({
+    id: `folder-${title}`,
+    path: p,
+    title,
+    slug: title.toLowerCase(),
+    description: '',
+    indexing: null,
+    childFolderCount: 0,
+    fileCount: p === FILE.parentPath ? 1 : 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+  /** The member reads the file through Team, where it is a Moderator. */
+  const fileRow = () => ({
+    id: FILE.id,
+    parentPath: FILE.parentPath,
+    filename: FILE.filename,
+    extension: 'md',
+    mimeType: 'text/markdown',
+    sizeBytes: FILE.content.length,
+    isText: true,
+    summary: null,
+    indexing: null,
+    indexingApplied: null,
+    createdAt: now,
+    updatedAt: now,
+    mayEdit: true,
+    mayManage: true,
+  });
+  const pageRow = (role: Role, p: MockPage) => ({
     id: p.id,
     title: p.title,
     icon: null,
@@ -351,6 +452,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     updatedAt: now,
     workspaces: [{ id: WORKSPACES[p.ws].id, name: WORKSPACES[p.ws].name }],
     hasLink: false,
+    ...capsOf(role, p),
   });
 
   /** The owner routes the admin's Users screen needs; true when it

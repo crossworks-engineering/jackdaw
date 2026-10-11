@@ -85,6 +85,9 @@ export const MEMBER_OPEN: readonly RegExp[] = [
   rx('GET', `/api/formulas/${ID}`),
   rx('GET', `/api/files/(files|folders)`),
   rx('GET', `/api/files/folders/${ID}`),
+  // W6b fix round: a file's detail and text (its bytes stay on the member
+  // route; ?raw and ?thumb answer 401 here).
+  rx('GET', `/api/files/files/${ID}`),
   // Writes.
   rx('POST', `/api/(pages|notes|draws|tables|apps|files/files|files/folders)`),
   rx('(PATCH|DELETE)', `/api/(pages|notes|draws|tables|apps|files/files|files/folders)/${ID}`),
