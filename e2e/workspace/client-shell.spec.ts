@@ -31,8 +31,8 @@ test('the plain home lists the client workspaces; Pages shows the empty state', 
   for (const ws of [WORKSPACES.team, WORKSPACES.field, WORKSPACES.board, WORKSPACES.admin]) {
     await expect(main.getByText(ws.name, { exact: true }), ws.name).toHaveCount(0);
   }
-  const nav = await wholeNav(page);
-  for (const name of WORK_ROWS) {
+  const nav = await wholeNav(page, 'client');
+  for (const name of [...WORK_ROWS, 'Workspaces']) {
     await expect(nav.getByRole('link', { name, exact: true }), name).toBeVisible();
   }
 

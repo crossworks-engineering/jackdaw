@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ItemCard, ItemCardAction, ItemIcon } from './item-card';
-import { StatePill, stateLabel, stateTitle, type ItemState } from './state-pill';
+import { StatePill, pillState, stateLabel, stateTitle, type ItemState } from './state-pill';
 import { mergeSortedRows } from './merge-rows';
 
 /**
@@ -60,19 +60,14 @@ describe('ItemCard', () => {
 });
 
 describe('StatePill', () => {
-  const states: ItemState[] = ['private', 'draft', 'submitted', 'returned', 'with-admin'];
+  const states: ItemState[] = ['private', 'draft'];
 
   it('says each state in plain words, lower case, like [private]', () => {
-    expect(states.map((st) => stateLabel(st))).toEqual([
-      'private',
-      'draft',
-      'submitted',
-      'rejected',
-      'with admin',
-    ]);
+    expect(states.map((st) => stateLabel(st))).toEqual(['private', 'draft']);
     for (const s of states) {
       const html = renderToStaticMarkup(createElement(StatePill, { state: s }));
       expect(html).toContain(`>${stateLabel(s)}<`);
+      expect(html).toContain(`data-state="${s}"`);
       expect(html).toContain('rounded-full');
       // Ink roles only: a status fill used as text can vanish on some themes.
       expect(html).not.toMatch(/text-(info|warning|destructive|success)(?!-ink)\b/);
@@ -80,9 +75,19 @@ describe('StatePill', () => {
   });
 
   it('has hover words for each state', () => {
-    expect(stateLabel('with-admin')).toBe('with admin');
-    expect(stateTitle('submitted')).toMatch(/admin/);
     expect(stateTitle('private')).toBe('Private: only you can see it');
+    expect(stateTitle('draft')).toBe('A draft shared with the team');
+  });
+
+  it('has no review pill (W5c): any other state shows as a draft', () => {
+    for (const s of ['submitted', 'returned', 'with-admin', 'something-new', '']) {
+      expect(pillState(s), s).toBe('draft');
+      expect(stateLabel(s)).toBe('draft');
+      const html = renderToStaticMarkup(createElement(StatePill, { state: s }));
+      expect(html).toContain('data-state="draft"');
+      expect(html).toContain('>draft<');
+      expect(html).not.toMatch(/submitted|rejected|with admin/);
+    }
   });
 });
 

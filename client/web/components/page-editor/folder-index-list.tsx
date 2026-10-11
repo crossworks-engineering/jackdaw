@@ -40,7 +40,7 @@ import { folderIndexFace } from './folder-index-face';
  * reads of the brain's by name. An admin reads the owner tree, a member its
  * tree; a client (no data routes in W5c) or a role not known yet shows nothing
  * but the label, and a folder the reader cannot see (404) says it is not
- * shared (folder-index-face.ts has the one exception, `quietHere`).
+ * shared.
  *
  * `folderId` null is "the folder this page sits in", resolved by the caller
  * (`here`): undefined here means the caller does not know it (a private
@@ -51,14 +51,9 @@ import { folderIndexFace } from './folder-index-face';
 export function FolderIndexList({
   folderId,
   hereFolderId,
-  quietHere = false,
 }: {
   folderId: string | null;
   hereFolderId: string | null | undefined;
-  /** The reader may well not hold the page's folder (a reviewer or a
-   *  teammate reading a draft in its author's own folder): a 404 on `here`
-   *  shows the label alone instead of "not shared with you". */
-  quietHere?: boolean;
 }) {
   const role = useShellRole();
   const source: TreeSource | null =
@@ -80,8 +75,6 @@ export function FolderIndexList({
     pending: page.isPending,
     failed: page.isError,
     notFound: page.error instanceof ApiError && page.error.status === 404,
-    fromHere: folderId === null,
-    quietHere,
     count: items.length,
   });
 

@@ -14,6 +14,8 @@ import {
   versionDetail,
 } from '@mantle/web-ui/version';
 import { useServerVersion } from '@/lib/server-version';
+import { hasArea } from '@/lib/workspaces';
+import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { JackdawBadge } from './rail/jackdaw-mark';
 import { MantleBadge } from './rail/mantle-mark';
 
@@ -36,6 +38,12 @@ import { MantleBadge } from './rail/mantle-mark';
  *
  * In the collapsed icon rail both lines give way to the megaphone, and the
  * pill becomes the same dot the nav badges use.
+ *
+ * /changelog reads the brain's changelog (GET /api/changelog), which the
+ * brain answers for an admin only: a login without the settings area (a
+ * member, a client) gets the Jackdaw line as plain text, with no link and
+ * no "What's new?" pill (lib/workspaces.ts PATH_AREAS keeps the screen the
+ * settings area's).
  */
 export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -63,49 +71,44 @@ export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
   }, []);
 
   const active = pathname === '/changelog' || pathname.startsWith('/changelog/');
+  const linked = hasArea(useViewerAreas(), 'settings');
 
   return (
     <div className="px-3 pb-3 group-data-[nav-collapsed=true]/shell:px-2">
-      <Link
-        href="/changelog"
-        onClick={onNavigate}
-        aria-current={active ? 'page' : undefined}
-        // Full build identity (version · sha · date) — this is the only place
-        // it surfaces since the header wordmark badge was removed.
-        title={`${versionDetail()} — changelog`}
-        className={cn(
-          'relative flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
-          active
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-            : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-        )}
-      >
-        <Megaphone
-          className="hidden size-4 shrink-0 group-data-[nav-collapsed=true]/shell:block"
-          aria-hidden
-        />
-        <JackdawBadge
-          className="size-4 shrink-0"
-          visibility="group-data-[nav-collapsed=true]/shell:hidden"
-        />
-        <span className="flex-1 truncate text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden">
-          Jackdaw {VERSION_LABEL}
-        </span>
-        {showWhatsNew && (
-          <>
-            <Badge className="h-5 px-2 text-[10px] group-data-[nav-collapsed=true]/shell:hidden">
-              What&apos;s new?
-            </Badge>
-            {/* Collapsed: a dot stands in for the pill. */}
-            <span
-              className="absolute right-1.5 top-1.5 hidden size-2 rounded-full bg-primary ring-2 ring-sidebar group-data-[nav-collapsed=true]/shell:block"
-              aria-hidden
-            />
-          </>
-        )}
-      </Link>
+      {linked ? (
+        <Link
+          href="/changelog"
+          onClick={onNavigate}
+          aria-current={active ? 'page' : undefined}
+          // Full build identity (version · sha · date): the only place it
+          // shows since the header wordmark badge was removed.
+          title={`Changelog: ${versionDetail()}`}
+          className={cn(
+            ROW,
+            active
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
+          )}
+        >
+          <JackdawLine />
+          {showWhatsNew && (
+            <>
+              <Badge className="h-5 px-2 text-[10px] group-data-[nav-collapsed=true]/shell:hidden">
+                What&apos;s new?
+              </Badge>
+              {/* Collapsed: a dot stands in for the pill. */}
+              <span
+                className="absolute right-1.5 top-1.5 hidden size-2 rounded-full bg-primary ring-2 ring-sidebar group-data-[nav-collapsed=true]/shell:block"
+                aria-hidden
+              />
+            </>
+          )}
+        </Link>
+      ) : (
+        <p title={versionDetail()} className={cn(ROW, 'text-muted-foreground')}>
+          <JackdawLine />
+        </p>
+      )}
       <p
         title="Mantle, the brain this interface talks to"
         className="flex items-center gap-2 px-3 pt-1 text-xs font-medium text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden"
@@ -114,5 +117,31 @@ export function ChangelogLink({ onNavigate }: { onNavigate?: () => void }) {
         <span className="truncate">Mantle {mantleVersion}</span>
       </p>
     </div>
+  );
+}
+
+/** The Jackdaw row's box, linked or not. */
+const ROW = cn(
+  'relative flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors',
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+  'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
+);
+
+/** This build: the megaphone in the icon rail, else the badge and version. */
+function JackdawLine() {
+  return (
+    <>
+      <Megaphone
+        className="hidden size-4 shrink-0 group-data-[nav-collapsed=true]/shell:block"
+        aria-hidden
+      />
+      <JackdawBadge
+        className="size-4 shrink-0"
+        visibility="group-data-[nav-collapsed=true]/shell:hidden"
+      />
+      <span className="flex-1 truncate text-muted-foreground group-data-[nav-collapsed=true]/shell:hidden">
+        Jackdaw {VERSION_LABEL}
+      </span>
+    </>
   );
 }

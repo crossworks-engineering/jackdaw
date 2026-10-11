@@ -13,7 +13,6 @@ import {
   reviewListPath,
   splitByReview,
   statusLabels,
-  unsavedBundleIds,
   type SpaceItemState,
   type SpaceSource,
 } from './member-space';
@@ -25,13 +24,11 @@ import type { AdminSpaceItemRow } from './contract/member';
  * client's side: an admin takes a submitted item into their own private
  * items, then accepts it or gives it back; the member meanwhile sees a
  * `with-admin` row and a 409 `with-admin` on every route of it. Plus the
- * bundle refusals of audit F04 (a `frozen` naming the submitted item, and
- * Submit's `unsaved-draft` naming items to save first).
+ * bundle refusal of audit F04 (a `frozen` naming the submitted item).
  */
 
 const OWN = '11111111-1111-4111-8111-111111111111';
 const HOLDER = '22222222-2222-4222-8222-222222222222';
-const CHILD = '33333333-3333-4333-8333-333333333333';
 
 const refusal = (reason: string, extra: Record<string, unknown> = {}, status = 409) =>
   new ApiError(`refused: ${reason}`, status, { reason, ...extra });
@@ -133,17 +130,6 @@ describe('the bundle refusals (audit F04)', () => {
     expect(frozenByOther('frozen', [], OWN)).toBeNull();
     expect(frozenByOther('not-draft', [HOLDER], OWN)).toBeNull();
     expect(frozenByOther('with-admin', [HOLDER], OWN)).toBeNull();
-  });
-
-  it('Submit’s unsaved-draft lists the bundle items to save, never the item itself', () => {
-    expect(unsavedBundleIds(refusal('unsaved-draft', { ids: [CHILD, HOLDER] }), OWN)).toEqual([
-      CHILD,
-      HOLDER,
-    ]);
-    expect(unsavedBundleIds(refusal('unsaved-draft', { ids: [OWN] }), OWN)).toEqual([]);
-    expect(unsavedBundleIds(refusal('unsaved-draft'), OWN)).toEqual([]);
-    expect(unsavedBundleIds(refusal('embed', { ids: [CHILD] }), OWN)).toEqual([]);
-    expect(unsavedBundleIds(new Error('x'), OWN)).toEqual([]);
   });
 });
 

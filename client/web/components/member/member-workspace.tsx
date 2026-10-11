@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
-import type { MemberItemRow } from '@/lib/contract/member';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -158,9 +157,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     if (pickedFolder && !treeFolder) setTreeFolder(null);
   }, [pickedFolder, treeFolder]);
   const sectionLists = useMemberSectionLists(kind);
-  // The state of the tree row last opened: an own draft an admin holds opens
-  // as such (audit F07), as its list row did.
-  const [treePick, setTreePick] = useState<{ id: string; withAdmin: boolean } | null>(null);
   const treeFileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
@@ -237,13 +233,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     }
   };
 
-  // The open item's row in a section, when it came from one: an own item
-  // with an admin opens as such.
-  const sectionRow: MemberItemRow | null = openId
-    ? (sectionLists
-        .flatMap((l) => l.rows)
-        .find((r) => r.id === openId && srcOf(r.source) === openSource) ?? null)
-    : null;
   const openKey = openId ? `${openSource}:${openId}` : null;
 
   const treeReady = serves === true && treeAdapter !== null && treeKind !== null && !treeGone;
@@ -298,7 +287,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
                 }
               : {})}
             onOpenItem={(item) => {
-              setTreePick({ id: item.id, withAdmin: item.state === 'with-admin' });
               setParams({ src: srcOfTreeItem(item), id: item.id });
             }}
             actions={
@@ -353,13 +341,9 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
       setParams({ id: null });
     }
   };
-  // An own item an admin took over (audit F07): the row says so, and the
-  // item view opens nothing of it.
-  const withAdmin =
-    sectionRow?.pill === 'with-admin' || (treePick?.id === openId && treePick.withAdmin);
   const detailPane = openId ? (
     openSource === 'mine' ? (
-      <MineItem key={openId} id={openId} onClose={close} withAdmin={withAdmin} />
+      <MineItem key={openId} id={openId} onClose={close} />
     ) : (
       <MemberReader
         key={`${openSource}:${openId}`}

@@ -169,20 +169,6 @@ export function canHoldSeveralLogins(): boolean {
   return typeof window !== 'undefined' && oneSlotVault() === null;
 }
 
-/**
- * Can this client hold a CLIENT login as one of its logins? Only the desktop
- * shell with per-login vault slots. A client login has no password; its
- * bearer comes from the brain's device sign-in (an emailed code), which the
- * brain refuses to any web page (it answers 403 `device-only` to a request
- * carrying `Origin` or `Sec-Fetch-*`), so a client's credential never sits
- * where page script in a browser could read it. The desktop shell talks to
- * its brain as a native client (it drops those headers, brain-fence.ts) and
- * keeps the bearer in the OS keychain. A browser keeps clients cookie-only.
- */
-export function canHoldClientLogins(): boolean {
-  return scopedVault() !== null;
-}
-
 /** The origin of the brain this page talks to: the configured API base, or the
  *  page's own origin on a same-origin box. */
 export function currentBrainOrigin(): string {

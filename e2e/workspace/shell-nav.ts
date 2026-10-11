@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 /** The workspace screens every login opens, as the nav names them. */
 export const WORK_ROWS = ['Pages', 'Notes', 'Files', 'Tables', 'Draw', 'Apps'] as const;
@@ -23,11 +23,22 @@ export const ADMIN_ROWS = [
   'Secrets',
 ] as const;
 
-/** The rail's nav, opened to every row the login may see (the Admin scope
- *  shows the whole menu, components/layout/sidebar-nav.tsx). */
-export async function wholeNav(page: Page) {
+/**
+ * The rail's nav, opened to every row the login may see. An admin picks the
+ * Admin scope (the whole menu, components/layout/sidebar-nav.tsx). A member
+ * or a client holds no settings area: it gets no Work / Settings / Admin
+ * choice at all, and its rows are all there, flat.
+ */
+export async function wholeNav(page: Page, role: 'admin' | 'member' | 'client') {
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  await nav.getByRole('radio', { name: 'Admin', exact: true }).click();
+  const scopes = nav.getByRole('group', { name: 'How much of the menu to show' });
+  if (role === 'admin') {
+    await nav.getByRole('radio', { name: 'Admin', exact: true }).click();
+  } else {
+    await expect(nav.getByRole('link', { name: 'Pages', exact: true })).toBeVisible();
+    await expect(scopes).toHaveCount(0);
+    await expect(nav.getByRole('radio')).toHaveCount(0);
+  }
   return nav;
 }
 

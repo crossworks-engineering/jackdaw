@@ -372,7 +372,6 @@ describe('desktop: admin, then a client login, then back', () => {
     const { onSignOut } = await import('./session-reset');
     const { tokenStore } = await import('./token-store');
 
-    expect(registry.canHoldClientLogins()).toBe(true);
     const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
     const client = registry.signInSession({
       email: 'client@example.com',
@@ -468,23 +467,10 @@ describe('desktop: admin, then a client login, then back', () => {
   });
 });
 
-describe('who can hold a client login', () => {
-  it('a browser cannot: its clients stay cookie-only', async () => {
+describe('the browser', () => {
+  it('can hold several logins', async () => {
     const { registry } = await fresh();
     expect(registry.canHoldSeveralLogins()).toBe(true);
-    expect(registry.canHoldClientLogins()).toBe(false);
-  });
-
-  it('a desktop shell from before per-login slots cannot', async () => {
-    stubWindow({ vault: true });
-    const { registry } = await fresh();
-    expect(registry.canHoldClientLogins()).toBe(false);
-  });
-
-  it('a desktop shell with per-login slots can', async () => {
-    stubDesktop(scopedVault());
-    const { registry } = await fresh();
-    expect(registry.canHoldClientLogins()).toBe(true);
   });
 });
 

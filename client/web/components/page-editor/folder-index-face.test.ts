@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { folderIndexFace } from './folder-index-face';
 
@@ -6,8 +8,6 @@ const base = {
   pending: false,
   failed: false,
   notFound: false,
-  fromHere: true,
-  quietHere: false,
   count: 2,
 };
 
@@ -23,24 +23,25 @@ describe('folderIndexFace', () => {
     expect(folderIndexFace({ ...base, pending: true })).toBe('loading');
   });
 
-  it('a folder the reader cannot open says so: the genuine case keeps its line', () => {
-    const hidden = { ...base, failed: true, notFound: true };
-    // `here`, where the reader should hold the folder (an own draft, a
-    // Library page).
-    expect(folderIndexFace(hidden)).toBe('not-shared');
-    // A folder named by id, whatever the view.
-    expect(folderIndexFace({ ...hidden, fromHere: false })).toBe('not-shared');
-    expect(folderIndexFace({ ...hidden, fromHere: false, quietHere: true })).toBe('not-shared');
+  it('a folder the reader cannot open says so', () => {
+    expect(folderIndexFace({ ...base, failed: true, notFound: true })).toBe('not-shared');
   });
 
-  it("a reviewer or a teammate reading a draft in its author's own folder gets the label alone", () => {
-    expect(
-      folderIndexFace({ ...base, failed: true, notFound: true, fromHere: true, quietHere: true }),
-    ).toBe('label');
-  });
-
-  it('any other failure is a failure, quiet or not', () => {
+  it('any other failure is a failure', () => {
     expect(folderIndexFace({ ...base, failed: true })).toBe('failed');
-    expect(folderIndexFace({ ...base, failed: true, quietHere: true })).toBe('failed');
+  });
+});
+
+describe('no quiet `here` (W5c: no teammate drafts, no reviewers)', () => {
+  it('the read-only views take no quietHere', () => {
+    for (const f of [
+      './folder-index-face.ts',
+      './folder-index-list.tsx',
+      './static-doc.tsx',
+      './page-view.tsx',
+    ]) {
+      const src = readFileSync(fileURLToPath(new URL(f, import.meta.url)), 'utf8');
+      expect(src, f).not.toContain('quietHere');
+    }
   });
 });

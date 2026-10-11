@@ -89,14 +89,7 @@ export const tokenStore = {
   },
   /** A sign-in succeeded: hold the bearer as a session of its own (or refresh
    *  the row this login already has) and make it the active one. */
-  signIn(login: {
-    email: string;
-    token: string;
-    /** Ignored (phase W5c: a held login is a login). Accepted until the
-     *  last caller that names one, the desktop client code sign-in, goes. */
-    role?: unknown;
-    loginId?: string | null;
-  }): void {
+  signIn(login: { email: string; token: string; loginId?: string | null }): void {
     if (!canStore()) return;
     try {
       signInSession({

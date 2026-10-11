@@ -19,8 +19,8 @@ import {
 import { useRealtime } from '@/components/realtime/use-realtime';
 import { activeNavHref } from '@/lib/nav-active';
 import { favoriteItems, useNavFavorites } from '@/lib/nav-favorites';
-import { NAV_SCOPES, scopeGroups, useNavScope } from '@/lib/nav-scope';
-import { navWithAreas } from '@/lib/workspaces';
+import { NAV_SCOPES, railGroups, useNavScope } from '@/lib/nav-scope';
+import { hasArea, navWithAreas } from '@/lib/workspaces';
 import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
 import {
   NAV_GROUPS,
@@ -69,6 +69,9 @@ export function SidebarNav({
   // Screens the login may not manage are not offered (plan 7.1: they hide by
   // the areas /api/shell names; a brain before W5a names none, so all show).
   const areas = useShellWorkspaces()?.areas;
+  // The Work / Settings / Admin choice is the settings area's (nav-scope.ts,
+  // railGroups): a member or a client sees what it may open, flat.
+  const scoped = hasArea(areas, 'settings');
   const groups: NavGroup[] = navWithAreas(NAV_GROUPS, areas).map((g) => ({
     ...g,
     items: g.items.map((item) =>
@@ -101,7 +104,7 @@ export function SidebarNav({
   //
   // Nothing has to be said about where a hit came from: results keep their
   // group heading, so a match under "System" is visibly outside Work.
-  const browseGroups = withFavorites(scopeGroups(groups, scope));
+  const browseGroups = withFavorites(railGroups(groups, scope, scoped));
   const searchGroups = withFavorites(groups);
 
   // Most-specific-wins rather than a per-item match: "Settings" at `/settings`
@@ -273,22 +276,25 @@ export function SidebarNav({
 
                 `type="single"` with no deselect: `onValueChange` fires with ''
                 when the pressed item is clicked again, and honouring that would
-                leave the sidebar in no scope at all. */}
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              value={scope}
-              onValueChange={(v) => v && setScope(v as typeof scope)}
-              aria-label="How much of the menu to show"
-              className="mt-2 grid w-full grid-cols-3"
-            >
-              {NAV_SCOPES.map((s) => (
-                <ToggleGroupItem key={s.id} value={s.id} className="text-xs">
-                  {s.label}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+                leave the sidebar in no scope at all. Only for a login that
+                manages the brain: the rest see their few screens flat. */}
+            {scoped ? (
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={scope}
+                onValueChange={(v) => v && setScope(v as typeof scope)}
+                aria-label="How much of the menu to show"
+                className="mt-2 grid w-full grid-cols-3"
+              >
+                {NAV_SCOPES.map((s) => (
+                  <ToggleGroupItem key={s.id} value={s.id} className="text-xs">
+                    {s.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            ) : null}
           </div>
         )}
 

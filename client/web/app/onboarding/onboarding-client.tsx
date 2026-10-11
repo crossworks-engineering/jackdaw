@@ -38,6 +38,8 @@ import { ToastProvider, useToast } from '@mantle/web-ui/ui/toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { PurposeFieldNote } from '@/components/purpose-field-note';
+import type { Shell } from '@/lib/contract/shell';
+import { onboardingExit } from '@/lib/workspaces';
 import { checkPurpose } from '@/lib/purpose-input';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 
@@ -113,16 +115,33 @@ export function OnboardingClient() {
 function OnboardingGate() {
   const router = useRouter();
   const force = useSearchParams().get('force') === '1';
+  // The wizard sets up the brain: a login without the settings area (a
+  // member or a client typed the address) goes home, where the shell shows
+  // it its own screen, not a Retry its refusal answers again.
+  const shellQuery = useQuery({
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<Shell>('/api/shell'),
+    retry: 1,
+  });
+  const exit = onboardingExit(shellQuery.data);
   const stateQuery = useQuery({
     queryKey: ['onboarding'],
     queryFn: () => apiFetch<OnboardingState>('/api/onboarding'),
+    // After the shell: a login the wizard is not for asks nothing of it.
+    enabled: !shellQuery.isPending && exit === null,
     retry: 1,
   });
   useEffect(() => {
-    if (stateQuery.data?.onboarded && !force) router.replace('/');
-  }, [stateQuery.data, force, router]);
+    if (exit) router.replace(exit);
+    else if (stateQuery.data?.onboarded && !force) router.replace('/');
+  }, [exit, stateQuery.data, force, router]);
 
-  if (stateQuery.isPending || (stateQuery.data?.onboarded && !force)) {
+  if (
+    exit ||
+    shellQuery.isPending ||
+    stateQuery.isPending ||
+    (stateQuery.data?.onboarded && !force)
+  ) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <Spinner />

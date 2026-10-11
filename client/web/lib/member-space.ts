@@ -120,17 +120,6 @@ export function frozenByOther(reason: string | null, ids: readonly string[], own
 }
 
 /**
- * The items shown inside this one that must be saved first: a 409
- * `unsaved-draft` from Submit naming items of its bundle. Empty when it
- * names only the item itself (the editor's own Save version handles that),
- * or for any other answer.
- */
-export function unsavedBundleIds(err: unknown, ownId: string): string[] {
-  if (refusalReason(err) !== 'unsaved-draft') return [];
-  return refusalIds(err).filter((i) => i !== ownId);
-}
-
-/**
  * The sentence for a member-route refusal: the brain's own `error` when it
  * sent one (every state refusal does: quota, embed, frozen, too-large,
  * body-too-large, …), else a sentence for its

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Bot, type LucideIcon } from 'lucide-react';
 import { NAV_GROUPS, type NavGroup } from '@mantle/web-ui/layout/nav-items';
-import { scopeGroups } from './nav-scope';
+import { railGroups, scopeGroups, type NavScope } from './nav-scope';
+import { navWithAreas } from './workspaces';
 
 /**
  * The scope filter hides things on purpose, which makes it the kind of feature
@@ -48,6 +49,10 @@ describe('work', () => {
 describe('settings', () => {
   const settings = scopeGroups(NAV_GROUPS, 'settings');
   const shown = names(settings);
+
+  it('carries Workspaces', () => {
+    expect(shown).toContain('Workspaces');
+  });
 
   it('carries the four Jason named', () => {
     // The only part of the mapping that is not a proposal.
@@ -97,5 +102,28 @@ describe('a group the scope empties', () => {
       { label: 'System', items: [{ name: 'Debug', href: '/debug', icon }] },
     ];
     expect(labels(scopeGroups(groups, 'work'))).toEqual(['Workspace']);
+  });
+});
+
+describe('the rail (W5c: one shell for every login)', () => {
+  const scopes: NavScope[] = ['work', 'settings', 'admin'];
+
+  it('a login that manages the brain gets the chosen scope', () => {
+    for (const scope of scopes) {
+      expect(railGroups(NAV_GROUPS, scope, true)).toEqual(scopeGroups(NAV_GROUPS, scope));
+    }
+  });
+
+  it('a login without the settings area gets every screen it may open, flat, whatever the stored scope', () => {
+    // A member or a client holds no area: the nav is what navWithAreas leaves.
+    const permitted = navWithAreas(NAV_GROUPS, []);
+    for (const scope of scopes) {
+      expect(railGroups(permitted, scope, false)).toBe(permitted);
+      expect(names(railGroups(permitted, scope, false))).toEqual(
+        expect.arrayContaining(['Pages', 'Notes', 'Files', 'Tables', 'Draw', 'Apps', 'Workspaces']),
+      );
+    }
+    // Under the old Work scope Workspaces was out of reach: it is a Settings row.
+    expect(names(scopeGroups(permitted, 'work'))).not.toContain('Workspaces');
   });
 });

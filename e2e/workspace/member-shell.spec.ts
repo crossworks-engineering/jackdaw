@@ -21,9 +21,11 @@ test.afterEach(async () => {
  *  /api/member/realtime) and what every login asks. */
 const MEMBER_MAY = [...ANY_LOGIN, /^\/api\/member\//];
 
-test('the rail: the work screens and Workspaces, no Admin rows', async ({ page }) => {
+test('the rail: the work screens and Workspaces, flat, no scope choice and no Admin rows', async ({
+  page,
+}) => {
   await signIn(page, 'member');
-  const nav = await wholeNav(page);
+  const nav = await wholeNav(page, 'member');
   for (const name of [...WORK_ROWS, 'Workspaces']) {
     await expect(nav.getByRole('link', { name, exact: true }), name).toBeVisible();
   }
@@ -87,4 +89,12 @@ test('the retired review and Team admin screens land on the home', async ({ page
     await page.goto(path);
     await expect(page, path).toHaveURL((u) => u.pathname === '/');
   }
+});
+
+test('a member that types /onboarding lands on the home', async ({ page }) => {
+  await signIn(page, 'member');
+  await page.goto('/onboarding');
+  await expect(page).toHaveURL((u) => u.pathname === '/');
+  expect(api.asked('member')).not.toContain('GET /api/onboarding');
+  expect(outside(api.asked('member'), MEMBER_MAY)).toEqual([]);
 });

@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Save, ShieldCheck, Trash2, UserRound, X } from 'lucide-react';
+import { Save, Trash2, UserRound, X } from 'lucide-react';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
@@ -21,14 +21,19 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { holdsEditor, memberSavesSettled, type AutosaveState } from '@/lib/member-autosave';
 import { replayRescue } from '@/lib/member-rescue';
-import { canDeletePrivate, privateDeleteMessage, takenFromOf } from '@/lib/admin-private';
 import {
-  WITH_ADMIN_TEXT,
+  canDeletePrivate,
+  privateDeleteMessage,
+  privateViewHref,
+  takenFromOf,
+} from '@/lib/admin-private';
+import {
   frozenByOther,
   isAdminSpace,
   isEditable,
-  isWithAdminRefusal,
+  memberItemHref,
   type AdminSpaceItemRow,
+  type SpaceClient,
   type SpaceItem,
 } from '@/lib/member-space';
 import { StatusChip, spaceErrorMessage } from './space-status';
@@ -39,7 +44,6 @@ import { MemberDrawEditor } from './member-draw-editor';
 import { MemberTableEditor } from './member-table-editor';
 import { MineNoteEditor } from './mine-note-editor';
 import { MinePageEditor } from './mine-page-editor';
-import { ownItemResolver } from './item-links-notice';
 import type { MemberEditorHandle } from './member-editor';
 
 /**
@@ -52,20 +56,10 @@ import type { MemberEditorHandle } from './member-editor';
  * 7): the same editors on the admin routes, Save version and Delete.
  * Accept into brain and Give back went in phase W5c (410).
  */
-export function MineItem({
-  id,
-  onClose,
-  withAdmin = false,
-}: {
-  id: string;
-  onClose: () => void;
-  /** The list already says an admin holds it: nothing to read (audit F07). */
-  withAdmin?: boolean;
-}) {
+export function MineItem({ id, onClose }: { id: string; onClose: () => void }) {
   const api = useSpaceApi();
   const admin = isAdminSpace(api);
   const q = useQuery({
-    enabled: !withAdmin,
     queryKey: admin ? ['admin-space-item', id] : ['member-space-item', 'mine', id],
     // An editor that just closed on this item may still be saving what was
     // typed before it left: read after that save, not before it.
@@ -87,12 +81,6 @@ export function MineItem({
     await q.refetch();
     setGeneration((g) => g + 1);
   }, [q]);
-  // An admin took it over (the list said so, or the brain answered 409
-  // `with-admin`, also on a refetch after the take-over): no content, no
-  // editor, whatever this view showed before.
-  if (withAdmin || isWithAdminRefusal(q.error)) {
-    return <WithAdminNotice onClose={onClose} />;
-  }
   // A failed background refetch keeps the data it had (react-query v5): only
   // an item that never loaded is an error screen.
   if (q.isError && !q.data) {
@@ -126,25 +114,21 @@ export function MineItem({
   );
 }
 
-/** An own item an admin has taken over (audit F07): the member reads none
- *  of it until it is accepted (it shows under Accepted) or given back. */
-export function WithAdminNotice({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="space-y-4 p-6">
-      <div className="flex items-start gap-2">
-        <Badge variant="secondary" className="gap-1">
-          <ShieldCheck className="size-3" aria-hidden /> With admin
-        </Badge>
-        <span className="flex-1" />
-        <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
-          <X />
-        </Button>
-      </div>
-      <p role="status" className="text-sm text-muted-foreground">
-        {WITH_ADMIN_TEXT}
-      </p>
-    </div>
-  );
+/** One of the view's own items, by id: its title and where it opens (Mine
+ *  for a member, the Private view for an admin). */
+type NamedItem = { title: string; href: string | null };
+
+function ownItemResolver(api: SpaceClient): (id: string) => Promise<NamedItem> {
+  const admin = isAdminSpace(api);
+  return async (id) => {
+    const { row } = await api.item(id);
+    return {
+      title: row.title,
+      href: admin
+        ? privateViewHref(row.type, id)
+        : memberItemHref({ source: 'mine', kind: row.type }, id),
+    };
+  };
 }
 
 /**

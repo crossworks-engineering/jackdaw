@@ -34,6 +34,7 @@ import {
   shellRoleOf,
   mayOpenPath,
   navWithAreas,
+  onboardingExit,
   PATH_AREAS,
   resolveCurrentWorkspace,
   shellAreasOf,
@@ -117,6 +118,7 @@ describe('areas', () => {
     '/debug',
     '/changelog',
     '/tasks',
+    '/onboarding',
   ])('%s and what is under it need the settings area', (p) => {
     expect(areaForPath(p)).toBe('settings');
     expect(areaForPath(`${p}/x/y`)).toBe('settings');
@@ -491,5 +493,22 @@ describe('the shell payload', () => {
     expect(shellWorkspacesOf({})).toEqual([]);
     expect(shellAreasOf({ areas: ['users', 4] })).toEqual(['users']);
     expect(shellAreasOf({})).toBeUndefined();
+  });
+});
+
+describe("onboardingExit (/onboarding is the settings area's)", () => {
+  it('sends a login without the settings area home', () => {
+    expect(onboardingExit({ areas: [] })).toBe('/');
+    expect(onboardingExit({ areas: ['users', 'keys'] })).toBe('/');
+  });
+
+  it('keeps a login with it, and a brain that names no areas', () => {
+    expect(onboardingExit({ areas: ['settings'] })).toBeNull();
+    expect(onboardingExit({})).toBeNull();
+  });
+
+  it('waits for the shell', () => {
+    expect(onboardingExit(undefined)).toBeNull();
+    expect(onboardingExit(null)).toBeNull();
   });
 });

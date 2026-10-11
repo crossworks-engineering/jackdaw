@@ -11,9 +11,13 @@ import { describe, expect, it } from 'vitest';
  *
  * Every W5c part has landed: Team admin, the client sign-in page and the
  * review leftovers are gone, and the Users screen and the sign-in pages are
- * scanned like any other screen.
+ * scanned like any other screen. The shared UI kit (packages/web-ui) and the
+ * desktop shell (client/desktop) are scanned too: the review UI must not
+ * come back through them. Paths are the repo's.
  */
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../..', import.meta.url));
+const WEB = 'client/web/';
+const ROOTS = [WEB, 'packages/web-ui/src/', 'client/desktop/src/'];
 
 /** The review UI's words, its components and its routes. */
 const NEEDLES: [string, RegExp][] = [
@@ -53,7 +57,7 @@ const NEEDLES: [string, RegExp][] = [
   ['the client link route', /\/api\/auth\/client-link/],
 ];
 
-const SELF = 'lib/no-review.guard.test.ts';
+const SELF = `${WEB}lib/no-review.guard.test.ts`;
 
 /** Name a needle on purpose, and are no review UI: the retired-path
  *  redirects (/review goes home), and the member space's own `review`
@@ -64,14 +68,14 @@ const NAMES_ON_PURPOSE = [
   'lib/member-takeover.test.ts',
   // Lists the client report route as one the Users screen must not name.
   'app/(app)/settings/users/users-flat.test.ts',
-];
+].map((f) => WEB + f);
 
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (name === 'node_modules' || name === '.next' || name.startsWith('.')) continue;
     const path = join(dir, name);
     if (statSync(path).isDirectory()) sources(path, out);
-    else if (/\.(ts|tsx)$/.test(name)) out.push(relative(ROOT, path).split(sep).join('/'));
+    else if (/\.(ts|tsx)$/.test(name)) out.push(relative(REPO, path).split(sep).join('/'));
   }
   return out;
 }
@@ -79,14 +83,14 @@ function sources(dir: string, out: string[] = []): string[] {
 /** lib/contract/ holds verbatim copies of the brain's contract files, whose
  *  comments name what W5c removed (Take over, the review filter). They are
  *  types, not callers. */
-const CONTRACT_COPIES = 'lib/contract/';
+const CONTRACT_COPIES = `${WEB}lib/contract/`;
 
-const scanned = sources(ROOT).filter(
+const scanned = ROOTS.flatMap((r) => sources(join(REPO, r))).filter(
   (f) => f !== SELF && !NAMES_ON_PURPOSE.includes(f) && !f.startsWith(CONTRACT_COPIES),
 );
 
 describe('no review UI in the owner screens (W5c)', () => {
-  it('scans the owner screens', () => {
+  it('scans the owner screens, the UI kit and the desktop shell', () => {
     for (const f of [
       'app/(app)/pages/pages-client.tsx',
       'app/(app)/notes/notes-client.tsx',
@@ -107,13 +111,22 @@ describe('no review UI in the owner screens (W5c)', () => {
       'components/member/member-my-apps.tsx',
       'components/layout/rail/profile-menu.tsx',
       'lib/member-space.ts',
+    ].map((f) => WEB + f)) {
+      expect(scanned).toContain(f);
+    }
+    for (const f of [
+      'packages/web-ui/src/session-registry.ts',
+      'packages/web-ui/src/token-store.ts',
+      'packages/web-ui/src/layout/nav-items.ts',
+      'client/desktop/src/main/brain-fence.ts',
+      'client/desktop/src/main/index.ts',
     ]) {
       expect(scanned).toContain(f);
     }
   });
 
   it.each(NEEDLES)('no file names %s', (_name, needle) => {
-    const hits = scanned.filter((f) => needle.test(readFileSync(join(ROOT, f), 'utf8')));
+    const hits = scanned.filter((f) => needle.test(readFileSync(join(REPO, f), 'utf8')));
     expect(hits).toEqual([]);
   });
 
@@ -132,8 +145,10 @@ describe('no review UI in the owner screens (W5c)', () => {
       'lib/workspace-review.ts',
       'lib/member-review.ts',
       'lib/needs-you.ts',
+      // Named the items a Submit or a Give back refusal pointed at.
+      'components/member/item-links-notice.tsx',
     ]) {
-      expect(existsSync(join(ROOT, gone)), gone).toBe(false);
+      expect(existsSync(join(REPO, WEB, gone)), gone).toBe(false);
     }
   });
 });

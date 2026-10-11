@@ -115,7 +115,7 @@ describe('a held desktop login whose bearer dies', () => {
     const c = registry.signInSession({ email: 'c@example.com', token: 'old.sig' })!;
     await bounce(api);
 
-    tokenStore.signIn({ email: 'C@example.com', token: 'new.sig', role: 'client' });
+    tokenStore.signIn({ email: 'C@example.com', token: 'new.sig' });
 
     expect(registry.listSessions().map((s) => s.id)).toEqual([c.id]);
     expect(registry.activeSession()?.id).toBe(c.id);

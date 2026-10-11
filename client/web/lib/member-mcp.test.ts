@@ -44,6 +44,11 @@ describe("a member's MCP view", () => {
     expect(write.state).toBe('write');
     expect(write.lines.join(' ')).toMatch(/change rows/);
     expect(write.lines.join(' ')).toMatch(/informational or public/);
+    // No review since W5c: nothing is made for review, shared or submitted.
+    for (const l of [...read.lines, ...write.lines]) {
+      expect(l).not.toMatch(/review|submit|share/i);
+    }
+    expect(write.lines).toContain('You build your own mini apps with the my_app tools.');
     for (const l of [...read.lines, ...write.lines]) expect(l).not.toMatch(DASHES);
   });
 

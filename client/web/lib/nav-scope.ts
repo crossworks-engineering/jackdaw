@@ -55,6 +55,8 @@ const SETTINGS_HREFS = new Set([
   // Who you are, and what it looks like.
   '/settings/profile',
   '/settings/appearance',
+  // Who works in the brain, and what each group of them reads (W5c).
+  '/settings/workspaces',
   // The things that act on your behalf.
   '/settings/agents',
   '/settings/ai-workers',
@@ -94,6 +96,18 @@ export function scopeGroups<G extends NavGroup>(groups: G[], scope: NavScope): G
       return { ...group, items: group.items.filter((i) => SETTINGS_HREFS.has(i.href)) };
     })
     .filter((group) => group.items.length > 0);
+}
+
+/**
+ * The groups the rail shows (phase W5c: one shell for every login).
+ *
+ * The Work / Settings / Admin choice is for a login that manages the brain
+ * (the settings area). A login without it (a member, a client) may open a
+ * few screens only, so it gets them all, flat, and no choice to make: a
+ * choice between near-empty slices only hides screens it may use.
+ */
+export function railGroups<G extends NavGroup>(groups: G[], scope: NavScope, scoped: boolean): G[] {
+  return scoped ? scopeGroups(groups, scope) : groups;
 }
 
 function isScope(v: unknown): v is NavScope {

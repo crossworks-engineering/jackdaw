@@ -106,8 +106,13 @@ export const PATH_AREAS: ReadonlyArray<readonly [prefix: string, area: Area | nu
   ['/sandboxes', 'settings'],
   ['/traces', 'settings'],
   ['/debug', 'settings'],
+  // /changelog reads GET /api/changelog, which the brain answers for an
+  // admin only: the rail shows a login without this area the build as
+  // plain text (components/layout/changelog-link.tsx).
   ['/changelog', 'settings'],
   ['/tasks', 'settings'],
+  // The first-run wizard sets up the brain (outside the shell: onboardingExit).
+  ['/onboarding', 'settings'],
 ];
 
 function underPrefix(pathname: string, prefix: string): boolean {
@@ -131,6 +136,17 @@ export function mayOpenPath(
 ): boolean {
   const area = areaForPath(pathname);
   return area === null || hasArea(areas, area);
+}
+
+/**
+ * Where /onboarding sends a login: home when it does not hold the settings
+ * area (a member or a client typed the address; the wizard's routes answer
+ * an admin only), else null (stay). Null too until the shell has answered.
+ * /onboarding is outside the shell, so its gate asks this itself.
+ */
+export function onboardingExit(shell: { areas?: unknown } | null | undefined): '/' | null {
+  if (!shell) return null;
+  return mayOpenPath(shellAreasOf(shell), '/onboarding') ? null : '/';
 }
 
 // ── Who may change what ────────────────────────────────────────────────────

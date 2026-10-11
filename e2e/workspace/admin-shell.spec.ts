@@ -28,7 +28,7 @@ test.afterEach(async () => {
 
 test('the full nav, the owner Pages screen and Settings > Users', async ({ page }) => {
   await signIn(page, 'admin');
-  const nav = await wholeNav(page);
+  const nav = await wholeNav(page, 'admin');
   for (const name of [...WORK_ROWS, ...ADMIN_ROWS, 'Workspaces']) {
     await expect(nav.getByRole('link', { name, exact: true }), name).toBeVisible();
   }
