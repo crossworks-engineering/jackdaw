@@ -72,6 +72,13 @@ describe('no role routing in the shell itself', () => {
     expect(shell).toContain('{zen || !manages ? null : (');
   });
 
+  it('the first-run gate sends only a settings login to /onboarding', () => {
+    expect(shell).toContain('const toOnboarding = goesToOnboarding(shell);');
+    expect(shell).toContain("if (toOnboarding) router.replace('/onboarding');");
+    expect(shell.match(/router\.replace\('\/onboarding'\)/g)).toHaveLength(1);
+    expect(shell).not.toContain('if (!shell.onboarded)');
+  });
+
   it('every page sits inside the one area check', () => {
     expect(shell).toContain('<AreaGate>{children}</AreaGate>');
   });

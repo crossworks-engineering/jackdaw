@@ -10,8 +10,6 @@ import { SetPageTitle } from '@/components/layout/page-title';
 import { useAssistantDock } from '@/components/assistant/assistant-dock';
 import {
   isWithAdmin,
-  reviewListPath,
-  splitByReview,
   type SpaceItemRow,
   type SpaceKind,
   type SpaceList,
@@ -41,19 +39,16 @@ function Section({
   entries,
   src,
   empty,
-  hint,
 }: {
   title: string;
   entries: Entry[];
   src: SpaceSource;
   empty?: string;
-  hint?: string;
 }) {
   if (entries.length === 0 && !empty) return null;
   return (
     <section className="space-y-2" aria-label={title}>
       <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
-      {hint && entries.length ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
@@ -80,23 +75,15 @@ function Section({
 }
 
 /**
- * A member's home (member logins, plan section 7): their own work an admin
- * holds, their recent work, and what is new in the Library. None of the
- * admin dashboard's ops cards: they are admin data.
+ * A member's home (member logins, plan section 7): their recent work and
+ * what is new in the Library. None of the admin dashboard's ops cards: they
+ * are admin data.
  */
 export function MemberHome() {
   const { openAssistant } = useAssistantDock();
   const mine = useQuery({
     queryKey: ['member-home', 'mine'],
     queryFn: () => apiFetch<SpaceList>('/api/member/space?page=1'),
-  });
-  // What an admin took over to work on (audit F07). Its own read: an older
-  // brain refuses the state by name (400), and then there is simply nothing
-  // with an admin.
-  const withAdmin = useQuery({
-    queryKey: ['member-home', 'with-admin'],
-    queryFn: () => apiFetch<SpaceList>(reviewListPath(['with-admin'])),
-    retry: false,
   });
   const library = useQuery({
     queryKey: ['member-home', 'library'],
@@ -111,7 +98,6 @@ export function MemberHome() {
     updatedAt: r.updatedAt,
     status: r,
   });
-  const heldByAdmin = splitByReview(withAdmin.data?.items ?? []).withAdmin.map(ownEntry);
   const recent = (mine.data?.items ?? [])
     .filter((r) => !isWithAdmin(r))
     .slice(0, 8)
@@ -133,12 +119,6 @@ export function MemberHome() {
           <MessageSquare /> Ask the assistant
         </Button>
       </header>
-      <Section
-        title="With an admin"
-        entries={heldByAdmin}
-        src="mine"
-        hint="An admin is working on these. You will see each again when it is accepted or given back."
-      />
       <Section
         title="Your recent work"
         entries={recent}

@@ -19,15 +19,13 @@ import {
   memberHubNav,
   type MemberHomeData,
 } from '@/lib/member-apps';
-import { reviewListPath, splitByReview, type SpaceList } from '@/lib/member-space';
 import { MemberHome } from './member-home';
 
 /**
  * The member home (member logins Phase 4b, plan 4a "Hub app"). When the brain
  * pins a home app a member may run, it fills the home, with its `host.hub.*`
  * answered here from /api/member/home; "My work" switches to the built-in
- * home (review, recent work, team drafts, Library) and back, and shows how
- * many items came back from review, so a home app never hides them. The app
+ * home (recent work, Library) and back. The app
  * stays mounted while "My work" shows (switching back does not reload it).
  * No pinned app, an app that fails to load, or a brain without the route:
  * the built-in home.
@@ -38,19 +36,12 @@ export function MemberHomeSwitch() {
   const { openAssistant } = useAssistantDock();
   const [failedAppId, setFailedAppId] = useState<string | null>(null);
   const [showWork, setShowWork] = useState(false);
-  // The ['member-home', …] prefix is shared on purpose: sharing or submitting
-  // an item invalidates it, which refreshes the sections a home app lists.
+  // The ['member-home', …] prefix is shared on purpose: a change to an own
+  // item invalidates it, which refreshes the sections a home app lists.
   const home = useQuery({
     queryKey: ['member-home', 'app'],
     queryFn: () => apiFetch<MemberHomeData>('/api/member/home'),
     retry: false,
-  });
-  // The same query MemberHome runs (same key, so one request): items that
-  // came back from review must stay visible behind a home app.
-  const review = useQuery({
-    queryKey: ['member-home', 'review'],
-    queryFn: () => apiFetch<SpaceList>(reviewListPath(['returned', 'submitted'])),
-    enabled: !!home.data?.homeApp,
   });
 
   if (home.isPending) {
@@ -65,8 +56,6 @@ export function MemberHomeSwitch() {
   if (!usable) return <MemberHome />;
 
   const { homeApp, hub } = usable;
-  const returned = splitByReview(review.data?.items ?? []).returned.length;
-  const workLabel = returned > 0 ? `My work (${returned} returned)` : 'My work';
   return (
     <div className="flex h-full min-h-0 flex-col">
       {showWork ? null : <SetPageTitle title="Home" />}
@@ -87,7 +76,7 @@ export function MemberHomeSwitch() {
           onClick={() => setShowWork(true)}
         >
           <LayoutList className="size-4" aria-hidden />
-          {workLabel}
+          My work
         </Button>
       </div>
       {showWork ? (

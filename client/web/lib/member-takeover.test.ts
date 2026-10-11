@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
-  WITH_ADMIN_TEXT,
   acceptedBytesChanged,
   acceptedChangedText,
   frozenByOther,
@@ -10,8 +9,6 @@ import {
   isWithAdminRefusal,
   refusalMessage,
   resolveMemberItem,
-  reviewListPath,
-  splitByReview,
   statusLabels,
   type SpaceItemState,
   type SpaceSource,
@@ -66,24 +63,6 @@ describe('the member side of a taken item', () => {
     });
   });
 
-  it('splits with-admin rows out of a list, apart from the returned and the submitted', () => {
-    const rows = [
-      { id: 'a', reviewState: 'with-admin' as const },
-      { id: 'b', reviewState: 'submitted' as const },
-      { id: 'c', reviewState: 'draft' as const },
-      { id: 'd', reviewState: 'with-admin' as const },
-      { id: 'e', reviewState: 'returned' as const },
-    ];
-    const split = splitByReview(rows);
-    expect(split.withAdmin.map((r) => r.id)).toEqual(['a', 'd']);
-    expect(split.submitted.map((r) => r.id)).toEqual(['b']);
-    expect(split.returned.map((r) => r.id)).toEqual(['e']);
-  });
-
-  it('reads the with-admin list by name (the home asks for it on its own)', () => {
-    expect(reviewListPath(['with-admin'])).toBe('/api/member/space?review=with-admin&page=1');
-  });
-
   it('knows a 409 with-admin from any other answer', () => {
     expect(isWithAdminRefusal(refusal('with-admin'))).toBe(true);
     expect(isWithAdminRefusal(refusal('frozen'))).toBe(false);
@@ -96,9 +75,6 @@ describe('the member side of a taken item', () => {
 
   it('says where the item is, in the member’s words, when the brain sends no sentence', () => {
     expect(refusalMessage(new ApiError('with-admin', 409, { reason: 'with-admin' }))).toBe(
-      WITH_ADMIN_TEXT,
-    );
-    expect(WITH_ADMIN_TEXT).toBe(
       'An admin is working on this. You will see it again when it is accepted or given back.',
     );
   });

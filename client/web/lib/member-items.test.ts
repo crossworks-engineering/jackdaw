@@ -24,16 +24,9 @@ vi.mock('@mantle/web-ui/api-fetch', async (importOriginal) => {
   };
 });
 
-const {
-  fetchMemberItems,
-  memberItemsPath,
-  passesState,
-  MEMBER_ITEM_SECTIONS,
-  pillOfSpaceRow,
-  srcOf,
-} = await import('./member-items');
+const { fetchMemberItems, memberItemsPath, passesState, pillOfSpaceRow, srcOf } =
+  await import('./member-items');
 const { ApiError } = await import('@mantle/web-ui/api-fetch');
-const { MEMBER_ITEM_FILTERS } = await import('@mantle/client-types/member-kinds');
 
 const at = (n: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, n)).toISOString();
 const space = (
@@ -68,11 +61,6 @@ describe('the request and the URL', () => {
     expect(memberItemsPath({ kind: 'note', state: 'all', page: 1 })).toBe(
       '/api/member/items?kind=note',
     );
-  });
-
-  it('asks only for filters the brain takes (the sections above the tree)', () => {
-    expect(MEMBER_ITEM_SECTIONS.map((s) => s.state)).toEqual(['with-admin', 'by-me']);
-    for (const s of MEMBER_ITEM_SECTIONS) expect(MEMBER_ITEM_FILTERS).toContain(s.state);
   });
 
   it('names the item view the old way in the URL (links still use it)', () => {

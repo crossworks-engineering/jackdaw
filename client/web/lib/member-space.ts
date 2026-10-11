@@ -83,9 +83,6 @@ const REFUSAL_TEXT: Record<string, string> = {
   'body-too-large': 'This is too big to send in one go. Make it smaller, then try again.',
 };
 
-/** What a member reads for an item an admin has taken over (audit F07). */
-export const WITH_ADMIN_TEXT = REFUSAL_TEXT['with-admin']!;
-
 /** The embed refusal's fallback. */
 export const EMBED_TEXT = REFUSAL_TEXT.embed!;
 
@@ -191,29 +188,6 @@ export function listPath(
   if (opts.q?.trim()) sp.set('q', opts.q.trim());
   const base = source === 'accepted' ? '/api/member/accepted' : '/api/member/library';
   return `${base}?${sp.toString()}`;
-}
-
-/**
- * Mine filtered by review state (the `review` param takes a comma list), for
- * the member home's With an admin list: read from the whole space, not picked
- * out of the newest page. A brain older than the filter
- * ignores it and answers the newest page, which `splitByReview` still sorts.
- */
-export function reviewListPath(states: readonly SpaceItemState[], page = 1): string {
-  const sp = new URLSearchParams({ review: states.join(','), page: String(page) });
-  return `/api/member/space?${sp.toString()}`;
-}
-
-/** The returned, the submitted and the with-admin rows of a list, each in
- *  list order. */
-export function splitByReview<T extends Pick<SpaceItemRow, 'reviewState'>>(
-  rows: readonly T[],
-): { returned: T[]; submitted: T[]; withAdmin: T[] } {
-  return {
-    returned: rows.filter((r) => r.reviewState === 'returned'),
-    submitted: rows.filter((r) => r.reviewState === 'submitted'),
-    withAdmin: rows.filter((r) => r.reviewState === 'with-admin'),
-  };
 }
 
 const REVIEW_LABEL: Record<SpaceItemState, string | null> = {

@@ -159,7 +159,8 @@ describe("the member workspace is the admin's folder view (2026-10-09)", () => {
   it('shows the item tree only: no list, no view switch, no State filter, no pager', () => {
     expect(src).toContain('<ItemTree');
     expect(src).toContain('source="member"');
-    expect(src).toContain('<MemberItemSections');
+    // No review sections above the tree (W5c): no With admin, no By me.
+    expect(src).not.toContain('MemberItemSections');
     for (const gone of [
       '<ItemListHeader',
       '<ItemCard',

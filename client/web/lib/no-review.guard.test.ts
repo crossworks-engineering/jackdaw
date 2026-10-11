@@ -55,6 +55,17 @@ const NEEDLES: [string, RegExp][] = [
   ],
   ['the client portal routes', /['"`]\/api\/client\//],
   ['the client link route', /\/api\/auth\/client-link/],
+  // The member review leftovers (W5c UI fix round 2): the home's review
+  // lists, the With admin screen and the sections above the member tree.
+  ['reviewListPath', /\breviewListPath\b/],
+  ['WITH_ADMIN_TEXT', /\bWITH_ADMIN_TEXT\b/],
+  // A list, section or screen of 'with-admin' items. The state itself stays:
+  // the brain still answers 409 `with-admin` and sends the rows, and the
+  // editor, the autosave and the chip must still read them.
+  [
+    "a 'with-admin' list, section or screen",
+    /review=with-admin|\[\s*['"`]with-admin['"`]\s*\]|['"`]member-home['"`],\s*['"`]with-admin['"`]|member-with-admin|\bstate(:|\s*===)\s*['"`]with-admin['"`]|With an admin|By me \(accepted\)/,
+  ],
 ];
 
 const SELF = `${WEB}lib/no-review.guard.test.ts`;
@@ -109,8 +120,12 @@ describe('no review UI in the owner screens (W5c)', () => {
       'components/member/mine-item.tsx',
       'components/member/member-workspace.tsx',
       'components/member/member-my-apps.tsx',
+      'components/member/member-home.tsx',
+      'components/member/member-home-app.tsx',
+      'components/member/member-go-to-list.tsx',
       'components/layout/rail/profile-menu.tsx',
       'lib/member-space.ts',
+      'lib/member-items.ts',
     ].map((f) => WEB + f)) {
       expect(scanned).toContain(f);
     }
@@ -147,6 +162,10 @@ describe('no review UI in the owner screens (W5c)', () => {
       'lib/needs-you.ts',
       // Named the items a Submit or a Give back refusal pointed at.
       'components/member/item-links-notice.tsx',
+      // The With admin and By me (accepted) sections above the member tree,
+      // and the section list they alone used.
+      'components/member/member-item-sections.tsx',
+      'components/item-list/list-sections.tsx',
     ]) {
       expect(existsSync(join(REPO, WEB, gone)), gone).toBe(false);
     }

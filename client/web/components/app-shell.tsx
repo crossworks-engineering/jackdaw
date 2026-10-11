@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { shellProbeFailure } from '@/lib/shell-probe';
-import { hasArea, shellAreasOf, shellRoleOf } from '@/lib/workspaces';
+import { goesToOnboarding, hasArea, shellAreasOf, shellRoleOf } from '@/lib/workspaces';
 import type { Shell } from '@/lib/contract/shell';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -313,12 +313,14 @@ function ShellFrame({
   }, [maxUploadBytes, setMaxUploadBytes]);
   const pendingApprovals = shell.pendingApprovals ?? 0;
 
-  // First-run gate: a logged-in but not-yet-onboarded user goes to the wizard
-  // (outside the (app) group, so no redirect loop). Moved here from the server
-  // layout so the shell makes no in-process DB read.
+  // First-run gate: a logged-in but not-yet-onboarded admin goes to the
+  // wizard (outside the (app) group). Only a login with the settings area: the
+  // wizard sends any other login home, so sending it there would loop.
+  // Moved here from the server layout so the shell makes no in-process DB read.
+  const toOnboarding = goesToOnboarding(shell);
   useEffect(() => {
-    if (!shell.onboarded) router.replace('/onboarding');
-  }, [shell.onboarded, router]);
+    if (toOnboarding) router.replace('/onboarding');
+  }, [toOnboarding, router]);
 
   // Colour-theme sync: the DB copy is the cross-browser source of truth; the
   // localStorage the pre-paint script read is only this browser's cache. Adopt

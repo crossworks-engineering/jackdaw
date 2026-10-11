@@ -22,17 +22,6 @@ import type {
 } from './contract/member';
 import { listPath, type SpaceKind, type WorkspaceSource } from './member-space';
 
-/** The sections a member's workspace shows above its folder tree, in their
- *  order: what the tree does not hold (member-item-sections.tsx). */
-export const MEMBER_ITEM_SECTIONS: readonly {
-  state: Extract<MemberItemFilter, 'with-admin' | 'by-me'>;
-  id: string;
-  title: string;
-}[] = [
-  { state: 'with-admin', id: 'member-with-admin', title: 'With admin' },
-  { state: 'by-me', id: 'member-by-me', title: 'By me (accepted)' },
-];
-
 export function memberItemsPath(opts: {
   kind: SpaceKind;
   q?: string;

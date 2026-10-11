@@ -35,6 +35,7 @@ import {
   mayOpenPath,
   navWithAreas,
   onboardingExit,
+  goesToOnboarding,
   PATH_AREAS,
   resolveCurrentWorkspace,
   shellAreasOf,
@@ -510,5 +511,34 @@ describe("onboardingExit (/onboarding is the settings area's)", () => {
   it('waits for the shell', () => {
     expect(onboardingExit(undefined)).toBeNull();
     expect(onboardingExit(null)).toBeNull();
+  });
+});
+
+describe('goesToOnboarding (the shell sends only a settings login to the wizard)', () => {
+  it('sends a login that is not onboarded and holds the settings area', () => {
+    expect(goesToOnboarding({ onboarded: false, areas: ['settings'] })).toBe(true);
+    expect(goesToOnboarding({ onboarded: false })).toBe(true);
+  });
+
+  it('keeps a login without the settings area home: no loop with /onboarding', () => {
+    for (const areas of [[], ['users', 'keys']]) {
+      const shell = { onboarded: false, areas };
+      expect(goesToOnboarding(shell)).toBe(false);
+      // /onboarding would send it home again.
+      expect(onboardingExit(shell)).toBe('/');
+    }
+  });
+
+  it('a login the wizard keeps is one the shell may send there', () => {
+    for (const areas of [undefined, [], ['settings'], ['users'], ['settings', 'users']]) {
+      const shell = { onboarded: false, ...(areas ? { areas } : {}) };
+      expect(goesToOnboarding(shell)).toBe(onboardingExit(shell) === null);
+    }
+  });
+
+  it('sends nobody who is onboarded, and waits for the shell', () => {
+    expect(goesToOnboarding({ onboarded: true, areas: ['settings'] })).toBe(false);
+    expect(goesToOnboarding(null)).toBe(false);
+    expect(goesToOnboarding(undefined)).toBe(false);
   });
 });

@@ -13,12 +13,9 @@ import {
   refusalMessage,
   resolveMemberItem,
   resolveMemberSource,
-  reviewListPath,
   listPath,
-  splitByReview,
   workspaceNavMode,
   workspaceQuery,
-  type ReviewState,
   type SpaceSource,
 } from './member-space';
 
@@ -126,29 +123,6 @@ describe('member upload cap', () => {
     expect(memberUploadRefusal(250 * 1024 * 1024)).toBe(
       'This file is 250 MB, over the 100 MB upload limit.',
     );
-  });
-});
-
-describe('the home review lists', () => {
-  it('reads returned and submitted items with the review filter, not the newest page', () => {
-    const url = new URL(reviewListPath(['returned', 'submitted']), 'http://x');
-    expect(url.pathname).toBe('/api/member/space');
-    expect(url.searchParams.get('review')).toBe('returned,submitted');
-    expect(url.searchParams.get('page')).toBe('1');
-    expect(url.searchParams.has('kind')).toBe(false);
-  });
-
-  it('splits one answer into the two lists (also what an older brain sends)', () => {
-    const rows: { id: string; reviewState: ReviewState }[] = [
-      { id: 'a', reviewState: 'draft' },
-      { id: 'b', reviewState: 'submitted' },
-      { id: 'c', reviewState: 'returned' },
-      { id: 'd', reviewState: 'accepted' },
-      { id: 'e', reviewState: 'submitted' },
-    ];
-    const { returned, submitted } = splitByReview(rows);
-    expect(returned.map((r) => r.id)).toEqual(['c']);
-    expect(submitted.map((r) => r.id)).toEqual(['b', 'e']);
   });
 });
 

@@ -128,6 +128,8 @@ export type MockWorkspaceApi = {
   signIns: { email: string; status: number }[];
   /** The paths `role` asked for (method and path), in order. */
   asked: (role: Role) => string[];
+  /** What GET /api/shell says in `onboarded`, for every login (default true). */
+  onboarded: boolean;
   close: () => Promise<void>;
 };
 
@@ -147,6 +149,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     signIns: [],
     asked: (role) =>
       state.requests.filter((r) => r.role === role).map((r) => `${r.method} ${r.path}`),
+    onboarded: true,
     close: async () => undefined,
   };
 
@@ -181,7 +184,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     workspaces: shellWorkspaces(role),
     areas: role === 'admin' ? ALL_AREAS : [],
     ...(role === 'client' ? {} : { treeKinds: MEMBER_TREE_KINDS }),
-    onboarded: true,
+    onboarded: state.onboarded,
     displayName: LOGINS[role].name,
     email: LOGINS[role].email,
     avatar: null,

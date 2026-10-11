@@ -22,7 +22,6 @@ import {
   type SpaceKind,
   type WorkspaceSource,
 } from '@/lib/member-space';
-import { srcOf } from '@/lib/member-items';
 import { MEMBER_KIND } from '@/lib/member-kinds';
 import { sectionOf } from '@/lib/last-opened';
 import { useRememberLastOpened } from '@/components/last-opened/last-opened';
@@ -35,7 +34,6 @@ import { readerTreeAdapter } from '@/components/item-tree/kinds/reader';
 import { treeKindOfItem, useReaderTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { MemberReader } from './member-reader';
 import { MineItem } from './mine-item';
-import { MemberItemSections, useMemberSectionLists } from './member-item-sections';
 import { spaceErrorMessage } from './space-status';
 
 const KIND = MEMBER_KIND;
@@ -123,9 +121,7 @@ function useSpaceEvents() {
  * shared drafts, each draft wearing its state. The member manages only its
  * own folders and drafts there; nothing an admin does is offered.
  *
- * Above the tree, small sections hold what the tree does not: own items with
- * an admin and the member's accepted work (member-item-sections.tsx). The
- * open item is `?id=` with `?src=` naming which view opens it (own, the
+ * The open item is `?id=` with `?src=` naming which view opens it (own, the
  * Library or accepted); the tree's search is `?q=`.
  */
 export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
@@ -156,7 +152,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
   useEffect(() => {
     if (pickedFolder && !treeFolder) setTreeFolder(null);
   }, [pickedFolder, treeFolder]);
-  const sectionLists = useMemberSectionLists(kind);
   const treeFileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   useSpaceEvents();
@@ -233,8 +228,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
     }
   };
 
-  const openKey = openId ? `${openSource}:${openId}` : null;
-
   const treeReady = serves === true && treeAdapter !== null && treeKind !== null && !treeGone;
 
   const listPane =
@@ -252,12 +245,6 @@ export function MemberWorkspace({ kind }: { kind: SpaceKind }) {
       </div>
     ) : (
       <div className="flex h-full min-h-0 flex-col">
-        <MemberItemSections
-          kind={kind}
-          lists={sectionLists}
-          selectedKey={openKey}
-          onOpen={(row) => setParams({ src: srcOf(row.source), id: row.id })}
-        />
         <aside data-tour="member-tree" className="flex min-h-0 flex-1 flex-col bg-muted/20">
           <ItemTree
             kind={treeKind}

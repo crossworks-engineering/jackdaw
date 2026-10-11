@@ -149,6 +149,19 @@ export function onboardingExit(shell: { areas?: unknown } | null | undefined): '
   return mayOpenPath(shellAreasOf(shell), '/onboarding') ? null : '/';
 }
 
+/**
+ * Whether the shell sends a login to the first-run wizard: not onboarded yet
+ * AND it holds the settings area. A login without that area must stay: the
+ * wizard sends it home again (onboardingExit), so a redirect here would loop
+ * between / and /onboarding. Onboarding is an admin's.
+ */
+export function goesToOnboarding(
+  shell: { onboarded?: unknown; areas?: unknown } | null | undefined,
+): boolean {
+  if (!shell || shell.onboarded) return false;
+  return hasArea(shellAreasOf(shell), 'settings');
+}
+
 // ── Who may change what ────────────────────────────────────────────────────
 
 /**

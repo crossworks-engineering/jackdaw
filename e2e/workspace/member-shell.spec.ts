@@ -91,6 +91,23 @@ test('the retired review and Team admin screens land on the home', async ({ page
   }
 });
 
+test('a member the brain calls not onboarded stays on the home: no loop with /onboarding', async ({
+  page,
+}) => {
+  api.onboarded = false;
+  const visited: string[] = [];
+  page.on('framenavigated', (f) => {
+    if (f === page.mainFrame()) visited.push(new URL(f.url()).pathname);
+  });
+  await signIn(page, 'member');
+  await expect(page).toHaveURL((u) => u.pathname === '/');
+  // Time for a redirect to start, if the shell were to send one.
+  await page.waitForTimeout(1500);
+  await expect(page).toHaveURL((u) => u.pathname === '/');
+  expect(visited).not.toContain('/onboarding');
+  expect(api.asked('member')).not.toContain('GET /api/onboarding');
+});
+
 test('a member that types /onboarding lands on the home', async ({ page }) => {
   await signIn(page, 'member');
   await page.goto('/onboarding');
