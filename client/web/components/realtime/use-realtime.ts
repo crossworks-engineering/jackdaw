@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { apiEventStream } from '@mantle/web-ui/api-fetch';
+import { useShellRole } from '@/components/layout/shell-role';
+import { realtimeStreamPath } from '@/lib/realtime-stream';
 
 export type RealtimeChange = { type: string; id: string };
 
@@ -20,25 +22,44 @@ export type RealtimeChange = { type: string; id: string };
  * The server route's `?types=` filter is only a bandwidth nicety — an unfiltered
  * stream is already owner-scoped — so the per-consumer type filter moved here.
  * Reconnect/backoff/auth-bounce all still come from `apiEventStream` unchanged.
+ *
+ * Which stream (phase W5c: one shell for every login): the shell's role picks
+ * it (lib/realtime-stream.ts). An admin reads /api/realtime, a member the
+ * kept /api/member/realtime, a client none: /api/realtime is the owner's, and
+ * a refused stream would only reconnect for ever. One shared connection per
+ * stream path.
  */
 type Subscriber = { types: string[] | null; cb: (c: RealtimeChange) => void };
 
-const subscribers = new Map<number, Subscriber>();
-let nextId = 1;
-let stopStream: (() => void) | null = null;
-let linger: ReturnType<typeof setTimeout> | null = null;
+type Stream = {
+  subscribers: Map<number, Subscriber>;
+  stop: (() => void) | null;
+  linger: ReturnType<typeof setTimeout> | null;
+};
 
-/** Open the shared stream if it isn't already running. */
-function ensureStream(): void {
-  if (stopStream) return;
-  stopStream = apiEventStream('/api/realtime', (data) => {
+const streams = new Map<string, Stream>();
+let nextId = 1;
+
+function streamFor(path: string): Stream {
+  let s = streams.get(path);
+  if (!s) {
+    s = { subscribers: new Map(), stop: null, linger: null };
+    streams.set(path, s);
+  }
+  return s;
+}
+
+/** Open the shared stream for `path` if it isn't already running. */
+function ensureStream(path: string, s: Stream): void {
+  if (s.stop) return;
+  s.stop = apiEventStream(path, (data) => {
     let change: RealtimeChange;
     try {
       change = JSON.parse(data) as RealtimeChange;
     } catch {
       return; // ignore malformed frame
     }
-    for (const sub of subscribers.values()) {
+    for (const sub of s.subscribers.values()) {
       if (sub.types && !sub.types.includes(change.type)) continue;
       try {
         sub.cb(change);
@@ -50,25 +71,26 @@ function ensureStream(): void {
 }
 
 /** Register a subscriber against the shared stream; returns an unsubscribe fn. */
-function subscribe(sub: Subscriber): () => void {
+function subscribe(path: string, sub: Subscriber): () => void {
+  const s = streamFor(path);
   const id = nextId++;
-  subscribers.set(id, sub);
-  if (linger) {
-    clearTimeout(linger);
-    linger = null;
+  s.subscribers.set(id, sub);
+  if (s.linger) {
+    clearTimeout(s.linger);
+    s.linger = null;
   }
-  ensureStream();
+  ensureStream(path, s);
   return () => {
-    subscribers.delete(id);
-    if (subscribers.size > 0) return;
+    s.subscribers.delete(id);
+    if (s.subscribers.size > 0) return;
     // Linger before closing so a route transition (last subscriber unmounts,
-    // next mounts a frame later) and StrictMode's mount→unmount→mount don't
+    // next mounts a frame later) and StrictMode's mount, unmount, mount don't
     // churn the underlying connection.
-    linger = setTimeout(() => {
-      linger = null;
-      if (subscribers.size === 0) {
-        stopStream?.();
-        stopStream = null;
+    s.linger = setTimeout(() => {
+      s.linger = null;
+      if (s.subscribers.size === 0) {
+        s.stop?.();
+        s.stop = null;
       }
     }, 5_000);
   };
@@ -98,8 +120,7 @@ function subscribe(sub: Subscriber): () => void {
 export function useRealtime(
   types: string[],
   onChange: (c: RealtimeChange) => void,
-  /** `enabled: false` subscribes to nothing: the stream is the OWNER's, and a
-   *  member or client session would be refused it (and bounced). */
+  /** `enabled: false` subscribes to nothing. */
   opts: { enabled?: boolean } = {},
 ): void {
   // Keep the latest callback without re-registering the subscriber each render.
@@ -107,10 +128,11 @@ export function useRealtime(
   cbRef.current = onChange;
 
   const key = types.join(',');
-  const enabled = opts.enabled !== false;
+  const path = realtimeStreamPath(useShellRole());
+  const enabled = opts.enabled !== false && path !== null;
   useEffect(() => {
-    if (typeof window === 'undefined' || !enabled) return;
-    const filter = key ? key.split(',') : null; // '' ⇒ all types, as before
-    return subscribe({ types: filter, cb: (c) => cbRef.current(c) });
-  }, [key, enabled]);
+    if (typeof window === 'undefined' || !enabled || !path) return;
+    const filter = key ? key.split(',') : null; // '' means all types, as before
+    return subscribe(path, { types: filter, cb: (c) => cbRef.current(c) });
+  }, [key, enabled, path]);
 }
