@@ -158,17 +158,19 @@ export function chatLinkAction(href: string, origin: string): ChatLinkAction {
  *  that is not an Admin user. */
 const OWNER_BYTES = /^\/api\/(?:files|draws)(?:\/|$)/i;
 
-/** A file or drawing id as the brain mints it. */
-const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-const UUID_RE = new RegExp(`^${UUID}$`, 'i');
+/** A file or drawing id as the brain mints it, its hex in either case. */
+const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+const UUID_RE = new RegExp(`^${UUID}$`);
 
 /** The exact owner byte shapes a login that is not an Admin user may show
  *  (W7e): a file's bytes or thumbnail, a drawing's SVG. Matched against the
  *  src as written (after entities), so an escape, a dot segment, a second
- *  slash or any other query is not one of them. */
+ *  slash or any other query is not one of them. The path and the query are
+ *  matched case sensitively (`/API/FILES/...` is not one); only the id's hex
+ *  may be either case. */
 const OWNER_BYTE_SHAPES = [
-  new RegExp(`^/api/files/files/${UUID}\\?(?:raw|thumb)=1$`, 'i'),
-  new RegExp(`^/api/draws/${UUID}/svg\\?raw=1$`, 'i'),
+  new RegExp(`^/api/files/files/${UUID}\\?(?:raw|thumb)=1$`),
+  new RegExp(`^/api/draws/${UUID}/svg\\?raw=1$`),
 ];
 
 /** Whether a normalised same-origin src is one of the owner byte shapes. */
@@ -231,8 +233,10 @@ export function chatImageAllowed(src: string | null | undefined, adminUser: bool
   // Another origin (`https://`, `//host`, `data:`, any scheme): not shown.
   if (schemeOf(s) !== null || s.startsWith('//')) return false;
   // A file's bytes or a drawing's SVG, in the one shape the brain serves
-  // every login in its scope (W7e).
-  if (isOwnerByteShape(s)) return true;
+  // every login in its scope (W7e). Only when normalising dropped nothing:
+  // a control character, a space or a `\` inside the src is not that shape,
+  // and the checks below refuse it on the owner byte routes.
+  if (s === decodeHtmlEntities(src) && isOwnerByteShape(s)) return true;
   let url: URL;
   try {
     url = new URL(s, PROBE_ORIGIN);

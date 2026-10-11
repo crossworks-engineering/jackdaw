@@ -137,6 +137,33 @@ describe('which pictures of a reply show', () => {
       expect(chatImageAllowed(src, false), src).toBe(false);
     }
   });
+
+  it('anyone else: the path and query are matched case sensitively, the id in either case', () => {
+    for (const src of [
+      `/API/FILES/FILES/${FILE}?raw=1`,
+      `/api/Files/files/${FILE}?raw=1`,
+      `/api/files/files/${FILE}?RAW=1`,
+      `/API/DRAWS/${DRAW}/SVG?raw=1`,
+      `/api/draws/${DRAW}/svg?Raw=1`,
+    ]) {
+      expect(chatImageAllowed(src, false), src).toBe(false);
+    }
+    expect(chatImageAllowed(`/api/draws/${DRAW.toUpperCase()}/svg?raw=1`, false)).toBe(true);
+  });
+
+  it('anyone else: a control character or a space inside the path is refused', () => {
+    for (const src of [
+      `/api/fi\tles/files/${FILE}?raw=1`,
+      `/api/files/fi\nles/${FILE}?raw=1`,
+      `/api/files/files/${FILE.slice(0, 8)}\u0000${FILE.slice(8)}?raw=1`,
+      `/api/draws/${DRAW}/s\u007fvg?raw=1`,
+      `/api/files/files/ ${FILE}?raw=1`,
+      `/api/files/files/${FILE}?raw=1\r`,
+      `/api/files/files/${FILE}&#9;?raw=1`,
+    ]) {
+      expect(chatImageAllowed(src, false), JSON.stringify(src)).toBe(false);
+    }
+  });
 });
 
 describe('entities and escapes cannot hide a URL (W7f fix round 2)', () => {

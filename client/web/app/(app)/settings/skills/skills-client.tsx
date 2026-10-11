@@ -491,14 +491,14 @@ export function SkillsClient() {
                       Heartbeats created against this skill copy this as their initial{' '}
                       <code>state</code>. Once a heartbeat exists, its own state is the source of
                       truth — edits here don&apos;t propagate. Leave empty for <code>{'{}'}</code>.
-                      See well-known keys in{' '}
+                      See how state works in{' '}
                       <a
-                        href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
+                        href="https://docs.mantle-ai.tech/help/heartbeats/#technical"
                         className="underline"
                         target="_blank"
                         rel="noreferrer"
                       >
-                        docs/heartbeats.md §10
+                        the heartbeat docs
                       </a>
                       .
                     </FieldHint>

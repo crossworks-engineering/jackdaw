@@ -61,9 +61,10 @@ function assetTokenRefreshPlugin(): Plugin {
  * embed images by URL too (uploads are an editor affordance — see upload.ts).
  */
 export const PageImage = Node.create<{
-  /** Rewrite the asset path an image loads from. A member's editor maps the
-   *  admin byte routes onto the member ones (lib/member-assets.ts): the brain
-   *  refuses a member on /api/files and /api/draws. Null = as stored. */
+  /** Rewrite the asset path an image loads from. Every app login reads the
+   *  owner byte routes (/api/files, /api/draws) since W7e, so nothing here
+   *  maps them; this is for a reader with byte routes of its own. Null = as
+   *  stored. */
   mapAssetPath: ((path: string) => string) | null;
 }>({
   name: 'image',

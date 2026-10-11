@@ -132,9 +132,9 @@ function useShell() {
     // This payload carries the asset token, and that token EXPIRES — it rides
     // in the URL, so the brain keeps its life short (two hours, "one working
     // session", for an Admin user; ten minutes for any other login, W7e: the
-    // delay below then refreshes it every five). Nothing refreshed it: this query ran once per mount, so a tab
-    // left open past lunch got a 401 on every image, iframe and download until
-    // someone reloaded.
+    // delay below then refreshes it every five). Nothing refreshed it: this
+    // query ran once per mount, so a tab left open past lunch got a 401 on
+    // every image, iframe and download until someone reloaded.
     //
     // The delay is read from the token's own `exp` rather than copied from the
     // brain's constant, so the two cannot drift; `false` when there is no token

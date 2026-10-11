@@ -764,15 +764,15 @@ export function HeartbeatsClient() {
                     <p className="text-xs text-muted-foreground">
                       Pre-fills from the chosen skill&apos;s default state on first pick. Edits here
                       only affect this heartbeat. When editing, the state is saved only if you
-                      change it here, so state the heartbeat wrote meanwhile is kept. See well-known
-                      keys in{' '}
+                      change it here, so state the heartbeat wrote meanwhile is kept. See how state
+                      works in{' '}
                       <a
-                        href="https://github.com/TitanKing/mantle/blob/main/docs/heartbeats.md#10-conventions-well-known-state-keys"
+                        href="https://docs.mantle-ai.tech/help/heartbeats/#technical"
                         className="underline"
                         target="_blank"
                         rel="noreferrer"
                       >
-                        docs/heartbeats.md §10
+                        the heartbeat docs
                       </a>
                       .
                     </p>
