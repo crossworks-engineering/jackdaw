@@ -34,6 +34,7 @@ import {
   workspaceLabel,
   hasArea,
   isAdminUserShell,
+  isOwnerShell,
   shellRoleOf,
   mayOpenPath,
   navWithAreas,
@@ -221,6 +222,29 @@ describe('shellRoleOf and isAdminUserShell', () => {
     expect(isAdminUserShell({ role: 'member' })).toBe(false);
     expect(isAdminUserShell({ role: 'client' })).toBe(false);
     expect(isAdminUserShell(undefined)).toBe(false);
+  });
+});
+
+describe('isOwnerShell (W6b fix round 2)', () => {
+  it('is the isOwner the brain names, whatever the role', () => {
+    expect(isOwnerShell({ role: 'admin', isOwner: true })).toBe(true);
+    expect(isOwnerShell({ role: 'admin', isOwner: false })).toBe(false);
+    expect(isOwnerShell({ role: 'member', isOwner: false })).toBe(false);
+    expect(isOwnerShell({ role: 'client', isOwner: false })).toBe(false);
+  });
+  it('a brain that sends no isOwner: every Admin user, as that brain removes their deletes', () => {
+    expect(isOwnerShell({ role: 'admin' })).toBe(true);
+    expect(isOwnerShell({})).toBe(true);
+    expect(isOwnerShell({ role: 'member' })).toBe(false);
+    expect(isOwnerShell({ role: 'client' })).toBe(false);
+  });
+  it('a value that is not a boolean reads as no isOwner', () => {
+    expect(isOwnerShell({ role: 'member', isOwner: 'true' })).toBe(false);
+    expect(isOwnerShell({ role: 'admin', isOwner: 'false' })).toBe(true);
+  });
+  it('no shell yet: not the owner', () => {
+    expect(isOwnerShell(undefined)).toBe(false);
+    expect(isOwnerShell(null)).toBe(false);
   });
 });
 

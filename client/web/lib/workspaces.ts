@@ -517,6 +517,21 @@ export function isAdminUserShell(shell: { role?: unknown } | null | undefined): 
   return shellRoleOf(shell) === 'admin';
 }
 
+/**
+ * Whether a loaded shell names the brain's owner (its anchor login, the
+ * brain's `isOwner`, W6b fix round 2): only the owner's app deletes are
+ * removed after 30 days. A brain that sends no `isOwner` (before that round)
+ * removes every Admin user's delete after 30 days, so it reads as
+ * isAdminUserShell. False for no shell at all.
+ */
+export function isOwnerShell(
+  shell: { role?: unknown; isOwner?: unknown } | null | undefined,
+): boolean {
+  if (!shell) return false;
+  if (typeof shell.isOwner === 'boolean') return shell.isOwner;
+  return isAdminUserShell(shell);
+}
+
 /** The nav without the screens the login may not manage (plan 7.1: screens
  *  hide by area). A group left empty goes too, and a hidden href leaves a
  *  collapsible group's cold-start head. */

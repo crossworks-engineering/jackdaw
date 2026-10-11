@@ -252,6 +252,8 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
   const shell = (role: Role) => ({
     role,
     loginId: LOGINS[role].loginId,
+    // The brain's anchor login (W6b fix round 2): Ada is the owner here.
+    isOwner: role === 'admin',
     workspaces: shellWorkspaces(role),
     areas: role === 'admin' ? ALL_AREAS : [],
     treeKinds: MEMBER_TREE_KINDS,

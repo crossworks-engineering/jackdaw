@@ -60,20 +60,29 @@ export function appsUrlId(params: Pick<URLSearchParams, 'get'>): string | null {
 }
 
 /** Delete moves an app to the brain's trash (GET /api/apps/deleted), its
- *  code and data kept as a snapshot. */
+ *  code and data kept as a snapshot. The brain owner's delete (`isOwner` on
+ *  GET /api/shell) is removed after 30 days. */
 export const APP_DELETE_CONFIRM =
   'It moves to the trash: restore it under Recently deleted apps for 30 days, with its code and data. No one can run it until then.';
 export const APP_DELETED_TOAST =
   'Moved to the trash. Restore it under Recently deleted apps for 30 days.';
 
-/** A delete by a login that is not an Admin user (W6b fix round, contract
- *  change 6): the app goes to the brain's trash and stays there until the
- *  brain's owner deletes it for good (the nightly sweep never removes it).
- *  No days: nothing counts down. */
-export const MEMBER_APP_DELETE_CONFIRM =
-  'It moves to the trash with its code and data. No one can run it there. Only the brain owner can delete it for good.';
-export const MEMBER_APP_DELETED_TOAST =
-  'Moved to the trash. Only the brain owner can delete it for good.';
+/** A delete by any login that is not the brain's owner, an Admin user too
+ *  (W6b fix round 2): the app stays in the brain's trash until the owner
+ *  deletes it for good (the nightly sweep never removes it). No days:
+ *  nothing counts down. */
+export const HELD_APP_DELETE_CONFIRM =
+  'It moves to the trash with its code and data. No one can run it there. It stays in the trash until the brain owner deletes it for good.';
+export const HELD_APP_DELETED_TOAST =
+  'Moved to the trash. It stays there until the brain owner deletes it for good.';
+
+/** The delete confirm and toast for this login: the 30-day text for the
+ *  brain owner only (useIsBrainOwner), the held text for anyone else. */
+export function appDeleteCopy(isOwner: boolean): { confirm: string; toast: string } {
+  return isOwner
+    ? { confirm: APP_DELETE_CONFIRM, toast: APP_DELETED_TOAST }
+    : { confirm: HELD_APP_DELETE_CONFIRM, toast: HELD_APP_DELETED_TOAST };
+}
 
 /** The note on an app that was in its author's own trash when the personal
  *  spaces were folded into the brain (W6b contract item 4). */

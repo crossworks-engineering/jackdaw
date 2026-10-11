@@ -7,8 +7,9 @@ import {
   APP_DELETE_CONFIRM,
   APP_DELETED_TOAST,
   APP_WAS_IN_TRASH,
-  MEMBER_APP_DELETE_CONFIRM,
-  MEMBER_APP_DELETED_TOAST,
+  HELD_APP_DELETE_CONFIRM,
+  HELD_APP_DELETED_TOAST,
+  appDeleteCopy,
   appDetailQuery,
   wasInTrash,
   appsLegacyHref,
@@ -60,19 +61,36 @@ describe('copy', () => {
     for (const s of [
       APP_DELETE_CONFIRM,
       APP_DELETED_TOAST,
-      MEMBER_APP_DELETE_CONFIRM,
-      MEMBER_APP_DELETED_TOAST,
+      HELD_APP_DELETE_CONFIRM,
+      HELD_APP_DELETED_TOAST,
       APP_WAS_IN_TRASH,
     ])
       expect(s).not.toMatch(/[–—]/);
   });
 
-  it('a member delete: the trash, only the owner deletes it for good, no days (W6b fix round)', () => {
-    for (const s of [MEMBER_APP_DELETE_CONFIRM, MEMBER_APP_DELETED_TOAST]) {
-      expect(s).not.toMatch(/\bdays?\b|purge|Recently deleted|An Admin user can restore/i);
+  it('a delete by anyone but the owner: kept in the trash until the owner deletes it, no days (W6b fix round 2)', () => {
+    for (const s of [HELD_APP_DELETE_CONFIRM, HELD_APP_DELETED_TOAST]) {
+      expect(s).not.toMatch(/\bdays?\b|\d|purge|Recently deleted|An Admin user can restore/i);
       expect(s).toMatch(/trash/);
-      expect(s).toMatch(/Only the brain owner can delete it for good\./);
+      expect(s).toMatch(/until the brain owner deletes it for good\.$/);
     }
+  });
+
+  it('the owner delete: the trash for 30 days', () => {
+    for (const s of [APP_DELETE_CONFIRM, APP_DELETED_TOAST]) expect(s).toMatch(/30 days/);
+  });
+});
+
+describe('appDeleteCopy (W6b fix round 2)', () => {
+  it('gives the 30-day text to the brain owner only', () => {
+    expect(appDeleteCopy(true)).toEqual({ confirm: APP_DELETE_CONFIRM, toast: APP_DELETED_TOAST });
+  });
+
+  it('gives the held text to any other login, an Admin user too', () => {
+    expect(appDeleteCopy(false)).toEqual({
+      confirm: HELD_APP_DELETE_CONFIRM,
+      toast: HELD_APP_DELETED_TOAST,
+    });
   });
 });
 

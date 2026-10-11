@@ -63,18 +63,15 @@ import { treeKey } from '@/components/item-tree/tree-api';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import { DELETED_APPS_KEY } from '@/lib/space-apps';
 import {
-  APP_DELETED_TOAST,
-  APP_DELETE_CONFIRM,
   APP_SHARE_HINT,
   APP_WAS_IN_TRASH,
-  MEMBER_APP_DELETED_TOAST,
-  MEMBER_APP_DELETE_CONFIRM,
+  appDeleteCopy,
   appDetailQuery,
   appsLegacyHref,
   appsUrlId,
   wasInTrash,
 } from '@/lib/apps-screen';
-import { useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { useIsAdminUser, useIsBrainOwner } from '@/components/workspaces/use-shell-workspaces';
 import { memberAppSandboxProps } from '@/lib/member-apps';
 import { AppItemHeader, HeaderIconButton } from '@/components/app-nav/app-item-header';
 
@@ -107,6 +104,8 @@ export function AppsClient() {
   // trash list and the owner runner are an Admin user's; anyone else runs
   // an app on the member routes and changes it over its own MCP connection.
   const admin = useIsAdminUser();
+  // The 30-day trash text is the brain owner's only (GET /api/shell isOwner).
+  const deleteCopy = appDeleteCopy(useIsBrainOwner());
 
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const query = searchParams.get('q')?.trim() ?? '';
@@ -190,7 +189,7 @@ export function AppsClient() {
     setDeleting(true);
     try {
       await apiSend(`/api/apps/${deleteTarget.id}`, 'DELETE');
-      toast.success(admin ? APP_DELETED_TOAST : MEMBER_APP_DELETED_TOAST);
+      toast.success(deleteCopy.toast);
       if (deleteTarget.id === activeId) select(null);
       setDeleteTarget(null);
       void queryClient.invalidateQueries({ queryKey: ['apps'] });
@@ -390,9 +389,7 @@ export function AppsClient() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{deleteTarget?.title}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {admin ? APP_DELETE_CONFIRM : MEMBER_APP_DELETE_CONFIRM}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{deleteCopy.confirm}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>

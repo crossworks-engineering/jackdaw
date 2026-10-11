@@ -5,6 +5,7 @@ import { apiFetch } from '@mantle/web-ui/api-fetch';
 import type { Shell } from '@/lib/contract/shell';
 import {
   isAdminUserShell,
+  isOwnerShell,
   shellAreasOf,
   shellWorkspacesOf,
   type ShellWorkspace,
@@ -59,6 +60,22 @@ export function useIsAdminUser(): boolean {
     queryFn: () => apiFetch<Shell>('/api/shell'),
     enabled: false,
     select: (d: Shell) => isAdminUserShell(d),
+  });
+  return data === true;
+}
+
+/**
+ * Whether the login is the brain's owner (isOwnerShell in lib/workspaces.ts):
+ * false until the shell has answered. Only the owner's app deletes are
+ * removed after 30 days; anyone else's stay in the trash until the owner
+ * deletes them for good.
+ */
+export function useIsBrainOwner(): boolean {
+  const { data } = useQuery({
+    queryKey: ['shell'],
+    queryFn: () => apiFetch<Shell>('/api/shell'),
+    enabled: false,
+    select: (d: Shell) => isOwnerShell(d),
   });
   return data === true;
 }

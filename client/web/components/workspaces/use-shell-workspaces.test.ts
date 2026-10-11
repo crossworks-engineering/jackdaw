@@ -6,7 +6,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
-import { useIsAdminUser, useViewerAreas } from './use-shell-workspaces';
+import { useIsAdminUser, useIsBrainOwner, useViewerAreas } from './use-shell-workspaces';
 
 function render(probe: () => unknown, shell: unknown): string {
   const client = new QueryClient();
@@ -51,5 +51,17 @@ describe('useIsAdminUser', () => {
   it('is false for a member or a client, whatever else the shell holds', () => {
     expect(render(useIsAdminUser, { role: 'member', workspaces: [ws(true)] })).toBe('<p>false</p>');
     expect(render(useIsAdminUser, { role: 'client', areas: ['users'] })).toBe('<p>false</p>');
+  });
+});
+
+describe('useIsBrainOwner (W6b fix round 2)', () => {
+  it('is false until the shell has answered', () => {
+    expect(render(useIsBrainOwner, undefined)).toBe('<p>false</p>');
+  });
+
+  it('is the brain isOwner: an Admin user who is not the owner is not', () => {
+    expect(render(useIsBrainOwner, { role: 'admin', isOwner: true })).toBe('<p>true</p>');
+    expect(render(useIsBrainOwner, { role: 'admin', isOwner: false })).toBe('<p>false</p>');
+    expect(render(useIsBrainOwner, { role: 'member', isOwner: false })).toBe('<p>false</p>');
   });
 });

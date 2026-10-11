@@ -7,9 +7,10 @@
  * both now answer 410 code gone.
  *
  * A verbatim copy of mantle packages/client-types/src/dto/shell.ts (brain
- * W5c, e1b3e5518). Replace the copy by hand when the brain's file changes.
- * One line differs: the brain's `../tree` is the published package's
- * `@mantle/client-types/tree` here (the same TreeKind list).
+ * W6b fix round 2, cf5207213: isOwner). Replace the copy by hand when the
+ * brain's file changes. One line differs: the brain's `../tree` is the
+ * published package's `@mantle/client-types/tree` here (the same TreeKind
+ * list).
  */
 import type { TreeKind } from '@mantle/client-types/tree';
 import type { ShellWorkspace, WorkspaceArea } from './workspaces';
@@ -24,6 +25,10 @@ export type Shell = {
   role: ShellRole;
   /** The login at the keyboard (the actor), never the anchor account. */
   loginId: string;
+  /** Whether this login is the brain's owner (its anchor login): only the
+   *  owner's app deletes are purged after 30 days; anyone else's stay in the
+   *  trash until the owner deletes them for good (W6b fix round 2). */
+  isOwner: boolean;
   /** Always true for a member or a client: onboarding is an admin's. */
   onboarded: boolean;
   features: ShellFeatures;
