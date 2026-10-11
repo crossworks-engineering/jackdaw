@@ -11,6 +11,7 @@ import ReactCrop, {
 import 'react-image-crop/dist/ReactCrop.css';
 import { Camera, X } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import type { Shell } from '@/lib/contract/shell';
 import { Button } from '@mantle/web-ui/ui/button';
 import {
   Dialog,
@@ -99,9 +100,8 @@ export function ProfilePhotoControl() {
   const inputRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const shell = useQuery({
-    // The shell payload predates the typed pin; only the one field is read.
     queryKey: ['shell'],
-    queryFn: () => apiFetch<{ avatarPhotoVersion?: string | null }>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
     staleTime: Infinity,
   });
   const version = shell.data?.avatarPhotoVersion ?? null;

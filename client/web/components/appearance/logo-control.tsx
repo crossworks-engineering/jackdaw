@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImageUp, Loader2, X } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
+import type { Shell } from '@/lib/contract/shell';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { Button } from '@mantle/web-ui/ui/button';
 import { useToast } from '@mantle/web-ui/ui/toast';
@@ -41,16 +42,10 @@ import { useToast } from '@mantle/web-ui/ui/toast';
  */
 const MAX_BYTES = 512 * 1024;
 
-type ShellBrand = {
-  siteName: string | null;
-  logoVersion: string | null;
-  logoDarkVersion?: string | null;
-};
-
 export function LogoControl() {
   const shell = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<ShellBrand>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
   });
   const wordmark = shell.data?.siteName || 'mantle';
   const base = shell.data?.logoVersion ?? null;

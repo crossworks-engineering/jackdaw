@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { shellRoleOf, type ShellRole } from '@/lib/workspaces';
+import type { Shell, ShellRole } from '@/lib/contract/shell';
+import { shellRoleOf } from '@/lib/workspaces';
 
 export type { ShellRole };
-
-type ShellRoleSlice = { role?: unknown };
 
 /**
  * The login's role, from the shell the app frame already fetched (GET
@@ -21,9 +20,9 @@ type ShellRoleSlice = { role?: unknown };
 export function useShellRole(): ShellRole | null {
   const { data } = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<ShellRoleSlice>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
     enabled: false,
-    select: (d: ShellRoleSlice) => shellRoleOf(d),
+    select: (d: Shell) => shellRoleOf(d),
   });
   return data ?? null;
 }

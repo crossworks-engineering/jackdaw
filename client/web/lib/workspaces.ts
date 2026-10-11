@@ -20,6 +20,7 @@ import type {
   WorkspaceUser,
   WorkspaceUserSearchHit as UserSearchHit,
 } from './contract/workspaces';
+import type { ShellRole } from './contract/shell';
 
 export type {
   ShellWorkspace,
@@ -443,10 +444,10 @@ export function shellAreasOf(shell: { areas?: unknown } | null | undefined): str
   return Array.isArray(raw) ? raw.filter((a): a is string => typeof a === 'string') : undefined;
 }
 
-/** What the brain says a login is (GET /api/shell `role`, W5c contract).
- *  The data a screen reads still depends on it until phase W6a scopes the
- *  owner routes. */
-export type ShellRole = 'admin' | 'member' | 'client';
+/** What the brain says a login is (GET /api/shell `role`, W5c contract:
+ *  lib/contract/shell.ts). The data a screen reads still depends on it
+ *  until phase W6a scopes the owner routes. */
+export type { ShellRole };
 
 /**
  * The login's role from a loaded shell: null with no shell yet. A brain that

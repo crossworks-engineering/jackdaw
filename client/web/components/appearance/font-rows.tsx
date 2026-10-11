@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import type { Shell } from '@/lib/contract/shell';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { FontDialog } from '@mantle/web-ui/font-dialog';
@@ -69,7 +70,7 @@ export function FontRows() {
 
   const shell = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<{ siteName: string | null; peerName: string | null }>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
   });
   const ctx = {
     wordmark: shell.data?.siteName || 'mantle',

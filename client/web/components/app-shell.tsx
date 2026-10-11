@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { shellProbeFailure } from '@/lib/shell-probe';
 import { hasArea, shellAreasOf, shellRoleOf } from '@/lib/workspaces';
+import type { Shell } from '@/lib/contract/shell';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
@@ -98,59 +99,24 @@ function writeCookieValue(name: string, value: string | number) {
   document.cookie = `${name}=${value}; path=/; max-age=31536000; samesite=lax`;
 }
 
-type ShellData = {
-  onboarded: boolean;
-  avatar: { style: string; seed: string; parts?: Record<string, string | null> | null } | null;
-  /** Uploaded profile photo's sha8 cache-buster; null = no photo. Outranks
-   *  the generated avatar (photo → generated seed → initials). */
-  avatarPhotoVersion?: string | null;
-  pendingApprovals: number;
-  /** The server's per-file upload cap in bytes (streamed /files uploader).
-   *  Absent on servers older than v0.232.122; the uploader assumes 64 MB then. */
-  maxUploadBytes?: number | null;
-  /** Who this browser is signed in AS (the actor, not the anchor account) —
-   *  the rail's profile row. Both null on a brain that stores neither. */
-  displayName?: string | null;
-  email?: string | null;
-  /** Custom wordmark (Settings → Profile → Site name); null ⇒ "mantle". */
-  siteName: string | null;
-  /** This brain's peer name (Settings → Profile → Peer name), the brand block's
-   *  second line; null ⇒ the line is not rendered. */
-  peerName: string | null;
-  /** Brand logo cache-busting version (Settings → Appearance → Logo); null ⇒
-   *  no logo, the siteName wordmark renders. Src is /api/appearance/logo. */
-  logoVersion: string | null;
-  logoDarkVersion?: string | null;
-  /** The DB-stored colour theme (the cross-browser source of truth); null ⇒
-   *  never saved. Adopted once per shell load. */
-  colorTheme: string | null;
-  /** DB-stored font keys + sizes for the four slots (Settings → Appearance →
-   *  Fonts); null ⇒ the defaults. Adopted once per shell load, like the colour
-   *  theme — face and size together, since they are one choice. */
-  fontLogo: string | null;
-  fontTitle: string | null;
-  fontUi: string | null;
-  fontProse: string | null;
-  fontSize: string | null;
-  fontLogoSize: string | null;
-  fontTitleSize: string | null;
-  fontProseSize: string | null;
-  /** The login's workspaces (W5a); absent before W5a. The switcher lists
-   *  them (components/workspaces/workspace-switcher.tsx). */
-  workspaces?: { id: string; name: string; isAdmin: boolean; moderator: boolean }[];
-  /** The Admin areas this login may manage (plan 1.4, requireArea); absent
-   *  before W5a, which means all of them. */
-  areas?: string[];
-  /** What the brain says this login is (W5c contract); absent from a brain
-   *  before it, which answered admins only. Picks where screens read their
-   *  data until phase W6a (components/layout/shell-role.tsx). */
-  role?: string;
-  /** The login's id (W5c contract): a member's rescue copies key by it. */
-  loginId?: string | null;
-  /** Short-lived asset-access token for browser-native srcs in detached mode
-   *  (see lib/asset-url). Absent/ignored same-origin. */
-  assetToken?: string;
-};
+/** GET /api/shell's answer: the brain's contract (lib/contract/shell.ts). */
+type ShellData = Shell;
+
+/** The shell's avatar as the renderer takes it. The contract leaves the
+ *  builder `parts` unknown: a map of part name to variant (or null) is kept,
+ *  anything else reads as no parts. */
+function avatarOf(a: Shell['avatar']) {
+  if (!a) return null;
+  const p = a.parts;
+  const parts =
+    p !== null &&
+    typeof p === 'object' &&
+    !Array.isArray(p) &&
+    Object.values(p).every((v) => v === null || typeof v === 'string')
+      ? (p as Record<string, string | null>)
+      : null;
+  return { style: a.style, seed: a.seed, parts };
+}
 
 /**
  * The shell, asked of the brain once (phase W5c: one shell for every login).
@@ -337,7 +303,7 @@ function ShellFrame({
   }, [pathname]);
   // What the chrome shows (brand, identity, theme, fonts, asset token).
   const brand = shell;
-  const userAvatar = brand.avatar ?? null;
+  const userAvatar = avatarOf(brand.avatar);
   // Hand the uploader the server's cap as soon as it is known, so an oversized
   // file is refused before a byte is sent, with the real number in the message.
   const { setMaxUploadBytes } = useUploads();

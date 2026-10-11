@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import type { Shell } from '@/lib/contract/shell';
 import { isTreeKind, TREE_KIND_SPECS, TREE_KINDS, type TreeKind } from '@mantle/web-ui/types/tree';
 
 /**
@@ -17,9 +18,9 @@ import { isTreeKind, TREE_KIND_SPECS, TREE_KINDS, type TreeKind } from '@mantle/
 export function useTreeServes(kind: TreeKind): boolean | undefined {
   const { data } = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<{ treeKinds?: unknown }>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
     enabled: false,
-    select: (d: { treeKinds?: unknown }) => treeKindsOf(d),
+    select: (d: Shell) => treeKindsOf(d),
   });
   return data === undefined ? undefined : data.includes(kind);
 }
@@ -39,9 +40,9 @@ export function treeKindsOf(shell: { treeKinds?: unknown } | null | undefined): 
 export function useReaderTreeKinds(): TreeKind[] | undefined {
   const { data } = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<{ treeKinds?: unknown }>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
     enabled: false,
-    select: (d: { treeKinds?: unknown }) => treeKindsOf(d),
+    select: (d: Shell) => treeKindsOf(d),
   });
   // Not known while the server renders and the page hydrates: the server has
   // no shell, and a screen that chose the tree from the browser's cached one

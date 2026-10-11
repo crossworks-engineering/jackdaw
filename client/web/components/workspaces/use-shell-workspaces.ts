@@ -2,19 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
+import type { Shell } from '@/lib/contract/shell';
 import {
   isAdminUserShell,
   shellAreasOf,
   shellWorkspacesOf,
   type ShellWorkspace,
 } from '@/lib/workspaces';
-
-type ShellSlice = {
-  workspaces?: unknown;
-  areas?: unknown;
-  email?: string | null;
-  role?: unknown;
-};
 
 export type ShellWorkspaceInfo = {
   /** The login's workspaces, as the shell names them ([] when it names none). */
@@ -35,9 +29,9 @@ export type ShellWorkspaceInfo = {
 export function useShellWorkspaces(): ShellWorkspaceInfo | undefined {
   const { data } = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<ShellSlice>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
     enabled: false,
-    select: (d: ShellSlice): ShellWorkspaceInfo => ({
+    select: (d: Shell): ShellWorkspaceInfo => ({
       workspaces: shellWorkspacesOf(d),
       hasWorkspaces: Array.isArray(d?.workspaces),
       areas: shellAreasOf(d),
@@ -62,9 +56,9 @@ export function useViewerAreas(): string[] | undefined {
 export function useIsAdminUser(): boolean {
   const { data } = useQuery({
     queryKey: ['shell'],
-    queryFn: () => apiFetch<ShellSlice>('/api/shell'),
+    queryFn: () => apiFetch<Shell>('/api/shell'),
     enabled: false,
-    select: (d: ShellSlice) => isAdminUserShell(d),
+    select: (d: Shell) => isAdminUserShell(d),
   });
   return data === true;
 }

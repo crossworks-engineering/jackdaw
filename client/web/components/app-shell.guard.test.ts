@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -95,7 +95,10 @@ function sources(dir: string, out: string[] = []): string[] {
 
 describe('the role plumbing of old is gone from the app', () => {
   it('no file names the retired role gate, role context or hint cookies', () => {
+    // lib/contract/ holds verbatim copies of the brain's contract: its
+    // comments name the retired routes (they answer 410 now).
     const offenders = sources(web)
+      .filter((f) => !relative(web, f).startsWith(`lib${sep}contract${sep}`))
       .filter((f) =>
         /ShellRoleGate|useViewerRole|ViewerRoleProvider|MEMBER_HINT|CLIENT_HINT_COOKIE|\/api\/member\/shell|\/api\/client\/shell/.test(
           readFileSync(f, 'utf8'),
