@@ -473,15 +473,23 @@ describe('the switcher choice', () => {
   const list = [
     { id: 'a', name: 'Admin', isAdmin: true },
     { id: 't', name: 'Team', isAdmin: false },
-    { id: 'p', name: 'Mo Member (only you)', isAdmin: false },
+    { id: 'p', name: 'Mo Member (only you)', isAdmin: false, private: true as const },
   ];
 
   it('calls the private workspace Only you (W6b)', () => {
     expect(currentWorkspaceLabel('p', list)).toBe(PRIVATE_WORKSPACE_LABEL);
-    expect(isPrivateWorkspace({ name: 'Mo (Only You)', isAdmin: false })).toBe(true);
-    expect(isPrivateWorkspace({ name: 'Team', isAdmin: false })).toBe(false);
-    expect(isPrivateWorkspace({ name: 'x (only you)', isAdmin: true })).toBe(false);
-    expect(workspaceLabel({ name: 'Team', isAdmin: false })).toBe('Team');
+    expect(isPrivateWorkspace({ private: true })).toBe(true);
+    expect(isPrivateWorkspace({})).toBe(false);
+    expect(workspaceLabel({ name: 'Team' })).toBe('Team');
+    expect(workspaceLabel({ name: 'Anything', private: true })).toBe(PRIVATE_WORKSPACE_LABEL);
+  });
+
+  it('knows the private workspace by the shell flag, never by its name (W6b fix round)', () => {
+    // A workspace a user named "(only you)" is not the private one.
+    expect(isPrivateWorkspace({ name: 'Mo (only you)', isAdmin: false } as never)).toBe(false);
+    expect(workspaceLabel({ name: 'Board (only you)' })).toBe('Board (only you)');
+    // The private flag only counts as true itself.
+    expect(isPrivateWorkspace({ private: 'true' } as never)).toBe(false);
   });
 
   it('keeps a stored workspace the login is still in', () => {

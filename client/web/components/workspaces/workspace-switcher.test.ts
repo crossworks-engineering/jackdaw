@@ -36,7 +36,13 @@ describe('switcherOptions', () => {
 describe('the private workspace (W6b)', () => {
   const withPrivate = [
     ...WORKSPACES,
-    { id: 'p', name: 'Mo Member (only you)', isAdmin: false, moderator: true },
+    {
+      id: 'p',
+      name: 'Mo Member (only you)',
+      isAdmin: false,
+      moderator: true,
+      private: true as const,
+    },
   ];
 
   it('is "Only you", right after All, with no Moderator mark', () => {
@@ -45,6 +51,19 @@ describe('the private workspace (W6b)', () => {
       { value: 'p', label: 'Only you', hint: null },
       { value: 'a', label: 'Admin', hint: 'Moderator' },
     ]);
+  });
+
+  it('a name ending "(only you)" without the flag is an ordinary workspace (W6b fix round)', () => {
+    const named = [
+      ...WORKSPACES,
+      { id: 'x', name: 'Board (only you)', isAdmin: false, moderator: true },
+    ];
+    expect(switcherOptions(named)).toContainEqual({
+      value: 'x',
+      label: 'Board (only you)',
+      hint: 'Moderator',
+    });
+    expect(switcherOptions(named).some((o) => o.label === 'Only you')).toBe(false);
   });
 
   it('the button says Only you when it is picked', () => {
