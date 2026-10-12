@@ -38,8 +38,8 @@ when Playwright's bundled browser is not downloaded. `E2E_WORKSPACE_PORT` and
 `E2E_WORKSPACE_API_PORT` move the two ports when another run holds them.
 
 Every spec signs in through the real `/login` form: the password goes to the
-mock's `POST /api/auth/token`, which answers one bearer per login (an admin,
-a member and a client, one test password). The mock answers `GET /api/shell`
+mock's `POST /api/auth/token`, which answers one bearer per login (an admin
+and a member, one test password; no client login since W8). The mock answers `GET /api/shell`
 for each the way a W6b brain does (`role`, `loginId`, `workspaces`, `areas`,
 `treeKinds`; the member's private workspace is "Mo Member (only you)",
 marked `private: true`), the owner tree and page routes every login's Pages
@@ -48,7 +48,7 @@ screen reads in its own scope (each row and page with the caller's item caps:
 snapshot copy), a file's detail and a `/n` node lookup,
 `POST /api/pages` with the `?ws=` rules (a Moderator's workspace, else the
 private one; 403 for a workspace the login is not in), and the few owner
-routes the admin's Users screen reads. It refuses a member or a client every
+routes the admin's Users screen reads. It refuses a member every
 owner route the brain did not open to it (`MEMBER_OPEN` in shell-nav.ts),
 answers the retired routes 410, and records every request with the login
 that sent it, so a spec can assert what a login never asked for. Anything
@@ -64,11 +64,9 @@ else is a plain 404.
   Edit or Delete); a `/n` link to a file opens it in its folder from
   `GET /api/files/files/:id`; a typed admin screen says "You cannot manage
   this part of the brain."; `/review` and `/team-admin` land on the home.
-- `client-shell.spec.ts`: the plain home with the client's workspaces, Pages
-  read from the owner tree in its scope, and no `/api/client/*`,
-  `/api/member/*` or unopened owner request.
 - `admin-shell.spec.ts`: the full nav with Settings > Users, the owner Pages
-  screen (every page of the brain) and the Users screen.
+  screen (every page of the brain) and the Users screen (no sign-in by email
+  code and no client login since W8).
 - `retired-links.spec.ts`: old portal links (`/team`, `/hub`, `/client-signin`)
   land on a bare `/login`; old review links land on the home.
 - `login-brains.spec.ts`: the sign-in screen against more than one brain (the
