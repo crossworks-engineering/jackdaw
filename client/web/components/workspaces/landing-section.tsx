@@ -39,7 +39,8 @@ export const NOT_HELD_TEXT = `An app this workspace no longer holds (users see t
 /** What the screen says the landing page is, for a reader. */
 export function landingText(app: WorkspaceLandingApp | null | undefined): string {
   if (!app) return BUILT_IN_HOME_LABEL;
-  if (!app.held) return NOT_HELD_TEXT;
+  // A missing `held` counts as held (audit L-c).
+  if (app.held === false) return NOT_HELD_TEXT;
   const name = app.title ?? 'A home app';
   return app.ready ? name : `${name} (no working build: users see the ${BUILT_IN_HOME_LABEL})`;
 }
@@ -47,7 +48,7 @@ export function landingText(app: WorkspaceLandingApp | null | undefined): string
 /** The picker's value for the current landing page. */
 export function landingValue(app: WorkspaceLandingApp | null | undefined): string {
   if (!app) return BUILT_IN_HOME;
-  return app.held && app.appId ? app.appId : UNNAMED_HOME;
+  return app.held !== false && app.appId ? app.appId : UNNAMED_HOME;
 }
 
 /** The picker's choices: the Built-in home, the current home app, then the

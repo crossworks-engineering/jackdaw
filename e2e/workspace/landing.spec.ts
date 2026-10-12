@@ -12,8 +12,8 @@ import { wholeNav } from './shell-nav';
 /**
  * Each workspace's landing page (dev-brain task d78e7bde): Home shows the
  * landing page of the current workspace and changes when the login switches
- * at `/`. The Built-in home here (the mock names no home app), with that
- * workspace's pages and apps; "All my workspaces" shows all of them. An
+ * at `/`: the Built-in home with that workspace's pages and apps, or the
+ * home app a spec names; "All my workspaces" shows all of them. An
  * Admin user lands there too: the brain health Dashboard is in the menu.
  * In-memory brain, no real one.
  */
