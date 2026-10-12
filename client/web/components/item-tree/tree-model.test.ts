@@ -21,7 +21,7 @@ import {
   type FolderLoad,
   type TreeRow,
 } from './tree-model';
-import { folderKey, folderUrl, searchKey, searchUrl, treeKey } from './tree-api';
+import { folderKey, folderUrl, searchKey, searchUrl, tagsKey, tagsUrl, treeKey } from './tree-api';
 import { treeKindOfItem, treeKindsOf } from './use-tree-kinds';
 
 const folder = (id: string, path: string): TreeFolder => ({
@@ -332,6 +332,12 @@ describe('urls', () => {
     expect(folderKey('notes', null, 'name', 'owner', 'w1').at(-1)).toBe('w1');
     expect(searchKey('notes', 'q', {}, 'owner', 'w1').at(-1)).toBe('w1');
     expect(searchKey('notes', 'q').at(-1)).toBe('all');
+    // The tag menu counts in the picked workspace too.
+    expect(tagsUrl('notes', 'w1')).toBe('/api/tree/notes/tags?ws=w1');
+    expect(tagsUrl('notes')).toBe('/api/tree/notes/tags');
+    expect(tagsKey('notes', 'w1').at(-1)).toBe('w1');
+    expect(tagsKey('notes').at(-1)).toBe('all');
+    expect(tagsKey('notes', 'w1').slice(0, 2)).toEqual(treeKey('notes'));
     // A refresh of the kind still reaches every workspace's lists.
     expect(folderKey('notes', null, 'name', 'owner', 'w1').slice(0, 2)).toEqual(treeKey('notes'));
   });

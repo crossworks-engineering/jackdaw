@@ -57,7 +57,10 @@ export const searchKey = (
   ws: string | null = null,
 ) => ['tree', treeScope(kind, source), 'search', q, filter.tag ?? null, ws ?? 'all'] as const;
 
-export const tagsKey = (kind: TreeKind) => ['tree', kind, 'tags'] as const;
+/** `ws`: the switcher's workspace (null = all), as on the folder and
+ *  search keys: the tag counts follow it. */
+export const tagsKey = (kind: TreeKind, ws: string | null = null) =>
+  ['tree', kind, 'tags', ws ?? 'all'] as const;
 
 export const marksKey = (kind: TreeKind, view: TreeMarkView) =>
   ['tree', kind, 'marks', view] as const;
@@ -127,7 +130,14 @@ export const fetchSearch = (
   return apiFetch<TreeSearchResult>(url).then((r) => noteListAnswer(r, ws));
 };
 
-export const fetchTags = (kind: TreeKind) => apiFetch<TreeTagList>(`/api/tree/${kind}/tags`);
+export function tagsUrl(kind: TreeKind, ws: string | null = null): string {
+  return `/api/tree/${kind}/tags${query({ ws })}`;
+}
+
+/** The tags of a kind's items, counted in the switcher's workspace when
+ *  one is picked (the brain's `?ws=` on /tags). */
+export const fetchTags = (kind: TreeKind, ws: string | null = null) =>
+  apiFetch<TreeTagList>(tagsUrl(kind, ws)).then((r) => noteListAnswer(r, ws));
 
 export const fetchMarks = (kind: TreeKind, view: TreeMarkView) =>
   apiFetch<TreeMarkList>(marksUrl(kind, view));

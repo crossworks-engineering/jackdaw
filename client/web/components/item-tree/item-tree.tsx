@@ -324,8 +324,8 @@ export function ItemTree({
   const filtering = filter.tag !== undefined;
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const tagsQ = useQuery({
-    queryKey: tagsKey(kind),
-    queryFn: () => fetchTags(kind),
+    queryKey: tagsKey(kind, ws),
+    queryFn: () => fetchTags(kind, ws),
     enabled: filterMenuOpen && owner,
     staleTime: 60_000,
   });
