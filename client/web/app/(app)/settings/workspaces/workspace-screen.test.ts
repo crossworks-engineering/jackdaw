@@ -637,4 +637,16 @@ describe('landingChoices', () => {
     ]);
     expect(landingValue(null)).toBe(BUILT_IN_HOME);
   });
+
+  it('a landing app with no `held` field counts as held (audit L-c)', () => {
+    const noHeld = { appId: 'a', title: 'A', ready: true } as unknown as Parameters<
+      typeof landingValue
+    >[0];
+    expect(landingValue(noHeld)).toBe('a');
+    expect(landingChoices(noHeld, [{ token: 'b', title: 'B' }])).toEqual([
+      { value: BUILT_IN_HOME, label: 'Built-in home' },
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ]);
+  });
 });
