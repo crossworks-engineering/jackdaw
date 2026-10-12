@@ -96,10 +96,10 @@ describe('tree writes', () => {
 
 describe('a confirmed write says what it was shown (seen)', () => {
   it('sends seen on a confirmed folder change, move and delete', async () => {
-    await patchTreeFolder('notes', 'f1', { share: 'client', confirm: true, seen: 3 });
+    await patchTreeFolder('notes', 'f1', { parentId: 'f2', confirm: true, seen: 3 });
     await moveTreeItems('notes', ['i1'], 'f1', true, 'owner', 2);
     await deleteTreeFolder('notes', 'f1', true, 'owner', 4);
-    expect(sent[0]!.body).toEqual({ share: 'client', confirm: true, seen: 3 });
+    expect(sent[0]!.body).toEqual({ parentId: 'f2', confirm: true, seen: 3 });
     expect(sent[1]!.body).toEqual({ ids: ['i1'], folderId: 'f1', confirm: true, seen: 2 });
     expect(sent[2]!.url).toBe('/api/tree/notes/folders/f1?confirm=true&seen=4');
   });
@@ -113,10 +113,10 @@ describe('a confirmed write says what it was shown (seen)', () => {
 
   it('repeats a folder change without seen for a brain that refuses the field', async () => {
     strictPatch.on = true;
-    await patchTreeFolder('notes', 'f1', { share: 'team', confirm: true, seen: 1 });
+    await patchTreeFolder('notes', 'f1', { parentId: null, confirm: true, seen: 1 });
     expect(sent.map((x) => x.body)).toEqual([
-      { share: 'team', confirm: true, seen: 1 },
-      { share: 'team', confirm: true },
+      { parentId: null, confirm: true, seen: 1 },
+      { parentId: null, confirm: true },
     ]);
   });
 });

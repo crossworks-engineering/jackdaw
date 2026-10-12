@@ -203,15 +203,16 @@ describe('shellRoleOf and isAdminUserShell', () => {
   it('reads the role the brain names', () => {
     expect(shellRoleOf({ role: 'admin' })).toBe('admin');
     expect(shellRoleOf({ role: 'member' })).toBe('member');
-    expect(shellRoleOf({ role: 'client' })).toBe('client');
   });
   it('a brain that names no role answered an admin only', () => {
     expect(shellRoleOf({})).toBe('admin');
     expect(shellRoleOf({ role: null })).toBe('admin');
   });
-  it('a role this build does not know fails closed, as a client', () => {
-    expect(shellRoleOf({ role: 'guest' })).toBe('client');
-    expect(shellRoleOf({ role: 7 })).toBe('client');
+  it('a role this build does not know fails closed, as a member (W8: no client role)', () => {
+    expect(shellRoleOf({ role: 'guest' })).toBe('member');
+    expect(shellRoleOf({ role: 7 })).toBe('member');
+    // A brain before W8 could still name a client login: never the owner screens.
+    expect(shellRoleOf({ role: 'client' })).toBe('member');
   });
   it('no shell yet: no role', () => {
     expect(shellRoleOf(undefined)).toBeNull();

@@ -59,11 +59,12 @@ import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import {
   ACCESS_LABEL,
   AREA_LABEL,
-  EXPIRY_LABEL,
   createBody,
   defaultExpiryChoice,
   exampleCommands,
   expiryChoicesFor,
+  expiryLabel,
+  offersRiskyTools,
   scopeLine,
   sortKeys,
   type CreateForm,
@@ -121,10 +122,8 @@ export function ApiAccessClient() {
               <p className="mt-1 text-sm text-muted-foreground">
                 A key lets a script or an MCP client use this brain as you, with fewer rights if you
                 choose: read only, or only some areas. It works on the public API (
-                <code>/api/v1</code>) and on MCP.{' '}
-                {data && !data.needsPassword
-                  ? 'Your keys end when you sign out. Revoke a key here.'
-                  : 'A plain sign-out does not end a key; a password change or Sign out everywhere ends all of them. Revoke a key here.'}
+                <code>/api/v1</code>) and on MCP. A plain sign-out does not end a key; a password
+                change or Sign out everywhere ends all of them. Revoke a key here.
               </p>
             </div>
           </div>
@@ -156,11 +155,9 @@ export function ApiAccessClient() {
         <CreateKeyDialog
           open={creating}
           onOpenChange={setCreating}
-          rules={{
-            isAdmin,
-            needsPassword: data.needsPassword,
-            maxExpiryDays: data.maxExpiryDays,
-          }}
+          // Every login re-types its password (W8); the longest expiry
+          // follows the brain's maxExpiryDays (its keys area).
+          rules={{ maxExpiryDays: data.maxExpiryDays }}
           areas={data.areas}
           defaultExpiryDays={data.defaultExpiryDays}
           onCreated={async (made) => {
@@ -298,7 +295,7 @@ function CreateKeyDialog({
   onCreated: (made: AccessKeyCreated & { name: string }) => Promise<void>;
 }) {
   const toast = useToast();
-  const { isAdmin } = rules;
+  const risky = offersRiskyTools(rules);
   const blank = (): CreateForm => ({
     name: '',
     access: 'read',
@@ -358,13 +355,11 @@ function CreateKeyDialog({
           <DialogDescription>The key acts as you, with the limits you set here.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate>
-          {rules.needsPassword && (
-            // For a password manager: the login the password field is for, so
-            // it does not fill the key's Name instead. Hidden and never
-            // focused, so the kit's styling has nothing to do here.
-            // eslint-disable-next-line house/no-raw-form-control -- a hidden autofill hint, not a control
-            <input type="text" autoComplete="username" hidden readOnly value="" />
-          )}
+          {/* For a password manager: the login the password field is for, so it
+              does not fill the key's Name instead. Hidden and never focused,
+              so the kit's styling has nothing to do here. */}
+          {/* eslint-disable-next-line house/no-raw-form-control -- a hidden autofill hint, not a control */}
+          <input type="text" autoComplete="username" hidden readOnly value="" />
           <FieldGroup>
             <Field data-invalid={error?.field === 'name' || undefined}>
               <FieldLabel htmlFor="key-name">Name</FieldLabel>
@@ -400,17 +395,14 @@ function CreateKeyDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="key-expiry">Expires</FieldLabel>
-                <Select
-                  value={form.expiry}
-                  onValueChange={(v) => set({ expiry: v as CreateForm['expiry'] })}
-                >
+                <Select value={form.expiry} onValueChange={(v) => set({ expiry: v })}>
                   <SelectTrigger id="key-expiry">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {expiryChoicesFor(rules.maxExpiryDays).map((c) => (
                       <SelectItem key={c} value={c}>
-                        {EXPIRY_LABEL[c]}
+                        {expiryLabel(c)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -451,7 +443,7 @@ function CreateKeyDialog({
               <FieldError>{error?.field === 'areas' ? error.message : null}</FieldError>
             </Field>
 
-            {isAdmin && (
+            {risky && (
               <Field data-invalid={error?.field === 'riskyTools' || undefined}>
                 <FieldLabel htmlFor="key-risky">Risky MCP tools allowed</FieldLabel>
                 <Input
@@ -470,23 +462,21 @@ function CreateKeyDialog({
               </Field>
             )}
 
-            {rules.needsPassword && (
-              <Field data-invalid={error?.field === 'password' || undefined}>
-                <FieldLabel htmlFor="key-password">Your password</FieldLabel>
-                <Input
-                  id="key-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={form.password}
-                  onChange={(e) => set({ password: e.target.value })}
-                  aria-invalid={error?.field === 'password' || undefined}
-                  aria-describedby={error?.field === 'password' ? 'key-password-error' : undefined}
-                />
-                <FieldError id="key-password-error">
-                  {error?.field === 'password' ? error.message : null}
-                </FieldError>
-              </Field>
-            )}
+            <Field data-invalid={error?.field === 'password' || undefined}>
+              <FieldLabel htmlFor="key-password">Your password</FieldLabel>
+              <Input
+                id="key-password"
+                type="password"
+                autoComplete="current-password"
+                value={form.password}
+                onChange={(e) => set({ password: e.target.value })}
+                aria-invalid={error?.field === 'password' || undefined}
+                aria-describedby={error?.field === 'password' ? 'key-password-error' : undefined}
+              />
+              <FieldError id="key-password-error">
+                {error?.field === 'password' ? error.message : null}
+              </FieldError>
+            </Field>
 
             <div className="flex justify-end gap-2 border-t border-border pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

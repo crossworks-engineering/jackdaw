@@ -13,7 +13,6 @@ import {
   Anchor,
   Bot,
   KeyRound,
-  MailCheck,
   MailPlus,
   Monitor,
   MonitorSmartphone,
@@ -68,16 +67,13 @@ import {
   signLoginOutEverywhere,
   signOutEverywhere,
 } from '@/lib/sign-out-everywhere';
-import { EMAIL_CODE, initialSelection, inviteIdOf, inviteKey } from '@/lib/logins-nav';
+import { initialSelection, inviteIdOf, inviteKey } from '@/lib/logins-nav';
+import { loginRefusalText, refusalReason } from '@/lib/login-refusals';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
 import { InviteDetail, InviteDialog, stateLine, useInvites } from './invites';
 import { inviteName, newLinkSeed, openInvites } from '@/lib/user-invites';
-import { EmailCodeSenderPanel } from './email-code-sender';
 import { PairPhoneCard } from './pair-phone-card';
 import { LoginWorkspaces } from './login-workspaces';
-
-/** The list entry and pane title for the email code sender. */
-export const EMAIL_CODE_TITLE = 'Sign-in by email code';
 
 /** What the delete confirm says. */
 export const LOGIN_DELETE_TEXT =
@@ -210,14 +206,14 @@ function LoginCard({
 /**
  * Users: ways INTO the one brain, not tenants. Account actions only: what a
  * login reads comes from its workspaces (Settings > Workspaces). The list
- * column holds, top to bottom: Open invites (while any is open), the logins,
- * then Sign-in by email code (the sender setting). Invite and Add user head
- * the column. One detail pane shows whatever is selected, under its one
+ * column holds, top to bottom: Open invites (while any is open), then the
+ * logins. Invite and Add user head the column. One detail pane shows whatever is selected, under its one
  * header (ItemHeader).
  *
- * Kept brain routes (W5c contract): /api/team-admin/invites (INVITES_PATH)
- * and /clients/signin-sender (EMAIL_CODE_SENDER_PATH). The server enforces the invariants (anchor
- * undeletable, no self-delete); the UI just mirrors them.
+ * Kept brain route (W5c contract): /api/team-admin/invites (INVITES_PATH).
+ * There is no code sign-in since workspaces W8. The server enforces
+ * the invariants (anchor undeletable, no self-delete); the UI just mirrors
+ * them.
  */
 export function UsersClient() {
   const queryClient = useQueryClient();
@@ -227,9 +223,9 @@ export function UsersClient() {
   });
   const invitesQuery = useInvites();
 
-  // Deep link: /settings/users?selected=<id-or-email | invite:<id> |
-  // email-code> preselects (initial state only: selection stays client state
-  // after). An old Clients step opens the plain list.
+  // Deep link: /settings/users?selected=<id-or-email | invite:<id>>
+  // preselects (initial state only: selection stays client state after). An
+  // old Clients step or the old code sign-in entry opens the plain list.
   const searchParams = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     initialSelection(searchParams.get('selected')),
@@ -268,21 +264,14 @@ export function UsersClient() {
   const { users, currentActorId } = usersQuery.data;
   const invites = openInvites(invitesQuery.data?.invites);
 
-  // What the detail pane shows: an open invite, the email code entry, or a
-  // login (by id or email; the first login when nothing, or something gone,
+  // What the detail pane shows: an open invite or a login (by id or email; the first login when nothing, or something gone,
   // is selected).
   const inviteId = inviteIdOf(selectedId);
   const invite = inviteId ? (invites.find((i) => i.id === inviteId) ?? null) : null;
-  const emailCode = selectedId === EMAIL_CODE;
-  const selected =
-    invite || emailCode
-      ? null
-      : (users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null);
-  const selectedKey = invite
-    ? inviteKey(invite.id)
-    : emailCode
-      ? EMAIL_CODE
-      : (selected?.id ?? null);
+  const selected = invite
+    ? null
+    : (users.find((u) => u.id === selectedId || u.email === selectedId) ?? users[0] ?? null);
+  const selectedKey = invite ? inviteKey(invite.id) : (selected?.id ?? null);
 
   return (
     <>
@@ -347,19 +336,6 @@ export function UsersClient() {
                   onSelect={() => select(u.id)}
                 />
               ))}
-
-              <section aria-labelledby="logins-sign-in" className="space-y-2">
-                <ListSectionHeading id="logins-sign-in" title="Sign-in" />
-                <ListCard onClick={() => select(EMAIL_CODE)} selected={selectedKey === EMAIL_CODE}>
-                  <div className="flex items-center gap-2">
-                    <MailCheck className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {EMAIL_CODE_TITLE}
-                    </span>
-                  </div>
-                  <ListCardMeta>For client logins</ListCardMeta>
-                </ListCard>
-              </section>
             </div>
           </>
         }
@@ -372,25 +348,6 @@ export function UsersClient() {
               onRevoked={() => select(null)}
               onNewLink={() => setInviteSeed({ key: Date.now(), ...newLinkSeed(invite) })}
             />
-          ) : emailCode ? (
-            <div>
-              <ItemHeader
-                sticky
-                visual={<MailCheck className="size-4 text-muted-foreground" aria-hidden />}
-                title={EMAIL_CODE_TITLE}
-                iconActions={
-                  <HeaderInfoButton label="About sign-in by email code">
-                    <p>
-                      A client login asks for a code on the sign-in page. The brain mails it from
-                      the account set here. The code works once, for 10 minutes.
-                    </p>
-                  </HeaderInfoButton>
-                }
-              />
-              <div className="p-6">
-                <EmailCodeSenderPanel />
-              </div>
-            </div>
           ) : selected ? (
             <UserDetail
               key={selected.id}
@@ -479,7 +436,7 @@ function UserDetail({
       onChanged();
       toast.success('User saved');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save');
+      toast.error(loginRefusalText(err, 'Could not save'));
     } finally {
       setSaving(false);
     }
@@ -605,7 +562,8 @@ function AccessCard({ user, onChanged }: { user: UserRow; onChanged: () => void 
       onChanged();
       toast.success(disabled ? 'Login disabled' : 'Login enabled');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not change the login');
+      // Enabling a former client login is refused (409 former-client, W8).
+      toast.error(loginRefusalText(err, 'Could not change the login'));
     } finally {
       setSaving(false);
     }
@@ -1132,7 +1090,14 @@ function AddUserDialog({
       onOpenChange(false);
       onCreated(res.id);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not add user');
+      // A former client login's email (409 email-was-client, W8) is the
+      // email field's problem; anything else is the dialog's.
+      if (refusalReason(err) === 'email-was-client') {
+        setErrors({ email: loginRefusalText(err, 'Could not add user') });
+        document.getElementById('new-user-email')?.focus();
+      } else {
+        toast.error(loginRefusalText(err, 'Could not add user'));
+      }
     } finally {
       setPending(false);
     }

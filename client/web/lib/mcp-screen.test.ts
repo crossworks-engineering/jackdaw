@@ -35,9 +35,8 @@ describe('which side of the one MCP screen a login reads', () => {
     expect(mcpSourceFor('member', true)).toBe('own');
   });
 
-  it('an admin without Settings is refused, a client has none, no shell waits', () => {
+  it('an admin without Settings is refused, no shell waits', () => {
     expect(mcpSourceFor('admin', false)).toBe('refused');
-    expect(mcpSourceFor('client', false)).toBe('none');
     expect(mcpSourceFor(null, true)).toBeNull();
   });
 

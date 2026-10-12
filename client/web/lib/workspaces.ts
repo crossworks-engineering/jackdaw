@@ -143,7 +143,7 @@ export function mayOpenPath(
 
 /**
  * Where /onboarding sends a login: home when it does not hold the settings
- * area (a member or a client typed the address; the wizard's routes answer
+ * area (a member typed the address; the wizard's routes answer
  * an admin only), else null (stay). Null too until the shell has answered.
  * /onboarding is outside the shell, so its gate asks this itself.
  */
@@ -500,15 +500,16 @@ export type { ShellRole };
 
 /**
  * The login's role from a loaded shell: null with no shell yet. A brain that
- * sends no role answered /api/shell for an admin only, so that is 'admin'. A
- * role this build does not know reads as 'client' (fail closed: the screens
- * that read nothing).
+ * sends no role answered /api/shell for an admin only, so that is 'admin'.
+ * There are two roles since W8 (no client login). A role this build does not
+ * know reads as 'member' (fail closed: never the owner screens; what a member
+ * reads is its workspaces', which the brain decides).
  */
 export function shellRoleOf(shell: { role?: unknown } | null | undefined): ShellRole | null {
   if (!shell) return null;
   const role = shell.role;
   if (role === undefined || role === null) return 'admin';
-  return role === 'admin' || role === 'member' ? role : 'client';
+  return role === 'admin' ? 'admin' : 'member';
 }
 
 /**

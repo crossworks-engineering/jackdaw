@@ -72,6 +72,15 @@ describe('inviteCreateErrorText', () => {
     expect(inviteCreateErrorText(400, { reason: 'no-email' })).toMatch(/Enter the email/);
   });
 
+  it('says plainly that a former client login cannot come back (W8)', () => {
+    expect(inviteCreateErrorText(409, { reason: 'email-was-client', error: 'x' })).toBe(
+      'That email belonged to a client login. It cannot be invited or given a new login.',
+    );
+    expect(inviteCreateErrorText(409, { reason: 'contact-was-client' })).toBe(
+      'That contact belonged to a client login. It cannot be invited or given a new login.',
+    );
+  });
+
   it('says a contact is gone', () => {
     expect(inviteCreateErrorText(400, { reason: 'contact-not-found' })).toMatch(
       /not in this brain/,

@@ -8,7 +8,9 @@ import {
   createBody,
   defaultExpiryChoice,
   expiryChoicesFor,
+  expiryLabel,
   exampleCommands,
+  offersRiskyTools,
   scopeLine,
   sortKeys,
   type CreateForm,
@@ -21,12 +23,13 @@ const form = (patch: Partial<CreateForm> = {}): CreateForm => ({
   areas: [],
   expiry: '90',
   riskyTools: '',
-  password: '',
+  password: 'secret words',
   ...patch,
 });
 
-const ADMIN = { isAdmin: true, needsPassword: false, maxExpiryDays: null };
-const MEMBER = { isAdmin: false, needsPassword: false, maxExpiryDays: 90 };
+/** A login with the keys area (no longest expiry), and one without. */
+const KEYS_AREA = { maxExpiryDays: null };
+const MEMBER = { maxExpiryDays: 90 };
 
 const key = (patch: Partial<AccessKeyView>): AccessKeyView => ({
   id: 'k',
@@ -47,13 +50,25 @@ const key = (patch: Partial<AccessKeyView>): AccessKeyView => ({
 });
 
 describe('API access: create body', () => {
-  it('sends all areas as null, never a login, and the expiry in days', () => {
-    expect(createBody(form(), ADMIN)).toEqual({
-      body: { name: 'Backup script', access: 'read', areas: null, expiresInDays: 90 },
+  it('sends all areas as null, never a login, the expiry in days and the password', () => {
+    expect(createBody(form(), KEYS_AREA)).toEqual({
+      body: {
+        name: 'Backup script',
+        access: 'read',
+        areas: null,
+        expiresInDays: 90,
+        password: 'secret words',
+      },
     });
-    const never = createBody(form({ expiry: 'never', access: 'read_write' }), ADMIN);
+    const never = createBody(form({ expiry: 'never', access: 'read_write' }), KEYS_AREA);
     expect(never).toEqual({
-      body: { name: 'Backup script', access: 'read_write', areas: null, expiresInDays: null },
+      body: {
+        name: 'Backup script',
+        access: 'read_write',
+        areas: null,
+        expiresInDays: null,
+        password: 'secret words',
+      },
     });
   });
 
@@ -63,18 +78,20 @@ describe('API access: create body', () => {
   });
 
   it('names the field that is wrong', () => {
-    expect(createBody(form({ name: '  ' }), ADMIN)).toMatchObject({ field: 'name' });
-    expect(createBody(form({ allAreas: false, areas: [] }), ADMIN)).toMatchObject({
+    expect(createBody(form({ name: '  ' }), KEYS_AREA)).toMatchObject({ field: 'name' });
+    expect(createBody(form({ allAreas: false, areas: [] }), KEYS_AREA)).toMatchObject({
       field: 'areas',
     });
-    expect(createBody(form({ riskyTools: 'email_send, Bad-Name' }), ADMIN)).toMatchObject({
+    expect(createBody(form({ riskyTools: 'email_send, Bad-Name' }), KEYS_AREA)).toMatchObject({
       field: 'riskyTools',
     });
   });
 
-  it('sends risky tools for an admin only', () => {
-    const admin = createBody(form({ riskyTools: 'web_search, email_send web_search' }), ADMIN);
-    expect('body' in admin && admin.body.riskyTools).toEqual(['web_search', 'email_send']);
+  it('sends risky tools only for a login with the keys area (no longest expiry, W8)', () => {
+    expect(offersRiskyTools(KEYS_AREA)).toBe(true);
+    expect(offersRiskyTools(MEMBER)).toBe(false);
+    const ok = createBody(form({ riskyTools: 'web_search, email_send web_search' }), KEYS_AREA);
+    expect('body' in ok && ok.body.riskyTools).toEqual(['web_search', 'email_send']);
     const member = createBody(form({ riskyTools: 'web_search' }), MEMBER);
     expect('body' in member && member.body.riskyTools).toBeUndefined();
   });
@@ -84,27 +101,38 @@ describe('API access: create body', () => {
     expect(defaultExpiryChoice(30)).toBe('30');
     expect(defaultExpiryChoice(45)).toBe('365');
     expect(defaultExpiryChoice(90, 30)).toBe('30');
+    expect(defaultExpiryChoice(90, 60)).toBe('60');
   });
 
-  it('offers a member up to 90 days, a client up to 30, never only to an admin', () => {
+  it('the expiry choices follow the brain maxExpiryDays, never the role (W8)', () => {
     expect(expiryChoicesFor(null)).toEqual(['30', '90', '365', 'never']);
     expect(expiryChoicesFor(90)).toEqual(['30', '90']);
     expect(expiryChoicesFor(30)).toEqual(['30']);
+    // A longest expiry that is not a step is a choice of its own.
+    expect(expiryChoicesFor(60)).toEqual(['30', '60']);
+    expect(expiryChoicesFor(180)).toEqual(['30', '90', '180']);
+    expect(expiryChoicesFor(7)).toEqual(['7']);
+    expect(expiryChoicesFor(3650)).toEqual(['30', '90', '365', '3650']);
     expect(createBody(form({ expiry: 'never' }), MEMBER)).toMatchObject({ field: 'expiry' });
     expect(createBody(form({ expiry: '365' }), MEMBER)).toMatchObject({ field: 'expiry' });
+    expect(createBody(form({ expiry: '60' }), { maxExpiryDays: 60 })).toMatchObject({
+      body: { expiresInDays: 60 },
+    });
   });
 
-  it('sends the password only when the brain asks for it', () => {
-    const rules = { ...MEMBER, needsPassword: true };
-    expect(createBody(form(), rules)).toMatchObject({ field: 'password' });
-    const ok = createBody(form({ password: 'secret words' }), rules);
-    expect('body' in ok && ok.body.password).toBe('secret words');
-    const client = createBody(form({ password: 'ignored', expiry: '30' }), {
-      isAdmin: false,
-      needsPassword: false,
-      maxExpiryDays: 30,
-    });
-    expect('body' in client && client.body.password).toBeUndefined();
+  it('words each choice', () => {
+    expect(expiryLabel('30')).toBe('30 days');
+    expect(expiryLabel('365')).toBe('1 year');
+    expect(expiryLabel('1')).toBe('1 day');
+    expect(expiryLabel('never')).toBe('Never');
+  });
+
+  it('always asks for the password (needsPassword is always true since W8)', () => {
+    for (const rules of [KEYS_AREA, MEMBER]) {
+      expect(createBody(form({ password: '' }), rules)).toMatchObject({ field: 'password' });
+      const ok = createBody(form({ password: 'pw' }), rules);
+      expect('body' in ok && ok.body.password).toBe('pw');
+    }
   });
 });
 

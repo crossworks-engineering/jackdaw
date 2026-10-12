@@ -14,9 +14,10 @@ import { ADMIN_ROWS, GONE_ROUTE, WORK_ROWS, wholeNav } from './shell-nav';
  * (GET /api/tree/pages) and so every page of the brain. In-memory brain, no
  * real one.
  */
-/** The Users screen's retired reads (410 on a W5c brain). */
+/** The Users screen's retired reads (410 on a W5c brain; the email code
+ *  sender on a W8 one). */
 const GONE =
-  /\/api\/team-admin\/(submissions|member-items|needs-you|requests|notify)|\/api\/team-admin\/clients(?!\/signin-sender)|\/api\/access\/client-report|\/api\/apps\/members/;
+  /\/api\/team-admin\/(submissions|member-items|needs-you|requests|notify)|\/api\/team-admin\/clients|\/api\/access\/client-report|\/api\/apps\/members/;
 
 let api: MockWorkspaceApi;
 test.beforeEach(async ({ baseURL }) => {
@@ -43,17 +44,16 @@ test('the full nav, the owner Pages screen and Settings > Users', async ({ page 
   await nav.getByRole('link', { name: 'Users', exact: true }).click();
   await expect(page).toHaveURL((u) => u.pathname === '/settings/users');
   await expect(main.getByText(LOGINS.member.name).first()).toBeVisible();
-  await expect(main.getByText(LOGINS.client.name).first()).toBeVisible();
-  // The email code entry is for client logins (the brain sends codes to
-  // them only).
-  await expect(main.getByText('For client logins')).toBeVisible();
+  // No sign-in by email code and no client login (W8).
+  await expect(main.getByText('Sign-in by email code')).toHaveCount(0);
+  await expect(main.getByText(/client login/i)).toHaveCount(0);
   await expect(page.getByText('You cannot manage this part of the brain.')).toHaveCount(0);
   const asked = api.asked('admin');
   for (const read of ['/api/users', '/api/team-admin/invites']) {
     expect(asked, read).toContain(`GET ${read}`);
   }
   expect(asked.filter((r) => /\/api\/(client|member)\//.test(r))).toEqual([]);
-  // The routes a W5c or W6b brain answers 410: never asked.
+  // The routes a W5c, W6b or W8 brain answers 410: never asked.
   expect(asked.filter((r) => GONE.test(r))).toEqual([]);
   expect(asked.filter((r) => GONE_ROUTE.test(r.slice(r.indexOf(' ') + 1)))).toEqual([]);
   // The admin's live updates are the owner stream.

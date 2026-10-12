@@ -79,7 +79,7 @@ export function useInvites() {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Refusals about the email (shown under the email field); the rest are about
  *  the contact and shown under the form. */
-const EMAIL_REASONS = new Set(['email-has-login', 'no-email']);
+const EMAIL_REASONS = new Set(['email-has-login', 'no-email', 'email-was-client']);
 
 /**
  * Create an invite: for a contact (picked here, or given; the email and name

@@ -33,23 +33,31 @@ export const ACCESS_LABEL: Record<AccessKeyAccess, string> = {
   read_write: 'Read and write',
 };
 
-/** The expiry choices, in days; `never` is no expiry. */
-export const EXPIRY_CHOICES = ['30', '90', '365', 'never'] as const;
-export type ExpiryChoice = (typeof EXPIRY_CHOICES)[number];
+/** The usual expiry steps, in days. */
+export const EXPIRY_STEPS = [30, 90, 365] as const;
 
-export const EXPIRY_LABEL: Record<ExpiryChoice, string> = {
-  '30': '30 days',
-  '90': '90 days',
-  '365': '1 year',
-  never: 'Never',
-};
+/** An expiry choice: a number of days as text, or `never`. */
+export type ExpiryChoice = string;
 
-/** The expiry choices a login may pick: up to its maximum (a member's 90
- *  days, a client's 30), and "never" only without one (an admin). */
+/** What a choice says on the screen. */
+export function expiryLabel(choice: ExpiryChoice): string {
+  if (choice === 'never') return 'Never';
+  const days = Number(choice);
+  if (days === 365) return '1 year';
+  return days === 1 ? '1 day' : `${days} days`;
+}
+
+/** The expiry choices a login may pick: they follow the brain's
+ *  `maxExpiryDays` (workspaces W8: the keys area decides, never the role).
+ *  Null (a login in the Admin workspace with its keys area): every step and
+ *  "never". Else the steps up to the maximum, and the maximum itself when it
+ *  is not one of them. */
 export function expiryChoicesFor(maxDays: number | null): ExpiryChoice[] {
-  return EXPIRY_CHOICES.filter((c) =>
-    c === 'never' ? maxDays === null : maxDays === null || Number(c) <= maxDays,
-  );
+  if (maxDays === null) return [...EXPIRY_STEPS.map(String), 'never'];
+  const max = Math.max(1, Math.floor(maxDays));
+  const steps: ExpiryChoice[] = EXPIRY_STEPS.filter((d) => d <= max).map(String);
+  if (!steps.includes(String(max))) steps.push(String(max));
+  return steps;
 }
 
 /** The expiry a new key starts on: the brain's default when it is one of
@@ -60,7 +68,7 @@ export function defaultExpiryChoice(
 ): ExpiryChoice {
   const choices = expiryChoicesFor(maxDays);
   const v = String(defaultDays);
-  if ((choices as string[]).includes(v)) return v as ExpiryChoice;
+  if (choices.includes(v)) return v;
   const numeric = choices.filter((c) => c !== 'never');
   return numeric[numeric.length - 1] ?? '30';
 }
@@ -71,18 +79,27 @@ export type CreateForm = {
   allAreas: boolean;
   areas: AccessKeyArea[];
   expiry: ExpiryChoice;
-  /** Comma or space separated tool slugs (an admin's own key only). */
+  /** Comma or space separated tool slugs (a login with the keys area). */
   riskyTools: string;
-  /** The caller's password (an admin or member re-types it). */
+  /** The caller's password: every login re-types it (W8). */
   password: string;
 };
 
-/** What the brain says about the caller (GET /api/access-keys). */
+/** What the brain says about the caller (GET /api/access-keys). Only the
+ *  longest expiry: every login re-types its password since W8 (the brain
+ *  sends `needsPassword: true` for older apps), and the longest expiry is
+ *  null exactly for a login with the keys area, the one that may name
+ *  risky tools. */
 export type CreateRules = {
-  isAdmin: boolean;
-  needsPassword: boolean;
   maxExpiryDays: number | null;
 };
+
+/** Whether the dialog offers risky tools: a login in the Admin workspace
+ *  with its keys area, the one the brain gives no longest expiry (a brain
+ *  before W8 gave an admin none, so the rule holds there too). */
+export function offersRiskyTools(rules: CreateRules): boolean {
+  return rules.maxExpiryDays === null;
+}
 
 /** The POST body for a form, or the problem to show. */
 export function createBody(
@@ -91,14 +108,13 @@ export function createBody(
 ):
   | { body: AccessKeyCreateInput }
   | { error: string; field: 'name' | 'areas' | 'riskyTools' | 'expiry' | 'password' } {
-  const { isAdmin } = rules;
   const name = form.name.trim();
   if (!name) return { error: 'Name the key, for example "Backup script".', field: 'name' };
   if (name.length > 100) return { error: 'Use 100 characters or fewer.', field: 'name' };
   if (!form.allAreas && form.areas.length === 0) {
     return { error: 'Pick at least one area, or allow all areas.', field: 'areas' };
   }
-  const risky = isAdmin
+  const risky = offersRiskyTools(rules)
     ? form.riskyTools
         .split(/[\s,]+/)
         .map((s) => s.trim())
@@ -107,10 +123,10 @@ export function createBody(
   if (risky.some((s) => !/^[a-z0-9_]{1,64}$/.test(s))) {
     return { error: 'Tool names use a to z, 0 to 9 and _ only.', field: 'riskyTools' };
   }
-  if (!(expiryChoicesFor(rules.maxExpiryDays) as string[]).includes(form.expiry)) {
+  if (!expiryChoicesFor(rules.maxExpiryDays).includes(form.expiry)) {
     return { error: `Your keys can last at most ${rules.maxExpiryDays} days.`, field: 'expiry' };
   }
-  if (rules.needsPassword && !form.password) {
+  if (!form.password) {
     return { error: 'Type your password to make a key.', field: 'password' };
   }
   return {
@@ -120,7 +136,7 @@ export function createBody(
       areas: form.allAreas ? null : [...new Set(form.areas)],
       expiresInDays: form.expiry === 'never' ? null : Number(form.expiry),
       ...(risky.length ? { riskyTools: [...new Set(risky)] } : {}),
-      ...(rules.needsPassword ? { password: form.password } : {}),
+      password: form.password,
     },
   };
 }

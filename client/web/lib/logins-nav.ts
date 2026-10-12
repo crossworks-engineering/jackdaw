@@ -2,23 +2,20 @@
  * Settings > Users: what the detail pane shows, and links into it. Pure,
  * pinned by logins-nav.test.ts.
  *
- * The detail pane shows one of: a login (by id or email), an open invite
- * (`invite:<id>`), or the Sign-in by email code entry (`email-code`). A
- * login opens on its details. There is no Chat view (W7c: each user reads
+ * The detail pane shows one of: a login (by id or email) or an open invite
+ * (`invite:<id>`). A login opens on its details. There is no Chat view (W7c: each user reads
  * only their own chats), so an old `view=chat` link opens the details.
  *
- * Old links (W5c): the Clients steps (`what-clients-see`, `client-settings`)
- * are gone, so they open the plain list, details and not Chat.
+ * Old links: the Clients steps (`what-clients-see`, `client-settings`, W5c)
+ * and the Sign-in by email code entry (`email-code`, W8) are gone, so they
+ * open the plain list.
  */
 
 export const LOGINS_PATH = '/settings/users';
 
-/** The Sign-in by email code entry in the list. */
-export const EMAIL_CODE = 'email-code';
-
-/** The Clients steps of the screen before W5c; an old link to one opens
- *  the plain list. */
-const RETIRED_SELECTIONS = new Set(['what-clients-see', 'client-settings']);
+/** The Clients steps of the screen before W5c, and the Sign-in by email code
+ *  entry before W8; an old link to one opens the plain list. */
+const RETIRED_SELECTIONS = new Set(['what-clients-see', 'client-settings', 'email-code']);
 
 const INVITE_PREFIX = 'invite:';
 

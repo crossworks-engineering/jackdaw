@@ -1,14 +1,7 @@
 'use client';
 
 import { itemAccess } from '@/lib/item-access';
-import {
-  grantsKey,
-  grantsUrl,
-  isNoGrants,
-  uploadLine,
-  uploadVisibleTo,
-  type GrantsView,
-} from '@/lib/grants';
+import { grantsKey, grantsUrl, uploadLine, uploadVisibleTo, type GrantsView } from '@/lib/grants';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -66,8 +59,6 @@ import {
   sumDerivedCounts,
   dismissDialog,
   fileFolderHref,
-  folderShareOf,
-  sharedUploadLine,
 } from './files-shared';
 import type {
   BulkDeleteResponse,
@@ -337,8 +328,8 @@ function FilesView({
   const triggerUpload = () => fileInputRef.current?.click();
   // Into a folder shared beyond its home, what lands is read there at once
   // (S6): asked once per upload, then sent with `confirm` (the brain refuses
-  // it without, 409). Who reads it comes from the folder's grants; a brain
-  // before W5b says it by the folder's level.
+  // it without, 409). Who reads it comes from the folder's grants (W8: no
+  // level, so no other source).
   const folderGrants = useQuery({
     queryKey: grantsKey(currentFolder?.id ?? 'none'),
     queryFn: () => apiFetch<GrantsView>(grantsUrl(currentFolder!.id)),
@@ -346,9 +337,7 @@ function FilesView({
     retry: false,
   });
   const visibleTo = currentFolder ? uploadVisibleTo(folderGrants.data) : null;
-  const share =
-    folderGrants.isError && isNoGrants(folderGrants.error) ? folderShareOf(currentFolder) : null;
-  const asksOnUpload = visibleTo !== null || share !== null;
+  const asksOnUpload = visibleTo !== null;
   // `tree`: a folder upload, whose files land in the folders it makes.
   const [sharedUpload, setSharedUpload] = useState<{
     files: File[];
@@ -1144,12 +1133,6 @@ function FilesView({
                         <span className="text-xs font-normal">
                           Also visible to: {visibleTo.join(', ')}
                         </span>
-                      ) : share ? (
-                        <span className="text-xs font-normal">
-                          {share === 'client'
-                            ? 'Clients read everything in this folder.'
-                            : 'The team reads everything in this folder.'}
-                        </span>
                       ) : null}
                     </div>
                   )}
@@ -1443,11 +1426,7 @@ function FilesView({
               to a shared folder?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {sharedUpload && visibleTo
-                ? uploadLine(visibleTo, sharedUpload.files.length)
-                : share && sharedUpload
-                  ? sharedUploadLine(share, sharedUpload.files.length)
-                  : null}
+              {sharedUpload && visibleTo ? uploadLine(visibleTo, sharedUpload.files.length) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -46,7 +46,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
 import { formatDate, formatDateTime } from '@mantle/web-ui/lib/format-datetime';
-import { kindLabel } from '@/lib/access-levels';
+import { kindLabel } from '@/lib/item-kinds';
 import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import {
   CODE_SHOWN_ONCE,

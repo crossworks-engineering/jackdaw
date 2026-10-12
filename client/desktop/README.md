@@ -105,12 +105,8 @@ reproduces the CI ad-hoc build.
   recently used first. Logins WITHIN a brain are switched inside its window
   (the profile menu); the shell knows brains, the page knows logins.
 - External links (share links, docs) open in the system browser.
-- **Client logins cannot sign in here, for now.** A client login has no
-  password: its one way in is a code the brain emails, and the sign-in page
-  offers a code only on the brain's own origin (`offersEmailCode`,
-  `client/web/lib/email-code.ts`), which the shell's loopback page is not.
-  No client logins are in use (workspaces plan 21.9), so the desktop app
-  signs in admins and members only. A client signs in in a browser.
+- Every login signs in here with its password: there is no client login and
+  no sign-in by email code (workspaces W8).
 
 ## Media permissions
 

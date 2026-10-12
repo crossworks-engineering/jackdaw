@@ -9,11 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { useSessions } from '@mantle/web-ui/use-sessions';
-import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
-import { Button } from '@mantle/web-ui/ui/button';
-import { offersEmailCode } from '@/lib/email-code';
 import { LoginForm } from './login-form';
-import { EmailCodeForm } from './email-code-form';
 import { LoginServer } from './login-server';
 
 /**
@@ -30,7 +26,6 @@ export function LoginClient({
   mark,
   next,
   error,
-  emailCodes = false,
   add = false,
   sessionId,
   serverOrigin,
@@ -40,8 +35,6 @@ export function LoginClient({
   mark: React.ReactNode;
   next?: string;
   error?: string;
-  /** This brain mails sign-in codes: offer "Sign in with an email code". */
-  emailCodes?: boolean;
   /** Someone already signed in is adding another login. */
   add?: boolean;
   /** The held login being signed back in to (an id from this device's list). */
@@ -103,24 +96,6 @@ export function LoginClient({
       .catch(() => undefined);
   }, [add]);
 
-  // Sign-in by email code (plan 15: for client logins, which have no password). Same
-  // origin only: the code's cookies live on the brain's origin, which is
-  // known after mount.
-  const [crossOrigin, setCrossOrigin] = useState(false);
-  useEffect(() => setCrossOrigin(isCrossOrigin()), []);
-  const [byCode, setByCode] = useState(false);
-  const codeOffered = offersEmailCode({ enabled: emailCodes, firstRun, add, crossOrigin });
-  const showCode = codeOffered && byCode;
-
-  // Signed in by a code: the brain set this login's session cookie. A bearer
-  // left by an earlier session would ride along with every request, so it
-  // goes; then the page loads where a password sign-in goes.
-  const codeSignedIn = async () => {
-    tokenStore.clear();
-    tokenStore.markPresence();
-    await goAfterSignIn(await destinationAfterSignIn(next), (to) => window.location.assign(to));
-  };
-
   const strapline = firstRun
     ? 'Create your login to begin.'
     : target
@@ -146,29 +121,14 @@ export function LoginClient({
             both.
           </p>
         )}
-        {showCode ? (
-          <EmailCodeForm
-            initialEmail={target?.email}
-            onSignedIn={codeSignedIn}
-            onUsePassword={() => setByCode(false)}
-          />
-        ) : (
-          <LoginForm
-            mode={firstRun ? 'signup' : 'login'}
-            next={next}
-            error={error}
-            setupCodeRequired={setupCodeRequired}
-            add={add}
-            initialEmail={target?.email ?? hintEmail}
-          />
-        )}
-        {codeOffered && !showCode ? (
-          <div className="flex justify-center">
-            <Button type="button" variant="link" size="sm" onClick={() => setByCode(true)}>
-              Sign in with an email code
-            </Button>
-          </div>
-        ) : null}
+        <LoginForm
+          mode={firstRun ? 'signup' : 'login'}
+          next={next}
+          error={error}
+          setupCodeRequired={setupCodeRequired}
+          add={add}
+          initialEmail={target?.email ?? hintEmail}
+        />
         {/* Only when there is an app to go back to: a brain window opened just
             to sign in has nobody signed in behind this screen. */}
         {add && (held.active || replacesCurrent) && (

@@ -80,20 +80,14 @@ describe('switchSession · same-origin box', () => {
 
     expect(await switcher.switchSession(b.id)).toBe('switched');
 
-    expect(paths()).toEqual([
-      '/api/shell',
-      '/api/auth/whoami',
-      '/api/auth/logout',
-      '/api/auth/sso',
-    ]);
+    // No whoami first: there is no client login whose cookie a logout would
+    // end everywhere (W8).
+    expect(paths()).toEqual(['/api/shell', '/api/auth/logout', '/api/auth/sso']);
     expect(bearerOf(calls[0]!)).toBe('Bearer b.sig');
     expect(calls[0]!.init?.credentials).toBe('omit');
-    // Whose cookie it is, asked with the cookie alone.
-    expect(bearerOf(calls[1]!)).toBeNull();
-    expect(calls[1]!.init?.credentials).toBe('include');
     // The cookie drop revokes nothing: it carries no bearer.
-    expect(bearerOf(calls[2]!)).toBeNull();
-    expect(bearerOf(calls[3]!)).toBe('Bearer b.sig');
+    expect(bearerOf(calls[1]!)).toBeNull();
+    expect(bearerOf(calls[2]!)).toBe('Bearer b.sig');
 
     expect(map.get('mantle_token')).toBe('b.sig');
     expect(registry.activeSession()?.id).toBe(b.id);
@@ -217,44 +211,19 @@ describe('switchSession · same-origin box', () => {
   });
 });
 
-describe('a client login cookie on a same-origin box (audit B23)', () => {
-  /** The brain's whoami for the cookie alone says: a client is signed in. */
-  const clientCookie = (call: Call) =>
-    call.url.endsWith('/api/auth/whoami')
-      ? ({ ok: true, status: 200, json: () => Promise.resolve({ role: 'client' }) } as unknown as {
-          ok: boolean;
-          status: number;
-        })
-      : { ok: true, status: 200 };
-
-  it('a switch never posts logout with it, and changes nothing', async () => {
-    const { registry, switcher } = await fresh();
-    const b = registry.signInSession({ email: 'b@example.com', token: 'b.sig' })!;
-    const a = registry.signInSession({ email: 'a@example.com', token: 'a.sig' })!;
-    respond = clientCookie;
-
-    expect(await switcher.switchSession(b.id)).toBe('client-signed-in');
-    expect(paths()).toEqual(['/api/shell', '/api/auth/whoami']);
-    expect(registry.activeSession()?.id).toBe(a.id);
-    expect(map.get('mantle_token')).toBe('a.sig');
-    expect(assigned).toEqual([]);
+describe('no client cookie check since W8 (audit B23 is moot)', () => {
+  it('the kit asks no whoami and offers no client outcome', async () => {
+    const { switcher } = await fresh();
+    expect('sameOriginCookieRole' in switcher).toBe(false);
   });
 
-  it('forgetting the login in use does not post logout with it either', async () => {
+  it('forgetting the login in use drops the cookie, asking nobody first', async () => {
     const { registry, switcher } = await fresh();
     const a = registry.signInSession({ email: 'a@example.com', token: 'a.sig' })!;
-    respond = clientCookie;
 
     await switcher.forgetSession(a.id);
-    expect(paths()).not.toContain('/api/auth/logout');
+    expect(paths()).toEqual(['/api/auth/logout']);
     expect(assigned).toEqual(['/login']);
-  });
-
-  it('cross-origin there is no cookie to ask about: whoami is never called', async () => {
-    stubWindow({ apiBase: 'https://brain.example' });
-    const { switcher } = await fresh();
-    expect(await switcher.sameOriginCookieRole()).toBe('none');
-    expect(calls).toEqual([]);
   });
 });
 
@@ -360,7 +329,7 @@ function stubDesktop(vault: ReturnType<typeof scopedVault>) {
   });
 }
 
-describe('desktop: admin, then a client login, then back', () => {
+describe('desktop: admin, then a member login, then back', () => {
   it('nothing of either login is left for the other', async () => {
     const vault = scopedVault();
     stubDesktop(vault);
@@ -373,16 +342,16 @@ describe('desktop: admin, then a client login, then back', () => {
     const { tokenStore } = await import('./token-store');
 
     const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
-    const client = registry.signInSession({
-      email: 'client@example.com',
-      token: 'client.sig',
-      loginId: 'login-c',
+    const member = registry.signInSession({
+      email: 'member@example.com',
+      token: 'member.sig',
+      loginId: 'login-m',
     })!;
     // Bearers live in the keychain slots, never in localStorage.
     expect([...map.keys()].some((k) => k.startsWith('mantle_token'))).toBe(false);
-    expect(vault.slots.get(client.id)).toBe('client.sig');
-    expect(registry.listSessions().find((s) => s.id === client.id)).toMatchObject({
-      loginId: 'login-c',
+    expect(vault.slots.get(member.id)).toBe('member.sig');
+    expect(registry.listSessions().find((s) => s.id === member.id)).toMatchObject({
+      loginId: 'login-m',
     });
 
     // The query cache stands in for every per-login thing on the sign-out
@@ -394,74 +363,74 @@ describe('desktop: admin, then a client login, then back', () => {
       landings.push(tokenStore.get());
       return to;
     });
-    // /api/shell answers a client bearer with its role refusal.
+    // A brain before W5c answers /api/shell for a member bearer with its role
+    // refusal: the bearer is alive (W8 answers every login 200).
     respond = (call) =>
-      bearerOf(call) === 'Bearer client.sig' && call.url.endsWith('/api/shell')
+      bearerOf(call) === 'Bearer member.sig' && call.url.endsWith('/api/shell')
         ? ({
             ok: false,
             status: 403,
-            json: () => Promise.resolve({ reason: 'client-login' }),
+            json: () => Promise.resolve({ reason: 'member-login' }),
           } as unknown as { ok: boolean; status: number })
         : { ok: true, status: 200 };
 
-    // Admin in use, as the client is reached: the admin's asset token is out.
+    // Admin in use, as the member is reached: the admin's asset token is out.
     expect(registry.setActiveSession(admin.id)).toBe(true);
     assets.setAssetToken('admin-asset');
     expect(assets.assetUrl('/api/files/f')).toContain('at=admin-asset');
 
-    expect(await switcher.switchSession(client.id)).toBe('switched');
+    expect(await switcher.switchSession(member.id)).toBe('switched');
     // No cookie route at all: cross-origin, the bearer is the whole credential,
-    // so no logout (which a client cookie would turn into ending the client
-    // everywhere) and no sso.
+    // so no logout and no sso.
     expect(paths()).toEqual(['/api/shell']);
     expect(calls[0]!.init?.credentials).toBe('omit');
-    // On the client surface: the client's bearer, no cookie, no admin asset
-    // token, the admin's cache dropped, and the landing saw the client's bearer.
-    expect(tokenStore.get()).toBe('client.sig');
+    // As the member: the member's bearer, no cookie, no admin asset token, the
+    // admin's cache dropped, and the landing saw the member's bearer.
+    expect(tokenStore.get()).toBe('member.sig');
     const init = api.withAuth();
     expect(init.credentials).toBe('omit');
-    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer client.sig');
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer member.sig');
     expect(assets.assetUrl('/api/files/f')).not.toContain('at=');
     expect(cacheCleared).toHaveBeenCalledTimes(1);
-    expect(landings).toEqual(['client.sig']);
+    expect(landings).toEqual(['member.sig']);
     // The admin is still held, untouched.
     expect(vault.slots.get(admin.id)).toBe('admin.sig');
 
-    // And back: the client's asset token and cache do not carry over.
+    // And back: the member's asset token and cache do not carry over.
     calls.length = 0;
-    assets.setAssetToken('client-asset');
+    assets.setAssetToken('member-asset');
     expect(await switcher.switchSession(admin.id)).toBe('switched');
     expect(paths()).toEqual(['/api/shell']);
     expect(tokenStore.get()).toBe('admin.sig');
     expect(new Headers(api.withAuth().headers).get('Authorization')).toBe('Bearer admin.sig');
     expect(assets.assetUrl('/api/files/f')).not.toContain('at=');
     expect(cacheCleared).toHaveBeenCalledTimes(2);
-    expect(landings).toEqual(['client.sig', 'admin.sig']);
-    expect(vault.slots.get(client.id)).toBe('client.sig');
+    expect(landings).toEqual(['member.sig', 'admin.sig']);
+    expect(vault.slots.get(member.id)).toBe('member.sig');
     expect(assigned).toEqual(['/', '/']);
   });
 
-  it("a held client's Sign out ends it on the brain with its own bearer, then lands on the next login", async () => {
+  it("a held member's Sign out ends it on the brain with its own bearer, then lands on the next login", async () => {
     const vault = scopedVault();
     stubDesktop(vault);
     vi.resetModules();
     const registry = await import('./session-registry');
     const switcher = await import('./session-switch');
     const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
-    const client = registry.signInSession({
-      email: 'client@example.com',
-      token: 'client.sig',
+    const member = registry.signInSession({
+      email: 'member@example.com',
+      token: 'member.sig',
     })!;
 
     await switcher.signOutActive();
 
-    // mobile-logout with a client's bearer ends every session of that client
-    // (the brain's contract), which is what a client's Sign out means.
+    // mobile-logout with the member's bearer ends that bearer on the brain,
+    // which is what its Sign out means.
     const revoked = calls.filter((c) => c.url.endsWith('/api/auth/mobile-logout')).map(bearerOf);
-    expect(revoked).toEqual(['Bearer client.sig']);
+    expect(revoked).toEqual(['Bearer member.sig']);
     expect(calls.every((c) => c.init?.credentials !== 'include')).toBe(true);
     expect(registry.listSessions().map((s) => s.id)).toEqual([admin.id]);
-    expect(vault.slots.has(client.id)).toBe(false);
+    expect(vault.slots.has(member.id)).toBe(false);
     expect(registry.activeSession()?.id).toBe(admin.id);
     expect(assigned).toEqual(['/']);
   });
@@ -490,10 +459,10 @@ describe('the desktop shell', () => {
  * just revoked once per copy before it reached the sign-in screen, and left
  * every copy listed as signed out. The brain here revokes on mobile-logout
  * and answers /api/shell as a real one does: 401 for a revoked bearer, the
- * role refusal for a live member or client bearer.
+ * role refusal for a live member bearer (as a brain before W5c did).
  */
 describe('signing out with copies of the login still listed', () => {
-  const roles: Record<string, 'admin' | 'member' | 'client'> = {};
+  const roles: Record<string, 'admin' | 'member'> = {};
   let revoked: Set<string>;
 
   function brain() {
@@ -576,36 +545,36 @@ describe('signing out with copies of the login still listed', () => {
     });
   }
 
-  it('client in the desktop shell: copies in the keychain go too, and it lands on the sign-in screen', async () => {
+  it('member in the desktop shell: copies in the keychain go too, and it lands on the sign-in screen', async () => {
     brain();
-    roles['client.sig'] = 'client';
+    roles['member.sig'] = 'member';
     const vault = scopedVault();
     stubDesktop(vault);
     const { registry, switcher } = await fresh();
-    registry.signInSession({ email: 'c@example.com', token: 'client.sig' });
-    addCopies(registry, 'client.sig', 3, vault);
+    registry.signInSession({ email: 'm@example.com', token: 'member.sig' });
+    addCopies(registry, 'member.sig', 3, vault);
 
     await switcher.signOutActive();
 
-    expect(probedWith('client.sig')).toEqual([]);
+    expect(probedWith('member.sig')).toEqual([]);
     expect(registry.listSessions()).toEqual([]);
     expect(vault.slots.size).toBe(0);
     expect(assigned).toEqual(['/login']);
   });
 
-  it('client in the desktop shell, an admin held too: lands on the admin', async () => {
+  it('member in the desktop shell, an admin held too: lands on the admin', async () => {
     brain();
-    roles['client.sig'] = 'client';
+    roles['member.sig'] = 'member';
     const vault = scopedVault();
     stubDesktop(vault);
     const { registry, switcher } = await fresh();
     const admin = registry.signInSession({ email: 'admin@example.com', token: 'admin.sig' })!;
-    registry.signInSession({ email: 'c@example.com', token: 'client.sig' });
-    addCopies(registry, 'client.sig', 3, vault);
+    registry.signInSession({ email: 'm@example.com', token: 'member.sig' });
+    addCopies(registry, 'member.sig', 3, vault);
 
     await switcher.signOutActive();
 
-    expect(probedWith('client.sig')).toEqual([]);
+    expect(probedWith('member.sig')).toEqual([]);
     expect(registry.listSessions().map((s) => s.id)).toEqual([admin.id]);
     expect(assigned).toEqual(['/']);
   });

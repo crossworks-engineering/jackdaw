@@ -11,7 +11,6 @@ import { Label } from '@mantle/web-ui/ui/label';
 import { apiUrl, resetCookieUpgrade, upgradeOwnerCookie } from '@mantle/web-ui/api-fetch';
 import { isCrossOrigin } from '@mantle/web-ui/runtime-env';
 import { currentBrainOrigin } from '@mantle/web-ui/session-registry';
-import { sameOriginCookieRole } from '@mantle/web-ui/session-switch';
 import { tokenStore } from '@mantle/web-ui/token-store';
 import { sameBrainAddress } from '@/lib/brain-address';
 import {
@@ -176,43 +175,20 @@ export function LoginForm({
         // Drop it first. Sent without the bearer: this revokes nothing. Not
         // after a signup, whose cookie is this very login's.
         //
-        // Unless that cookie is a CLIENT's: its logout ends every session the
-        // client holds (its phone too, audit B23), which a staff sign-in on a
-        // shared computer must not do. The password sign-in then sets this
-        // login's own cookie over it instead, the way sign-in always did.
-        //
         // Every step here is best effort with the bearer already held, and
         // each has the same 20 s limit as the sign-in itself: a hang must not
-        // keep the button disabled. A check that runs out reads 'unknown',
-        // which takes the ordinary logout-and-upgrade path.
-        const leftover = isSignup
-          ? 'none'
-          : await settleWithin(sameOriginCookieRole(), SIGN_IN_TIMEOUT_MS, 'unknown' as const);
-        if (leftover === 'client') {
-          try {
-            await fetch(apiUrl('/api/auth/login'), {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ email, password }),
-              credentials: 'include',
-              signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
-            });
-          } catch {
-            /* the bearer is held already; the shell's own upgrade retries */
-          }
-        } else {
-          if (!isSignup) {
-            await fetch(apiUrl('/api/auth/logout'), {
-              method: 'POST',
-              credentials: 'include',
-              signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
-            }).catch(() => undefined);
-          }
-          // Whatever an earlier visit to this tab memoised is about someone
-          // else's session; this one has not been upgraded yet.
-          resetCookieUpgrade();
-          await settleWithin(upgradeOwnerCookie(), SIGN_IN_TIMEOUT_MS, undefined);
+        // keep the button disabled.
+        if (!isSignup) {
+          await fetch(apiUrl('/api/auth/logout'), {
+            method: 'POST',
+            credentials: 'include',
+            signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
+          }).catch(() => undefined);
         }
+        // Whatever an earlier visit to this tab memoised is about someone
+        // else's session; this one has not been upgraded yet.
+        resetCookieUpgrade();
+        await settleWithin(upgradeOwnerCookie(), SIGN_IN_TIMEOUT_MS, undefined);
       }
 
       if (add) {

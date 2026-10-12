@@ -5,7 +5,7 @@ import { childPageHref, childPageLivePath } from './child-page-card';
  *  a role not known yet keeps the snapshot and links nowhere. */
 describe('a sub-page card', () => {
   it('reads the live title for every known role, id encoded', () => {
-    for (const role of ['admin', 'member', 'client'] as const) {
+    for (const role of ['admin', 'member'] as const) {
       expect(childPageLivePath(role, 'p-1')).toBe('/api/pages/p-1');
     }
     expect(childPageLivePath('member', '../chat')).toBe('/api/pages/..%2Fchat');
@@ -17,7 +17,7 @@ describe('a sub-page card', () => {
   });
 
   it('links for every known role, never for an unknown one', () => {
-    for (const role of ['admin', 'member', 'client'] as const) {
+    for (const role of ['admin', 'member'] as const) {
       expect(childPageHref(role, 'p-1')).toBe('/pages/p-1');
     }
     expect(childPageHref(null, 'p-1')).toBeNull();

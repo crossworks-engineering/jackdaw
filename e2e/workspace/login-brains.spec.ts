@@ -46,7 +46,6 @@ async function startBrain(name: string): Promise<string> {
     if (req.method === 'OPTIONS') return reply(204, {});
     if (path === '/api/appearance') return reply(200, { siteName: name });
     if (path === '/api/auth/bootstrap-state') return reply(200, { firstRun: false });
-    if (path === '/api/auth/client-code') return reply(200, { enabled: false });
     if (path === '/api/auth/token') return reply(401, { error: `${name} refused that password.` });
     return reply(404, { error: 'not here' });
   });

@@ -10,7 +10,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import { kindLabel } from '@/lib/access-levels';
+import { kindLabel } from '@/lib/item-kinds';
 import { SHARES_KEY, revokeShareLink } from '@/lib/shared-links';
 import { HeaderIconButton, ItemHeader } from '@/components/layout/item-header';
 import { RevokeLinkDialog } from './revoke-link-dialog';

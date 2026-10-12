@@ -53,11 +53,7 @@ export type SwitchOutcome =
   | 'other-brain'
   /** No such session, or this client cannot switch (the desktop shell's vault
    *  backs one login per window). Nothing changed. */
-  | 'unavailable'
-  /** Same-origin: this browser's session cookie is a CLIENT login's. Moving
-   *  the cookie would mean posting /api/auth/logout with it, and a client's
-   *  logout ends every session it holds (its phone too). Nothing changed. */
-  | 'client-signed-in';
+  | 'unavailable';
 
 /** Where to send someone to sign back in to a login the device still lists
  *  (session-registry.ts, re-exported here where the screens import it). */
@@ -72,14 +68,15 @@ export function switchableSessions(): Session[] {
     .sort((a, b) => b.lastUsedAt - a.lastUsedAt);
 }
 
-/** The brain's "not this kind of login" refusal: /api/shell answers a member
- *  or client login 403 with the caller's role as the reason. The bearer is
- *  alive; it is only not an admin's. */
+/** The "not this kind of login" refusal of a brain before W5c: /api/shell
+ *  answered a member login 403 with `member-login`. The bearer is alive; it
+ *  is only not an admin's. (W5c on: every login gets the shell. There is no
+ *  client login since W8.) */
 async function isRoleRefusal(res: Response): Promise<boolean> {
   if (res.status !== 403) return false;
   try {
     const body = (await res.json()) as { reason?: unknown } | null;
-    return body?.reason === 'member-login' || body?.reason === 'client-login';
+    return body?.reason === 'member-login';
   } catch {
     return false;
   }
@@ -102,13 +99,9 @@ async function probe(token: string): Promise<'ok' | 'refused' | 'unreachable'> {
 }
 
 /**
- * Where a switch lands, as the app sees it. The kit knows nothing of roles,
- * but the app keeps UX-only hint cookies saying whether this browser's login
- * is a member or a client, and its middleware routes page loads by them. A
- * switch that left the last login's hints behind would land in the wrong
- * surface first and reload its way out. So the app registers its own
- * after-sign-in destination here (it asks the brain, with the new credential,
- * what this login is, and sets the hints to match), and every switch runs it
+ * Where a switch lands, as the app sees it. The kit knows nothing of the
+ * login being switched to, so the app may register its own after-sign-in
+ * destination here (asked with the new credential), and every switch runs it
  * just before the page load. Null: land on the path asked for.
  */
 type SwitchLanding = (to: string) => Promise<string>;
@@ -129,31 +122,6 @@ async function landingFor(to: string): Promise<string> {
     return await landing(to);
   } catch {
     return to;
-  }
-}
-
-/**
- * Whose is the session cookie on a same-origin box? Asked with the cookie
- * alone (no bearer), because the cookie is what the next step would post.
- * 'none' cross-origin (a split client sends no cookie) and on a 401; 'unknown'
- * when the brain cannot say (one from before /api/auth/whoami, or a network
- * failure), which callers treat as before: not a client.
- *
- * Why it matters: dropping a cookie means POST /api/auth/logout with it, and
- * the brain ends EVERY session of a client login on its plain logout (client
- * logins audit B23). A cookie that is a client's is never posted there by
- * anything that did not mean to sign that client out.
- */
-export async function sameOriginCookieRole(): Promise<'client' | 'other' | 'none' | 'unknown'> {
-  if (isCrossOrigin()) return 'none';
-  try {
-    const res = await fetch(apiUrl('/api/auth/whoami'), { credentials: 'include' });
-    if (res.status === 401) return 'none';
-    if (!res.ok) return 'unknown';
-    const body = (await res.json()) as { role?: unknown } | null;
-    return body?.role === 'client' ? 'client' : 'other';
-  } catch {
-    return 'unknown';
   }
 }
 
@@ -184,8 +152,6 @@ export async function switchSession(id: string, to: string = '/'): Promise<Switc
     return 'needs-sign-in';
   }
   if (state === 'unreachable') return 'unreachable';
-  // Before anything changes: a client's cookie is not this switch's to end.
-  if ((await sameOriginCookieRole()) === 'client') return 'client-signed-in';
 
   await runSessionFlushes();
   if (!setActiveSession(id)) return 'unavailable';
@@ -254,9 +220,8 @@ export async function forgetSession(id: string): Promise<void> {
   removeSession(id);
   if (!wasActive) return;
   tokenStore.clear(); // the presence cookie
-  if (!isCrossOrigin() && (await sameOriginCookieRole()) !== 'client') {
-    // The cookie only. Sent without the bearer, so nothing is revoked. Never a
-    // client's cookie: its logout would end that client everywhere.
+  if (!isCrossOrigin()) {
+    // The cookie only. Sent without the bearer, so nothing is revoked.
     await fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' }).catch(
       () => undefined,
     );

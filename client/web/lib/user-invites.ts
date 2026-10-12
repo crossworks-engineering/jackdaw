@@ -11,6 +11,7 @@
  * so each wording and each split is pinned by a test.
  */
 import type { MemberInviteRow } from '@mantle/client-types';
+import { formerClientText } from './login-refusals';
 import { readLinkCode } from './link-code';
 import { MAX_PASSWORD, MIN_PASSWORD } from './member-password';
 
@@ -56,7 +57,8 @@ export function readInviteCode(input: string): string {
 }
 
 /** What the admin is told when a create is refused. `reason` is the brain's
- *  MemberInviteError reason (409 for an existing login, 400 otherwise). */
+ *  MemberInviteError reason (409 for an existing login or a former client
+ *  login's email or contact, 400 otherwise). */
 export function inviteCreateErrorText(
   status: number,
   body: { reason?: unknown; error?: unknown } | undefined,
@@ -70,6 +72,11 @@ export function inviteCreateErrorText(
       return 'This contact has no email address. Enter the email the invite is for.';
     case 'contact-not-found':
       return 'That contact is not in this brain any more.';
+    // A former client login's email or contact (W8): plain words, never the
+    // reason code (lib/login-refusals.ts).
+    case 'email-was-client':
+    case 'contact-was-client':
+      return formerClientText(body.reason) ?? 'Could not create the invite.';
   }
   if (status === 400) return 'Enter a valid email address.';
   if (typeof body?.error === 'string' && body.error) return body.error;

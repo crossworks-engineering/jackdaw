@@ -5,8 +5,6 @@ import {
   describeDerivedCounts,
   dismissDialog,
   fileFolderHref,
-  folderShareOf,
-  sharedUploadLine,
   slugify,
   sumDerivedCounts,
 } from './files-shared';
@@ -97,26 +95,6 @@ describe('derived counts', () => {
   });
 });
 
-describe('a shared folder on the Files screen', () => {
-  it('is read at the more open of its own share and the one above it', () => {
-    expect(folderShareOf({ share: 'team', inherited: 'client' })).toBe('client');
-    expect(folderShareOf({ share: null, inherited: 'team' })).toBe('team');
-    expect(folderShareOf({ share: 'client', inherited: null })).toBe('client');
-    expect(folderShareOf({ share: null, inherited: null })).toBeNull();
-    // A brain before folder sharing sends neither.
-    expect(folderShareOf({})).toBeNull();
-    expect(folderShareOf(null)).toBeNull();
-  });
-  it('asks before an upload says who reads it', () => {
-    expect(sharedUploadLine('client', 1)).toBe(
-      'Clients read everything in this folder, so they read this file as soon as it lands.',
-    );
-    expect(sharedUploadLine('team', 3)).toMatch(
-      /^The team reads .* these 3 files as soon as they land\.$/,
-    );
-  });
-});
-
 /** The Files writes into a shared folder, pinned where the node runner
  *  cannot render them. */
 describe('Files asks before a shared folder exposes what lands in it', () => {
@@ -125,11 +103,13 @@ describe('Files asks before a shared folder exposes what lands in it', () => {
 
   it('an upload into a shared folder asks once, then sends confirm', () => {
     const src = read('./files-client.tsx');
-    // W5b: asked when the folder's grants reach beyond its home (or, on a
-    // brain before W5b, by its level).
+    // W5b: asked when the folder's grants reach beyond its home. W8: by
+    // nothing else (no folder level).
     expect(src).toContain(
       'const visibleTo = currentFolder ? uploadVisibleTo(folderGrants.data) : null;',
     );
+    expect(src).toContain('const asksOnUpload = visibleTo !== null;');
+    expect(src).not.toMatch(/folderShareOf|sharedUploadLine|Clients read/);
     expect(src).toContain(
       'if (asksOnUpload) setSharedUpload({ files: picked, path: currentPath });',
     );

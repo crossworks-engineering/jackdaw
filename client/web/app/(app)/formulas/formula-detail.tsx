@@ -1,7 +1,6 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import type { AccessLevel } from '@mantle/client-types';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
 import katex from 'katex';
 import { AlertTriangle, Pencil, Sigma, Trash2 } from 'lucide-react';
@@ -62,8 +61,6 @@ export type FormulaRow = {
   summary: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Access level; absent from brains older than the level rows. */
-  audience?: AccessLevel;
 };
 
 type EvalResponse =

@@ -21,14 +21,18 @@ type AccessEntry = {
   createdAt: string;
 };
 
-/** Did a login open the app (a member's row, member logins Phase 4b, or a
- *  client's, client logins C6), rather than a team token or a public link. */
-const viaLogin = (detail: Record<string, unknown>) =>
-  detail.via === 'member' || detail.via === 'client';
+/** The `via` of a row an old client login wrote (client logins C6). There
+ *  is no client login since workspaces W8, but its rows stay in the log. */
+const OLD_CLIENT_VIA = 'client';
 
-/** The row's words. A member or client row (`detail.via`) opened the app
- *  through their own login, not a team token (client tier audit I5); a
- *  refused call says so. Exported for the test. */
+/** Did a login open the app (a member's row, member logins Phase 4b, or an
+ *  old client login's), rather than a team token or a public link. */
+const viaLogin = (detail: Record<string, unknown>) =>
+  detail.via === 'member' || detail.via === OLD_CLIENT_VIA;
+
+/** The row's words. A login's row (`detail.via`) opened the app through
+ *  their own login, not a team token (client tier audit I5); a refused call
+ *  says so. Exported for the test. */
 export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
   icon: typeof KeyRound;
   label: string;
@@ -57,9 +61,9 @@ export function describe(e: Pick<AccessEntry, 'kind' | 'detail'>): {
 }
 
 /** Who the row names: the brain's name for the contact or login, else what
- *  is left of it. A login the brain no longer names was deleted: a member's
- *  or a client's row says so, never "Anonymous" (client tier audit I5).
- *  Exported for the test. */
+ *  is left of it. A login the brain no longer names was deleted: its row
+ *  says so, never "Anonymous" (client tier audit I5). Exported for the
+ *  test. */
 export function whoOf(e: Pick<AccessEntry, 'contactId' | 'contactName' | 'detail'>): string {
   // A contact share's row (brain migration 0214): the contact the share
   // named, and how they got in.
@@ -67,7 +71,7 @@ export function whoOf(e: Pick<AccessEntry, 'contactId' | 'contactName' | 'detail
   if (e.contactName) return viaContact ? `${e.contactName} (contact share)` : e.contactName;
   if (e.contactId || viaContact) return 'Removed contact';
   if (e.detail.via === 'member') return 'Removed member';
-  if (e.detail.via === 'client') return 'Removed client';
+  if (e.detail.via === OLD_CLIENT_VIA) return 'Removed login';
   return 'Anonymous (public link)';
 }
 

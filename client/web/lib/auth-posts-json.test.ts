@@ -25,24 +25,13 @@ describe('auth POSTs declare JSON', () => {
     // Sign-in is a bearer exchange in both topologies now (multi-login): the
     // form's credential POST is /api/auth/token, still declared JSON.
     ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/token')"],
-    // Same-origin over a client's cookie: the password sign-in sets this
-    // login's cookie over it rather than a logout ending the client.
-    ['../app/login/login-form.tsx', "fetch(apiUrl('/api/auth/login')"],
     ['../app/invite/invite-client.tsx', "fetch(apiUrl('/api/auth/invite/accept')"],
     ['../components/member/member-password-dialog.tsx', "apiUrl('/api/auth/change-password')"],
-    // The email code routes go through the form's one helper.
-    ['../app/login/email-code-form.tsx', 'fetch(apiUrl(path), {'],
     // Sign out everywhere posts to /api/auth/logout through its helper.
     ['./sign-out-everywhere.ts', 'fetch(\n      apiUrl(path),'],
   ])('%s: %s', (file, needle) => {
     const call = callAt(read(file), needle);
     expect(call).toContain(JSON_HEADER);
     expect(call).toMatch(/body: JSON\.stringify\(/);
-  });
-
-  it('the code form sends both code routes through that helper', () => {
-    const form = read('../app/login/email-code-form.tsx');
-    expect(form).toContain('await post(EMAIL_CODE_PATH, {');
-    expect(form).toContain('await post(EMAIL_CODE_VERIFY_PATH, {');
   });
 });

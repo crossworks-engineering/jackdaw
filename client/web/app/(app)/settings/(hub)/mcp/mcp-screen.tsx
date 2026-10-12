@@ -5,7 +5,7 @@ import { hasArea } from '@/lib/workspaces';
 import { mcpSourceFor } from '@/lib/mcp-screen';
 import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { AreaRefused } from '@/components/workspaces/area-gate';
-import { ClientEmpty, useShellRole } from '@/components/layout/shell-role';
+import { useShellRole } from '@/components/layout/shell-role';
 import { McpSettingsClient } from './mcp-client';
 
 /**
@@ -13,7 +13,7 @@ import { McpSettingsClient } from './mcp-client';
  * (mcpSourceFor): the brain's for an Admin user with the Settings area (the
  * brain classes /api/mcp-settings, /api/mcp-clients and /api/mcp-status as
  * `settings`), its own for a member. An Admin user without the area is told
- * so; a client has no MCP yet.
+ * so.
  */
 export function McpScreen() {
   const source = mcpSourceFor(useShellRole(), hasArea(useViewerAreas(), 'settings'));
@@ -23,8 +23,6 @@ export function McpScreen() {
       return <McpSettingsClient source={source} />;
     case 'refused':
       return <AreaRefused />;
-    case 'none':
-      return <ClientEmpty />;
     default:
       return (
         <div className="flex h-full items-center justify-center">

@@ -28,9 +28,9 @@ export const HOME_LINKS: readonly { href: string; label: string }[] = [
 
 /**
  * The plain home (phase W5c): the login's workspaces, from the shell, and the
- * screens it works in. A client's home, a member's (W6b: with Ask the
- * assistant), and an admin's without the settings area. Plain on purpose: the dashboard's cards are the brain's operations,
- * the settings area's.
+ * screens it works in. A member's (W6b: with Ask the assistant), and an
+ * admin's without the settings area. Plain on purpose: the dashboard's cards
+ * are the brain's operations, the settings area's.
  */
 export function PlainHomeView({
   workspaces,
@@ -99,9 +99,9 @@ function HomeSection({ title, children }: { title: string; children: ReactNode }
 /**
  * `/`, by the brain's role (until phase W6a): a member's own home (`member`),
  * and for an admin the dashboard with the settings area (a brain that names
- * no areas: every admin). A client, or an admin without that area, gets the
- * plain home. The shell has answered before any page renders, so this never
- * waits.
+ * no areas: every admin). An admin without that area gets the plain home.
+ * A role this build does not know reads as a member's (W8: no client role).
+ * The shell has answered before any page renders, so this never waits.
  */
 export function HomeSwitch({ dashboard, member }: { dashboard: ReactNode; member: ReactNode }) {
   const shell = useShellWorkspaces();

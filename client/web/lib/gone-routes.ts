@@ -1,5 +1,5 @@
 /**
- * THE list of routes a W6b or W7 brain answers 410, one source for both
+ * THE list of routes a W6b, W7 or W8 brain answers 410, one source for both
  * checks that keep the app off them:
  *
  *  - lib/no-gone-route.guard.test.ts scans every source file for a quoted
@@ -12,12 +12,10 @@
  * list and the member tree are gone, and so are the admin's private space and
  * its files. W7b: the per-login MCP switches and the agent and tool group
  * levels. W7c: the member chat (its read and unread) and the Admin member
- * chats. W7e: the member Library and accepted items.
- *
- * DEPRECATED_ROUTE_BASES: the routes a W7e brain still answers for an older
- * UI and answers 410 after this release (a member's bytes, drawings and app
- * runner moved to the owner routes, in the login's own scope). Nothing here
- * may call them either: both checks read both lists.
+ * chats. W7e: the member Library and accepted items. W8: a member's bytes,
+ * drawings and app runner (deprecated in W7e: they moved to the owner
+ * routes, in the login's own scope), the client login's email-code sign-in
+ * and its sender, and the client portal's stubs.
  *
  * This file names every one of them, so the guard does not scan it.
  */
@@ -46,20 +44,24 @@ export const GONE_ROUTE_BASES: readonly GoneRoute[] = [
   // W7e.
   { base: '/api/member/library', label: '/api/member/library (and its items)' },
   { base: '/api/member/accepted', label: '/api/member/accepted (and its items)' },
-];
-
-/** Deprecated in W7e, 410 after this release: never called (see above). */
-export const DEPRECATED_ROUTE_BASES: readonly GoneRoute[] = [
+  // W8 (deprecated in W7e).
   { base: '/api/member/files', label: '/api/member/files (now /api/files/files/:id?raw|thumb)' },
   { base: '/api/member/draws', label: '/api/member/draws (now /api/draws/:id/svg)' },
   {
     base: '/api/member/apps',
     label: '/api/member/apps (now GET /api/apps/:id and the runner on /api/apps/:id)',
   },
+  // W8: no client login, no sign-in by email code.
+  { base: '/api/auth/client-code', label: '/api/auth/client-code (and its verify)' },
+  {
+    base: '/api/team-admin/clients/signin-sender',
+    label: '/api/team-admin/clients/signin-sender (and its preview)',
+  },
+  { base: '/api/client', label: '/api/client (the client portal, every route under it)' },
 ];
 
-/** Every base nothing may call: the gone ones and the deprecated ones. */
-const NO_CALL_BASES: readonly GoneRoute[] = [...GONE_ROUTE_BASES, ...DEPRECATED_ROUTE_BASES];
+/** Every base nothing may call. */
+const NO_CALL_BASES: readonly GoneRoute[] = GONE_ROUTE_BASES;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&');
 

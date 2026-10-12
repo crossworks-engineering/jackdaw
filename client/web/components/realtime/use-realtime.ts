@@ -25,9 +25,9 @@ export type RealtimeChange = { type: string; id: string };
  *
  * Which stream (phase W5c: one shell for every login): the shell's role picks
  * it (lib/realtime-stream.ts). An admin reads /api/realtime, a member the
- * kept /api/member/realtime, a client none: /api/realtime is the owner's, and
- * a refused stream would only reconnect for ever. One shared connection per
- * stream path.
+ * kept /api/member/realtime (it carries no event since W8): /api/realtime is
+ * the owner's, and a refused stream would only reconnect for ever. One shared
+ * connection per stream path.
  */
 type Subscriber = { types: string[] | null; cb: (c: RealtimeChange) => void };
 

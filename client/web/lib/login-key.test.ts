@@ -6,7 +6,8 @@ describe('loginKeyFor', () => {
     expect(loginKeyFor(undefined)).toBeNull();
     expect(loginKeyFor({ role: 'admin', email: 'a@x.test' })).toBe('admin:a@x.test');
     expect(loginKeyFor({ role: 'member', loginId: 'm1' })).toBe('member:m1');
-    expect(loginKeyFor({ role: 'client', loginId: 'c1' })).toBe('client:c1');
+    // No client role since W8: a brain before it naming one keys as a member.
+    expect(loginKeyFor({ role: 'client', loginId: 'c1' })).toBe('member:c1');
     expect(loginKeyFor({ role: 'member' })).toBeNull();
   });
 });

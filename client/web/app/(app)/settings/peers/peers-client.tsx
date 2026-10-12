@@ -603,6 +603,7 @@ function PeerDetail({
         peerName={peer.displayName}
         access={{
           actsAsLoginId: peer.actsAsLoginId ?? null,
+          // A brain before W8 only (peer-acts-as.ts).
           actsAsRole: peer.actsAsRole ?? null,
           writeEnabled: peer.writeEnabled ?? false,
           allowedRiskyTools: peer.allowedRiskyTools ?? [],

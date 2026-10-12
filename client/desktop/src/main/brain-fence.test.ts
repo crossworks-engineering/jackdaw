@@ -39,19 +39,17 @@ describe('stripBrowserOnlyHeaders', () => {
 });
 
 /**
- * The desktop client login stands on this fence (lib/client-device-signin.ts
- * in the web app). The brain's device sign-in refuses a web page: its
- * `refuseBrowserDeviceMode` (mantle server/web/lib/client-logins.ts) answers
- * 403 `device-only` to any request with `Origin`, `Sec-Fetch-Site`,
- * `Sec-Fetch-Mode` or `Sec-Fetch-Dest`. Those are what Chromium puts on the
- * renderer's fetch to the brain, and only the fence takes them off. These
- * tests pin each link of that chain, so a later change to the fence cannot
- * quietly cost the desktop its client logins.
+ * A sign-in from the shell stands on this fence: the brain's login-CSRF
+ * guard (refuseCrossSiteAuthPost) refuses an auth POST whose `Origin` or
+ * `Sec-Fetch-Site` says another site, and those are what Chromium puts on
+ * the renderer's fetch from the loopback page. Only the fence takes them
+ * off. These tests pin each link of that chain, so a later change to the
+ * fence cannot quietly cost the desktop its first-run signup.
  */
-describe('the fence and the client device sign-in', () => {
+describe('the fence and a sign-in from the shell', () => {
   const BRAIN = 'https://brain.example';
 
-  /** The brain's own test, mirrored: true is a 403 `device-only`. */
+  /** True when the request still claims a browser page on another site. */
   const brainRefusesAsBrowser = (headers: Record<string, string>) => {
     const has = (name: string) => Object.keys(headers).some((k) => k.toLowerCase() === name);
     return has('origin') || has('sec-fetch-site') || has('sec-fetch-mode') || has('sec-fetch-dest');
@@ -71,14 +69,14 @@ describe('the fence and the client device sign-in', () => {
     Accept: '*/*',
   });
 
-  it('the filter covers both device sign-in routes, and nothing off the brain', () => {
+  it('the filter covers the sign-in routes, and nothing off the brain', () => {
     const [pattern] = brainRequestFilter(BRAIN).urls;
     expect(brainRequestFilter(BRAIN).urls).toHaveLength(1);
-    for (const path of ['/api/auth/client-code', '/api/auth/client-code/verify']) {
+    for (const path of ['/api/auth/token', '/api/auth/signup']) {
       expect(matches(pattern!, `${BRAIN}${path}`), path).toBe(true);
     }
-    expect(matches(pattern!, 'https://brain.example.evil/api/auth/client-code')).toBe(false);
-    expect(matches(pattern!, 'https://other.example/api/auth/client-code')).toBe(false);
+    expect(matches(pattern!, 'https://brain.example.evil/api/auth/token')).toBe(false);
+    expect(matches(pattern!, 'https://other.example/api/auth/token')).toBe(false);
   });
 
   it('unfenced, the brain refuses the request; fenced, it passes as a native client', () => {

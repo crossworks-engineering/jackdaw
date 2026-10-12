@@ -16,7 +16,7 @@ import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { serverUrl } from '@mantle/web-ui/runtime-env';
 import { copyText } from '@mantle/web-ui/lib/secure-context-fallbacks';
-import { queryKeysForType } from '@/lib/access-levels';
+import { queryKeysForType } from '@/lib/item-kinds';
 import { openLinkReadsContactWrites } from '@/lib/contact-shares';
 import {
   FOLDER_CONFIRM_NOTE,

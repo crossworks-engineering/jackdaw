@@ -1,7 +1,7 @@
 /**
  * Who a loaded shell names, as a key for what this browser keeps per login
- * (the last opened item of each section). A member or a client by its login
- * id, an admin by its own login (the actor's email). Null until the shell has
+ * (the last opened item of each section). A member by its login id, an
+ * admin by its own login (the actor's email). Null until the shell has
  * loaded.
  *
  * Also clears the copies the member autosave kept before workspaces W6b
@@ -15,9 +15,7 @@ export function loginKeyFor(
 ): string | null {
   const role = shellRoleOf(shell);
   if (role === 'admin') return `admin:${shell?.email ?? ''}`;
-  if (role === 'member' || role === 'client') {
-    return shell?.loginId ? `${role}:${shell.loginId}` : null;
-  }
+  if (role === 'member') return shell?.loginId ? `member:${shell.loginId}` : null;
   return null;
 }
 

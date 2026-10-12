@@ -7,7 +7,7 @@
  * both now answer 410 code gone.
  *
  * A verbatim copy of mantle packages/client-types/src/dto/shell.ts (brain
- * W6b fix round 2, cf5207213: isOwner). Replace the copy by hand when the
+ * W8 integration, b36d4a44a: no client role). Replace the copy by hand when the
  * brain's file changes. One line differs: the brain's `../tree` is the
  * published package's `@mantle/client-types/tree` here (the same TreeKind
  * list).
@@ -16,7 +16,7 @@ import type { TreeKind } from '@mantle/client-types/tree';
 import type { ShellWorkspace, WorkspaceArea } from './workspaces';
 
 /** Who is signed in, by role. */
-export type ShellRole = 'admin' | 'member' | 'client';
+export type ShellRole = 'admin' | 'member';
 
 /** What this brain can do, so a client branches on capability, not version. */
 export type ShellFeatures = { recallV2: boolean };

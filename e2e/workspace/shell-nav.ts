@@ -26,10 +26,10 @@ export const ADMIN_ROWS = [
 /**
  * The rail's nav, opened to every row the login may see. An admin picks the
  * Admin scope (the whole menu, components/layout/sidebar-nav.tsx). A member
- * or a client holds no settings area: it gets no Work / Settings / Admin
- * choice at all, and its rows are all there, flat.
+ * holds no settings area: it gets no Work / Settings / Admin choice at all,
+ * and its rows are all there, flat.
  */
-export async function wholeNav(page: Page, role: 'admin' | 'member' | 'client') {
+export async function wholeNav(page: Page, role: 'admin' | 'member') {
   const nav = page.getByRole('navigation', { name: 'Primary' });
   const scopes = nav.getByRole('group', { name: 'How much of the menu to show' });
   if (role === 'admin') {
@@ -68,7 +68,7 @@ const KIND = '[a-z]+';
 const rx = (method: string, path: string) => new RegExp(`^${method} ${path}$`);
 
 /**
- * The owner routes a W6b brain opens to a member or a client (route-scope.ts
+ * The owner routes a W6b brain opens to a member (route-scope.ts
  * MEMBER_OPEN_READS and MEMBER_OPEN_WRITES at the brain commit this phase was
  * built against), as `METHOD path`. Every other owner route refuses them.
  * Also /api/grants and /api/workspaces, which answer every login.

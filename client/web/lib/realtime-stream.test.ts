@@ -13,8 +13,7 @@ describe('realtimeStreamPath', () => {
     expect(MEMBER_REALTIME_PATH).toBe('/api/member/realtime');
   });
 
-  it('a client opens none, and nothing opens before the shell answers', () => {
-    expect(realtimeStreamPath('client')).toBeNull();
+  it('nothing opens before the shell answers', () => {
     expect(realtimeStreamPath(null)).toBeNull();
   });
 });

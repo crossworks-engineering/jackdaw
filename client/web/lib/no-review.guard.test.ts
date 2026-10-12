@@ -78,6 +78,8 @@ const NAMES_ON_PURPOSE = [
   'middleware.test.ts',
   // Lists the client report route as one the Users screen must not name.
   'app/(app)/settings/users/users-flat.test.ts',
+  // Pins that the gone-route needles catch the client portal's routes (W8).
+  'lib/no-gone-route.guard.test.ts',
 ].map((f) => WEB + f);
 
 function sources(dir: string, out: string[] = []): string[] {
@@ -112,7 +114,6 @@ describe('no review UI in the owner screens (W5c)', () => {
       'app/(app)/settings/users/users-client.tsx',
       'app/(app)/settings/users/invites.tsx',
       'app/login/login-client.tsx',
-      'app/login/email-code-form.tsx',
       'app/invite/invite-client.tsx',
       // The shell's (W5c): the member views left after W6b, the rail and
       // the member libs.

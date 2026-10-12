@@ -4,7 +4,6 @@ import { loadBrainAppearance } from '@/lib/appearance';
 import { brainOrigin } from '@/lib/brain-origin';
 import { readBrandFields, resolveLoginBrand } from '@/lib/brand';
 import { safeNext } from '@/lib/safe-next';
-import { loadEmailCodesEnabled } from '@/lib/email-code-availability';
 import { LoginClient } from './login-client';
 import { LoginMark } from './login-mark';
 import { LoginCredit } from './login-credit';
@@ -29,12 +28,9 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; error?: string; add?: string; session?: string }>;
 }) {
-  // Whether this brain mails sign-in codes: a client login (no password)
-  // signs in with one, and the screen offers the way then.
-  const [params, appearance, emailCodes, origin] = await Promise.all([
+  const [params, appearance, origin] = await Promise.all([
     searchParams,
     loadBrainAppearance(),
-    loadEmailCodesEnabled(),
     brainOrigin(),
   ]);
   const brand = resolveLoginBrand(readBrandFields(appearance));
@@ -68,7 +64,6 @@ export default async function LoginPage({
             // the raw parameter was an open redirect (lib/safe-next.ts).
             next={safeNext(params.next)}
             error={params.error}
-            emailCodes={emailCodes}
             // `add=1`: someone already signed in is adding another login, so the
             // usual bounce back into the app must not happen. `session`: which
             // held login is being signed back in to. Both are ids and flags the

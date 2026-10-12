@@ -2,10 +2,11 @@
 
 /**
  * What a peer's token may do on this brain's MCP endpoint (brain migration
- * 0227, "MCP as a login"): act as one login (the owner, a team member or a
- * client) or nobody (a share-only peer), with a Write switch. Bound to the
- * owner, the owner can also allow risky tools by name. Every change saves at
- * once through PATCH /api/peers/:id; the brain checks the login and its role.
+ * 0227, "MCP as a login"): act as one login (the owner or a member) or
+ * nobody (a share-only peer), with a Write switch. Bound to the owner, the
+ * owner can also allow risky tools by name. Every change saves at once
+ * through PATCH /api/peers/:id; the brain checks the login. Since W8 the
+ * peer keeps only the login, and acts as that login is now.
  * Binding a peer to the owner may mint a new inbound token; the answer then
  * carries it and the reveal shows it once.
  */
@@ -24,20 +25,21 @@ import {
   SelectValue,
 } from '@mantle/web-ui/ui/select';
 import { useToast } from '@mantle/web-ui/ui/toast';
-import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
+import { useViewerAreas, useViewerLogin } from '@/components/workspaces/use-shell-workspaces';
 import { revealPatchToken, type PeerPatchAnswer } from './peer-patch';
 import {
   ACTS_AS_NEEDS_USERS,
   ACTS_AS_NONE,
   actsAsOptions,
+  actsAsOwner,
   actsAsValue,
   mayListUsers,
+  ownerLoginId,
+  type ActsAsBinding,
   type ActsAsLogin,
 } from './peer-acts-as';
 
-export type PeerAccess = {
-  actsAsLoginId: string | null;
-  actsAsRole: 'admin' | 'member' | 'client' | null;
+export type PeerAccess = ActsAsBinding & {
   writeEnabled: boolean;
   allowedRiskyTools: string[];
 };
@@ -70,7 +72,10 @@ export function PeerAccessSection({
     retry: false,
   });
 
-  const value = actsAsValue(access);
+  // The owner binding is the owner's login (peer-acts-as.ts).
+  const viewer = useViewerLogin();
+  const ownerId = ownerLoginId(logins.data?.users, viewer);
+  const value = actsAsValue(access, ownerId);
 
   const save = async (body: Record<string, unknown>) => {
     setSaving(true);
@@ -85,7 +90,7 @@ export function PeerAccessSection({
       if (p) {
         onChanged({
           actsAsLoginId: p.actsAsLoginId,
-          actsAsRole: p.actsAsRole,
+          actsAsRole: p.actsAsRole ?? null,
           writeEnabled: p.writeEnabled,
           allowedRiskyTools: p.allowedRiskyTools,
         });
@@ -100,9 +105,9 @@ export function PeerAccessSection({
     }
   };
 
-  const bound = access.actsAsRole !== null;
-  const asOwner = access.actsAsRole === 'admin';
-  const options = actsAsOptions(logins.data?.users, access);
+  const bound = access.actsAsLoginId !== null || !!access.actsAsRole;
+  const asOwner = actsAsOwner(access, ownerId);
+  const options = actsAsOptions(logins.data?.users, access, ownerId);
 
   return (
     <div className="space-y-3 rounded-md border border-border p-3">

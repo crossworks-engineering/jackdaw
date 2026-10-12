@@ -1,8 +1,5 @@
 'use client';
 
-import { ArrowRight } from 'lucide-react';
-import type { AccessLevel } from '@mantle/client-types';
-import type { TreeVisibilityChange } from '@mantle/web-ui/types/tree';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,22 +10,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@mantle/web-ui/ui/alert-dialog';
-import { LEVEL_LABEL } from '@/lib/access-levels';
 import {
-  isWorkspaceChange,
   refusalHeading,
   workspaceChangeWords,
-  type VisibilityChange,
+  type TreeWorkspaceChange,
   type VisibilityRefusal,
 } from './sharing';
 
-const levelWord = (l: AccessLevel) => (l === 'admin' ? 'Admin only' : LEVEL_LABEL[l]);
-
 /** A write the brain refused because it changes who can see items: each
  *  item and the workspaces it gains and loses (a tree write, W5b2 contract
- *  29), or its levels before and after (an Accept into the brain of an
- *  admin's private item, until private items go in W6b).
- *  Going ahead repeats the write with `confirm` (and `seen`, the total
+ *  29). Going ahead repeats the write with `confirm` (and `seen`, the total
  *  shown, where the route takes it). */
 export type PendingConfirm = {
   refusal: VisibilityRefusal;
@@ -44,29 +35,13 @@ export type PendingConfirm = {
 /** The tree's words for why a list like this appears. */
 export const TREE_CONFIRM_NOTE = 'Items take the workspaces of the folder they sit in.';
 
-/** A node type as people say it, for the embed list (an embed may open
- *  any workspace item, so the kind matters). */
-function kindWord(type: string): string {
-  const words: Record<string, string> = {
-    file: 'file',
-    draw: 'drawing',
-    page: 'page',
-    note: 'note',
-    table: 'table',
-    app: 'app',
-    formula: 'formula',
-    branch: 'folder',
-  };
-  return words[type] ?? type;
-}
-
 export function ChangeList({
   label,
   changes,
   more,
 }: {
   label: string;
-  changes: readonly VisibilityChange[];
+  changes: readonly TreeWorkspaceChange[];
   more: number;
 }) {
   return (
@@ -82,7 +57,7 @@ export function ChangeList({
           <span className="min-w-0 flex-1 truncate" title={c.title}>
             {c.title || 'Untitled'}
           </span>
-          {isWorkspaceChange(c) ? <WorkspaceDelta change={c} /> : <LevelDelta change={c} />}
+          <WorkspaceDelta change={c} />
         </li>
       ))}
       {more > 0 && <li className="px-3 py-1.5 text-xs text-muted-foreground">and {more} more</li>}
@@ -92,7 +67,7 @@ export function ChangeList({
 
 /** A tree change: the workspaces that also read the item, and those that
  *  stop (contract 29). */
-function WorkspaceDelta({ change }: { change: Parameters<typeof workspaceChangeWords>[0] }) {
+function WorkspaceDelta({ change }: { change: TreeWorkspaceChange }) {
   const { added, removed } = workspaceChangeWords(change);
   return (
     <span className="flex min-w-0 shrink flex-col items-end text-xs">
@@ -113,24 +88,6 @@ function WorkspaceDelta({ change }: { change: Parameters<typeof workspaceChangeW
   );
 }
 
-/** An Accept's change: its level before and after (private items, until W6b). */
-function LevelDelta({ change: c }: { change: TreeVisibilityChange }) {
-  return (
-    <>
-      {c.type && (
-        <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] text-muted-foreground">
-          {kindWord(c.type)}
-        </span>
-      )}
-      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-        {levelWord(c.from)}
-        <ArrowRight className="size-3" aria-label="becomes" />
-        <span className="font-medium text-foreground">{levelWord(c.to)}</span>
-      </span>
-    </>
-  );
-}
-
 export function VisibilityConfirmDialog({
   pending,
   onOpenChange,
@@ -140,7 +97,6 @@ export function VisibilityConfirmDialog({
 }) {
   const refusal = pending?.refusal;
   const more = refusal ? refusal.total - refusal.changes.length : 0;
-  const embeds = refusal?.alsoEmbeds ?? [];
   return (
     <AlertDialog open={pending !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -152,16 +108,6 @@ export function VisibilityConfirmDialog({
         </AlertDialogHeader>
         {refusal && (
           <ChangeList label="Who can see each item" changes={refusal.changes} more={more} />
-        )}
-        {embeds.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">Also readable through them</p>
-            <p className="text-xs text-muted-foreground">
-              What these embed is read wherever they are read, only while they are. Its own level
-              does not change.
-            </p>
-            <ChangeList label="What they embed" changes={embeds} more={0} />
-          </div>
         )}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

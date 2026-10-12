@@ -1,7 +1,7 @@
 /**
  * Settings > MCP, the pure half: ONE screen for every user (workspaces W7b).
  * Every login has the one MCP surface in its own workspaces; there is no
- * per-login MCP or Write switch and no Team and client access list any more
+ * per-login MCP or Write switch and no Team access list any more
  * (/api/mcp-logins answers 410).
  *
  * The screen reads one of two routes and shows the same layout either way:
@@ -130,21 +130,19 @@ export function claudeCodeOauthCommand(connectorUrl: string): string {
 /**
  * Which side of the one screen a login reads: the brain's for an Admin user
  * with the Settings area (the brain classes /api/mcp-settings,
- * /api/mcp-clients and /api/mcp-status as `settings`), its own for a member. An Admin user without the
- * area is told so (`refused`); a client has no MCP yet (`none`); null while
- * the shell has not answered. A brain that names no role reads as an admin's.
+ * /api/mcp-clients and /api/mcp-status as `settings`), its own for a member.
+ * An Admin user without the area is told so (`refused`); null while the
+ * shell has not answered. A brain that names no role reads as an admin's.
  */
 export function mcpSourceFor(
-  role: 'admin' | 'member' | 'client' | null,
+  role: 'admin' | 'member' | null,
   settings: boolean,
-): McpSource | 'refused' | 'none' | null {
+): McpSource | 'refused' | null {
   switch (role) {
     case 'admin':
       return settings ? 'brain' : 'refused';
     case 'member':
       return 'own';
-    case 'client':
-      return 'none';
     default:
       return null;
   }

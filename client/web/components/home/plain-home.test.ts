@@ -78,8 +78,13 @@ describe('HomeSwitch', () => {
     expect(render({ role: 'member', areas: ['settings'] })).toBe('<p>MEMBER-HOME</p>');
   });
 
-  it('a client gets the plain home with its workspaces', () => {
+  it('a role this build does not know is a member (W8: no client role)', () => {
     const html = render({ role: 'client', areas: [], workspaces: [ws('w1', 'Clients')] });
+    expect(html).toBe('<p>MEMBER-HOME</p>');
+  });
+
+  it('an admin without the settings area gets the plain home with its workspaces', () => {
+    const html = render({ role: 'admin', areas: [], workspaces: [ws('w1', 'Clients')] });
     expect(html).toContain('Clients');
     expect(html).not.toMatch(/DASHBOARD|MEMBER-HOME/);
   });

@@ -15,7 +15,6 @@ import type {
   TreeMarkList,
   TreeMarkView,
   TreeSearchResult,
-  TreeShareLevel,
   TreeSort,
   TreeTagList,
 } from '@mantle/web-ui/types/tree';
@@ -141,9 +140,6 @@ export type TreeFolderPatch = {
   parentId?: string | null;
   /** Place directly after this sibling; null = first. */
   after?: string | null;
-  /** Share it, and everything below it, with the team or clients; null
-   *  stops sharing it. */
-  share?: TreeShareLevel | null;
   /** Go ahead although it changes who can see items (else a visibility
    *  refusal, 409). */
   confirm?: boolean;

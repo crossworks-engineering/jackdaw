@@ -1,7 +1,7 @@
 /**
  * /settings/mcp is one screen for every user (workspaces W7b), on the side
  * the login reads: the brain's for an Admin user with Settings, its own for
- * a member. No per-login switch and no Team and client access list.
+ * a member. No per-login switch and no Team access list.
  */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -58,8 +58,9 @@ describe('/settings/mcp: one screen, on the side the login reads', () => {
     expect(html).not.toContain('MCP-SCREEN:brain');
   });
 
-  it('a client gets no MCP yet', async () => {
+  it('a role this build does not know (a brain before W8 naming a client) is a member', async () => {
     const html = await renderFor({ role: 'client', areas: [] });
-    expect(html).not.toContain('MCP-SCREEN');
+    expect(html).toContain('MCP-SCREEN:own');
+    expect(html).not.toContain('MCP-SCREEN:brain');
   });
 });

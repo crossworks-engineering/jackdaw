@@ -6,7 +6,6 @@
  */
 
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import type { AccessLevel } from '@mantle/client-types';
 
 export const FILES_ROOT = 'files';
 
@@ -26,16 +25,6 @@ export type FolderRow = {
   fileCount: number;
   createdAt: string;
   updatedAt: string;
-  /** Access level; absent from brains older than the level rows. */
-  audience?: AccessLevel;
-  /** The folder's own share (team or client), or null: everything below it
-   *  is read at least at this level. Absent from brains before folder
-   *  sharing reported it. */
-  share?: 'team' | 'client' | null;
-  /** The share it inherits from a folder above it (team or client), or
-   *  null. It is read at the more open of this and `audience`. Absent from
-   *  brains before folder sharing reported it. */
-  inherited?: 'team' | 'client' | null;
 };
 
 export type FileRow = {
@@ -53,12 +42,6 @@ export type FileRow = {
   indexingApplied: 'full' | 'metadata' | null;
   createdAt: string;
   updatedAt: string;
-  /** Access level; absent from brains older than the level rows. */
-  audience?: AccessLevel;
-  /** The share it inherits from a folder above it (team or client), or
-   *  null. It is read at the more open of this and `audience`. Absent from
-   *  brains before folder sharing reported it. */
-  inherited?: 'team' | 'client' | null;
 };
 
 /** One `/api/search?branch=files` hit — the server's node shape, trimmed to
@@ -237,26 +220,6 @@ export type FilesDialogKind = NonNullable<FilesDialog>['kind'];
  */
 export function dismissDialog(current: FilesDialog, kind: FilesDialogKind): FilesDialog {
   return current?.kind === kind ? null : current;
-}
-
-/** The share everything in a folder is read at: its own or the one it takes
- *  from a folder above, the more open of the two (clients over the team).
- *  Null: not shared, or a brain before folder sharing said. */
-export function folderShareOf(
-  f: Pick<FolderRow, 'share' | 'inherited'> | null | undefined,
-): 'team' | 'client' | null {
-  if (!f) return null;
-  if (f.share === 'client' || f.inherited === 'client') return 'client';
-  if (f.share === 'team' || f.inherited === 'team') return 'team';
-  return null;
-}
-
-/** The question before an upload into a shared folder. */
-export function sharedUploadLine(share: 'team' | 'client', count: number): string {
-  const what = count === 1 ? 'this file' : `these ${count} files`;
-  return share === 'client'
-    ? `Clients read everything in this folder, so they read ${what} as soon as ${count === 1 ? 'it lands' : 'they land'}.`
-    : `The team reads everything in this folder, so members read ${what} as soon as ${count === 1 ? 'it lands' : 'they land'}.`;
 }
 
 /**
