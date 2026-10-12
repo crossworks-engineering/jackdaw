@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TreeFolder, TreeFolderPage, TreeItem } from '@mantle/web-ui/types/tree';
+import type { TreeFilter, TreeFolder, TreeFolderPage, TreeItem } from '@mantle/web-ui/types/tree';
 import {
   afterFor,
   afterForStep,
@@ -36,6 +36,8 @@ const folder = (id: string, path: string): TreeFolder => ({
   system: false,
   folderCount: 0,
   itemCount: 0,
+  workspaces: [],
+  hasLink: false,
 });
 
 const item = (id: string): TreeItem => ({
@@ -44,9 +46,10 @@ const item = (id: string): TreeItem => ({
   icon: null,
   color: null,
   subtype: null,
-  level: 'admin',
   state: null,
   updatedAt: '2026-09-30T00:00:00.000Z',
+  workspaces: [],
+  hasLink: false,
 });
 
 const page = (
@@ -298,7 +301,7 @@ describe('urls', () => {
       '/api/tree/files/search?q=q&tag=a+b',
     );
     // No level= any more (contract 29): an old filter with a level sends none.
-    expect(searchUrl('files', 'q', null, { level: 'team', tag: 'a' })).toBe(
+    expect(searchUrl('files', 'q', null, { level: 'team', tag: 'a' } as TreeFilter)).toBe(
       '/api/tree/files/search?q=q&tag=a',
     );
     expect(searchUrl('files', 'q', null, { tag: 'a' }, 'owner', 'w1')).toBe(

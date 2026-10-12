@@ -150,7 +150,7 @@ export function PeerAccessSection({
               <p className="text-xs text-muted-foreground">
                 {asOwner
                   ? 'Off: read only. On: it can create, change, move and delete content here (notes, events, files, folders, pages, tables), but not the risky tools below.'
-                  : 'Off: read only. On: it can create drafts in that login’s own space, for review.'}
+                  : 'Off: read only. On: it can create and change content wherever that login may write, in its workspaces.'}
               </p>
             </div>
             <Switch

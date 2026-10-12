@@ -1,8 +1,8 @@
 /**
  * An admin's password reset for another login (Settings > Logins). Only a
- * password login has one: an admin or a member. A client signs in with a
- * link (client logins C2), and a role this app does not know is never
- * offered anything, so Reset password shows for admins and members only.
+ * password login has one: an admin or a member. A role this app does not
+ * know is never offered anything, so Reset password shows for admins and
+ * members only.
  * The brain refuses the rest with 400 `not-a-password-login`, and the toast
  * says its words.
  *
@@ -16,8 +16,8 @@ export function canResetPassword(role: string): boolean {
   return role === 'admin' || role === 'member';
 }
 
-/** The brain refused: this login has no password (a client, or a role it
- *  does not reset). */
+/** The brain refused: this login has no password (a role it does not
+ *  reset). */
 export function isNotAPasswordLogin(err: unknown): boolean {
   return (
     err instanceof ApiError &&
@@ -26,8 +26,7 @@ export function isNotAPasswordLogin(err: unknown): boolean {
   );
 }
 
-export const NOT_A_PASSWORD_LOGIN =
-  'This login has no password to reset. A client signs in with a code sent by email.';
+export const NOT_A_PASSWORD_LOGIN = 'This login has no password to reset.';
 
 /** The toast for a failed reset. */
 export function resetPasswordErrorMessage(err: unknown): string {

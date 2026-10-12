@@ -47,6 +47,18 @@ const NEEDLES: readonly (readonly [label: string, needle: RegExp])[] = [
     "a 'client' login role",
     /\brole\s*(?:===|!==|==|!=|:)\s*['"`]client['"`]|['"`]client['"`]\s*\||\|\s*['"`]client['"`]|case\s+['"`]client['"`]\s*:/,
   ],
+  // The array form: a list of roles with 'client' in it (['client'],
+  // ['member', 'client'] as const, z.enum([...])) or a lookup in one
+  // (roles.includes('client'), ROLES.has('client')).
+  [
+    "a 'client' role in a list of roles",
+    /[[,]\s*['"`]client['"`]\s*[,\]]|\.(?:includes|has|indexOf)\(\s*['"`]client['"`]\s*[,)]/,
+  ],
+  // The enum form: an enum member (Client = 'client') or a schema literal.
+  [
+    "a 'client' role in an enum or a schema",
+    /\b(?:Client|CLIENT)\s*=\s*['"`]client['"`]|\bliteral\(\s*['"`]client['"`]\s*\)/,
+  ],
 ];
 
 describe('no client login and no email code sign-in (W8)', () => {
@@ -91,6 +103,18 @@ describe('no client login and no email code sign-in (W8)', () => {
     expect(caught("type Role = 'admin' | 'member' | 'client';")).toBe(true);
     expect(caught("type Role = 'client' | 'member';")).toBe(true);
     expect(caught("    case 'client':")).toBe(true);
+    // The union, array and enum forms.
+    expect(caught("type Role = 'member' | 'client';")).toBe(true);
+    expect(caught("role: 'admin' | 'member' | \"client\";")).toBe(true);
+    expect(caught("const ROLES = ['client'];")).toBe(true);
+    expect(caught("const ROLES = ['admin', 'member', 'client'] as const;")).toBe(true);
+    expect(caught("const ROLES = ['client', 'member'];")).toBe(true);
+    expect(caught("const ROLES = [\n  'admin',\n  'client',\n];")).toBe(true);
+    expect(caught("const Role = z.enum(['admin', 'member', 'client']);")).toBe(true);
+    expect(caught("if (roles.includes('client')) return;")).toBe(true);
+    expect(caught("if (NON_PASSWORD.has('client')) return;")).toBe(true);
+    expect(caught("enum Role { Admin = 'admin', Client = 'client' }")).toBe(true);
+    expect(caught("const r = z.literal('client');")).toBe(true);
     // History in a comment, and words that are not the role.
     expect(caught('// The client login and /api/auth/client-code went in W8.')).toBe(false);
     expect(caught("/* role === 'client' was a role before W8 */")).toBe(false);
@@ -98,6 +122,11 @@ describe('no client login and no email code sign-in (W8)', () => {
     expect(caught("const qc = new QueryClient(); const url = 'https://x.test/a';")).toBe(false);
     expect(caught("type WorkspaceErrorCode = 'self_demote' | 'client_login';")).toBe(false);
     expect(caught("const OLD_CLIENT_VIA = 'client';")).toBe(false);
+    expect(caught("const ROLES = ['admin', 'member'] as const;")).toBe(false);
+    expect(caught("const keys = ['clients', 'client_login', 'client-report'];")).toBe(false);
+    expect(caught("if (name.includes('client-')) return;")).toBe(false);
+    expect(caught("import { QueryClient, QueryClientProvider } from 'x';")).toBe(false);
+    expect(caught("// const ROLES = ['admin', 'member', 'client'];")).toBe(false);
   });
 
   it('the email code sign-in and its sender are gone', () => {

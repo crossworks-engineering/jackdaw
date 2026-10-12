@@ -56,9 +56,7 @@ import {
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { formatBytes } from '@/lib/upload-progress';
 
-/** `pre_mcp_write` (brain team apps Phase 1): named here before the contract
- *  pin lists it, so the history labels it on a brain that sends it. */
-const TRIGGER_LABEL: Record<AppSnapshot['trigger'] | 'pre_mcp_write', string> = {
+const TRIGGER_LABEL: Record<AppSnapshot['trigger'], string> = {
   publish: 'Published',
   manual: 'Snapshot',
   pre_restore: 'Before a restore',
@@ -74,6 +72,7 @@ const ACTOR_LABEL: Record<AppSnapshot['actor'], string> = {
   agent: 'the assistant',
   mcp: 'an MCP client',
   system: 'Mantle',
+  member: 'a team member',
 };
 
 const MODE_COPY: Record<AppRestoreMode, { title: string; body: string; action: string }> = {

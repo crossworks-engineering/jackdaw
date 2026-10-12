@@ -114,6 +114,11 @@ describe('no call to a route a W6b, W7 or W8 brain answers 410', () => {
     expect(caught('`${base}/api/auth/client-code`')).toBe(true);
     expect(caught("apiFetch('/api/team-admin/clients/signin-sender')")).toBe(true);
     expect(caught("'/api/team-admin/clients/signin-sender/preview'")).toBe(true);
+    expect(caught("apiFetch('/api/team-admin/clients')")).toBe(true);
+    expect(caught('`/api/team-admin/clients/${id}`')).toBe(true);
+    expect(caught("apiFetch('/api/auth/client-link')")).toBe(true);
+    expect(caught('`${base}/api/auth/client-link?token=${t}`')).toBe(true);
+    expect(caught("apiFetch('/api/team-admin/clientsx')")).toBe(false);
     expect(caught("apiFetch('/api/client/shell')")).toBe(true);
     expect(caught('`/api/client/apps/${id}/frame`')).toBe(true);
     expect(caught("apiFetch('/api/clients')")).toBe(false);
@@ -140,6 +145,10 @@ describe('no call to a route a W6b, W7 or W8 brain answers 410', () => {
     expect(GONE_ROUTE.test('/api/auth/client-code')).toBe(true);
     expect(GONE_ROUTE.test('/api/auth/client-code/verify')).toBe(true);
     expect(GONE_ROUTE.test('/api/team-admin/clients/signin-sender/preview')).toBe(true);
+    expect(GONE_ROUTE.test('/api/team-admin/clients')).toBe(true);
+    expect(GONE_ROUTE.test('/api/team-admin/clients/x')).toBe(true);
+    expect(GONE_ROUTE.test('/api/auth/client-link')).toBe(true);
+    expect(GONE_ROUTE.test('/api/auth/client-linkx')).toBe(false);
     expect(GONE_ROUTE.test('/api/client/shell')).toBe(true);
     expect(GONE_ROUTE.test('/api/auth/token')).toBe(false);
     expect(GONE_ROUTE.test('/api/clients')).toBe(false);

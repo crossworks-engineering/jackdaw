@@ -15,7 +15,8 @@
  * chats. W7e: the member Library and accepted items. W8: a member's bytes,
  * drawings and app runner (deprecated in W7e: they moved to the owner
  * routes, in the login's own scope), the client login's email-code sign-in
- * and its sender, and the client portal's stubs.
+ * and its sender, the client link, the Admin client list, and the client
+ * portal's stubs.
  *
  * This file names every one of them, so the guard does not scan it.
  */
@@ -53,9 +54,10 @@ export const GONE_ROUTE_BASES: readonly GoneRoute[] = [
   },
   // W8: no client login, no sign-in by email code.
   { base: '/api/auth/client-code', label: '/api/auth/client-code (and its verify)' },
+  { base: '/api/auth/client-link', label: '/api/auth/client-link' },
   {
-    base: '/api/team-admin/clients/signin-sender',
-    label: '/api/team-admin/clients/signin-sender (and its preview)',
+    base: '/api/team-admin/clients',
+    label: '/api/team-admin/clients (and its sign-in sender and preview)',
   },
   { base: '/api/client', label: '/api/client (the client portal, every route under it)' },
 ];

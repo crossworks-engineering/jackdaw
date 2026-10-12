@@ -23,6 +23,8 @@ const folder = (over: Partial<TreeFolder> = {}): TreeFolder => ({
   system: false,
   folderCount: 0,
   itemCount: 0,
+  workspaces: [],
+  hasLink: false,
   ...over,
 });
 

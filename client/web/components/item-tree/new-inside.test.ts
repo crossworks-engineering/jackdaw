@@ -14,6 +14,8 @@ const folder: TreeFolder = {
   system: false,
   folderCount: 0,
   itemCount: 2,
+  workspaces: [],
+  hasLink: false,
 };
 
 describe('newInsideEntry', () => {

@@ -80,6 +80,9 @@ const NAMES_ON_PURPOSE = [
   'app/(app)/settings/users/users-flat.test.ts',
   // Pins that the gone-route needles catch the client portal's routes (W8).
   'lib/no-gone-route.guard.test.ts',
+  // THE list of gone routes: it names the Team admin clients and client link
+  // routes so that no-gone-route.guard.test.ts keeps every file off them.
+  'lib/gone-routes.ts',
 ].map((f) => WEB + f);
 
 function sources(dir: string, out: string[] = []): string[] {
