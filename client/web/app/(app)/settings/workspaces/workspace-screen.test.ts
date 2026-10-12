@@ -553,7 +553,7 @@ describe('user search on screen open', () => {
 });
 
 describe('the Landing page section (task d78e7bde)', () => {
-  const app = { appId: 'app1', title: 'Desk', ready: true };
+  const app = { held: true, appId: 'app1', title: 'Desk', ready: true };
   const html = (over: Partial<Workspace>, landingApp?: WorkspaceDetail['landingApp']) =>
     render(
       createElement(WorkspaceSections, {
@@ -592,21 +592,49 @@ describe('the Landing page section (task d78e7bde)', () => {
     expect(out).toContain('no working build');
   });
 
+  it('an Admin user outside the workspace reads that one is set, not which', () => {
+    const out = html(
+      { me: { member: false, moderator: false } },
+      { held: true, appId: null, title: null, ready: true },
+    );
+    expect(out).toContain('>A home app</p>');
+  });
+
+  it('an app the workspace no longer holds is named as such, with no title', () => {
+    const out = html(
+      { me: { member: true, moderator: false } },
+      { held: false, appId: null, title: null, ready: false },
+    );
+    expect(out).toContain('no longer holds');
+  });
+
   it('an older brain sends none: no section', () => {
     expect(html({})).not.toContain('Landing page');
   });
 });
 
-const { landingChoices, BUILT_IN_HOME } = await import('@/components/workspaces/landing-section');
+const { landingChoices, landingValue, BUILT_IN_HOME, UNNAMED_HOME } =
+  await import('@/components/workspaces/landing-section');
 
 describe('landingChoices', () => {
   it('the Built-in home first, then the current app, then the others once', () => {
     expect(
-      landingChoices({ appId: 'a', title: 'A', ready: true }, [
+      landingChoices({ held: true, appId: 'a', title: 'A', ready: true }, [
         { token: 'b', title: 'B' },
         { token: 'a', title: 'A' },
       ]).map((c) => c.value),
     ).toEqual([BUILT_IN_HOME, 'a', 'b']);
     expect(landingChoices(null, []).map((c) => c.value)).toEqual([BUILT_IN_HOME]);
+  });
+
+  it('a pointer the workspace no longer holds is its own choice, so the Built-in pick clears it', () => {
+    const stale = { held: false, appId: null, title: null, ready: false };
+    expect(landingValue(stale)).toBe(UNNAMED_HOME);
+    expect(landingChoices(stale, [{ token: 'b', title: 'B' }]).map((c) => c.value)).toEqual([
+      BUILT_IN_HOME,
+      UNNAMED_HOME,
+      'b',
+    ]);
+    expect(landingValue(null)).toBe(BUILT_IN_HOME);
   });
 });

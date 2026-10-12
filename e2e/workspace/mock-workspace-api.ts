@@ -188,6 +188,11 @@ export type MockWorkspaceApi = {
   /** Workspaces a login was taken out of after its shell loaded: the shell
    *  still lists them, the brain refuses a create there (403 workspace). */
   leftSince: Partial<Record<Role, WorkspaceKey[]>>;
+  /** A workspace's home app (task d78e7bde): GET /api/home?ws= names it.
+   *  `frame` true: its frame ticket and frame answer (the app loads but
+   *  never signals ready); false: the ticket is a 404 (no build), so the
+   *  landing page falls back to the Built-in home. */
+  homeApps: Partial<Record<WorkspaceKey, { id: string; title: string; frame: boolean }>>;
   close: () => Promise<void>;
 };
 
@@ -210,6 +215,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     onboarded: true,
     created: [],
     leftSince: {},
+    homeApps: {},
     close: async () => undefined,
   };
 
@@ -406,10 +412,13 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
         description: null,
         updatedAt: now,
       }));
+      const homeApp = key ? state.homeApps[key] : undefined;
       return (
         json(res, 200, {
           ws: ws ?? null,
-          homeApp: null,
+          homeApp: homeApp
+            ? { appId: homeApp.id, title: homeApp.title, icon: null, color: null }
+            : null,
           hub: {
             siteName: null,
             memberName: LOGINS[role].name,
@@ -421,6 +430,21 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
         }),
         true
       );
+    }
+    // A home app's frame (task d78e7bde): a ticket, then a page that never
+    // signals ready; or a 404 ticket (no build).
+    const frameM = /^\/api\/apps\/([0-9a-f-]{36})\/(frame-ticket|frame)$/.exec(path);
+    const framed = frameM
+      ? Object.values(state.homeApps).find((a) => a?.id === frameM[1])
+      : undefined;
+    if (frameM && framed) {
+      if (!framed.frame) return (json(res, 404, { error: 'no build' }), true);
+      if (frameM[2] === 'frame-ticket' && method === 'POST') {
+        return (json(res, 200, { ticket: `ticket-${framed.id}` }), true);
+      }
+      if (frameM[2] === 'frame' && method === 'GET') {
+        return (send(res, 200, 'text/html', '<!doctype html><p>home app</p>'), true);
+      }
     }
     // The Apps screen's paged list (this mock's tree serves no apps).
     if (path === '/api/apps' && method === 'GET') {

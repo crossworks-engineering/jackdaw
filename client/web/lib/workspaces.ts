@@ -199,9 +199,17 @@ export function isTeamWorkspace(
   return isBuiltIn(ws) && !ws.isAdmin;
 }
 
-/** The Team settings (member chat, read posture, member home app; Team
- *  admin's settings before W5c) show on the live Team workspace, to an Admin
- *  user only: the settings area. */
+/** The Team settings (member chat and read posture; Team admin's settings
+ *  before W5c; the member home app moved to every workspace's Landing page,
+ *  task d78e7bde) show on the live Team workspace, to an Admin user only:
+ *  the settings area. */
+export function showsTeamSettings(
+  ws: Pick<Workspace, 'isAdmin' | 'adminModerated' | 'archived'> & { builtIn?: boolean },
+  areas: readonly string[] | null | undefined,
+): boolean {
+  return !ws.archived && isTeamWorkspace(ws) && hasArea(areas, 'settings');
+}
+
 /**
  * May the login set this workspace's landing page (task d78e7bde)? A
  * Moderator of it only: no Admin area stands in (the brain answers 403
@@ -209,13 +217,6 @@ export function isTeamWorkspace(
  */
 export function canSetLanding(ws: Pick<Workspace, 'me' | 'archived'>): boolean {
   return !ws.archived && ws.me.moderator;
-}
-
-export function showsTeamSettings(
-  ws: Pick<Workspace, 'isAdmin' | 'adminModerated' | 'archived'> & { builtIn?: boolean },
-  areas: readonly string[] | null | undefined,
-): boolean {
-  return !ws.archived && isTeamWorkspace(ws) && hasArea(areas, 'settings');
 }
 
 /** What the name field says on a built-in workspace (change 19: 409

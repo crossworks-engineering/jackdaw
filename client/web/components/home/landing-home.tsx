@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import type { HubNavTarget } from '@mantle/share-ui/app-bridge-protocol';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { AppWindow, LayoutList, MessageSquare } from 'lucide-react';
@@ -83,10 +84,66 @@ function LandingFor({ ws }: { ws: string | null }) {
     );
   }
   const data = home.data;
-  const homeApp = data?.homeApp && data.homeApp.appId !== failedAppId ? data.homeApp : null;
+  const homeApp = homeAppToShow(data, failedAppId);
   if (!data || !homeApp) return builtIn;
 
   const { hub } = data;
+  return (
+    <LandingAppView
+      homeApp={homeApp}
+      hub={hub}
+      builtIn={builtIn}
+      showBuiltIn={showBuiltIn}
+      onShowBuiltIn={setShowBuiltIn}
+      onNav={(target) => {
+        const next = memberHubNav(hub, target);
+        if (next?.kind === 'chat') openAssistant();
+        else if (next?.kind === 'href') router.push(next.href);
+      }}
+      onError={(m) => {
+        const problem = memberAppProblem(m);
+        if ('signIn' in problem) bounceToLogin();
+        else toast.error(problem.text);
+      }}
+      onLoadFailure={() => setFailedAppId(homeApp.appId)}
+    />
+  );
+}
+
+/** The home app the landing page shows: the workspace's, unless it failed
+ *  to load in this view (then the Built-in home). Null: the Built-in home. */
+export function homeAppToShow(
+  data: Pick<WorkspaceHomeData, 'homeApp'> | undefined,
+  failedAppId: string | null,
+): WorkspaceHomeData['homeApp'] {
+  return data?.homeApp && data.homeApp.appId !== failedAppId ? data.homeApp : null;
+}
+
+/**
+ * The landing page with a home app: the app full-bleed, its `host.hub`
+ * answered from the landing page's data, and a toggle to the Built-in home.
+ * The app stays mounted while the Built-in home shows, so switching back
+ * does not reload it.
+ */
+export function LandingAppView({
+  homeApp,
+  hub,
+  builtIn,
+  showBuiltIn,
+  onShowBuiltIn,
+  onNav,
+  onError,
+  onLoadFailure,
+}: {
+  homeApp: NonNullable<WorkspaceHomeData['homeApp']>;
+  hub: WorkspaceHomeData['hub'];
+  builtIn: ReactNode;
+  showBuiltIn: boolean;
+  onShowBuiltIn: (show: boolean) => void;
+  onNav: (target: HubNavTarget) => void;
+  onError: (message: string) => void;
+  onLoadFailure: () => void;
+}) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {showBuiltIn ? null : <SetPageTitle title="Home" />}
@@ -95,7 +152,7 @@ function LandingFor({ ws }: { ws: string | null }) {
           variant={showBuiltIn ? 'ghost' : 'outline'}
           size="sm"
           aria-pressed={!showBuiltIn}
-          onClick={() => setShowBuiltIn(false)}
+          onClick={() => onShowBuiltIn(false)}
         >
           <AppWindow className="size-4" aria-hidden />
           {homeApp.title || 'Home app'}
@@ -104,7 +161,7 @@ function LandingFor({ ws }: { ws: string | null }) {
           variant={showBuiltIn ? 'outline' : 'ghost'}
           size="sm"
           aria-pressed={showBuiltIn}
-          onClick={() => setShowBuiltIn(true)}
+          onClick={() => onShowBuiltIn(true)}
         >
           <LayoutList className="size-4" aria-hidden />
           Built-in home
@@ -113,8 +170,6 @@ function LandingFor({ ws }: { ws: string | null }) {
       {showBuiltIn ? (
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">{builtIn}</div>
       ) : null}
-      {/* The app stays mounted while the Built-in home shows: switching back
-          does not reload it. */}
       <div className={showBuiltIn ? 'hidden' : 'min-h-0 flex-1'}>
         <SurfaceErrorBoundary label="the home app" resetKeys={[homeApp.appId]}>
           <AppSandbox
@@ -122,20 +177,9 @@ function LandingFor({ ws }: { ws: string | null }) {
             {...ownerAppSandboxProps(homeApp.appId)}
             loader={<AppLoader title={homeApp.title} icon={homeApp.icon} color={homeApp.color} />}
             frame="viewport"
-            hub={{
-              getData: () => hub,
-              onNav: (target) => {
-                const next = memberHubNav(hub, target);
-                if (next?.kind === 'chat') openAssistant();
-                else if (next?.kind === 'href') router.push(next.href);
-              },
-            }}
-            onError={(m) => {
-              const problem = memberAppProblem(m);
-              if ('signIn' in problem) bounceToLogin();
-              else toast.error(problem.text);
-            }}
-            onLoadFailure={() => setFailedAppId(homeApp.appId)}
+            hub={{ getData: () => hub, onNav }}
+            onError={onError}
+            onLoadFailure={onLoadFailure}
           />
         </SurfaceErrorBoundary>
       </div>

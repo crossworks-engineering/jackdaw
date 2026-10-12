@@ -31,13 +31,23 @@ import { WorkspaceSection } from './workspace-section';
 
 export const BUILT_IN_HOME = '__built_in__';
 export const BUILT_IN_HOME_LABEL = 'Built-in home';
+/** The picker's value for a set home app it cannot name: one the workspace
+ *  no longer holds (audit M2). Picking the Built-in home from it clears it. */
+export const UNNAMED_HOME = '__unnamed__';
+export const NOT_HELD_TEXT = `An app this workspace no longer holds (users see the ${BUILT_IN_HOME_LABEL})`;
 
 /** What the screen says the landing page is, for a reader. */
 export function landingText(app: WorkspaceLandingApp | null | undefined): string {
   if (!app) return BUILT_IN_HOME_LABEL;
-  return app.ready
-    ? app.title
-    : `${app.title} (no working build: users see the ${BUILT_IN_HOME_LABEL})`;
+  if (!app.held) return NOT_HELD_TEXT;
+  const name = app.title ?? 'A home app';
+  return app.ready ? name : `${name} (no working build: users see the ${BUILT_IN_HOME_LABEL})`;
+}
+
+/** The picker's value for the current landing page. */
+export function landingValue(app: WorkspaceLandingApp | null | undefined): string {
+  if (!app) return BUILT_IN_HOME;
+  return app.held && app.appId ? app.appId : UNNAMED_HOME;
 }
 
 /** The picker's choices: the Built-in home, the current home app, then the
@@ -47,7 +57,7 @@ export function landingChoices(
   apps: ReadonlyArray<{ token: string; title: string }>,
 ): Array<{ value: string; label: string }> {
   const out = [{ value: BUILT_IN_HOME, label: BUILT_IN_HOME_LABEL }];
-  if (current) out.push({ value: current.appId, label: landingText(current) });
+  if (current) out.push({ value: landingValue(current), label: landingText(current) });
   for (const a of apps) {
     if (a.token !== current?.appId) out.push({ value: a.token, label: a.title });
   }
@@ -70,11 +80,7 @@ export function LandingSection({
       description="What users see at Home while this is their current workspace."
     >
       {canSetLanding(workspace) ? (
-        <LandingPicker
-          key={landingApp?.appId ?? BUILT_IN_HOME}
-          workspace={workspace}
-          current={landingApp}
-        />
+        <LandingPicker key={landingValue(landingApp)} workspace={workspace} current={landingApp} />
       ) : (
         <p className="text-sm">{landingText(landingApp)}</p>
       )}
@@ -91,7 +97,7 @@ function LandingPicker({
 }) {
   const toast = useToast();
   const actions = useWorkspaceActions();
-  const [value, setValue] = useState(current?.appId ?? BUILT_IN_HOME);
+  const [value, setValue] = useState(landingValue(current));
   const [pending, setPending] = useState(false);
   const home = useQuery({
     queryKey: workspaceHomeKey(workspace.id),
@@ -101,6 +107,8 @@ function LandingPicker({
   const choices = landingChoices(current, home.data?.hub.apps ?? []);
 
   const apply = async (next: string) => {
+    // The unnamed pointer is shown, never sent: only a clear goes out from it.
+    if (next === UNNAMED_HOME) return;
     const prev = value;
     setValue(next);
     setPending(true);

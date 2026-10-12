@@ -103,3 +103,44 @@ test('a member lands on its workspace, and never on one it is not in', async ({ 
   expect(api.asked('member')).not.toContain('GET /api/dashboard');
   expect(api.asked('member')).not.toContain('GET /api/member/home');
 });
+
+test("a workspace's home app fills Home, with a toggle to the Built-in home", async ({ page }) => {
+  api.homeApps.team = { id: KIND_ITEMS.apps[1].id, title: 'Team board', frame: true };
+  await signIn(page, 'admin');
+  await pickWorkspace(page, WORKSPACES.team.name);
+  const main = page.getByRole('main');
+  const app = main.getByRole('button', { name: 'Team board' });
+  const builtIn = main.getByRole('button', { name: 'Built-in home' });
+  await expect(app).toHaveAttribute('aria-pressed', 'true');
+  await expect
+    .poll(() => api.asked('admin'))
+    .toContain(`POST /api/apps/${KIND_ITEMS.apps[1].id}/frame-ticket`);
+  await expect(newest(page)).toHaveCount(0);
+  // The toggle: the Built-in home with Team's data, then the app again.
+  await builtIn.click();
+  await expect(newest(page).getByText(PAGES.handbook.title, { exact: true })).toBeVisible();
+  await app.click();
+  await expect(newest(page)).toHaveCount(0);
+  // Another workspace has none: its Built-in home, no toggle.
+  await pickWorkspace(page, WORKSPACES.admin.name);
+  await expect(newest(page).getByText(PAGES.policy.title, { exact: true })).toBeVisible();
+  await expect(main.getByRole('button', { name: 'Team board' })).toHaveCount(0);
+});
+
+test('a home app that does not load falls back to the Built-in home', async ({ page }) => {
+  api.homeApps.team = { id: KIND_ITEMS.apps[1].id, title: 'Team board', frame: false };
+  await signIn(page, 'admin');
+  await pickWorkspace(page, WORKSPACES.team.name);
+  await expect
+    .poll(() => api.asked('admin'))
+    .toContain(`POST /api/apps/${KIND_ITEMS.apps[1].id}/frame-ticket`);
+  await expect(newest(page).getByText(PAGES.handbook.title, { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('button', { name: 'Team board' })).toHaveCount(0);
+});
+
+test('a member is refused the Dashboard', async ({ page }) => {
+  await signIn(page, 'member');
+  await page.goto('/dashboard');
+  await expect(page.getByText('You cannot manage this part of the brain.')).toBeVisible();
+  expect(api.asked('member')).not.toContain('GET /api/dashboard');
+});
