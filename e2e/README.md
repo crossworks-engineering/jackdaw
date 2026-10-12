@@ -67,6 +67,10 @@ else is a plain 404.
 - `admin-shell.spec.ts`: the full nav with Settings > Users, the owner Pages
   screen (every page of the brain) and the Users screen (no sign-in by email
   code and no client login since W8).
+- `admin-switcher.spec.ts`: an Admin user who is also in Team switches to
+  Team and back; the switcher's label, the Pages list's `?ws=` and a new
+  page's `?ws=` follow each pick, also with the browser's storage full (the
+  pick then holds for the page).
 - `retired-links.spec.ts`: old portal links (`/team`, `/hub`, `/client-signin`)
   land on a bare `/login`; old review links land on the home.
 - `login-brains.spec.ts`: the sign-in screen against more than one brain (the

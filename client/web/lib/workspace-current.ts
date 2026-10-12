@@ -26,30 +26,50 @@ export function currentWorkspaceStorageKey(login: string | null | undefined): st
   return `${PREFIX}${login?.trim().toLowerCase() || 'me'}`;
 }
 
+/** No storage at all (its accessor threw, or the server renders). */
+const NO_STORE: object = {};
+
+/**
+ * The picks a storage refused (full, or blocked), by storage and key: they
+ * hold for this page and win over what the storage still has. Without them a
+ * refused write left the switcher on its old choice, so a switch did nothing
+ * (dev-brain task fc3b47ed). A write the storage takes drops the entry.
+ */
+const refused = new WeakMap<object, Map<string, string | null>>();
+
 /** The stored choice, or null. Never throws (a blocked storage is null). */
 export function readCurrentWorkspace(
   login: string | null | undefined,
   store = storage(),
 ): string | null {
+  const key = currentWorkspaceStorageKey(login);
+  const held = refused.get(store ?? NO_STORE);
+  if (held?.has(key)) return held.get(key) ?? null;
   try {
-    return store?.getItem(currentWorkspaceStorageKey(login)) ?? null;
+    return store?.getItem(key) ?? null;
   } catch {
     return null;
   }
 }
 
-/** Keep a choice (null forgets it) and tell every reader. */
+/** Keep a choice (null forgets it) and tell every reader. A storage that
+ *  refuses it keeps it for this page only. */
 export function writeCurrentWorkspace(
   login: string | null | undefined,
   id: string | null,
   store = storage(),
 ): void {
+  const key = currentWorkspaceStorageKey(login);
+  const ref = store ?? NO_STORE;
   try {
-    const key = currentWorkspaceStorageKey(login);
-    if (id) store?.setItem(key, id);
-    else store?.removeItem(key);
+    if (!store) throw new Error('no storage');
+    if (id) store.setItem(key, id);
+    else store.removeItem(key);
+    refused.get(ref)?.delete(key);
   } catch {
-    // A blocked storage keeps the choice for this page only: nothing to do.
+    const held = refused.get(ref) ?? new Map<string, string | null>();
+    held.set(key, id || null);
+    refused.set(ref, held);
   }
   for (const l of listeners) l();
 }

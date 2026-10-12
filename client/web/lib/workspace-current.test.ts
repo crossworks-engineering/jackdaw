@@ -1,6 +1,6 @@
 /**
- * The switcher's choice is kept per login, and a blocked storage never
- * throws.
+ * The switcher's choice is kept per login, a blocked storage never
+ * throws, and a write the storage refuses still switches for this page.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -53,5 +53,27 @@ describe('current workspace store', () => {
     };
     expect(readCurrentWorkspace('a@x.test', broken)).toBeNull();
     expect(() => writeCurrentWorkspace('a@x.test', 'w1', broken)).not.toThrow();
+  });
+
+  it('a pick the storage refuses (full) still wins over the old stored one', () => {
+    // A full storage: it reads the choice it kept before, and refuses a new
+    // one (QuotaExceededError). Removing still works.
+    const m = new Map<string, string>([[currentWorkspaceStorageKey('a@x.test'), 'admin']]);
+    const full = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: () => {
+        throw new DOMException('full', 'QuotaExceededError');
+      },
+      removeItem: (k: string) => void m.delete(k),
+    };
+    expect(readCurrentWorkspace('a@x.test', full)).toBe('admin');
+    writeCurrentWorkspace('a@x.test', 'team', full);
+    expect(readCurrentWorkspace('a@x.test', full)).toBe('team');
+    writeCurrentWorkspace('a@x.test', null, full);
+    expect(readCurrentWorkspace('a@x.test', full)).toBeNull();
+    writeCurrentWorkspace('a@x.test', 'team', full);
+    expect(readCurrentWorkspace('a@x.test', full)).toBe('team');
+    // Another login on the same storage keeps its own.
+    expect(readCurrentWorkspace('b@x.test', full)).toBeNull();
   });
 });
