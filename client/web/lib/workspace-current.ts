@@ -26,14 +26,15 @@ export function currentWorkspaceStorageKey(login: string | null | undefined): st
   return `${PREFIX}${login?.trim().toLowerCase() || 'me'}`;
 }
 
-/** No storage at all (its accessor threw, or the server renders). */
+/** No storage at all (its accessor threw). */
 const NO_STORE: object = {};
 
 /**
  * The picks a storage refused (full, or blocked), by storage and key: they
  * hold for this page and win over what the storage still has. Without them a
  * refused write left the switcher on its old choice, so a switch did nothing
- * (dev-brain task fc3b47ed). A write the storage takes drops the entry.
+ * (dev-brain task fc3b47ed). A write the storage takes drops the entry, and
+ * so does a pick another tab stored (onPickStorageEvent): the newer one wins.
  */
 const refused = new WeakMap<object, Map<string, string | null>>();
 
@@ -59,6 +60,9 @@ export function writeCurrentWorkspace(
   id: string | null,
   store = storage(),
 ): void {
+  // The server renders with no storage: it never holds a pick, which would
+  // last across requests.
+  if (!store && typeof window === 'undefined') return;
   const key = currentWorkspaceStorageKey(login);
   const ref = store ?? NO_STORE;
   try {
@@ -74,9 +78,36 @@ export function writeCurrentWorkspace(
   for (const l of listeners) l();
 }
 
-function subscribe(listener: () => void): () => void {
+/**
+ * Another tab changed this storage (the window 'storage' event): a pick this
+ * page holds for a key it changed is dropped, so the other tab's newer pick
+ * shows here; then every reader is told. A cleared storage drops them all.
+ */
+export function onPickStorageEvent(e: { key: string | null; storageArea: object | null }): void {
+  if (e.key !== null && !e.key.startsWith(PREFIX)) return;
+  const held = e.storageArea ? refused.get(e.storageArea) : undefined;
+  if (e.key === null) held?.clear();
+  else held?.delete(e.key);
+  for (const l of listeners) l();
+}
+
+function onStorage(e: StorageEvent): void {
+  onPickStorageEvent(e);
+}
+
+/** Listen for picks; the window 'storage' event is listened to while anyone
+ *  listens. */
+export function subscribeCurrentWorkspace(listener: () => void): () => void {
+  if (listeners.size === 0 && typeof window !== 'undefined') {
+    window.addEventListener('storage', onStorage);
+  }
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0 && typeof window !== 'undefined') {
+      window.removeEventListener('storage', onStorage);
+    }
+  };
 }
 
 /** The stored choice for this login and a setter. Null while the server
@@ -85,7 +116,7 @@ export function useCurrentWorkspace(
   login: string | null | undefined,
 ): [string | null, (id: string | null) => void] {
   const value = useSyncExternalStore(
-    subscribe,
+    subscribeCurrentWorkspace,
     () => readCurrentWorkspace(login),
     () => null,
   );

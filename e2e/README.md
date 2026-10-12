@@ -73,6 +73,8 @@ else is a plain 404.
   pick then holds for the page); and on Pages, Notes, Files and Apps a pick
   loads the list again with the new `?ws=` and shows only that workspace's
   items (the mock holds one item in Admin and one in Team per list).
+  Only the storage-full case guards the fix in `lib/workspace-current.ts`;
+  the others pass with or without it.
 - `retired-links.spec.ts`: old portal links (`/team`, `/hub`, `/client-signin`)
   land on a bare `/login`; old review links land on the home.
 - `login-brains.spec.ts`: the sign-in screen against more than one brain (the

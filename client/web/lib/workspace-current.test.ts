@@ -1,11 +1,14 @@
 /**
  * The switcher's choice is kept per login, a blocked storage never
- * throws, and a write the storage refuses still switches for this page.
+ * throws, a write the storage refuses still switches for this page, and a
+ * pick another tab stores wins over one this page holds.
  */
 import { describe, expect, it } from 'vitest';
 import {
   currentWorkspaceStorageKey,
+  onPickStorageEvent,
   readCurrentWorkspace,
+  subscribeCurrentWorkspace,
   writeCurrentWorkspace,
 } from './workspace-current';
 
@@ -75,5 +78,50 @@ describe('current workspace store', () => {
     expect(readCurrentWorkspace('a@x.test', full)).toBe('team');
     // Another login on the same storage keeps its own.
     expect(readCurrentWorkspace('b@x.test', full)).toBeNull();
+  });
+
+  it("another tab's newer pick wins over one this page holds, and readers hear of it", () => {
+    const key = currentWorkspaceStorageKey('a@x.test');
+    const m = new Map<string, string>();
+    // A full storage: this page's picks are refused and held.
+    const store = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: () => {
+        throw new DOMException('full', 'QuotaExceededError');
+      },
+      removeItem: (k: string) => void m.delete(k),
+    };
+    writeCurrentWorkspace('a@x.test', 'team', store);
+    expect(readCurrentWorkspace('a@x.test', store)).toBe('team');
+
+    let heard = 0;
+    const stop = subscribeCurrentWorkspace(() => heard++);
+    try {
+      // Another login's key, or a key that is not a pick: nothing changes.
+      onPickStorageEvent({ key: currentWorkspaceStorageKey('b@x.test'), storageArea: store });
+      onPickStorageEvent({ key: 'something.else', storageArea: store });
+      expect(readCurrentWorkspace('a@x.test', store)).toBe('team');
+      expect(heard).toBe(1);
+
+      // Another tab had room and stored Board for this login.
+      m.set(key, 'board');
+      onPickStorageEvent({ key, storageArea: store });
+      expect(readCurrentWorkspace('a@x.test', store)).toBe('board');
+      expect(heard).toBe(2);
+
+      // A held pick is dropped too when the other tab clears the storage.
+      writeCurrentWorkspace('a@x.test', 'admin', store);
+      expect(readCurrentWorkspace('a@x.test', store)).toBe('admin');
+      m.clear();
+      onPickStorageEvent({ key: null, storageArea: store });
+      expect(readCurrentWorkspace('a@x.test', store)).toBeNull();
+    } finally {
+      stop();
+    }
+  });
+
+  it('the server (no window, no storage) never holds a pick', () => {
+    writeCurrentWorkspace('s@x.test', 'team', null);
+    expect(readCurrentWorkspace('s@x.test', null)).toBeNull();
   });
 });
