@@ -420,8 +420,6 @@ describe('built-in workspaces (Admin and Team)', () => {
         seed(teamNow)(c);
         c.setQueryData<TeamSettings>(TEAM_SETTINGS_KEY, {
           privateReads: false,
-          hubAppId: null,
-          hubCandidates: [{ id: 'app1', title: 'Desk' }],
           teamAssistant,
         });
       },
@@ -429,9 +427,11 @@ describe('built-in workspaces (Admin and Team)', () => {
 
   it('Team ends with the Team settings for an Admin user', () => {
     const html = teamWith({ slug: 'team-responder', name: 'Team agent', workspaceId: 'ws-team' });
-    for (const t of ['Member chat', 'Read posture', 'Member home app']) {
+    for (const t of ['Member chat', 'Read posture']) {
       expect(html).toContain(`>${t}</h3>`);
     }
+    // The member home app moved to every workspace's Landing page.
+    expect(html).not.toContain('Member home app');
     // W5c: the Team assistant's name, a link to it, and no level to set.
     expect(html).toContain('Members chat with');
     expect(html).toContain('href="/settings/agents?selected=team-responder"');
@@ -549,5 +549,64 @@ describe('user search on screen open', () => {
     expect(search).toBeDefined();
     expect(search!.isDisabled()).toBe(true);
     expect(search!.state.data).toBeUndefined();
+  });
+});
+
+describe('the Landing page section (task d78e7bde)', () => {
+  const app = { appId: 'app1', title: 'Desk', ready: true };
+  const html = (over: Partial<Workspace>, landingApp?: WorkspaceDetail['landingApp']) =>
+    render(
+      createElement(WorkspaceSections, {
+        detail: { ...detail(over), ...(landingApp === undefined ? {} : { landingApp }) },
+        manage: true,
+        areas: ADMIN_AREAS,
+      }),
+      (c) => {
+        options(c);
+        c.setQueryData(['member-home', 'landing', 'w-team'], {
+          ws: 'w-team',
+          homeApp: null,
+          hub: { sections: [], counts: {}, apps: [{ token: 'app2', title: 'Board' }] },
+        });
+      },
+    );
+
+  it('a Moderator picks it', () => {
+    const out = html({}, app);
+    expect(out).toContain('>Landing page</h3>');
+    expect(out).toContain('aria-label="Landing page"');
+    // The choices themselves: landingChoices below (a closed Select renders
+    // none on the server).
+  });
+
+  it('anyone else reads it, an Admin user with every area too', () => {
+    const out = html({ me: { member: true, moderator: false } }, app);
+    expect(out).toContain('>Landing page</h3>');
+    expect(out).not.toContain('aria-label="Landing page"');
+    expect(out).toContain('>Desk</p>');
+    expect(html({ me: { member: false, moderator: false } }, null)).toContain('>Built-in home</p>');
+  });
+
+  it('says when the app has no working build', () => {
+    const out = html({ me: { member: true, moderator: false } }, { ...app, ready: false });
+    expect(out).toContain('no working build');
+  });
+
+  it('an older brain sends none: no section', () => {
+    expect(html({})).not.toContain('Landing page');
+  });
+});
+
+const { landingChoices, BUILT_IN_HOME } = await import('@/components/workspaces/landing-section');
+
+describe('landingChoices', () => {
+  it('the Built-in home first, then the current app, then the others once', () => {
+    expect(
+      landingChoices({ appId: 'a', title: 'A', ready: true }, [
+        { token: 'b', title: 'B' },
+        { token: 'a', title: 'A' },
+      ]).map((c) => c.value),
+    ).toEqual([BUILT_IN_HOME, 'a', 'b']);
+    expect(landingChoices(null, []).map((c) => c.value)).toEqual([BUILT_IN_HOME]);
   });
 });

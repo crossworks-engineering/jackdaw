@@ -118,10 +118,10 @@ describe('no review UI in the owner screens (W5c)', () => {
       'app/(app)/settings/users/invites.tsx',
       'app/login/login-client.tsx',
       'app/invite/invite-client.tsx',
-      // The shell's (W5c): the member views left after W6b, the rail and
-      // the member libs.
-      'components/member/member-home.tsx',
-      'components/member/member-home-app.tsx',
+      // The shell's (W5c): the home (every login's landing page since task
+      // d78e7bde), the rail and the member libs.
+      'components/home/plain-home.tsx',
+      'components/home/landing-home.tsx',
       'components/layout/rail/profile-menu.tsx',
     ].map((f) => WEB + f)) {
       expect(scanned).toContain(f);

@@ -89,6 +89,8 @@ export const MEMBER_OPEN: readonly RegExp[] = [
   // drawing's SVG, in the login's own scope.
   rx('GET', `/api/files/files/${ID}`),
   rx('GET', `/api/draws/${ID}/svg`),
+  // The landing page of the current workspace (task d78e7bde).
+  rx('GET', `/api/home`),
   // The app runner (W7e).
   rx('POST', `/api/apps/${ID}/(frame-ticket|db-broker|tool-broker)`),
   rx('GET', `/api/apps/${ID}/frame`),

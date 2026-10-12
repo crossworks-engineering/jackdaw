@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type { HubData } from '@mantle/share-ui/app-bridge-protocol';
 import { Badge } from '@mantle/web-ui/ui/badge';
-import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
+import { ListCard, ListCardSnippet, ListCardTitle } from '@mantle/web-ui/ui/list-card';
 import { SetPageTitle } from '@/components/layout/page-title';
-import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
-import { useShellRole } from '@/components/layout/shell-role';
+import { memberAppHref } from '@/lib/member-apps';
 import {
-  hasArea,
   isPrivateWorkspace,
   sortWorkspaces,
   workspaceHref,
@@ -16,38 +15,112 @@ import {
   type ShellWorkspace,
 } from '@/lib/workspaces';
 
-/** The workspace screens every login opens, in the nav's order. */
-export const HOME_LINKS: readonly { href: string; label: string }[] = [
-  { href: '/pages', label: 'Pages' },
-  { href: '/notes', label: 'Notes' },
-  { href: '/files', label: 'Files' },
-  { href: '/tables', label: 'Tables' },
-  { href: '/draw', label: 'Draw' },
-  { href: '/apps', label: 'Apps' },
+/** The workspace screens every login opens, in the nav's order. `kind` is
+ *  the count the landing page shows on the card (none for Apps: its own
+ *  section lists them). */
+export const HOME_LINKS: readonly { href: string; label: string; kind: string | null }[] = [
+  { href: '/pages', label: 'Pages', kind: 'page' },
+  { href: '/notes', label: 'Notes', kind: 'note' },
+  { href: '/files', label: 'Files', kind: 'file' },
+  { href: '/tables', label: 'Tables', kind: 'table' },
+  { href: '/draw', label: 'Draw', kind: 'draw' },
+  { href: '/apps', label: 'Apps', kind: null },
 ];
 
+/** How many pages the Built-in home lists. */
+export const HOME_SECTION_LIMIT = 8;
+
 /**
- * The plain home (phase W5c): the login's workspaces, from the shell, and the
- * screens it works in. A member's (W6b: with Ask the assistant), and an
- * admin's without the settings area. Plain on purpose: the dashboard's cards
- * are the brain's operations, the settings area's.
+ * The Built-in home (task d78e7bde): the default landing page of every
+ * workspace, Admin included. With `hub` (GET /api/home?ws=) it shows that
+ * workspace's data: how many items of each kind it reads, its newest pages
+ * and the apps it holds that the login may run. Under "All my workspaces"
+ * the same over every workspace of the login. Without `hub` (still loading,
+ * or a brain before the landing pages) it shows the screens and the login's
+ * workspaces only.
  */
 export function PlainHomeView({
   workspaces,
   actions,
+  scope,
+  hub,
 }: {
   workspaces: readonly ShellWorkspace[];
-  /** Text buttons right of the heading (a member's: ask the assistant). */
+  /** Text buttons right of the heading (ask the assistant). */
   actions?: ReactNode;
+  /** The current workspace's name, or "All my workspaces". */
+  scope?: string;
+  hub?: Pick<HubData, 'sections' | 'counts' | 'apps'> | null;
 }) {
   const sorted = sortWorkspaces(workspaces.map((w) => ({ ...w, archived: false })));
+  const sections = hub?.sections.slice(0, HOME_SECTION_LIMIT) ?? [];
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-4 md:p-8">
       <SetPageTitle title="Home" />
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Home</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold">Home</h1>
+          {scope ? <p className="truncate text-sm text-muted-foreground">{scope}</p> : null}
+        </div>
         {actions}
       </header>
+      <HomeSection title="Your work">
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {HOME_LINKS.map((l) => {
+            const n = hub && l.kind ? hub.counts[l.kind] : undefined;
+            return (
+              <li key={l.href}>
+                <ListCard asChild>
+                  <Link href={l.href}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <ListCardTitle>{l.label}</ListCardTitle>
+                      {typeof n === 'number' ? (
+                        <span className="text-sm tabular-nums text-muted-foreground">{n}</span>
+                      ) : null}
+                    </div>
+                  </Link>
+                </ListCard>
+              </li>
+            );
+          })}
+        </ul>
+      </HomeSection>
+      {hub ? (
+        <HomeSection title="Newest pages">
+          {sections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pages here yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {sections.map((s) => (
+                <li key={s.token}>
+                  <ListCard asChild>
+                    <Link href={`/pages/${encodeURIComponent(s.token)}`}>
+                      <ListCardTitle>{s.title || 'Untitled'}</ListCardTitle>
+                      {s.summary ? <ListCardSnippet>{s.summary}</ListCardSnippet> : null}
+                    </Link>
+                  </ListCard>
+                </li>
+              ))}
+            </ul>
+          )}
+        </HomeSection>
+      ) : null}
+      {hub && hub.apps.length > 0 ? (
+        <HomeSection title="Apps">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {hub.apps.map((a) => (
+              <li key={a.token}>
+                <ListCard asChild>
+                  <Link href={memberAppHref(a.token)}>
+                    <ListCardTitle>{a.title}</ListCardTitle>
+                    {a.description ? <ListCardSnippet>{a.description}</ListCardSnippet> : null}
+                  </Link>
+                </ListCard>
+              </li>
+            ))}
+          </ul>
+        </HomeSection>
+      ) : null}
       <HomeSection title="Your workspaces">
         {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">You are not in a workspace yet.</p>
@@ -70,19 +143,6 @@ export function PlainHomeView({
           </ul>
         )}
       </HomeSection>
-      <HomeSection title="Your work">
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {HOME_LINKS.map((l) => (
-            <li key={l.href}>
-              <ListCard asChild>
-                <Link href={l.href}>
-                  <ListCardTitle>{l.label}</ListCardTitle>
-                </Link>
-              </ListCard>
-            </li>
-          ))}
-        </ul>
-      </HomeSection>
     </div>
   );
 }
@@ -94,19 +154,4 @@ function HomeSection({ title, children }: { title: string; children: ReactNode }
       {children}
     </section>
   );
-}
-
-/**
- * `/`, by the brain's role (until phase W6a): a member's own home (`member`),
- * and for an admin the dashboard with the settings area (a brain that names
- * no areas: every admin). An admin without that area gets the plain home.
- * A role this build does not know reads as a member's (W8: no client role).
- * The shell has answered before any page renders, so this never waits.
- */
-export function HomeSwitch({ dashboard, member }: { dashboard: ReactNode; member: ReactNode }) {
-  const shell = useShellWorkspaces();
-  const role = useShellRole();
-  if (role === 'member') return <>{member}</>;
-  if (role === 'admin' && hasArea(shell?.areas, 'settings')) return <>{dashboard}</>;
-  return <PlainHomeView workspaces={shell?.workspaces ?? []} />;
 }

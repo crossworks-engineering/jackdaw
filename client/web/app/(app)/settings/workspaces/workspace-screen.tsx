@@ -33,6 +33,7 @@ import { SubmitButton } from '@mantle/web-ui/ui/submit-button';
 import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
+import { LandingSection } from '@/components/workspaces/landing-section';
 import {
   ContactPicker,
   contactLabel,
@@ -202,6 +203,7 @@ export function WorkspaceSections({
           manage={manage && canSetConnectors(areas)}
         />
       ))}
+      <LandingSection workspace={ws} landingApp={detail.landingApp} />
       {showsTeamSettings(ws, areas) ? <TeamSettingsSections /> : null}
     </div>
   );

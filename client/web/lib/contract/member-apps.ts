@@ -1,11 +1,13 @@
 /**
- * The member home (member logins Phase 4b): what a MEMBER login's client
- * reads from /api/member/home, the brain's pinned home app and its hub.
+ * A workspace's landing page (task d78e7bde): what every login's Home reads
+ * from GET /api/home?ws=, the workspace's home app and the hub data the
+ * Built-in home and the home app show. The older GET /api/member/home shape
+ * stays for reference only; this client reads /api/home.
  *
- * Copied from mantle packages/client-types/src/dto/member-apps.ts (brain
- * W5c, e1b3e5518), keeping only the /api/member/home types; nothing here
- * reads /api/member/apps. Replace the copy by hand when the brain's file
- * changes. AppTint is the published package's.
+ * Copied from mantle packages/client-types/src/dto/member-apps.ts (task
+ * d78e7bde), keeping only the home types; nothing here reads
+ * /api/member/apps. Replace the copy by hand when the brain's file changes.
+ * AppTint is the published package's.
  */
 import type { AppTint } from '@mantle/client-types/app-nav';
 
@@ -29,3 +31,26 @@ export type MemberHomeApp = {
  */
 export type MemberHomeData<THub = unknown> =
   { homeApp: MemberHomeApp; hub: THub } | { homeApp: null; hub: null };
+
+/**
+ * GET /api/home?ws=<id>: the landing page of a workspace, for every login
+ * (task d78e7bde). Without `ws` it is "All my workspaces": the Built-in
+ * home over every workspace of the login, never a home app.
+ *
+ * `ws` echoes the workspace asked for (null: all). `homeApp` is the
+ * workspace's home app when the workspace still holds it, its published
+ * build is green and the login may run it; null means the Built-in home.
+ * `hub` is always there: the data of the Built-in home and what a home
+ * app's `host.hub.get()` answers, read in the login's scope and kept to
+ * what the workspace reads (sections are its newest pages, counts its items
+ * per kind, apps the other apps it holds that the login may run). A
+ * workspace the login may not name is 404 `{ error, code: 'not_found' }`.
+ *
+ * `THub` is `HubData` from `@mantle/share-ui/app-bridge-protocol` (see
+ * MemberHomeData).
+ */
+export type WorkspaceHomeData<THub = unknown> = {
+  ws: string | null;
+  homeApp: MemberHomeApp | null;
+  hub: THub;
+};

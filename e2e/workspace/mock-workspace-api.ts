@@ -19,7 +19,9 @@ import { GONE_ROUTE, MEMBER_OPEN } from './shell-nav';
  * the brain's open list (MEMBER_OPEN in shell-nav.ts), a create names its
  * workspace with `?ws=` (403 workspace for one the login is not in), and the
  * retired routes answer 410. A member keeps /api/member/realtime and
- * /api/member/home. Every request is recorded with the role that sent it,
+ * /api/member/home. Every login's Home reads GET /api/home?ws= (task
+ * d78e7bde: the current workspace's landing page, the Built-in home here).
+ * Every request is recorded with the role that sent it,
  * so a spec can assert what a login never asked for.
  *
  * Only what the specs need is answered. Anything else is a plain 404 (never
@@ -374,6 +376,51 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
         );
       }
       return (json(res, 200, { ...tree(kind, items, url), ...echo }), true);
+    }
+    // The landing page of the current workspace (task d78e7bde): the
+    // Built-in home's data, kept to `ws` (none: every workspace of the
+    // login). A workspace the login is not in is 404.
+    if (path === '/api/home' && method === 'GET') {
+      const key = ws ? keyOfWs(ws) : null;
+      if (ws && (!key || !MEMBERSHIP[role].some((m) => m.ws === key))) {
+        return (json(res, 404, { error: 'Workspace not found.', code: 'not_found' }), true);
+      }
+      const sections = pagesOf(role, ws).map((p) => ({
+        token: p.id,
+        title: p.title,
+        icon: null,
+        summary: null,
+        updatedAt: now,
+        parentToken: null,
+      }));
+      const counts = {
+        page: sections.length,
+        note: itemsOf('notes', role, ws).length,
+        file: itemsOf('files', role, ws).length,
+        table: 0,
+        draw: 0,
+      };
+      const apps = itemsOf('apps', role, ws).map((a) => ({
+        token: a.id,
+        title: a.title,
+        description: null,
+        updatedAt: now,
+      }));
+      return (
+        json(res, 200, {
+          ws: ws ?? null,
+          homeApp: null,
+          hub: {
+            siteName: null,
+            memberName: LOGINS[role].name,
+            version: '0.0.0',
+            sections,
+            counts,
+            apps,
+          },
+        }),
+        true
+      );
     }
     // The Apps screen's paged list (this mock's tree serves no apps).
     if (path === '/api/apps' && method === 'GET') {

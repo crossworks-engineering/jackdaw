@@ -89,6 +89,8 @@ export function useWorkspaceActions() {
       qc.invalidateQueries({ queryKey: WORKSPACES_KEY, exact: true }),
       id ? qc.invalidateQueries({ queryKey: workspaceKey(id) }) : null,
       qc.invalidateQueries({ queryKey: ['shell'] }),
+      // A workspace's landing page (task d78e7bde) may have changed.
+      qc.invalidateQueries({ queryKey: ['member-home'] }),
     ]);
   const after =
     <T>(id: string | undefined) =>
@@ -107,6 +109,7 @@ export function useWorkspaceActions() {
         description?: string;
         contactNodeId?: string | null;
         assistantId?: string | null;
+        landingAppId?: string | null;
       },
     ) => after<unknown>(id)(apiSend(one(id), 'PATCH', body)),
     archive: (id: string) => after<unknown>(id)(apiSend(`${one(id)}/archive`, 'POST')),

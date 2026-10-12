@@ -35,6 +35,9 @@ test('the full nav, the owner Pages screen and Settings > Users', async ({ page 
   }
 
   await nav.getByRole('link', { name: 'Pages', exact: true }).click();
+  // Home lists the newest pages too (task d78e7bde): be on Pages first.
+  await expect(page).toHaveURL((u) => u.pathname === '/pages');
+  await expect.poll(() => api.asked('admin')).toContain('GET /api/tree/pages');
   const main = page.getByRole('main');
   for (const p of Object.values(PAGES)) {
     await expect(main.getByText(p.title, { exact: true }), p.title).toBeVisible();

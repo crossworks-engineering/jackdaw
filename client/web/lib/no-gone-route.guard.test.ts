@@ -40,7 +40,7 @@ describe('no call to a route a W6b, W7 or W8 brain answers 410', () => {
     for (const f of [
       'client/web/components/item-tree/tree-api.ts',
       'client/web/lib/member-apps.ts',
-      'client/web/components/member/member-home.tsx',
+      'client/web/components/home/plain-home.tsx',
       'client/web/app/(app)/pages/pages-client.tsx',
       'client/web/app/(app)/apps/apps-client.tsx',
       'packages/web-ui/src/api-fetch.ts',
@@ -54,7 +54,7 @@ describe('no call to a route a W6b, W7 or W8 brain answers 410', () => {
       'client/web/components/assistant/assistant-dock.tsx',
       // W7e: the app runner, the home app and the shell's asset token.
       'client/web/components/member/member-app-run.tsx',
-      'client/web/components/member/member-home-app.tsx',
+      'client/web/components/home/landing-home.tsx',
       'client/web/lib/owner-app-sandbox.ts',
       'client/web/components/app-shell.tsx',
     ]) {

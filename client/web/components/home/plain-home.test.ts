@@ -1,16 +1,16 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/components/layout/page-title', () => ({ SetPageTitle: () => null }));
 
-const { HOME_LINKS, HomeSwitch, PlainHomeView } = await import('./plain-home');
+const { HOME_LINKS, HOME_SECTION_LIMIT, PlainHomeView } = await import('./plain-home');
 
 /**
- * The home (phase W5c): a member's own home, the dashboard for an admin
- * with the settings area, and a plain home for anyone else: the login's
- * workspaces and the screens it works in.
+ * The Built-in home (task d78e7bde): every workspace's default landing page,
+ * for every login. The screens it works in and the login's workspaces; with
+ * the landing page's data (GET /api/home?ws=), that workspace's counts,
+ * newest pages and apps.
  */
 const ws = (id: string, name: string, over: { isAdmin?: boolean; moderator?: boolean } = {}) => ({
   id,
@@ -59,44 +59,58 @@ describe('PlainHomeView', () => {
   });
 });
 
-describe('HomeSwitch', () => {
-  const render = (shell: unknown) => {
-    const client = new QueryClient();
-    client.setQueryData(['shell'], shell);
-    return renderToStaticMarkup(
-      createElement(QueryClientProvider, {
-        client,
-        children: createElement(HomeSwitch, {
-          dashboard: createElement('p', null, 'DASHBOARD'),
-          member: createElement('p', null, 'MEMBER-HOME'),
-        }),
+describe('PlainHomeView with the landing page data', () => {
+  const page = (n: number) => ({
+    token: `p${n}`,
+    title: `Page ${n}`,
+    icon: null,
+    summary: n === 1 ? 'The first one' : null,
+    updatedAt: '2026-10-12T00:00:00.000Z',
+    parentToken: null,
+  });
+  const html = renderToStaticMarkup(
+    createElement(PlainHomeView, {
+      workspaces: [ws('w1', 'Team')],
+      scope: 'Team',
+      hub: {
+        sections: Array.from({ length: HOME_SECTION_LIMIT + 2 }, (_, i) => page(i + 1)),
+        counts: { page: 12, note: 3, file: 0, table: 1, draw: 0 },
+        apps: [{ token: 'a1', title: 'Board', description: 'Who is where', updatedAt: '' }],
+      },
+    }),
+  );
+
+  it('names the workspace it shows', () => {
+    expect(html).toContain('>Team</p>');
+  });
+
+  it('counts each kind on its screen card', () => {
+    expect(html).toMatch(/>Pages<\/div><span[^>]*>12</);
+    expect(html).toMatch(/>Notes<\/div><span[^>]*>3</);
+    // Apps has its own section, not a count.
+    expect(html).not.toMatch(/>Apps<\/div><span/);
+  });
+
+  it('lists the newest pages, each a link, up to the limit', () => {
+    expect(html).toContain('href="/pages/p1"');
+    expect(html).toContain('The first one');
+    expect(html).toContain(`href="/pages/p${HOME_SECTION_LIMIT}"`);
+    expect(html).not.toContain(`href="/pages/p${HOME_SECTION_LIMIT + 1}"`);
+  });
+
+  it('lists the apps it holds', () => {
+    expect(html).toContain('href="/apps/a1"');
+    expect(html).toContain('Who is where');
+  });
+
+  it('says so when the workspace has no pages', () => {
+    const empty = renderToStaticMarkup(
+      createElement(PlainHomeView, {
+        workspaces: [],
+        hub: { sections: [], counts: {}, apps: [] },
       }),
     );
-  };
-
-  it('a member gets its own home, whatever the shell holds', () => {
-    expect(render({ role: 'member', areas: ['settings'] })).toBe('<p>MEMBER-HOME</p>');
-  });
-
-  it('a role this build does not know is a member (W8: no client role)', () => {
-    const html = render({ role: 'client', areas: [], workspaces: [ws('w1', 'Clients')] });
-    expect(html).toBe('<p>MEMBER-HOME</p>');
-  });
-
-  it('an admin without the settings area gets the plain home with its workspaces', () => {
-    const html = render({ role: 'admin', areas: [], workspaces: [ws('w1', 'Clients')] });
-    expect(html).toContain('Clients');
-    expect(html).not.toMatch(/DASHBOARD|MEMBER-HOME/);
-  });
-
-  it('an admin gets the dashboard with the settings area, and on a brain that names none', () => {
-    expect(render({ role: 'admin', areas: ['settings'], workspaces: [] })).toBe('<p>DASHBOARD</p>');
-    expect(render({ siteName: null })).toBe('<p>DASHBOARD</p>');
-  });
-
-  it('an admin without the settings area gets the plain home', () => {
-    const html = render({ role: 'admin', areas: ['users'], workspaces: [ws('w1', 'Team')] });
-    expect(html).not.toContain('DASHBOARD');
-    expect(html).toContain('Team');
+    expect(empty).toContain('No pages here yet.');
+    expect(empty).not.toContain('>Apps</h2>');
   });
 });

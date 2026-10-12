@@ -1,5 +1,8 @@
 import type { HubData, HubNavTarget } from '@mantle/share-ui/app-bridge-protocol';
-import type { MemberHomeData as ContractHomeData } from './contract/member-apps';
+import type {
+  MemberHomeData as ContractHomeData,
+  WorkspaceHomeData as ContractWorkspaceHome,
+} from './contract/member-apps';
 
 /**
  * Apps for members (member logins Phase 4b). A member RUNS the apps its
@@ -16,6 +19,23 @@ import type { MemberHomeData as ContractHomeData } from './contract/member-apps'
 
 /** GET /api/member/home with the hub typed as the app bridge's HubData. */
 export type MemberHomeData = ContractHomeData<HubData>;
+
+/** GET /api/home?ws= (a workspace's landing page, task d78e7bde) with the
+ *  hub typed as the app bridge's HubData. */
+export type WorkspaceHomeData = ContractWorkspaceHome<HubData>;
+
+/** The landing page's query key. The ['member-home', …] prefix is shared on
+ *  purpose: a change to an item or to a workspace's landing page refreshes
+ *  every landing page (the shell and the workspace screen invalidate it). */
+export function workspaceHomeKey(ws: string | null): readonly unknown[] {
+  return ['member-home', 'landing', ws ?? 'all'];
+}
+
+/** The landing page's URL: the current workspace, or none for "All my
+ *  workspaces". */
+export function workspaceHomeUrl(ws: string | null): string {
+  return ws ? `/api/home?ws=${encodeURIComponent(ws)}` : '/api/home';
+}
 
 /** Where a member's app opens. */
 export function memberAppHref(appId: string): string {

@@ -16,7 +16,7 @@
  * drawings and app runner (deprecated in W7e: they moved to the owner
  * routes, in the login's own scope), the client login's email-code sign-in
  * and its sender, the client link, the Admin client list, and the client
- * portal's stubs.
+ * portal's stubs. Task d78e7bde: the member home app pick.
  *
  * This file names every one of them, so the guard does not scan it.
  */
@@ -60,6 +60,12 @@ export const GONE_ROUTE_BASES: readonly GoneRoute[] = [
     label: '/api/team-admin/clients (and its sign-in sender and preview)',
   },
   { base: '/api/client', label: '/api/client (the client portal, every route under it)' },
+  // Task d78e7bde: the one member home app; each workspace's screen sets its
+  // landing page (PATCH /api/workspaces/:id landingAppId).
+  {
+    base: '/api/team-admin/hub-app',
+    label: '/api/team-admin/hub-app (now the Landing page on the workspace screen)',
+  },
 ];
 
 /** Every base nothing may call. */

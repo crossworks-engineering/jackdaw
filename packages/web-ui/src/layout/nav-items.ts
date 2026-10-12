@@ -1,4 +1,4 @@
-import { Layers, Link2, Power, Send } from 'lucide-react';
+import { LayoutDashboard, Layers, Link2, Power, Send } from 'lucide-react';
 import {
   NAV_GROUPS as SHARED_NAV_GROUPS,
   navItemMatches,
@@ -36,7 +36,7 @@ export function withoutRetired(groups: readonly NavGroup[]): NavGroup[] {
 
 /**
  * Screens this client has that the pinned shared list does not name yet, each
- * placed after an existing href in a named group. Settings > Services (the
+ * placed after an existing href in a named group (an empty `after`: first). Settings > Services (the
  * optional-service switches) joins the shared list in mantle's next release;
  * an entry is skipped when the list already has its href, so this is a no-op
  * once the pin carries it. Remove an entry after the pin moves past it.
@@ -61,6 +61,13 @@ export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item
     item: { name: 'Shared links', href: '/settings/shared-links', icon: Link2 },
   },
   {
+    // The brain health Dashboard (task d78e7bde): `/` is every login's
+    // landing page now, so the Dashboard has its own screen, first in System.
+    group: 'System',
+    after: '',
+    item: { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  },
+  {
     // Telegram per user (W7d): pair your own chat, list your own chats.
     group: 'Settings',
     after: '/settings/api-access',
@@ -71,10 +78,13 @@ export const ADDED_NAV_ITEMS: ReadonlyArray<{ group: string; after: string; item
 /**
  * Rows this client names differently from the pinned shared list. Logins is
  * Users since workspaces (W5a): a user is a login, and the screen holds
- * account actions only. Remove an entry once the shared list carries the name.
+ * account actions only. `/` is Home since task d78e7bde: the landing page of
+ * the current workspace (the Dashboard moved to /dashboard). Remove an
+ * entry once the shared list carries the name.
  */
 export const RENAMED_NAV_ITEMS: Readonly<Record<string, string>> = {
   '/settings/users': 'Users',
+  '/': 'Home',
 };
 
 /** Pure, so the renames are unit-tested against any list. */
@@ -102,8 +112,9 @@ export function withAdded(
     if (mine.length === 0) return g;
     const items = [...g.items];
     for (const a of mine) {
-      const at = items.findIndex((i) => i.href === a.after);
-      items.splice(at === -1 ? items.length : at + 1, 0, a.item);
+      // An empty `after` puts the item first.
+      const at = a.after === '' ? -1 : items.findIndex((i) => i.href === a.after);
+      items.splice(a.after === '' ? 0 : at === -1 ? items.length : at + 1, 0, a.item);
     }
     return { ...g, items };
   });

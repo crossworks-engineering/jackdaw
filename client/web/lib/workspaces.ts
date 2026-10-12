@@ -109,6 +109,9 @@ export const PATH_AREAS: ReadonlyArray<readonly [prefix: string, area: Area | nu
   ['/sandboxes', 'settings'],
   ['/traces', 'settings'],
   ['/debug', 'settings'],
+  // The brain health Dashboard (task d78e7bde: no longer the home; every
+  // login lands on its workspace's landing page at `/`).
+  ['/dashboard', 'settings'],
   // /changelog reads GET /api/changelog, which the brain answers for an
   // admin only: the rail shows a login without this area the build as
   // plain text (components/layout/changelog-link.tsx).
@@ -199,6 +202,15 @@ export function isTeamWorkspace(
 /** The Team settings (member chat, read posture, member home app; Team
  *  admin's settings before W5c) show on the live Team workspace, to an Admin
  *  user only: the settings area. */
+/**
+ * May the login set this workspace's landing page (task d78e7bde)? A
+ * Moderator of it only: no Admin area stands in (the brain answers 403
+ * forbidden). Never on an archived workspace.
+ */
+export function canSetLanding(ws: Pick<Workspace, 'me' | 'archived'>): boolean {
+  return !ws.archived && ws.me.moderator;
+}
+
 export function showsTeamSettings(
   ws: Pick<Workspace, 'isAdmin' | 'adminModerated' | 'archived'> & { builtIn?: boolean },
   areas: readonly string[] | null | undefined,
