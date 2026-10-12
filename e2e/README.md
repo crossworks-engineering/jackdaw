@@ -70,7 +70,9 @@ else is a plain 404.
 - `admin-switcher.spec.ts`: an Admin user who is also in Team switches to
   Team and back; the switcher's label, the Pages list's `?ws=` and a new
   page's `?ws=` follow each pick, also with the browser's storage full (the
-  pick then holds for the page).
+  pick then holds for the page); and on Pages, Notes, Files and Apps a pick
+  loads the list again with the new `?ws=` and shows only that workspace's
+  items (the mock holds one item in Admin and one in Team per list).
 - `retired-links.spec.ts`: old portal links (`/team`, `/hub`, `/client-signin`)
   land on a bare `/login`; old review links land on the home.
 - `login-brains.spec.ts`: the sign-in screen against more than one brain (the

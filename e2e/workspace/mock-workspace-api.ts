@@ -83,8 +83,14 @@ const MEMBERSHIP: Record<Role, { ws: WorkspaceKey; moderator: boolean }[]> = {
 };
 
 /** The brain's pages, each in one workspace. The member's answers hold the
- *  pages of its own workspaces only; Board minutes is in none of them. */
+ *  pages of its own workspaces only; Board minutes and Brain policy are in
+ *  none of them. */
 export const PAGES = {
+  policy: {
+    id: '44444444-4444-4444-8444-444444444444',
+    title: 'Brain policy',
+    ws: 'admin',
+  },
   handbook: {
     id: '55555555-5555-4555-8555-555555555555',
     title: 'Crew handbook',
@@ -101,6 +107,23 @@ export const PAGES = {
     ws: 'board',
   },
 } as const satisfies Record<string, { id: string; title: string; ws: WorkspaceKey }>;
+
+/** The other lists' items (Notes, Files and Apps), one in Admin and one in
+ *  Team each, so a switch shows which workspace a list was asked for. */
+export const KIND_ITEMS = {
+  notes: [
+    { id: '41414141-4141-4414-8414-414141414141', title: 'Admin note', ws: 'admin' },
+    { id: '42424242-4242-4424-8424-424242424242', title: 'Team note', ws: 'team' },
+  ],
+  files: [
+    { id: '43434343-4343-4434-8434-434343434343', title: 'Admin file', ws: 'admin' },
+    { id: '45454545-4545-4454-8454-454545454545', title: 'Team file', ws: 'team' },
+  ],
+  apps: [
+    { id: '46464646-4646-4464-8464-464646464646', title: 'Admin app', ws: 'admin' },
+    { id: '47474747-4747-4474-8474-474747474747', title: 'Team app', ws: 'team' },
+  ],
+} as const satisfies Record<string, { id: string; title: string; ws: WorkspaceKey }[]>;
 
 /** The member's snapshot copy of an accepted page (W6b): read only, in its
  *  private workspace (no other login reads it); the member may delete it. */
@@ -216,6 +239,15 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     const all: MockPage[] = [...Object.values(PAGES), COPY, ...state.created];
     return all.filter((p) => mine.has(p.ws) && (!ws || WORKSPACES[p.ws].id === ws));
   };
+  /** A kind's items a login reads, narrowed to `ws` like pagesOf. */
+  const itemsOf = (kind: string, role: Role, ws: string | null = null): MockPage[] => {
+    if (kind === 'pages') return pagesOf(role, ws);
+    if (!(kind in KIND_ITEMS)) return [];
+    const mine = new Set<WorkspaceKey>(MEMBERSHIP[role].map((m) => m.ws));
+    return KIND_ITEMS[kind as keyof typeof KIND_ITEMS].filter(
+      (p) => mine.has(p.ws) && (!ws || WORKSPACES[p.ws].id === ws),
+    );
+  };
   const keyOfWs = (id: string): WorkspaceKey | null =>
     (Object.keys(WORKSPACES) as WorkspaceKey[]).find((k) => WORKSPACES[k].id === id) ?? null;
   /** Where a create lands (W6b contract item 3): `?ws=` when the login
@@ -329,7 +361,7 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
     const treeM = /^\/api\/tree\/([a-z]+)(\/search)?$/.exec(path);
     if (treeM && method === 'GET') {
       const kind = treeM[1]!;
-      const items = kind === 'pages' ? pagesOf(role, ws).map(treeItem(role)) : [];
+      const items = itemsOf(kind, role, ws).map(treeItem(role));
       const echo = ws ? { ws } : {};
       if (treeM[2]) {
         const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
@@ -342,6 +374,26 @@ export async function startMockWorkspaceApi(clientOrigin: string): Promise<MockW
         );
       }
       return (json(res, 200, { ...tree(kind, items, url), ...echo }), true);
+    }
+    // The Apps screen's paged list (this mock's tree serves no apps).
+    if (path === '/api/apps' && method === 'GET') {
+      const apps = itemsOf('apps', role, ws).map((a) => ({
+        id: a.id,
+        title: a.title,
+        icon: null,
+        color: null,
+        tags: [],
+        summary: null,
+        description: null,
+        toolCount: 0,
+        hasBuild: false,
+        hasDraft: false,
+        shareMode: null,
+        isHub: false,
+        ...capsOf(role, a),
+      }));
+      const echo = ws ? { ws } : {};
+      return (json(res, 200, { apps, total: apps.length, page: 1, pageSize: 50, ...echo }), true);
     }
     if (path === '/api/pages' && method === 'POST') {
       const body = JSON.parse((await readBody(req)) || '{}') as { title?: string };

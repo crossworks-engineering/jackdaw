@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  KIND_ITEMS,
   PAGES,
   WORKSPACES,
   signIn,
@@ -142,4 +143,68 @@ test('with browser storage full, a switch still switches for the page', async ({
   await expect.poll(() => listWs().at(-1)).toBe(WORKSPACES.admin.id);
   await newPage(page, 'Admin plan');
   await expect.poll(() => createWs()).toEqual([WORKSPACES.team.id, WORKSPACES.admin.id]);
+});
+
+/** Each list screen: the list route it reads, and its Admin and Team item. */
+const SCREENS = [
+  {
+    path: '/pages',
+    list: '/api/tree/pages',
+    admin: PAGES.policy.title,
+    team: PAGES.handbook.title,
+  },
+  {
+    path: '/notes',
+    list: '/api/tree/notes',
+    admin: KIND_ITEMS.notes[0].title,
+    team: KIND_ITEMS.notes[1].title,
+  },
+  {
+    path: '/files',
+    list: '/api/tree/files',
+    admin: KIND_ITEMS.files[0].title,
+    team: KIND_ITEMS.files[1].title,
+  },
+  {
+    path: '/apps',
+    list: '/api/apps',
+    admin: KIND_ITEMS.apps[0].title,
+    team: KIND_ITEMS.apps[1].title,
+  },
+] as const;
+
+test('a switch on Pages, Notes, Files and Apps loads each list again for the picked workspace', async ({
+  page,
+}) => {
+  await signIn(page, 'admin');
+  const main = page.getByRole('main');
+  /** The `ws` of the last list `list` the admin asked for. */
+  const lastWs = (list: string) =>
+    api.requests
+      .filter((r) => r.role === 'admin' && r.method === 'GET' && r.path === list)
+      .map((r) => new URLSearchParams(r.query).get('ws'))
+      .at(-1);
+
+  for (const s of SCREENS) {
+    await page.goto(s.path);
+    // All my workspaces: both.
+    await expect(switcher(page)).toHaveAccessibleName('Workspace: All my workspaces');
+    await expect(main.getByText(s.admin, { exact: true }), s.path).toBeVisible();
+    await expect(main.getByText(s.team, { exact: true }), s.path).toBeVisible();
+    expect(lastWs(s.list), s.path).toBeNull();
+
+    await pickWorkspace(page, 'Team');
+    await expect.poll(() => lastWs(s.list), s.path).toBe(WORKSPACES.team.id);
+    await expect(main.getByText(s.team, { exact: true }), s.path).toBeVisible();
+    await expect(main.getByText(s.admin, { exact: true }), s.path).toHaveCount(0);
+
+    await pickWorkspace(page, 'Admin');
+    await expect.poll(() => lastWs(s.list), s.path).toBe(WORKSPACES.admin.id);
+    await expect(main.getByText(s.admin, { exact: true }), s.path).toBeVisible();
+    await expect(main.getByText(s.team, { exact: true }), s.path).toHaveCount(0);
+
+    // Back to All for the next screen.
+    await pickWorkspace(page, 'All my workspaces');
+    await expect(switcher(page)).toHaveAccessibleName('Workspace: All my workspaces');
+  }
 });
