@@ -4,27 +4,27 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { workspaceErrorText } from '@/lib/workspaces';
 import { PrivateReadsToggle } from './private-reads-toggle';
-import { TeamAssistantLine } from './team-assistant';
 import { useTeamSettings } from './team-settings-query';
 import { WorkspaceSection } from './workspace-section';
 
 /**
- * The Team settings (W5c: Team admin is gone, its settings live here): two
- * sections at the end of the built-in Team workspace's screen, for an Admin
- * user only (the caller decides). Member chat names the Team assistant, and
- * Read posture gates the owner's email and journal. The member home app
- * left with task d78e7bde: every workspace's screen has its Landing page.
- * Data: GET /api/team-admin/settings.
+ * The member settings (W5c: Team admin is gone, its settings live on the
+ * workspace screens): the read posture, a brain-wide switch, at the end of
+ * the Admin workspace's screen, for an Admin user with the settings area
+ * (the caller decides, showsMemberSettings). It sat on the built-in Team
+ * workspace's screen, with a Member chat line, until brain migration 0286
+ * made Team a normal workspace: each workspace's screen names its own
+ * assistant. Data: GET /api/team-admin/settings.
  */
 export function TeamSettingsSections() {
   const q = useTeamSettings();
   const data = q.data;
   if (!data) {
     return (
-      <WorkspaceSection title="Team settings" labelledBy="workspace-team-settings">
+      <WorkspaceSection title="Member settings" labelledBy="workspace-team-settings">
         {q.isError ? (
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            {workspaceErrorText(q.error, 'Could not load the Team settings.')}
+            {workspaceErrorText(q.error, 'Could not load the member settings.')}
             <Button variant="outline" size="sm" onClick={() => void q.refetch()}>
               Retry
             </Button>
@@ -38,21 +38,12 @@ export function TeamSettingsSections() {
     );
   }
   return (
-    <>
-      <WorkspaceSection
-        title="Member chat"
-        labelledBy="workspace-member-chat"
-        description="Members chat with this workspace's assistant."
-      >
-        <TeamAssistantLine assistant={data.teamAssistant} />
-      </WorkspaceSection>
-      <WorkspaceSection
-        title="Read posture"
-        labelledBy="workspace-read-posture"
-        description="Members always get the brain's knowledge reads. This gates your private email and journal when the Team assistant answers a member. Default off."
-      >
-        <PrivateReadsToggle initial={data.privateReads} />
-      </WorkspaceSection>
-    </>
+    <WorkspaceSection
+      title="Read posture"
+      labelledBy="workspace-read-posture"
+      description="Members always get the brain's knowledge reads. This gates your private email and journal when the assistant of another workspace answers a member. Default off."
+    >
+      <PrivateReadsToggle initial={data.privateReads} />
+    </WorkspaceSection>
   );
 }

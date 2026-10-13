@@ -25,12 +25,12 @@ import {
   canRemoveUser,
   removeBlockedReason,
   canSetLook,
-  BUILT_IN_LOOK_ADMIN_ONLY,
+  canTickModerator,
+  MODERATOR_TICK_ADMIN_ONLY_TEXT,
   REMOVE_ADMIN_KEPT_TEXT,
   REMOVE_SELF_ADMIN_TEXT,
   isBuiltIn,
-  isTeamWorkspace,
-  showsTeamSettings,
+  showsMemberSettings,
   userSearchPaged,
   userSearchMin,
   currentWorkspaceLabel,
@@ -291,25 +291,26 @@ describe('who may change what', () => {
     expect(BUILT_IN_NAME_HINT).toBe('Built-in workspaces keep their names.');
   });
 
-  it('Team is the built-in workspace that is not Admin', () => {
-    expect(isTeamWorkspace({ builtIn: true, isAdmin: false, adminModerated: true })).toBe(true);
-    expect(isTeamWorkspace({ isAdmin: false, adminModerated: true })).toBe(true);
-    expect(isTeamWorkspace({ builtIn: true, isAdmin: true, adminModerated: false })).toBe(false);
-    expect(isTeamWorkspace({ builtIn: false, isAdmin: false, adminModerated: false })).toBe(false);
+  it('the member settings show on the Admin workspace to the settings area only (0286)', () => {
+    const admin = { isAdmin: true, archived: false };
+    expect(showsMemberSettings(admin, ['settings'])).toBe(true);
+    // A brain that sends no areas answered the shell for an admin.
+    expect(showsMemberSettings(admin, undefined)).toBe(true);
+    expect(showsMemberSettings(admin, ['users'])).toBe(false);
+    expect(showsMemberSettings(admin, [])).toBe(false);
+    expect(showsMemberSettings({ ...admin, archived: true }, ['settings'])).toBe(false);
+    // Team is a normal workspace: no member settings there.
+    expect(showsMemberSettings({ isAdmin: false, archived: false }, ['settings'])).toBe(false);
   });
 
-  it('the Team settings show on the live Team workspace to the settings area only', () => {
-    const team = { builtIn: true, isAdmin: false, adminModerated: true, archived: false };
-    expect(showsTeamSettings(team, ['settings'])).toBe(true);
-    // A brain that sends no areas answered the shell for an admin.
-    expect(showsTeamSettings(team, undefined)).toBe(true);
-    expect(showsTeamSettings(team, ['users'])).toBe(false);
-    expect(showsTeamSettings(team, [])).toBe(false);
-    expect(showsTeamSettings({ ...team, archived: true }, ['settings'])).toBe(false);
-    expect(showsTeamSettings({ ...team, isAdmin: true }, ['settings'])).toBe(false);
-    expect(
-      showsTeamSettings({ ...team, builtIn: false, adminModerated: false }, ['settings']),
-    ).toBe(false);
+  it('only an Admin user (the users area) ticks Moderator (0286)', () => {
+    expect(canTickModerator(['users'])).toBe(true);
+    expect(canTickModerator(undefined)).toBe(true);
+    expect(canTickModerator([])).toBe(false);
+    expect(canTickModerator(['settings'])).toBe(false);
+    expect(MODERATOR_TICK_ADMIN_ONLY_TEXT).toBe(
+      'Only an Admin user can change the Moderator tick.',
+    );
   });
 
   it('Team is never offered Archive, even to its Moderator with the users area', () => {
@@ -334,9 +335,13 @@ describe('who may change what', () => {
     // An older brain sends no kind: its PATCH refuses a look (audit M1).
     expect(canSetLook(ws({ me: mod }), ['users'])).toBe(false);
     expect(canSetLook(ws({ kind: 'other', me: mod, archived: true }), ['users'])).toBe(false);
-    // The open owner question is one switch, off: a Team Moderator sets Team's look.
-    expect(BUILT_IN_LOOK_ADMIN_ONLY).toBe(false);
-    expect(canSetLook(ws({ kind: 'team', builtIn: true, me: mod }), [])).toBe(true);
+    // The same rule on every workspace: Team's Moderator sets Team's look,
+    // Admin's Moderators (Admin users) set Admin's.
+    expect(canSetLook(ws({ kind: 'other', name: 'Team', me: mod }), [])).toBe(true);
+    expect(canSetLook(ws({ kind: 'admin', isAdmin: true, builtIn: true, me: mod }), [])).toBe(true);
+    expect(canSetLook(ws({ kind: 'admin', isAdmin: true, builtIn: true, me: plain }), [])).toBe(
+      false,
+    );
   });
 
   it('why Remove is off: an Admin user kept here, or your own row in Admin (task 19790beb)', () => {

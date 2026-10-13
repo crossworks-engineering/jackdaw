@@ -63,7 +63,9 @@ import {
   isBuiltIn,
   userSearchPaged,
   canSetContact,
-  showsTeamSettings,
+  canTickModerator,
+  MODERATOR_TICK_ADMIN_ONLY_TEXT,
+  showsMemberSettings,
   removeUserText,
   userLabel,
   userSearchMin,
@@ -214,7 +216,7 @@ export function WorkspaceSections({
         />
       ))}
       <LandingSection workspace={ws} landingApp={detail.landingApp} />
-      {showsTeamSettings(ws, areas) ? <TeamSettingsSections /> : null}
+      {showsMemberSettings(ws, areas) ? <TeamSettingsSections /> : null}
     </div>
   );
 }
@@ -288,7 +290,8 @@ function AboutForm({
   const [contact, setContact] = useState<PickedContact | null | undefined>(undefined);
   const [nameError, setNameError] = useState<string>();
   const [pending, setPending] = useState(false);
-  // Admin and Team keep their names (change 19: 409 reserved_name).
+  // Admin keeps its name (change 19: 409 reserved_name; Team too before
+  // brain migration 0286).
   const nameFixed = isBuiltIn(ws);
 
   const savedContact: PickedContact | null =
@@ -466,7 +469,7 @@ function UsersSection({
       labelledBy="workspace-users"
       description={
         manage
-          ? 'Users read the items shared with this workspace. Moderators also change them and manage the workspace.'
+          ? 'Users read the items shared with this workspace. Moderators also change them and manage the workspace. Admin users tick Moderator.'
           : 'Users read the items shared with this workspace. Moderators manage it.'
       }
     >
@@ -486,6 +489,7 @@ function UsersSection({
               user={u}
               manage={manage}
               changeable={manage && canChangeUser(u)}
+              tickBlocked={canTickModerator(areas) ? null : MODERATOR_TICK_ADMIN_ONLY_TEXT}
               removeBlocked={removeBlockedReason(ws, u, viewerEmail)}
               onRemove={() => setRemoving(u)}
             />
@@ -511,14 +515,19 @@ function UserRow({
   user: u,
   manage,
   changeable,
+  tickBlocked,
   removeBlocked,
   onRemove,
 }: {
   workspaceId: string;
   user: WorkspaceUser;
   manage: boolean;
-  /** Its tick and Remove: never on an Admin user kept in Team. */
+  /** Its tick and Remove: never on an Admin user kept in Team (a brain
+   *  before migration 0286). */
   changeable: boolean;
+  /** Why the Moderator tick is off (only an Admin user ticks it), or null:
+   *  it may be used. */
+  tickBlocked: string | null;
   /** Why Remove is off (removeBlockedReason), or null: it may be used. */
   removeBlocked: string | null;
   onRemove: () => void;
@@ -553,16 +562,24 @@ function UserRow({
       {manage ? (
         // A fixed width, the tick first: the ticks line up on every row
         // whatever the label says (task 19790beb).
-        <div className="flex w-44 shrink-0 items-center gap-2">
+        // Off for anyone but an Admin user, with why as its tooltip (on the
+        // wrapper: a disabled box takes no pointer) and its description.
+        <div className="flex w-44 shrink-0 items-center gap-2" title={tickBlocked ?? undefined}>
           <Checkbox
             id={tickId}
             checked={u.moderator || u.adminViaArea}
-            disabled={pending || !changeable}
+            disabled={pending || !changeable || tickBlocked !== null}
+            aria-describedby={tickBlocked ? `${tickId}-why` : undefined}
             onCheckedChange={(v) => void setModerator(v === true)}
           />
           <label htmlFor={tickId} className="text-xs">
             {u.adminViaArea ? 'Moderator (Admin user)' : 'Moderator'}
           </label>
+          {tickBlocked ? (
+            <span id={`${tickId}-why`} className="sr-only">
+              {tickBlocked}
+            </span>
+          ) : null}
         </div>
       ) : u.moderator || u.adminViaArea ? (
         <Badge variant="outline" className="shrink-0">

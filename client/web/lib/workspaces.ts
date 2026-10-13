@@ -184,30 +184,24 @@ export function canManageWorkspace(
   return ws.me.moderator || hasArea(areas, 'users');
 }
 
-/** Admin and Team: the brain's `builtIn`, else (a brain before contract
- *  change 20) the two marks only they carry. */
+/** The built-in workspace: the brain's `builtIn` (Admin only since brain
+ *  migration 0286; Admin and Team before), else (a brain before contract
+ *  change 20) the two marks only they carried. */
 export function isBuiltIn(
   ws: Pick<Workspace, 'isAdmin' | 'adminModerated'> & { builtIn?: boolean },
 ): boolean {
   return ws.builtIn ?? (ws.isAdmin || ws.adminModerated);
 }
 
-/** The built-in Team workspace: built in, and not Admin. */
-export function isTeamWorkspace(
-  ws: Pick<Workspace, 'isAdmin' | 'adminModerated'> & { builtIn?: boolean },
-): boolean {
-  return isBuiltIn(ws) && !ws.isAdmin;
-}
-
-/** The Team settings (member chat and read posture; Team admin's settings
- *  before W5c; the member home app moved to every workspace's Landing page,
- *  task d78e7bde) show on the live Team workspace, to an Admin user only:
- *  the settings area. */
-export function showsTeamSettings(
-  ws: Pick<Workspace, 'isAdmin' | 'adminModerated' | 'archived'> & { builtIn?: boolean },
+/** The member settings (the read posture, a brain-wide switch; Team
+ *  admin's settings before W5c, on the built-in Team workspace's screen
+ *  until brain migration 0286 made Team a normal workspace) show on the
+ *  Admin workspace's screen, to an Admin user with the settings area. */
+export function showsMemberSettings(
+  ws: Pick<Workspace, 'isAdmin' | 'archived'>,
   areas: readonly string[] | null | undefined,
 ): boolean {
-  return !ws.archived && isTeamWorkspace(ws) && hasArea(areas, 'settings');
+  return !ws.archived && ws.isAdmin && hasArea(areas, 'settings');
 }
 
 /**
@@ -224,7 +218,7 @@ export function canSetLanding(ws: Pick<Workspace, 'me' | 'archived'>): boolean {
 export const BUILT_IN_NAME_HINT = 'Built-in workspaces keep their names.';
 
 /** Whether the screen offers Archive: a managed workspace that is not built
- *  in (the brain refuses Admin and Team). */
+ *  in (the brain refuses Admin; Team too before brain migration 0286). */
 export function canArchiveWorkspace(
   ws: Pick<Workspace, 'me' | 'archived' | 'isAdmin' | 'adminModerated'> & { builtIn?: boolean },
   areas: readonly string[] | null | undefined,
@@ -249,23 +243,29 @@ export function canRemoveUser(
   return user.email.trim().toLowerCase() !== viewerEmail.trim().toLowerCase();
 }
 
-/** Whether only Admin users set the look of the built-in workspaces (Admin,
- *  Team): an open owner question, the twin of the brain's
- *  BUILT_IN_LOOK_ADMIN_ONLY (server/web/lib/workspaces.ts). */
-export const BUILT_IN_LOOK_ADMIN_ONLY = false;
-
 /**
  * The colour and icon field (task 5edc9149): only from a brain that sends
  * the look (an older one refuses a look PATCH as "Nothing to update"), for
- * whoever may rename the workspace (canManageWorkspace).
+ * whoever may rename the workspace (canManageWorkspace), the same on every
+ * workspace: on Admin its Moderators are Admin users.
  */
 export function canSetLook(
-  ws: Pick<Workspace, 'kind' | 'me' | 'archived' | 'isAdmin' | 'builtIn' | 'adminModerated'>,
+  ws: Pick<Workspace, 'kind' | 'me' | 'archived'>,
   areas: readonly string[] | null | undefined,
 ): boolean {
-  if (ws.kind === undefined || !canManageWorkspace(ws, areas)) return false;
-  return !(BUILT_IN_LOOK_ADMIN_ONLY && isBuiltIn(ws) && !hasArea(areas, 'users'));
+  return ws.kind !== undefined && canManageWorkspace(ws, areas);
 }
+
+/** Who ticks or clears Moderator (brain migration 0286, owner decision
+ *  2026-10-13): an Admin user, read here as the Users and workspaces area.
+ *  A Moderator outside Admin still adds and removes users; the brain
+ *  answers 403 admin_only to their tick. */
+export function canTickModerator(areas: readonly string[] | null | undefined): boolean {
+  return hasArea(areas, 'users');
+}
+
+/** Why the Moderator tick is off for a Moderator who is not an Admin user. */
+export const MODERATOR_TICK_ADMIN_ONLY_TEXT = 'Only an Admin user can change the Moderator tick.';
 
 /** An Admin user kept as a Moderator here: why their Remove is off. */
 export const REMOVE_ADMIN_KEPT_TEXT =
@@ -295,7 +295,8 @@ export function canPickAssistant(areas: readonly string[] | null | undefined): b
 }
 
 /** An Admin user kept as a Moderator of Team is not demoted or removed
- *  there by anybody (contract change 14: 409 admin_kept). */
+ *  there by anybody (contract change 14: 409 admin_kept). From a brain
+ *  before migration 0286 only: no user is kept so since. */
 export function canChangeUser(user: Pick<WorkspaceUser, 'adminViaArea'>): boolean {
   return !user.adminViaArea;
 }
@@ -313,7 +314,8 @@ export function addedText(
 // ── Words ──────────────────────────────────────────────────────────────────
 
 /** The one sentence the screen shows for an admin-moderated workspace
- *  (plan 21.8 row 2: no magic, it is said on the screen). */
+ *  (plan 21.8 row 2: no magic, it is said on the screen). A brain before
+ *  migration 0286 only: none is admin-moderated since. */
 export const ADMIN_MODERATED_TEXT = 'Admin users moderate this workspace.';
 
 /** The assistant has history here (plan 21.8 row 14). */

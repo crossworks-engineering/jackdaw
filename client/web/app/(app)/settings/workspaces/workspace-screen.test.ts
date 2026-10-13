@@ -17,6 +17,7 @@ import {
   ADMIN_MODERATED_TEXT,
   BUILT_IN_NAME_HINT,
   HAS_HISTORY_TEXT,
+  MODERATOR_TICK_ADMIN_ONLY_TEXT,
   REMOVE_ADMIN_KEPT_TEXT,
   REMOVE_SELF_ADMIN_TEXT,
   workspaceKey,
@@ -28,7 +29,6 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/settings/workspaces' })
 
 const { WorkspaceScreen, WorkspaceSections } = await import('./workspace-screen');
 const { TEAM_SETTINGS_KEY } = await import('@/components/workspaces/team-settings-query');
-const { NO_TEAM_ASSISTANT_TEXT } = await import('@/lib/team-assistant');
 
 function ws(over: Partial<Workspace> = {}): Workspace {
   return {
@@ -244,9 +244,15 @@ describe('WorkspaceSections, Moderator (not an Admin user) view', () => {
     expect(html).toContain('An Admin user sets it.');
   });
 
-  it('the Admin-user row is fixed for them', () => {
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*id="workspace-moderator-l-own"/);
-    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*id="workspace-moderator-l-bo"/);
+  it('every Moderator tick is off for them, with why (0286: Admin users tick it)', () => {
+    for (const id of ['l-own', 'l-bo', 'l-ann']) {
+      expect(html).toMatch(
+        new RegExp(`<button[^>]*disabled=""[^>]*id="workspace-moderator-${id}"`),
+      );
+    }
+    expect(html).toContain(`title="${MODERATOR_TICK_ADMIN_ONLY_TEXT}"`);
+    expect(html).toContain('aria-describedby="workspace-moderator-l-bo-why"');
+    // They still add and remove users.
     expect(html).not.toContain('aria-label="Remove Owner"');
     expect(html).toContain('aria-label="Remove bo@x.test"');
   });
@@ -443,67 +449,39 @@ describe('built-in workspaces (Admin and Team)', () => {
     });
   }
 
-  const teamWith = (teamAssistant: TeamSettings['teamAssistant']) =>
+  const withSettings = (d: WorkspaceDetail, areas: string[]) =>
     render(
       createElement(WorkspaceScreen, {
-        workspace: teamNow.workspace,
-        areas: ADMIN_AREAS,
+        workspace: d.workspace,
+        areas,
         onArchived: () => {},
       }),
       (c) => {
-        seed(teamNow)(c);
-        c.setQueryData<TeamSettings>(TEAM_SETTINGS_KEY, {
-          privateReads: false,
-          teamAssistant,
-        });
+        seed(d)(c);
+        c.setQueryData<TeamSettings>(TEAM_SETTINGS_KEY, { privateReads: false });
       },
     );
 
-  it('Team ends with the Team settings for an Admin user', () => {
-    const html = teamWith({ slug: 'team-responder', name: 'Team agent', workspaceId: 'ws-team' });
-    for (const t of ['Member chat', 'Read posture']) {
-      expect(html).toContain(`>${t}</h3>`);
-    }
+  it('Admin ends with the read posture for an Admin user with the settings area (0286)', () => {
+    const html = withSettings(admin, ADMIN_AREAS);
+    expect(html).toContain('>Read posture</h3>');
+    expect(html).toContain('Expose email &amp; journal');
+    // The Member chat line went: each workspace names its own assistant.
+    expect(html).not.toContain('Member chat');
     // The member home app moved to every workspace's Landing page.
     expect(html).not.toContain('Member home app');
-    // W5c: the Team assistant's name, a link to it, and no level to set.
-    expect(html).toContain('Members chat with');
-    expect(html).toContain('href="/settings/agents?selected=team-responder"');
-    expect(html).toContain('>Team agent</a>');
-    expect(html).not.toMatch(/Let members chat|Stop member chat|Team level/);
-    expect(html).toContain('Expose email &amp; journal');
   });
 
-  it('Team says so plainly when it has no assistant', () => {
-    const html = teamWith(null);
-    expect(html).toContain(NO_TEAM_ASSISTANT_TEXT);
-    expect(html).not.toMatch(/Let members chat|Stop member chat/);
-  });
-
-  it('Team shows no Team settings to a Moderator without the settings area', () => {
-    const html = render(
-      createElement(WorkspaceScreen, {
-        workspace: teamNow.workspace,
-        areas: ['users'],
-        onArchived: () => {},
-      }),
-      seed(teamNow),
-    );
-    expect(html).not.toContain('Member chat');
+  it('no read posture without the settings area', () => {
+    const html = withSettings(admin, ['users']);
     expect(html).not.toContain('Read posture');
   });
 
-  it('Admin and a plain workspace show no Team settings', () => {
-    for (const d of [admin, detail({ builtIn: false, adminModerated: false })]) {
-      const html = render(
-        createElement(WorkspaceScreen, {
-          workspace: d.workspace,
-          areas: ADMIN_AREAS,
-          onArchived: () => {},
-        }),
-        seed(d),
-      );
-      expect(html).not.toContain('Member home app');
+  it('Team and a plain workspace show no member settings', () => {
+    for (const d of [teamNow, detail({ builtIn: false, adminModerated: false })]) {
+      const html = withSettings(d, ADMIN_AREAS);
+      expect(html).not.toContain('Read posture');
+      expect(html).not.toContain('Member chat');
     }
   });
 
