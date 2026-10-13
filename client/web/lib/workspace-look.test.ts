@@ -4,7 +4,12 @@
  * stand in for the kind.
  */
 import { describe, expect, it } from 'vitest';
-import { WORKSPACE_DEFAULT_ICONS, resolveWorkspaceLook, workspaceKindOf } from './workspace-look';
+import {
+  WORKSPACE_DEFAULT_ICONS,
+  looksById,
+  resolveWorkspaceLook,
+  workspaceKindOf,
+} from './workspace-look';
 import { APP_ICONS } from '../components/app-nav/app-icons';
 
 describe('resolveWorkspaceLook', () => {
@@ -44,5 +49,17 @@ describe('workspaceKindOf', () => {
     expect(workspaceKindOf({ private: true })).toBe('private');
     expect(workspaceKindOf({})).toBe('other');
     expect(workspaceKindOf(null)).toBe('other');
+  });
+});
+
+describe('looksById', () => {
+  it('keys every list by id, a later list winning', () => {
+    const m = looksById([{ id: 'a', color: 'red', icon: null }], undefined, [
+      { id: 'a', color: 'teal', icon: 'lucide:rocket' },
+      { id: 'b', color: null, icon: null, kind: 'team' },
+    ]);
+    expect(m.get('a')).toMatchObject({ color: 'teal', icon: 'lucide:rocket' });
+    expect(m.get('b')?.kind).toBe('team');
+    expect(m.get('c')).toBeUndefined();
   });
 });

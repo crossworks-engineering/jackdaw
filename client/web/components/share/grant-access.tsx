@@ -53,6 +53,8 @@ import {
 } from '@/lib/grants';
 import { invalidateLinkQueries, revokeShareLink } from '@/lib/shared-links';
 import { useShellWorkspaces, useIsAdminUser } from '@/components/workspaces/use-shell-workspaces';
+import { useWorkspaces } from '@/components/workspaces/workspace-queries';
+import { looksById } from '@/lib/workspace-look';
 import { AccessLinkBox } from './access-link-box';
 import { LinkServedList } from './link-served-list';
 import { ContactShareSection, OpenLinkDataWarning } from './contact-share-section';
@@ -240,6 +242,10 @@ function GrantAccessPanel({
   const adminUser = useIsAdminUser();
   const adminWsId = shell?.workspaces.find((w) => w.isAdmin)?.id ?? null;
   const moderated = new Set(shell?.workspaces.filter((w) => w.moderator).map((w) => w.id));
+  // Each row's tile: the shell's workspaces, then the workspace list (all of
+  // them for an Admin user). The grant rows carry no look of their own.
+  const listed = useWorkspaces();
+  const looks = looksById(shell?.workspaces, listed.data);
   const [busy, setBusy] = useState(false);
   const q = useQuery({
     queryKey: grantsKey(nodeId),
@@ -479,6 +485,7 @@ function GrantAccessPanel({
       onMcpAccess={onMcpAccess}
       mcpSwitch={adminUser}
       moderated={moderated}
+      looks={looks}
       link={
         <OpenLinkPart
           nodeId={nodeId}

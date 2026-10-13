@@ -31,6 +31,8 @@ import {
   type GrantRow,
   type GrantsView,
 } from '../../lib/grants';
+import type { LookSource } from '../../lib/workspace-look';
+import { WorkspaceTile } from '../workspaces/workspace-tile';
 
 export type GrantAccessHandlers = {
   onWrite: (row: GrantRow, write: boolean) => void;
@@ -69,6 +71,7 @@ export function GrantAccessView({
   hint,
   link,
   moderated,
+  looks,
   mcpSwitch = true,
   ...on
 }: {
@@ -84,6 +87,9 @@ export function GrantAccessView({
   /** The workspaces this user moderates: a row there may be revoked, or
    *  its Write turned off, without managing the item (contract 10). */
   moderated?: ReadonlySet<string>;
+  /** Each workspace's look (colour and icon) by id: its tile starts the
+   *  row. A workspace the client does not know draws the neutral default. */
+  looks?: ReadonlyMap<string, LookSource>;
   /** Whether an app's MCP access shows here: an Admin user only (W6b fix
    *  round: the brain answers 403 admin-only to anyone else). Hidden for
    *  any other login. */
@@ -135,50 +141,57 @@ export function GrantAccessView({
                   data-testid="grant-row"
                   className={cn(GRANT_GRID, 'rounded-md border border-border px-2.5 py-1.5')}
                 >
-                  <div className="min-w-0">
-                    <p
-                      className={
-                        row.excluded
-                          ? 'truncate text-sm text-muted-foreground line-through'
-                          : 'truncate text-sm'
-                      }
-                    >
-                      {row.name}
-                    </p>
-                    {(note || can.changeHere || can.restore) && (
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
-                        {note && (
-                          <span className="flex min-w-0 items-center gap-1">
-                            {row.viaFolder && (
-                              <FolderOpen className="size-3 shrink-0" aria-hidden />
-                            )}
-                            <span className="min-w-0 truncate">{note}</span>
-                          </span>
-                        )}
-                        {can.changeHere && (
-                          <Button
-                            size="2xs"
-                            variant="ghost"
-                            className="shrink-0"
-                            disabled={busy}
-                            onClick={() => on.onHand(row)}
-                          >
-                            Change here
-                          </Button>
-                        )}
-                        {can.restore && (
-                          <Button
-                            size="2xs"
-                            variant="outline"
-                            className="shrink-0"
-                            disabled={busy}
-                            onClick={() => on.onRestore(row)}
-                          >
-                            Restore
-                          </Button>
-                        )}
-                      </div>
-                    )}
+                  <div className="flex min-w-0 items-start gap-2">
+                    <WorkspaceTile
+                      workspace={looks?.get(row.wsId)}
+                      size="sm"
+                      className={cn('mt-px', row.excluded && 'opacity-50')}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={
+                          row.excluded
+                            ? 'truncate text-sm text-muted-foreground line-through'
+                            : 'truncate text-sm'
+                        }
+                      >
+                        {row.name}
+                      </p>
+                      {(note || can.changeHere || can.restore) && (
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                          {note && (
+                            <span className="flex min-w-0 items-center gap-1">
+                              {row.viaFolder && (
+                                <FolderOpen className="size-3 shrink-0" aria-hidden />
+                              )}
+                              <span className="min-w-0 truncate">{note}</span>
+                            </span>
+                          )}
+                          {can.changeHere && (
+                            <Button
+                              size="2xs"
+                              variant="ghost"
+                              className="shrink-0"
+                              disabled={busy}
+                              onClick={() => on.onHand(row)}
+                            >
+                              Change here
+                            </Button>
+                          )}
+                          {can.restore && (
+                            <Button
+                              size="2xs"
+                              variant="outline"
+                              className="shrink-0"
+                              disabled={busy}
+                              onClick={() => on.onRestore(row)}
+                            >
+                              Restore
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {/* Each control's tooltip sits on its cell: a disabled
                       control takes no pointer. */}

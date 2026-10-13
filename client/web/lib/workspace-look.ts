@@ -47,3 +47,15 @@ export function resolveWorkspaceLook(w: LookSource | null | undefined): Resolved
     icon: icon ?? WORKSPACE_DEFAULT_ICONS[kind],
   };
 }
+
+/** Workspace looks by id, from every list the client holds (the shell's
+ *  workspaces, GET /api/workspaces): a surface whose rows carry only a
+ *  workspace id and name (the grant panel) draws each row's face from here.
+ *  A later list wins for the same id. */
+export function looksById(
+  ...lists: (readonly (LookSource & { id: string })[] | undefined)[]
+): ReadonlyMap<string, LookSource> {
+  const out = new Map<string, LookSource>();
+  for (const list of lists) for (const w of list ?? []) out.set(w.id, w);
+  return out;
+}

@@ -191,6 +191,37 @@ describe('GrantAccessView columns', () => {
   });
 });
 
+describe('GrantAccessView workspace tiles', () => {
+  const looks = new Map([
+    ['ops', { color: 'teal' as const, icon: 'lucide:rocket' }],
+    ['team', { kind: 'team' as const, color: null, icon: null }],
+  ]);
+  const rows = rowsOf(render(view(), { looks }));
+  const row = (name: string) => rows.find((r) => r.includes(`>${name}<`))!;
+
+  it('each row starts with its workspace tile, in its colour and icon', () => {
+    const ops = row('Ops');
+    expect(ops).toContain('bg-app-tint-teal');
+    expect(ops).toContain('lucide-rocket');
+    expect(ops.indexOf('lucide-rocket')).toBeLessThan(ops.indexOf('>Ops<'));
+  });
+
+  it('an unpicked look draws the default of its kind on the neutral tile', () => {
+    expect(row('Team')).toContain('lucide-users');
+    expect(row('Team')).toContain('bg-muted text-muted-foreground');
+  });
+
+  it('a workspace the client does not know still gets a tile, and a removed row dims it', () => {
+    expect(row('Sales')).toContain('lucide-layers');
+    expect(row('Board')).toMatch(/aria-hidden="true" class="[^"]*opacity-50/);
+  });
+
+  it('every row has exactly one tile, so the names stay aligned', () => {
+    for (const r of rows)
+      expect(count(r, 'aria-hidden="true" class="inline-flex shrink-0')).toBe(1);
+  });
+});
+
 describe('GrantAccessView Home radio', () => {
   it('a pick on another row asks to move it there; the radio stays on the home', () => {
     const onMove = vi.fn();
