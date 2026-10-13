@@ -285,8 +285,8 @@ export function canTickModerator(areas: readonly string[] | null | undefined): b
   return hasArea(areas, 'users');
 }
 
-/** Why the Moderator tick is off for a Moderator who is not an Admin user. */
-export const MODERATOR_TICK_ADMIN_ONLY_TEXT = 'Only an Admin user can change the Moderator tick.';
+/** Why the Moderator switch is off for a Moderator who is not an Admin user. */
+export const MODERATOR_TICK_ADMIN_ONLY_TEXT = 'Only an Admin user can change the Moderator switch.';
 
 /** An Admin user kept as a Moderator here: why their Remove is off. */
 export const REMOVE_ADMIN_KEPT_TEXT =

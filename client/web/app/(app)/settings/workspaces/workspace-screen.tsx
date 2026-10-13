@@ -17,7 +17,6 @@ import {
 } from '@mantle/web-ui/ui/alert-dialog';
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
-import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@mantle/web-ui/ui/field';
@@ -103,7 +102,7 @@ const NO_ASSISTANT = 'none';
  * The ONE workspace screen (plan 1.4, 7.1): the same screen for every
  * workspace. Its sections, top to bottom: name, description, look (colour
  * and icon, task 5edc9149: whoever may rename it) and contact;
- * users with a Moderator tick; the assistant (at most one); then one section
+ * users with a Moderator switch; the assistant (at most one); then one section
  * per resource type (connectors in W5a), each row with a Writable switch. The
  * built-in Team workspace ends with the Team settings, for an Admin user.
  *
@@ -497,7 +496,7 @@ function UsersSection({
       labelledBy="workspace-users"
       description={
         manage
-          ? 'Users read the items shared with this workspace. Moderators also change them and manage the workspace. Admin users tick Moderator.'
+          ? 'Users read the items shared with this workspace. Moderators also change them and manage the workspace. Admin users turn Moderator on or off.'
           : 'Users read the items shared with this workspace. Moderators manage it.'
       }
     >
@@ -556,7 +555,7 @@ function UserRow({
   /** Its tick and Remove: never on an Admin user kept in Team (a brain
    *  before migration 0286). */
   changeable: boolean;
-  /** Why the Moderator tick is off (only an Admin user ticks it), or null:
+  /** Why the Moderator switch is off (only an Admin user turns it), or null:
    *  it may be used. */
   tickBlocked: string | null;
   /** Why Remove is off (removeBlockedReason), or null: it may be used. */
@@ -597,18 +596,18 @@ function UserRow({
         ) : null}
       </div>
       {manage ? (
-        // The Moderator column: the tick centred under its label on every
+        // The Moderator column: the switch centred under its label on every
         // row (task 19790beb). Off for anyone but an Admin user, with why as
-        // its tooltip (on the cell: a disabled box takes no pointer) and its
-        // description.
+        // its tooltip (on the cell: a disabled switch takes no pointer) and
+        // its description.
         <span className="flex justify-center" title={tickBlocked ?? `Moderator: ${label}`}>
-          <Checkbox
+          <Switch
             id={tickId}
             checked={u.moderator || u.adminViaArea}
             disabled={pending || !changeable || tickBlocked !== null}
             aria-label={`Moderator: ${label}`}
             aria-describedby={tickBlocked ? `${tickId}-why` : undefined}
-            onCheckedChange={(v) => void setModerator(v === true)}
+            onCheckedChange={(v) => void setModerator(v)}
           />
           {tickBlocked ? (
             <span id={`${tickId}-why`} className="sr-only">

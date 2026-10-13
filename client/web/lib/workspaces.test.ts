@@ -311,7 +311,7 @@ describe('who may change what', () => {
     expect(canTickModerator([])).toBe(false);
     expect(canTickModerator(['settings'])).toBe(false);
     expect(MODERATOR_TICK_ADMIN_ONLY_TEXT).toBe(
-      'Only an Admin user can change the Moderator tick.',
+      'Only an Admin user can change the Moderator switch.',
     );
   });
 

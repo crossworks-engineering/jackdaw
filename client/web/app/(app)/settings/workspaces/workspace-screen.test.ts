@@ -175,9 +175,9 @@ describe('WorkspaceSections, Admin user view', () => {
     expect(rows.length).toBeGreaterThan(1);
     for (const row of rows) {
       // The tick, then the Remove slot, in the section's one grid.
-      expect(row).toMatch(/role="checkbox"/);
+      expect(row).toMatch(/role="switch"[^>]*id="workspace-moderator-/);
       expect(row).toMatch(/aria-label="Remove /);
-      expect(row.indexOf('role="checkbox"')).toBeLessThan(row.indexOf('aria-label="Remove '));
+      expect(row.indexOf('role="switch"')).toBeLessThan(row.indexOf('aria-label="Remove '));
     }
   });
 
@@ -380,6 +380,7 @@ describe('WorkspaceSections, plain user view', () => {
     expect(html).not.toContain('<input');
     expect(html).not.toContain('<textarea');
     expect(html).not.toContain('role="checkbox"');
+    expect(html).not.toContain('role="switch"');
     expect(html).not.toContain('aria-label="Remove');
     expect(html).not.toContain('Add a user');
     expect(html).not.toContain('Add a connector');
@@ -479,6 +480,7 @@ describe('WorkspaceScreen header', () => {
     );
     expect(html).not.toContain('aria-label="Archive workspace"');
     expect(html).not.toContain('role="checkbox"');
+    expect(html).not.toContain('role="switch"');
   });
 
   it('an archived workspace is read only, with its pill', () => {
@@ -494,6 +496,7 @@ describe('WorkspaceScreen header', () => {
     expect(html).toContain('>Archived<');
     expect(html).not.toContain('aria-label="Archive workspace"');
     expect(html).not.toContain('role="checkbox"');
+    expect(html).not.toContain('role="switch"');
   });
 });
 
