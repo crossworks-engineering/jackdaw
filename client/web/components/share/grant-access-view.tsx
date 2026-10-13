@@ -53,6 +53,16 @@ export type GrantAccessHandlers = {
 export const GRANT_GRID =
   'grid grid-cols-[minmax(0,1fr)_2.75rem_3.5rem_2.75rem] items-center gap-x-1';
 
+/** A disabled control's reason, read by a screen reader through the
+ *  control's aria-describedby. Nothing when the control may be used. */
+function WhyOff({ id, text }: { id: string; text: string | null }) {
+  return text ? (
+    <span id={id} className="sr-only">
+      {text}
+    </span>
+  ) : null;
+}
+
 /**
  * The Grant Access panel's body (plan 7.1): the item's workspaces, one row
  * each in four columns under a header (name with "Via folder X" and "Change
@@ -136,6 +146,14 @@ export function GrantAccessView({
               const can = rowActionsFor(row, manage, moderated?.has(row.wsId) === true);
               const titles = rowControlTitles(row, can, manage, type);
               const note = rowNote(row);
+              // Why a control is off, for a screen reader as for the pointer
+              // (its title): each disabled control is described by its reason.
+              // Busy alone gives none: it passes. The home row's radio is
+              // labelled by its reason already.
+              const why = `grant-${view.item.id}-${row.wsId}`;
+              const homeWhy = !row.isHome && !can.move ? titles.home : null;
+              const writeWhy = can.write ? null : titles.write;
+              const revokeWhy = can.remove ? null : titles.revoke;
               return (
                 <li
                   key={row.wsId}
@@ -201,7 +219,9 @@ export function GrantAccessView({
                       value={row.wsId}
                       disabled={busy || !(row.isHome ? manage : can.move)}
                       aria-label={row.isHome ? titles.home : `Make ${row.name} the home`}
+                      aria-describedby={homeWhy ? `${why}-home-why` : undefined}
                     />
+                    <WhyOff id={`${why}-home-why`} text={homeWhy} />
                   </span>
                   <span className="flex justify-center" title={titles.write}>
                     <Switch
@@ -209,7 +229,9 @@ export function GrantAccessView({
                       disabled={busy || !can.write}
                       onCheckedChange={(v) => on.onWrite(row, v)}
                       aria-label={writeLabel(type, row.name)}
+                      aria-describedby={writeWhy ? `${why}-write-why` : undefined}
                     />
+                    <WhyOff id={`${why}-write-why`} text={writeWhy} />
                   </span>
                   <span className="flex justify-center" title={titles.revoke}>
                     <Button
@@ -219,9 +241,11 @@ export function GrantAccessView({
                       disabled={busy || !can.remove}
                       onClick={() => on.onRemove(row)}
                       aria-label={`Revoke ${row.name}`}
+                      aria-describedby={revokeWhy ? `${why}-revoke-why` : undefined}
                     >
                       <X />
                     </Button>
+                    <WhyOff id={`${why}-revoke-why`} text={revokeWhy} />
                   </span>
                 </li>
               );

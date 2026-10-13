@@ -568,6 +568,9 @@ function UserRow({
   const label = userLabel(u);
   const added = addedText(u);
   const tickId = `workspace-moderator-${u.loginId}`;
+  // Why the switch is off: an Admin user is a Moderator by being one (its
+  // switch never changes), else only an Admin user turns it.
+  const tickWhy = changeable ? tickBlocked : ADMIN_USER_MODERATOR_TEXT;
 
   const setModerator = async (moderator: boolean) => {
     setPending(true);
@@ -600,18 +603,18 @@ function UserRow({
         // row (task 19790beb). Off for anyone but an Admin user, with why as
         // its tooltip (on the cell: a disabled switch takes no pointer) and
         // its description.
-        <span className="flex justify-center" title={tickBlocked ?? `Moderator: ${label}`}>
+        <span className="flex justify-center" title={tickWhy ?? `Moderator: ${label}`}>
           <Switch
             id={tickId}
             checked={u.moderator || u.adminViaArea}
-            disabled={pending || !changeable || tickBlocked !== null}
+            disabled={pending || tickWhy !== null}
             aria-label={`Moderator: ${label}`}
-            aria-describedby={tickBlocked ? `${tickId}-why` : undefined}
+            aria-describedby={tickWhy ? `${tickId}-why` : undefined}
             onCheckedChange={(v) => void setModerator(v)}
           />
-          {tickBlocked ? (
+          {tickWhy ? (
             <span id={`${tickId}-why`} className="sr-only">
-              {tickBlocked}
+              {tickWhy}
             </span>
           ) : null}
         </span>

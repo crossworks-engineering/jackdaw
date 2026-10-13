@@ -160,6 +160,13 @@ describe('WorkspaceSections, Admin user view', () => {
     expect(html).toContain(ADMIN_USER_MODERATOR_TEXT);
     expect(html).toContain('aria-label="Moderator: Ann Lee"');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*id="workspace-moderator-l-own"/);
+    // Its switch says why it is off, as tooltip and as its description.
+    expect(html).toContain(`title="${ADMIN_USER_MODERATOR_TEXT}"`);
+    expect(html).toContain('aria-describedby="workspace-moderator-l-own-why"');
+    expect(html).toContain(
+      `<span id="workspace-moderator-l-own-why" class="sr-only">${ADMIN_USER_MODERATOR_TEXT}</span>`,
+    );
+    expect(html).not.toContain('aria-describedby="workspace-moderator-l-ann-why"');
     expect(html).toContain('aria-label="Remove Ann Lee"');
     expect(html).toContain('aria-label="Remove bo@x.test"');
     expect(html).not.toContain('aria-label="Remove Owner"');

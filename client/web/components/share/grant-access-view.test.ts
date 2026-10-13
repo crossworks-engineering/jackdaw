@@ -200,6 +200,43 @@ describe('GrantAccessView columns', () => {
   });
 });
 
+describe('GrantAccessView reasons for a screen reader', () => {
+  /** The control's opening tag, then the text its aria-describedby names. */
+  const described = (html: string, label: string) => {
+    const id = tag(html, label).match(/aria-describedby="([^"]+)"/)?.[1];
+    if (!id) return null;
+    return html.match(new RegExp(`<span id="${id}" class="sr-only">([^<]*)</span>`))?.[1] ?? '';
+  };
+
+  it('each disabled control is described by why it is off', () => {
+    const html = render(view(), { moderated: new Set(['team', 'sales', 'board']) });
+    expect(described(html, 'Revoke Team')).toBe('The home stays. Pick another home first.');
+    expect(described(html, 'Users in Sales can change it')).toBe(
+      'Read only: set by the folder. Change here first.',
+    );
+    expect(described(html, 'Make Board the home')).toBe('Removed here. Restore it first.');
+    expect(described(html, 'Make Ops the home')).toBe(
+      'Only a Moderator of Ops can make it the home.',
+    );
+  });
+
+  it('a control that may be used has no reason', () => {
+    const html = render(view());
+    expect(described(html, 'Make Ops the home')).toBeNull();
+    expect(described(html, 'Users in Ops can change it')).toBeNull();
+    expect(described(html, 'Revoke Ops')).toBeNull();
+  });
+
+  it('a reader hears why every control is off', () => {
+    const html = render(view({ mayManage: false }), { moderated: new Set() });
+    expect(described(html, 'Revoke Ops')).toBe(
+      'Only a Moderator of the home or of Ops can revoke it.',
+    );
+    expect(described(html, 'Revoke Team')).toBe('The home stays.');
+    expect(described(html, 'Make Ops the home')).toBe('Only a Moderator of the home can move it.');
+  });
+});
+
 describe('GrantAccessView workspace tiles', () => {
   const looks = new Map([
     ['ops', { color: 'teal' as const, icon: 'lucide:rocket' }],
