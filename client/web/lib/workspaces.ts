@@ -232,6 +232,11 @@ export function canSetContact(areas: readonly string[] | null | undefined): bool
   return hasArea(areas, 'users');
 }
 
+/** The row is the viewer's own (the shell names the login by email). */
+function isViewer(user: Pick<WorkspaceUser, 'email'>, viewerEmail: string | null | undefined) {
+  return !!viewerEmail && user.email.trim().toLowerCase() === viewerEmail.trim().toLowerCase();
+}
+
 /** Remove on a user row: never the viewer's own row in Admin (leaving Admin
  *  is the change to a member login; the brain refuses it, 403 self_demote). */
 export function canRemoveUser(
@@ -239,8 +244,7 @@ export function canRemoveUser(
   user: Pick<WorkspaceUser, 'email'>,
   viewerEmail: string | null | undefined,
 ): boolean {
-  if (!ws.isAdmin || !viewerEmail) return true;
-  return user.email.trim().toLowerCase() !== viewerEmail.trim().toLowerCase();
+  return !ws.isAdmin || !isViewer(user, viewerEmail);
 }
 
 /**
@@ -273,19 +277,29 @@ export const REMOVE_ADMIN_KEPT_TEXT =
 /** The viewer's own row in Admin: why their Remove is off. */
 export const REMOVE_SELF_ADMIN_TEXT = 'You cannot remove yourself from the Admin workspace.';
 
+/** Another Moderator's row, for a Moderator who is not an Admin user: why
+ *  their Remove is off (removing a Moderator takes the tick away, so the
+ *  brain asks the same as for the tick: 403 admin_only). */
+export const REMOVE_MODERATOR_ADMIN_ONLY_TEXT = 'Only an Admin user can remove a Moderator.';
+
 /**
  * Why Remove is off on a user row, or null when it may be used (task
  * 19790beb): every row keeps its Remove button, dimmed with this as its
- * tooltip when off, so the rows line up. The same two rules as before:
- * canChangeUser, then canRemoveUser.
+ * tooltip when off, so the rows line up. canChangeUser, then canRemoveUser,
+ * then the tick's own rule (canTickModerator) on another Moderator's row:
+ * leaving, the viewer's own row, stays open to anyone.
  */
 export function removeBlockedReason(
   ws: Pick<Workspace, 'isAdmin'>,
-  user: Pick<WorkspaceUser, 'adminViaArea' | 'email'>,
+  user: Pick<WorkspaceUser, 'adminViaArea' | 'email' | 'moderator'>,
   viewerEmail: string | null | undefined,
+  areas: readonly string[] | null | undefined,
 ): string | null {
   if (!canChangeUser(user)) return REMOVE_ADMIN_KEPT_TEXT;
   if (!canRemoveUser(ws, user, viewerEmail)) return REMOVE_SELF_ADMIN_TEXT;
+  if (user.moderator && !canTickModerator(areas) && !isViewer(user, viewerEmail)) {
+    return REMOVE_MODERATOR_ADMIN_ONLY_TEXT;
+  }
   return null;
 }
 

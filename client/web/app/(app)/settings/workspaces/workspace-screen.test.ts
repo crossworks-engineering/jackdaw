@@ -20,6 +20,7 @@ import {
   MODERATOR_TICK_ADMIN_ONLY_TEXT,
   REMOVE_ADMIN_KEPT_TEXT,
   REMOVE_SELF_ADMIN_TEXT,
+  REMOVE_MODERATOR_ADMIN_ONLY_TEXT,
   workspaceKey,
   type Workspace,
   type WorkspaceDetail,
@@ -252,9 +253,23 @@ describe('WorkspaceSections, Moderator (not an Admin user) view', () => {
     }
     expect(html).toContain(`title="${MODERATOR_TICK_ADMIN_ONLY_TEXT}"`);
     expect(html).toContain('aria-describedby="workspace-moderator-l-bo-why"');
-    // They still add and remove users.
+    // They still add and remove plain users.
     expect(html).not.toContain('aria-label="Remove Owner"');
     expect(html).toContain('aria-label="Remove bo@x.test"');
+  });
+
+  it("another Moderator's Remove is dimmed and off, with why, in its slot (Q2)", () => {
+    expect(html).not.toContain('aria-label="Remove Ann Lee"');
+    expect(html).toMatch(
+      new RegExp(
+        `disabled=""[^>]*aria-label="Remove Ann Lee: ${REMOVE_MODERATOR_ADMIN_ONLY_TEXT}"`,
+      ),
+    );
+    expect(html).toContain(`title="${REMOVE_MODERATOR_ADMIN_ONLY_TEXT}"`);
+    // Every row still keeps the same trailing slot.
+    const rows = html.split('data-testid="workspace-user"').slice(1);
+    expect(rows).toHaveLength(3);
+    for (const row of rows) expect(row).toMatch(/aria-label="Remove /);
   });
 
   it('searches from three letters', () => {

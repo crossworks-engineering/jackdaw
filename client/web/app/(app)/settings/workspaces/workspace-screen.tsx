@@ -490,7 +490,7 @@ function UsersSection({
               manage={manage}
               changeable={manage && canChangeUser(u)}
               tickBlocked={canTickModerator(areas) ? null : MODERATOR_TICK_ADMIN_ONLY_TEXT}
-              removeBlocked={removeBlockedReason(ws, u, viewerEmail)}
+              removeBlocked={removeBlockedReason(ws, u, viewerEmail, areas)}
               onRemove={() => setRemoving(u)}
             />
           ))}

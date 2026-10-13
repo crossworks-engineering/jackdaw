@@ -29,6 +29,7 @@ import {
   MODERATOR_TICK_ADMIN_ONLY_TEXT,
   REMOVE_ADMIN_KEPT_TEXT,
   REMOVE_SELF_ADMIN_TEXT,
+  REMOVE_MODERATOR_ADMIN_ONLY_TEXT,
   isBuiltIn,
   showsMemberSettings,
   userSearchPaged,
@@ -345,15 +346,39 @@ describe('who may change what', () => {
   });
 
   it('why Remove is off: an Admin user kept here, or your own row in Admin (task 19790beb)', () => {
-    const user = (email: string, adminViaArea = false) => ({ email, adminViaArea });
-    expect(removeBlockedReason({ isAdmin: false }, user('a@x.test', true), 'me@x.test')).toBe(
-      REMOVE_ADMIN_KEPT_TEXT,
-    );
-    expect(removeBlockedReason({ isAdmin: true }, user('Me@x.test'), 'me@X.test')).toBe(
+    const user = (email: string, adminViaArea = false) => ({
+      email,
+      adminViaArea,
+      moderator: false,
+    });
+    const admin = ['users'];
+    expect(
+      removeBlockedReason({ isAdmin: false }, user('a@x.test', true), 'me@x.test', admin),
+    ).toBe(REMOVE_ADMIN_KEPT_TEXT);
+    expect(removeBlockedReason({ isAdmin: true }, user('Me@x.test'), 'me@X.test', admin)).toBe(
       REMOVE_SELF_ADMIN_TEXT,
     );
-    expect(removeBlockedReason({ isAdmin: true }, user('b@x.test'), 'me@x.test')).toBeNull();
-    expect(removeBlockedReason({ isAdmin: false }, user('me@x.test'), 'me@x.test')).toBeNull();
+    expect(removeBlockedReason({ isAdmin: true }, user('b@x.test'), 'me@x.test', admin)).toBeNull();
+    expect(
+      removeBlockedReason({ isAdmin: false }, user('me@x.test'), 'me@x.test', admin),
+    ).toBeNull();
+  });
+
+  it("Remove on another Moderator's row: an Admin user only, the tick's own rule (Q2)", () => {
+    const ws = { isAdmin: false };
+    const mod = (email: string) => ({ email, adminViaArea: false, moderator: true });
+    const plain = { email: 'p@x.test', adminViaArea: false, moderator: false };
+    // A Moderator who is not an Admin user: dimmed on another Moderator...
+    expect(removeBlockedReason(ws, mod('b@x.test'), 'me@x.test', [])).toBe(
+      REMOVE_MODERATOR_ADMIN_ONLY_TEXT,
+    );
+    expect(REMOVE_MODERATOR_ADMIN_ONLY_TEXT).toBe('Only an Admin user can remove a Moderator.');
+    // ...not on a plain user, and not on their own row (leaving).
+    expect(removeBlockedReason(ws, plain, 'me@x.test', [])).toBeNull();
+    expect(removeBlockedReason(ws, mod('Me@x.test'), 'me@X.test', [])).toBeNull();
+    // An Admin user removes a Moderator (the same check as the tick).
+    expect(removeBlockedReason(ws, mod('b@x.test'), 'me@x.test', ['users'])).toBeNull();
+    expect(canTickModerator(['users'])).toBe(true);
   });
 
   it('the contact is set by an Admin user; the assistant needs the Assistants area', () => {
