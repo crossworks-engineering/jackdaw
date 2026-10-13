@@ -232,19 +232,36 @@ export function canSetContact(areas: readonly string[] | null | undefined): bool
   return hasArea(areas, 'users');
 }
 
-/** The row is the viewer's own (the shell names the login by email). */
-function isViewer(user: Pick<WorkspaceUser, 'email'>, viewerEmail: string | null | undefined) {
-  return !!viewerEmail && user.email.trim().toLowerCase() === viewerEmail.trim().toLowerCase();
+/** Who is looking, as the shell names them: the login id (GET /api/shell
+ *  `loginId`), and the email for a brain that sends no id. */
+export type WorkspaceViewer = { loginId?: string | null; email?: string | null };
+
+/**
+ * Whether a user row is the viewer's own: by login id when the shell names
+ * one, else by email; null when the viewer is not known yet (no shell). A
+ * caller decides what unknown means, toward the side the brain still
+ * checks (it refuses what the screen should not have offered).
+ */
+export function isViewerRow(
+  user: Pick<WorkspaceUser, 'loginId' | 'email'>,
+  viewer: WorkspaceViewer | null | undefined,
+): boolean | null {
+  const id = viewer?.loginId?.trim().toLowerCase();
+  if (id) return user.loginId.trim().toLowerCase() === id;
+  const email = viewer?.email?.trim().toLowerCase();
+  if (email) return user.email.trim().toLowerCase() === email;
+  return null;
 }
 
 /** Remove on a user row: never the viewer's own row in Admin (leaving Admin
- *  is the change to a member login; the brain refuses it, 403 self_demote). */
+ *  is the change to a member login; the brain refuses it, 403 self_demote).
+ *  An unknown viewer keeps it on: the brain refuses that one. */
 export function canRemoveUser(
   ws: Pick<Workspace, 'isAdmin'>,
-  user: Pick<WorkspaceUser, 'email'>,
-  viewerEmail: string | null | undefined,
+  user: Pick<WorkspaceUser, 'loginId' | 'email'>,
+  viewer: WorkspaceViewer | null | undefined,
 ): boolean {
-  return !ws.isAdmin || !isViewer(user, viewerEmail);
+  return !ws.isAdmin || isViewerRow(user, viewer) !== true;
 }
 
 /**
@@ -287,17 +304,20 @@ export const REMOVE_MODERATOR_ADMIN_ONLY_TEXT = 'Only an Admin user can remove a
  * 19790beb): every row keeps its Remove button, dimmed with this as its
  * tooltip when off, so the rows line up. canChangeUser, then canRemoveUser,
  * then the tick's own rule (canTickModerator) on another Moderator's row:
- * leaving, the viewer's own row, stays open to anyone.
+ * leaving, the viewer's own row, stays open to anyone. With the viewer not
+ * known (isViewerRow null) no row is dimmed for that rule, so a Moderator
+ * can always leave; the brain refuses another Moderator's removal (403
+ * admin_only).
  */
 export function removeBlockedReason(
   ws: Pick<Workspace, 'isAdmin'>,
-  user: Pick<WorkspaceUser, 'adminViaArea' | 'email' | 'moderator'>,
-  viewerEmail: string | null | undefined,
+  user: Pick<WorkspaceUser, 'adminViaArea' | 'loginId' | 'email' | 'moderator'>,
+  viewer: WorkspaceViewer | null | undefined,
   areas: readonly string[] | null | undefined,
 ): string | null {
   if (!canChangeUser(user)) return REMOVE_ADMIN_KEPT_TEXT;
-  if (!canRemoveUser(ws, user, viewerEmail)) return REMOVE_SELF_ADMIN_TEXT;
-  if (user.moderator && !canTickModerator(areas) && !isViewer(user, viewerEmail)) {
+  if (!canRemoveUser(ws, user, viewer)) return REMOVE_SELF_ADMIN_TEXT;
+  if (user.moderator && !canTickModerator(areas) && isViewerRow(user, viewer) === false) {
     return REMOVE_MODERATOR_ADMIN_ONLY_TEXT;
   }
   return null;

@@ -23,6 +23,7 @@ import {
   removeUserText,
   BUILT_IN_NAME_HINT,
   canRemoveUser,
+  isViewerRow,
   removeBlockedReason,
   canSetLook,
   canTickModerator,
@@ -321,10 +322,31 @@ describe('who may change what', () => {
   });
 
   it('no Remove on your own row in Admin', () => {
-    expect(canRemoveUser({ isAdmin: true }, { email: 'Me@x.test' }, 'me@X.test')).toBe(false);
-    expect(canRemoveUser({ isAdmin: true }, { email: 'b@x.test' }, 'me@x.test')).toBe(true);
-    expect(canRemoveUser({ isAdmin: false }, { email: 'me@x.test' }, 'me@x.test')).toBe(true);
-    expect(canRemoveUser({ isAdmin: true }, { email: 'me@x.test' }, null)).toBe(true);
+    const u = (loginId: string, email: string) => ({ loginId, email });
+    const byEmail = (email: string) => ({ email });
+    expect(canRemoveUser({ isAdmin: true }, u('l1', 'Me@x.test'), byEmail('me@X.test'))).toBe(
+      false,
+    );
+    expect(canRemoveUser({ isAdmin: true }, u('l2', 'b@x.test'), byEmail('me@x.test'))).toBe(true);
+    expect(canRemoveUser({ isAdmin: false }, u('l1', 'me@x.test'), byEmail('me@x.test'))).toBe(
+      true,
+    );
+    expect(canRemoveUser({ isAdmin: true }, u('l1', 'me@x.test'), null)).toBe(true);
+    // The login id decides when the shell sends it.
+    expect(canRemoveUser({ isAdmin: true }, u('l1', 'x@x.test'), { loginId: 'L1' })).toBe(false);
+    expect(
+      canRemoveUser({ isAdmin: true }, u('l2', 'me@x.test'), { loginId: 'l1', email: 'me@x.test' }),
+    ).toBe(true);
+  });
+
+  it('isViewerRow: by login id, else by email, else unknown (fix round 2, L6)', () => {
+    const row = { loginId: 'l1', email: 'Me@x.test' };
+    expect(isViewerRow(row, { loginId: 'l1' })).toBe(true);
+    expect(isViewerRow(row, { loginId: 'l2', email: 'me@x.test' })).toBe(false);
+    expect(isViewerRow(row, { loginId: null, email: 'me@X.test' })).toBe(true);
+    expect(isViewerRow(row, { email: 'b@x.test' })).toBe(false);
+    expect(isViewerRow(row, { loginId: null, email: null })).toBeNull();
+    expect(isViewerRow(row, null)).toBeNull();
   });
 
   it('the look field: a brain that sends the look, and whoever may rename (task 5edc9149)', () => {
@@ -347,37 +369,48 @@ describe('who may change what', () => {
 
   it('why Remove is off: an Admin user kept here, or your own row in Admin (task 19790beb)', () => {
     const user = (email: string, adminViaArea = false) => ({
+      loginId: `l-${email}`,
       email,
       adminViaArea,
       moderator: false,
     });
     const admin = ['users'];
-    expect(
-      removeBlockedReason({ isAdmin: false }, user('a@x.test', true), 'me@x.test', admin),
-    ).toBe(REMOVE_ADMIN_KEPT_TEXT);
-    expect(removeBlockedReason({ isAdmin: true }, user('Me@x.test'), 'me@X.test', admin)).toBe(
-      REMOVE_SELF_ADMIN_TEXT,
+    const me = { email: 'me@x.test' };
+    expect(removeBlockedReason({ isAdmin: false }, user('a@x.test', true), me, admin)).toBe(
+      REMOVE_ADMIN_KEPT_TEXT,
     );
-    expect(removeBlockedReason({ isAdmin: true }, user('b@x.test'), 'me@x.test', admin)).toBeNull();
     expect(
-      removeBlockedReason({ isAdmin: false }, user('me@x.test'), 'me@x.test', admin),
-    ).toBeNull();
+      removeBlockedReason({ isAdmin: true }, user('Me@x.test'), { email: 'me@X.test' }, admin),
+    ).toBe(REMOVE_SELF_ADMIN_TEXT);
+    expect(removeBlockedReason({ isAdmin: true }, user('b@x.test'), me, admin)).toBeNull();
+    expect(removeBlockedReason({ isAdmin: false }, user('me@x.test'), me, admin)).toBeNull();
   });
 
   it("Remove on another Moderator's row: an Admin user only, the tick's own rule (Q2)", () => {
     const ws = { isAdmin: false };
-    const mod = (email: string) => ({ email, adminViaArea: false, moderator: true });
-    const plain = { email: 'p@x.test', adminViaArea: false, moderator: false };
+    const mod = (loginId: string, email: string) => ({
+      loginId,
+      email,
+      adminViaArea: false,
+      moderator: true,
+    });
+    const plain = { loginId: 'l-p', email: 'p@x.test', adminViaArea: false, moderator: false };
+    const viewer = { loginId: 'l-me', email: 'me@x.test' };
     // A Moderator who is not an Admin user: dimmed on another Moderator...
-    expect(removeBlockedReason(ws, mod('b@x.test'), 'me@x.test', [])).toBe(
+    expect(removeBlockedReason(ws, mod('l-b', 'b@x.test'), viewer, [])).toBe(
       REMOVE_MODERATOR_ADMIN_ONLY_TEXT,
     );
     expect(REMOVE_MODERATOR_ADMIN_ONLY_TEXT).toBe('Only an Admin user can remove a Moderator.');
-    // ...not on a plain user, and not on their own row (leaving).
-    expect(removeBlockedReason(ws, plain, 'me@x.test', [])).toBeNull();
-    expect(removeBlockedReason(ws, mod('Me@x.test'), 'me@X.test', [])).toBeNull();
+    // ...not on a plain user, and not on their own row (leaving), found by
+    // login id even when the emails differ.
+    expect(removeBlockedReason(ws, plain, viewer, [])).toBeNull();
+    expect(removeBlockedReason(ws, mod('l-me', 'other@x.test'), viewer, [])).toBeNull();
+    // An unknown viewer (no shell yet) dims nothing for this rule: a
+    // Moderator can always leave, and the brain refuses the rest (L6).
+    expect(removeBlockedReason(ws, mod('l-b', 'b@x.test'), null, [])).toBeNull();
+    expect(removeBlockedReason(ws, mod('l-b', 'b@x.test'), { loginId: null }, [])).toBeNull();
     // An Admin user removes a Moderator (the same check as the tick).
-    expect(removeBlockedReason(ws, mod('b@x.test'), 'me@x.test', ['users'])).toBeNull();
+    expect(removeBlockedReason(ws, mod('l-b', 'b@x.test'), viewer, ['users'])).toBeNull();
     expect(canTickModerator(['users'])).toBe(true);
   });
 

@@ -231,13 +231,24 @@ describe('WorkspaceSections, Admin user view', () => {
 });
 
 describe('WorkspaceSections, Moderator (not an Admin user) view', () => {
+  // The viewer, as the shell names them: a Moderator here, not on the list.
+  const shell = (c: QueryClient) =>
+    c.setQueryData(['shell'], {
+      loginId: 'l-viewer',
+      email: 'viewer@x.test',
+      areas: [],
+      workspaces: [],
+    });
   const html = render(
     createElement(WorkspaceSections, {
       detail: detail({}, { hasHistory: false }),
       manage: true,
       areas: [],
     }),
-    options,
+    (c) => {
+      options(c);
+      shell(c);
+    },
   );
 
   it('edits name and description; the contact is text', () => {
@@ -271,6 +282,49 @@ describe('WorkspaceSections, Moderator (not an Admin user) view', () => {
     const rows = html.split('data-testid="workspace-user"').slice(1);
     expect(rows).toHaveLength(3);
     for (const row of rows) expect(row).toMatch(/aria-label="Remove /);
+  });
+
+  it('their own Moderator row keeps Remove (leaving), found by login id (fix round 2, L6)', () => {
+    const own = detail(
+      {},
+      {
+        hasHistory: false,
+        users: [
+          {
+            loginId: 'l-viewer',
+            name: 'Vic Viewer',
+            // Another spelling of the email than the shell's: the id decides.
+            email: 'vic.other@x.test',
+            moderator: true,
+            adminViaArea: false,
+            addedBy: null,
+            addedAt: '2026-10-10T09:00:00.000Z',
+          },
+        ],
+      },
+    );
+    const mine = render(
+      createElement(WorkspaceSections, { detail: own, manage: true, areas: [] }),
+      (c) => {
+        options(c);
+        shell(c);
+      },
+    );
+    expect(mine).toContain('aria-label="Remove Vic Viewer"');
+    expect(mine).not.toContain(REMOVE_MODERATOR_ADMIN_ONLY_TEXT);
+  });
+
+  it('with no shell yet, no Remove is dimmed for that rule (the brain still refuses)', () => {
+    const noShell = render(
+      createElement(WorkspaceSections, {
+        detail: detail({}, { hasHistory: false }),
+        manage: true,
+        areas: [],
+      }),
+      options,
+    );
+    expect(noShell).toContain('aria-label="Remove Ann Lee"');
+    expect(noShell).not.toContain(REMOVE_MODERATOR_ADMIN_ONLY_TEXT);
   });
 
   it('searches from three letters', () => {

@@ -461,8 +461,10 @@ function UsersSection({
 }) {
   const { workspace: ws, users } = detail;
   const [removing, setRemoving] = useState<WorkspaceUser | null>(null);
-  // Who is looking (the shell names the login), for their own row in Admin.
-  const viewerEmail = useShellWorkspaces()?.login;
+  // Who is looking (the shell names the login), for their own row: by its
+  // id, the email only from a shell that sends no id.
+  const shell = useShellWorkspaces();
+  const viewer = shell ? { loginId: shell.loginId, email: shell.login } : null;
   return (
     <Section
       title="Users"
@@ -490,7 +492,7 @@ function UsersSection({
               manage={manage}
               changeable={manage && canChangeUser(u)}
               tickBlocked={canTickModerator(areas) ? null : MODERATOR_TICK_ADMIN_ONLY_TEXT}
-              removeBlocked={removeBlockedReason(ws, u, viewerEmail, areas)}
+              removeBlocked={removeBlockedReason(ws, u, viewer, areas)}
               onRemove={() => setRemoving(u)}
             />
           ))}

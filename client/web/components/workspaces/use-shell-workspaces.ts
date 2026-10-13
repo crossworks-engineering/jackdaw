@@ -20,6 +20,9 @@ export type ShellWorkspaceInfo = {
   areas: string[] | undefined;
   /** Who is signed in, to key the switcher's choice by login. */
   login: string | null;
+  /** The login's id (GET /api/shell `loginId`): who is looking, to tell
+   *  their own row on a workspace screen. Null from a shell without it. */
+  loginId: string | null;
 };
 
 /**
@@ -37,6 +40,7 @@ export function useShellWorkspaces(): ShellWorkspaceInfo | undefined {
       hasWorkspaces: Array.isArray(d?.workspaces),
       areas: shellAreasOf(d),
       login: d?.email ?? null,
+      loginId: typeof d?.loginId === 'string' && d.loginId ? d.loginId : null,
     }),
   });
   return data;
