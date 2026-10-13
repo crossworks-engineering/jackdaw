@@ -168,9 +168,11 @@ const SORT_LABEL: Record<TreeSort, string> = {
 };
 
 /** Where the share pills choice is kept: one key per login (the shell names
- *  it by email; 'me' until the shell has answered). */
-export function sharesPrefKey(login: string | null | undefined): string {
-  return `mantle_tree_shares_v1:${login?.trim().toLowerCase() || 'me'}`;
+ *  it by email). null until the shell has answered: nothing is read or
+ *  written under a key two logins would share. */
+export function sharesPrefKey(login: string | null | undefined): string | null {
+  const who = login?.trim().toLowerCase();
+  return who ? `mantle_tree_shares_v1:${who}` : null;
 }
 
 /** The open-folder set for a kind, merged rather than replaced so the stored
@@ -1256,13 +1258,10 @@ export function ItemTree({
               <Button
                 variant={showShares ? 'secondary' : 'outline'}
                 size="icon-xs"
+                // A toggle: the name stays, aria-pressed says whether it is on.
                 aria-pressed={showShares}
-                aria-label={showShares ? 'Hide shares' : 'Show shares'}
-                title={
-                  showShares
-                    ? "Hide shares: each workspace's icon beside the name"
-                    : 'Show shares: the workspaces under each name'
-                }
+                aria-label="Show shares"
+                title="Show shares: the workspaces under each name"
                 onClick={() => setShowShares(!showShares)}
               >
                 <Layers />
@@ -1402,6 +1401,7 @@ export function ItemTree({
               keepKey={tabStop}
               scrollTo={scrollTo}
               render={renderRow}
+              showShares={showShares}
             />
           </DndContext>
         </div>

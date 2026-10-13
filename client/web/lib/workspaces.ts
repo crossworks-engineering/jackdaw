@@ -249,6 +249,24 @@ export function canRemoveUser(
   return user.email.trim().toLowerCase() !== viewerEmail.trim().toLowerCase();
 }
 
+/** Whether only Admin users set the look of the built-in workspaces (Admin,
+ *  Team): an open owner question, the twin of the brain's
+ *  BUILT_IN_LOOK_ADMIN_ONLY (server/web/lib/workspaces.ts). */
+export const BUILT_IN_LOOK_ADMIN_ONLY = false;
+
+/**
+ * The colour and icon field (task 5edc9149): only from a brain that sends
+ * the look (an older one refuses a look PATCH as "Nothing to update"), for
+ * whoever may rename the workspace (canManageWorkspace).
+ */
+export function canSetLook(
+  ws: Pick<Workspace, 'kind' | 'me' | 'archived' | 'isAdmin' | 'builtIn' | 'adminModerated'>,
+  areas: readonly string[] | null | undefined,
+): boolean {
+  if (ws.kind === undefined || !canManageWorkspace(ws, areas)) return false;
+  return !(BUILT_IN_LOOK_ADMIN_ONLY && isBuiltIn(ws) && !hasArea(areas, 'users'));
+}
+
 /** An Admin user kept as a Moderator here: why their Remove is off. */
 export const REMOVE_ADMIN_KEPT_TEXT =
   'Admin users stay in this workspace. To remove one, remove them from the Admin workspace.';

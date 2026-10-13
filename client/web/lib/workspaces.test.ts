@@ -24,6 +24,8 @@ import {
   BUILT_IN_NAME_HINT,
   canRemoveUser,
   removeBlockedReason,
+  canSetLook,
+  BUILT_IN_LOOK_ADMIN_ONLY,
   REMOVE_ADMIN_KEPT_TEXT,
   REMOVE_SELF_ADMIN_TEXT,
   isBuiltIn,
@@ -321,6 +323,20 @@ describe('who may change what', () => {
     expect(canRemoveUser({ isAdmin: true }, { email: 'b@x.test' }, 'me@x.test')).toBe(true);
     expect(canRemoveUser({ isAdmin: false }, { email: 'me@x.test' }, 'me@x.test')).toBe(true);
     expect(canRemoveUser({ isAdmin: true }, { email: 'me@x.test' }, null)).toBe(true);
+  });
+
+  it('the look field: a brain that sends the look, and whoever may rename (task 5edc9149)', () => {
+    const mod = { member: true, moderator: true };
+    const plain = { member: true, moderator: false };
+    expect(canSetLook(ws({ kind: 'other', me: mod }), [])).toBe(true);
+    expect(canSetLook(ws({ kind: 'other', me: plain }), ['users'])).toBe(true);
+    expect(canSetLook(ws({ kind: 'other', me: plain }), [])).toBe(false);
+    // An older brain sends no kind: its PATCH refuses a look (audit M1).
+    expect(canSetLook(ws({ me: mod }), ['users'])).toBe(false);
+    expect(canSetLook(ws({ kind: 'other', me: mod, archived: true }), ['users'])).toBe(false);
+    // The open owner question is one switch, off: a Team Moderator sets Team's look.
+    expect(BUILT_IN_LOOK_ADMIN_ONLY).toBe(false);
+    expect(canSetLook(ws({ kind: 'team', builtIn: true, me: mod }), [])).toBe(true);
   });
 
   it('why Remove is off: an Admin user kept here, or your own row in Admin (task 19790beb)', () => {

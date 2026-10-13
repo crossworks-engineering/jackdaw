@@ -1,7 +1,7 @@
 'use client';
 
 import { WorkspaceChips } from '@/components/share/workspace-chips';
-import { hasShareMarks } from '@/lib/grants';
+import { hasShareMarks, marksHaveLook } from '@/lib/grants';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
@@ -66,6 +66,8 @@ const ROW_BUTTON =
 
 /** One slot of the list: a 32px row and the 1px gap below it. */
 const ROW_SIZE = 33;
+/** A row with its share pills under its name: two lines, and the gap. */
+const TALL_ROW_SIZE = 47;
 const SIZE: Record<TreeRow['type'], number> = {
   folder: ROW_SIZE,
   item: ROW_SIZE,
@@ -270,6 +272,7 @@ export function VirtualRows({
   keepKey = null,
   scrollTo,
   render,
+  showShares,
 }: {
   rows: readonly TreeRow[];
   scrollRoot: RefObject<HTMLElement | null>;
@@ -277,6 +280,9 @@ export function VirtualRows({
   keepKey?: string | null;
   scrollTo?: RefObject<((key: string) => void) | null>;
   render: (row: TreeRow) => ReactNode;
+  /** The tree's share pills choice: rows with pills are first taken to be
+   *  two lines, so a big tree does not jump as they are measured. */
+  showShares?: boolean;
 }) {
   // The scroll element is the parent's, and a parent's ref attaches after its
   // children's layout effects: the virtualizer's first look finds nothing.
@@ -296,7 +302,7 @@ export function VirtualRows({
   const v = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRoot.current,
-    estimateSize: (i) => SIZE[rows[i]!.type],
+    estimateSize: (i) => rowEstimate(rows[i]!, showShares),
     getItemKey: (i) => rows[i]!.key,
     overscan: 12,
     paddingStart: 8,
@@ -462,10 +468,12 @@ export function TreeRowShell({
  * hidden: each workspace's icon in its colour beside the name, which keeps
  * the name its width. Shown: the workspaces as small pills in their colours
  * under the name. The status slot and a folder's count stay the row's own.
+ * From an older brain (chips with no look) the pills show either way: icons
+ * alone would be the same grey tile for every workspace.
  */
 export function TreeName({ name, marks }: { name: string; marks: unknown }) {
   const { showShares } = useTreeCtx();
-  if (showShares && hasShareMarks(marks)) {
+  if (pillsUnderName(showShares, marks)) {
     return (
       <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 py-1">
         <span className="max-w-full truncate">{name}</span>
@@ -482,10 +490,27 @@ export function TreeName({ name, marks }: { name: string; marks: unknown }) {
   );
 }
 
+/** Whether a row draws its share pills under its name (TreeName's rule). */
+export function pillsUnderName(showShares: boolean | undefined, marks: unknown): boolean {
+  return hasShareMarks(marks) && (!!showShares || !marksHaveLook(marks));
+}
+
 /** A row two lines high when its share pills show under the name. */
 function useRowHeight(marks: unknown): string | false {
   const { showShares } = useTreeCtx();
-  return !!showShares && hasShareMarks(marks) && 'h-auto min-h-8';
+  return pillsUnderName(showShares, marks) && 'h-auto min-h-8';
+}
+
+/** What a row of the list is first taken to be, before it is measured: a
+ *  row with its pills under its name is two lines (TALL_ROW_SIZE). */
+export function rowEstimate(row: TreeRow, showShares: boolean | undefined): number {
+  const marks =
+    row.type === 'folder' || row.type === 'hit'
+      ? row.folder
+      : row.type === 'item'
+        ? row.item
+        : null;
+  return marks && pillsUnderName(showShares, marks) ? TALL_ROW_SIZE : SIZE[row.type];
 }
 
 /** A folder's face: its tile, or the neutral folder glyph. */

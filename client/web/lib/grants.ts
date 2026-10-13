@@ -229,6 +229,13 @@ export function hasShareMarks(row: unknown): boolean {
   return workspacesOf(row).length > 0 || (row as { hasLink?: unknown } | null)?.hasLink === true;
 }
 
+/** Whether a row's workspaces carry their look (a brain from task 5edc9149
+ *  on sends each chip's `kind`). An older brain's chips do not: an icon
+ *  alone would be the same grey tile for every workspace. */
+export function marksHaveLook(row: unknown): boolean {
+  return workspacesOf(row).every((w) => w.kind !== undefined);
+}
+
 /** At most `max` chips, then "+N". The title names them all. */
 export function chipsOf(
   workspaces: readonly WorkspaceRef[],

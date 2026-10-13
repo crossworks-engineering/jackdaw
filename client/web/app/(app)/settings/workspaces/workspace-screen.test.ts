@@ -176,10 +176,21 @@ describe('WorkspaceSections, Admin user view', () => {
     }
   });
 
-  it('picks a colour and icon with the folder picker (task 5edc9149)', () => {
-    expect(html).toContain('id="workspace-look"');
-    expect(html).toContain('Change colour and icon');
-    expect(html).toContain('Shown in the workspace switcher and on the share marks of items.');
+  it('picks a colour and icon with the folder picker, from a brain that sends the look (task 5edc9149)', () => {
+    // This fixture is an older brain's: no kind, so no field (audit M1: its
+    // PATCH would refuse a look as "Nothing to update").
+    expect(html).not.toContain('id="workspace-look"');
+    const withLook = render(
+      createElement(WorkspaceSections, {
+        detail: detail({ kind: 'team', color: 'teal', icon: null }),
+        manage: true,
+        areas: ADMIN_AREAS,
+      }),
+      options,
+    );
+    expect(withLook).toContain('id="workspace-look"');
+    expect(withLook).toContain('Change colour and icon');
+    expect(withLook).toContain('Shown in the workspace switcher and on the share marks of items.');
   });
 
   it('says who added each user, and when', () => {

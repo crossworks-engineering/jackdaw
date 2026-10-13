@@ -59,6 +59,7 @@ import {
   canSetConnectors,
   BUILT_IN_NAME_HINT,
   removeBlockedReason,
+  canSetLook,
   isBuiltIn,
   userSearchPaged,
   canSetContact,
@@ -193,7 +194,12 @@ export function WorkspaceSections({
   return (
     <div className="space-y-6 p-6">
       {manage ? (
-        <AboutForm key={ws.id} workspace={ws} contactEditable={canSetContact(areas)} />
+        <AboutForm
+          key={ws.id}
+          workspace={ws}
+          contactEditable={canSetContact(areas)}
+          lookEditable={canSetLook(ws, areas)}
+        />
       ) : (
         <AboutText workspace={ws} contactReadable={canSetContact(areas)} />
       )}
@@ -265,10 +271,13 @@ function AboutText({
 function AboutForm({
   workspace: ws,
   contactEditable,
+  lookEditable,
 }: {
   workspace: Workspace;
   /** The brain lets an Admin user set the contact, nobody else. */
   contactEditable: boolean;
+  /** The colour and icon field (canSetLook): absent from an older brain. */
+  lookEditable: boolean;
 }) {
   const toast = useToast();
   const actions = useWorkspaceActions();
@@ -351,7 +360,7 @@ function AboutForm({
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
-        <LookField workspace={ws} />
+        {lookEditable ? <LookField workspace={ws} /> : null}
         <Field>
           <FieldLabel htmlFor="workspace-contact">Contact (optional)</FieldLabel>
           {!contactEditable ? (

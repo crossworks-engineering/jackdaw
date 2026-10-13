@@ -77,8 +77,14 @@ export function clampedInt(min: number, max: number) {
   };
 }
 
+/**
+ * `key` null: not known yet (a per-login key before the shell answers).
+ * Nothing is read or written until it is; the value is the fallback, or a
+ * choice made meanwhile, for this page only. A new key takes ITS stored
+ * value (or the fallback), whatever the last key held.
+ */
 export function usePersistedState<T>(
-  key: string,
+  key: string | null,
   fallback: T,
   parse: (s: string) => T | null,
   serialise: (v: T) => string = String,
@@ -87,9 +93,9 @@ export function usePersistedState<T>(
 
   // After hydration, not during it. Storage access itself can throw.
   useEffect(() => {
+    if (key === null) return;
     try {
-      const stored = readStored(window.localStorage.getItem(key), parse, fallback);
-      if (stored !== fallback) setValue(stored);
+      setValue(readStored(window.localStorage.getItem(key), parse, fallback));
     } catch {
       /* no storage — the fallback stands, which is a working screen */
     }
@@ -101,6 +107,7 @@ export function usePersistedState<T>(
   const set = useCallback(
     (v: T) => {
       setValue(v);
+      if (key === null) return;
       try {
         window.localStorage.setItem(key, serialise(v));
       } catch {
