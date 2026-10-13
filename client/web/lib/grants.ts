@@ -179,10 +179,6 @@ export function rowActionsFor(
   return { ...none, write: row.write && row.viaFolder === null, remove: true, writeOffOnly: true };
 }
 
-/** Does this row show controls at all. */
-export const rowHasControls = (a: ReturnType<typeof rowActions>) =>
-  a.write || a.remove || a.restore || a.changeHere || a.move;
-
 /** "Add workspace" choices: the Admin workspace first for an Admin user
  *  (21.8: "Add Admin" is the first choice), then by name. */
 export function sortAddable<T extends { wsId: string; name: string }>(
