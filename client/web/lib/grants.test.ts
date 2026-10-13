@@ -140,7 +140,7 @@ describe('rows', () => {
 });
 
 describe('the panel columns', () => {
-  const titles = (r: GrantRow, manage: boolean, moderatesRow = false, type?: string) =>
+  const titles = (r: GrantRow, manage: boolean, moderatesRow = true, type?: string) =>
     rowControlTitles(r, rowActionsFor(r, manage, moderatesRow), manage, type);
 
   it('labels Home, Writable and Revoke', () => {
@@ -168,7 +168,8 @@ describe('the panel columns', () => {
       write: 'Removed here. Restore it first.',
       revoke: 'Removed here already.',
     });
-    expect(titles(row({ write: true }), false)).toEqual({
+    expect(titles(row(), true, false).home).toBe('Only a Moderator of Sales can make it the home.');
+    expect(titles(row({ write: true }), false, false)).toEqual({
       home: 'Only a Moderator of the home can move it.',
       write: 'Can change',
       revoke: 'Only a Moderator can revoke it.',
@@ -308,6 +309,13 @@ describe('who may change a row (contract 10)', () => {
       write: false,
       remove: true,
     });
+  });
+
+  it('a Moderator of the home makes a row the home only where they moderate it too', () => {
+    // The brain answers 403 to a move into a workspace the caller does not moderate.
+    expect(rowActionsFor(row(), true, true).move).toBe(true);
+    expect(rowActionsFor(row(), true, false)).toMatchObject({ move: false, remove: true });
+    expect(rowActionsFor(row({ isHome: true }), true, true).move).toBe(false);
   });
 
   it('not on the home, a removed row or a row they do not moderate', () => {

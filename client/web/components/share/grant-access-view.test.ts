@@ -85,12 +85,16 @@ function view(over: Partial<GrantsView> = {}): GrantsView {
   };
 }
 
+/** The workspaces the user moderates, by default every one in view(). */
+const MODERATES_ALL: ReadonlySet<string> = new Set(['team', 'sales', 'board', 'ops', 'admin']);
+
 const render = (v: GrantsView, extra: Record<string, unknown> = {}) =>
   renderToStaticMarkup(
     createElement(GrantAccessView, {
       view: v,
       busy: false,
       adminWsId: 'admin',
+      moderated: MODERATES_ALL,
       ...handlers,
       ...extra,
     }),
@@ -113,11 +117,15 @@ const rowsOf = (html: string) =>
 
 /** The panel's Home radio group, found in the element tree (the view uses
  *  no hooks, so calling it returns the tree to read its handlers from). */
-function homeGroup(v: GrantsView, extra: Partial<GrantAccessHandlers> & { busy?: boolean } = {}) {
+function homeGroup(
+  v: GrantsView,
+  extra: Partial<GrantAccessHandlers> & { busy?: boolean; moderated?: ReadonlySet<string> } = {},
+) {
   const tree = GrantAccessView({
     view: v,
     busy: false,
     adminWsId: 'admin',
+    moderated: MODERATES_ALL,
     ...handlers,
     ...extra,
   });
@@ -253,6 +261,26 @@ describe('GrantAccessView Home radio', () => {
     expect(html).toContain(HOME_ADD_FIRST_TEXT);
     expect(render(view({ addable: [] }))).not.toContain(HOME_ADD_FIRST_TEXT);
   });
+
+  it('a row the user does not moderate cannot become the home, and says why', () => {
+    // The brain moves an item only into a workspace the caller moderates.
+    const moderated = new Set(['team', 'sales']);
+    const rows = rowsOf(render(view(), { moderated }));
+    const ops = rows.find((r) => r.includes('>Ops<'))!;
+    expect(off(ops, 'Make Ops the home')).toBe(true);
+    expect(ops).toContain('title="Only a Moderator of Ops can make it the home."');
+    expect(
+      on(
+        rows.find((r) => r.includes('>Sales<'))!,
+        'Make Sales the home',
+      ),
+    ).toBe(true);
+    const onMove = vi.fn();
+    homeGroup(view(), { onMove, moderated }).onValueChange('ops');
+    expect(onMove).not.toHaveBeenCalled();
+    homeGroup(view(), { onMove }).onValueChange('ops');
+    expect(onMove).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('GrantAccessView for a Moderator', () => {
@@ -350,6 +378,7 @@ describe('GrantAccessView read only', () => {
       app: { mcpAccess: false },
       embedsNotGranted: [{ nodeId: 'e1', title: 'Site photo', kind: 'file' }],
     }),
+    { moderated: new Set() },
   );
 
   it('says who can change it and shows the rows', () => {

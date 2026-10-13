@@ -105,7 +105,8 @@ export function GrantAccessView({
   // (it confirms first), and the rows come back with the new home once moved.
   const pickHome = (wsId: string) => {
     const row = rows.find((r) => r.wsId === wsId);
-    if (!row || row.isHome || row.excluded || !manage || busy) return;
+    if (!row || busy) return;
+    if (!rowActionsFor(row, manage, moderated?.has(row.wsId) === true).move) return;
     on.onMove({ wsId: row.wsId, name: row.name });
   };
 
@@ -198,7 +199,7 @@ export function GrantAccessView({
                   <span className="flex justify-center" title={titles.home}>
                     <RadioGroupItem
                       value={row.wsId}
-                      disabled={busy || !manage || !(row.isHome || can.move)}
+                      disabled={busy || !(row.isHome ? manage : can.move)}
                       aria-label={row.isHome ? titles.home : `Make ${row.name} the home`}
                     />
                   </span>

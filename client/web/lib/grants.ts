@@ -158,15 +158,20 @@ export function rowActions(row: GrantRow): {
 
 /**
  * What a row offers this user (contract change 10). A Moderator of the
- * item's home gets rowActions. A Moderator of only that row's workspace may
- * remove the row or turn its Write off, nothing more. Anyone else reads.
+ * item's home gets rowActions, except that a row becomes the home only
+ * where they moderate it too (the brain's move answers 403 otherwise). A
+ * Moderator of only that row's workspace may remove the row or turn its
+ * Write off, nothing more. Anyone else reads.
  */
 export function rowActionsFor(
   row: GrantRow,
   manage: boolean,
   moderatesRow: boolean,
 ): ReturnType<typeof rowActions> & { writeOffOnly: boolean } {
-  if (manage) return { ...rowActions(row), writeOffOnly: false };
+  if (manage) {
+    const a = rowActions(row);
+    return { ...a, move: a.move && moderatesRow, writeOffOnly: false };
+  }
   const none = { write: false, remove: false, restore: false, changeHere: false, move: false };
   if (!moderatesRow || row.isHome || row.excluded) {
     return { ...none, writeOffOnly: false };
@@ -223,7 +228,9 @@ export function rowControlTitles(
       ? RESTORE_FIRST
       : can.move
         ? `Make ${row.name} the home`
-        : 'Only a Moderator of the home can move it.';
+        : manage
+          ? `Only a Moderator of ${row.name} can make it the home.`
+          : 'Only a Moderator of the home can move it.';
   const write = can.write
     ? writeLabel(type, row.name)
     : row.excluded
