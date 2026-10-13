@@ -235,16 +235,20 @@ export function rowControlTitles(
     ? writeLabel(type, row.name)
     : row.excluded
       ? RESTORE_FIRST
-      : manage && row.viaFolder
-        ? `${writeWord(row.write)}: set by the folder. Change here first.`
+      : row.viaFolder && (manage || can.writeOffOnly)
+        ? `${writeWord(row.write)}: set by the folder.${manage ? ' Change here first.' : ''}`
         : writeWord(row.write);
+  // The brain removes a row for a Moderator of the item's home or of that
+  // row's workspace (removeGrant), and never the home row itself.
   const revoke = can.remove
     ? `Revoke ${row.name}`
     : row.isHome
-      ? 'The home stays. Pick another home first.'
+      ? manage
+        ? 'The home stays. Pick another home first.'
+        : 'The home stays.'
       : row.excluded
         ? 'Removed here already.'
-        : 'Only a Moderator can revoke it.';
+        : `Only a Moderator of the home or of ${row.name} can revoke it.`;
   return { home, write, revoke };
 }
 

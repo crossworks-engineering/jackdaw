@@ -172,8 +172,14 @@ describe('the panel columns', () => {
     expect(titles(row({ write: true }), false, false)).toEqual({
       home: 'Only a Moderator of the home can move it.',
       write: 'Can change',
-      revoke: 'Only a Moderator can revoke it.',
+      revoke: 'Only a Moderator of the home or of Sales can revoke it.',
     });
+    // A reader is not told to pick another home: they cannot.
+    expect(titles(row({ isHome: true }), false, false).revoke).toBe('The home stays.');
+    // A Moderator of only that row reads why its folder switch is off.
+    const viaFolder = row({ write: true, viaFolder: { id: 'f', title: 'F' } });
+    expect(titles(viaFolder, false, true).write).toBe('Can change: set by the folder.');
+    expect(titles(viaFolder, false, false).write).toBe('Can change');
   });
 
   it('the Home confirm names the new home and who will manage it', () => {
