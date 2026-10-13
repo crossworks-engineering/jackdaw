@@ -25,7 +25,7 @@ export type ToolAccessCopy = {
 
 const MARK: ToolAccessCopy = {
   label: 'Read-only',
-  hint: 'Marks this connector tool as one that only reads. Who may use it is set on each workspace screen (Connectors). Without the mark the tool counts as changing data: it runs only in a workspace with the connector’s Write tick on, for that workspace’s Moderators, on MCP too. Open links never use it.',
+  hint: 'Marks this connector tool as one that only reads. Who may use it is set on each workspace screen (Connectors). Without the mark the tool counts as changing data: it runs only in a workspace with the connector’s Writable switch on, for that workspace’s Moderators, on MCP too. Open links never use it.',
   warn: 'Every user of a workspace that holds the connector can call its tools by hand, with any input. If a tool takes free SQL, they can read anything the connector can read.',
   stale:
     'This tool changed after it was marked, so users and apps cannot use it now. Mark it again to confirm the new version.',

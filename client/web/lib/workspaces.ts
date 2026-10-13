@@ -499,9 +499,17 @@ export type ResourceKind = {
   label: string;
   /** One of them, in a sentence. */
   noun: string;
-  /** What the Write tick means for this type. */
+  /** What the Writable switch means for this type. */
   writeHint: string;
 };
+
+/** A resource's write column, its switch and its word on the read view
+ *  (the grant panel's word). */
+export const WRITABLE_LABEL = 'Writable';
+
+/** Under an Admin user's name in a workspace's Users: why their Moderator
+ *  tick is on and fixed. */
+export const ADMIN_USER_MODERATOR_TEXT = 'Admin user: a Moderator here';
 
 export const RESOURCE_KINDS: readonly ResourceKind[] = [
   {
@@ -509,7 +517,7 @@ export const RESOURCE_KINDS: readonly ResourceKind[] = [
     label: 'Connectors',
     noun: 'connector',
     writeHint:
-      'Write on: Moderators can use the tools that change data. Off, or for other users: read tools only.',
+      'Writable on: Moderators can use the tools that change data. Off, or for other users: read tools only.',
   },
 ];
 

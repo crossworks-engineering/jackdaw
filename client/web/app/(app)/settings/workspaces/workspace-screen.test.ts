@@ -15,6 +15,7 @@ import { ToastProvider } from '@mantle/web-ui/ui/toast';
 import {
   ADMIN_ADD_TEXT,
   ADMIN_MODERATED_TEXT,
+  ADMIN_USER_MODERATOR_TEXT,
   BUILT_IN_NAME_HINT,
   HAS_HISTORY_TEXT,
   MODERATOR_TICK_ADMIN_ONLY_TEXT,
@@ -28,7 +29,7 @@ import {
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/settings/workspaces' }));
 
-const { WorkspaceScreen, WorkspaceSections } = await import('./workspace-screen');
+const { WORKSPACE_GRID, WorkspaceScreen, WorkspaceSections } = await import('./workspace-screen');
 const { TEAM_SETTINGS_KEY, READ_POSTURE_TEXT } =
   await import('@/components/workspaces/team-settings-query');
 
@@ -156,7 +157,8 @@ describe('WorkspaceSections, Admin user view', () => {
   it('a Moderator tick per user; an Admin user kept in Team is fixed, even for an Admin user', () => {
     expect(html).toContain('id="workspace-moderator-l-ann"');
     expect(html).toContain('id="workspace-moderator-l-bo"');
-    expect(html).toContain('Moderator (Admin user)');
+    expect(html).toContain(ADMIN_USER_MODERATOR_TEXT);
+    expect(html).toContain('aria-label="Moderator: Ann Lee"');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*id="workspace-moderator-l-own"/);
     expect(html).toContain('aria-label="Remove Ann Lee"');
     expect(html).toContain('aria-label="Remove bo@x.test"');
@@ -168,14 +170,26 @@ describe('WorkspaceSections, Admin user view', () => {
     expect(html).toContain(`title="${REMOVE_ADMIN_KEPT_TEXT}"`);
   });
 
-  it('every user row keeps the same trailing slot, so the ticks line up (task 19790beb)', () => {
+  it('every user row keeps the same columns, so the ticks line up (task 19790beb)', () => {
     const rows = html.split('data-testid="workspace-user"').slice(1);
     expect(rows.length).toBeGreaterThan(1);
     for (const row of rows) {
-      // The fixed-width tick cell, then the Remove slot.
-      expect(row).toMatch(/class="flex w-44 shrink-0 items-center gap-2"/);
+      // The tick, then the Remove slot, in the section's one grid.
+      expect(row).toMatch(/role="checkbox"/);
       expect(row).toMatch(/aria-label="Remove /);
+      expect(row.indexOf('role="checkbox"')).toBeLessThan(row.indexOf('aria-label="Remove '));
     }
+  });
+
+  it('one grid for the headers and every row: Moderator and Writable, each with Remove', () => {
+    const headers = html.match(/<div[^>]*data-testid="workspace-columns"[^>]*>.*?<\/div>/g) ?? [];
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).toContain('aria-hidden');
+    expect(headers[0]!.indexOf('>Moderator<')).toBeLessThan(headers[0]!.indexOf('>Remove<'));
+    expect(headers[1]!.indexOf('>Writable<')).toBeLessThan(headers[1]!.indexOf('>Remove<'));
+    const users = html.split('data-testid="workspace-user"').length - 1;
+    const resources = html.split('data-testid="workspace-resource"').length - 1;
+    expect(html.split(`class="${WORKSPACE_GRID}`).length - 1).toBe(2 + users + resources);
   });
 
   it('picks a colour and icon with the folder picker, from a brain that sends the look (task 5edc9149)', () => {
@@ -213,13 +227,16 @@ describe('WorkspaceSections, Admin user view', () => {
     expect(html).toMatch(/role="combobox"[^>]*disabled=""[^>]*id="workspace-assistant-pick"/);
   });
 
-  it('lists connectors with a Write tick, and offers the ones not added', () => {
-    expect(html).toContain('id="workspace-write-connector-drive"');
+  it('lists connectors with a Writable switch, and offers the ones not added', () => {
+    expect(html).toMatch(/role="switch"[^>]*id="workspace-write-connector-drive"/);
+    expect(html).toContain('aria-label="Writable: Drive"');
+    expect(html).toContain('Writable on: Moderators can use the tools that change data.');
+    expect(html).not.toContain('>Write<');
     expect(html).toContain('aria-label="Remove Drive"');
     expect(html).toContain('Add a connector');
   });
 
-  it('every connector row has its Write tick and Remove (no bridge lock)', () => {
+  it('every connector row has its Writable switch and Remove (no bridge lock)', () => {
     expect(html).toContain('id="workspace-write-connector-mail"');
     expect(html).toContain('aria-label="Remove Mail"');
     expect(html).not.toMatch(/connector level/);
@@ -368,9 +385,11 @@ describe('WorkspaceSections, plain user view', () => {
     expect(html).not.toContain('Add a connector');
   });
 
-  it('shows who moderates, and Write as a word', () => {
+  it('shows who moderates, and Writable as a word, with no column headers', () => {
     expect(html).toContain('>Moderator<');
-    expect(html).toContain('>Write<');
+    expect(html).toContain('>Writable<');
+    expect(html).not.toContain('>Write<');
+    expect(html).not.toContain('data-testid="workspace-columns"');
   });
 
   it('a set contact reads as set, with no request for it (contacts are an Admin screen)', () => {

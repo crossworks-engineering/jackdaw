@@ -18,6 +18,8 @@ import {
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Checkbox } from '@mantle/web-ui/ui/checkbox';
+import { Switch } from '@mantle/web-ui/ui/switch';
+import { cn } from '@mantle/web-ui/lib/utils';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@mantle/web-ui/ui/field';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
 import { Input } from '@mantle/web-ui/ui/input';
@@ -45,8 +47,10 @@ import {
 import {
   ADMIN_ADD_TEXT,
   ADMIN_MODERATED_TEXT,
+  ADMIN_USER_MODERATOR_TEXT,
   HAS_HISTORY_TEXT,
   RESOURCE_KINDS,
+  WRITABLE_LABEL,
   addableHits,
   addableResources,
   archiveBlocked,
@@ -100,7 +104,7 @@ const NO_ASSISTANT = 'none';
  * workspace. Its sections, top to bottom: name, description, look (colour
  * and icon, task 5edc9149: whoever may rename it) and contact;
  * users with a Moderator tick; the assistant (at most one); then one section
- * per resource type (connectors in W5a), each row with a Write tick. The
+ * per resource type (connectors in W5a), each row with a Writable switch. The
  * built-in Team workspace ends with the Team settings, for an Admin user.
  *
  * Who sees what: a Moderator of the workspace, or a login with the Users and
@@ -448,6 +452,28 @@ function LookField({ workspace: ws }: { workspace: Workspace }) {
   );
 }
 
+// ── Columns ─────────────────────────────────────────────────────────────────
+
+/** One grid for a section's header and its rows (the grant panel's rule):
+ *  the name, then a control column, then Remove, so the controls line up on
+ *  every row and across the Users and Connectors sections. */
+export const WORKSPACE_GRID = 'grid grid-cols-[minmax(0,1fr)_5rem_3rem] items-center gap-x-2';
+
+/** The small muted labels over a section's control columns. */
+function ColumnHeader({ control }: { control: string }) {
+  return (
+    <div
+      aria-hidden
+      data-testid="workspace-columns"
+      className={cn(WORKSPACE_GRID, 'text-xs text-muted-foreground')}
+    >
+      <span />
+      <span className="text-center">{control}</span>
+      <span className="text-center">Remove</span>
+    </div>
+  );
+}
+
 // ── Users ───────────────────────────────────────────────────────────────────
 
 function UsersSection({
@@ -483,20 +509,23 @@ function UsersSection({
       {users.length === 0 ? (
         <p className="text-sm text-muted-foreground">No users.</p>
       ) : (
-        <ul className="divide-y divide-border">
-          {users.map((u) => (
-            <UserRow
-              key={u.loginId}
-              workspaceId={ws.id}
-              user={u}
-              manage={manage}
-              changeable={manage && canChangeUser(u)}
-              tickBlocked={canTickModerator(areas) ? null : MODERATOR_TICK_ADMIN_ONLY_TEXT}
-              removeBlocked={removeBlockedReason(ws, u, viewer, areas)}
-              onRemove={() => setRemoving(u)}
-            />
-          ))}
-        </ul>
+        <div>
+          {manage ? <ColumnHeader control="Moderator" /> : null}
+          <ul className="divide-y divide-border">
+            {users.map((u) => (
+              <UserRow
+                key={u.loginId}
+                workspaceId={ws.id}
+                user={u}
+                manage={manage}
+                changeable={manage && canChangeUser(u)}
+                tickBlocked={canTickModerator(areas) ? null : MODERATOR_TICK_ADMIN_ONLY_TEXT}
+                removeBlocked={removeBlockedReason(ws, u, viewer, areas)}
+                onRemove={() => setRemoving(u)}
+              />
+            ))}
+          </ul>
+        </div>
       )}
       {manage ? (
         <AddUser detail={detail} min={userSearchMin(areas)} paged={userSearchPaged(areas)} />
@@ -553,46 +582,50 @@ function UserRow({
   };
 
   return (
-    <li className="flex items-center gap-3 py-2" data-testid="workspace-user">
+    <li
+      className={manage ? cn(WORKSPACE_GRID, 'py-2') : 'flex items-center gap-3 py-2'}
+      data-testid="workspace-user"
+    >
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{label}</div>
         {u.name?.trim() ? (
           <div className="truncate text-xs text-muted-foreground">{u.email}</div>
         ) : null}
         {added ? <div className="truncate text-xs text-muted-foreground">{added}</div> : null}
+        {manage && u.adminViaArea ? (
+          <div className="text-xs text-muted-foreground">{ADMIN_USER_MODERATOR_TEXT}</div>
+        ) : null}
       </div>
       {manage ? (
-        // A fixed width, the tick first: the ticks line up on every row
-        // whatever the label says (task 19790beb).
-        // Off for anyone but an Admin user, with why as its tooltip (on the
-        // wrapper: a disabled box takes no pointer) and its description.
-        <div className="flex w-44 shrink-0 items-center gap-2" title={tickBlocked ?? undefined}>
+        // The Moderator column: the tick centred under its label on every
+        // row (task 19790beb). Off for anyone but an Admin user, with why as
+        // its tooltip (on the cell: a disabled box takes no pointer) and its
+        // description.
+        <span className="flex justify-center" title={tickBlocked ?? `Moderator: ${label}`}>
           <Checkbox
             id={tickId}
             checked={u.moderator || u.adminViaArea}
             disabled={pending || !changeable || tickBlocked !== null}
+            aria-label={`Moderator: ${label}`}
             aria-describedby={tickBlocked ? `${tickId}-why` : undefined}
             onCheckedChange={(v) => void setModerator(v === true)}
           />
-          <label htmlFor={tickId} className="text-xs">
-            {u.adminViaArea ? 'Moderator (Admin user)' : 'Moderator'}
-          </label>
           {tickBlocked ? (
             <span id={`${tickId}-why`} className="sr-only">
               {tickBlocked}
             </span>
           ) : null}
-        </div>
+        </span>
       ) : u.moderator || u.adminViaArea ? (
         <Badge variant="outline" className="shrink-0">
           Moderator
         </Badge>
       ) : null}
       {manage ? (
-        // The trailing slot every row keeps: Remove, or Remove dimmed with
-        // why it is off (its tooltip on the wrapper: a disabled button takes
-        // no pointer).
-        <span className="inline-flex shrink-0" title={removeBlocked ?? `Remove ${label}`}>
+        // The Remove column every row keeps: Remove, or Remove dimmed with
+        // why it is off (its tooltip on the cell: a disabled button takes no
+        // pointer).
+        <span className="flex justify-center" title={removeBlocked ?? `Remove ${label}`}>
           <Button
             type="button"
             size="icon-sm"
@@ -900,16 +933,19 @@ function ResourceSection({
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No {spec.noun}s.</p>
       ) : (
-        <ul className="divide-y divide-border">
-          {rows.map((r) => (
-            <ResourceRow
-              key={`${r.kind}:${r.id}`}
-              workspaceId={detail.workspace.id}
-              resource={r}
-              manage={manage}
-            />
-          ))}
-        </ul>
+        <div>
+          {manage ? <ColumnHeader control={WRITABLE_LABEL} /> : null}
+          <ul className="divide-y divide-border">
+            {rows.map((r) => (
+              <ResourceRow
+                key={`${r.kind}:${r.id}`}
+                workspaceId={detail.workspace.id}
+                resource={r}
+                manage={manage}
+              />
+            ))}
+          </ul>
+        </div>
       )}
       {/* Admin and Team attach connectors here like any workspace (contract 24). */}
       {manage && spec.kind === 'connector' ? <AddConnector detail={detail} spec={spec} /> : null}
@@ -944,44 +980,46 @@ function ResourceRow({
   };
 
   return (
-    <li className="flex items-center gap-3 py-2" data-testid="workspace-resource">
+    <li
+      className={editable ? cn(WORKSPACE_GRID, 'py-2') : 'flex items-center gap-3 py-2'}
+      data-testid="workspace-resource"
+    >
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{r.name}</div>
       </div>
       {editable ? (
-        <div className="flex shrink-0 items-center gap-2">
-          <Checkbox
+        <span className="flex justify-center" title={`${WRITABLE_LABEL}: ${r.name}`}>
+          <Switch
             id={tickId}
             checked={r.write}
             disabled={pending}
+            aria-label={`${WRITABLE_LABEL}: ${r.name}`}
             onCheckedChange={(v) =>
-              void run(() => actions.setResourceWrite(workspaceId, r.kind, r.id, v === true))
+              void run(() => actions.setResourceWrite(workspaceId, r.kind, r.id, v))
             }
           />
-          <label htmlFor={tickId} className="text-xs">
-            Write
-          </label>
-        </div>
+        </span>
       ) : r.write ? (
         <Badge variant="outline" className="shrink-0">
-          Write
+          {WRITABLE_LABEL}
         </Badge>
       ) : (
         <span className="shrink-0 text-xs text-muted-foreground">Read only</span>
       )}
       {editable ? (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={`Remove ${r.name}`}
-          title={`Remove ${r.name}`}
-          disabled={pending}
-          className="shrink-0 text-muted-foreground hover:text-destructive-ink"
-          onClick={() => void run(() => actions.removeResource(workspaceId, r.kind, r.id))}
-        >
-          <X />
-        </Button>
+        <span className="flex justify-center" title={`Remove ${r.name}`}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Remove ${r.name}`}
+            disabled={pending}
+            className="text-muted-foreground hover:text-destructive-ink"
+            onClick={() => void run(() => actions.removeResource(workspaceId, r.kind, r.id))}
+          >
+            <X />
+          </Button>
+        </span>
       ) : null}
     </li>
   );

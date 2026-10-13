@@ -97,4 +97,4 @@ export function wasInTrash(app: object): boolean {
 
 /** The hint under the Access panel: what a workspace grant means for an app. */
 export const APP_SHARE_HINT =
-  'Users in a workspace it is shared with can run the app and use its Mantle tools. With Write on, they also change its data. Every action is audited to that user. An open link can only read the app’s own data.';
+  'Users in a workspace it is shared with can run the app and use its Mantle tools. With Writable on, they also change its data. Every action is audited to that user. An open link can only read the app’s own data.';
