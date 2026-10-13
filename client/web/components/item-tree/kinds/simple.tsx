@@ -10,13 +10,12 @@ import {
 } from 'lucide-react';
 import type { TreeItem, TreeKind } from '@mantle/web-ui/types/tree';
 import { StatePill } from '@/components/item-list/state-pill';
-import { WorkspaceChips } from '@/components/share/workspace-chips';
 import type { TreeKindAdapter } from './types';
 
 /**
  * The kinds whose rows need nothing of their own: the kind's glyph, the title,
- * then the state pill or the level, and the short `subtype` token when the
- * brain sends one (a secret's kind).
+ * then the state pill, and the short `subtype` token when the brain sends one
+ * (a secret's kind). The share marks are the row's (TreeName), every kind's.
  */
 function simpleAdapter(
   kind: TreeKind,
@@ -38,11 +37,7 @@ function simpleAdapter(
 function SimpleStatus({ item }: { item: TreeItem }) {
   return (
     <>
-      {item.state ? (
-        <StatePill state={item.state} className="px-1.5 py-0 text-[10px]" />
-      ) : (
-        <WorkspaceChips item={item} compact />
-      )}
+      {item.state && <StatePill state={item.state} className="px-1.5 py-0 text-[10px]" />}
       {item.subtype && (
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {item.subtype}

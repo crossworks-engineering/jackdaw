@@ -17,6 +17,8 @@ import {
   ADMIN_MODERATED_TEXT,
   BUILT_IN_NAME_HINT,
   HAS_HISTORY_TEXT,
+  REMOVE_ADMIN_KEPT_TEXT,
+  REMOVE_SELF_ADMIN_TEXT,
   workspaceKey,
   type Workspace,
   type WorkspaceDetail,
@@ -157,6 +159,27 @@ describe('WorkspaceSections, Admin user view', () => {
     expect(html).toContain('aria-label="Remove Ann Lee"');
     expect(html).toContain('aria-label="Remove bo@x.test"');
     expect(html).not.toContain('aria-label="Remove Owner"');
+    // Its Remove keeps its slot, dimmed and off, saying why (task 19790beb).
+    expect(html).toMatch(
+      new RegExp(`disabled=""[^>]*aria-label="Remove Owner: ${REMOVE_ADMIN_KEPT_TEXT}"`),
+    );
+    expect(html).toContain(`title="${REMOVE_ADMIN_KEPT_TEXT}"`);
+  });
+
+  it('every user row keeps the same trailing slot, so the ticks line up (task 19790beb)', () => {
+    const rows = html.split('data-testid="workspace-user"').slice(1);
+    expect(rows.length).toBeGreaterThan(1);
+    for (const row of rows) {
+      // The fixed-width tick cell, then the Remove slot.
+      expect(row).toMatch(/class="flex w-44 shrink-0 items-center gap-2"/);
+      expect(row).toMatch(/aria-label="Remove /);
+    }
+  });
+
+  it('picks a colour and icon with the folder picker (task 5edc9149)', () => {
+    expect(html).toContain('id="workspace-look"');
+    expect(html).toContain('Change colour and icon');
+    expect(html).toContain('Shown in the workspace switcher and on the share marks of items.');
   });
 
   it('says who added each user, and when', () => {
@@ -525,6 +548,7 @@ describe('the Admin workspace: your own row', () => {
       },
     );
     expect(html).not.toContain('aria-label="Remove Me"');
+    expect(html).toContain(`aria-label="Remove Me: ${REMOVE_SELF_ADMIN_TEXT}"`);
     expect(html).toContain('aria-label="Remove Other"');
   });
 });

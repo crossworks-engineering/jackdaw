@@ -1,6 +1,7 @@
 'use client';
 
 import { WorkspaceChips } from '@/components/share/workspace-chips';
+import { hasShareMarks } from '@/lib/grants';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import {
   useCallback,
@@ -47,8 +48,10 @@ import { rowTabIndex, useTreeCtx, type DragData } from './tree-context';
 /**
  * The rows of the item tree. Every row is one line, 32px high: an optional
  * drag grip (manage mode, on hover), the dotted guides, a lead, the title and
- * a small status slot, and the "…" menu (on hover and right-click). A folder
- * row has a chevron, its tile, its name and its count.
+ * its share marks (TreeName), a small status slot, and the "…" menu (on hover
+ * and right-click). A folder row has a chevron, its tile, its name and its
+ * count. With the shares shown (the header's toggle) a row that has any
+ * grows a second line: its share pills under the name.
  *
  * The tree is flattened (tree-model's `flattenTree`) and drawn through one
  * virtual list, so only the rows near the viewport exist, however many
@@ -453,10 +456,36 @@ export function TreeRowShell({
   );
 }
 
-/** The shared mark on a folder row: its workspaces as chips, and the
- *  public pill (W5b2). The old level glyph is gone with the levels. */
-export function ShareGlyph({ folder }: { folder: unknown; selected?: boolean }) {
-  return <WorkspaceChips item={folder} compact />;
+/**
+ * A row's name and its share marks (task ca907a89): the ONE place a tree
+ * row draws the workspaces of an item or a folder, for every kind. Shares
+ * hidden: each workspace's icon in its colour beside the name, which keeps
+ * the name its width. Shown: the workspaces as small pills in their colours
+ * under the name. The status slot and a folder's count stay the row's own.
+ */
+export function TreeName({ name, marks }: { name: string; marks: unknown }) {
+  const { showShares } = useTreeCtx();
+  if (showShares && hasShareMarks(marks)) {
+    return (
+      <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 py-1">
+        <span className="max-w-full truncate">{name}</span>
+        {/* Wrapped, never cut: a narrow tree gives a pill a line of its own. */}
+        <WorkspaceChips item={marks} compact className="max-w-full flex-wrap" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+      <span className="min-w-0 truncate">{name}</span>
+      <WorkspaceChips item={marks} variant="icons" />
+    </span>
+  );
+}
+
+/** A row two lines high when its share pills show under the name. */
+function useRowHeight(marks: unknown): string | false {
+  const { showShares } = useTreeCtx();
+  return !!showShares && hasShareMarks(marks) && 'h-auto min-h-8';
 }
 
 /** A folder's face: its tile, or the neutral folder glyph. */
@@ -539,6 +568,7 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
   const selected = ctx.selectedFolderPath === folder.path;
   const disabled = ctx.folderDisabled?.(folder) ?? false;
   const drag: DragData = { type: 'folder', folder, parent, siblings };
+  const tall = useRowHeight(folder);
   return (
     <TreeRowShell
       rowKey={row.key}
@@ -567,6 +597,7 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
             style={style}
             className={cn(
               ROW_BUTTON,
+              tall,
               'pr-14',
               selected
                 ? 'bg-accent font-medium text-accent-foreground'
@@ -574,8 +605,7 @@ function FolderRow({ row }: { row: Extract<TreeRow, { type: 'folder' }> }) {
             )}
           >
             <FolderTile folder={folder} />
-            <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-            <ShareGlyph folder={folder} selected={selected} />
+            <TreeName name={folder.name} marks={folder} />
             {!picker && folder.itemCount > 0 && (
               <span
                 className={cn(
@@ -652,6 +682,7 @@ export function ItemRow({
       ? { type: 'item', item, parent: parent ?? null }
       : undefined;
   const carried = picked ? ctx.picked.size : 1;
+  const tall = useRowHeight(item);
   return (
     <TreeRowShell
       rowKey={rowKey}
@@ -687,6 +718,7 @@ export function ItemRow({
           data-mark-label={item.title}
           className={cn(
             ROW_BUTTON,
+            tall,
             selected
               ? 'bg-accent text-accent-foreground'
               : picked
@@ -696,7 +728,7 @@ export function ItemRow({
           )}
         >
           {ctx.adapter.lead(item)}
-          <span className="min-w-0 flex-1 truncate">{item.title}</span>
+          <TreeName name={item.title} marks={item} />
           {place !== null ? (
             place && (
               <span className="max-w-[45%] shrink truncate text-[11px] text-muted-foreground">
@@ -726,6 +758,7 @@ export function FolderHitRow({
 }) {
   const ctx = useTreeCtx();
   const place = crumbLine(crumbs);
+  const tall = useRowHeight(folder);
   return (
     <RowButton
       onClick={onClick}
@@ -737,11 +770,14 @@ export function FolderHitRow({
       onFocus={() => ctx.onRowFocus?.(rowKey)}
       title={place ? `${place} / ${folder.name}` : folder.name}
       style={{ paddingLeft: TREE_ROW_PAD }}
-      className={cn(ROW_BUTTON, 'pr-2 font-medium text-foreground/85 hover:bg-foreground/[0.06]')}
+      className={cn(
+        ROW_BUTTON,
+        tall,
+        'pr-2 font-medium text-foreground/85 hover:bg-foreground/[0.06]',
+      )}
     >
       <FolderTile folder={folder} />
-      <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-      <ShareGlyph folder={folder} />
+      <TreeName name={folder.name} marks={folder} />
       {place && (
         <span className="max-w-[45%] shrink truncate text-[11px] font-normal text-muted-foreground">
           {place}

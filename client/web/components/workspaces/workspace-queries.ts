@@ -14,6 +14,7 @@ import {
   type Workspace,
   type WorkspaceDetail,
 } from '@/lib/workspaces';
+import type { WorkspacePatchBody } from '@/lib/contract/workspaces';
 
 const base = '/api/workspaces';
 const one = (id: string) => `${base}/${encodeURIComponent(id)}`;
@@ -102,16 +103,8 @@ export function useWorkspaceActions() {
   return {
     create: (body: { name: string; description?: string }) =>
       after<Workspace>(undefined)(apiSend<Workspace>(base, 'POST', body)),
-    update: (
-      id: string,
-      body: {
-        name?: string;
-        description?: string;
-        contactNodeId?: string | null;
-        assistantId?: string | null;
-        landingAppId?: string | null;
-      },
-    ) => after<unknown>(id)(apiSend(one(id), 'PATCH', body)),
+    update: (id: string, body: WorkspacePatchBody) =>
+      after<unknown>(id)(apiSend(one(id), 'PATCH', body)),
     archive: (id: string) => after<unknown>(id)(apiSend(`${one(id)}/archive`, 'POST')),
     // `moderator` only when asked for: left out, the brain's default applies
     // (a Moderator in Admin, plan S1; Admin users in Team; else not).

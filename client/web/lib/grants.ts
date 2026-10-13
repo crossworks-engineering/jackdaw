@@ -223,6 +223,12 @@ export function workspacesOf(row: unknown): WorkspaceRef[] {
   );
 }
 
+/** Whether a row has any share mark to show: a workspace, or an open link
+ *  (the "public" mark). */
+export function hasShareMarks(row: unknown): boolean {
+  return workspacesOf(row).length > 0 || (row as { hasLink?: unknown } | null)?.hasLink === true;
+}
+
 /** At most `max` chips, then "+N". The title names them all. */
 export function chipsOf(
   workspaces: readonly WorkspaceRef[],

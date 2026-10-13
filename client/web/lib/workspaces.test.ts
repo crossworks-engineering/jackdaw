@@ -23,6 +23,9 @@ import {
   removeUserText,
   BUILT_IN_NAME_HINT,
   canRemoveUser,
+  removeBlockedReason,
+  REMOVE_ADMIN_KEPT_TEXT,
+  REMOVE_SELF_ADMIN_TEXT,
   isBuiltIn,
   isTeamWorkspace,
   showsTeamSettings,
@@ -318,6 +321,18 @@ describe('who may change what', () => {
     expect(canRemoveUser({ isAdmin: true }, { email: 'b@x.test' }, 'me@x.test')).toBe(true);
     expect(canRemoveUser({ isAdmin: false }, { email: 'me@x.test' }, 'me@x.test')).toBe(true);
     expect(canRemoveUser({ isAdmin: true }, { email: 'me@x.test' }, null)).toBe(true);
+  });
+
+  it('why Remove is off: an Admin user kept here, or your own row in Admin (task 19790beb)', () => {
+    const user = (email: string, adminViaArea = false) => ({ email, adminViaArea });
+    expect(removeBlockedReason({ isAdmin: false }, user('a@x.test', true), 'me@x.test')).toBe(
+      REMOVE_ADMIN_KEPT_TEXT,
+    );
+    expect(removeBlockedReason({ isAdmin: true }, user('Me@x.test'), 'me@X.test')).toBe(
+      REMOVE_SELF_ADMIN_TEXT,
+    );
+    expect(removeBlockedReason({ isAdmin: true }, user('b@x.test'), 'me@x.test')).toBeNull();
+    expect(removeBlockedReason({ isAdmin: false }, user('me@x.test'), 'me@x.test')).toBeNull();
   });
 
   it('the contact is set by an Admin user; the assistant needs the Assistants area', () => {

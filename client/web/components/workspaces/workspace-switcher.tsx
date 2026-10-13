@@ -29,6 +29,7 @@ import {
 } from '@/lib/workspaces';
 import { useCurrentWorkspace } from '@/lib/workspace-current';
 import { useShellWorkspaces } from './use-shell-workspaces';
+import { WorkspaceTile } from './workspace-tile';
 
 export type SwitcherOption = { value: string; label: string; hint: string | null };
 
@@ -98,12 +99,16 @@ export function WorkspaceSwitcherView({
 }) {
   const label = currentWorkspaceLabel(current, workspaces);
   const options = switcherOptions(workspaces);
+  // Each workspace's tile (task 5edc9149); All my workspaces keeps the
+  // stack glyph.
+  const byId = new Map(workspaces.map((w) => [w.id, w]));
+  const picked = byId.get(current);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {variant === 'bar' ? (
           <Button variant="ghost" size="icon" aria-label={`Workspace: ${label}`} title={label}>
-            <Layers />
+            {picked ? <WorkspaceTile workspace={picked} size="sm" /> : <Layers />}
           </Button>
         ) : (
           <RowButton
@@ -116,7 +121,11 @@ export function WorkspaceSwitcherView({
               'group-data-[nav-collapsed=true]/shell:justify-center group-data-[nav-collapsed=true]/shell:gap-0 group-data-[nav-collapsed=true]/shell:px-0',
             )}
           >
-            <Layers className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            {picked ? (
+              <WorkspaceTile workspace={picked} size="sm" />
+            ) : (
+              <Layers className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
             <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground group-data-[nav-collapsed=true]/shell:hidden">
               {label}
             </span>
@@ -135,7 +144,12 @@ export function WorkspaceSwitcherView({
         <DropdownMenuLabel>Workspace</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={current} onValueChange={onChange}>
           {options.map((o) => (
-            <DropdownMenuRadioItem key={o.value} value={o.value}>
+            <DropdownMenuRadioItem key={o.value} value={o.value} className="gap-2">
+              {byId.has(o.value) ? (
+                <WorkspaceTile workspace={byId.get(o.value)} size="sm" />
+              ) : (
+                <Layers className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              )}
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
               {o.hint ? (
                 <span className="ml-2 shrink-0 text-xs text-muted-foreground">{o.hint}</span>

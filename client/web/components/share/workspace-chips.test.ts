@@ -43,6 +43,40 @@ describe('WorkspaceChips', () => {
     expect(chips({ hasLink: false })).toBe('');
   });
 
+  it("each pill in its workspace's colour; none picked, the neutral pill (task 5edc9149)", () => {
+    const html = chips({
+      workspaces: [
+        { id: 't', name: 'Team', color: 'teal', kind: 'team' },
+        { id: 'a', name: 'Admin', color: null, kind: 'admin' },
+      ],
+    });
+    expect(html).toMatch(/bg-app-tint-teal text-app-tint-teal-ink[^>]*>Team</);
+    expect(html).toMatch(/bg-secondary[^>]*>Admin</);
+  });
+
+  it("icons: each workspace's icon in its colour, no names, said for a screen reader (task ca907a89)", () => {
+    const html = chips(
+      {
+        workspaces: [
+          { id: 't', name: 'Team', color: 'teal', icon: 'lucide:rocket', kind: 'team' },
+          { id: 'a', name: 'Admin', kind: 'admin' },
+        ],
+        hasLink: true,
+      },
+      { variant: 'icons' },
+    );
+    expect(html).not.toContain('>Team<');
+    expect(html).toContain('bg-app-tint-teal');
+    expect(html).toContain('<span class="sr-only">Shared with: Admin, Team</span>');
+    expect(html).toContain('Open link');
+    expect(html).not.toContain('>public<');
+  });
+
+  it('icons: four, then +N', () => {
+    const ws = ['A', 'B', 'C', 'D', 'E', 'F'].map((n) => ({ id: n, name: n }));
+    expect(chips({ workspaces: ws }, { variant: 'icons' })).toContain('+2');
+  });
+
   it('compact chips for a tree row', () => {
     expect(chips({ workspaces: [{ id: 't', name: 'Team' }] }, { compact: true })).toContain(
       'text-[10px]',

@@ -35,6 +35,7 @@ import {
 import {
   FolderInput,
   FolderPlus,
+  Layers,
   ListFilter,
   Pin,
   PinOff,
@@ -75,7 +76,8 @@ import {
 import { AppLookPicker } from '@/components/app-nav/app-look-picker';
 import { DeleteFolderDialog, FolderNameDialog } from '@/components/app-nav/folder-dialogs';
 import { useRealtime } from '@/components/realtime/use-realtime';
-import { usePersistedState } from '@/lib/use-persisted-state';
+import { parseFlag, serialiseFlag, usePersistedState } from '@/lib/use-persisted-state';
+import { useShellWorkspaces } from '@/components/workspaces/use-shell-workspaces';
 import type { TreeKindAdapter } from './kinds/types';
 import { newInsideEntry, type NewItemInFolder } from './new-inside';
 import { nodeTypeIcon } from '@/components/search/node-type-icons';
@@ -164,6 +166,12 @@ const SORT_LABEL: Record<TreeSort, string> = {
   start: 'Start',
   due: 'Due',
 };
+
+/** Where the share pills choice is kept: one key per login (the shell names
+ *  it by email; 'me' until the shell has answered). */
+export function sharesPrefKey(login: string | null | undefined): string {
+  return `mantle_tree_shares_v1:${login?.trim().toLowerCase() || 'me'}`;
+}
 
 /** The open-folder set for a kind, merged rather than replaced so the stored
  *  set (read after hydration) and a reveal can arrive in either order. */
@@ -306,6 +314,16 @@ export function ItemTree({
     (s) => (spec.sorts.includes(s as TreeSort) ? (s as TreeSort) : null),
   );
   const [open, setOpen] = useOpenFolders(scope);
+  // Show or hide the share pills (task ca907a89): one choice for every tree,
+  // per login, kept in this browser. Hidden by default: each workspace's icon
+  // beside the name, so names keep their width.
+  const login = useShellWorkspaces()?.login;
+  const [showShares, setShowShares] = usePersistedState<boolean>(
+    sharesPrefKey(login),
+    false,
+    parseFlag,
+    serialiseFlag,
+  );
   // Where to unfold to: the page's latest destination, or a folder search
   // hit chosen since. The latest of the two wins.
   const hostReveal = revealPath === undefined ? selectedFolderPath : revealPath;
@@ -892,6 +910,7 @@ export function ItemTree({
     },
     hint,
     dragging,
+    showShares,
   };
 
   // ── Rows by view ──────────────────────────────────────────────────────
@@ -1234,6 +1253,20 @@ export function ItemTree({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+              <Button
+                variant={showShares ? 'secondary' : 'outline'}
+                size="icon-xs"
+                aria-pressed={showShares}
+                aria-label={showShares ? 'Hide shares' : 'Show shares'}
+                title={
+                  showShares
+                    ? "Hide shares: each workspace's icon beside the name"
+                    : 'Show shares: the workspaces under each name'
+                }
+                onClick={() => setShowShares(!showShares)}
+              >
+                <Layers />
+              </Button>
               {(owner || (view === 'tree' && spec.sorts.length > 1)) && (
                 <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
                   <DropdownMenuTrigger asChild>

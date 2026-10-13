@@ -29,6 +29,7 @@ import {
 } from '@/lib/workspaces';
 import { useViewerAreas } from '@/components/workspaces/use-shell-workspaces';
 import { useWorkspaceActions, useWorkspaces } from '@/components/workspaces/workspace-queries';
+import { WorkspaceTile } from '@/components/workspaces/workspace-tile';
 import { WorkspaceScreen } from './workspace-screen';
 
 /** What the list says when this brain has no workspaces routes (before W5a). */
@@ -170,6 +171,7 @@ function WorkspaceCard({
   return (
     <ListCard onClick={onSelect} selected={selected} dimmed={w.archived}>
       <div className="flex items-center gap-2">
+        <WorkspaceTile workspace={w} size="sm" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{w.name}</span>
         {w.isAdmin ? (
           <Badge variant="secondary" className="shrink-0">

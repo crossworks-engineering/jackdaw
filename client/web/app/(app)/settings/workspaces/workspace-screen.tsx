@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Archive, Layers, UserMinus, X } from 'lucide-react';
+import { Archive, UserMinus, X } from 'lucide-react';
 import type { ContactRow } from '@mantle/content-core/contacts-format';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import {
@@ -34,6 +34,9 @@ import { Textarea } from '@mantle/web-ui/ui/textarea';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { HeaderIconButton, HeaderInfoButton, ItemHeader } from '@/components/layout/item-header';
 import { LandingSection } from '@/components/workspaces/landing-section';
+import { AppLookPicker, type AppLook } from '@/components/app-nav/app-look-picker';
+import { WorkspaceTile } from '@/components/workspaces/workspace-tile';
+import { resolveWorkspaceLook } from '@/lib/workspace-look';
 import {
   ContactPicker,
   contactLabel,
@@ -55,7 +58,7 @@ import {
   addedText,
   canSetConnectors,
   BUILT_IN_NAME_HINT,
-  canRemoveUser,
+  removeBlockedReason,
   isBuiltIn,
   userSearchPaged,
   canSetContact,
@@ -91,7 +94,8 @@ const NO_ASSISTANT = 'none';
 
 /**
  * The ONE workspace screen (plan 1.4, 7.1): the same screen for every
- * workspace. Its sections, top to bottom: name, description and contact;
+ * workspace. Its sections, top to bottom: name, description, look (colour
+ * and icon, task 5edc9149: whoever may rename it) and contact;
  * users with a Moderator tick; the assistant (at most one); then one section
  * per resource type (connectors in W5a), each row with a Write tick. The
  * built-in Team workspace ends with the Team settings, for an Admin user.
@@ -122,7 +126,7 @@ export function WorkspaceScreen({
     <div>
       <ItemHeader
         sticky
-        visual={<Layers className="size-4 text-muted-foreground" aria-hidden />}
+        visual={<WorkspaceTile workspace={ws} size="sm" />}
         title={ws.name}
         badges={
           <>
@@ -347,6 +351,7 @@ function AboutForm({
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
+        <LookField workspace={ws} />
         <Field>
           <FieldLabel htmlFor="workspace-contact">Contact (optional)</FieldLabel>
           {!contactEditable ? (
@@ -376,6 +381,58 @@ function AboutForm({
         </div>
       </FieldGroup>
     </form>
+  );
+}
+
+/**
+ * The workspace's colour and icon (task 5edc9149), picked with the folder's
+ * own picker (one palette, one icon set). Each pick is saved at once, as a
+ * folder's is; the brain lets whoever may rename the workspace set it.
+ */
+function LookField({ workspace: ws }: { workspace: Workspace }) {
+  const toast = useToast();
+  const actions = useWorkspaceActions();
+  const look = resolveWorkspaceLook(ws);
+  const pick = async (l: AppLook) => {
+    try {
+      await actions.update(ws.id, {
+        ...('color' in l ? { color: l.color ?? null } : {}),
+        ...('icon' in l ? { icon: l.icon || null } : {}),
+      });
+    } catch (err) {
+      toast.error(workspaceErrorText(err));
+    }
+  };
+  return (
+    <Field>
+      <FieldLabel htmlFor="workspace-look">Colour and icon</FieldLabel>
+      {/* A wrapper, so the field's stretch leaves the button its own width. */}
+      <div className="flex">
+        <AppLookPicker
+          icon={ws.icon}
+          color={ws.color}
+          defaultIcon={look.icon}
+          label={ws.name}
+          onChange={(l) => void pick(l)}
+          trigger={
+            <Button
+              id="workspace-look"
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              aria-describedby={hintId('workspace-look')}
+            >
+              <WorkspaceTile workspace={ws} size="xs" />
+              Change colour and icon
+            </Button>
+          }
+        />
+      </div>
+      <FieldHint id="workspace-look">
+        Shown in the workspace switcher and on the share marks of items.
+      </FieldHint>
+    </Field>
   );
 }
 
@@ -420,7 +477,7 @@ function UsersSection({
               user={u}
               manage={manage}
               changeable={manage && canChangeUser(u)}
-              removable={manage && canChangeUser(u) && canRemoveUser(ws, u, viewerEmail)}
+              removeBlocked={removeBlockedReason(ws, u, viewerEmail)}
               onRemove={() => setRemoving(u)}
             />
           ))}
@@ -445,7 +502,7 @@ function UserRow({
   user: u,
   manage,
   changeable,
-  removable,
+  removeBlocked,
   onRemove,
 }: {
   workspaceId: string;
@@ -453,8 +510,8 @@ function UserRow({
   manage: boolean;
   /** Its tick and Remove: never on an Admin user kept in Team. */
   changeable: boolean;
-  /** Remove: as `changeable`, and never the viewer's own row in Admin. */
-  removable: boolean;
+  /** Why Remove is off (removeBlockedReason), or null: it may be used. */
+  removeBlocked: string | null;
   onRemove: () => void;
 }) {
   const toast = useToast();
@@ -485,7 +542,9 @@ function UserRow({
         {added ? <div className="truncate text-xs text-muted-foreground">{added}</div> : null}
       </div>
       {manage ? (
-        <div className="flex shrink-0 items-center gap-2">
+        // A fixed width, the tick first: the ticks line up on every row
+        // whatever the label says (task 19790beb).
+        <div className="flex w-44 shrink-0 items-center gap-2">
           <Checkbox
             id={tickId}
             checked={u.moderator || u.adminViaArea}
@@ -501,18 +560,23 @@ function UserRow({
           Moderator
         </Badge>
       ) : null}
-      {removable ? (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={`Remove ${label}`}
-          title={`Remove ${label}`}
-          className="shrink-0 text-muted-foreground hover:text-destructive-ink"
-          onClick={onRemove}
-        >
-          <UserMinus />
-        </Button>
+      {manage ? (
+        // The trailing slot every row keeps: Remove, or Remove dimmed with
+        // why it is off (its tooltip on the wrapper: a disabled button takes
+        // no pointer).
+        <span className="inline-flex shrink-0" title={removeBlocked ?? `Remove ${label}`}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={removeBlocked !== null}
+            aria-label={removeBlocked ? `Remove ${label}: ${removeBlocked}` : `Remove ${label}`}
+            className="text-muted-foreground hover:text-destructive-ink"
+            onClick={onRemove}
+          >
+            <UserMinus />
+          </Button>
+        </span>
       ) : null}
     </li>
   );

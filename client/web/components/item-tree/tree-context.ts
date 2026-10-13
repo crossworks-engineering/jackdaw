@@ -63,6 +63,10 @@ export type TreeCtx = {
   tabStop?: string | null;
   /** A row took focus (by the keyboard or a click): it is the tab stop now. */
   onRowFocus?: (key: string) => void;
+  /** The share marks as pills under each name (the header's toggle, task
+   *  ca907a89). Off or absent (the picker): each workspace's icon beside
+   *  the name. */
+  showShares?: boolean;
 };
 
 /** A row's `tabIndex` under the roving tab stop, when the tree has one. */

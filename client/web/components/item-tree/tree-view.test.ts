@@ -20,7 +20,8 @@ describe('the view a tree opens on', () => {
     // The old per-scope key is gone, read and write: nothing can put a
     // remounted tree back on Recent.
     expect(tree).not.toContain('mantle_tree_view');
-    expect(tree.match(/usePersistedState</g)).toHaveLength(1);
+    // Two stored values: the sort, and the share pills choice (task ca907a89).
+    expect(tree.match(/usePersistedState</g)).toHaveLength(2);
   });
 
   it('the sort and the open folders are still remembered', () => {

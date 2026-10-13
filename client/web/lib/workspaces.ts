@@ -249,6 +249,28 @@ export function canRemoveUser(
   return user.email.trim().toLowerCase() !== viewerEmail.trim().toLowerCase();
 }
 
+/** An Admin user kept as a Moderator here: why their Remove is off. */
+export const REMOVE_ADMIN_KEPT_TEXT =
+  'Admin users stay in this workspace. To remove one, remove them from the Admin workspace.';
+/** The viewer's own row in Admin: why their Remove is off. */
+export const REMOVE_SELF_ADMIN_TEXT = 'You cannot remove yourself from the Admin workspace.';
+
+/**
+ * Why Remove is off on a user row, or null when it may be used (task
+ * 19790beb): every row keeps its Remove button, dimmed with this as its
+ * tooltip when off, so the rows line up. The same two rules as before:
+ * canChangeUser, then canRemoveUser.
+ */
+export function removeBlockedReason(
+  ws: Pick<Workspace, 'isAdmin'>,
+  user: Pick<WorkspaceUser, 'adminViaArea' | 'email'>,
+  viewerEmail: string | null | undefined,
+): string | null {
+  if (!canChangeUser(user)) return REMOVE_ADMIN_KEPT_TEXT;
+  if (!canRemoveUser(ws, user, viewerEmail)) return REMOVE_SELF_ADMIN_TEXT;
+  return null;
+}
+
 /** The assistant is picked with the Assistants area. */
 export function canPickAssistant(areas: readonly string[] | null | undefined): boolean {
   return hasArea(areas, 'assistants');

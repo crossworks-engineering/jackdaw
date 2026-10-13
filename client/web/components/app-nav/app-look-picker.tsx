@@ -223,10 +223,14 @@ export function AppLookPicker({
   onOpenChange,
   align = 'start',
   side,
+  defaultIcon,
 }: {
   icon: string | null | undefined;
   color: AppTint | null | undefined;
   kind?: 'app' | 'folder';
+  /** What the preview shows with no icon picked, when the thing has a
+   *  default of its own (a workspace's kind icon). */
+  defaultIcon?: string;
   /** Shown beside the preview tile. */
   label: string;
   onChange: (look: AppLook) => void;
@@ -267,7 +271,7 @@ export function AppLookPicker({
         onFocusOutside={(e) => e.preventDefault()}
       >
         <div className="mb-3 flex items-center gap-3">
-          <AppTile icon={icon} color={color} kind={kind} size="lg" />
+          <AppTile icon={icon || defaultIcon} color={color} kind={kind} size="lg" />
           <p className="min-w-0 truncate text-sm font-medium">{label}</p>
         </div>
         <AppLookFields icon={icon} color={color} onChange={onChange} autoFocusSearch />

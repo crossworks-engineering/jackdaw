@@ -29,6 +29,8 @@ export const TINT_CLASSES: Record<AppTint, string> = {
 const NEUTRAL = 'bg-muted text-muted-foreground';
 
 const SIZES = {
+  // A workspace's mark beside a tree row's name (share marks, task ca907a89).
+  xs: { tile: 'size-4 rounded-[4px] text-[9px]', icon: 'size-2.5' },
   sm: { tile: 'size-5 rounded-[5px] text-[11px]', icon: 'size-3' },
   md: { tile: 'size-6 rounded-md text-sm', icon: 'size-3.5' },
   lg: { tile: 'size-9 rounded-lg text-lg', icon: 'size-5' },
