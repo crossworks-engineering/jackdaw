@@ -35,6 +35,7 @@ import {
   folderConfirm,
   needsConfirm,
   appMoveLines,
+  homeMoveWords,
   type GrantsWriteResponse,
   type SkippedEmbed,
   LOST_SIGHT_TEXT,
@@ -414,10 +415,12 @@ function GrantAccessPanel({
       return undefined;
     }, 'Could not change MCP access');
 
+  // A Home pick: the move dialog is its confirm, naming the new home and
+  // who manages the item there; nothing moves until its Move.
   const onMove = (ws: { wsId: string; name: string }) =>
     asks.move({
       nodeIds: [nodeId],
-      action: `Move “${title || 'this item'}” to ${ws.name}.`,
+      ...homeMoveWords(title, ws.name),
       to: { toWorkspaceId: ws.wsId },
       oldHome:
         view?.home.name && view.home.wsId

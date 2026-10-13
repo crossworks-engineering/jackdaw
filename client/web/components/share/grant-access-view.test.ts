@@ -1,20 +1,24 @@
 /**
- * The Grant Access panel's body (W5b2, plan 7.1): a Moderator gets the
- * controls (Write switch, remove, Change here, Restore, Move, Add
- * workspace, Grant these too, MCP access); a user who may not manage reads
- * the same rows with none. Admin and Team rows take the same controls as
- * any other row (contract 23: no bridge rows).
+ * The Grant Access panel's body (W5b2, plan 7.1): every workspace row has
+ * the same four columns under one header (name, Home radio, Writable
+ * switch, Revoke). A Moderator gets the controls (plus Change here,
+ * Restore, Add workspace, Grant these too, MCP access); a control the user
+ * cannot use stays in its column, dimmed. A user who may not manage reads
+ * the same columns with every control off. Admin and Team rows take the
+ * same controls as any other row (contract 23: no bridge rows).
  */
-import { createElement } from 'react';
+import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { RadioGroup } from '@mantle/web-ui/ui/radio-group';
 import {
   APP_MCP_LABEL,
+  HOME_ADD_FIRST_TEXT,
   NO_ADDABLE_TEXT,
   READ_ONLY_PANEL_TEXT,
   type GrantsView,
 } from '../../lib/grants';
-import { GrantAccessView } from './grant-access-view';
+import { GRANT_GRID, GrantAccessView, type GrantAccessHandlers } from './grant-access-view';
 
 const noop = () => {};
 const handlers = {
@@ -92,20 +96,149 @@ const render = (v: GrantsView, extra: Record<string, unknown> = {}) =>
     }),
   );
 
+const count = (html: string, needle: string) => html.split(needle).length - 1;
+
+/** The opening tag of the control with this aria-label. */
+const tag = (html: string, label: string) =>
+  html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? '';
+const on = (html: string, label: string) => {
+  const t = tag(html, label);
+  return t !== '' && !t.includes('disabled=""');
+};
+const off = (html: string, label: string) => tag(html, label).includes('disabled=""');
+
+/** The `<li>` rows of the rendered list, each as its own markup. */
+const rowsOf = (html: string) =>
+  html.match(/<li[^>]*data-testid="grant-row"[^>]*>.*?<\/li>/g) ?? [];
+
+/** The panel's Home radio group, found in the element tree (the view uses
+ *  no hooks, so calling it returns the tree to read its handlers from). */
+function homeGroup(v: GrantsView, extra: Partial<GrantAccessHandlers> & { busy?: boolean } = {}) {
+  const tree = GrantAccessView({
+    view: v,
+    busy: false,
+    adminWsId: 'admin',
+    ...handlers,
+    ...extra,
+  });
+  const walk = (n: ReactNode): ReactElement | null => {
+    if (Array.isArray(n)) {
+      for (const c of n) {
+        const hit = walk(c);
+        if (hit) return hit;
+      }
+      return null;
+    }
+    if (!isValidElement(n)) return null;
+    if (n.type === RadioGroup) return n;
+    return walk((n.props as { children?: ReactNode }).children);
+  };
+  const group = walk(tree);
+  if (!group) throw new Error('no Home radio group');
+  return group.props as { value: string; onValueChange: (wsId: string) => void };
+}
+
+describe('GrantAccessView columns', () => {
+  const html = render(view());
+  const rows = rowsOf(html);
+
+  it('one header row labels the columns Home, Writable and Revoke, in that order', () => {
+    const header = html.match(/<div[^>]*data-testid="grant-columns"[^>]*>.*?<\/div>/)?.[0] ?? '';
+    expect(header).toContain('aria-hidden');
+    expect(header.indexOf('>Home<')).toBeGreaterThan(-1);
+    expect(header.indexOf('>Home<')).toBeLessThan(header.indexOf('>Writable<'));
+    expect(header.indexOf('>Writable<')).toBeLessThan(header.indexOf('>Revoke<'));
+    expect(html).not.toContain('Move…');
+  });
+
+  it('the header and every row share one grid, so the columns line up', () => {
+    expect(rows).toHaveLength(4);
+    expect(count(html, `class="${GRANT_GRID} `)).toBe(5);
+  });
+
+  it('every row has a radio, a switch and a Revoke, in that order', () => {
+    for (const r of rows) {
+      expect(count(r, 'role="radio"')).toBe(1);
+      expect(count(r, 'role="switch"')).toBe(1);
+      expect(count(r, 'aria-label="Revoke ')).toBe(1);
+      expect(r.indexOf('role="radio"')).toBeLessThan(r.indexOf('role="switch"'));
+      expect(r.indexOf('role="switch"')).toBeLessThan(r.indexOf('aria-label="Revoke '));
+    }
+  });
+
+  it('the home row has the radio ticked; its Revoke is there but off, with why', () => {
+    const home = rows[0]!;
+    expect(home).toContain('>Team<');
+    expect(home).toMatch(/role="radio" aria-checked="true"/);
+    expect(home).toMatch(/title="The home stays. Pick another home first."/);
+    expect(off(home, 'Revoke Team')).toBe(true);
+    for (const r of rows.slice(1)) expect(r).toMatch(/role="radio" aria-checked="false"/);
+  });
+
+  it('a removed row keeps all three controls, dimmed and off', () => {
+    const board = rows.find((r) => r.includes('>Board<'))!;
+    expect(off(board, 'Make Board the home')).toBe(true);
+    expect(off(board, 'Users in Board can change it')).toBe(true);
+    expect(off(board, 'Revoke Board')).toBe(true);
+    expect(board).toContain('title="Removed here. Restore it first."');
+  });
+
+  it('a folder row keeps its Writable switch, off until Change here', () => {
+    const sales = rows.find((r) => r.includes('>Sales<'))!;
+    expect(off(sales, 'Users in Sales can change it')).toBe(true);
+    expect(sales).toContain('title="Read only: set by the folder. Change here first."');
+    expect(sales).toContain('Change here');
+  });
+});
+
+describe('GrantAccessView Home radio', () => {
+  it('a pick on another row asks to move it there; the radio stays on the home', () => {
+    const onMove = vi.fn();
+    const onWrite = vi.fn();
+    const onRemove = vi.fn();
+    const group = homeGroup(view(), { onMove, onWrite, onRemove });
+    expect(group.value).toBe('team');
+    group.onValueChange('ops');
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledWith({ wsId: 'ops', name: 'Ops' });
+    expect(onWrite).not.toHaveBeenCalled();
+    expect(onRemove).not.toHaveBeenCalled();
+  });
+
+  it('the home itself, a removed row, a busy panel or a reader asks nothing', () => {
+    const onMove = vi.fn();
+    homeGroup(view(), { onMove }).onValueChange('team');
+    homeGroup(view(), { onMove }).onValueChange('board');
+    homeGroup(view(), { onMove, busy: true }).onValueChange('ops');
+    homeGroup(view({ mayManage: false }), { onMove }).onValueChange('ops');
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it('a Moderator may pick any other listed row; adding comes first for the rest', () => {
+    const html = render(view());
+    expect(on(html, 'Make Ops the home')).toBe(true);
+    expect(on(html, 'Make Sales the home')).toBe(true);
+    expect(off(html, 'Make Board the home')).toBe(true);
+    expect(html).toContain(HOME_ADD_FIRST_TEXT);
+    expect(render(view({ addable: [] }))).not.toContain(HOME_ADD_FIRST_TEXT);
+  });
+});
+
 describe('GrantAccessView for a Moderator', () => {
   const html = render(view());
 
   it('lists every workspace, home first', () => {
     expect(html.indexOf('>Team<')).toBeLessThan(html.indexOf('>Ops<'));
     expect(html.indexOf('>Ops<')).toBeLessThan(html.indexOf('>Sales<'));
-    expect(html).toContain('Home: the item lives here');
+    expect(html).toContain('title="Team is the home: its Moderators manage it"');
   });
 
-  it('a Write switch per row, a remove except on the home', () => {
+  it('a Writable switch per row, a Revoke that works except on the home', () => {
     expect(html).toContain('aria-label="Users in Ops can change it"');
-    expect(html).toContain('aria-label="Remove Ops"');
-    expect(html).toContain('aria-label="Remove Sales"');
-    expect(html).not.toContain('aria-label="Remove Team"');
+    expect(html).toContain('title="Users in Ops can change it"');
+    expect(on(html, 'Revoke Ops')).toBe(true);
+    expect(html).toContain('title="Revoke Sales"');
+    expect(off(html, 'Revoke Team')).toBe(true);
   });
 
   it('a folder row says so and offers Change here', () => {
@@ -115,12 +248,12 @@ describe('GrantAccessView for a Moderator', () => {
 
   it('a removed folder row says Removed here, with Restore', () => {
     expect(html).toContain('Removed here (folder Plans grants it)');
-    expect(html).toContain('Restore');
-    expect(html).not.toContain('aria-label="Remove Board"');
+    expect(html).toContain('>Restore<');
+    expect(off(html, 'Revoke Board')).toBe(true);
   });
 
-  it('the home row offers Move, and Add workspace shows', () => {
-    expect(html).toContain('Move…');
+  it('Add workspace shows, and no Move menu', () => {
+    expect(html).not.toContain('Move…');
     expect(html).toContain('Add workspace');
     expect(html).not.toContain(READ_ONLY_PANEL_TEXT);
   });
@@ -173,7 +306,7 @@ describe('GrantAccessView for a Moderator', () => {
       },
     ];
     const out = render(v);
-    expect(out).toContain('aria-label="Remove Admin"');
+    expect(on(out, 'Revoke Admin')).toBe(true);
     expect(out).toContain('aria-label="Users in Admin can change it"');
     expect(out).not.toMatch(/until grants become the truth/);
   });
@@ -195,12 +328,24 @@ describe('GrantAccessView read only', () => {
     expect(html).toContain('Can change');
   });
 
-  it('has no controls at all', () => {
-    expect(html).not.toContain('role="switch"');
-    expect(html).not.toContain('aria-label="Remove');
+  it('the same columns, every control there but off', () => {
+    const rows = rowsOf(html);
+    expect(rows).toHaveLength(4);
+    expect(html).toContain('>Writable<');
+    for (const name of ['Team', 'Ops', 'Sales', 'Board']) {
+      const r = rows.find((x) => x.includes(`>${name}<`))!;
+      expect(r.match(/<button[^>]*role="radio"[^>]*>/)![0]).toContain('disabled=""');
+      expect(off(r, `Users in ${name} can change it`)).toBe(true);
+      expect(off(r, `Revoke ${name}`)).toBe(true);
+    }
+    expect(html).not.toContain('aria-label="MCP access"');
+  });
+
+  it('no other controls', () => {
     expect(html).not.toContain('Add workspace');
+    expect(html).not.toContain(HOME_ADD_FIRST_TEXT);
     expect(html).not.toContain('Change here');
-    expect(html).not.toContain('Restore');
+    expect(html).not.toContain('>Restore<');
     expect(html).not.toContain('Move…');
     expect(html).not.toContain('Grant these too');
   });
@@ -209,13 +354,15 @@ describe('GrantAccessView read only', () => {
 describe('GrantAccessView for a Moderator of one row only (contract 10)', () => {
   const html = render(view({ mayManage: false }), { moderated: new Set(['ops']) });
 
-  it('the Ops row gets remove and its Write switch (to turn off)', () => {
-    expect(html).toContain('aria-label="Remove Ops"');
-    expect(html).toContain('aria-label="Users in Ops can change it"');
+  it('the Ops row gets Revoke and its Writable switch (to turn off)', () => {
+    const ops = rowsOf(html).find((r) => r.includes('>Ops<'))!;
+    expect(on(ops, 'Revoke Ops')).toBe(true);
+    expect(on(ops, 'Users in Ops can change it')).toBe(true);
+    expect(off(ops, 'Make Ops the home')).toBe(true);
   });
 
   it('other rows stay read only, and no manage controls show', () => {
-    expect(html).not.toContain('aria-label="Remove Sales"');
+    expect(off(html, 'Revoke Sales')).toBe(true);
     expect(html).not.toContain('Add workspace');
     expect(html).not.toContain('Change here');
     expect(html).not.toContain('Move…');

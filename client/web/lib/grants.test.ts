@@ -15,7 +15,10 @@ import {
   lostSight,
   moveChangesAccess,
   removedLine,
+  GRANT_COLUMNS,
+  homeMoveWords,
   rowActions,
+  rowControlTitles,
   rowActionsFor,
   addRequest,
   removeRequest,
@@ -69,7 +72,7 @@ describe('rows', () => {
   });
 
   it('says where a row comes from', () => {
-    expect(rowNote(row({ isHome: true }))).toBe('Home: the item lives here');
+    expect(rowNote(row({ isHome: true }))).toBeNull();
     expect(rowNote(row({ viaFolder: { id: 'f', title: 'Plans' } }))).toBe('Via folder Plans');
     expect(rowNote(row({ viaFolder: { id: 'f', title: null } }))).toBe(
       'Via folder a folder you cannot open',
@@ -80,14 +83,19 @@ describe('rows', () => {
     expect(rowNote(row())).toBeNull();
   });
 
-  it('the home row has no remove, only Move; its Write switch works', () => {
+  it('the home row has no remove and is not a new home; its Write switch works', () => {
     expect(rowActions(row({ isHome: true }))).toEqual({
       write: true,
       remove: false,
       restore: false,
       changeHere: false,
-      move: true,
+      move: false,
     });
+  });
+
+  it('any other listed row may be picked as the new home', () => {
+    expect(rowActions(row()).move).toBe(true);
+    expect(rowActions(row({ viaFolder: { id: 'f', title: 'F' } })).move).toBe(true);
   });
 
   it('a folder row offers Change here, not its Write switch', () => {
@@ -108,14 +116,15 @@ describe('rows', () => {
     });
   });
 
-  it('an Admin or Team home row offers Write and Move like any home (contract 23)', () => {
+  it('an Admin or Team home row offers Write like any home (contract 23)', () => {
     expect(rowActions(row({ wsId: 'team', name: 'Team', isHome: true }))).toEqual({
       write: true,
       remove: false,
       restore: false,
       changeHere: false,
-      move: true,
+      move: false,
     });
+    expect(rowActions(row({ wsId: 'team', name: 'Team' })).move).toBe(true);
   });
 
   it('Add workspace lists Admin first for an Admin user (21.8), then by name', () => {
@@ -127,6 +136,51 @@ describe('rows', () => {
     expect(sortAddable(addable, 'a').map((w) => w.wsId)).toEqual(['a', 'b', 's']);
     expect(sortAddable(addable, null).map((w) => w.wsId)).toEqual(['a', 'b', 's']);
     expect(sortAddable([{ wsId: 'z', name: 'Zed' }, ...addable], 'z')[0]!.wsId).toBe('z');
+  });
+});
+
+describe('the panel columns', () => {
+  const titles = (r: GrantRow, manage: boolean, moderatesRow = false, type?: string) =>
+    rowControlTitles(r, rowActionsFor(r, manage, moderatesRow), manage, type);
+
+  it('labels Home, Writable and Revoke', () => {
+    expect(GRANT_COLUMNS).toEqual({ home: 'Home', write: 'Writable', revoke: 'Revoke' });
+  });
+
+  it('says what each control does for a Moderator', () => {
+    expect(titles(row(), true)).toEqual({
+      home: 'Make Sales the home',
+      write: 'Users in Sales can change it',
+      revoke: 'Revoke Sales',
+    });
+    expect(titles(row(), true, false, 'app').write).toBe('Users in Sales can change its data');
+  });
+
+  it('says why a dimmed control is off', () => {
+    const home = titles(row({ isHome: true, name: 'Team' }), true);
+    expect(home.home).toBe('Team is the home: its Moderators manage it');
+    expect(home.revoke).toBe('The home stays. Pick another home first.');
+    const folder = titles(row({ viaFolder: { id: 'f', title: 'F' } }), true);
+    expect(folder.write).toBe('Read only: set by the folder. Change here first.');
+    const gone = titles(row({ excluded: true }), true);
+    expect(gone).toEqual({
+      home: 'Removed here. Restore it first.',
+      write: 'Removed here. Restore it first.',
+      revoke: 'Removed here already.',
+    });
+    expect(titles(row({ write: true }), false)).toEqual({
+      home: 'Only a Moderator of the home can move it.',
+      write: 'Can change',
+      revoke: 'Only a Moderator can revoke it.',
+    });
+  });
+
+  it('the Home confirm names the new home and who will manage it', () => {
+    expect(homeMoveWords('Plan', 'Sales')).toEqual({
+      title: 'Make Sales the home?',
+      action: '“Plan” moves to Sales. The Moderators of Sales will manage it.',
+    });
+    expect(homeMoveWords('', 'Sales').action).toContain('“This item” moves to Sales.');
   });
 });
 

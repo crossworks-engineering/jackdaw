@@ -10,21 +10,24 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
+import { RadioGroup, RadioGroupItem } from '@mantle/web-ui/ui/radio-group';
 import { Switch } from '@mantle/web-ui/ui/switch';
+import { cn } from '@mantle/web-ui/lib/utils';
 // Relative, not '@/': the node test runner renders this (grant-access-view.test.ts).
 import {
   APP_MCP_HINT,
   APP_MCP_LABEL,
+  GRANT_COLUMNS,
+  HOME_ADD_FIRST_TEXT,
   NO_ADDABLE_TEXT,
   READ_ONLY_PANEL_TEXT,
   embedsLine,
   rowActionsFor,
-  rowHasControls,
+  rowControlTitles,
   rowNote,
   sortAddable,
   sortRows,
   writeLabel,
-  writeWord,
   type GrantRow,
   type GrantsView,
 } from '../../lib/grants';
@@ -36,19 +39,27 @@ export type GrantAccessHandlers = {
   /** "Change here": a folder row becomes the item's own. */
   onHand: (row: GrantRow) => void;
   onAdd: (ws: { wsId: string; name: string }) => void;
-  /** Move the item to another workspace (its home row). */
+  /** Asks to move the item to another workspace (a Home pick). The host
+   *  confirms first, naming the new home; nothing moves before that. */
   onMove: (ws: { wsId: string; name: string }) => void;
   onGrantEmbeds: () => void;
   onMcpAccess: (on: boolean) => void;
 };
 
+/** One grid for the header and every row, so the columns line up whatever
+ *  a row can do: name, Home, Writable, Revoke. */
+export const GRANT_GRID =
+  'grid grid-cols-[minmax(0,1fr)_2.75rem_3.5rem_2.75rem] items-center gap-x-1';
+
 /**
  * The Grant Access panel's body (plan 7.1): the item's workspaces, one row
- * each (name, Write switch, "Via folder X" with "Change here", remove;
- * "Removed here" with Restore), "Add workspace" over the workspaces the user
- * moderates, the embeds not granted where the item is (with "Grant these
- * too"), and on an app its MCP access. A user who may not manage reads the
- * same rows with no controls. Pure: the host loads and writes.
+ * each in four columns under a header (name with "Via folder X" and "Change
+ * here", or "Removed here" with Restore; the Home radio; the Writable
+ * switch; Revoke), "Add workspace" over the workspaces the user moderates,
+ * the embeds not granted where the item is (with "Grant these too"), and on
+ * an app its MCP access. A control the user cannot use stays in its column,
+ * dimmed, with why as its tooltip; a user who may not manage reads the same
+ * columns with every control off. Pure: the host loads, confirms and writes.
  */
 export function GrantAccessView({
   view,
@@ -65,12 +76,12 @@ export function GrantAccessView({
   busy: boolean;
   /** The Admin workspace, offered first to an Admin user (21.8). */
   adminWsId: string | null;
-  /** The item's kind, when known ('app' words its Write switch). */
+  /** The item's kind, when known ('app' words its Writable switch). */
   type?: string;
   hint?: string;
   /** The open link and the contact shares, under the rows (8.1, kept). */
   link?: ReactNode;
-  /** The workspaces this user moderates: a row there may be removed, or
+  /** The workspaces this user moderates: a row there may be revoked, or
    *  its Write turned off, without managing the item (contract 10). */
   moderated?: ReadonlySet<string>;
   /** Whether an app's MCP access shows here: an Admin user only (W6b fix
@@ -81,127 +92,128 @@ export function GrantAccessView({
   const manage = view.mayManage;
   const rows = sortRows(view.rows);
   const addable = sortAddable(view.addable, adminWsId);
-  // A move goes to a workspace the user moderates: one it may add, or one
-  // the item is granted to already (the brain refuses the others).
-  const moveTargets = sortAddable(
-    [
-      ...view.rows
-        .filter((r) => !r.isHome && !r.excluded)
-        .map((r) => ({ wsId: r.wsId, name: r.name })),
-      ...view.addable,
-    ],
-    adminWsId,
-  );
   const embeds = view.embedsNotGranted;
+  const homeWsId = rows.find((r) => r.isHome)?.wsId ?? '';
+
+  // The radio stays on the current home: a pick only asks the host to move
+  // (it confirms first), and the rows come back with the new home once moved.
+  const pickHome = (wsId: string) => {
+    const row = rows.find((r) => r.wsId === wsId);
+    if (!row || row.isHome || row.excluded || !manage || busy) return;
+    on.onMove({ wsId: row.wsId, name: row.name });
+  };
 
   return (
     <div className="space-y-3">
       <div className="space-y-2">
         <p className="text-sm font-medium">Who can see this</p>
         {!manage && <p className="text-xs text-muted-foreground">{READ_ONLY_PANEL_TEXT}</p>}
-        <ul aria-label="Workspaces" className="space-y-1.5">
-          {rows.map((row) => {
-            const can = rowActionsFor(row, manage, moderated?.has(row.wsId) === true);
-            const controls = rowHasControls(can);
-            const note = rowNote(row);
-            return (
-              <li
-                key={row.wsId}
-                className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-1.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={
-                      row.excluded
-                        ? 'truncate text-sm text-muted-foreground line-through'
-                        : 'truncate text-sm'
-                    }
-                  >
-                    {row.name}
-                  </p>
-                  {note && (
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      {row.viaFolder && <FolderOpen className="size-3 shrink-0" aria-hidden />}
-                      <span className="min-w-0 truncate">{note}</span>
+        <RadioGroup
+          value={homeWsId}
+          onValueChange={pickHome}
+          aria-label={GRANT_COLUMNS.home}
+          className="gap-1"
+        >
+          <div
+            aria-hidden
+            data-testid="grant-columns"
+            className={cn(GRANT_GRID, 'px-2.5 text-xs text-muted-foreground')}
+          >
+            <span />
+            <span className="text-center">{GRANT_COLUMNS.home}</span>
+            <span className="text-center">{GRANT_COLUMNS.write}</span>
+            <span className="text-center">{GRANT_COLUMNS.revoke}</span>
+          </div>
+          <ul aria-label="Workspaces" className="space-y-1.5">
+            {rows.map((row) => {
+              const can = rowActionsFor(row, manage, moderated?.has(row.wsId) === true);
+              const titles = rowControlTitles(row, can, manage, type);
+              const note = rowNote(row);
+              return (
+                <li
+                  key={row.wsId}
+                  data-testid="grant-row"
+                  className={cn(GRANT_GRID, 'rounded-md border border-border px-2.5 py-1.5')}
+                >
+                  <div className="min-w-0">
+                    <p
+                      className={
+                        row.excluded
+                          ? 'truncate text-sm text-muted-foreground line-through'
+                          : 'truncate text-sm'
+                      }
+                    >
+                      {row.name}
                     </p>
-                  )}
-                </div>
-                {controls || (manage && !row.excluded) ? (
-                  <>
-                    {can.changeHere && (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => on.onHand(row)}
-                      >
-                        Change here
-                      </Button>
-                    )}
-                    {can.restore && (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => on.onRestore(row)}
-                      >
-                        Restore
-                      </Button>
-                    )}
-                    {can.move && moveTargets.length > 0 && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="xs" variant="ghost" disabled={busy}>
-                            Move…
+                    {(note || can.changeHere || can.restore) && (
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                        {note && (
+                          <span className="flex min-w-0 items-center gap-1">
+                            {row.viaFolder && (
+                              <FolderOpen className="size-3 shrink-0" aria-hidden />
+                            )}
+                            <span className="min-w-0 truncate">{note}</span>
+                          </span>
+                        )}
+                        {can.changeHere && (
+                          <Button
+                            size="2xs"
+                            variant="ghost"
+                            className="shrink-0"
+                            disabled={busy}
+                            onClick={() => on.onHand(row)}
+                          >
+                            Change here
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuLabel>Move it to</DropdownMenuLabel>
-                          {moveTargets.map((w) => (
-                            <DropdownMenuItem key={w.wsId} onSelect={() => on.onMove(w)}>
-                              {w.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        )}
+                        {can.restore && (
+                          <Button
+                            size="2xs"
+                            variant="outline"
+                            className="shrink-0"
+                            disabled={busy}
+                            onClick={() => on.onRestore(row)}
+                          >
+                            Restore
+                          </Button>
+                        )}
+                      </div>
                     )}
-                    {!row.excluded && (manage || can.write) && (
-                      <Switch
-                        checked={row.write}
-                        disabled={busy || !can.write}
-                        onCheckedChange={(v) => on.onWrite(row, v)}
-                        aria-label={writeLabel(type, row.name)}
-                        title={
-                          can.write
-                            ? writeLabel(type, row.name)
-                            : `${writeWord(row.write)}: set by the folder. Change here first.`
-                        }
-                      />
-                    )}
-                    {can.remove && (
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => on.onRemove(row)}
-                        aria-label={`Remove ${row.name}`}
-                        title={`Remove ${row.name}`}
-                      >
-                        <X />
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  !row.excluded && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {writeWord(row.write)}
-                    </span>
-                  )
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                  </div>
+                  {/* Each control's tooltip sits on its cell: a disabled
+                      control takes no pointer. */}
+                  <span className="flex justify-center" title={titles.home}>
+                    <RadioGroupItem
+                      value={row.wsId}
+                      disabled={busy || !manage || !(row.isHome || can.move)}
+                      aria-label={row.isHome ? titles.home : `Make ${row.name} the home`}
+                    />
+                  </span>
+                  <span className="flex justify-center" title={titles.write}>
+                    <Switch
+                      checked={!row.excluded && row.write}
+                      disabled={busy || !can.write}
+                      onCheckedChange={(v) => on.onWrite(row, v)}
+                      aria-label={writeLabel(type, row.name)}
+                    />
+                  </span>
+                  <span className="flex justify-center" title={titles.revoke}>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-destructive-ink"
+                      disabled={busy || !can.remove}
+                      onClick={() => on.onRemove(row)}
+                      aria-label={`Revoke ${row.name}`}
+                    >
+                      <X />
+                    </Button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </RadioGroup>
         {manage &&
           (addable.length > 0 ? (
             <DropdownMenu>
@@ -223,6 +235,9 @@ export function GrantAccessView({
           ) : (
             <p className="text-xs text-muted-foreground">{NO_ADDABLE_TEXT}</p>
           ))}
+        {manage && addable.length > 0 && (
+          <p className="text-xs text-muted-foreground">{HOME_ADD_FIRST_TEXT}</p>
+        )}
       </div>
 
       {embeds.length > 0 && (

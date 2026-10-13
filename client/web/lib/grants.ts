@@ -121,19 +121,21 @@ export function sortRows(rows: readonly GrantRow[]): GrantRow[] {
   });
 }
 
-/** The quiet line under a row's name. */
+/** The quiet line under a row's name. The home says nothing: its Home
+ *  radio is ticked. */
 export function rowNote(row: GrantRow): string | null {
   const folder = row.viaFolder ? (row.viaFolder.title ?? 'a folder you cannot open') : null;
   if (row.excluded && folder) return `Removed here (folder ${folder} grants it)`;
   if (row.excluded) return 'Removed here';
-  if (row.isHome) return 'Home: the item lives here';
+  if (row.isHome) return null;
   if (folder) return `Via folder ${folder}`;
   return null;
 }
 
 /** What a row offers a Moderator. The home has no remove (21.8: a move
  *  takes it away); a folder row is changed here first ("Change here")
- *  before its Write switch moves; a removed row only comes back. */
+ *  before its Write switch moves; a removed row only comes back. `move`:
+ *  the row may be picked as the new home (its Home radio). */
 export function rowActions(row: GrantRow): {
   write: boolean;
   remove: boolean;
@@ -150,7 +152,7 @@ export function rowActions(row: GrantRow): {
     remove: !row.isHome,
     restore: false,
     changeHere: folder,
-    move: row.isHome,
+    move: !row.isHome,
   };
 }
 
@@ -197,6 +199,60 @@ export const writeWord = (write: boolean) => (write ? 'Can change' : 'Read only'
  *  "Informational" flag, now per workspace). */
 export function writeLabel(type: string | undefined, name: string): string {
   return type === 'app' ? `Users in ${name} can change its data` : `Users in ${name} can change it`;
+}
+
+/** The panel's column labels, one header row over every workspace row. */
+export const GRANT_COLUMNS = { home: 'Home', write: 'Writable', revoke: 'Revoke' } as const;
+
+const RESTORE_FIRST = 'Removed here. Restore it first.';
+
+/**
+ * Each control's tooltip, and why it is off when it is. Every row keeps all
+ * three controls in their columns; one the user cannot use is dimmed and
+ * says why here.
+ */
+export function rowControlTitles(
+  row: GrantRow,
+  can: ReturnType<typeof rowActionsFor>,
+  manage: boolean,
+  type: string | undefined,
+): { home: string; write: string; revoke: string } {
+  const home = row.isHome
+    ? `${row.name} is the home: its Moderators manage it`
+    : row.excluded
+      ? RESTORE_FIRST
+      : can.move
+        ? `Make ${row.name} the home`
+        : 'Only a Moderator of the home can move it.';
+  const write = can.write
+    ? writeLabel(type, row.name)
+    : row.excluded
+      ? RESTORE_FIRST
+      : manage && row.viaFolder
+        ? `${writeWord(row.write)}: set by the folder. Change here first.`
+        : writeWord(row.write);
+  const revoke = can.remove
+    ? `Revoke ${row.name}`
+    : row.isHome
+      ? 'The home stays. Pick another home first.'
+      : row.excluded
+        ? 'Removed here already.'
+        : 'Only a Moderator can revoke it.';
+  return { home, write, revoke };
+}
+
+/** Under the rows for a Moderator: Home lists only the rows, so a
+ *  workspace not in the list is added first (the old Move menu offered it). */
+export const HOME_ADD_FIRST_TEXT =
+  'To make a workspace not listed here the home, add it first, then pick it as Home.';
+
+/** The confirm a Home pick opens: it names the new home and who will
+ *  manage the item there. */
+export function homeMoveWords(itemTitle: string, name: string): { title: string; action: string } {
+  return {
+    title: `Make ${name} the home?`,
+    action: `“${itemTitle || 'This item'}” moves to ${name}. The Moderators of ${name} will manage it.`,
+  };
 }
 
 export const READ_ONLY_PANEL_TEXT =
