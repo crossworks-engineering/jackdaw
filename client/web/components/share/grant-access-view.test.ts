@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { RadioGroup } from '@mantle/web-ui/ui/radio-group';
 import {
+  APP_MCP_HINT,
   APP_MCP_LABEL,
   HOME_ADD_FIRST_TEXT,
   NO_ADDABLE_TEXT,
@@ -335,6 +336,8 @@ describe('GrantAccessView for a Moderator', () => {
     expect(out).toContain('aria-label="Users in Ops can change its data"');
     expect(out).toContain(APP_MCP_LABEL);
     expect(out).toContain('aria-label="MCP access"');
+    expect(out).toContain(APP_MCP_HINT);
+    expect(APP_MCP_HINT).toMatch(/^Read only for a workspace with Writable off\./);
   });
 
   it('MCP access is hidden for a login that is not an Admin user (W6b fix round: 403 admin-only)', () => {

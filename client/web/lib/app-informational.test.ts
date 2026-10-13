@@ -58,8 +58,10 @@ describe('an informational app', () => {
     expect(informationalHint(false)).toBe(APP_INFORMATIONAL_HINT_OFF);
     expect(APP_INFORMATIONAL_HINT_ON).toMatch(/^On: only Admin can change/);
     expect(APP_INFORMATIONAL_HINT_ON).toMatch(/do not apply while this is on/);
+    // The panel's column and switch are named Writable: the hints say the same word.
+    expect(APP_INFORMATIONAL_HINT_ON).toMatch(/The Writable switches in the Access panel/);
     expect(APP_INFORMATIONAL_HINT_OFF).toMatch(
-      /^Off: the Write switches in the Access panel decide/,
+      /^Off: the Writable switches in the Access panel decide/,
     );
     for (const s of [APP_INFORMATIONAL_HINT_ON, APP_INFORMATIONAL_HINT_OFF]) {
       expect(s).not.toMatch(/level|Write off/);

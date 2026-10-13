@@ -267,7 +267,7 @@ export const READ_ONLY_PANEL_TEXT =
 export const NO_ADDABLE_TEXT = 'You moderate no other workspace.';
 export const APP_MCP_LABEL = 'MCP access: users reach its data from their own MCP client';
 export const APP_MCP_HINT =
-  'Read only for a workspace with Write off. Who reaches it is who can run the app.';
+  'Read only for a workspace with Writable off. Who reaches it is who can run the app.';
 
 /** The embeds line, with "Grant these too". */
 export function embedsLine(n: number): string {

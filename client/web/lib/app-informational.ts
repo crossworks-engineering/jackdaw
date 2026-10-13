@@ -29,9 +29,9 @@ export const APP_INFORMATIONAL_TAG = 'Informational';
  *  the switch changes no grant; on, it stops every write beyond Admin). */
 export const APP_INFORMATIONAL_LABEL = 'Informational: only Admin can change its data';
 export const APP_INFORMATIONAL_HINT_ON =
-  'On: only Admin can change this app’s data. The Write switches in the Access panel do not apply while this is on.';
+  'On: only Admin can change this app’s data. The Writable switches in the Access panel do not apply while this is on.';
 export const APP_INFORMATIONAL_HINT_OFF =
-  'Off: the Write switches in the Access panel decide who can change this app’s data.';
+  'Off: the Writable switches in the Access panel decide who can change this app’s data.';
 
 /** The hint for the switch as it is now. */
 export function informationalHint(on: boolean): string {
