@@ -4,7 +4,7 @@ import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { workspaceErrorText } from '@/lib/workspaces';
 import { PrivateReadsToggle } from './private-reads-toggle';
-import { useTeamSettings } from './team-settings-query';
+import { READ_POSTURE_TEXT, useTeamSettings } from './team-settings-query';
 import { WorkspaceSection } from './workspace-section';
 
 /**
@@ -41,7 +41,7 @@ export function TeamSettingsSections() {
     <WorkspaceSection
       title="Read posture"
       labelledBy="workspace-read-posture"
-      description="Members always get the brain's knowledge reads. This gates your private email and journal when the assistant of another workspace answers a member. Default off."
+      description={READ_POSTURE_TEXT}
     >
       <PrivateReadsToggle initial={data.privateReads} />
     </WorkspaceSection>

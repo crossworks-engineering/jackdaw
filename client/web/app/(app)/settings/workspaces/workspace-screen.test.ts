@@ -29,7 +29,8 @@ import {
 vi.mock('next/navigation', () => ({ usePathname: () => '/settings/workspaces' }));
 
 const { WorkspaceScreen, WorkspaceSections } = await import('./workspace-screen');
-const { TEAM_SETTINGS_KEY } = await import('@/components/workspaces/team-settings-query');
+const { TEAM_SETTINGS_KEY, READ_POSTURE_TEXT } =
+  await import('@/components/workspaces/team-settings-query');
 
 function ws(over: Partial<Workspace> = {}): Workspace {
   return {
@@ -481,6 +482,11 @@ describe('built-in workspaces (Admin and Team)', () => {
     const html = withSettings(admin, ADMIN_AREAS);
     expect(html).toContain('>Read posture</h3>');
     expect(html).toContain('Expose email &amp; journal');
+    // It says what the switch does: nothing any more (the brain's guide
+    // says the same).
+    expect(html).toContain(READ_POSTURE_TEXT.replaceAll('&', '&amp;'));
+    expect(READ_POSTURE_TEXT).toContain('has no effect any more');
+    expect(html).not.toContain('gates');
     // The Member chat line went: each workspace names its own assistant.
     expect(html).not.toContain('Member chat');
     // The member home app moved to every workspace's Landing page.

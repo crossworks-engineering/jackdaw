@@ -1,18 +1,17 @@
 'use client';
 
 /**
- * The Team workspace's Read posture switch (Team settings, shown to an Admin
- * user): whether the team agent may read the owner's PRIVATE corpus (email
- * and journal) for a team member. Default off: team members always get the
- * brain's knowledge reads, but personal email and journal stay out until the
- * owner opts in here.
+ * The Read posture switch (the member settings on the Admin workspace's
+ * screen, shown to an Admin user): the owner's `teamPrivateReads`. It has
+ * no effect any more (READ_POSTURE_TEXT says why); it stays so an Admin
+ * user can see and clear it. Default off.
  */
 import { useState } from 'react';
 import { Switch } from '@mantle/web-ui/ui/switch';
 import { Label } from '@mantle/web-ui/ui/label';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { apiSend } from '@mantle/web-ui/api-fetch';
-import { TEAM_SETTINGS_PATH } from './team-settings-query';
+import { READ_POSTURE_TEXT, TEAM_SETTINGS_PATH } from './team-settings-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,8 +36,8 @@ export function PrivateReadsToggle({ initial }: { initial: boolean }) {
       await apiSend(TEAM_SETTINGS_PATH, 'PATCH', { teamPrivateReads: next });
       toast.success(
         next
-          ? 'Team members can now have email & journal read on their behalf.'
-          : 'Email & journal are now off-limits to team members.',
+          ? 'Expose email & journal is on. It has no effect any more.'
+          : 'Expose email & journal is off.',
       );
     } catch {
       setEnabled(!next); // revert
@@ -66,28 +65,19 @@ export function PrivateReadsToggle({ initial }: { initial: boolean }) {
           checked={enabled}
           onCheckedChange={onChange}
           disabled={pending}
-          aria-label="Allow team members to read the owner's email and journal"
+          aria-label="Expose email and journal (no effect any more)"
         />
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Expose your email &amp; journal to team members?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Team members can already have your notes, pages, tables, files, tasks, events and
-              contacts read on their behalf through the responder. The brain is the trust boundary.
-              Enabling this <strong>also</strong> lets them reach your{' '}
-              <strong>email history and personal journal</strong>, including anything an uploaded
-              document tries to make the responder look up. Only turn this on if every team member
-              is trusted with that. You can turn it off again at any time.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Turn on Expose email &amp; journal?</AlertDialogTitle>
+            <AlertDialogDescription>{READ_POSTURE_TEXT}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void persist(true)}>
-              Enable private reads
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => void persist(true)}>Turn on</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

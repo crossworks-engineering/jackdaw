@@ -20,3 +20,12 @@ export function useTeamSettings(enabled = true) {
     enabled,
   });
 }
+
+/** What the switch does today (brain workspaces model): nothing. An
+ *  assistant of a workspace other than Admin runs in that workspace and
+ *  never runs as the Admin assistant; mail and journal entries are kinds
+ *  that live in the Admin workspace only (no grant or home elsewhere), and
+ *  their read tools are Admin only. The same words as the brain's guide
+ *  (docs/guide/06-help/team-admin.md). */
+export const READ_POSTURE_TEXT =
+  'Expose email & journal has no effect any more: an assistant of a workspace other than Admin reads only what its workspace holds, and mail and journal entries live in the Admin workspace only. Default off.';
