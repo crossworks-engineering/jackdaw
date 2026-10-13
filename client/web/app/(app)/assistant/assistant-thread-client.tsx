@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { GitCompareArrows, Highlighter, MapPin, MessageSquarePlus } from 'lucide-react';
+import { GitCompareArrows, Highlighter, MapPin } from 'lucide-react';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { agentAccent } from '@/lib/agent-color';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
-import { Button } from '@mantle/web-ui/ui/button';
 import { RowButton } from '@mantle/web-ui/ui/row-button';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
@@ -22,7 +21,7 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { ActiveRunsStrip } from '@/components/runs/active-runs-strip';
 import { PendingQuestionsStrip } from '@/components/pending/pending-questions-strip';
 import { AssistantClient } from './assistant-client';
-import { AssistantHeaderMenu } from './assistant-header-menu';
+import { AssistantHeaderControls } from './assistant-header-controls';
 import type {
   AssistantAgentOption,
   AssistantTimelineRow,
@@ -30,7 +29,7 @@ import type {
   ChatThreadRow,
 } from '@mantle/client-types';
 import { PreviousChatView, PreviousChatsList } from './previous-chats';
-import { NEW_CHAT_HINT, NEW_CHAT_LABEL, newChatToast, type ChatView } from './chat-threads-state';
+import { newChatToast, type ChatView } from './chat-threads-state';
 
 /** The fields the header + chat need off the resolved agent. For a login
  *  that is not an Admin user the brain sends only id, slug, name, role and
@@ -62,8 +61,8 @@ const ASSIGNED_SEEN_KEY = 'mantle_assistant_assigned_seen';
 /**
  * Data-free /assistant. Fetches the agent list + resolved agent + initial
  * thread from GET /api/assistant/thread (keyed on the ?agent slug hint the page
- * reads from the URL/cookie), then renders the header + chat. AgentSelect still
- * writes the cookie + navigates to ?agent=<slug>, which re-keys this query.
+ * reads from the URL/cookie), then renders the header + chat. The "..." menu's
+ * agent picker switches the dock's agent, which re-keys this query.
  */
 export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
   const {
@@ -236,23 +235,8 @@ export function AssistantThreadClient({ slugHint }: { slugHint?: string }) {
             and once it does a `justify-between` right group drops to the LEFT of
             the next line. Floated, the controls stay on the right edge whatever
             the width. */}
-        <div className="ml-auto flex items-center gap-1">
-          {/* Two icons only (Jason, 2026-10-05): New chat, and "..." for the
-              rest: the agent picker, the panel shape, Previous chats and
-              Minimise. The words never say "archive". */}
-          {agent && threadsSupported && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              disabled={startingNew || busy}
-              onClick={startNewChat}
-              title={NEW_CHAT_HINT}
-              aria-label={NEW_CHAT_LABEL}
-            >
-              <MessageSquarePlus aria-hidden />
-            </Button>
-          )}
-          <AssistantHeaderMenu
+        <div className="ml-auto">
+          <AssistantHeaderControls
             agents={agentList}
             selected={agent?.slug ?? ''}
             threads={!!agent && threadsSupported}

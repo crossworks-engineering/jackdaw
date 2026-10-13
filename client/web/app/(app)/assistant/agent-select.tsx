@@ -18,10 +18,12 @@ import type { AssistantAgentOption } from '@mantle/client-types';
 export function AgentSelect({
   agents,
   selected,
+  size,
   className,
 }: {
   agents: AssistantAgentOption[];
   selected: string;
+  size?: React.ComponentProps<typeof SelectTrigger>['size'];
   className?: string;
 }) {
   const { setActiveAgentSlug } = useDockActions();
@@ -30,14 +32,20 @@ export function AgentSelect({
   }
   return (
     <Select value={selected} onValueChange={pick}>
-      <SelectTrigger className={cn('w-60', className)} aria-label="Choose agent">
+      {/* The trigger shows the name only; role and model are for the list
+          (and already sit under the name in the header). */}
+      <SelectTrigger
+        size={size}
+        className={cn('w-60 [&_[data-agent-meta]]:hidden', className)}
+        aria-label="Choose agent"
+      >
         <SelectValue placeholder="Select agent" />
       </SelectTrigger>
       <SelectContent>
         {agents.map((a) => (
           <SelectItem key={a.slug} value={a.slug}>
             <span className="font-medium">{a.name}</span>
-            <span className="ml-2 text-xs text-muted-foreground">
+            <span data-agent-meta className="ml-2 text-xs text-muted-foreground">
               {a.role} · {shortModelName(a.model)}
             </span>
           </SelectItem>

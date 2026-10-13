@@ -9,8 +9,6 @@ import type { ChatArchiveResponse, ChatThreadRow } from '@mantle/client-types';
 
 export const NEW_CHAT_LABEL = 'New chat';
 export const PREVIOUS_CHATS_LABEL = 'Previous chats';
-export const NEW_CHAT_HINT =
-  'Start a new chat. The current chat stays saved and searchable in Previous chats.';
 
 /** What the chat window shows under its header. */
 export type ChatView = { kind: 'live' } | { kind: 'list' } | { kind: 'thread'; id: string };
