@@ -163,6 +163,12 @@ describe('GrantAccessView columns', () => {
   it('the header and every row share one grid, so the columns line up', () => {
     expect(rows).toHaveLength(4);
     expect(count(html, `class="${GRANT_GRID} `)).toBe(5);
+    // The header takes the rows' border and padding, unseen, so its labels
+    // sit over the controls to the pixel.
+    const header = html.match(/<div[^>]*data-testid="grant-columns"[^>]*>/)?.[0] ?? '';
+    expect(header).toMatch(/class="[^"]*\bborder border-transparent px-2\.5\b/);
+    for (const r of rows)
+      expect(r).toMatch(/^<li[^>]*class="[^"]*\bborder border-border[^"]*px-2\.5\b/);
   });
 
   it('every row has a radio, a switch and a Revoke, in that order', () => {

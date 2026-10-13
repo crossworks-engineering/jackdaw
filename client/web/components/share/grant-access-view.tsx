@@ -125,6 +125,9 @@ export function GrantAccessView({
       <div className="space-y-2">
         <p className="text-sm font-medium">Who can see this</p>
         {!manage && <p className="text-xs text-muted-foreground">{READ_ONLY_PANEL_TEXT}</p>}
+        {/* One radio group over the rows, the Home column. An arrow key picks
+            the next row, as on any radio group; a pick only opens the single
+            move confirm (pickHome), and nothing moves before its Move button. */}
         <RadioGroup
           value={homeWsId}
           onValueChange={pickHome}
@@ -134,7 +137,11 @@ export function GrantAccessView({
           <div
             aria-hidden
             data-testid="grant-columns"
-            className={cn(GRANT_GRID, 'px-2.5 text-xs text-muted-foreground')}
+            className={cn(
+              GRANT_GRID,
+              // The rows' border width, unseen, so the columns line up to the pixel.
+              'border border-transparent px-2.5 text-xs text-muted-foreground',
+            )}
           >
             <span />
             <span className="text-center">{GRANT_COLUMNS.home}</span>
