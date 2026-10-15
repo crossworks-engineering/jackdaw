@@ -38,6 +38,11 @@ import {
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { ListPager } from '@mantle/web-ui/layout/list-pager';
 import { useListNav } from '@/lib/use-list-nav';
+import {
+  catalogFromResponse,
+  catalogUrl,
+  type CatalogResponse,
+} from '@/app/(app)/settings/agents/use-model-catalog';
 import { ModelsNav } from './models-nav';
 import { useToast } from '@mantle/web-ui/ui/toast';
 import { ListCard, ListCardTitle } from '@mantle/web-ui/ui/list-card';
@@ -195,10 +200,13 @@ function ModelsView({ data }: { data: ExploreBundle }) {
     setRefreshing(true);
     try {
       // Bust the 5-min server cache, then refetch the explore bundle against it.
-      const data = await apiFetch<{ models: unknown[] }>(
-        `/api/models?provider=${encodeURIComponent(provider)}&refresh=1`,
-      );
-      toast.success(`Loaded ${data.models.length} model${data.models.length === 1 ? '' : 's'}`);
+      const data = await apiFetch<CatalogResponse>(`${catalogUrl(provider)}&refresh=1`);
+      // An empty list says why (no key saved, the key refused, no list API)
+      // rather than "Loaded 0 models".
+      const n = data.models?.length ?? 0;
+      const why = catalogFromResponse(data).error;
+      if (n === 0 && why) toast.error(why);
+      else toast.success(`Loaded ${n} model${n === 1 ? '' : 's'}`);
       await queryClient.invalidateQueries({ queryKey: ['models'] });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Refresh failed — network error');

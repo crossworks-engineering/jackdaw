@@ -5,6 +5,7 @@ import {
   catalogFromError,
   catalogFromResponse,
   catalogKeyId,
+  catalogQueryKey,
   catalogUrl,
   resolveProvider,
 } from './use-model-catalog';
@@ -64,6 +65,16 @@ describe('catalogKeyId', () => {
   });
 });
 
+describe('catalogQueryKey', () => {
+  // A new pick is a new query, so the picker fetches again on a key change.
+  it('is one key per provider and picked key', () => {
+    expect(catalogQueryKey('anthropic', 'k-1')).toEqual(['models', 'anthropic', 'k-1']);
+    expect(catalogQueryKey('anthropic', 'k-1')).not.toEqual(catalogQueryKey('anthropic', 'k-2'));
+    expect(catalogQueryKey('anthropic', null)).not.toEqual(catalogQueryKey('anthropic', 'k-1'));
+    expect(catalogQueryKey(undefined, null)).toEqual(['models', 'openrouter', null]);
+  });
+});
+
 describe('catalogFromResponse', () => {
   it('takes the models and settles', () => {
     const c = catalogFromResponse({ models: [model('x')] });
@@ -98,6 +109,15 @@ describe('catalogFromResponse', () => {
 
   it('says so for a provider with no list API', () => {
     expect(catalogFromResponse({ models: [], unsupported: true }).error).toBe(UNSUPPORTED_MESSAGE);
+  });
+
+  // A brain from before keyId ignores the parameter and answers in the same
+  // shape, listing with its own key: the picker takes that list as it is.
+  it("takes an older brain's answer, which ignored the picked key", () => {
+    const c = catalogFromResponse({ models: [model('claude-x')] });
+    expect(c.models).toHaveLength(1);
+    expect(c.error).toBeNull();
+    expect(catalogFromResponse({ models: [], needsKey: true }).error).toBe(NEEDS_KEY_MESSAGE);
   });
 
   it('says so when the answer had no catalog in it at all', () => {

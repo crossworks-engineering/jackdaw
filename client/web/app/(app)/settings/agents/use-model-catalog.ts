@@ -62,6 +62,19 @@ export function catalogKeyId(
   return k && k.service === resolveProvider(provider) ? k.id : null;
 }
 
+/**
+ * The query key of a catalog: one per provider AND picked key, so a new pick
+ * fetches its own list (two keys of one provider can list different models).
+ * The /models page's refresh invalidates the `['models']` prefix, which
+ * covers every key.
+ */
+export function catalogQueryKey(
+  provider: string | undefined | null,
+  keyId: string | null,
+): readonly ['models', string, string | null] {
+  return ['models', resolveProvider(provider), keyId];
+}
+
 /** What the list says when the brain has no key for the provider. */
 export const NEEDS_KEY_MESSAGE =
   'No API key for this provider is saved. Add one at /settings/keys, then pick it above.';

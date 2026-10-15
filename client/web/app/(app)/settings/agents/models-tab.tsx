@@ -40,6 +40,7 @@ import {
   catalogFromError,
   catalogFromResponse,
   catalogKeyId,
+  catalogQueryKey,
   catalogUrl,
   type CatalogResponse,
 } from './use-model-catalog';
@@ -472,7 +473,7 @@ function ModelSetPicker({
   // models), and fetched again when the pick changes.
   const pickedKeyId = catalogKeyId(apiKeys, apiKeyId, provider);
   const catalogQuery = useQuery({
-    queryKey: ['models', provider, pickedKeyId],
+    queryKey: catalogQueryKey(provider, pickedKeyId),
     queryFn: () => apiFetch<CatalogResponse>(catalogUrl(provider, pickedKeyId)),
     staleTime: 5 * 60_000,
   });
