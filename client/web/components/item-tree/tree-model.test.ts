@@ -9,6 +9,7 @@ import {
   crumbLine,
   dropPosition,
   flattenTree,
+  folderHasChildren,
   folderManaged,
   isOnTheWayTo,
   itemMovable,
@@ -224,6 +225,62 @@ describe('flattening the tree for the virtual list', () => {
   });
 });
 
+describe('items in another workspace (task f26a516e)', () => {
+  const ok = (children: Extract<FolderLoad, { status: 'ok' }>['children']): FolderLoad => ({
+    status: 'ok',
+    children,
+    loadingMore: false,
+  });
+  const admin = { id: 'wa', name: 'Admin', count: 2 };
+
+  it('a folder whose items only another workspace reads still unfolds', () => {
+    const f = { ...folder('a', 'files.a'), folderCount: 0, itemCount: 0 };
+    expect(folderHasChildren(f)).toBe(false);
+    expect(folderHasChildren({ ...f, itemsElsewhere: 2 })).toBe(true);
+    // The picker lists folders only.
+    expect(folderHasChildren({ ...f, itemsElsewhere: 2 }, true)).toBe(false);
+  });
+
+  it('keeps the brain’s hint from the first page, only while no item shows', () => {
+    const first = { ...page([], [], null), elsewhere: [admin] };
+    expect(mergeFolderPages([first]).elsewhere).toEqual([admin]);
+    const withItem = { ...page([], [item('1')], null), elsewhere: [admin] };
+    expect(mergeFolderPages([withItem])).not.toHaveProperty('elsewhere');
+  });
+
+  it('says where the items are in place of the empty note, and after the folders', () => {
+    const root = flattenTree(
+      () => ok({ folders: [], items: [], hasMore: false, elsewhere: [admin] }),
+      () => false,
+      { emptyText: 'No files yet.' },
+    ).rows;
+    expect(root).toEqual([
+      {
+        type: 'elsewhere',
+        key: 'e:root:wa',
+        depth: 0,
+        guides: [],
+        workspace: { id: 'wa', name: 'Admin' },
+        count: 2,
+      },
+    ]);
+    const b = { ...folder('b', 'files.b'), folderCount: 0, itemCount: 0 };
+    const rows = flattenTree(
+      () => ok({ folders: [b], items: [], hasMore: false, elsewhere: [admin] }),
+      () => false,
+      { emptyText: 'x' },
+    ).rows;
+    expect(rows.map((r) => r.key)).toEqual(['f:b', 'e:root:wa']);
+    // The picker never says it.
+    const picker = flattenTree(
+      () => ok({ folders: [], items: [], hasMore: false, elsewhere: [admin] }),
+      () => false,
+      { emptyText: 'x', foldersOnly: true },
+    ).rows;
+    expect(picker).toEqual([]);
+  });
+});
+
 describe('picking a range', () => {
   const rowOf = (id: string, state: TreeItem['state'] = null): TreeRow => ({
     type: 'item',
@@ -305,7 +362,20 @@ describe('urls', () => {
       '/api/tree/files/search?q=q&tag=a',
     );
     expect(searchUrl('files', 'q', null, { tag: 'a' }, 'owner', 'w1')).toBe(
-      '/api/tree/files/search?q=q&tag=a&ws=w1',
+      '/api/tree/files/search?q=q&tag=a&ws=w1&across=1',
+    );
+  });
+
+  it('a search with a term asks across workspaces (task f26a516e); A to Z never does', () => {
+    expect(searchUrl('pages', 'plan', null, {}, 'owner', 'w1')).toBe(
+      '/api/tree/pages/search?q=plan&ws=w1&across=1',
+    );
+    expect(searchUrl('pages', '  ', null, {}, 'owner', 'w1')).toBe(
+      '/api/tree/pages/search?q=&ws=w1',
+    );
+    // All my workspaces: nothing to put first, nothing to ask.
+    expect(searchUrl('pages', 'plan', null, {}, 'owner', null)).toBe(
+      '/api/tree/pages/search?q=plan',
     );
   });
 
@@ -326,7 +396,7 @@ describe('urls', () => {
       '/api/tree/notes?folder=f1&sort=name&ws=w1',
     );
     expect(searchUrl('notes', 'q', null, {}, 'owner', 'w1')).toBe(
-      '/api/tree/notes/search?q=q&ws=w1',
+      '/api/tree/notes/search?q=q&ws=w1&across=1',
     );
     expect(folderUrl('notes', null, 'name', null, 'owner', null)).toBe('/api/tree/notes?sort=name');
     expect(folderKey('notes', null, 'name', 'owner', 'w1').at(-1)).toBe('w1');

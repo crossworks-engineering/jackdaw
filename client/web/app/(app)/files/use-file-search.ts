@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import { useTreeSearch } from '@/components/item-tree/use-tree-search';
+import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
 import type { FileSearchHit } from './files-shared';
 
 /**
@@ -25,8 +26,11 @@ export function isSearchActive(query: string): boolean {
   return query.trim().length >= MIN_QUERY;
 }
 
-export function searchUrl(query: string): string {
-  return `/api/search?q=${encodeURIComponent(query.trim())}&branch=files&limit=30`;
+/** `ws`: the switcher's workspace. It narrows nothing: the brain searches
+ *  every workspace the login reads and puts its hits first (task f26a516e). */
+export function searchUrl(query: string, ws: string | null = null): string {
+  const tail = ws ? `&ws=${encodeURIComponent(ws)}` : '';
+  return `/api/search?q=${encodeURIComponent(query.trim())}&branch=files&limit=30${tail}`;
 }
 
 /** Folders surface through the filtered tree, so the results list is files. */
@@ -54,6 +58,7 @@ export function useFileSearch(): FileSearch {
   // "abc" could land after a fast one for "abcd" and put the wrong results on
   // screen. The generation is checked before anything is published.
   const generation = useRef(0);
+  const ws = useListWorkspace();
 
   useEffect(() => {
     const mine = ++generation.current;
@@ -65,7 +70,7 @@ export function useFileSearch(): FileSearch {
     setSearching(true);
     const t = setTimeout(async () => {
       try {
-        const res = await apiFetch<{ results: FileSearchHit[] }>(searchUrl(query));
+        const res = await apiFetch<{ results: FileSearchHit[] }>(searchUrl(query, ws));
         if (generation.current !== mine) return;
         setHits(fileHitsOnly(res.results));
       } catch {
@@ -76,7 +81,7 @@ export function useFileSearch(): FileSearch {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, ws]);
 
   return { query, setQuery, hits, searching, active: isSearchActive(query) };
 }

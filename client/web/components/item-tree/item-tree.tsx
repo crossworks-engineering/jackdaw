@@ -8,6 +8,7 @@ import {
 } from '@/components/share/grant-dialogs';
 import { grantErrorText, isNoGrants, moveChangesAccess, type MovePreview } from '@/lib/grants';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
+import { useWorkspaceJump } from '@/components/workspaces/workspace-hit-tag';
 import {
   useCallback,
   useEffect,
@@ -533,8 +534,14 @@ export function ItemTree({
   });
 
   // ── Opening ───────────────────────────────────────────────────────────
+  // A search hit from another workspace (brain task f26a516e) switches
+  // there first, the switcher's own pick, so the lists follow it; then it
+  // opens as any item does.
+  const jump = useWorkspaceJump();
   const openItem = (item: TreeItem, where: ItemWhere) => {
     clearPicked();
+    const to = jump.target(item);
+    if (to) jump.switchTo(to.id);
     onOpenItem(item, where);
     // Recent and Most used count the owner's opens only.
     if (owner && item.state !== 'private') {

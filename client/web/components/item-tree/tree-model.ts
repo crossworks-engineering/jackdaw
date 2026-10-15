@@ -6,6 +6,12 @@
 import type { TreeCrumb, TreeFolder, TreeFolderPage, TreeItem } from '@mantle/web-ui/types/tree';
 import { TREE_MAX_DEPTH } from '@mantle/web-ui/types/tree';
 import { itemAccess } from '@/lib/item-access';
+import { ELSEWHERE_MAX } from '@/lib/workspace-hits';
+import type {
+  ElsewhereCount,
+  TreeFolderPageWithElsewhere,
+  TreeFolderWithElsewhere,
+} from '@/lib/contract/workspace-hits';
 
 /** What moves (drag, the Move menu) and is picked: never an owner's private
  *  item (no folder yet), a snapshot copy, or an item the login does not
@@ -27,6 +33,10 @@ export type FolderChildren = {
   items: TreeItem[];
   /** More items wait behind the next cursor. */
   hasMore: boolean;
+  /** Asked with the switcher's workspace and none of its items here: the
+   *  login's other workspaces that read items in this folder (brain task
+   *  f26a516e). Absent otherwise, and from a brain before it. */
+  elsewhere?: ElsewhereCount[];
 };
 
 export function mergeFolderPages(pages: readonly TreeFolderPage[] | undefined): FolderChildren {
@@ -42,7 +52,22 @@ export function mergeFolderPages(pages: readonly TreeFolderPage[] | undefined): 
       items.push(it);
     }
   }
-  return { folders: pages[0]!.folders, items, hasMore: pages.at(-1)!.nextCursor !== null };
+  const elsewhere = (pages[0] as TreeFolderPageWithElsewhere).elsewhere;
+  return {
+    folders: pages[0]!.folders,
+    items,
+    hasMore: pages.at(-1)!.nextCursor !== null,
+    ...(elsewhere?.length && !items.length ? { elsewhere } : {}),
+  };
+}
+
+/** Whether a folder row unfolds: what it holds that the login reads here,
+ *  and (brain task f26a516e) items only its other workspaces read, so the
+ *  folder opens to say where they are. The picker lists folders only. */
+export function folderHasChildren(f: TreeFolderWithElsewhere, foldersOnly = false): boolean {
+  return foldersOnly
+    ? f.folderCount > 0
+    : f.folderCount + f.itemCount + (f.itemsElsewhere ?? 0) > 0;
 }
 
 export type ChildEntry =
@@ -112,6 +137,17 @@ export type TreeRow =
   | { type: 'hit'; key: string; folder: TreeFolder; crumbs: readonly TreeCrumb[] }
   | { type: 'root'; key: string }
   | { type: 'divider'; key: string }
+  | {
+      /** A folder with no item in the switcher's workspace whose items
+       *  another of the login's workspaces reads: "2 pages in Admin", and
+       *  a switch (brain task f26a516e). One row per workspace. */
+      type: 'elsewhere';
+      key: string;
+      depth: number;
+      guides: readonly boolean[];
+      workspace: { id: string; name: string };
+      count: number;
+    }
   | {
       type: 'note';
       key: string;
@@ -198,8 +234,24 @@ export function flattenTree(
     }
     const { children } = st;
     const entries = childEntries(children, foldersOnly);
+    // Items only the login's other workspaces read: said after the folders,
+    // in place of "Empty".
+    const elsewhere: TreeRow[] = foldersOnly
+      ? []
+      : (children.elsewhere ?? []).slice(0, ELSEWHERE_MAX).map((e) => ({
+          type: 'elsewhere',
+          key: `e:${base}:${e.id}`,
+          depth,
+          guides,
+          workspace: { id: e.id, name: e.name },
+          count: e.count,
+        }));
     if (!entries.length) {
       if (foldersOnly) return;
+      if (elsewhere.length) {
+        rows.push(...elsewhere);
+        return;
+      }
       rows.push(
         depth === 0
           ? { type: 'note', key: `s:${base}`, text: opts.emptyText }
@@ -225,7 +277,7 @@ export function flattenTree(
         continue;
       }
       const f = e.folder;
-      const hasChildren = foldersOnly ? f.folderCount > 0 : f.folderCount + f.itemCount > 0;
+      const hasChildren = folderHasChildren(f, foldersOnly);
       const open = hasChildren && isOpen(f.id);
       rows.push({
         type: 'folder',
@@ -241,6 +293,7 @@ export function flattenTree(
       });
       if (open) walk(f, depth + 1, childGuides(guides, e.isLast));
     }
+    rows.push(...elsewhere);
     if (!foldersOnly && children.hasMore) {
       rows.push({
         type: 'more',

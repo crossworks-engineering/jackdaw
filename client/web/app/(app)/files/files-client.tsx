@@ -37,6 +37,8 @@ import { useAssetUrl } from '@mantle/web-ui/hooks/use-asset-url';
 import { FileEditor } from './file-editor';
 import { oneOf, usePersistedState } from '@/lib/use-persisted-state';
 import { useFileSearch } from './use-file-search';
+import { useWorkspaceJump, WorkspaceHitTag } from '@/components/workspaces/workspace-hit-tag';
+import { cn } from '@mantle/web-ui/lib/utils';
 import { CreateFileDialog, CreateFolderDialog, RenameDialog } from './files-dialogs';
 import {
   droppedTree,
@@ -202,6 +204,7 @@ function FilesView({
   // The left pane's search — see use-file-search.ts for the two behaviours
   // one input drives, and for the stale-response guard.
   const { query, setQuery, hits, searching, active: searchActive } = useFileSearch();
+  const jump = useWorkspaceJump();
 
   // ── Path jump — type/paste a path, Enter navigates ──────────
   const [pathJump, setPathJump] = useState<string | null>(null);
@@ -751,10 +754,14 @@ function FilesView({
                       {(hits ?? []).map((h) => {
                         const d = describeFile(null, h.title);
                         const HitIcon = d.icon;
+                        // A hit from another workspace (task f26a516e): its
+                        // tag, and opening it switches there first.
+                        const to = jump.target(h);
                         return (
                           <li key={h.id}>
                             <RowButton
                               onClick={() => {
+                                if (to) jump.switchTo(to.id);
                                 setQuery('');
                                 const sp = new URLSearchParams();
                                 sp.set('path', h.path);
@@ -776,7 +783,13 @@ function FilesView({
                                   {h.summary ? ` — ${h.summary}` : ''}
                                 </span>
                               </span>
-                              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                              {to && <WorkspaceHitTag workspace={to} className="ml-auto" />}
+                              <span
+                                className={cn(
+                                  'shrink-0 text-xs text-muted-foreground',
+                                  !to && 'ml-auto',
+                                )}
+                              >
                                 {fmtRelative(h.updatedAt)}
                               </span>
                             </RowButton>

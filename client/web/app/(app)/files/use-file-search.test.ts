@@ -29,6 +29,11 @@ describe('searchUrl', () => {
     expect(url).toContain('branch=files');
   });
 
+  it('puts the switcher’s workspace first, never narrowing to it (task f26a516e)', () => {
+    expect(searchUrl('plan', 'w1')).toContain('&ws=w1');
+    expect(searchUrl('plan')).not.toContain('ws=');
+  });
+
   it('encodes what would otherwise change the query string', () => {
     expect(searchUrl('a&b=c')).toContain('q=a%26b%3Dc');
     expect(searchUrl('100%')).toContain('q=100%25');

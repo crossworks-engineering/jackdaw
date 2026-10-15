@@ -1,12 +1,14 @@
 import type { NavItem } from '@mantle/web-ui/layout/nav-items';
+import type { HitWorkspaceField } from '@/lib/contract/workspace-hits';
 
 /**
  * Pure logic behind the ⌘K search palette, split out for colocated vitest —
  * the component itself stays render-only.
  */
 
-/** One row of `GET /api/search` (nodes mode). */
-export type SearchNodeResult = {
+/** One row of `GET /api/search` (nodes mode). `workspace`: where it opens
+ *  (brain task f26a516e; absent from a brain before it). */
+export type SearchNodeResult = HitWorkspaceField & {
   id: string;
   type: string;
   title: string | null;
@@ -19,7 +21,7 @@ export type SearchNodeResult = {
 };
 
 /** One row of `GET /api/search?mode=chunks` (passages). */
-export type SearchChunkResult = {
+export type SearchChunkResult = HitWorkspaceField & {
   nodeId: string;
   nodeTitle: string | null;
   nodeType: string;

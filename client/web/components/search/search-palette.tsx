@@ -16,6 +16,7 @@ import {
 } from '@mantle/web-ui/ui/command';
 import { ALL_NAV_ITEMS } from '@mantle/web-ui/layout/nav-items';
 import { nodeTypeIcon } from '@/components/search/node-type-icons';
+import { useWorkspaceJump, WorkspaceHitTag } from '@/components/workspaces/workspace-hit-tag';
 import { guardedNavigate } from '@/lib/nav-guard';
 import {
   displayTitle,
@@ -42,6 +43,11 @@ const LIMIT = 20;
  * Fetches are debounced and sequence-guarded (the mention-list idiom): only the
  * newest request may apply, so a slow early query can never paint over a fast
  * later one. Old rows stay rendered while the next fetch is in flight.
+ *
+ * It searches every workspace the login reads (brain task f26a516e): the
+ * switcher's workspace goes along as `ws`, so its hits come first. A hit
+ * from another workspace carries a small tag with that workspace's name, and
+ * choosing it switches there and opens the item in one step.
  */
 export function SearchPalette({
   open,
@@ -61,6 +67,7 @@ export function SearchPalette({
   // results" from "still waiting" without clearing the previous rows.
   const [settled, setSettled] = useState(false);
   const seqRef = useRef(0);
+  const { current, target, switchTo } = useWorkspaceJump();
 
   useEffect(() => {
     if (!open) return;
@@ -80,6 +87,7 @@ export function SearchPalette({
       setLoading(true);
       const params = new URLSearchParams({ q, limit: String(LIMIT) });
       if (mode === 'chunks') params.set('mode', 'chunks');
+      if (current) params.set('ws', current);
       apiFetch<{ results: (SearchNodeResult | SearchChunkResult)[] }>(
         `/api/search?${params.toString()}`,
         { signal: ctrl.signal },
@@ -102,12 +110,22 @@ export function SearchPalette({
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [query, mode, open]);
+  }, [query, mode, open, current]);
 
   const go = (path: string) => {
     onOpenChange(false);
     guardedNavigate(() => router.push(path));
   };
+
+  /** Open a hit, switching first when it lives in another workspace. */
+  const openHit = (id: string, to: { id: string } | null) => {
+    onOpenChange(false);
+    guardedNavigate(() => {
+      if (to) switchTo(to.id);
+      router.push(`/n/${id}`);
+    });
+  };
+  const tagText = 'group-data-[selected=true]/command-item:text-accent-foreground';
 
   const navMatches = filterNavItems(ALL_NAV_ITEMS, query);
   const results = mode === 'chunks' ? chunkResults : nodeResults;
@@ -180,11 +198,12 @@ export function SearchPalette({
             {mode === 'nodes'
               ? nodeResults.map((r) => {
                   const Icon = nodeTypeIcon(r.type);
+                  const to = target(r);
                   return (
                     <CommandItem
                       key={`node:${r.id}`}
                       value={`node:${r.id}`}
-                      onSelect={() => go(`/n/${r.id}`)}
+                      onSelect={() => openHit(r.id, to)}
                     >
                       <Icon />
                       <span className="min-w-0 flex-1">
@@ -197,6 +216,7 @@ export function SearchPalette({
                           </span>
                         )}
                       </span>
+                      {to && <WorkspaceHitTag workspace={to} selectedText={tagText} />}
                       {r.supersededBy && <SupersededBadge succ={r.supersededBy} go={go} />}
                       <span className="shrink-0 text-xs text-muted-foreground group-data-[selected=true]/command-item:text-accent-foreground">
                         {relativeUpdatedAt(r.updatedAt)}
@@ -206,11 +226,12 @@ export function SearchPalette({
                 })
               : chunkResults.map((r) => {
                   const Icon = nodeTypeIcon(r.nodeType);
+                  const to = target(r);
                   return (
                     <CommandItem
                       key={`chunk:${r.nodeId}:${r.ordinal}`}
                       value={`chunk:${r.nodeId}:${r.ordinal}`}
-                      onSelect={() => go(`/n/${r.nodeId}`)}
+                      onSelect={() => openHit(r.nodeId, to)}
                     >
                       <Icon className="self-start" />
                       <span className="min-w-0 flex-1">
@@ -220,6 +241,13 @@ export function SearchPalette({
                         </span>
                         <span className="line-clamp-2 font-serif text-sm">{r.text}</span>
                       </span>
+                      {to && (
+                        <WorkspaceHitTag
+                          workspace={to}
+                          selectedText={tagText}
+                          className="self-start"
+                        />
+                      )}
                       {r.supersededBy && <SupersededBadge succ={r.supersededBy} go={go} />}
                     </CommandItem>
                   );

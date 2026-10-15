@@ -6,6 +6,7 @@
  */
 
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
+import type { HitWorkspaceField } from '@/lib/contract/workspace-hits';
 
 export const FILES_ROOT = 'files';
 
@@ -45,8 +46,9 @@ export type FileRow = {
 };
 
 /** One `/api/search?branch=files` hit — the server's node shape, trimmed to
- *  what the results list renders. */
-export type FileSearchHit = {
+ *  what the results list renders. `workspace`: where it opens (brain task
+ *  f26a516e; absent from a brain before it). */
+export type FileSearchHit = HitWorkspaceField & {
   id: string;
   type: string;
   title: string;

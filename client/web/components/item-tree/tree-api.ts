@@ -84,7 +84,10 @@ export function folderUrl(
 }
 
 /** An empty `q` is the A to Z view: every item by name, no folders. A
- *  filter narrows the items and drops the folders. */
+ *  filter narrows the items and drops the folders. A search with a term
+ *  asks `across` (brain task f26a516e): every workspace the login reads,
+ *  the switcher's workspace (`ws`) first, each item naming the workspace it
+ *  opens in. A brain before it ignores `across` and narrows by `ws`. */
 export function searchUrl(
   kind: TreeKind,
   q: string,
@@ -95,10 +98,10 @@ export function searchUrl(
 ): string {
   // A reader's search takes no tag or workspace (it is not offered one). The
   // level filter is gone (W5b2 contract 29): `ws` narrows by workspace.
-  const rest = query(source === 'owner' ? { cursor, tag: filter.tag, ws } : { cursor }).replace(
-    /^\?/,
-    '&',
-  );
+  const across = ws && q.trim() ? '1' : null;
+  const rest = query(
+    source === 'owner' ? { cursor, tag: filter.tag, ws, across } : { cursor },
+  ).replace(/^\?/, '&');
   return `${BASE[source]}/${kind}/search?q=${encodeURIComponent(q.trim())}${rest}`;
 }
 

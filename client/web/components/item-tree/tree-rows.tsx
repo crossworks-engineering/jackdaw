@@ -3,6 +3,8 @@
 import { WorkspaceChips } from '@/components/share/workspace-chips';
 import { hasShareMarks, marksHaveLook } from '@/lib/grants';
 import { useListWorkspace } from '@/components/workspaces/use-list-workspace';
+import { useWorkspaceJump, WorkspaceHitTag } from '@/components/workspaces/workspace-hit-tag';
+import { elsewhereText, hitLabel } from '@/lib/workspace-hits';
 import {
   useCallback,
   useEffect,
@@ -74,6 +76,7 @@ const SIZE: Record<TreeRow['type'], number> = {
   hit: ROW_SIZE,
   root: ROW_SIZE,
   status: ROW_SIZE,
+  elsewhere: ROW_SIZE,
   more: ROW_SIZE,
   note: 33,
   divider: 9,
@@ -559,6 +562,8 @@ export function FolderTreeRow({
         />
       );
     }
+    case 'elsewhere':
+      return <ElsewhereRow row={row} />;
     case 'more':
       return (
         <Sentinel
@@ -708,6 +713,9 @@ export function ItemRow({
       : undefined;
   const carried = picked ? ctx.picked.size : 1;
   const tall = useRowHeight(item);
+  // A search hit from another workspace (brain task f26a516e): its tag.
+  // Opening it switches there (the tree's click does).
+  const elsewhere = useWorkspaceJump().target(crumbs ? item : null);
   return (
     <TreeRowShell
       rowKey={rowKey}
@@ -754,6 +762,7 @@ export function ItemRow({
         >
           {ctx.adapter.lead(item)}
           <TreeName name={item.title} marks={item} />
+          {elsewhere && <WorkspaceHitTag workspace={elsewhere} />}
           {place !== null ? (
             place && (
               <span className="max-w-[45%] shrink truncate text-[11px] text-muted-foreground">
@@ -812,6 +821,35 @@ export function FolderHitRow({
   );
 }
 
+/**
+ * A folder with nothing in the switcher's workspace whose items another of
+ * the login's workspaces reads (brain task f26a516e): "2 pages in Admin",
+ * and Switch, which picks that workspace in the switcher so the list shows
+ * them. Quiet, like the Empty it replaces.
+ */
+function ElsewhereRow({ row }: { row: Extract<TreeRow, { type: 'elsewhere' }> }) {
+  const ctx = useTreeCtx();
+  const { workspaces, switchTo } = useWorkspaceJump();
+  const held = workspaces.find((w) => w.id === row.workspace.id);
+  const text = elsewhereText(row.count, ctx.adapter.noun, held ?? row.workspace);
+  return (
+    <StatusRow
+      depth={row.depth}
+      guides={row.guides}
+      label={text}
+      action={
+        held
+          ? {
+              label: 'Switch',
+              title: `Switch to ${hitLabel(held)}`,
+              onClick: () => switchTo(held.id),
+            }
+          : undefined
+      }
+    />
+  );
+}
+
 /** A quiet one-line row inside the tree: loading, empty, or an error. */
 function StatusRow({
   depth,
@@ -824,7 +862,7 @@ function StatusRow({
   guides: readonly boolean[];
   label: string;
   busy?: boolean;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; title?: string; onClick: () => void };
 }) {
   return (
     <div className="relative flex h-8 items-center">
@@ -836,7 +874,13 @@ function StatusRow({
         {busy && <Spinner className="size-3" />}
         {label}
         {action && (
-          <Button variant="link" size="2xs" className="h-auto p-0" onClick={action.onClick}>
+          <Button
+            variant="link"
+            size="2xs"
+            className="h-auto p-0"
+            title={action.title}
+            onClick={action.onClick}
+          >
             {action.label}
           </Button>
         )}
