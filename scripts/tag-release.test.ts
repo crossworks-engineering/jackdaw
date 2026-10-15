@@ -27,6 +27,7 @@ describe('scripts/tag-release.sh', () => {
         env: cleanEnv(),
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 60_000,
       });
     } catch (e) {
       const err = e as { stdout?: string; stderr?: string };
