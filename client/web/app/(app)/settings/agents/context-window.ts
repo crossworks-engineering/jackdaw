@@ -34,7 +34,7 @@ export function resolveContextWindow(input: {
   return { kind: 'unknown', openRouterSlug: resolveProvider(input.provider) === 'openrouter' };
 }
 
-/** 1M, 200k, 512 — the short form the hint shows. */
+/** 1M, 200k, 512: the short form the hint shows. */
 export function prettyTokens(limit: number): string {
   if (limit >= 1_000_000) {
     return `${(limit / 1_000_000).toFixed(limit % 1_000_000 === 0 ? 0 : 1)}M`;

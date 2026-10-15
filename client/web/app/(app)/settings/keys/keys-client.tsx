@@ -67,12 +67,13 @@ type KeyRow = {
  *  form then shows no field it would drop. */
 type KeyFeatures = { anthropicWorkspaceId?: boolean };
 
-/** Loose, as the brain checks it: no format invented, only what could never
- *  be a header value is refused. */
+/** As the brain checks it (and its table): ASCII letters, digits, _ and -,
+ *  at most 128 of them, so the id is always a legal header value. */
 function workspaceIdProblem(value: string): string | undefined {
   const v = value.trim();
+  if (!v) return undefined;
   if (v.length > 128) return 'At most 128 characters.';
-  if (/\s/.test(v)) return 'No spaces.';
+  if (!/^[A-Za-z0-9_-]+$/.test(v)) return 'Only letters A to Z, digits, _ and -.';
   return undefined;
 }
 
