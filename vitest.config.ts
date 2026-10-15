@@ -15,6 +15,8 @@ export default defineConfig({
       'client/**/*.test.ts',
       'e2e/lib/**/*.test.ts',
       'eslint-rules/**/*.test.ts',
+      // The release script's harness (scripts/tag-release.test.ts runs it).
+      'scripts/**/*.test.ts',
     ],
     environment: 'node',
     globals: false,
