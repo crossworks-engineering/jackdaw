@@ -1,5 +1,5 @@
 import type { NavItem } from '@mantle/web-ui/layout/nav-items';
-import type { HitWorkspaceField } from '@/lib/contract/workspace-hits';
+import type { SearchChunkHit, SearchNodeHit } from '@mantle/client-types';
 
 /**
  * Pure logic behind the ⌘K search palette, split out for colocated vitest —
@@ -8,29 +8,10 @@ import type { HitWorkspaceField } from '@/lib/contract/workspace-hits';
 
 /** One row of `GET /api/search` (nodes mode). `workspace`: where it opens
  *  (brain task f26a516e; absent from a brain before it). */
-export type SearchNodeResult = HitWorkspaceField & {
-  id: string;
-  type: string;
-  title: string | null;
-  path: string | null;
-  tags: string[];
-  summary: string | null;
-  updatedAt: string;
-  url: string;
-  supersededBy?: { id: string; title: string | null; url: string };
-};
+export type SearchNodeResult = SearchNodeHit;
 
 /** One row of `GET /api/search?mode=chunks` (passages). */
-export type SearchChunkResult = HitWorkspaceField & {
-  nodeId: string;
-  nodeTitle: string | null;
-  nodeType: string;
-  ordinal: number;
-  heading: string | null;
-  text: string;
-  url: string;
-  supersededBy?: { id: string; title: string | null; url: string };
-};
+export type SearchChunkResult = SearchChunkHit;
 
 /** The endpoint requires a non-trivial query; under this we don't fetch. */
 export const MIN_QUERY_LENGTH = 2;

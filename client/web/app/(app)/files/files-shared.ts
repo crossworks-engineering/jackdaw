@@ -6,7 +6,7 @@
  */
 
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
-import type { HitWorkspaceField } from '@/lib/contract/workspace-hits';
+import type { HitWorkspaceField } from '@mantle/client-types';
 
 export const FILES_ROOT = 'files';
 

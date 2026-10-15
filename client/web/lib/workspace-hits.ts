@@ -9,7 +9,7 @@
  * no workspace, or for a workspace the shell does not list, there is no tag
  * and opening it switches nothing.
  */
-import type { ElsewhereCount, HitWorkspace } from './contract/workspace-hits';
+import type { ElsewhereCount, HitWorkspace } from '@mantle/client-types';
 import { workspaceLabel, type ShellWorkspace } from './workspaces';
 
 type Held = Pick<ShellWorkspace, 'id' | 'name' | 'private'>;
