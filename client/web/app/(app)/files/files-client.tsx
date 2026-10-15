@@ -1,6 +1,7 @@
 'use client';
 
 import { itemAccess } from '@/lib/item-access';
+import { guardedNavigate } from '@/lib/nav-guard';
 import { grantsKey, grantsUrl, uploadLine, uploadVisibleTo, type GrantsView } from '@/lib/grants';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { WorkspaceChips } from '@/components/share/workspace-chips';
@@ -760,14 +761,19 @@ function FilesView({
                         return (
                           <li key={h.id}>
                             <RowButton
-                              onClick={() => {
-                                if (to) jump.switchTo(to.id);
-                                setQuery('');
-                                const sp = new URLSearchParams();
-                                sp.set('path', h.path);
-                                sp.set('file', h.id);
-                                router.push(`/files?${sp.toString()}`);
-                              }}
+                              onClick={() =>
+                                // The switch runs inside the guarded open (as
+                                // the search palette does): kept off it, the
+                                // workspace stays too.
+                                guardedNavigate(() => {
+                                  if (to) jump.switchTo(to.id);
+                                  setQuery('');
+                                  const sp = new URLSearchParams();
+                                  sp.set('path', h.path);
+                                  sp.set('file', h.id);
+                                  router.push(`/files?${sp.toString()}`);
+                                })
+                              }
                               className="flex w-full items-start gap-3 px-6 py-2.5 text-left hover:bg-muted/30"
                             >
                               <HitIcon

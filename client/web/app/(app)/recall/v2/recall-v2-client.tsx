@@ -151,13 +151,15 @@ function RecallV2View({
   // link off the screen, closing the tab) asks first.
   const [dirty, setDirty] = useState(false);
   const [held, setHeld] = useState<(() => void) | null>(null);
-  const guarded = useCallback(
-    (nav: () => void) => {
-      if (dirty) setHeld(() => nav);
-      else nav();
-    },
-    [dirty],
-  );
+  // Read through a ref, so a navigation the reader let go (Discard) that
+  // asks again on its way (the tree's open after a workspace switch, run
+  // through guardedNavigate) is not asked twice.
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const guarded = useCallback((nav: () => void) => {
+    if (dirtyRef.current) setHeld(() => nav);
+    else nav();
+  }, []);
   useLeaveGuard(dirty, guarded);
   const guard: EditGuard = useMemo(
     () => ({ dirty, onDirtyChange: setDirty, guarded }),
@@ -393,6 +395,7 @@ function RecallV2View({
                 const nav = held;
                 setHeld(null);
                 setDirty(false);
+                dirtyRef.current = false;
                 nav?.();
               }}
             >
