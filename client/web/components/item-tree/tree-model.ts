@@ -7,11 +7,7 @@ import type { TreeCrumb, TreeFolder, TreeFolderPage, TreeItem } from '@mantle/we
 import { TREE_MAX_DEPTH } from '@mantle/web-ui/types/tree';
 import { itemAccess } from '@/lib/item-access';
 import { ELSEWHERE_MAX } from '@/lib/workspace-hits';
-import type {
-  ElsewhereCount,
-  TreeFolderPageWithElsewhere,
-  TreeFolderWithElsewhere,
-} from '@/lib/contract/workspace-hits';
+import type { ElsewhereCount } from '@mantle/client-types';
 
 /** What moves (drag, the Move menu) and is picked: never an owner's private
  *  item (no folder yet), a snapshot copy, or an item the login does not
@@ -52,7 +48,7 @@ export function mergeFolderPages(pages: readonly TreeFolderPage[] | undefined): 
       items.push(it);
     }
   }
-  const elsewhere = (pages[0] as TreeFolderPageWithElsewhere).elsewhere;
+  const elsewhere = pages[0]!.elsewhere;
   return {
     folders: pages[0]!.folders,
     items,
@@ -64,7 +60,7 @@ export function mergeFolderPages(pages: readonly TreeFolderPage[] | undefined): 
 /** Whether a folder row unfolds: what it holds that the login reads here,
  *  and (brain task f26a516e) items only its other workspaces read, so the
  *  folder opens to say where they are. The picker lists folders only. */
-export function folderHasChildren(f: TreeFolderWithElsewhere, foldersOnly = false): boolean {
+export function folderHasChildren(f: TreeFolder, foldersOnly = false): boolean {
   return foldersOnly
     ? f.folderCount > 0
     : f.folderCount + f.itemCount + (f.itemsElsewhere ?? 0) > 0;
