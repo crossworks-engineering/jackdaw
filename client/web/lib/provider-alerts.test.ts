@@ -43,6 +43,9 @@ describe('provider alert words (the 2026-10-04 no-credits case)', () => {
     expect(alertFix(outage())).toMatch(/Add credits to the OpenAI account/);
     expect(alertFix(outage({ code: 'auth' }))).toMatch(/Check the API key in Settings, Keys/);
     expect(alertFix(outage({ code: 'model' }))).toMatch(/Pick a model/);
+    expect(alertFix(outage({ code: 'workspace', provider: 'anthropic' }))).toBe(
+      'Add or check the Anthropic workspace id on the key in Settings, Keys.',
+    );
     expect(alertFix(outage({ code: 'server', permanent: false }))).toMatch(/retries by itself/);
     expect(alertHref(outage())).toBe('/settings/embedding');
     expect(alertHref(outage({ subject: 'extraction' }))).toBe('/settings/ai-workers');

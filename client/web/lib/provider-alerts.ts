@@ -93,6 +93,8 @@ export function alertFix(a: ProviderAlert): string {
       return `Add an API key in Settings, Keys, or switch provider in ${where}.`;
     case 'model':
       return `Pick a model the provider offers in ${where}.`;
+    case 'workspace':
+      return 'Add or check the Anthropic workspace id on the key in Settings, Keys.';
     default:
       return `The brain retries by itself. If it lasts, switch provider or add a backup route in ${where}.`;
   }
