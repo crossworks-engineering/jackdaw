@@ -26,12 +26,17 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fails=0
 
-# pnpm stub: logs its args; `pnpm verify` exits $PNPM_VERIFY_RC (default 0).
+# pnpm stub: logs its args; `pnpm verify` runs $PNPM_VERIFY_SIDE (a shell
+# snippet, in the clone, standing in for another session) if set, then exits
+# $PNPM_VERIFY_RC (default 0).
 mkdir -p "$tmp/bin"
 cat >"$tmp/bin/pnpm" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >>"$PNPM_LOG"
-[ "${1:-}" = verify ] && exit "${PNPM_VERIFY_RC:-0}"
+if [ "${1:-}" = verify ]; then
+  [ -n "${PNPM_VERIFY_SIDE:-}" ] && sh -c "$PNPM_VERIFY_SIDE"
+  exit "${PNPM_VERIFY_RC:-0}"
+fi
 exit 0
 STUB
 chmod +x "$tmp/bin/pnpm"
@@ -248,6 +253,25 @@ git clone -q -b main "$tmp/origin.git" "$tmp/other" 2>/dev/null
 rm -rf "$tmp/other"
 expect "a non-fast-forward refusal says to delete the local tag" nonzero other missing head \
   "git tag -d $TAG" --
+
+# H (re-audit 2): another session lands a commit on main WHILE verify runs
+# (with a demo/ file, the mantle twin's guard case). Tagging HEAD and pushing
+# `main` by name would release it unverified. The script must refuse: no
+# local tag, and origin gets nothing (its main stays before the release).
+fresh 1.2.3
+export PNPM_VERIFY_SIDE='mkdir -p demo && echo seed >demo/seed.sh && git add demo && git commit -q -m "landed during verify"'
+expect "a commit landed on main during verify is neither tagged nor pushed" \
+  nonzero old missing missing "HEAD moved during the verify" --
+unset PNPM_VERIFY_SIDE
+if [ "$(git log -1 --pretty=%s)" = "landed during verify" ] &&
+  [ "$(remote_ref refs/heads/main)" = "$(git rev-parse HEAD~2)" ] &&
+  [ -z "$(git --git-dir="$tmp/origin.git" for-each-ref refs/tags)" ]; then
+  echo "ok   origin holds neither the release commit, the landed commit, nor any tag"
+else
+  echo "FAIL origin holds neither the release commit, the landed commit, nor any tag"
+  git --git-dir="$tmp/origin.git" for-each-ref | sed 's/^/     /'
+  fails=$((fails + 1))
+fi
 
 printf '(bash %s)\n' "$BASH_VERSION"
 [ "$fails" = 0 ] && echo "all passed" || {
