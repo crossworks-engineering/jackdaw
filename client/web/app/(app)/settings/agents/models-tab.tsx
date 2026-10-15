@@ -36,11 +36,17 @@ import { cn } from '@mantle/web-ui/lib/utils';
 import { apiFetch, apiSend } from '@mantle/web-ui/api-fetch';
 import { CuratedPoolSelect } from '@/components/curated-pool-select';
 import { ModelSelect } from '@/components/ui/model-select';
+import {
+  catalogFromError,
+  catalogFromResponse,
+  catalogKeyId,
+  catalogUrl,
+  type CatalogResponse,
+} from './use-model-catalog';
 import { AvatarWithLevel } from '@mantle/web-ui/avatar-with-level';
 import { avatarPartsOf } from '@mantle/web-ui/avatar-parts';
 import { experienceOf, experienceTitle } from '@/lib/experience';
 import { getProvider, isProviderWired, providersForCapability } from '@mantle/voice-client';
-import type { ExplorerModel } from '@mantle/client-types';
 import type { AgentDTO } from '@mantle/client-types';
 
 /** The primary chat route — the ONLY thing this tab reads or writes. Backup
@@ -462,12 +468,12 @@ function ModelSetPicker({
   const needsRouteHost =
     (provider === 'local' || provider === 'custom') && provider !== agent.provider;
 
+  // Listed with the picked key (a key saved under any label lists its own
+  // models), and fetched again when the pick changes.
+  const pickedKeyId = catalogKeyId(apiKeys, apiKeyId, provider);
   const catalogQuery = useQuery({
-    queryKey: ['models', provider],
-    queryFn: () =>
-      apiFetch<{ models?: ExplorerModel[]; error?: string }>(
-        `/api/models?provider=${encodeURIComponent(provider)}`,
-      ),
+    queryKey: ['models', provider, pickedKeyId],
+    queryFn: () => apiFetch<CatalogResponse>(catalogUrl(provider, pickedKeyId)),
     staleTime: 5 * 60_000,
   });
   const catalog = catalogQuery.data?.models ?? [];
@@ -582,10 +588,10 @@ function ModelSetPicker({
               loading={catalogQuery.isPending}
               error={
                 catalogQuery.isError
-                  ? catalogQuery.error instanceof Error
-                    ? catalogQuery.error.message
-                    : 'Catalog fetch failed'
-                  : (catalogQuery.data?.error ?? null)
+                  ? catalogFromError(catalogQuery.error).error
+                  : catalogQuery.data
+                    ? catalogFromResponse(catalogQuery.data).error
+                    : null
               }
               placeholder="— pick a model —"
               emptyMessage="No matching models in the catalog."

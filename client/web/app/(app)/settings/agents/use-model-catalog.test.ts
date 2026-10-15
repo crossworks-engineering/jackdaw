@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  NEEDS_KEY_MESSAGE,
+  UNSUPPORTED_MESSAGE,
   catalogFromError,
   catalogFromResponse,
+  catalogKeyId,
   catalogUrl,
   resolveProvider,
 } from './use-model-catalog';
@@ -30,6 +33,35 @@ describe('catalogUrl', () => {
     expect(catalogUrl('anthropic')).toBe('/api/models?provider=anthropic');
     expect(catalogUrl('a b&c')).toContain('provider=a%20b%26c');
   });
+
+  // The picked key decides the list: a key saved under a label other than
+  // `default` listed nothing when the brain looked the provider key up itself.
+  it('names the picked key, and leaves it out when none is picked', () => {
+    expect(catalogUrl('anthropic', 'k-1')).toBe('/api/models?provider=anthropic&keyId=k-1');
+    expect(catalogUrl('anthropic', null)).toBe('/api/models?provider=anthropic');
+    expect(catalogUrl(undefined, 'k 2')).toBe('/api/models?provider=openrouter&keyId=k%202');
+  });
+});
+
+describe('catalogKeyId', () => {
+  const keys = [
+    { id: 'ant', service: 'anthropic' },
+    { id: 'or', service: 'openrouter' },
+  ];
+
+  it("sends the picked key only when it is the provider's", () => {
+    expect(catalogKeyId(keys, 'ant', 'anthropic')).toBe('ant');
+    // The form keeps the key while the provider changes; the brain would
+    // refuse the pair, so it is not sent.
+    expect(catalogKeyId(keys, 'ant', 'openai')).toBeNull();
+    expect(catalogKeyId(keys, 'or', '')).toBe('or');
+  });
+
+  it('sends nothing for no pick or a key no longer on file', () => {
+    expect(catalogKeyId(keys, '', 'anthropic')).toBeNull();
+    expect(catalogKeyId(keys, null, 'anthropic')).toBeNull();
+    expect(catalogKeyId(keys, 'gone', 'anthropic')).toBeNull();
+  });
 });
 
 describe('catalogFromResponse', () => {
@@ -52,6 +84,22 @@ describe('catalogFromResponse', () => {
     expect(catalogFromResponse({ error: 'no key' }).error).toBe('no key');
   });
 
+  // An empty list says why: it was a silent empty picker for a new key.
+  it('says no key is saved when the brain answers needsKey', () => {
+    const c = catalogFromResponse({ models: [], needsKey: true });
+    expect(c.models).toEqual([]);
+    expect(c.error).toBe(NEEDS_KEY_MESSAGE);
+  });
+
+  it("shows the brain's text for a refused key", () => {
+    const text = 'The provider refused the API key. (anthropic, HTTP 401)';
+    expect(catalogFromResponse({ models: [], error: text }).error).toBe(text);
+  });
+
+  it('says so for a provider with no list API', () => {
+    expect(catalogFromResponse({ models: [], unsupported: true }).error).toBe(UNSUPPORTED_MESSAGE);
+  });
+
   it('says so when the answer had no catalog in it at all', () => {
     expect(catalogFromResponse({}).error).toBe('No catalog returned');
     expect(catalogFromResponse({ models: undefined }).error).toBe('No catalog returned');
@@ -70,6 +118,10 @@ describe('catalogFromResponse', () => {
 describe('catalogFromError', () => {
   it('surfaces the message a thrown Error carries', () => {
     expect(catalogFromError(new Error('offline')).error).toBe('offline');
+    // A refused pick (400 / 404) reaches the list as the brain's own words.
+    expect(catalogFromError(new Error('That key is for openai, not anthropic.')).error).toBe(
+      'That key is for openai, not anthropic.',
+    );
   });
 
   it('has something to say about a throw that is not an Error', () => {

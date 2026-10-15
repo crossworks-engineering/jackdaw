@@ -36,15 +36,59 @@ export function resolveProvider(provider: string | undefined | null): string {
   return provider || 'openrouter';
 }
 
-export function catalogUrl(provider: string | undefined | null): string {
-  return `/api/models?provider=${encodeURIComponent(resolveProvider(provider))}`;
+/**
+ * The catalog for `provider`, listed with the picked key when there is one.
+ * The key decides the list: a key saved under any label but `default` used to
+ * list nothing, because the brain looked up the `default` label only. A brain
+ * from before `keyId` ignores it and lists with its own pick, as before.
+ */
+export function catalogUrl(provider: string | undefined | null, keyId?: string | null): string {
+  const base = `/api/models?provider=${encodeURIComponent(resolveProvider(provider))}`;
+  return keyId ? `${base}&keyId=${encodeURIComponent(keyId)}` : base;
 }
 
+/**
+ * The picked key's id when it belongs to `provider`, else null. The form keeps
+ * the key while the provider changes, and the brain refuses a key of another
+ * service (400), so only a coherent pair is sent.
+ */
+export function catalogKeyId(
+  keys: readonly { id: string; service: string }[],
+  keyId: string | undefined | null,
+  provider: string | undefined | null,
+): string | null {
+  if (!keyId) return null;
+  const k = keys.find((x) => x.id === keyId);
+  return k && k.service === resolveProvider(provider) ? k.id : null;
+}
+
+/** What the list says when the brain has no key for the provider. */
+export const NEEDS_KEY_MESSAGE =
+  'No API key for this provider is saved. Add one at /settings/keys, then pick it above.';
+/** What the list says for a provider with no model list API. */
+export const UNSUPPORTED_MESSAGE =
+  'This provider publishes no model list. Type the model id it documents.';
+
+export type CatalogResponse = {
+  models?: ExplorerModel[];
+  error?: string;
+  needsKey?: boolean;
+  unsupported?: boolean;
+};
+
 /** Fold the endpoint's answer into catalog state. Pure, and the whole of what
- *  can be wrong here. */
-export function catalogFromResponse(d: { models?: ExplorerModel[]; error?: string }): ModelCatalog {
+ *  can be wrong here. An empty list always says why (no key, no list API, the
+ *  provider refused the key), never a silent empty picker. */
+export function catalogFromResponse(d: CatalogResponse): ModelCatalog {
   if (d?.models && Array.isArray(d.models)) {
-    return { models: d.models, loading: false, error: d.error ?? null };
+    const why =
+      d.error ??
+      (d.models.length === 0 && d.needsKey
+        ? NEEDS_KEY_MESSAGE
+        : d.models.length === 0 && d.unsupported
+          ? UNSUPPORTED_MESSAGE
+          : null);
+    return { models: d.models, loading: false, error: why };
   }
   return { models: [], loading: false, error: d?.error ?? 'No catalog returned' };
 }
@@ -63,8 +107,13 @@ export function catalogFromError(err: unknown): ModelCatalog {
  *   an agent with no backup costs no /api/models call. Deliberately NOT a reset
  *   to empty: that is the behaviour this replaces, and changing it here would
  *   be a behaviour change hiding inside a refactor.
+ * @param keyId the picked key (catalogKeyId); a new pick fetches again.
  */
-export function useModelCatalog(provider: string | undefined | null, enabled = true): ModelCatalog {
+export function useModelCatalog(
+  provider: string | undefined | null,
+  enabled = true,
+  keyId: string | null = null,
+): ModelCatalog {
   const [catalog, setCatalog] = useState<ModelCatalog>(EMPTY_CATALOG);
   const resolved = resolveProvider(provider);
 
@@ -74,7 +123,7 @@ export function useModelCatalog(provider: string | undefined | null, enabled = t
     // Show loading immediately, so swapping provider shows a spinner rather
     // than the previous provider's models while the new list is in flight.
     setCatalog({ models: [], loading: true, error: null });
-    apiFetch<{ models?: ExplorerModel[]; error?: string }>(catalogUrl(resolved))
+    apiFetch<CatalogResponse>(catalogUrl(resolved, keyId))
       .then((d) => {
         if (!cancelled) setCatalog(catalogFromResponse(d));
       })
@@ -84,7 +133,7 @@ export function useModelCatalog(provider: string | undefined | null, enabled = t
     return () => {
       cancelled = true;
     };
-  }, [resolved, enabled]);
+  }, [resolved, enabled, keyId]);
 
   return catalog;
 }

@@ -59,7 +59,7 @@ import {
   ThinkingEffortField,
 } from './agent-form-sections';
 import { ContextWindowHint, DelegatePicker, SkillPicker, ToolGroupPicker } from './agent-pickers';
-import { useModelCatalog } from './use-model-catalog';
+import { catalogKeyId, useModelCatalog } from './use-model-catalog';
 import {
   agentDeleteOutcome,
   agentDeletePath,
@@ -263,10 +263,21 @@ export function AgentsClient() {
   // operators ended up with cross-provider slugs that 404'd at first
   // turn (anthropic/claude-haiku-4.5 vs the direct-Anthropic
   // claude-haiku-4-5).
-  const catalog = useModelCatalog(form.provider);
+  //
+  // Listed with the picked key, so a key saved under any label lists its own
+  // models (a new key used to list nothing), and re-fetched when it changes.
+  const catalog = useModelCatalog(
+    form.provider,
+    true,
+    catalogKeyId(apiKeys, form.apiKeyId, form.provider),
+  );
   // Only while the backup section is open: an agent with no backup should not
   // cost an /api/models call.
-  const backupCatalog = useModelCatalog(form.backupProvider, form.backupEnabled);
+  const backupCatalog = useModelCatalog(
+    form.backupProvider,
+    form.backupEnabled,
+    catalogKeyId(apiKeys, form.backupApiKeyId, form.backupProvider),
+  );
 
   const openCreate = () => {
     setForm(emptyForm());
