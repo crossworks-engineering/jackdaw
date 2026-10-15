@@ -96,10 +96,14 @@ describe('catalogFromResponse', () => {
   });
 
   // An empty list says why: it was a silent empty picker for a new key.
-  it('says no key is saved when the brain answers needsKey', () => {
+  it('says no usable key when the brain answers needsKey', () => {
     const c = catalogFromResponse({ models: [], needsKey: true });
     expect(c.models).toEqual([]);
     expect(c.error).toBe(NEEDS_KEY_MESSAGE);
+    // An older brain answers needsKey with a key saved under another label:
+    // the text must not claim none is saved.
+    expect(NEEDS_KEY_MESSAGE).toMatch(/^No usable API key/);
+    expect(NEEDS_KEY_MESSAGE).not.toMatch(/is saved/);
   });
 
   it("shows the brain's text for a refused key", () => {

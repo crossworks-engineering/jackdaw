@@ -75,9 +75,11 @@ export function catalogQueryKey(
   return ['models', resolveProvider(provider), keyId];
 }
 
-/** What the list says when the brain has no key for the provider. */
+/** What the list says when the brain finds no key it can use for the
+ *  provider: none saved, or (an older brain that ignores the picked key) none
+ *  labelled 'default'. Says "usable", so it is true in both cases. */
 export const NEEDS_KEY_MESSAGE =
-  'No API key for this provider is saved. Add one at /settings/keys, then pick it above.';
+  'No usable API key for this provider. Add one at /settings/keys (an older brain uses only a key labelled "default"), then pick it above.';
 /** What the list says for a provider with no model list API. */
 export const UNSUPPORTED_MESSAGE =
   'This provider publishes no model list. Type the model id it documents.';
