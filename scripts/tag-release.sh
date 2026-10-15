@@ -23,10 +23,12 @@ set -euo pipefail
 #
 # Why the verify runs here and the push skips the pre-push hook: the hook ran
 # the same `pnpm verify` on the same tree, but INSIDE `git push`, after git had
-# opened the connection to GitHub and before it sent anything. Five to nine
-# minutes of an idle connection later the push could die with no message at
-# all: mantle v0.300.50 and v0.300.58 printed "pre-push: clean" and then
-# nothing, leaving a local tag and no release. When the hook failed instead
+# opened the connection to GitHub and before it sent anything. After minutes
+# of verify GitHub has closed that idle connection, and git dies of SIGPIPE
+# (exit 141) on its first write, saying nothing but ssh's one line
+# "Connection to github.com closed by remote host.". mantle v0.300.50 and
+# v0.300.58 printed "pre-push: clean" and then nothing, leaving a local tag
+# and no release. When the hook failed instead
 # (mantle v0.300.56), the tag was already made and only main's push was
 # refused. The same script shape here carries the same hazard. Running the gate
 # first means a failure stops before any tag exists, and the push that follows
