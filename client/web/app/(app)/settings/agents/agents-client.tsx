@@ -1075,7 +1075,12 @@ export function AgentsClient() {
                               aria-describedby={errors.model ? 'model-error' : undefined}
                             />
                             <FieldError id="model-error">{errors.model}</FieldError>
-                            <ContextWindowHint model={form.model} limits={contextLimits} />
+                            <ContextWindowHint
+                              provider={form.provider}
+                              model={form.model}
+                              limits={contextLimits}
+                              catalog={catalog.models}
+                            />
                             {editing.mode === 'edit' && editing.agent.manifestManaged && (
                               <p className="text-xs text-muted-foreground">
                                 System agent — your provider, model and prompt choices are permanent

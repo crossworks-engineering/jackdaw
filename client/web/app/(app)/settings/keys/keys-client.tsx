@@ -56,9 +56,25 @@ type KeyRow = {
   service: string;
   label: string;
   masked: string;
+  /** Anthropic keys: the workspace id sent with every call. Absent from an
+   *  older brain. */
+  anthropicWorkspaceId?: string | null;
   lastUsed: string | null;
   updatedAt: string;
 };
+
+/** What the brain's key store can carry. An older brain sends none, and the
+ *  form then shows no field it would drop. */
+type KeyFeatures = { anthropicWorkspaceId?: boolean };
+
+/** Loose, as the brain checks it: no format invented, only what could never
+ *  be a header value is refused. */
+function workspaceIdProblem(value: string): string | undefined {
+  const v = value.trim();
+  if (v.length > 128) return 'At most 128 characters.';
+  if (/\s/.test(v)) return 'No spaces.';
+  return undefined;
+}
 
 /** A non-LLM service the brain's runtime can consume a key for (firecrawl,
  *  mapbox, …). Served by GET /api/keys so the list is brain-versioned — no
@@ -87,7 +103,7 @@ const CUSTOM_SERVICE = '__custom__';
 const SERVICE_RE = /^[a-z0-9_-]+$/;
 
 /** Which create-form controls are at fault. Keys are the control ids. */
-type KeyErrors = { 'custom-service'?: string; plaintext?: string };
+type KeyErrors = { 'custom-service'?: string; plaintext?: string; 'anthropic-workspace'?: string };
 
 type Selection = { mode: 'create' } | { mode: 'view'; id: string } | null;
 
@@ -96,7 +112,10 @@ export function KeysClient() {
   const toast = useToast();
   const keysQuery = useQuery({
     queryKey: ['keys'],
-    queryFn: () => apiFetch<{ keys: KeyRow[]; knownServices?: KnownService[] }>('/api/keys'),
+    queryFn: () =>
+      apiFetch<{ keys: KeyRow[]; knownServices?: KnownService[]; features?: KeyFeatures }>(
+        '/api/keys',
+      ),
   });
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [pending, startTransition] = useTransition();
@@ -134,6 +153,7 @@ export function KeysClient() {
   const [customService, setCustomService] = useState('');
   const [label, setLabel] = useState('default');
   const [plaintext, setPlaintext] = useState('');
+  const [workspaceId, setWorkspaceId] = useState('');
 
   // After a successful create or rotate, show the plaintext exactly once.
   const [revealed, setRevealed] = useState<{ key: string; service: string; label: string }>();
@@ -191,9 +211,15 @@ export function KeysClient() {
     if (!plaintext.trim()) next.plaintext = 'Paste the key value.';
     if (isCustom && !SERVICE_RE.test(effectiveService))
       next['custom-service'] = 'Lower-case letters, numbers and dashes only.';
+    const wsProblem = showWorkspaceField ? workspaceIdProblem(workspaceId) : undefined;
+    if (wsProblem) next['anthropic-workspace'] = wsProblem;
     if (Object.keys(next).length > 0) {
       setCreateErrors(next);
-      const first = next['custom-service'] ? 'custom-service' : 'plaintext';
+      const first = next['custom-service']
+        ? 'custom-service'
+        : next.plaintext
+          ? 'plaintext'
+          : 'anthropic-workspace';
       document.getElementById(first)?.focus();
       return;
     }
@@ -204,6 +230,11 @@ export function KeysClient() {
         service: effectiveService,
         label: finalLabel,
         plaintext,
+        // Only where the brain stores it, and only when given: an older
+        // brain never sees the field.
+        ...(showWorkspaceField && workspaceId.trim()
+          ? { anthropicWorkspaceId: workspaceId.trim() }
+          : {}),
       });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return;
@@ -212,6 +243,7 @@ export function KeysClient() {
     }
     setRevealed({ key: plaintext, service: effectiveService, label: finalLabel });
     setPlaintext('');
+    setWorkspaceId('');
     setLabel('default');
     setCustomService('');
     startTransition(() => {
@@ -265,6 +297,8 @@ export function KeysClient() {
   }
 
   const isCustom = service === CUSTOM_SERVICE;
+  const supportsWorkspaceId = keysQuery.data?.features?.anthropicWorkspaceId === true;
+  const showWorkspaceField = supportsWorkspaceId && service === 'anthropic';
   const effectiveService = (isCustom ? customService : service).trim().toLowerCase();
   const provider = SUPPORTED_PROVIDERS.find((p) => p.id === service);
   const knownServices = keysQuery.data?.knownServices ?? [];
@@ -526,6 +560,38 @@ export function KeysClient() {
                     <FieldError id="plaintext-error">{createErrors.plaintext}</FieldError>
                   </Field>
 
+                  {showWorkspaceField && (
+                    <Field data-invalid={!!createErrors['anthropic-workspace'] || undefined}>
+                      <FieldLabel htmlFor="anthropic-workspace">
+                        Anthropic workspace id (optional)
+                      </FieldLabel>
+                      <Input
+                        id="anthropic-workspace"
+                        value={workspaceId}
+                        onChange={(e) => {
+                          setWorkspaceId(e.target.value);
+                          clearCreateError('anthropic-workspace');
+                        }}
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-invalid={!!createErrors['anthropic-workspace'] || undefined}
+                        aria-describedby={
+                          createErrors['anthropic-workspace']
+                            ? 'anthropic-workspace-error anthropic-workspace-hint'
+                            : 'anthropic-workspace-hint'
+                        }
+                      />
+                      <FieldHint id="anthropic-workspace">
+                        Only for a key made outside an Anthropic workspace: Anthropic then needs the
+                        workspace id on every call. A key made inside a workspace needs nothing
+                        here.
+                      </FieldHint>
+                      <FieldError id="anthropic-workspace-error">
+                        {createErrors['anthropic-workspace']}
+                      </FieldError>
+                    </Field>
+                  )}
+
                   <div className="flex justify-end gap-2 border-t border-border pt-3">
                     {keys.length > 0 && (
                       <Button
@@ -552,6 +618,15 @@ export function KeysClient() {
                 setRotateValue('');
               }}
               onDelete={() => setDeleteTarget(selectedKey)}
+              supportsWorkspaceId={supportsWorkspaceId}
+              onWorkspaceSaved={(id, value) => {
+                setKeys((prev) =>
+                  prev.map((k) => (k.id === id ? { ...k, anthropicWorkspaceId: value } : k)),
+                );
+                startTransition(() => {
+                  refresh();
+                });
+              }}
             />
           ) : (
             <div className="flex h-full items-center justify-center p-10 text-center text-sm text-muted-foreground">
@@ -663,6 +738,8 @@ function KeyDetail({
   onTest,
   onRotate,
   onDelete,
+  supportsWorkspaceId,
+  onWorkspaceSaved,
 }: {
   row: KeyRow;
   testing: boolean;
@@ -670,6 +747,8 @@ function KeyDetail({
   onTest: () => void;
   onRotate: () => void;
   onDelete: () => void;
+  supportsWorkspaceId: boolean;
+  onWorkspaceSaved: (id: string, value: string | null) => void;
 }) {
   const provider = SUPPORTED_PROVIDERS.find((p) => p.id === row.service);
   return (
@@ -720,6 +799,16 @@ function KeyDetail({
         </p>
       )}
 
+      {supportsWorkspaceId && row.service === 'anthropic' && (
+        // Keyed by row and stored value, so another key or a saved change
+        // starts the field from what the brain holds.
+        <WorkspaceIdField
+          key={`${row.id}:${row.anthropicWorkspaceId ?? ''}`}
+          row={row}
+          onSaved={onWorkspaceSaved}
+        />
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -760,5 +849,83 @@ function KeyDetail({
         </div>
       )}
     </div>
+  );
+}
+
+/** The Anthropic workspace id on a saved key: set, change or clear it
+ *  without re-entering the key (PATCH /api/keys/:id). */
+function WorkspaceIdField({
+  row,
+  onSaved,
+}: {
+  row: KeyRow;
+  onSaved: (id: string, value: string | null) => void;
+}) {
+  const toast = useToast();
+  const stored = row.anthropicWorkspaceId ?? '';
+  const [value, setValue] = useState(stored);
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const dirty = value.trim() !== stored;
+
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    const problem = workspaceIdProblem(value);
+    if (problem) {
+      setError(problem);
+      document.getElementById('key-anthropic-workspace')?.focus();
+      return;
+    }
+    setError(undefined);
+    setSaving(true);
+    try {
+      const res = await apiSend<{ anthropicWorkspaceId: string | null }>(
+        `/api/keys/${row.id}`,
+        'PATCH',
+        { anthropicWorkspaceId: value.trim() || null },
+      );
+      onSaved(row.id, res.anthropicWorkspaceId ?? null);
+      toast.success(res.anthropicWorkspaceId ? 'Workspace id saved.' : 'Workspace id cleared.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return;
+      setError(err instanceof Error ? err.message : 'Failed to save.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSave} noValidate>
+      <Field data-invalid={!!error || undefined}>
+        <FieldLabel htmlFor="key-anthropic-workspace">Anthropic workspace id</FieldLabel>
+        <div className="flex gap-2">
+          <Input
+            id="key-anthropic-workspace"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (error) setError(undefined);
+            }}
+            placeholder="none"
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={!!error || undefined}
+            aria-describedby={
+              error
+                ? 'key-anthropic-workspace-error key-anthropic-workspace-hint'
+                : 'key-anthropic-workspace-hint'
+            }
+          />
+          <Button type="submit" variant="outline" disabled={!dirty || saving}>
+            {saving ? <Loader2 className="animate-spin" /> : null} Save
+          </Button>
+        </div>
+        <FieldHint id="key-anthropic-workspace">
+          Sent with every call made with this key. Needed only for a key made outside an Anthropic
+          workspace; leave empty for a key made inside one.
+        </FieldHint>
+        <FieldError id="key-anthropic-workspace-error">{error}</FieldError>
+      </Field>
+    </form>
   );
 }

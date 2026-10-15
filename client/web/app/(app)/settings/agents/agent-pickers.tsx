@@ -7,7 +7,9 @@
  * already standalone, just living in the wrong file. No signatures changed.
  */
 import { ToggleList, type ToggleListItem } from '@/components/toggle-list';
+import type { ExplorerModel } from '@mantle/client-types';
 import type { SkillOption, ToolGroupOption } from './agent-form-state';
+import { prettyTokens, resolveContextWindow } from './context-window';
 
 /**
  * Multi-select chip picker for tools. Each chip carries the slug; click
@@ -107,38 +109,43 @@ export function DelegatePicker({
 
 /**
  * Readout under the Model field showing the resolved context window for the
- * typed slug, from the live OpenRouter map (static fallback) fetched by the
- * form. Renders nothing until a model is entered; says so plainly when a
- * slug isn't in the catalog (usually a typo in the id).
+ * picked model: the provider's own list first (a direct model's window, from
+ * the brain), else the live OpenRouter map (static fallback) fetched by the
+ * form (resolveContextWindow). Renders nothing until a model is entered. A
+ * window nobody knows says so; only an OpenRouter slug is pointed at
+ * openrouter.ai/models, where a direct id would never match.
  */
 export function ContextWindowHint({
+  provider,
   model,
   limits,
+  catalog,
 }: {
+  provider: string | null | undefined;
   model: string;
   limits: Record<string, number>;
+  catalog: readonly ExplorerModel[];
 }) {
-  const slug = model.trim().toLowerCase();
-  if (!slug) return null;
-  const limit = limits[slug];
-  if (!limit) {
-    return (
+  const window = resolveContextWindow({ provider, model, limits, catalog });
+  if (!window) return null;
+  if (window.kind === 'unknown') {
+    return window.openRouterSlug ? (
       <p className="text-xs text-muted-foreground">
         Context window: <span className="text-warning-ink">unknown for this slug</span> — check the
         exact id at openrouter.ai/models.
       </p>
+    ) : (
+      <p className="text-xs text-muted-foreground">
+        Context window: <span className="text-warning-ink">unknown</span>
+      </p>
     );
   }
-  const pretty =
-    limit >= 1_000_000
-      ? `${(limit / 1_000_000).toFixed(limit % 1_000_000 === 0 ? 0 : 1)}M`
-      : limit >= 1_000
-        ? `${Math.round(limit / 1_000)}k`
-        : `${limit}`;
+  const { limit } = window;
   return (
     <p className="text-xs text-muted-foreground">
-      Context window: <span className="font-medium text-foreground tabular-nums">{pretty}</span>{' '}
-      tokens ({limit.toLocaleString()})
+      Context window:{' '}
+      <span className="font-medium text-foreground tabular-nums">{prettyTokens(limit)}</span> tokens
+      ({limit.toLocaleString()})
     </p>
   );
 }
