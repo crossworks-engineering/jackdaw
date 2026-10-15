@@ -98,6 +98,7 @@ export function searchUrl(
 ): string {
   // A reader's search takes no tag or workspace (it is not offered one). The
   // level filter is gone (W5b2 contract 29): `ws` narrows by workspace.
+  // Across also brings matching folders under a workspace (a folders-only picker gets them): intended.
   const across = ws && q.trim() ? '1' : null;
   const rest = query(
     source === 'owner' ? { cursor, tag: filter.tag, ws, across } : { cursor },

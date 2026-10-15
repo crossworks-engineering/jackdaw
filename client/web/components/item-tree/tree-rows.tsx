@@ -842,6 +842,8 @@ function ElsewhereRow({ row }: { row: Extract<TreeRow, { type: 'elsewhere' }> })
           ? {
               label: 'Switch',
               title: `Switch to ${hitLabel(held)}`,
+              // "Switch" alone does not say where to a screen reader.
+              ariaLabel: `Switch to ${hitLabel(held)}`,
               onClick: () => switchTo(held.id),
             }
           : undefined
@@ -862,7 +864,7 @@ function StatusRow({
   guides: readonly boolean[];
   label: string;
   busy?: boolean;
-  action?: { label: string; title?: string; onClick: () => void };
+  action?: { label: string; title?: string; ariaLabel?: string; onClick: () => void };
 }) {
   return (
     <div className="relative flex h-8 items-center">
@@ -879,6 +881,7 @@ function StatusRow({
             size="2xs"
             className="h-auto p-0"
             title={action.title}
+            aria-label={action.ariaLabel}
             onClick={action.onClick}
           >
             {action.label}

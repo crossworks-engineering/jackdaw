@@ -55,7 +55,11 @@ export function WorkspaceHitTag({
       )}
     >
       <WorkspaceTile workspace={workspace} size="xs" />
-      <span className="truncate">{label}</span>
+      <span className="truncate">
+        {/* Read after the title: "Budget, in Admin", not "Budget Admin". */}
+        <span className="sr-only">in </span>
+        {label}
+      </span>
     </Badge>
   );
 }
