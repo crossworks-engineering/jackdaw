@@ -12,9 +12,10 @@
 # verifies before tagging, pushes main + tag atomically without the pre-push
 # hook, and asks origin (git ls-remote) whether both landed at HEAD.
 set -uo pipefail
-# Drop every GIT_* variable first. Run from a git hook, git exports GIT_DIR
-# and friends for the REAL repo, and any git command in here would then write
-# to it, not to a temp repo.
+# Drop every GIT_* variable first. Run from a git hook (pre-push runs pnpm
+# verify, whose vitest runs this via scripts/tag-release.test.ts), git exports
+# GIT_DIR and friends for the REAL repo, and any git command in here would
+# then write to it, not to a temp repo.
 while IFS= read -r gv; do unset "$gv"; done < <(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
 if env | grep -q '^GIT_'; then
   echo "refusing to run: a GIT_* variable is still set, and git here would act on the real repo" >&2
@@ -63,8 +64,11 @@ fresh() {
 
 remote_ref() { git --git-dir="$tmp/origin.git" rev-parse -q --verify "$1" 2>/dev/null || echo missing; }
 
-# expect <name> <want rc: 0|nonzero> <want origin main: head|old> <want origin tag: head|missing>
-#        <want local tag: head|missing> <output must match> -- <script args...>
+# expect <name> <want rc: 0|nonzero> <want origin main: head|old|other>
+#        <want origin tag: head|missing|obj> <want local tag: head|missing|obj>
+#        <output must match> -- <script args...>
+# old is HEAD~1; other is neither HEAD nor HEAD~1 (origin moved on); obj is the
+# local tag's own object id (an annotated tag's, not its commit's).
 expect() {
   local name=$1 want_rc=$2 want_main=$3 want_tag=$4 want_local=$5 want_out=$6
   shift 7
@@ -81,14 +85,26 @@ expect() {
     0) [ "$rc" = 0 ] || why="$why rc=$rc want 0;" ;;
     nonzero) [ "$rc" != 0 ] || why="$why rc=0 want non-zero;" ;;
   esac
-  local m=$head
-  [ "$want_main" = old ] && m=$before
-  [ "$got_main" = "$m" ] || why="$why origin main=$got_main want $want_main;"
+  case "$want_main" in
+    other)
+      { [ "$got_main" != "$head" ] && [ "$got_main" != "$before" ] && [ "$got_main" != missing ]; } ||
+        why="$why origin main=$got_main want other;"
+      ;;
+    *)
+      local m=$head
+      [ "$want_main" = old ] && m=$before
+      [ "$got_main" = "$m" ] || why="$why origin main=$got_main want $want_main;"
+      ;;
+  esac
+  local obj
+  obj="$(git rev-parse -q --verify "refs/tags/$TAG" 2>/dev/null || echo none)"
   local t=$head
   [ "$want_tag" = missing ] && t=missing
+  [ "$want_tag" = obj ] && t=$obj
   [ "$got_tag" = "$t" ] || why="$why origin tag=$got_tag want $want_tag;"
   local l=$head
   [ "$want_local" = missing ] && l=missing
+  [ "$want_local" = obj ] && l=$obj
   [ "$got_local" = "$l" ] || why="$why local tag=$got_local want $want_local;"
   printf '%s\n' "$out" | grep -q -- "$want_out" || why="$why output lacks [$want_out];"
   if [ -z "$why" ]; then
@@ -116,10 +132,11 @@ expect "a failed verify leaves no tag and pushes nothing" nonzero old missing mi
   "NOT tagged, NOT pushed" --
 unset PNPM_VERIFY_RC
 
+# No --no-verify in jackdaw: its tag workflows have no test gate, so the
+# verify here is the only one. The flag is refused, nothing tagged or pushed.
 fresh 1.2.3
-export PNPM_VERIFY_RC=1
-expect "--no-verify skips pnpm verify" 0 head head head "skipping pnpm verify" -- --no-verify
-unset PNPM_VERIFY_RC
+expect "--no-verify is refused (no CI test gate runs on a jackdaw tag)" nonzero old missing missing \
+  "usage:" -- --no-verify
 
 fresh 1.2.3
 mkdir -p "$tmp/hooks"
@@ -183,6 +200,54 @@ expect_mispointed
 fresh 1.2.3
 expect "--no-push tags and prints the push, origin untouched" 0 old missing head \
   "push withheld" -- --no-push
+
+# L1: an annotated tag made by hand at HEAD resumes, and origin's answer (the
+# tag object's id, not the commit's) is judged as landed, not NOT RELEASED.
+fresh 1.2.3
+git tag -a -m "by hand" "$TAG"
+expect "an annotated tag at HEAD resumes and is confirmed by its own object id" 0 head obj obj \
+  "origin confirms both" --
+
+# L2: origin cannot be asked. The push lands; ls-remote fails. That is not
+# "missing": the state is unknown, and ls-remote's own stderr is shown.
+fresh 1.2.3
+mkdir -p "$tmp/lsfail"
+real_git="$(command -v git)"
+cat >"$tmp/lsfail/git" <<STUB
+#!/bin/sh
+if [ "\$1" = ls-remote ]; then
+  echo "fatal: stub: origin unreachable for ls-remote" >&2
+  exit 128
+fi
+exec "$real_git" "\$@"
+STUB
+chmod +x "$tmp/lsfail/git"
+saved_path=$PATH
+PATH="$tmp/lsfail:$PATH"
+expect "a failed ls-remote says the state is unknown, with its stderr" nonzero head head head \
+  "state unknown" --
+PATH=$saved_path
+out="$(PATH="$tmp/lsfail:$PATH" "$BASH" "$SCRIPT" 2>&1)"
+if printf '%s\n' "$out" | grep -q "stub: origin unreachable for ls-remote" &&
+  ! printf '%s\n' "$out" | grep -q "missing"; then
+  echo "ok   the unknown state shows ls-remote's stderr and never says missing"
+else
+  echo "FAIL the unknown state shows ls-remote's stderr and never says missing"
+  printf '%s\n' "$out" | sed 's/^/     /'
+  fails=$((fails + 1))
+fi
+
+# L3: origin's main moved on between our fetch and our push (stood in for by
+# no upstream, so the script's own fetch check is skipped, and a commit pushed
+# to origin from another clone). The atomic push is refused non-fast-forward;
+# the text must say to delete the local tag, by its exact command.
+fresh 1.2.3
+git branch -q --unset-upstream
+git clone -q -b main "$tmp/origin.git" "$tmp/other" 2>/dev/null
+(cd "$tmp/other" && echo x >other && git add other && git commit -q -m other && git push -q origin main 2>/dev/null)
+rm -rf "$tmp/other"
+expect "a non-fast-forward refusal says to delete the local tag" nonzero other missing head \
+  "git tag -d $TAG" --
 
 printf '(bash %s)\n' "$BASH_VERSION"
 [ "$fails" = 0 ] && echo "all passed" || {

@@ -10,6 +10,12 @@ set -euo pipefail
 # (scripts/merge-branch.sh), then run THIS, which refuses to tag anything that
 # is not exactly main's own release commit.
 #
+# Twin: the mantle repo carries the same script (scripts/tag-release.sh, with
+# its harness scripts/test-tag-release.sh). A change to the push, the origin
+# check or the resume rules here must be made there too, in the same pass.
+# The copies differ only where the repos do: the version files, the workflows
+# a tag fires, mantle's demo/ guard, and this copy having no --no-verify.
+#
 # Asserts, in the integrator clone (works from a worktree too):
 #   1. main is checked out and has no uncommitted tracked changes
 #   2. the three package.json files agree on the version
@@ -19,7 +25,12 @@ set -euo pipefail
 # passed, pushes main + tag together in one atomic push (the push is what cuts
 # the release: it fires release.yml and desktop.yml), and finally
 # asks origin, with git ls-remote, whether main and the tag are both there at
-# HEAD. It exits non-zero, saying which ref is missing, when they are not.
+# HEAD. It exits non-zero, saying which ref is missing, when they are not;
+# when origin cannot be asked at all it says the state is unknown, with
+# ls-remote's own error; and when origin's main has moved on (the atomic push
+# refused as non-fast-forward) it says to delete the local tag. Origin's tag
+# is compared with the local tag's own object id, so a hand-made annotated tag
+# (whose id is not the commit's) is judged right too.
 #
 # Why the verify runs here and the push skips the pre-push hook: the hook ran
 # the same `pnpm verify` on the same tree, but INSIDE `git push`, after git had
@@ -39,20 +50,27 @@ set -euo pipefail
 # exists AT HEAD is pushed again (no second verify, the tag was only made
 # after one passed); a tag anywhere else is still refused.
 #
+# A resume trusts ANY tag already at HEAD. It cannot tell a tag this script
+# made after a passing verify from one made by hand (`git tag vX.Y.Z`, no
+# verify at all), and pushes either without verifying. If you did not make
+# the tag with this script, delete it (git tag -d vX.Y.Z) and rerun.
+#
+# There is no --no-verify here (mantle's copy has one). Mantle's tag workflows
+# rerun the full gate before they publish; this repo's release.yml and
+# desktop.yml build and publish from the tag with no test gate (verify.yml
+# runs on main's push, but nothing waits on it), so the verify below is the
+# only gate that stands in front of a jackdaw release.
+#
 # Usage:
 #   scripts/tag-release.sh              # assert, verify, tag, push, check origin
 #   scripts/tag-release.sh --no-push    # assert, verify, tag; print the push
-#   scripts/tag-release.sh --no-verify  # skip `pnpm verify` (the gates already
-#                                       # ran on this exact release commit)
 #
 push=true
-verify=true
 for arg in "$@"; do
   case "$arg" in
     --no-push) push=false ;;
-    --no-verify) verify=false ;;
     *)
-      echo "usage: scripts/tag-release.sh [--no-push] [--no-verify]" >&2
+      echo "usage: scripts/tag-release.sh [--no-push]" >&2
       exit 1
       ;;
   esac
@@ -136,21 +154,23 @@ if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
 fi
 
 if ! $resume; then
-  if $verify; then
-    echo "→ pnpm verify on $(git rev-parse --short HEAD), before the tag exists"
-    if ! pnpm verify; then
-      echo >&2
-      echo "✗ pnpm verify failed on the release commit: NOT tagged, NOT pushed" >&2
-      echo "  Fix it on a branch and land it, or, if the failure is the host and not the" >&2
-      echo "  tree, rerun with --no-verify (CI still runs on the tag)." >&2
-      exit 1
-    fi
-  else
-    echo "→ --no-verify: skipping pnpm verify"
+  echo "→ pnpm verify on $(git rev-parse --short HEAD), before the tag exists"
+  if ! pnpm verify; then
+    echo >&2
+    echo "✗ pnpm verify failed on the release commit: NOT tagged, NOT pushed" >&2
+    echo "  Fix it on a branch and land it, then rerun. If the failure is the host and" >&2
+    echo "  not the tree, rerun on a host that passes: release.yml and desktop.yml" >&2
+    echo "  publish from the tag with no test gate, so this verify is the only one." >&2
+    exit 1
   fi
   git tag "$tag"
   echo "✓ tagged $(git rev-parse --short HEAD) as $tag ($subject)"
 fi
+# What origin should report for the tag: the tag ref's own object. For the
+# lightweight tag this script makes that is HEAD; for an annotated tag made by
+# hand it is the tag object, which ls-remote reports, not the commit.
+tag_obj="$(git rev-parse "refs/tags/$tag")"
+short="$(git rev-parse --short HEAD)"
 
 push_cmd="git push --atomic --no-verify origin main refs/tags/$tag"
 if ! $push; then
@@ -165,31 +185,73 @@ fi
 push_rc=0
 $push_cmd || push_rc=$?
 
-# Ask origin, not git push's exit code. Retried briefly, then judged.
+# Ask origin, not git push's exit code. Retried briefly, then judged. A failed
+# ls-remote is not an answer: its stderr is kept, and the state is unknown.
 remote_main=""
 remote_tag=""
+ls_rc=0
+ls_out=""
 for attempt in 1 2 3; do
-  refs="$(git ls-remote origin refs/heads/main "refs/tags/$tag" 2>/dev/null)" || refs=""
-  remote_main="$(printf '%s\n' "$refs" | awk '$2 == "refs/heads/main" { print $1 }')"
-  remote_tag="$(printf '%s\n' "$refs" | awk -v r="refs/tags/$tag" '$2 == r { print $1 }')"
-  [ "$remote_main" = "$head" ] && [ "$remote_tag" = "$head" ] && break
+  ls_rc=0
+  ls_out="$(git ls-remote origin refs/heads/main "refs/tags/$tag" 2>&1)" || ls_rc=$?
+  if [ "$ls_rc" = 0 ]; then
+    remote_main="$(printf '%s\n' "$ls_out" | awk '$2 == "refs/heads/main" { print $1 }')"
+    remote_tag="$(printf '%s\n' "$ls_out" | awk -v r="refs/tags/$tag" '$2 == r { print $1 }')"
+    [ "$remote_main" = "$head" ] && [ "$remote_tag" = "$tag_obj" ] && break
+  fi
   [ "$attempt" = 3 ] || sleep "${TAG_RELEASE_RECHECK_SECONDS:-2}"
 done
 
-if [ "$remote_main" != "$head" ] || [ "$remote_tag" != "$head" ]; then
+if [ "$ls_rc" != 0 ]; then
   echo >&2
-  echo "✗ NOT RELEASED: origin does not have main and $tag at $(git rev-parse --short HEAD)" >&2
+  echo "✗ NOT CONFIRMED: could not ask origin whether main and $tag landed; state unknown" >&2
+  echo "  git push exited $push_rc; git ls-remote exited $ls_rc, saying:" >&2
+  printf '%s\n' "$ls_out" | sed 's/^/    /' >&2
+  echo "  The tag exists locally at $short. When origin answers again, rerun" >&2
+  echo "  scripts/tag-release.sh: it resumes, and confirms a push that already landed." >&2
+  echo "  Or check by hand:" >&2
+  echo "    git ls-remote origin refs/heads/main refs/tags/$tag" >&2
+  exit 1
+fi
+
+if [ "$remote_main" != "$head" ] || [ "$remote_tag" != "$tag_obj" ]; then
+  echo >&2
+  echo "✗ NOT RELEASED: origin does not have main and $tag at $short" >&2
   echo "  git push exited $push_rc" >&2
   echo "  origin main:     ${remote_main:-missing}" >&2
   echo "  origin $tag: ${remote_tag:-missing}" >&2
-  echo "  expected (HEAD): $head" >&2
-  echo "  The tag exists locally at HEAD. Rerun scripts/tag-release.sh to retry the" >&2
-  echo "  push (it resumes), or by hand:" >&2
-  echo "    $push_cmd" >&2
-  echo "    git ls-remote origin refs/heads/main refs/tags/$tag" >&2
+  echo "  expected main:   $head (HEAD)" >&2
+  if [ "$tag_obj" = "$head" ]; then
+    echo "  expected $tag: $head (HEAD)" >&2
+  else
+    echo "  expected $tag: $tag_obj (an annotated tag on HEAD)" >&2
+  fi
+  moved=false
+  if [ -n "$remote_main" ] && [ "$remote_main" != "$head" ] &&
+    ! git merge-base --is-ancestor "$remote_main" HEAD 2>/dev/null; then
+    moved=true
+  fi
+  if [ -n "$remote_tag" ] && [ "$remote_tag" != "$tag_obj" ]; then
+    moved=true
+  fi
+  if $moved; then
+    echo "  Origin has moved on: its main holds commits this clone does not (or it" >&2
+    echo "  already has a different $tag), so the atomic push was refused as" >&2
+    echo "  non-fast-forward and neither ref landed. The local $tag is on a tree" >&2
+    echo "  without that work; a rerun would only push it again. Delete it:" >&2
+    echo "    git tag -d $tag" >&2
+    echo "  then bring main up to date (git fetch origin; git log --oneline main..origin/main" >&2
+    echo "  shows what is missing), cut the release commit again with" >&2
+    echo "  scripts/merge-branch.sh, and rerun scripts/tag-release.sh." >&2
+  else
+    echo "  The tag exists locally at HEAD. Rerun scripts/tag-release.sh to retry the" >&2
+    echo "  push (it resumes), or by hand:" >&2
+    echo "    $push_cmd" >&2
+    echo "    git ls-remote origin refs/heads/main refs/tags/$tag" >&2
+  fi
   exit 1
 fi
 if [ "$push_rc" != 0 ]; then
   echo "  (git push exited $push_rc, but origin has both refs at HEAD)"
 fi
-echo "✓ pushed main + $tag, origin confirms both at $(git rev-parse --short HEAD): release.yml and desktop.yml are running"
+echo "✓ pushed main + $tag, origin confirms both at $short: release.yml and desktop.yml are running"
