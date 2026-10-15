@@ -26,7 +26,31 @@ export type PendingRow = {
   createdAt: string;
   decidedAt: string | null;
   executedAt: string | null;
+  /** The call runs with more rights than the turn that asked for it (the
+   *  brain's pending_tool_calls.elevated, A5 step 6d): its asker may not
+   *  approve it; the owner, or a login with write rights on its connector,
+   *  may. Absent on a brain that predates it. */
+  elevated?: { elevated: true; reason: string } | null;
+  /** The turn that asked had read text a client wrote: what marked it, so
+   *  an approver can tell a request they made from one a client's text led
+   *  to. Absent on a brain that predates it. */
+  clientSourced?: { via: string } | null;
+  /** The login the call was queued for, its asker. Absent on a brain that
+   *  predates it. */
+  loginId?: string | null;
 };
+
+/** Whether the viewer may approve `row` as far as the screen can tell: not
+ *  an elevated call it asked itself (the brain refuses that, so Approve is
+ *  hidden), unless it is the owner, who may always approve. The brain
+ *  decides every approval; this only hides a button it would refuse. */
+export function mayApprove(
+  row: Pick<PendingRow, 'elevated' | 'loginId'>,
+  viewer: { loginId: string; isOwner: boolean } | undefined,
+): boolean {
+  if (!row.elevated || !viewer || viewer.isOwner || !row.loginId) return true;
+  return row.loginId.toLowerCase() !== viewer.loginId.toLowerCase();
+}
 
 /** The questionnaire contract — types AND caps — comes from
  *  @mantle/client-types, the dependency-free package the SERVER parser and

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ASK_HUMAN_FORM_LIMITS,
   isQuestionRow,
+  mayApprove,
   parseForm,
   questionPreview,
   type PendingRow,
@@ -139,5 +140,31 @@ describe('questionPreview', () => {
     expect(questionPreview(row({}, { toolSlug: 'run_budget' }))).toBe(
       'A run is paused on its budget.',
     );
+  });
+});
+
+describe('mayApprove: Approve is hidden only where the brain refuses it', () => {
+  const ASKER = '11111111-1111-4111-8111-111111111111';
+  const OTHER = '22222222-2222-4222-8222-222222222222';
+  const elevated = { elevated: true as const, reason: 'no write rights' };
+
+  it('an elevated call: hidden for its asker, shown for anyone else and for the owner', () => {
+    expect(mayApprove({ elevated, loginId: ASKER }, { loginId: ASKER, isOwner: false })).toBe(
+      false,
+    );
+    expect(
+      mayApprove({ elevated, loginId: ASKER.toUpperCase() }, { loginId: ASKER, isOwner: false }),
+    ).toBe(false);
+    expect(mayApprove({ elevated, loginId: ASKER }, { loginId: OTHER, isOwner: false })).toBe(true);
+    expect(mayApprove({ elevated, loginId: ASKER }, { loginId: ASKER, isOwner: true })).toBe(true);
+  });
+
+  it('a call that is not elevated, an older brain, or no viewer yet: shown (the brain decides)', () => {
+    expect(mayApprove({ elevated: null, loginId: ASKER }, { loginId: ASKER, isOwner: false })).toBe(
+      true,
+    );
+    expect(mayApprove({}, { loginId: ASKER, isOwner: false })).toBe(true);
+    expect(mayApprove({ elevated, loginId: ASKER }, undefined)).toBe(true);
+    expect(mayApprove({ elevated, loginId: null }, { loginId: ASKER, isOwner: false })).toBe(true);
   });
 });

@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, X, FlaskConical, AlertTriangle } from 'lucide-react';
+import { Check, X, FlaskConical, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { apiFetch, apiSend, ApiError } from '@mantle/web-ui/api-fetch';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Spinner } from '@mantle/web-ui/ui/spinner';
 import { QuestionnaireCard } from '@/components/pending/questionnaire-card';
+import { useViewerLogin } from '@/components/workspaces/use-shell-workspaces';
 import { invalidatePending } from '@/components/pending/use-pending-questions';
 import {
   fmtRelative,
   isQuestionRow,
+  mayApprove,
   type Decide,
   type PendingRow,
 } from '@/components/pending/types';
@@ -179,6 +181,7 @@ export function PendingClient({ devMode = false }: { devMode?: boolean }) {
  * collapsed-args view for ordinary confirm-gated tool calls.
  */
 function PendingCard({ row, decide, busy }: { row: PendingRow; decide: Decide; busy: boolean }) {
+  const viewer = useViewerLogin();
   if (isQuestionRow(row)) {
     return (
       <li>
@@ -214,6 +217,28 @@ function PendingCard({ row, decide, busy }: { row: PendingRow; decide: Decide; b
         )}
       </div>
 
+      {row.elevated && (
+        <p className="flex items-start gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs">
+          <ShieldAlert className="mt-px size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <span>
+            <span className="mr-1.5 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Needs an Admin user
+            </span>
+            {row.elevated.reason}
+          </span>
+        </p>
+      )}
+
+      {row.clientSourced && (
+        <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-warning-ink">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span>
+            <strong className="font-semibold">Asked after reading text a client wrote.</strong>{' '}
+            Check it is a request you made: {row.clientSourced.via}
+          </span>
+        </p>
+      )}
+
       <details className="text-xs">
         <summary className="cursor-pointer select-none font-mono text-muted-foreground hover:text-foreground">
           args ({Object.keys(row.args ?? {}).length} field
@@ -222,15 +247,21 @@ function PendingCard({ row, decide, busy }: { row: PendingRow; decide: Decide; b
         <JsonView value={row.args} label="Args" className="mt-1" collapseDepth={3} />
       </details>
 
-      <div className="flex gap-2">
-        <Button
-          onClick={() => decide(row.id, 'approve')}
-          disabled={busy}
-          size="sm"
-          className="bg-success text-success-foreground hover:bg-success/90"
-        >
-          <Check /> Approve &amp; run
-        </Button>
+      <div className="flex items-center gap-2">
+        {mayApprove(row, viewer) ? (
+          <Button
+            onClick={() => decide(row.id, 'approve')}
+            disabled={busy}
+            size="sm"
+            className="bg-success text-success-foreground hover:bg-success/90"
+          >
+            <Check /> Approve &amp; run
+          </Button>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            You asked for this call, so an Admin user approves it.
+          </span>
+        )}
         <Button
           onClick={() => decide(row.id, 'reject')}
           disabled={busy}
