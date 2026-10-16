@@ -15,6 +15,9 @@ import {
   archiveBlocked,
   addedText,
   canChangeUser,
+  ADMIN_WORKSPACE_MODERATOR_TEXT,
+  moderatorErrorText,
+  moderatorLockedByAdmin,
   nextUserSearchOffset,
   canManageWorkspace,
   canPickAssistant,
@@ -680,5 +683,25 @@ describe('goesToOnboarding (the shell sends only a settings login to the wizard)
     expect(goesToOnboarding({ onboarded: true, areas: ['settings'] })).toBe(false);
     expect(goesToOnboarding(null)).toBe(false);
     expect(goesToOnboarding(undefined)).toBe(false);
+  });
+});
+
+// Task b8eea6cf (brain F4 fix round 1): every Admin user moderates Admin.
+describe('the Admin workspace Moderator lock', () => {
+  it('locks every row on Admin, none elsewhere', () => {
+    expect(moderatorLockedByAdmin({ isAdmin: true })).toBe(true);
+    expect(moderatorLockedByAdmin({ isAdmin: false })).toBe(false);
+  });
+
+  it("says the 409 admin_workspace in plain words, else the brain's own", () => {
+    const locked = new ApiError('Every Admin user is a Moderator of the Admin workspace.', 409, {
+      error: 'Every Admin user is a Moderator of the Admin workspace.',
+      code: 'admin_workspace',
+    });
+    expect(moderatorErrorText(locked)).toContain(ADMIN_WORKSPACE_MODERATOR_TEXT);
+    expect(moderatorErrorText(locked)).not.toMatch(/[\u2013\u2014]/);
+    const last = new ApiError('This is the last Moderator.', 409, { code: 'last_moderator' });
+    expect(moderatorErrorText(last)).toBe('This is the last Moderator.');
+    expect(moderatorErrorText(new Error('x'))).toBe('Could not save.');
   });
 });

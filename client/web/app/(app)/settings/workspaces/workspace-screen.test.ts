@@ -16,6 +16,7 @@ import {
   ADMIN_ADD_TEXT,
   ADMIN_MODERATED_TEXT,
   ADMIN_USER_MODERATOR_TEXT,
+  ADMIN_WORKSPACE_MODERATOR_TEXT,
   BUILT_IN_NAME_HINT,
   HAS_HISTORY_TEXT,
   MODERATOR_TICK_ADMIN_ONLY_TEXT,
@@ -438,6 +439,59 @@ describe('WorkspaceSections, the Admin workspace', () => {
       options,
     );
     expect(html).toContain(ADMIN_ADD_TEXT);
+  });
+
+  // Task b8eea6cf: every Admin user moderates Admin, always (brain F4).
+  const admin = detail(
+    { id: 'w-admin', name: 'Admin', isAdmin: true, adminModerated: false },
+    {
+      users: detail().users.map((u) => ({ ...u, adminViaArea: false })),
+    },
+  );
+  const adminHtml = render(
+    createElement(WorkspaceSections, { detail: admin, manage: true, areas: ADMIN_AREAS }),
+    options,
+  );
+
+  it('every row: the switch on and off-limits, labelled Admin, with why', () => {
+    const rows = adminHtml.split('data-testid="workspace-user"').slice(1);
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      // On, even for a user whose tick the brain had not set yet.
+      expect(row).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="true"/);
+      expect(row).toMatch(/<button[^>]*disabled=""[^>]*id="workspace-moderator-/);
+      expect(row).toMatch(/aria-label="Admin: [^"]+"/);
+      expect(row).not.toContain('aria-label="Moderator: ');
+      expect(row).toContain('>Admin</span>');
+      expect(row).toContain(`title="${ADMIN_WORKSPACE_MODERATOR_TEXT}"`);
+      expect(row).toContain(`class="sr-only">${ADMIN_WORKSPACE_MODERATOR_TEXT}</span>`);
+    }
+  });
+
+  it('Remove stays as it was (leaving Admin is the change to a member login)', () => {
+    expect(adminHtml).toContain('aria-label="Remove Ann Lee"');
+    expect(adminHtml).toContain('aria-label="Remove bo@x.test"');
+  });
+
+  it('the add says Moderator, ticked and fixed', () => {
+    const box = adminHtml.match(/<button[^>]*data-testid="workspace-add-moderator"[^>]*>/)?.[0];
+    expect(box).toBeDefined();
+    expect(box).toContain('aria-checked="true"');
+    expect(box).toContain('disabled=""');
+    expect(adminHtml).toContain(
+      `id="workspace-add-moderator-why" class="sr-only">${ADMIN_WORKSPACE_MODERATOR_TEXT}`,
+    );
+  });
+
+  it('other workspaces are unchanged: no Admin label, no fixed add tick', () => {
+    const team = render(
+      createElement(WorkspaceSections, { detail: detail(), manage: true, areas: ADMIN_AREAS }),
+      options,
+    );
+    expect(team).not.toContain('aria-label="Admin: ');
+    expect(team).not.toContain('workspace-add-moderator');
+    expect(team).not.toContain(ADMIN_WORKSPACE_MODERATOR_TEXT);
+    expect(team).toContain('aria-label="Moderator: Ann Lee"');
   });
 });
 

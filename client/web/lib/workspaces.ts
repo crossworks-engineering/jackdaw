@@ -335,6 +335,32 @@ export function canChangeUser(user: Pick<WorkspaceUser, 'adminViaArea'>): boolea
   return !user.adminViaArea;
 }
 
+/**
+ * Every Admin user moderates the Admin workspace, always (brain F4 fix
+ * round 1, migration 0298; task b8eea6cf): the brain refuses to clear the
+ * tick there (409 admin_workspace), and an add to Admin is one with the
+ * tick. Every user of Admin is an Admin user (W5a), so on Admin each row's
+ * switch is on and fixed, labelled Admin; Remove is unchanged (leaving
+ * Admin is the change to a member login). Other workspaces: false.
+ */
+export function moderatorLockedByAdmin(ws: Pick<Workspace, 'isAdmin'>): boolean {
+  return ws.isAdmin;
+}
+
+/** Why the Moderator switch is fixed on the Admin workspace. */
+export const ADMIN_WORKSPACE_MODERATOR_TEXT = 'Admin users always moderate the Admin workspace.';
+
+/** What a Moderator change or an add says when it fails: the brain's 409
+ *  admin_workspace in plain words (the same code also refuses archiving
+ *  Admin, so it is mapped here, where only the tick can cause it), else
+ *  the brain's own words. */
+export function moderatorErrorText(err: unknown, fallback = 'Could not save.'): string {
+  if (workspaceErrorCode(err) === 'admin_workspace') {
+    return `${ADMIN_WORKSPACE_MODERATOR_TEXT} To take it away, remove them from the Admin workspace.`;
+  }
+  return workspaceErrorText(err, fallback);
+}
+
 /** "Added by NAME on DATE" (plan S1: every add shows on the screen), or
  *  null when the brain sends no date. */
 export function addedText(

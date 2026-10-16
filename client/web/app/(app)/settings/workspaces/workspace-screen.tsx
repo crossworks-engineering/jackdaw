@@ -18,6 +18,7 @@ import {
 import { Badge } from '@mantle/web-ui/ui/badge';
 import { Button } from '@mantle/web-ui/ui/button';
 import { Switch } from '@mantle/web-ui/ui/switch';
+import { Checkbox } from '@mantle/web-ui/ui/checkbox';
 import { cn } from '@mantle/web-ui/lib/utils';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@mantle/web-ui/ui/field';
 import { FieldHint, hintId } from '@mantle/web-ui/ui/field-hint';
@@ -55,6 +56,7 @@ import {
   archiveBlocked,
   archiveConfirmText,
   canArchiveWorkspace,
+  ADMIN_WORKSPACE_MODERATOR_TEXT,
   canChangeUser,
   canManageWorkspace,
   canPickAssistant,
@@ -67,6 +69,8 @@ import {
   userSearchPaged,
   canSetContact,
   canTickModerator,
+  moderatorErrorText,
+  moderatorLockedByAdmin,
   MODERATOR_TICK_ADMIN_ONLY_TEXT,
   showsMemberSettings,
   removeUserText,
@@ -518,6 +522,7 @@ function UsersSection({
                 user={u}
                 manage={manage}
                 changeable={manage && canChangeUser(u)}
+                adminLocked={moderatorLockedByAdmin(ws)}
                 tickBlocked={canTickModerator(areas) ? null : MODERATOR_TICK_ADMIN_ONLY_TEXT}
                 removeBlocked={removeBlockedReason(ws, u, viewer, areas)}
                 onRemove={() => setRemoving(u)}
@@ -545,6 +550,7 @@ function UserRow({
   user: u,
   manage,
   changeable,
+  adminLocked,
   tickBlocked,
   removeBlocked,
   onRemove,
@@ -555,6 +561,9 @@ function UserRow({
   /** Its tick and Remove: never on an Admin user kept in Team (a brain
    *  before migration 0286). */
   changeable: boolean;
+  /** On the Admin workspace: the switch is on and fixed, labelled Admin
+   *  (every Admin user moderates it, task b8eea6cf). */
+  adminLocked: boolean;
   /** Why the Moderator switch is off (only an Admin user turns it), or null:
    *  it may be used. */
   tickBlocked: string | null;
@@ -568,16 +577,23 @@ function UserRow({
   const label = userLabel(u);
   const added = addedText(u);
   const tickId = `workspace-moderator-${u.loginId}`;
-  // Why the switch is off: an Admin user is a Moderator by being one (its
-  // switch never changes), else only an Admin user turns it.
-  const tickWhy = changeable ? tickBlocked : ADMIN_USER_MODERATOR_TEXT;
+  // Why the switch is off: on Admin every Admin user moderates it; an Admin
+  // user kept in Team is a Moderator by being one (its switch never
+  // changes); else only an Admin user turns it.
+  const tickWhy = adminLocked
+    ? ADMIN_WORKSPACE_MODERATOR_TEXT
+    : changeable
+      ? tickBlocked
+      : ADMIN_USER_MODERATOR_TEXT;
+  const moderates = adminLocked || u.moderator || u.adminViaArea;
+  const tickName = adminLocked ? 'Admin' : 'Moderator';
 
   const setModerator = async (moderator: boolean) => {
     setPending(true);
     try {
       await actions.setModerator(workspaceId, u.loginId, moderator);
     } catch (err) {
-      toast.error(workspaceErrorText(err));
+      toast.error(moderatorErrorText(err));
     } finally {
       setPending(false);
     }
@@ -603,24 +619,32 @@ function UserRow({
         // row (task 19790beb). Off for anyone but an Admin user, with why as
         // its tooltip (on the cell: a disabled switch takes no pointer) and
         // its description.
-        <span className="flex justify-center" title={tickWhy ?? `Moderator: ${label}`}>
+        <span
+          className="flex items-center justify-center gap-1.5"
+          title={tickWhy ?? `Moderator: ${label}`}
+        >
           <Switch
             id={tickId}
-            checked={u.moderator || u.adminViaArea}
+            checked={moderates}
             disabled={pending || tickWhy !== null}
-            aria-label={`Moderator: ${label}`}
+            aria-label={`${tickName}: ${label}`}
             aria-describedby={tickWhy ? `${tickId}-why` : undefined}
             onCheckedChange={(v) => void setModerator(v)}
           />
+          {adminLocked ? (
+            <span aria-hidden className="text-xs text-muted-foreground">
+              Admin
+            </span>
+          ) : null}
           {tickWhy ? (
             <span id={`${tickId}-why`} className="sr-only">
               {tickWhy}
             </span>
           ) : null}
         </span>
-      ) : u.moderator || u.adminViaArea ? (
+      ) : moderates ? (
         <Badge variant="outline" className="shrink-0">
-          Moderator
+          {tickName}
         </Badge>
       ) : null}
       {manage ? (
@@ -666,14 +690,17 @@ function AddUser({
   const hits = addableHits(search.hits ?? [], detail.users);
   const ready = opened && userSearchReady(q, min);
 
+  // On Admin an add is always one with the Moderator tick (task b8eea6cf):
+  // said by a ticked, fixed box, and sent so no brain default decides it.
+  const adminLocked = moderatorLockedByAdmin(detail.workspace);
   const add = async (loginId: string, name: string) => {
     setAdding(loginId);
     try {
-      await actions.addUser(detail.workspace.id, loginId);
+      await actions.addUser(detail.workspace.id, loginId, adminLocked ? true : undefined);
       toast.success(`${name} added`);
       setQ('');
     } catch (err) {
-      toast.error(workspaceErrorText(err));
+      toast.error(moderatorErrorText(err));
     } finally {
       setAdding(null);
     }
@@ -700,6 +727,23 @@ function AddUser({
           ? ADMIN_ADD_TEXT
           : 'A new user reads every item shared with this workspace.'}
       </FieldHint>
+      {adminLocked ? (
+        <label
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+          title={ADMIN_WORKSPACE_MODERATOR_TEXT}
+        >
+          <Checkbox
+            checked
+            disabled
+            aria-describedby="workspace-add-moderator-why"
+            data-testid="workspace-add-moderator"
+          />
+          <span>Moderator</span>
+          <span id="workspace-add-moderator-why" className="sr-only">
+            {ADMIN_WORKSPACE_MODERATOR_TEXT}
+          </span>
+        </label>
+      ) : null}
       {ready && search.isError ? (
         <p className="text-sm text-muted-foreground">
           {workspaceErrorText(search.error, 'Search failed.')}
