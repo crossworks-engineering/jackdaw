@@ -118,8 +118,9 @@ test.describe('settings → agents', () => {
 
   test('a rule on a hidden tab pulls its tab forward', async ({ ownerApi, ownerPage }) => {
     // The whole reason the browser could not do this job: the system prompt
-    // lives on the Behaviour tab, and a `display:none` control can neither take
-    // focus nor show a bubble — the old submit simply looked inert.
+    // lives on the General tab, so submitting from any other tab leaves it
+    // `display:none`, and a hidden control can neither take focus nor show a
+    // bubble — the old submit simply looked inert.
     //
     // Reaching it needs a saved key, and the scratch brain has none, so seed one
     // (a fake string; nothing calls it) and take it away again afterwards.
@@ -134,21 +135,18 @@ test.describe('settings → agents', () => {
       await panelsReady(ownerPage);
       await ownerPage.getByRole('button', { name: /^New$/ }).click();
       await ownerPage.locator('#name').fill('Telegram responder');
+      await ownerPage.locator('#systemPrompt').fill('');
 
       await ownerPage.getByRole('tab', { name: 'Model & routing' }).click();
       await ownerPage.locator('#apiKey').click();
       await ownerPage.getByRole('option', { name: /e2e-agents/ }).click();
       await expect(ownerPage.locator('#apiKey')).toContainText('e2e-agents');
-
-      await ownerPage.getByRole('tab', { name: 'Behaviour' }).click();
-      await ownerPage.locator('#systemPrompt').fill('');
-      await ownerPage.getByRole('tab', { name: 'General' }).click();
-      await expect(ownerPage.locator('#name')).toBeVisible();
+      await expect(ownerPage.locator('#systemPrompt')).toBeHidden();
 
       await ownerPage.getByRole('button', { name: /Create agent/i }).click();
 
-      // Back on Behaviour, with the message on the control.
-      await expect(ownerPage.getByRole('tab', { name: 'Behaviour' })).toHaveAttribute(
+      // Back on General, with the message on the control.
+      await expect(ownerPage.getByRole('tab', { name: 'General' })).toHaveAttribute(
         'aria-selected',
         'true',
       );

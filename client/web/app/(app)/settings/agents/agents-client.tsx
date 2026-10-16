@@ -113,7 +113,7 @@ const AGENT_ERROR_ORDER: { field: keyof AgentErrors; section: AgentSection }[] =
   // `display:none`, and a hidden control neither takes focus nor shows a bubble.
   { field: 'apiKey', section: 'model' },
   { field: 'model', section: 'model' },
-  { field: 'systemPrompt', section: 'behaviour' },
+  { field: 'systemPrompt', section: 'general' },
   { field: 'corpusMapChars', section: 'memory' },
 ];
 
@@ -735,7 +735,9 @@ export function AgentsClient() {
                       <TabsList className="h-auto flex-wrap justify-start">
                         <TabsTrigger value="general">General</TabsTrigger>
                         <TabsTrigger value="model">Model & routing</TabsTrigger>
-                        <TabsTrigger value="behaviour">Behaviour</TabsTrigger>
+                        <TabsTrigger value="tools">Tool groups</TabsTrigger>
+                        <TabsTrigger value="skills">Skills</TabsTrigger>
+                        <TabsTrigger value="delegation">Delegation</TabsTrigger>
                         <TabsTrigger value="memory">Memory</TabsTrigger>
                       </TabsList>
                       {/* noValidate: see submitForm — the browser can't focus an
@@ -930,6 +932,30 @@ export function AgentsClient() {
                               </p>
                             </fieldset>
                           )}
+
+                          <Field data-invalid={!!errors.systemPrompt || undefined}>
+                            <FieldLabel htmlFor="systemPrompt">System prompt</FieldLabel>
+                            <Textarea
+                              id="systemPrompt"
+                              value={form.systemPrompt}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, systemPrompt: e.target.value }))
+                              }
+                              rows={6}
+                              required
+                              className="font-mono"
+                              aria-invalid={!!errors.systemPrompt || undefined}
+                              aria-describedby={
+                                errors.systemPrompt ? 'systemPrompt-error' : undefined
+                              }
+                            />
+                            <FieldError id="systemPrompt-error">{errors.systemPrompt}</FieldError>
+                            <p className="text-xs text-muted-foreground">
+                              For <code>anthropic/*</code> models this block is sent with{' '}
+                              <code>cache_control</code>, so the prefix is reused turn-to-turn and
+                              the provider only re-processes the new user message.
+                            </p>
+                          </Field>
                         </TabsContent>
 
                         <TabsContent
@@ -1321,46 +1347,10 @@ export function AgentsClient() {
 
                         <TabsContent
                           forceMount
-                          value="memory"
-                          data-agent-section="memory"
+                          value="tools"
+                          data-agent-section="tools"
                           className="mt-0 space-y-4 data-[state=inactive]:hidden"
                         >
-                          <MemorySection form={form} setForm={setForm} errors={errors} />
-                          {editing.mode === 'edit' && (
-                            <LearnedInJournal slug={editing.agent.slug} />
-                          )}
-                        </TabsContent>
-
-                        <TabsContent
-                          forceMount
-                          value="behaviour"
-                          data-agent-section="behaviour"
-                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                        >
-                          <Field data-invalid={!!errors.systemPrompt || undefined}>
-                            <FieldLabel htmlFor="systemPrompt">System prompt</FieldLabel>
-                            <Textarea
-                              id="systemPrompt"
-                              value={form.systemPrompt}
-                              onChange={(e) =>
-                                setForm((f) => ({ ...f, systemPrompt: e.target.value }))
-                              }
-                              rows={6}
-                              required
-                              className="font-mono"
-                              aria-invalid={!!errors.systemPrompt || undefined}
-                              aria-describedby={
-                                errors.systemPrompt ? 'systemPrompt-error' : undefined
-                              }
-                            />
-                            <FieldError id="systemPrompt-error">{errors.systemPrompt}</FieldError>
-                            <p className="text-xs text-muted-foreground">
-                              For <code>anthropic/*</code> models this block is sent with{' '}
-                              <code>cache_control</code>, so the prefix is reused turn-to-turn and
-                              the provider only re-processes the new user message.
-                            </p>
-                          </Field>
-
                           <fieldset className="space-y-3 rounded-md border border-border p-3">
                             <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                               Tool groups
@@ -1406,65 +1396,6 @@ export function AgentsClient() {
                                 </p>
                               )}
                             </div>
-                          </fieldset>
-
-                          <fieldset className="space-y-3 rounded-md border border-border p-3">
-                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              Skills
-                            </legend>
-                            {availableSkills.length === 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                No skills yet. Author one at{' '}
-                                <a href="/settings/skills" className="underline">
-                                  /settings/skills
-                                </a>
-                                .
-                              </p>
-                            ) : (
-                              <SkillPicker
-                                available={availableSkills}
-                                selected={form.skillSlugs}
-                                onChange={(next) => setForm((f) => ({ ...f, skillSlugs: next }))}
-                              />
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              Each attached skill appends its instructions to the agent&apos;s
-                              system prompt (always-loaded). Skills are pure teaching — capability
-                              comes from tool groups + direct grants above.
-                            </p>
-                          </fieldset>
-
-                          <fieldset className="space-y-3 rounded-md border border-border p-3">
-                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              Delegates to
-                            </legend>
-                            {agents.filter((a) => a.slug !== form.slug).length === 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                No other agents to delegate to. Create another agent (e.g. a
-                                research or recall agent) first.
-                              </p>
-                            ) : (
-                              <DelegatePicker
-                                available={agents
-                                  .filter((a) => a.slug !== form.slug)
-                                  .map((a) => ({ slug: a.slug, name: a.name, enabled: a.enabled }))}
-                                selected={form.delegateTo}
-                                onChange={(next) => setForm((f) => ({ ...f, delegateTo: next }))}
-                              />
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              Agents this one may hand a sub-task to via the{' '}
-                              <code>invoke_agent</code> tool. Empty = delegation disabled (the
-                              runtime fails closed).
-                              {form.delegateTo.length > 0 &&
-                                !effectiveTools.includes('invoke_agent') && (
-                                  <span className="mt-1 block text-warning-ink">
-                                    Grant the <code>delegation</code> group (or{' '}
-                                    <code>invoke_agent</code> directly), or these delegates
-                                    can&apos;t actually be reached.
-                                  </span>
-                                )}
-                            </p>
                           </fieldset>
 
                           <fieldset className="space-y-3 rounded-md border border-border p-3">
@@ -1543,6 +1474,91 @@ export function AgentsClient() {
                               <code>TOOL_RESULT_TTL_DAYS</code> env vars.
                             </p>
                           </fieldset>
+                        </TabsContent>
+
+                        <TabsContent
+                          forceMount
+                          value="skills"
+                          data-agent-section="skills"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Skills
+                            </legend>
+                            {availableSkills.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No skills yet. Author one at{' '}
+                                <a href="/settings/skills" className="underline">
+                                  /settings/skills
+                                </a>
+                                .
+                              </p>
+                            ) : (
+                              <SkillPicker
+                                available={availableSkills}
+                                selected={form.skillSlugs}
+                                onChange={(next) => setForm((f) => ({ ...f, skillSlugs: next }))}
+                              />
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Each attached skill appends its instructions to the agent&apos;s
+                              system prompt (always-loaded). Skills are pure teaching: capability
+                              comes from the Tool groups tab.
+                            </p>
+                          </fieldset>
+                        </TabsContent>
+
+                        <TabsContent
+                          forceMount
+                          value="delegation"
+                          data-agent-section="delegation"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          <fieldset className="space-y-3 rounded-md border border-border p-3">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Delegates to
+                            </legend>
+                            {agents.filter((a) => a.slug !== form.slug).length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No other agents to delegate to. Create another agent (e.g. a
+                                research or recall agent) first.
+                              </p>
+                            ) : (
+                              <DelegatePicker
+                                available={agents
+                                  .filter((a) => a.slug !== form.slug)
+                                  .map((a) => ({ slug: a.slug, name: a.name, enabled: a.enabled }))}
+                                selected={form.delegateTo}
+                                onChange={(next) => setForm((f) => ({ ...f, delegateTo: next }))}
+                              />
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Agents this one may hand a sub-task to via the{' '}
+                              <code>invoke_agent</code> tool. Empty = delegation disabled (the
+                              runtime fails closed).
+                              {form.delegateTo.length > 0 &&
+                                !effectiveTools.includes('invoke_agent') && (
+                                  <span className="mt-1 block text-warning-ink">
+                                    Grant the <code>delegation</code> group (or{' '}
+                                    <code>invoke_agent</code> directly), or these delegates
+                                    can&apos;t actually be reached.
+                                  </span>
+                                )}
+                            </p>
+                          </fieldset>
+                        </TabsContent>
+
+                        <TabsContent
+                          forceMount
+                          value="memory"
+                          data-agent-section="memory"
+                          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+                        >
+                          <MemorySection form={form} setForm={setForm} errors={errors} />
+                          {editing.mode === 'edit' && (
+                            <LearnedInJournal slug={editing.agent.slug} />
+                          )}
                         </TabsContent>
 
                         <div className="flex justify-end gap-2 border-t border-border pt-3">
